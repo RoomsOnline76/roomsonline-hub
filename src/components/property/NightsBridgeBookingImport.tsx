@@ -93,6 +93,17 @@ interface ImportRun {
 }
 
 
+/** One booking still without a unit. */
+interface UnmappedBookingRow {
+  id: string;
+  room_name: string | null;
+  status: string;
+  source: string;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+}
+
 /** Result of the post-import repair pass over bookings that never matched a unit. */
 interface RepairResponse {
   ok: boolean;
@@ -100,12 +111,21 @@ interface RepairResponse {
   mode: "repair";
   dry_run: boolean;
   repaired: number;
+  auto_assigned?: number;
+  unresolved?: number;
   unmapped_total: number;
+  /** Current/future stays without a unit — these owe the channel nights. */
+  blocking_total: number;
+  /** Past stays without a unit — reporting only, never pushed. */
+  historical_total: number;
   unnamed: number;
-  groups: { key: string; room_name: string; count: number }[];
+  groups: { key: string; room_name: string; count: number; future?: number }[];
+  blocking_bookings?: UnmappedBookingRow[];
+  historical_bookings?: UnmappedBookingRow[];
   suspect_dates: { id: string; check_in_date: string; check_out_date: string; nights: number }[];
   rooms: { id: string; label: string }[];
 }
+
 
 /** Result of the retired-room cleanup: bookings moved off inventory that no longer trades. */
 interface SupersededResponse {
@@ -174,6 +194,10 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [supersededBusy, setSupersededBusy] = useState(false);
 
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
+  /** Manual per-booking room picks in the unmapped list. */
+  const [bookingPicks, setBookingPicks] = useState<Record<string, string>>({});
+  const [showHistorical, setShowHistorical] = useState(false);
+
   /** Persistent outcome of the last live import — stays until dismissed. */
   const [outcome, setOutcome] = useState<
     | { kind: "saved"; created: number; updated: number; skipped: number; excluded: number; errors: number; future: number }
@@ -264,6 +288,62 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
       setRepairBusy(false);
     }
   }, [propertyId, repairOverrides, refreshRepair]);
+
+  /**
+   * Auto-assign pass: canonical name match first, then any current room that is free for the
+   * whole stay. Historical rows are tidied for reporting; future rows also re-queue the channel.
+   */
+  const autoAssign = useCallback(async () => {
+    setRepairBusy(true);
+    try {
+      const chosen = Object.fromEntries(Object.entries(repairOverrides).filter(([, v]) => Boolean(v)));
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: false, auto_assign: true, room_overrides: chosen },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Auto-assign failed");
+      toast.success(
+        `Assigned ${data.repaired} booking${data.repaired === 1 ? "" : "s"}` +
+          (data.unresolved ? ` — ${data.unresolved} still need a room` : ""),
+      );
+      setRepairOverrides({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Auto-assign failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId, repairOverrides, refreshRepair]);
+
+  /** Apply the per-booking room picks made in the unmapped list. */
+  const applyBookingPicks = useCallback(async () => {
+    const assignments = Object.entries(bookingPicks)
+      .filter(([, roomId]) => Boolean(roomId))
+      .map(([booking_id, room_id]) => ({ booking_id, room_id }));
+    if (assignments.length === 0) {
+      toast.error("Pick a room for at least one booking");
+      return;
+    }
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<{ ok: boolean; error?: string; assigned: number; rejected: { booking_id: string; reason: string }[] }>(
+        "nb-import-bookings",
+        { body: { property_id: propertyId, mode: "assign_unmapped", assignments } },
+      );
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Assignment failed");
+      toast.success(`Assigned ${data.assigned} booking${data.assigned === 1 ? "" : "s"}`);
+      if (data.rejected?.length) toast.error(data.rejected[0].reason);
+      setBookingPicks({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Assignment failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [bookingPicks, propertyId, refreshRepair]);
+
+
 
   /* ------------------------------------------------- retired room cleanup ---
    * Earlier imports attached bookings to room types that have since been replaced.
@@ -897,24 +977,25 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
         <div className="rounded-lg border border-border p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p className="text-sm font-medium">Fix unmapped rooms</p>
+              <p className="text-sm font-medium">Bookings without a room</p>
               <p className="text-xs text-muted-foreground">
-                Imported bookings that never matched a unit are missing from the room plan and per-unit
-                metrics. Map them here — no re-upload needed.
+                Bookings with no unit are missing from the room plan and per-unit metrics, and future ones
+                never close a night at the channel. Map them here — no re-upload needed.
               </p>
             </div>
             <Button variant="outline" size="sm" onClick={() => void refreshRepair()} disabled={repairBusy}>
               {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-              {repair ? "Re-check" : "Check imported bookings"}
+              {repair ? "Re-check" : "Check bookings"}
             </Button>
           </div>
 
           {repair && (
             <div className="mt-3 space-y-3">
               <div className="flex flex-wrap gap-2 text-xs">
-                <Badge variant={repair.unmapped_total > 0 ? "destructive" : "secondary"}>
-                  {repair.unmapped_total} without a unit
+                <Badge variant={repair.blocking_total > 0 ? "destructive" : "secondary"}>
+                  {repair.blocking_total} future unmapped (blocking)
                 </Badge>
+                <Badge variant="outline">{repair.historical_total} historical unmapped (informational)</Badge>
                 {repair.unnamed > 0 && (
                   <Badge variant="outline">{repair.unnamed} with no room name on record</Badge>
                 )}
@@ -923,45 +1004,122 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                 )}
               </div>
 
-              {repair.groups.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {repair.unmapped_total === 0
-                    ? "Every imported booking is mapped to a unit."
-                    : "No recoverable room names — these bookings need to be re-imported."}
-                </p>
+              {repair.unmapped_total === 0 ? (
+                <p className="text-xs text-muted-foreground">Every booking is mapped to a unit.</p>
               ) : (
                 <>
-                  <div className="space-y-2">
-                    {repair.groups.map((group) => (
-                      <div key={group.key} className="flex flex-wrap items-center gap-2">
-                        <span className="min-w-[160px] text-xs font-medium">{group.room_name}</span>
-                        <Badge variant="outline" className="text-[10px]">{group.count} bookings</Badge>
-                        <Select
-                          value={repairOverrides[group.room_name] ?? ""}
-                          onValueChange={(value) =>
-                            setRepairOverrides((prev) => ({ ...prev, [group.room_name]: value }))
-                          }
-                        >
-                          <SelectTrigger className="h-8 w-[220px] text-xs">
-                            <SelectValue placeholder="Map to unit…" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {repair.rooms.map((room) => (
-                              <SelectItem key={room.id} value={room.id}>
-                                {room.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                  {repair.groups.length > 0 && (
+                    <>
+                      <div className="space-y-2">
+                        {repair.groups.map((group) => (
+                          <div key={group.key} className="flex flex-wrap items-center gap-2">
+                            <span className="min-w-[160px] text-xs font-medium">{group.room_name}</span>
+                            <Badge variant="outline" className="text-[10px]">{group.count} bookings</Badge>
+                            {(group.future ?? 0) > 0 && (
+                              <Badge variant="destructive" className="text-[10px]">{group.future} future</Badge>
+                            )}
+                            <Select
+                              value={repairOverrides[group.room_name] ?? ""}
+                              onValueChange={(value) =>
+                                setRepairOverrides((prev) => ({ ...prev, [group.room_name]: value }))
+                              }
+                            >
+                              <SelectTrigger className="h-8 w-[220px] text-xs">
+                                <SelectValue placeholder="Map to unit…" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {repair.rooms.map((room) => (
+                                  <SelectItem key={room.id} value={room.id}>
+                                    {room.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  <Button size="sm" onClick={() => void applyRepair()} disabled={repairBusy}>
-                    {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
-                    Apply mapping
-                  </Button>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" onClick={() => void applyRepair()} disabled={repairBusy}>
+                          {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+                          Apply mapping
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => void autoAssign()} disabled={repairBusy}>
+                          Auto-assign the rest
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Per-booking manual assignment */}
+                  {[
+                    { label: "Future stays — blocking", rows: repair.blocking_bookings ?? [], open: true },
+                    {
+                      label: `Historical stays — informational (${repair.historical_total})`,
+                      rows: showHistorical ? repair.historical_bookings ?? [] : [],
+                      open: showHistorical,
+                    },
+                  ].map((section) => (
+                    <div key={section.label} className="rounded-md border border-border p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium">{section.label}</p>
+                        {section.label.startsWith("Historical") && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-[11px]"
+                            onClick={() => setShowHistorical((v) => !v)}
+                          >
+                            {showHistorical ? "Hide" : "Show"}
+                          </Button>
+                        )}
+                      </div>
+                      {section.rows.length === 0 ? (
+                        section.open ? (
+                          <p className="mt-1 text-[11px] text-muted-foreground">Nothing outstanding here.</p>
+                        ) : null
+                      ) : (
+                        <div className="mt-2 space-y-1.5">
+                          {section.rows.slice(0, 40).map((row) => (
+                            <div key={row.id} className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] text-muted-foreground">
+                                {row.check_in_date} → {row.check_out_date} · {row.nights}n · {row.room_name || "no room name"} · {row.source}
+                              </span>
+                              <Select
+                                value={bookingPicks[row.id] ?? ""}
+                                onValueChange={(value) => setBookingPicks((prev) => ({ ...prev, [row.id]: value }))}
+                              >
+                                <SelectTrigger className="h-7 w-[200px] text-[11px]">
+                                  <SelectValue placeholder="Assign room…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {repair.rooms.map((room) => (
+                                    <SelectItem key={room.id} value={room.id}>
+                                      {room.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))}
+                          {section.rows.length > 40 && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Showing the first 40 of {section.rows.length}.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {Object.values(bookingPicks).some(Boolean) && (
+                    <Button size="sm" onClick={() => void applyBookingPicks()} disabled={repairBusy}>
+                      {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+                      Save room assignments
+                    </Button>
+                  )}
                 </>
               )}
+
 
               {repair.suspect_dates.length > 0 && (
                 <div className="rounded-md border border-border p-2">
