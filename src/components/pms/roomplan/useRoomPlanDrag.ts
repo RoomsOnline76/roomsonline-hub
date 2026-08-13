@@ -77,6 +77,8 @@ export function useRoomPlanDrag({
   validateMove,
   onCreateCommit,
   onMoveCommit,
+  onMoveRejected,
+
 }: UseRoomPlanDragOptions) {
   const [drag, setDrag] = useState<RoomPlanDrag>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
