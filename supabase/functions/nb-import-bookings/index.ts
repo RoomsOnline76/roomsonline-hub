@@ -128,8 +128,8 @@ async function repairUnmappedBookings(
   overrides: Record<string, string>,
   dryRun: boolean,
 ) {
-  const [{ data: roomRows }, { data: bookingRows }] = await Promise.all([
-    sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
+  const [registry, { data: bookingRows }] = await Promise.all([
+    loadCanonicalRooms(sb, propertyId),
     sb
       .from("bookings")
       .select("id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id")
@@ -138,8 +138,17 @@ async function repairUnmappedBookings(
       .is("rolos_room_ids", null),
   ]);
 
-  const rooms = (roomRows ?? []) as { id: string; room_number: string | null; room_name: string | null; room_type_id: string | null }[];
+  // Only canonical rooms may be offered or accepted — retired twins are invisible here.
+  const rooms = [...registry.byKey.values()]
+    .filter((c) => c.roomId)
+    .map((c) => ({
+      id: c.roomId as string,
+      room_name: c.roomLabel,
+      room_number: null as string | null,
+      room_type_id: c.roomTypeId,
+    }));
   const byId = new Map(rooms.map((r) => [r.id, r]));
+
 
   interface Group {
     room_name: string;
