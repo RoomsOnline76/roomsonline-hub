@@ -46,7 +46,7 @@ interface Guest {
 }
 
 type Segment = "all" | "repeat" | "vip" | "owing" | "never_paid" | "blacklisted" | "no_contact" | "archived";
-type SortKey = "recent" | "name" | "stays" | "spent";
+type SortKey = "recent" | "name" | "stays" | "spent" | "owing";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
