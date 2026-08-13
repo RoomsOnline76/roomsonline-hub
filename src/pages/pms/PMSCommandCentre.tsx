@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
 import { OverbookingAlertCard } from "@/components/pms/OverbookingAlertCard";
 import { ChannelRequestBacklogCard } from "@/components/pms/ChannelRequestBacklogCard";
+import { BackgroundWorkCard } from "@/components/pms/BackgroundWorkCard";
 import { usePortfolioOverbookings } from "@/hooks/usePortfolioOverbookings";
 import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
 
