@@ -2535,8 +2535,9 @@ Deno.serve(async (req) => {
         return errorResponse('VALIDATION', 'Property must include a resolvable detailed_location_id (>1). Got: ' + p.detailed_location_id);
       }
 
-      const xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
-      const compactRequestXml = compactXml(xml);
+      let xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
+      let compactRequestXml = compactXml(xml);
+
       console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}, dry_run: ${body.dry_run === true}`);
 
       // ── Dry-run short-circuit: compose XML, validate, do NOT POST to RU ──
@@ -2561,15 +2562,38 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[rentalsunited-api] XML first 300 chars: ${previewXml(sanitizeXmlForLogs(compactRequestXml), 300)}`);
-      const response = await callRentalsUnited(scopedCreds, xml);
+      let response = await callRentalsUnited(scopedCreds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+
+      /**
+       * Gate #10 fallback — attraction distances are a nice-to-have and must never cost us the
+       * content push. RU answers status 92 "Duplicate value in distances." for some listings even
+       * when every entry we send is unique (distinct DestinationID and distinct value), so the
+       * rule lives on their side. When that happens, re-send the identical payload once with the
+       * <Distances> block removed and report the unit as pushed with a soft note.
+       */
+      let distancesSkipped = 0;
+      if (!ok && Array.isArray(p.distances) && p.distances.length > 0 && /distance/i.test(String(status.message ?? ''))) {
+        distancesSkipped = p.distances.length;
+        console.warn(`[rentalsunited-api] RU rejected distances (${status.id}: ${status.message}) — retrying without the <Distances> block`);
+        const retryPayload = { ...p, distances: [] };
+        xml = buildPushPropertyXml(scopedCreds, ru_property_id, retryPayload);
+        compactRequestXml = compactXml(xml);
+        response = await callRentalsUnited(scopedCreds, xml);
+        const retryStatus = handleRUStatus(response);
+        ok = retryStatus.ok;
+        status = retryStatus.status;
+        if (!ok) distancesSkipped = 0;
+      }
+
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
         console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
         return ruErrorResponse(status, diag);
       }
+
 
       // Extract returned PropertyID from RU response (e.g. <PropertyID>12345</PropertyID>)
       const pidMatch = response.match(/<PropertyID[^>]*>(\d+)<\/PropertyID>/i);
@@ -2602,10 +2626,15 @@ Deno.serve(async (req) => {
 
       return jsonResponse({
         success: true,
-        message: 'Property pushed successfully',
+        message: distancesSkipped > 0
+          ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
+          : 'Property pushed successfully',
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         building_id: p.building_id ?? null,
+        distances_pushed: distancesSkipped > 0 ? 0 : (Array.isArray(p.distances) ? p.distances.length : 0),
+        distances_skipped: distancesSkipped,
+
         mapping: {
           persisted: mapping_persisted,
           property_uuid: body.property_uuid ?? null,

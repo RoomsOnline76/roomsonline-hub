@@ -4180,7 +4180,9 @@ Deno.serve(async (req) => {
             success: ruIdNum > 0 && !ariResult.availability_error && !ariResult.prices_error,
             rentalsunited_property_id: unitRuId,
             ari: ariResult,
+            distances_skipped: pushResult?.distances_skipped ?? 0,
             diagnostics: pushResult?.diagnostics,
+
           });
         }
 
@@ -4498,7 +4500,9 @@ Deno.serve(async (req) => {
             room_type_id: unit.id,
             success: !ariResult.availability_error && !ariResult.prices_error,
             rentalsunited_property_id: unitRuId,
+            distances_skipped: pushResult?.distances_skipped ?? 0,
             diagnostics: pushResult?.diagnostics,
+
             ...ariResult,
           });
         } else {
