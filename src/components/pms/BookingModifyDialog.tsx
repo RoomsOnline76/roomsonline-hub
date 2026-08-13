@@ -175,6 +175,54 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             </p>
           </div>
 
+          {amountPaid !== null && amountPaid > 0 && (
+            <div className="rounded-md border p-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Already received</span>
+                <span className="tabular-nums">{money(amountPaid)}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">New total</span>
+                <span className="tabular-nums">{money(Number(totalPrice || 0))}</span>
+              </div>
+              {Math.abs(delta) < 0.01 ? (
+                <p className="text-[11px] text-muted-foreground">Fully settled — no money changes hands.</p>
+              ) : delta < 0 ? (
+                <>
+                  <div className="flex items-center justify-between text-sm font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Undo2 className="h-3.5 w-3.5" />Guest overpaid
+                    </span>
+                    <span className="tabular-nums text-primary">{money(delta)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-[11px] font-normal text-muted-foreground leading-snug">
+                      Raise a pending refund for approval in the Refund Register
+                    </Label>
+                    <Switch checked={raiseRefund} onCheckedChange={setRaiseRefund} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between text-sm font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Wallet className="h-3.5 w-3.5" />Outstanding
+                    </span>
+                    <span className="tabular-nums text-primary">{money(delta)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-[11px] font-normal text-muted-foreground leading-snug">
+                      Email the guest a secure link to settle the balance
+                    </Label>
+                    <Switch checked={requestBalance} onCheckedChange={setRequestBalance} />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+
+
           <div className="space-y-1.5">
             <Label className="text-xs">Note to guest (optional)</Label>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Reason for the change" />
