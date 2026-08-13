@@ -2173,6 +2173,7 @@ export default function PMSDashboard() {
                           propertyName={prop.name}
                           isHoliday={getHolidayName}
                           getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
+                          isBlocked={portfolioIsBlockedByProperty.get(prop.id)}
                           onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                           onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                           onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
@@ -2199,6 +2200,7 @@ export default function PMSDashboard() {
                   bookingsLoading={bookingsLoading}
                   isHoliday={getHolidayName}
                   getRateForDate={getRateForDate}
+                  isBlocked={isRoomTypeBlocked}
                   onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                   onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                   onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
