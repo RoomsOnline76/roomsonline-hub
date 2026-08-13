@@ -714,13 +714,14 @@ Deno.serve(async (req) => {
           ownerId,
           ctx: logCtx(traceId, "channel-cleanup:verify_after"),
         });
-        if (after.present) {
+        // Archived-but-present is the channel's terminal removed state — accept it.
+        if (after.present && !after.archived) {
           failed += 1;
           results.push({
             name: dup.name,
             listing_id: listingId,
             status: "ru_failed",
-            detail: `still returned by the channel account after a ${removal.method} request`,
+            detail: `still live on the channel account after a ${removal.method} request`,
           });
           continue;
         }
