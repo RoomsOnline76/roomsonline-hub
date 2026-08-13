@@ -426,6 +426,8 @@ Deno.serve(async (req) => {
           excluded: excludedByOperator,
           errors: errors.length,
           unmapped_rooms: [...unmappedRooms],
+          future_stays: mapped.filter((m) => m.check_out_date >= today).length,
+
         },
 
         errors,
