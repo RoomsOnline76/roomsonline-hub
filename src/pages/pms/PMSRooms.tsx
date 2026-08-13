@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, BedDouble, RefreshCw, LayoutGrid, Building2, Users, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import type { BlockDetail } from "@/lib/blockAttribution";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 import { toast } from "sonner";
@@ -113,22 +114,32 @@ export default function PMSRooms() {
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
   /* Blocked (stop-sell) nights live in property_availability, keyed by room type NAME. */
-  const { data: stopSellNights } = useQuery({
+  const { data: stopSellData } = useQuery({
     queryKey: ["pms-rooms-stop-sell", activePropertyIds, windowStart, windowEnd],
     queryFn: async () => {
       const set = new Set<string>();
-      if (activePropertyIds.length === 0) return set;
+      const details = new Map<string, BlockDetail>();
+      if (activePropertyIds.length === 0) return { set, details };
       const { data } = await supabase
         .from("property_availability")
-        .select("property_id, room_type, date, is_stop_sell, available_units")
+        .select(
+          "property_id, room_type, date, is_stop_sell, available_units, blocked_by_label, blocked_reason, blocked_at, external_system",
+        )
         .in("property_id", activePropertyIds)
         .gte("date", windowStart)
         .lte("date", windowEnd);
       (data || []).forEach((row: any) => {
         if (!(row.is_stop_sell === true || row.available_units === 0)) return;
-        set.add(stopSellKey(row.property_id, String(row.room_type || ""), row.date));
+        const key = stopSellKey(row.property_id, String(row.room_type || ""), row.date);
+        set.add(key);
+        details.set(key, {
+          label: row.blocked_by_label ?? null,
+          at: row.blocked_at ?? null,
+          reason: row.blocked_reason ?? null,
+          source: row.external_system ?? null,
+        });
       });
-      return set;
+      return { set, details };
     },
     enabled: activePropertyIds.length > 0,
   });
@@ -703,7 +714,8 @@ export default function PMSRooms() {
                     displayStatusFor={displayStatusForRoom}
                     onStatusChange={handleStatusChange}
                     onEditRoom={openEditDialog}
-                    stopSellNights={stopSellNights}
+                    stopSellNights={stopSellData?.set}
+                    blockDetails={stopSellData?.details}
                   />
                 ),
               }))}
