@@ -165,8 +165,9 @@ export function useRoomPlanDrag({
       const target = readRowTarget(event.clientX, event.clientY) || current.target;
       const deltaCols = col - grabColRef.current;
       const candidate = { ...current, deltaCols, target };
-      const { valid: _ignored, ...rest } = candidate;
-      setDrag({ ...candidate, valid: validateMove(rest) });
+      const { valid: _ignored, reason: _ignoredReason, ...rest } = candidate;
+      const verdict = validateMove(rest);
+      setDrag({ ...candidate, valid: verdict.valid, reason: verdict.reason });
     };
 
     const handleUp = () => {
@@ -180,9 +181,14 @@ export function useRoomPlanDrag({
       }
       if (!movedRef.current) return;
       if (current.deltaCols === 0 && current.target.rowKey === current.originRowKey) return;
-      if (!current.valid) return;
+      if (!current.valid) {
+        // A refused drop used to vanish silently, which read as "drag broken".
+        onMoveRejected?.(current);
+        return;
+      }
       onMoveCommit(current);
     };
+
 
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
