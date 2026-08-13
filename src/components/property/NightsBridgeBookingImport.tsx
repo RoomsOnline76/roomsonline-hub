@@ -16,7 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -77,6 +77,10 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+
 const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: currency || "ZAR", maximumFractionDigits: 0 }).format(amount);
 
@@ -109,7 +113,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     setFile(next);
     setResult(null);
     setOverrides({});
+    toast.success(`${next.name} attached (${formatSize(next.size)}) — validate to preview`);
   }, []);
+
 
   const run = useCallback(
     async (dryRun: boolean) => {
@@ -189,41 +195,97 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Dropzone */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            pickFile(e.dataTransfer.files?.[0] ?? null);
-          }}
-          onClick={() => inputRef.current?.click()}
-          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-            dragging ? "border-primary bg-accent" : "border-border hover:border-primary/50"
-          }`}
-        >
-          <Upload className="h-5 w-5 text-muted-foreground" />
-          <p className="text-sm font-medium">{file ? file.name : "Drop the export here, or click to choose"}</p>
-          <p className="text-xs text-muted-foreground">.xlsx, .xls or .csv — up to 10 MB</p>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-          />
-        </div>
+        {/* Dropzone / attached-file confirmation */}
+        {file ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-accent/50 p-4">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              <div>
+                <p className="text-sm font-medium">{file.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatSize(file.size)} · attached and ready to validate
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => inputRef.current?.click()}
+              >
+                Change file
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => {
+                  setFile(null);
+                  setResult(null);
+                  setOverrides({});
+                  if (inputRef.current) inputRef.current.value = "";
+                }}
+                className="gap-1.5"
+              >
+                <X className="h-3.5 w-3.5" />
+                Remove
+              </Button>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+        ) : (
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              pickFile(e.dataTransfer.files?.[0] ?? null);
+            }}
+            onClick={() => inputRef.current?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
+              dragging ? "border-primary bg-accent" : "border-border hover:border-primary/50"
+            }`}
+          >
+            <Upload className="h-5 w-5 text-muted-foreground" />
+            <p className="text-sm font-medium">Drop the export here, or click to choose</p>
+            <p className="text-xs text-muted-foreground">.xlsx, .xls or .csv — up to 10 MB</p>
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" disabled={!file || busy !== null} onClick={() => run(true)}>
+          <Button
+            variant={file && !validated ? "default" : "outline"}
+            size="sm"
+            disabled={!file || busy !== null}
+            onClick={() => run(true)}
+          >
             {busy === "dry" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
             Validate (dry run)
           </Button>
-          <Button size="sm" disabled={!file || busy !== null || !validated} onClick={() => run(false)}>
+          <Button
+            variant={validated ? "default" : "outline"}
+            size="sm"
+            disabled={!file || busy !== null || !validated}
+            onClick={() => run(false)}
+          >
             {busy === "import" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
             Import
           </Button>
@@ -237,6 +299,7 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             <span className="text-xs text-muted-foreground">Validate first, then import.</span>
           )}
         </div>
+
 
         {progress > 0 && <Progress value={progress} className="h-1.5" />}
 
