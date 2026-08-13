@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import type { BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
@@ -214,6 +215,10 @@ interface AvailabilityOverride {
   lead_days_advance: number | null;
   lead_days_post: number | null;
   available_units: number | null;
+  blocked_by_label?: string | null;
+  blocked_reason?: string | null;
+  blocked_at?: string | null;
+  external_system?: string | null;
 }
 
 const normalizeRoomTypeName = (value: string | null | undefined) => value?.trim().toLowerCase() || "";
@@ -925,7 +930,7 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("property_availability")
-        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units")
+        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, blocked_by_label, blocked_reason, blocked_at, external_system")
         .eq("property_id", propertyId)
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));
@@ -1033,7 +1038,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("property_availability")
-        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, property_id")
+        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, property_id, blocked_by_label, blocked_reason, blocked_at, external_system")
         .in("property_id", portfolioPropertyIds)
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));
@@ -1603,12 +1608,18 @@ export default function PMSDashboard() {
   const makeIsBlocked = useCallback(
     (types: { id: string; name: string }[], oMap: Map<string, AvailabilityOverride>) => {
       const nameById = new Map(types.map(t => [t.id, t.name]));
-      return (roomTypeId: string, date: Date) => {
+      return (roomTypeId: string, date: Date): BlockDetail | null => {
         const name = nameById.get(roomTypeId);
-        if (!name) return false;
+        if (!name) return null;
         const o = oMap.get(`${name}-${format(date, "yyyy-MM-dd")}`);
-        if (!o) return false;
-        return o.is_stop_sell === true || o.available_units === 0;
+        if (!o) return null;
+        if (!(o.is_stop_sell === true || o.available_units === 0)) return null;
+        return {
+          label: o.blocked_by_label ?? null,
+          at: o.blocked_at ?? null,
+          reason: o.blocked_reason ?? null,
+          source: o.external_system ?? null,
+        };
       };
     },
     [],
@@ -1620,7 +1631,7 @@ export default function PMSDashboard() {
   );
 
   const portfolioIsBlockedByProperty = useMemo(() => {
-    const map = new Map<string, (roomTypeId: string, date: Date) => boolean>();
+    const map = new Map<string, (roomTypeId: string, date: Date) => BlockDetail | null>();
     portfolioDataByProperty.forEach((propData, propId) => {
       map.set(propId, makeIsBlocked(propData.roomTypes, propData.overrideMap));
     });
