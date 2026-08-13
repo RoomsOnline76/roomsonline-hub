@@ -2064,7 +2064,7 @@ export default function PMSDashboard() {
             ) : isPortfolioMode ? (
 
               viewMode === "week" ? (
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                       No booked days in this week.
@@ -2113,102 +2113,56 @@ export default function PMSDashboard() {
                   })}
                 </div>
               ) : (
-                // Portfolio + month view: group by WEEK across all properties
-                <div className="space-y-8">
+                // Portfolio + month view: every property stacked tightly on one continuous axis
+                <div className="space-y-3">
                   {showOnlyBookedDays && !portfolioHasAnyBookedDay && (
                     <div className="flex items-center justify-center py-10 text-sm text-muted-foreground border rounded-lg bg-muted/20">
                       No booked days in this month.
                     </div>
                   )}
-                  {weekChunks.map((weekDates, weekIdx) => {
-                    // Per-property visible days/rows inside this week
-                    const weekPropViews = (portfolioProperties || []).map((prop) => {
-                      const propData = portfolioDataByProperty.get(prop.id);
-                      if (!propData || propData.roomTypes.length === 0) return null;
-                      if (!showOnlyBookedDays) {
-                        return { prop, propData, propDates: weekDates, propRoomTypes: propData.roomTypes };
-                      }
-                      const bookedView = portfolioBookedViewByProperty.get(prop.id);
-                      const bookedKeys = new Set((bookedView?.visibleDates || []).map((date) => format(date, "yyyy-MM-dd")));
-                      const propDates = weekDates.filter((date) => bookedKeys.has(format(date, "yyyy-MM-dd")));
-                      const propRoomTypes = bookedView?.visibleRoomTypes || [];
-                      if (propDates.length === 0 || propRoomTypes.length === 0) return null;
-                      return { prop, propData, propDates, propRoomTypes };
-                    }).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-
-                    if (weekPropViews.length === 0) return null;
-                    const visibleWeekDates = showOnlyBookedDays
-                      ? weekDates.filter((date) => weekPropViews.some((entry) => entry.propDates.some((d) => +d === +date)))
-                      : weekDates;
-                    if (visibleWeekDates.length === 0) return null;
-                    const firstVisibleDate = visibleWeekDates[0];
-                    const lastVisibleDate = visibleWeekDates[visibleWeekDates.length - 1];
-                    if (!firstVisibleDate || !lastVisibleDate) return null;
-                    const weekKey = getWeekKey(weekDates);
-                    const isWeekCollapsed = collapsedWeeks.has(weekKey);
-                    const bookingCount = getPortfolioBookingCountForDates(visibleWeekDates);
-
+                  {(portfolioProperties || []).map(prop => {
+                    const propData = portfolioDataByProperty.get(prop.id);
+                    if (!propData || propData.roomTypes.length === 0) return null;
+                    const bookedView = portfolioBookedViewByProperty.get(prop.id);
+                    const monthDates = weekChunks.flat();
+                    const propDates = showOnlyBookedDays
+                      ? (() => {
+                          const bookedKeys = new Set((bookedView?.visibleDates || []).map((date) => format(date, "yyyy-MM-dd")));
+                          return monthDates.filter((date) => bookedKeys.has(format(date, "yyyy-MM-dd")));
+                        })()
+                      : monthDates;
+                    const propRoomTypes = showOnlyBookedDays ? (bookedView?.visibleRoomTypes || []) : propData.roomTypes;
+                    if (propDates.length === 0 || propRoomTypes.length === 0) return null;
+                    const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
+                    const propGetSuffix = () => '';
+                    const propGetRestriction = (rtName: string, date: Date) =>
+                      propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
+                    const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
 
                     return (
-                    <div key={weekKey} className="space-y-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleWeekCollapsed(weekKey)}
-                        className="sticky top-0 z-10 flex w-full items-center gap-2 px-2 py-1.5 bg-primary/10 border-l-4 border-primary rounded-r-md text-left hover:bg-primary/15 transition-colors"
-                        aria-expanded={!isWeekCollapsed}
-                      >
-                        <ChevronRight className={cn("h-4 w-4 text-primary shrink-0 transition-transform", !isWeekCollapsed && "rotate-90")} />
-                        <CalendarDays className="h-4 w-4 text-primary shrink-0" />
-                        <h2 className="text-sm font-bold text-foreground">
-                          Week {weekIdx + 1} · {format(firstVisibleDate, "MMM d")} – {format(lastVisibleDate, "MMM d, yyyy")}
-                        </h2>
-                        <Badge variant="outline" className="text-[10px] ml-auto">
-                          {bookingCount} booking{bookingCount === 1 ? "" : "s"}
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {weekPropViews.length} propert{weekPropViews.length === 1 ? "y" : "ies"}
-                        </Badge>
-                      </button>
-                      {!isWeekCollapsed && (
-                      <div className="space-y-4 pl-2">
-                        {weekPropViews.map(({ prop, propData, propDates, propRoomTypes }) => {
-                          const propGetRate = (rtId: string, date: Date) => getPortfolioRateForDate(prop.id, rtId, date);
-                          const propGetSuffix = () => '';
-                          const propGetRestriction = (rtName: string, date: Date) =>
-                            propData.overrideMap.get(`${rtName}-${format(date, "yyyy-MM-dd")}`);
-
-                          const displayedRoomCount = new Set(Array.from(propData.roomsByType.values()).flat().map((room) => room.id)).size || propData.rooms.length;
-
-                          return (
-                            <div key={`${prop.id}-${weekIdx}`}>
-                              <div className="flex items-center gap-2 mb-2 px-1 py-1 bg-muted/30 rounded-md">
-                                <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                                <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
-                                <Badge variant="outline" className="text-[10px]">
-                                  {propRoomTypes.length} types · {displayedRoomCount} rooms
-                                </Badge>
-                              </div>
-                              <WeekCalendarGrid
-                                dates={propDates}
-                                roomTypes={propRoomTypes}
-                                roomsByType={propData.roomsByType}
-
-                                bookings={propData.bookings}
-                                rooms={propData.rooms}
-                                overrideMap={propData.overrideMap}
-                                getRateForDate={propGetRate}
-                                getPricingSuffix={propGetSuffix}
-                                getSeasonForDate={getSeasonForDate}
-                                getRestriction={propGetRestriction}
-                                onSelectBooking={openBookingSheet}
-                                bookingsLoading={false}
-                              />
-                            </div>
-                          );
-                        })}
+                      <div key={prop.id}>
+                        <div className="flex items-center gap-2 mb-1 px-1 py-1 bg-muted/30 rounded-md">
+                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <h3 className="text-xs font-semibold text-foreground">{prop.name}</h3>
+                          <Badge variant="outline" className="text-[10px]">
+                            {propRoomTypes.length} types · {displayedRoomCount} rooms
+                          </Badge>
+                        </div>
+                        <MonthCalendarGrid
+                          weekChunks={[propDates]}
+                          roomTypes={propRoomTypes}
+                          roomsByType={propData.roomsByType}
+                          bookings={propData.bookings}
+                          rooms={propData.rooms}
+                          overrideMap={propData.overrideMap}
+                          getRateForDate={propGetRate}
+                          getPricingSuffix={propGetSuffix}
+                          getSeasonForDate={getSeasonForDate}
+                          getRestriction={propGetRestriction}
+                          onSelectBooking={openBookingSheet}
+                          bookingsLoading={false}
+                        />
                       </div>
-                      )}
-                    </div>
                     );
                   })}
                 </div>
@@ -2350,7 +2304,10 @@ interface CalendarGridProps {
   bookingsLoading: boolean;
 }
 
-const WEEK_CELL_W = "w-[80px] min-w-[80px]";
+const WEEK_CELL_W = "w-[56px] min-w-[56px]";
+/** Compact month-grid density (px) for the continuous horizontal axis. */
+const MONTH_CELL_PX = 56;
+const MONTH_LABEL_PX = 150;
 const WEEK_LABEL_W = "w-[160px] min-w-[160px]";
 
 // ──────────── Shared: Date header cell ────────────
@@ -2550,77 +2507,77 @@ function WeekCalendarGrid(props: CalendarGridProps) {
 
 // ──────────── Month Calendar (stacked weekly rows) ────────────
 function MonthCalendarGrid(props: CalendarGridProps) {
-  const { weekChunks = [], roomTypes, roomsByType, bookings, rooms, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  const { weekChunks = [], roomTypes, roomsByType, bookings, getRateForDate, getPricingSuffix, getSeasonForDate, getRestriction, onSelectBooking, bookingsLoading } = props;
+  // One continuous horizontal axis — travel sideways instead of stacking week blocks.
+  const monthDates = useMemo(() => weekChunks.flat(), [weekChunks]);
 
   return (
     <TooltipProvider>
-      <div className="space-y-3">
-        {weekChunks.map((weekDates, weekIdx) => (
-          <div key={weekIdx} className="border rounded-lg overflow-hidden">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr>
-                  <th className="border bg-muted/50 p-1 min-w-[150px] w-[150px] sticky left-0 bg-background z-10" />
-                  {weekDates.map((date, i) => {
-                    const season = getSeasonForDate(date);
-                    return (
-                      <th key={i} className="border p-0">
-                        <DateHeaderCell date={date} season={season} />
-                      </th>
-                    );
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {roomTypes.map((rt) => {
-                  const typeRooms = roomsByType.get(rt.id) || [];
-                  const totalUnits = typeRooms.length || 1;
-
-                  const getMonthAvail = (date: Date) => {
-                    const dateStr = format(date, "yyyy-MM-dd");
-                  const booked = bookings.filter(b => {
-                      if (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
-                        return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
-                      }
-                      return false;
-                    }).length;
-                    return { booked, avail: Math.max(0, totalUnits - booked) };
-                  };
-
+      <div className="border rounded-lg overflow-hidden">
+        <ScrollArea className="w-full">
+          <table className="w-full border-collapse" style={{ minWidth: MONTH_LABEL_PX + monthDates.length * MONTH_CELL_PX }}>
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 border bg-background p-1" style={{ width: MONTH_LABEL_PX, minWidth: MONTH_LABEL_PX }} />
+                {monthDates.map((date, i) => {
+                  const season = getSeasonForDate(date);
                   return (
-                    <MonthRoomTypeRows
-                      key={rt.id}
-                      rt={rt}
-                      weekDates={weekDates}
-                      typeRooms={typeRooms}
-                      bookings={bookings}
-                      getRateForDate={getRateForDate}
-                      getPricingSuffix={getPricingSuffix}
-                      getRestriction={getRestriction}
-                      getMonthAvail={getMonthAvail}
-                      onSelectBooking={onSelectBooking}
-                    />
+                    <th key={i} className="border p-0" style={{ width: MONTH_CELL_PX, minWidth: MONTH_CELL_PX }}>
+                      <DateHeaderCell date={date} season={season} />
+                    </th>
                   );
                 })}
-              </tbody>
-            </table>
+              </tr>
+            </thead>
+            <tbody>
+              {roomTypes.map((rt) => {
+                const typeRooms = roomsByType.get(rt.id) || [];
+                const totalUnits = typeRooms.length || 1;
 
-            {roomTypes.length === 0 && weekIdx === 0 && !bookingsLoading && (
-              <div className="flex items-center justify-center py-12 text-muted-foreground">
-                <div className="text-center space-y-2">
-                  <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
-                  <p className="text-sm">No room types configured</p>
-                </div>
+                const getMonthAvail = (date: Date) => {
+                  const dateStr = format(date, "yyyy-MM-dd");
+                  const booked = bookings.filter(b => {
+                    if (b.room_type_id === rt.id || b.room_type_id === rt.linked_overview_id || b.rolos_room_ids?.some(rid => typeRooms.some(r => r.id === rid))) {
+                      return dateStr >= b.check_in_date && dateStr < b.check_out_date && !["cancelled", "no_show"].includes(b.status);
+                    }
+                    return false;
+                  }).length;
+                  return { booked, avail: Math.max(0, totalUnits - booked) };
+                };
+
+                return (
+                  <MonthRoomTypeRows
+                    key={rt.id}
+                    rt={rt}
+                    weekDates={monthDates}
+                    typeRooms={typeRooms}
+                    bookings={bookings}
+                    getRateForDate={getRateForDate}
+                    getPricingSuffix={getPricingSuffix}
+                    getRestriction={getRestriction}
+                    getMonthAvail={getMonthAvail}
+                    onSelectBooking={onSelectBooking}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+
+          {roomTypes.length === 0 && !bookingsLoading && (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <div className="text-center space-y-2">
+                <CalendarDays className="h-10 w-10 mx-auto opacity-30" />
+                <p className="text-sm">No room types configured</p>
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          )}
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
       </div>
     </TooltipProvider>
   );
 }
 
-// ──────────── Month: Room type rows block (header + rooms + unassigned) ────────────
 function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate, getPricingSuffix, getRestriction, getMonthAvail, onSelectBooking }: {
   rt: RoomType;
   weekDates: Date[];
