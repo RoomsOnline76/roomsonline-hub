@@ -327,7 +327,7 @@ export function RoomPlanGrid({
     if (!pendingMove || !onMoveBooking) return;
     setSaving(true);
     try {
-      const { fromLabel: _from, toLabel: _to, ...payload } = pendingMove;
+      const { fromLabel: _from, toLabel: _to, fromTypeLabel: _ft, toTypeLabel: _tt, ...payload } = pendingMove;
       await onMoveBooking(payload);
       setPendingMove(null);
     } catch (error) {
