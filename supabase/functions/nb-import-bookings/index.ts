@@ -1028,28 +1028,17 @@ Deno.serve(async (req) => {
     let created = 0;
     let updated = 0;
 
-    // Guest profiles by full name (NB exports carry no email).
+    // Guest profiles by normalised full name (NB exports carry no email), reusing
+    // profiles already known anywhere in this property's portfolio.
     const nameSet = [...new Set(writeSlice.map((m) => m.guest_name).filter(Boolean))];
-    const guestIdByName = new Map<string, string>();
-    for (let i = 0; i < nameSet.length; i += 200) {
-      const chunk = nameSet.slice(i, i + 200);
-      const { data } = await sb
-        .from("rolos_guest_profiles")
-        .select("id, full_name")
-        .eq("property_id", propertyId)
-        .in("full_name", chunk);
-      for (const p of data ?? []) guestIdByName.set(String(p.full_name).toLowerCase(), p.id as string);
-    }
-    const missingNames = nameSet.filter((n) => !guestIdByName.has(n.toLowerCase()));
-    for (let i = 0; i < missingNames.length; i += BATCH) {
-      const chunk = missingNames.slice(i, i + BATCH);
-      const { data, error } = await sb
-        .from("rolos_guest_profiles")
-        .insert(chunk.map((full_name) => ({ property_id: propertyId, full_name })))
-        .select("id, full_name");
-      if (error) break; // profiles are a nice-to-have; never block the booking import
-      for (const p of data ?? []) guestIdByName.set(String(p.full_name).toLowerCase(), p.id as string);
-    }
+    const portfolioScope = await loadPortfolioSiblings(sb, propertyId);
+    const guestIdByName = await resolveGuestProfiles(sb, {
+      propertyId,
+      scopeIds: portfolioScope,
+      names: nameSet,
+      batch: BATCH,
+    });
+    const touchedGuestIds = new Set<string>();
 
     const roomLines: Record<string, unknown>[] = [];
 
