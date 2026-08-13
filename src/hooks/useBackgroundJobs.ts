@@ -65,11 +65,13 @@ export function useBackgroundJobs(pollMs = 30000) {
     return () => window.clearInterval(timer);
   }, [load, pollMs]);
 
-  /** Kick the worker so anything due (including freshly re-armed jobs) drains now. */
-  const drain = useCallback(async () => {
+  /** Kick the worker so anything due drains now; `retryFailed` re-arms exhausted jobs first. */
+  const drain = useCallback(async (retryFailed = false) => {
     setRetrying(true);
     try {
-      await supabase.functions.invoke("process-background-jobs", { body: { limit: 25 } });
+      await supabase.functions.invoke("process-background-jobs", {
+        body: { limit: 25, ...(retryFailed ? { retry_failed: true } : {}) },
+      });
       await load();
     } finally {
       setRetrying(false);
