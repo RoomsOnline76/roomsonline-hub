@@ -33,8 +33,8 @@ interface RestrictionsManagerDialogProps {
   windowStart?: Date;
   /** Refresh the calendars after a change. */
   onChanged?: () => void;
-  /** Open straight into a span (used by the calendar right-click shortcut). */
-  focusSpanKey?: string | null;
+  /** Open straight into the block covering this night (calendar right-click shortcut). */
+  focusBlock?: { propertyId: string; roomType: string; date: string } | null;
 }
 
 const KIND_DOT: Record<RestrictionKind, string> = {
@@ -53,7 +53,7 @@ export function RestrictionsManagerDialog({
   propertyNames,
   windowStart,
   onChanged,
-  focusSpanKey,
+  focusBlock,
 }: RestrictionsManagerDialogProps) {
   const [kindFilter, setKindFilter] = useState<RestrictionKind | "all">("all");
   const [targetFilter, setTargetFilter] = useState<string>("all");
@@ -122,10 +122,16 @@ export function RestrictionsManagerDialog({
 
   // Calendar right-click deep-link: open the matching span's editor once loaded.
   useEffect(() => {
-    if (!open || !focusSpanKey) return;
-    const match = spans.find((s) => s.key === focusSpanKey);
+    if (!open || !focusBlock) return;
+    const match = spans.find(
+      (s) =>
+        s.kind === "block" &&
+        s.propertyId === focusBlock.propertyId &&
+        s.target.trim().toLowerCase() === focusBlock.roomType.trim().toLowerCase() &&
+        s.dates.includes(focusBlock.date),
+    );
     if (match) setEditing((current) => current ?? match);
-  }, [open, focusSpanKey, spans]);
+  }, [open, focusBlock, spans]);
 
   const handleChanged = async (span: RestrictionSpan) => {
     await refetch();

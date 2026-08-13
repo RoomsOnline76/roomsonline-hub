@@ -450,7 +450,7 @@ export default function PMSDashboard() {
   // Restriction dialogs
   const [stopSellOpen, setStopSellOpen] = useState(false);
   const [manageRestrictionsOpen, setManageRestrictionsOpen] = useState(false);
-  const [focusRestrictionKey, setFocusRestrictionKey] = useState<string | null>(null);
+  const [focusBlock, setFocusBlock] = useState<{ propertyId: string; roomType: string; date: string } | null>(null);
   const [minStayOpen, setMinStayOpen] = useState(false);
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
@@ -2034,7 +2034,7 @@ export default function PMSDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48 bg-popover">
-                  <DropdownMenuItem onClick={() => { setFocusRestrictionKey(null); setManageRestrictionsOpen(true); }}>
+                  <DropdownMenuItem onClick={() => { setFocusBlock(null); setManageRestrictionsOpen(true); }}>
                     <Settings2 className="mr-2 h-3 w-3" />Manage existing…
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -2483,7 +2483,7 @@ export default function PMSDashboard() {
             <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
             <RestrictionsManagerDialog
               open={manageRestrictionsOpen}
-              onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusRestrictionKey(null); }}
+              onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusBlock(null); }}
               propertyIds={
                 isPortfolioMode
                   ? (portfolioProperties || []).map((p) => p.id)
@@ -2493,7 +2493,7 @@ export default function PMSDashboard() {
               }
               propertyNames={Object.fromEntries((portfolioProperties || []).map((p) => [p.id, p.name]))}
               windowStart={dateRange.start}
-              focusSpanKey={focusRestrictionKey}
+              focusBlock={focusBlock}
               onChanged={handleRuleCreated}
             />
           </>
