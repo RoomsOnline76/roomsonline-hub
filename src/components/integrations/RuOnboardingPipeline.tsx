@@ -433,8 +433,38 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
         </div>
       )}
 
+      {hiddenPhases.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-600/30 bg-emerald-600/5 p-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="font-medium text-foreground">
+              {hiddenPhases.length === phases.length
+                ? `Rentals United onboarding complete — ${completed}/${phases.length} phases`
+                : `Phase${hiddenPhases.length > 1 ? "s" : ""} ${hiddenPhases.map((p) => p.order).join(", ")} complete`}
+            </span>
+            {hiddenPhases.map((p) => (
+              <span key={`sum-${p.key}`} className="flex items-center gap-1 text-xs text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                {p.label}
+              </span>
+            ))}
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
+            Show all phases
+          </Button>
+        </div>
+      )}
+
+      {showAll && phases.length > 0 && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setShowAll(false)}>
+            Hide completed phases
+          </Button>
+        </div>
+      )}
+
       <ol className="space-y-3">
-        {phases.map((phase, idx) => (
+        {visiblePhases.map((phase, idx) => (
+
           <li key={phase.key} className="rounded-lg border p-4">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
