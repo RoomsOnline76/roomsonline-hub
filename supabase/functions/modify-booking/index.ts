@@ -664,6 +664,18 @@ Deno.serve(async (req) => {
         },
         options: { dedupeKey: `email:modification:${booking_id}` },
       },
+      ...(settlementOutcome?.balance_requested && settlementOutcome.balance_token
+        ? [{
+            type: "booking_balance_request" as const,
+            payload: {
+              booking_id,
+              token: settlementOutcome.balance_token,
+              amount: settlementOutcome.balance_due,
+              note: modifications.note ?? null,
+            },
+            options: { dedupeKey: `balance:${booking_id}` },
+          }]
+        : []),
     ]);
     kickWorker();
 
@@ -678,7 +690,9 @@ Deno.serve(async (req) => {
         ru_modified: ruModified,
         new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
+        settlement: settlementOutcome,
       }),
+
 
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
