@@ -40,6 +40,8 @@ import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, type RoomPlanGroupBlock } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
+
 import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
 
 import { CHANNEL_SOURCE_BADGE, channelSourceLabel } from "@/lib/channelVocabulary";
