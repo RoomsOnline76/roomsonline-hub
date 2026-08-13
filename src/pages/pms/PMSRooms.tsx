@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, BedDouble, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Building2, Users, AlertTriangle } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, LayoutGrid, Building2, Users, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
@@ -29,8 +29,6 @@ import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight
 const PLAN_NIGHTS = 45;
 const PLAN_NIGHTS_STEP = 30;
 const PLAN_NIGHTS_MAX = 180;
-/** Sentinel for the "all properties" option in the property filter dropdown. */
-const ALL_PROPERTIES = "__all__";
 /** Extra days of reservations loaded beyond the plan so search finds future stays. */
 const SEARCH_LOOKAHEAD_DAYS = 60;
 
@@ -42,26 +40,35 @@ const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_ty
 const SLEEPS_OPTIONS = ["any", "2", "3", "4", "6"];
 
 export default function PMSRooms() {
-  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  // One dropdown drives the whole page: every property stacked, or just one.
-  const [propertyScope, setPropertyScope] = useState<string>(ALL_PROPERTIES);
+  const {
+    propertyId,
+    properties,
+    portfolioProperties,
+    switchProperty,
+    showPortfolioToggle,
+    loading: propertyLoading,
+  } = usePmsPropertyId();
+  // Property scope is controlled by a Portfolio | Property toggle in the header.
+  // The active property itself is chosen from the sidebar switcher (top-left).
+  const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
   const [autoDefaulted, setAutoDefaulted] = useState(false);
 
   useEffect(() => {
     if (!autoDefaulted && properties.length > 0) {
-      setPropertyScope(properties.length > 1 ? ALL_PROPERTIES : properties[0].id);
+      setViewMode(showPortfolioToggle ? "portfolio" : "single");
       setAutoDefaulted(true);
     }
-  }, [properties, autoDefaulted]);
+  }, [properties, showPortfolioToggle, autoDefaulted]);
 
-  const isPortfolio = propertyScope === ALL_PROPERTIES && properties.length > 1;
+  const portfolioList = portfolioProperties || properties;
+  const isPortfolio = viewMode === "portfolio" && portfolioList.length > 1;
   const selectSingleProperty = useCallback((id: string) => {
-    setPropertyScope(id);
+    setViewMode("single");
     switchProperty(id);
   }, [switchProperty]);
   const activePropertyIds = useMemo(
-    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
-    [isPortfolio, properties, propertyId]
+    () => (isPortfolio ? portfolioList.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, portfolioList, propertyId]
   );
 
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
@@ -459,19 +466,6 @@ export default function PMSRooms() {
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <PmsNoPropertyState description="No property is assigned to this account yet, so there is no room inventory to show. Rooms appear here once a property is linked." />;
 
-  const currentIdx = properties.findIndex((p) => p.id === propertyId);
-  const canCycle = !isPortfolio && properties.length > 1;
-  const goPrev = () => {
-    if (!canCycle) return;
-    const next = properties[(currentIdx - 1 + properties.length) % properties.length];
-    if (next) selectSingleProperty(next.id);
-  };
-  const goNext = () => {
-    if (!canCycle) return;
-    const next = properties[(currentIdx + 1) % properties.length];
-    if (next) selectSingleProperty(next.id);
-  };
-
   // Group rooms & types per property for portfolio mode
   const propertySections = isPortfolio
     ? properties.map((p) => ({
@@ -515,44 +509,29 @@ export default function PMSRooms() {
             <h1 className="text-2xl font-bold tracking-tight">Room Inventory</h1>
             <p className="text-sm text-muted-foreground">
               {isPortfolio
-                ? `Portfolio view — ${properties.length} properties`
+                ? `Portfolio view — ${portfolioList.length} properties`
                 : "Availability plan, reservations and physical rooms in one view."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 0 && (
-              <div className="flex items-center gap-1">
-                {canCycle && (
-                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Previous property">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                )}
-                <Select
-                  value={propertyScope}
-                  onValueChange={(v) => (v === ALL_PROPERTIES ? setPropertyScope(ALL_PROPERTIES) : selectSingleProperty(v))}
+            {showPortfolioToggle && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button
+                  size="sm"
+                  variant={viewMode === "portfolio" ? "default" : "ghost"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setViewMode("portfolio")}
                 >
-                  <SelectTrigger className="h-9 min-w-[220px]">
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.length > 1 && (
-                      <SelectItem value={ALL_PROPERTIES}>All properties ({properties.length})</SelectItem>
-                    )}
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {canCycle && (
-                  <>
-                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Next property">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <span className="ml-1 text-xs tabular-nums text-muted-foreground">
-                      {currentIdx + 1} / {properties.length}
-                    </span>
-                  </>
-                )}
+                  Portfolio
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "single" ? "default" : "ghost"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setViewMode("single")}
+                >
+                  Property
+                </Button>
               </div>
             )}
             <Button variant="outline" size="sm" onClick={fetchData}>
