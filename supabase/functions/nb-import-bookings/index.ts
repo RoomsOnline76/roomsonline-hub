@@ -459,24 +459,47 @@ Deno.serve(async (req) => {
 
     const willCreate = mapped.filter((m) => !existing.has(m.external_id)).length;
     const willUpdate = mapped.length - willCreate;
+    const arrivals = mapped.map((m) => m.check_in_date);
+    const futureStays = mapped.filter((m) => m.check_out_date >= today).length;
+    const arrivalSpan = (() => {
+      const sorted = [...arrivals].filter(Boolean).sort();
+      return { min: sorted[0] ?? null, max: sorted[sorted.length - 1] ?? null };
+    })();
 
     if (dryRun) {
+      const summary = {
+        total_rows: rows.length,
+        parsed: mapped.length,
+        created: willCreate,
+        updated: willUpdate,
+        skipped: skipped.length,
+        excluded: excludedByOperator,
+        errors: errors.length,
+        unmapped_rooms: [...unmappedRooms],
+        future_stays: futureStays,
+        min_arrival: arrivalSpan.min,
+        max_arrival: arrivalSpan.max,
+      };
+
+      const runId = await logImportRun(sb, {
+        property_id: propertyId,
+        created_by: userId,
+        file_name: fileName,
+        file_bytes: bytes.byteLength,
+        mode: "preview",
+        summary,
+        errors,
+        skipped,
+        unmapped_rooms: [...unmappedRooms],
+        arrivals,
+        future_stays: futureStays,
+      });
+
       return json({
         ok: true,
         dry_run: true,
-        summary: {
-          total_rows: rows.length,
-          parsed: mapped.length,
-          created: willCreate,
-          updated: willUpdate,
-          skipped: skipped.length,
-          excluded: excludedByOperator,
-          errors: errors.length,
-          unmapped_rooms: [...unmappedRooms],
-          future_stays: mapped.filter((m) => m.check_out_date >= today).length,
-
-        },
-
+        run_id: runId,
+        summary,
         errors,
         skipped,
         rooms: (roomRows ?? []).map((r) => ({
