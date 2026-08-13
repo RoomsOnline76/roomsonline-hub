@@ -165,6 +165,21 @@ export function RoomPlanGrid({
     [groupBlocks]
   );
 
+  /** First blocked night in a stay window (check-out night excluded), if any. */
+  const firstBlockedNight = useCallback(
+    (roomTypeId: string, checkIn: string, checkOut: string): Date | null => {
+      if (!isBlocked) return null;
+      let cursor = parseISO(checkIn);
+      const end = parseISO(checkOut);
+      while (cursor < end) {
+        if (isBlocked(roomTypeId, cursor)) return cursor;
+        cursor = addDays(cursor, 1);
+      }
+      return null;
+    },
+    [isBlocked]
+  );
+
 
   // Rows, grouped per room type: an "Unassigned" row plus one row per unit.
   const groups = useMemo(() => {
