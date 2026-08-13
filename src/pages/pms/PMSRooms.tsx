@@ -703,6 +703,7 @@ export default function PMSRooms() {
                     displayStatusFor={displayStatusForRoom}
                     onStatusChange={handleStatusChange}
                     onEditRoom={openEditDialog}
+                    stopSellNights={stopSellNights}
                   />
                 ),
               }))}
