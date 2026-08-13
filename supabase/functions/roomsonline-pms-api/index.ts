@@ -2377,36 +2377,50 @@ async function handleBackfillInventory(body: any, supabase: any): Promise<Respon
 // UTILITY FUNCTIONS
 // ============================================================================
 
+/**
+ * Resolves (or creates) the guest profile for a booking. Matching is on email first,
+ * then the normalised name, so casing never mints a second profile. Stay totals are
+ * never incremented by hand — `rebuildGuestStats` derives them from the bookings.
+ */
 // deno-lint-ignore no-explicit-any
-async function ensureGuestProfile(supabase: any, propertyId: string, guestName: string, guestEmail: string | null, guestPhone: string | null, bookingAmount: number, guestNationality?: string | null): Promise<string | null> {
-  if (!guestEmail) return null;
+async function ensureGuestProfile(supabase: any, propertyId: string, guestName: string, guestEmail: string | null, guestPhone: string | null, _bookingAmount: number, guestNationality?: string | null): Promise<string | null> {
+  const email = normaliseEmail(guestEmail);
+  const norm = normaliseGuestName(guestName);
+  if (!email && !norm) return null;
   try {
-    const { data: existing } = await supabase.from("rolos_guest_profiles")
-      .select("id, total_stays, total_spent")
-      .eq("property_id", propertyId).eq("email", guestEmail).maybeSingle();
+    let existing: any = null;
+    if (email) {
+      const { data } = await supabase.from("rolos_guest_profiles")
+        .select("id").eq("property_id", propertyId).ilike("email", email).maybeSingle();
+      existing = data ?? null;
+    }
+    if (!existing && norm) {
+      const { data } = await supabase.from("rolos_guest_profiles")
+        .select("id").eq("property_id", propertyId).eq("normalised_name", norm).maybeSingle();
+      existing = data ?? null;
+    }
     if (existing) {
-      const updateData: any = {
-        full_name: guestName,
-        phone: guestPhone,
-        total_stays: (existing.total_stays || 0) + 1,
-        total_spent: (existing.total_spent || 0) + bookingAmount,
-        last_stay_date: new Date().toISOString().split("T")[0],
-      };
+      const updateData: any = { full_name: guestName };
+      if (guestPhone) updateData.phone = guestPhone;
+      if (email) updateData.email = guestEmail;
       if (guestNationality) updateData.nationality = guestNationality;
       await supabase.from("rolos_guest_profiles").update(updateData).eq("id", existing.id);
       return existing.id;
-    } else {
-      const insertData: any = {
-        property_id: propertyId, full_name: guestName, email: guestEmail, phone: guestPhone,
-        total_stays: 1, total_spent: bookingAmount,
-        last_stay_date: new Date().toISOString().split("T")[0],
-      };
-      if (guestNationality) insertData.nationality = guestNationality;
-      const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert(insertData).select("id").single();
-      return newGuest?.id || null;
     }
+    const insertData: any = {
+      property_id: propertyId,
+      full_name: String(guestName || "").trim().replace(/\s+/g, " "),
+      email: guestEmail || null,
+      phone: guestPhone || null,
+    };
+    if (guestNationality) insertData.nationality = guestNationality;
+    const { data: newGuest } = await supabase.from("rolos_guest_profiles")
+      .upsert(insertData, { onConflict: "property_id,normalised_name" })
+      .select("id").single();
+    return newGuest?.id || null;
   } catch { return null; }
 }
+
 
 function getDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = [];
