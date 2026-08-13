@@ -56,6 +56,145 @@ interface RoomRef {
   keys: string[];
 }
 
+const EXCLUDE_SENTINEL = "__exclude__";
+const UNASSIGNED_SENTINEL = "__unassigned__";
+
+/** NightsBridge room name kept on the booking note by the importer. */
+function nbRoomFromNotes(notes: string | null): string | null {
+  if (!notes) return null;
+  const line = notes.split("\n").find((l) => l.trim().toLowerCase().startsWith("nb room:"));
+  if (!line) return null;
+  const value = line.slice(line.indexOf(":") + 1).trim();
+  return value || null;
+}
+
+/**
+ * Re-map imported NightsBridge bookings that carry no unit / room type. Dry run reports the
+ * outstanding groups; a live run writes `rolos_room_ids`, `room_type_id` and room lines.
+ */
+async function repairUnmappedBookings(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+  overrides: Record<string, string>,
+  dryRun: boolean,
+) {
+  const [{ data: roomRows }, { data: bookingRows }] = await Promise.all([
+    sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
+    sb
+      .from("bookings")
+      .select("id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id")
+      .eq("property_id", propertyId)
+      .eq("integration_type", "nightsbridge")
+      .is("rolos_room_ids", null),
+  ]);
+
+  const rooms = (roomRows ?? []) as { id: string; room_number: string | null; room_name: string | null; room_type_id: string | null }[];
+  const byId = new Map(rooms.map((r) => [r.id, r]));
+
+  interface Group {
+    room_name: string;
+    bookings: { id: string; total_price: number; adults: number; children: number; nights: number }[];
+  }
+  const groups = new Map<string, Group>();
+  let unnamed = 0;
+  const suspectDates: { id: string; check_in_date: string; check_out_date: string; nights: number }[] = [];
+
+  for (const b of (bookingRows ?? []) as Record<string, unknown>[]) {
+    const inDate = String(b.check_in_date ?? "");
+    const outDate = String(b.check_out_date ?? "");
+    const nights = Math.round(
+      (new Date(outDate).getTime() - new Date(inDate).getTime()) / 86_400_000,
+    );
+    if (!Number.isFinite(nights) || nights <= 0 || nights > 60) {
+      suspectDates.push({ id: String(b.id), check_in_date: inDate, check_out_date: outDate, nights });
+    }
+    const name = nbRoomFromNotes(b.internal_notes as string | null);
+    if (!name) {
+      unnamed++;
+      continue;
+    }
+    const key = normaliseRoomKey(name) || name;
+    const group = groups.get(key) ?? { room_name: name, bookings: [] };
+    group.bookings.push({
+      id: String(b.id),
+      total_price: Number(b.total_price ?? 0),
+      adults: Number(b.adults ?? 1),
+      children: Number(b.children ?? 0),
+      nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
+    });
+    groups.set(key, group);
+  }
+
+  const groupList = [...groups.entries()].map(([key, g]) => ({
+    key,
+    room_name: g.room_name,
+    count: g.bookings.length,
+  }));
+
+  if (dryRun) {
+    return {
+      mode: "repair",
+      dry_run: true,
+      unmapped_total: (bookingRows ?? []).length,
+      unnamed,
+      groups: groupList,
+      suspect_dates: suspectDates,
+      rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
+      repaired: 0,
+    };
+  }
+
+  let repaired = 0;
+  const lines: Record<string, unknown>[] = [];
+  for (const [key, group] of groups) {
+    const decision = overrides[group.room_name] ?? overrides[key] ?? null;
+    if (!decision || decision === EXCLUDE_SENTINEL || decision === UNASSIGNED_SENTINEL) continue;
+    const room = byId.get(decision);
+    if (!room) continue;
+    for (let i = 0; i < group.bookings.length; i += BATCH) {
+      const chunk = group.bookings.slice(i, i + BATCH);
+      const { error } = await sb
+        .from("bookings")
+        .update({ rolos_room_ids: [room.id], room_type_id: room.room_type_id })
+        .in("id", chunk.map((b) => b.id));
+      if (error) continue;
+      repaired += chunk.length;
+      for (const b of chunk) {
+        lines.push({
+          booking_id: b.id,
+          room_id: room.id,
+          room_type_id: room.room_type_id,
+          rate_charged: b.total_price,
+          nightly_rate: b.nights > 0 ? Number((b.total_price / b.nights).toFixed(2)) : b.total_price,
+          adults: b.adults,
+          children: b.children,
+        });
+      }
+    }
+  }
+
+  for (let i = 0; i < lines.length; i += BATCH) {
+    const chunk = lines.slice(i, i + BATCH);
+    const ids = chunk.map((l) => l.booking_id as string);
+    await sb.from("rolos_booking_rooms").delete().in("booking_id", ids);
+    await sb.from("rolos_booking_rooms").insert(chunk);
+  }
+
+  return {
+    mode: "repair",
+    dry_run: false,
+    repaired,
+    unmapped_total: (bookingRows ?? []).length,
+    unnamed,
+    groups: groupList,
+    suspect_dates: suspectDates,
+    rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
+  };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
