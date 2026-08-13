@@ -523,6 +523,118 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
           </div>
         )}
 
+        {/* Arrival span of the file — makes a history-only export obvious before importing */}
+        {result?.summary?.min_arrival && (
+          <p className="text-xs text-muted-foreground">
+            File covers <span className="font-medium text-foreground">{result.summary.min_arrival}</span> →{" "}
+            <span className="font-medium text-foreground">{result.summary.max_arrival}</span> ·{" "}
+            {result.summary.future_stays ?? 0} future stay{(result.summary.future_stays ?? 0) === 1 ? "" : "s"}
+            {(result.summary.future_stays ?? 0) === 0 && " — this export is history only"}
+          </p>
+        )}
+
+        {/* Persistent outcome of the last live import */}
+        {outcome && (
+          <Alert variant={outcome.kind === "failed" ? "destructive" : "default"}>
+            {outcome.kind === "failed" ? <AlertTriangle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+            <AlertTitle>
+              {outcome.kind === "saved"
+                ? `Saved ${outcome.created} bookings, updated ${outcome.updated}`
+                : "Import did not finish"}
+            </AlertTitle>
+            <AlertDescription className="space-y-2 text-xs">
+              {outcome.kind === "saved" ? (
+                <p>
+                  {outcome.skipped} skipped
+                  {outcome.excluded ? `, ${outcome.excluded} excluded` : ""}
+                  {outcome.errors ? `, ${outcome.errors} row errors` : ", no row errors"} ·{" "}
+                  {outcome.future} future stay{outcome.future === 1 ? "" : "s"} now block channel availability.
+                </p>
+              ) : (
+                <p>
+                  {outcome.message}
+                  {outcome.written > 0 ? ` — ${outcome.written} rows were already saved; retrying is safe (rows are keyed by NBID).` : ""}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {outcome.kind === "failed" && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!file || busy !== null} onClick={() => void run(false)}>
+                    Retry import
+                  </Button>
+                )}
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOutcome(null)}>
+                  Dismiss
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Preview-only warning — a validation that was never committed saves nothing */}
+        {!outcome && previewOnly && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Last action was a preview — nothing was saved</AlertTitle>
+            <AlertDescription className="text-xs">
+              The most recent run for this property was a validation only. Attach the export again and press
+              Import to commit it.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Recent imports */}
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Recent imports</p>
+              <p className="text-xs text-muted-foreground">
+                Every upload is recorded — previews included — so nothing can disappear without a trace.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => void loadHistory()}>
+                Refresh
+              </Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setHistoryOpen((v) => !v)}>
+                {historyOpen ? "Hide" : `Show (${history.length})`}
+              </Button>
+            </div>
+          </div>
+
+          {historyOpen && (
+            <div className="mt-3 space-y-2">
+              {history.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No imports recorded for this property yet.</p>
+              ) : (
+                history.map((h) => (
+                  <div key={h.id} className="flex flex-wrap items-center gap-2 rounded-md border border-border/60 p-2 text-xs">
+                    <Badge variant={h.mode === "live" ? "default" : "outline"} className="text-[10px]">
+                      {h.mode === "live" ? "imported" : "preview only"}
+                    </Badge>
+                    <span className="text-muted-foreground">{new Date(h.created_at).toLocaleString()}</span>
+                    <span className="font-medium">{h.file_name ?? "(no file name)"}</span>
+                    <span className="text-muted-foreground">
+                      {h.summary?.created ?? 0} created · {h.summary?.updated ?? 0} updated ·{" "}
+                      {h.summary?.skipped ?? 0} skipped · {h.summary?.errors ?? 0} errors
+                    </span>
+                    {h.min_arrival && (
+                      <span className="text-muted-foreground">
+                        arrivals {h.min_arrival} → {h.max_arrival} ({h.future_stays ?? 0} future)
+                      </span>
+                    )}
+                    {(h.unmapped_rooms?.length ?? 0) > 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {h.unmapped_rooms!.length} unmatched room names
+                      </Badge>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+
         {/* Unmapped rooms */}
         {validated && unmapped.length > 0 && (
           <Alert>
