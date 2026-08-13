@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle } from "lucide-react";
+import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon } from "lucide-react";
+import { displayBookingReference } from "@/lib/bookingReference";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,7 +29,19 @@ interface Guest {
   tags: string[];
   is_blacklisted: boolean;
   last_stay_date: string | null;
+  property_id?: string | null;
   complaints?: any[];
+}
+
+type Segment = "all" | "repeat" | "vip" | "blacklisted" | "no_contact";
+type SortKey = "recent" | "name" | "stays" | "spent";
+
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/** First letter used by the A–Z rail; anything non-alphabetic lands under "#". */
+function guestInitial(name: string): string {
+  const ch = (name || "").trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : "#";
 }
 
 interface GuestBooking {
@@ -39,6 +52,9 @@ interface GuestBooking {
   total_price: number;
   special_requests: string | null;
   booking_channel: string | null;
+  rol_reference?: string | null;
+  external_reservation_id?: string | null;
+  property_id?: string | null;
 }
 
 export default function PMSGuests() {
@@ -56,6 +72,9 @@ export default function PMSGuests() {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestBookings, setGuestBookings] = useState<GuestBooking[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [letter, setLetter] = useState<string | null>(null);
+  const [segment, setSegment] = useState<Segment>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("recent");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400);
@@ -109,6 +128,63 @@ export default function PMSGuests() {
 
   useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
+  const propertyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of [...(portfolioProperties || []), ...(properties || [])]) map.set(p.id, p.name);
+    return map;
+  }, [portfolioProperties, properties]);
+
+  /** Letters that actually have guests — the rail greys out the rest. */
+  const lettersPresent = useMemo(() => {
+    const set = new Set<string>();
+    for (const g of guests) set.add(guestInitial(g.full_name));
+    return set;
+  }, [guests]);
+
+  const segmentCounts = useMemo(() => ({
+    all: guests.length,
+    repeat: guests.filter(g => (g.total_stays || 0) > 1).length,
+    vip: guests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
+    blacklisted: guests.filter(g => g.is_blacklisted).length,
+    no_contact: guests.filter(g => !g.email && !g.phone).length,
+  }), [guests]);
+
+  const visibleGuests = useMemo(() => {
+    let rows = guests;
+    if (letter) rows = rows.filter(g => guestInitial(g.full_name) === letter);
+    if (segment === "repeat") rows = rows.filter(g => (g.total_stays || 0) > 1);
+    if (segment === "vip") rows = rows.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip"));
+    if (segment === "blacklisted") rows = rows.filter(g => g.is_blacklisted);
+    if (segment === "no_contact") rows = rows.filter(g => !g.email && !g.phone);
+    const sorted = [...rows];
+    if (sortKey === "name") sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    else if (sortKey === "stays") sorted.sort((a, b) => (b.total_stays || 0) - (a.total_stays || 0));
+    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0));
+    else sorted.sort((a, b) => (b.last_stay_date || "").localeCompare(a.last_stay_date || ""));
+    return sorted;
+  }, [guests, letter, segment, sortKey]);
+
+  const exportCsv = useCallback(() => {
+    const header = ["Name", "Email", "Phone", "Stays", "Spent", "Last stay", "Property", "Tags", "Blacklisted"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [header.map(esc).join(",")];
+    for (const g of visibleGuests) {
+      lines.push([
+        g.full_name, g.email || "", g.phone || "", g.total_stays || 0, g.total_spent || 0,
+        g.last_stay_date || "", (g.property_id && propertyNameById.get(g.property_id)) || "",
+        (g.tags || []).join(" | "), g.is_blacklisted ? "yes" : "no",
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `guest-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${visibleGuests.length} guest${visibleGuests.length === 1 ? "" : "s"}`);
+  }, [visibleGuests, propertyNameById]);
+
   const handleCreate = async () => {
     const targetPropertyId = propertyId || activeIds[0];
     if (!targetPropertyId || !form.full_name) return;
@@ -125,7 +201,7 @@ export default function PMSGuests() {
     setLoadingHistory(true);
     // Fetch bookings for this guest
     const { data } = await supabase.from("bookings")
-      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel")
+      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
       .eq("rolos_guest_id", guest.id)
       .order("check_in_date", { ascending: false })
       .limit(50);
