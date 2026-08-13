@@ -26,9 +26,10 @@ export async function syncRestrictionsToChannels(
 
   for (const propertyId of unique) {
     try {
+      // Not awaited to completion at the channel: the delta is queued server-side and the push
+      // continues in the background so the save never hangs on the round-trip.
       const result = await queueChannelRatesSync(propertyId, `${label}_change`, {
         force: true,
-        wait: true,
       });
       if (result?.reason === "gate_pending") {
         summary.pending += 1;
