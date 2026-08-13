@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
-import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { CANCELLATION_REASON_CATEGORIES } from "../_shared/revenueStatuses.ts";
 
 const corsHeaders = {
