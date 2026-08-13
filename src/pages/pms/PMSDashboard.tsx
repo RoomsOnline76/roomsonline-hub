@@ -153,6 +153,10 @@ interface BookingRow {
   rolos_rate_plan_id: string | null;
   modification_notes: Record<string, unknown>[] | null;
   room_type_id: string | null;
+  /** Room types of the booking's per-unit lines (multi-room stays). */
+  line_room_type_ids?: string[] | null;
+  rol_reference?: string | null;
+  external_reservation_id?: string | null;
   rolos_guest_id: string | null;
   property_id: string | null;
   /** e.g. 'rentalsunited_lead' for a channel enquiry holding the dates. */
@@ -161,6 +165,7 @@ interface BookingRow {
   hold_released_at?: string | null;
   hold_expires_at?: string | null;
 }
+
 
 interface RoomType {
   id: string;
