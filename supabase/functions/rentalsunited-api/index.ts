@@ -2562,15 +2562,38 @@ Deno.serve(async (req) => {
       }
 
       console.log(`[rentalsunited-api] XML first 300 chars: ${previewXml(sanitizeXmlForLogs(compactRequestXml), 300)}`);
-      const response = await callRentalsUnited(scopedCreds, xml);
+      let response = await callRentalsUnited(scopedCreds, xml);
       console.log(`[rentalsunited-api] RU push response: ${response.substring(0, 500)}`);
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+
+      /**
+       * Gate #10 fallback — attraction distances are a nice-to-have and must never cost us the
+       * content push. RU answers status 92 "Duplicate value in distances." for some listings even
+       * when every entry we send is unique (distinct DestinationID and distinct value), so the
+       * rule lives on their side. When that happens, re-send the identical payload once with the
+       * <Distances> block removed and report the unit as pushed with a soft note.
+       */
+      let distancesSkipped = 0;
+      if (!ok && Array.isArray(p.distances) && p.distances.length > 0 && /distance/i.test(String(status.message ?? ''))) {
+        distancesSkipped = p.distances.length;
+        console.warn(`[rentalsunited-api] RU rejected distances (${status.id}: ${status.message}) — retrying without the <Distances> block`);
+        const retryPayload = { ...p, distances: [] };
+        xml = buildPushPropertyXml(scopedCreds, ru_property_id, retryPayload);
+        compactRequestXml = compactXml(xml);
+        response = await callRentalsUnited(scopedCreds, xml);
+        const retryStatus = handleRUStatus(response);
+        ok = retryStatus.ok;
+        status = retryStatus.status;
+        if (!ok) distancesSkipped = 0;
+      }
+
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
         console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
         return ruErrorResponse(status, diag);
       }
+
 
       // Extract returned PropertyID from RU response (e.g. <PropertyID>12345</PropertyID>)
       const pidMatch = response.match(/<PropertyID[^>]*>(\d+)<\/PropertyID>/i);
