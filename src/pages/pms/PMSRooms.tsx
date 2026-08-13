@@ -466,19 +466,6 @@ export default function PMSRooms() {
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <PmsNoPropertyState description="No property is assigned to this account yet, so there is no room inventory to show. Rooms appear here once a property is linked." />;
 
-  const currentIdx = properties.findIndex((p) => p.id === propertyId);
-  const canCycle = !isPortfolio && properties.length > 1;
-  const goPrev = () => {
-    if (!canCycle) return;
-    const next = properties[(currentIdx - 1 + properties.length) % properties.length];
-    if (next) selectSingleProperty(next.id);
-  };
-  const goNext = () => {
-    if (!canCycle) return;
-    const next = properties[(currentIdx + 1) % properties.length];
-    if (next) selectSingleProperty(next.id);
-  };
-
   // Group rooms & types per property for portfolio mode
   const propertySections = isPortfolio
     ? properties.map((p) => ({
