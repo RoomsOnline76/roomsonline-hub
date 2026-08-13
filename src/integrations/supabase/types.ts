@@ -13943,11 +13943,13 @@ export type Database = {
       }
       ru_notifications: {
         Row: {
+          attempt_count: number
           created_at: string | null
           error_message: string | null
           event_type: string
           id: string
           last_attempt_at: string | null
+          next_attempt_at: string | null
           processed: boolean | null
           property_id: string | null
           raw_xml: string | null
@@ -13957,11 +13959,13 @@ export type Database = {
           ru_reservation_id: string | null
         }
         Insert: {
+          attempt_count?: number
           created_at?: string | null
           error_message?: string | null
           event_type: string
           id?: string
           last_attempt_at?: string | null
+          next_attempt_at?: string | null
           processed?: boolean | null
           property_id?: string | null
           raw_xml?: string | null
@@ -13971,11 +13975,13 @@ export type Database = {
           ru_reservation_id?: string | null
         }
         Update: {
+          attempt_count?: number
           created_at?: string | null
           error_message?: string | null
           event_type?: string
           id?: string
           last_attempt_at?: string | null
+          next_attempt_at?: string | null
           processed?: boolean | null
           property_id?: string | null
           raw_xml?: string | null
