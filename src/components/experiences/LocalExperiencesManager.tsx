@@ -663,6 +663,38 @@ function ExperienceForm({ experience, prefill, destinations = [], onSave, isLoad
         </div>
       </div>
 
+      {destinations.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="ru_destination">Channel destination type</Label>
+          <Select
+            value={formData.ru_destination_id ? String(formData.ru_destination_id) : 'auto'}
+            onValueChange={(value) =>
+              setFormData({
+                ...formData,
+                ru_destination_id: value === 'auto' ? null : Number(value),
+              })
+            }
+          >
+            <SelectTrigger id="ru_destination">
+              <SelectValue placeholder="Auto-match" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto-match from the name</SelectItem>
+              {destinations.map((d) => (
+                <SelectItem key={d.ru_destination_id} value={String(d.ru_destination_id)}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Used when the distance is shared with the channel. Leave on auto-match unless the
+            name is ambiguous.
+          </p>
+        </div>
+      )}
+
+
       <div className="space-y-2">
         <Label htmlFor="why_locals">Why Locals Love It</Label>
         <Textarea
