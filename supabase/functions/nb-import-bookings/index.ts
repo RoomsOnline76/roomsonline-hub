@@ -493,7 +493,13 @@ Deno.serve(async (req) => {
      * room name is preserved in `internal_notes` ("NB Room: <name>"), so it can be
      * grouped and mapped after the fact without re-uploading the export.
      */
+    if (mode === "repair_superseded_rooms") {
+      const result = await repairSupersededRooms(sb, propertyId, dryRun);
+      return json({ ok: true, ...result });
+    }
+
     if (mode === "repair") {
+
       const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
       return json({ ok: true, ...repair });
     }
