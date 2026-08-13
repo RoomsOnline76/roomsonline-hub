@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { systemBlockLabel, type BlockDetail } from "@/lib/blockAttribution";
 import { getSaHolidayName, isWeekendDay } from "@/lib/saPublicHolidays";
 import { MC_COL_W, MC_LABEL_W } from "@/components/pms/calendar/MultiCalendarSurface";
 import {
@@ -14,6 +15,7 @@ import {
   overbookedNights,
   paxLabel,
   stayNights,
+  stopSellKey,
   type PlanRoom,
   type PlanRoomType,
   type RoomsBooking,
