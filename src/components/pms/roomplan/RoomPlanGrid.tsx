@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RoomPlanBar, RoomPlanBooking } from "./RoomPlanBar";
 import {
