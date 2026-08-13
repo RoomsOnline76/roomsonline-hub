@@ -173,7 +173,17 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
               (excluded ? `, ${excluded} excluded` : ""),
           );
+          // Imported future stays are real occupancy — push availability so the channel stops selling them.
+          if ((data.summary.future_stays ?? 0) > 0) {
+            void queueChannelRatesSync(propertyId, "nb_import").then((outcome) => {
+              if (outcome?.queued || outcome?.accepted) {
+                toast.success("Availability update sent to the channel manager");
+              }
+            });
+          }
+          void refreshRepair();
         }
+
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Import failed");
       } finally {
