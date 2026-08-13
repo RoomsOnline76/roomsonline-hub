@@ -264,7 +264,7 @@ export function RoomPlanGrid({
     [bookingById, onMoveBooking, rowByKey]
   );
 
-  const { drag, bodyRef, beginCreate, beginMove } = useRoomPlanDrag({
+  const { drag, bodyRef, beginCreate, beginMove, consumeGestureDrag } = useRoomPlanDrag({
     colWidth,
     colCount: dates.length,
     labelWidth: ROOM_PLAN_LABEL_W,
@@ -274,6 +274,16 @@ export function RoomPlanGrid({
     onMoveCommit: handleMoveCommit,
   });
 
+  // While a move is awaiting confirmation the dialog must stay the top surface,
+  // so booking-sheet opens are ignored until it is resolved.
+  const openBooking = useCallback(
+    (booking: RoomPlanBooking) => {
+      if (pendingMove) return;
+      onSelectBooking(booking);
+    },
+    [onSelectBooking, pendingMove]
+  );
+
   const confirmMove = async () => {
     if (!pendingMove || !onMoveBooking) return;
     setSaving(true);
@@ -281,6 +291,13 @@ export function RoomPlanGrid({
       const { fromLabel: _from, toLabel: _to, ...payload } = pendingMove;
       await onMoveBooking(payload);
       setPendingMove(null);
+    } catch (error) {
+      // Keep the dialog open so the move can be retried or abandoned deliberately.
+      toast({
+        title: "Move failed",
+        description: error instanceof Error ? error.message : "The reservation could not be moved.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
