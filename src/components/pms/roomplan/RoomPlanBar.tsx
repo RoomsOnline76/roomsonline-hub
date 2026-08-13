@@ -51,6 +51,8 @@ interface RoomPlanBarProps {
   onModify?: (booking: RoomPlanBooking) => void;
   onCancel?: (booking: RoomPlanBooking) => void;
   onDragStart?: (booking: RoomPlanBooking, event: React.PointerEvent) => void;
+  /** True when the click currently firing is the tail of a drag gesture. */
+  wasDragGesture?: () => boolean;
 }
 
 const paxLine = (b: RoomPlanBooking) => {
