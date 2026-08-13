@@ -107,13 +107,18 @@ export function LocalExperiencesManager({
   propertyId, 
   propertyName,
   propertyCity,
-  propertyCountry
+  propertyCountry,
+  propertyLat,
+  propertyLng,
+  variant = 'full'
 }: LocalExperiencesManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExperience, setEditingExperience] = useState<LocalExperience | null>(null);
+  const [prefill, setPrefill] = useState<Partial<LocalExperience> | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const isCompact = variant === 'compact';
 
   // Fetch experiences
   const { data: experiences, isLoading } = useQuery({
@@ -129,6 +134,26 @@ export function LocalExperiencesManager({
       return data as LocalExperience[];
     }
   });
+
+  // Channel destination dictionary (generic destinations only)
+  const { data: destinations } = useQuery({
+    queryKey: ['ru-generic-destinations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ru_destinations')
+        .select('ru_destination_id, name')
+        .eq('is_generic', true)
+        .order('name');
+      if (error) return [] as DestinationOption[];
+      return (data ?? []) as DestinationOption[];
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const withDistance = (experiences ?? []).filter(
+    (e) => e.is_active && e.distance_km !== null && Number(e.distance_km) > 0,
+  ).length;
+
 
   // Create/Update mutation
   const saveMutation = useMutation({
