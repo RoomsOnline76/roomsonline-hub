@@ -41,6 +41,21 @@ const json = (body: unknown, status = 200) =>
  * the outcome so the operator sees it instead of silence. Past stays are never pushed.
  */
 /** Imported stays with a check-out still ahead of today — the ones that owe the channel. */
+/** Sibling properties in the same portfolio — a guest known next door is the same person. */
+async function loadPortfolioSiblings(sb: any, propertyId: string): Promise<string[]> {
+  const { data: mine } = await sb
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId);
+  const portfolioIds = [...new Set((mine ?? []).map((r: any) => r.portfolio_id).filter(Boolean))];
+  if (portfolioIds.length === 0) return [];
+  const { data: siblings } = await sb
+    .from("property_portfolio_members")
+    .select("property_id")
+    .in("portfolio_id", portfolioIds);
+  return [...new Set((siblings ?? []).map((r: any) => r.property_id as string))];
+}
+
 async function countFutureImportedStays(sb: any, propertyId: string): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { count } = await sb
