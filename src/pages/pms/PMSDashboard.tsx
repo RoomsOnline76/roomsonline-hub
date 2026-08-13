@@ -346,6 +346,21 @@ function isChannelLead(booking: Pick<BookingRow, "integration_type">): boolean {
   return (booking.integration_type ?? "").endsWith("_lead");
 }
 
+/** Rentals United bookings must be cancelled / modified at the channel first. */
+function isRuSourcedBooking(booking: Pick<BookingRow, "booking_channel" | "integration_type">): boolean {
+  return (
+    (booking.booking_channel || "").toLowerCase() === "rentals_united" ||
+    (booking.integration_type || "").toLowerCase().startsWith("rentalsunited")
+  );
+}
+
+/** Unconfirmed RU requests are rejected rather than cancelled. */
+function isRuLeadOrigin(booking: Pick<BookingRow, "integration_type">): boolean {
+  return (booking.integration_type || "").toLowerCase() === "rentalsunited_lead";
+}
+
+
+
 /** Colour a calendar bar: enquiries read as held (dashed) or lapsed (muted). */
 function getBookingColor(booking: Pick<BookingRow, "status" | "integration_type" | "hold_released_at">) {
   if (isChannelLead(booking) && booking.status === "pending") {
