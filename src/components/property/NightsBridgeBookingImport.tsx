@@ -59,7 +59,28 @@ interface ImportSummary {
   unmapped_rooms: string[];
   /** Stays still ahead of today — these must also block availability on the channel. */
   future_stays?: number;
+  /** Arrival span of the file, so a history-only export is obvious before importing. */
+  min_arrival?: string | null;
+  max_arrival?: string | null;
+  /** Chunked live writes. */
+  written?: number;
+  row_done?: number;
+  has_more?: boolean;
 }
+
+/** One recorded import run (preview or live) for this property. */
+interface ImportRun {
+  id: string;
+  created_at: string;
+  file_name: string | null;
+  mode: string;
+  summary: Partial<ImportSummary> | null;
+  min_arrival: string | null;
+  max_arrival: string | null;
+  future_stays: number | null;
+  unmapped_rooms: string[] | null;
+}
+
 
 /** Result of the post-import repair pass over bookings that never matched a unit. */
 interface RepairResponse {
