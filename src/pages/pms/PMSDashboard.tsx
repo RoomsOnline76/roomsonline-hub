@@ -942,6 +942,28 @@ export default function PMSDashboard() {
     enabled: isPortfolioMode,
   });
 
+  /* Imported history (NightsBridge exports and similar) often sits entirely outside the
+   * forward-looking calendar window, which reads as "no bookings". Surface the real coverage
+   * and let the user jump straight to it instead of showing an empty grid. */
+  const coverageIds = useMemo(
+    () => (isPortfolioMode ? portfolioPropertyIds : propertyId ? [propertyId] : []),
+    [isPortfolioMode, portfolioPropertyIds, propertyId],
+  );
+  const { data: bookingCoverage } = useBookingCoverage(coverageIds);
+  const visibleBookingCount = isPortfolioMode ? portfolioBookingsRaw.length : bookingsRaw.length;
+  const outsideWindowNotice = useMemo(() => {
+    if (bookingsLoading || visibleBookingCount > 0) return null;
+    if (!bookingCoverage || bookingCoverage.total === 0) return null;
+    const windowStart = format(dateRange.start, "yyyy-MM-dd");
+    const target =
+      bookingCoverage.latest && bookingCoverage.latest < windowStart
+        ? bookingCoverage.latest
+        : bookingCoverage.earliest;
+    if (!target) return null;
+    return { total: bookingCoverage.total, target };
+  }, [bookingsLoading, visibleBookingCount, bookingCoverage, dateRange.start]);
+
+
   const { data: portfolioOverridesRaw = [] } = useQuery({
     queryKey: ["pms-portfolio-overrides", portfolioPropertyIds, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
