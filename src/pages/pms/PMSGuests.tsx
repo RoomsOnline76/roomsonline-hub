@@ -270,11 +270,48 @@ export default function PMSGuests() {
           </TabsList>
 
           <TabsContent value="guests" className="space-y-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[220px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+              </div>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-xs"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                aria-label="Sort guests"
+              >
+                <option value="recent">Most recent stay</option>
+                <option value="name">Name A–Z</option>
+                <option value="stays">Most stays</option>
+                <option value="spent">Highest spend</option>
+              </select>
+              <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!visibleGuests.length}>
+                <Download className="h-4 w-4 mr-2" />Export CSV
+              </Button>
             </div>
 
+            {/* Segment chips */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {([
+                { key: "all", label: "All guests", icon: Users },
+                { key: "repeat", label: "Repeat", icon: Repeat },
+                { key: "vip", label: "VIP", icon: Star },
+                { key: "blacklisted", label: "Blacklisted", icon: Ban },
+                { key: "no_contact", label: "No contact details", icon: AlertCircle },
+              ] as { key: Segment; label: string; icon: typeof Users }[]).map(({ key, label, icon: Icon }) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={segment === key ? "default" : "outline"}
+                  className="h-7 rounded-full px-3 text-xs"
+                  onClick={() => setSegment(key)}
+                >
+                  <Icon className="h-3 w-3 mr-1.5" />{label}
+                  <span className="ml-1.5 opacity-70">{segmentCounts[key]}</span>
+                </Button>
+              ))}
+            </div>
 
             {loading ? (
               <div className="space-y-2">
@@ -285,36 +322,82 @@ export default function PMSGuests() {
             ) : guests.length === 0 ? (
               <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
             ) : (
-              <div className="space-y-2">
-                {guests.map((guest) => (
-                  <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
-                    <CardContent className="py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                          {guest.full_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-medium">{guest.full_name}</p>
-                          <div className="flex gap-3 text-xs text-muted-foreground">
-                            {guest.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{guest.email}</span>}
-                            {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+              <div className="flex gap-3">
+                {/* A–Z rail */}
+                <div className="flex flex-col items-center gap-0.5 pt-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setLetter(null)}
+                    className={`h-5 w-5 rounded text-[10px] font-semibold ${letter === null ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  >
+                    All
+                  </button>
+                  {[...ALPHABET, "#"].map((l) => {
+                    const has = lettersPresent.has(l);
+                    return (
+                      <button
+                        key={l}
+                        type="button"
+                        disabled={!has}
+                        onClick={() => setLetter(letter === l ? null : l)}
+                        className={`h-5 w-5 rounded text-[10px] font-semibold transition-colors ${
+                          letter === l
+                            ? "bg-primary text-primary-foreground"
+                            : has
+                              ? "text-foreground hover:bg-muted"
+                              : "text-muted-foreground/40 cursor-default"
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  {visibleGuests.length === 0 ? (
+                    <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No guests match this filter.</CardContent></Card>
+                  ) : visibleGuests.map((guest) => {
+                    const homeProperty = guest.property_id ? propertyNameById.get(guest.property_id) : null;
+                    return (
+                      <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
+                        <CardContent className="py-4 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                              {guest.full_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{guest.full_name}</p>
+                              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                {guest.email && <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{guest.email}</span>}
+                                {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+                                {homeProperty && viewMode === "portfolio" && (
+                                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{homeProperty}</span>
+                                )}
+                                {guest.last_stay_date && (
+                                  <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Last {guest.last_stay_date}</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{guest.total_stays} stays</p>
-                          <p className="text-xs text-muted-foreground">R{guest.total_spent.toLocaleString()}</p>
-                        </div>
-                        {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                        {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right text-sm">
+                              <p className="font-medium">{guest.total_stays || 0} stay{(guest.total_stays || 0) === 1 ? "" : "s"}</p>
+                              <p className="text-xs text-muted-foreground">R{(guest.total_spent || 0).toLocaleString()}</p>
+                            </div>
+                            {(guest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-xs">Repeat</Badge>}
+                            {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                            {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
             )}
       </TabsContent>
+
 
           <TabsContent value="accounts">
             <CrmAccountsTab
