@@ -100,10 +100,12 @@ export function useRoomPlanDrag({
   );
 
   const beginCreate = useCallback(
-    (target: RoomPlanRowTarget, clientX: number) => {
+    (target: RoomPlanRowTarget, clientX: number, clientY = 0) => {
       if (!enabled) return;
       const col = colFromClientX(clientX);
       movedRef.current = false;
+      gestureDraggedRef.current = false;
+      startPointRef.current = { x: clientX, y: clientY };
       setDrag({ kind: "create", ...target, startCol: col, endCol: col });
     },
     [colFromClientX, enabled]
@@ -112,11 +114,14 @@ export function useRoomPlanDrag({
   const beginMove = useCallback(
     (
       payload: { bookingId: string; roomTypeId: string; originRowKey: string; originRoomId: string | null; startCol: number; cols: number },
-      clientX: number
+      clientX: number,
+      clientY = 0
     ) => {
       if (!enabled) return;
       grabColRef.current = colFromClientX(clientX);
       movedRef.current = false;
+      gestureDraggedRef.current = false;
+      startPointRef.current = { x: clientX, y: clientY };
       setDrag({
         kind: "move",
         ...payload,
@@ -132,7 +137,14 @@ export function useRoomPlanDrag({
     if (!drag) return;
 
     const handleMove = (event: PointerEvent) => {
-      movedRef.current = true;
+      const origin = startPointRef.current;
+      // A few pixels of jitter must not turn a click into a drag.
+      const far =
+        !origin || Math.abs(event.clientX - origin.x) > 3 || Math.abs(event.clientY - origin.y) > 3;
+      if (far) {
+        movedRef.current = true;
+        gestureDraggedRef.current = true;
+      }
       const col = colFromClientX(event.clientX);
       const current = dragRef.current;
       if (!current) return;
