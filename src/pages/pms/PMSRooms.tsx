@@ -514,41 +514,33 @@ export default function PMSRooms() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 0 && (
-              <div className="flex items-center gap-1">
-                {canCycle && (
-                  <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Previous property">
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                )}
-                <Select
-                  value={propertyScope}
-                  onValueChange={(v) => (v === ALL_PROPERTIES ? setPropertyScope(ALL_PROPERTIES) : selectSingleProperty(v))}
+            {showPortfolioToggle && (
+              <div className="inline-flex rounded-md border bg-muted/40 p-0.5">
+                <Button
+                  size="sm"
+                  variant={viewMode === "portfolio" ? "default" : "ghost"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setViewMode("portfolio")}
                 >
-                  <SelectTrigger className="h-9 min-w-[220px]">
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.length > 1 && (
-                      <SelectItem value={ALL_PROPERTIES}>All properties ({properties.length})</SelectItem>
-                    )}
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {canCycle && (
-                  <>
-                    <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Next property">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                    <span className="ml-1 text-xs tabular-nums text-muted-foreground">
-                      {currentIdx + 1} / {properties.length}
-                    </span>
-                  </>
-                )}
+                  Portfolio
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "single" ? "default" : "ghost"}
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setViewMode("single")}
+                >
+                  Property
+                </Button>
               </div>
             )}
+            <Button variant="outline" size="sm" onClick={fetchData}>
+              <RefreshCw className="h-4 w-4 mr-2" />Refresh
+            </Button>
+            {!isPortfolio && (
+              <Button onClick={openCreateDialog}><Plus className="h-4 w-4 mr-2" />Add Room</Button>
+            )}
+          </div>
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
