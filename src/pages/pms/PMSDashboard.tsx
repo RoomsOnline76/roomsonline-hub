@@ -3204,10 +3204,8 @@ function BookingDetail({
   const availableRooms = rooms.filter(r => r.status === "available");
   const guestId = b.rolos_guest_id || null;
   // Rentals United bookings must be cancelled/modified at the channel first.
-  const isRuSourced =
-    (b.booking_channel || "").toLowerCase() === "rentals_united" ||
-    (b.integration_type || "").toLowerCase().startsWith("rentalsunited");
-  const isRuLeadBooking = (b.integration_type || "").toLowerCase() === "rentalsunited_lead";
+  const isRuSourced = isRuSourcedBooking(b);
+  const isRuLeadBooking = isRuLeadOrigin(b);
 
 
   // Lifecycle buttons based on status
