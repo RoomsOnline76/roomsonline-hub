@@ -135,7 +135,9 @@ export function useChannelReconciliation() {
         archived_orphans: payload.archived_orphans || [],
         matched: payload.matched || [],
         orphans: payload.orphans || [],
+        duplicates: payload.duplicates || [],
         stale: payload.stale || [],
+
       });
       return true;
     } catch (e) {
