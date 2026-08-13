@@ -1166,6 +1166,10 @@ Deno.serve(async (req) => {
       if (error) errors.push({ row: 0, nbid: null, message: `Room lines: ${error.message}` });
     }
 
+    /* Roll the imported stays up onto the guest records so history shows in the CRM. */
+    await rebuildGuestStats(sb, [...touchedGuestIds]);
+
+
     const chunkDone = chunkedWrite ? chunkFrom + writeSlice.length : totalMapped;
     const liveSummary = {
       total_rows: rows.length,
