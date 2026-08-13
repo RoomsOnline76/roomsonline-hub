@@ -84,6 +84,7 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         token,
         amount: Number(payload.amount ?? 0),
         note: (payload.note as string | null) ?? null,
+        direction: payload.direction === "credit" ? "credit" : "owing",
       });
       return;
     }

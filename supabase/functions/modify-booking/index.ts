@@ -678,6 +678,20 @@ Deno.serve(async (req) => {
             options: { dedupeKey: `balance:${booking_id}` },
           }]
         : []),
+      ...(settlementOutcome?.credit_requested && settlementOutcome.credit_token
+        ? [{
+            // The guest chooses: hold the difference as credit for the stay, or be refunded now.
+            type: "booking_balance_request" as const,
+            payload: {
+              booking_id,
+              token: settlementOutcome.credit_token,
+              amount: settlementOutcome.refund_amount,
+              direction: "credit",
+              note: modifications.note ?? null,
+            },
+            options: { dedupeKey: `credit:${booking_id}` },
+          }]
+        : []),
     ]);
     kickWorker();
 
