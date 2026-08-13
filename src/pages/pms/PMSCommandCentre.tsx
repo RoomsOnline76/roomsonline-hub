@@ -913,7 +913,23 @@ export default function PMSCommandCentre() {
         </span>
       </div>
 
+      {/* Overbooking alerts — clashes need attention before anything else */}
+      <OverbookingAlertCard
+        clashes={clashes}
+        loading={clashesLoading}
+        suggestFor={suggestFor}
+        onOpenBooking={(booking) => {
+          const row = gridBookings.find((b) => b.id === booking.id);
+          if (row) setSelectedBooking(row);
+          else navigate(`/pms/bookings?property=${booking.property_id ?? ""}&booking=${booking.id}`);
+        }}
+        onOpenRoomPlan={(clash) =>
+          navigate(`/pms/rooms?property=${clash.propertyId}&from=${clash.start}&conflicts=1`)
+        }
+      />
+
       {/* Availability Grid */}
+
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
