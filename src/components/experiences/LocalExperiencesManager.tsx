@@ -196,8 +196,10 @@ export function LocalExperiencesManager({
       queryClient.invalidateQueries({ queryKey: ['local-experiences', propertyId] });
       setIsDialogOpen(false);
       setEditingExperience(null);
+      setPrefill(null);
       // Attraction distances are part of the channel content payload — push the change itself.
       void queueChannelContentSync(propertyId, 'local_experience_save');
+
       toast({ title: 'Experience saved!' });
     },
     onError: (error) => {
