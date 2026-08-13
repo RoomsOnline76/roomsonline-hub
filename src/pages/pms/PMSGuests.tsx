@@ -430,14 +430,36 @@ export default function PMSGuests() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <div className="text-right text-sm">
                               <p className="font-medium">{guest.total_stays || 0} stay{(guest.total_stays || 0) === 1 ? "" : "s"}</p>
-                              <p className="text-xs text-muted-foreground">R{(guest.total_spent || 0).toLocaleString()}</p>
+                              <p className="text-xs text-muted-foreground">{zar(guest.total_received)} received</p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {(guest.total_outstanding || 0) > 0 && (
+                                <Badge variant="outline" className="text-[10px] border-amber-500 text-amber-600 dark:text-amber-400">
+                                  {zar(guest.total_outstanding)} owing
+                                </Badge>
+                              )}
+                              {(guest.total_cancelled_value || 0) > 0 && (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground line-through">
+                                  {zar(guest.total_cancelled_value)} cancelled
+                                </Badge>
+                              )}
                             </div>
                             {(guest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-xs">Repeat</Badge>}
                             {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
                             {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
+                            {guest.is_archived && <Badge variant="outline" className="text-xs text-muted-foreground">Archived</Badge>}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              aria-label={`Edit ${guest.full_name}`}
+                              onClick={(e) => { e.stopPropagation(); setEditGuest(guest); }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
