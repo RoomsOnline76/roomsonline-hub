@@ -1053,3 +1053,13 @@ div.channel-recommended {
   border-style: solid !important;
 }
 
+
+/* Blocked (stop-sell) nights: hatched shading shared by the room plan,
+   week and month calendar cells so a block reads the same everywhere. */
+.blocked-night-hatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    hsl(var(--destructive) / 0.22) 0 3px,
+    transparent 3px 6px
+  );
+}

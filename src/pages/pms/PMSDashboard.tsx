@@ -2687,7 +2687,7 @@ function dateCellBg(date: Date, extraStop?: boolean) {
   if (extraStop) {
     return cn(
       "bg-red-500/5",
-      "[background-image:repeating-linear-gradient(45deg,hsl(var(--destructive)/0.22)_0_3px,transparent_3px_6px)]",
+      "blocked-night-hatch",
       today && "ring-1 ring-inset ring-primary/40",
     );
   }
