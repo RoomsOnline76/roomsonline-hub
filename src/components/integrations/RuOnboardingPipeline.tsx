@@ -573,7 +573,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
                     </div>
                   )}
 
-                  {phase.status === "pending" && idx > 0 && (
+                  {phase.status === "pending" && phase.order > 1 && (
                     <p className="mt-2 text-sm text-muted-foreground">
                       Locked until phase {phase.order - 1} is complete.
                     </p>
