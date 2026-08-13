@@ -416,6 +416,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setLines([newLine()]);
     setCrm(emptyBookerSegmentation());
     setInvoiceTo({ name: "", vat: "", address: "" });
+    setPickedGuest(null);
   };
 
   const handleSave = async () => {
