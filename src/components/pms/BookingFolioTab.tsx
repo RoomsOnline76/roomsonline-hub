@@ -294,9 +294,20 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
           <Button size="sm" variant="outline" onClick={() => setShowChargeForm(!showChargeForm)} className="flex-1">
             <Plus className="h-3 w-3 mr-1" />Add Charge
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setShowPaymentForm(!showPaymentForm)} className="flex-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (!showPaymentForm) setPaymentForm(p => ({ ...p, amount: balance > 0 ? String(balance) : "" }));
+              setShowPaymentForm(!showPaymentForm);
+            }}
+            disabled={!canCollect}
+            title={canCollect ? undefined : "Nothing to collect — this booking is settled"}
+            className="flex-1"
+          >
             <CreditCard className="h-3 w-3 mr-1" />Record Payment
           </Button>
+
         </div>
       )}
 
