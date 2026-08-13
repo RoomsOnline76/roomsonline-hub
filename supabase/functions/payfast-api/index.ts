@@ -1319,7 +1319,9 @@ Deno.serve(async (req) => {
         );
       }
       
-      const { booking_id, return_url, cancel_url } = validation.data;
+      const { booking_id, return_url, cancel_url, purpose, amount_override } = validation.data;
+      const isBalanceTopUp = purpose === "balance";
+
       
       // Fetch booking details
       const { data: booking, error: bookingError } = await supabase
