@@ -236,19 +236,27 @@ export function useChannelReconciliation() {
    *
    * Default scope is "actionable": live orphans on the account plus stale local
    * ids. Archived listings cost nothing, so they are only deleted when the
-   * caller explicitly asks for the "archived" scope.
+   * caller explicitly asks for the "archived" scope. The "duplicates" scope removes
+   * surplus same-name copies and always leaves the keeper in place.
    */
-  const cleanupAll = useCallback(async (scope: "actionable" | "archived" = "actionable"): Promise<CleanupOutcome> => {
+  const cleanupAll = useCallback(async (
+    scope: "actionable" | "archived" | "duplicates" = "actionable",
+  ): Promise<CleanupOutcome> => {
     const snapshot = result;
     if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
     const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
-    const source = scope === "archived" ? snapshot.archived_orphans : snapshot.orphans;
+    const source =
+      scope === "archived" ? snapshot.archived_orphans
+      : scope === "duplicates" ? snapshot.duplicates
+      : snapshot.orphans;
     const listings: Array<{ listing_id: string; owner_id: string; name: string }> = source
       .filter((o) => !erroredOwners.has(o.owner_id))
       .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
-    const stale = scope === "archived" ? [] : snapshot.stale;
+    const stale = scope === "actionable" ? snapshot.stale : [];
     const total = listings.length + stale.length;
+
+
 
 
     const failed: CleanupOutcome["failures"] = [];
