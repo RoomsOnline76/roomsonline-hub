@@ -69,6 +69,8 @@ interface GuestBooking {
   check_out_date: string;
   status: string;
   total_price: number;
+  amount_paid?: number | null;
+  payment_status?: string | null;
   special_requests: string | null;
   booking_channel: string | null;
   rol_reference?: string | null;
