@@ -34,9 +34,15 @@ export interface RoomPlanBooking {
   special_requests?: string | null;
   rolos_room_ids?: string[] | null;
   room_type_id?: string | null;
+  /** Room types referenced by the booking's per-unit lines (multi-room stays). */
+  line_room_type_ids?: string[] | null;
+  rol_reference?: string | null;
+  rol_reference_legacy?: string | null;
+  external_reservation_id?: string | null;
   property_id?: string | null;
   modification_notes?: Record<string, unknown>[] | null;
 }
+
 
 interface RoomPlanBarProps {
   booking: RoomPlanBooking;
