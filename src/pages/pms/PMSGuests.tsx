@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle } from "lucide-react";
+import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon } from "lucide-react";
+import { displayBookingReference } from "@/lib/bookingReference";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,7 +29,26 @@ interface Guest {
   tags: string[];
   is_blacklisted: boolean;
   last_stay_date: string | null;
+  property_id?: string | null;
   complaints?: any[];
+}
+
+type Segment = "all" | "repeat" | "vip" | "blacklisted" | "no_contact";
+type SortKey = "recent" | "name" | "stays" | "spent";
+
+const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+/** Nights between two ISO dates — 0 when either is missing. */
+function nightsBetween(from: string | null, to: string | null): number {
+  if (!from || !to) return 0;
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return ms > 0 ? Math.round(ms / 86400000) : 0;
+}
+
+/** First letter used by the A–Z rail; anything non-alphabetic lands under "#". */
+function guestInitial(name: string): string {
+  const ch = (name || "").trim().charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : "#";
 }
 
 interface GuestBooking {
@@ -39,6 +59,9 @@ interface GuestBooking {
   total_price: number;
   special_requests: string | null;
   booking_channel: string | null;
+  rol_reference?: string | null;
+  external_reservation_id?: string | null;
+  property_id?: string | null;
 }
 
 export default function PMSGuests() {
@@ -56,6 +79,9 @@ export default function PMSGuests() {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [guestBookings, setGuestBookings] = useState<GuestBooking[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [letter, setLetter] = useState<string | null>(null);
+  const [segment, setSegment] = useState<Segment>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("recent");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 400);
@@ -109,6 +135,63 @@ export default function PMSGuests() {
 
   useEffect(() => { fetchGuests(); }, [fetchGuests]);
 
+  const propertyNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of [...(portfolioProperties || []), ...(properties || [])]) map.set(p.id, p.name);
+    return map;
+  }, [portfolioProperties, properties]);
+
+  /** Letters that actually have guests — the rail greys out the rest. */
+  const lettersPresent = useMemo(() => {
+    const set = new Set<string>();
+    for (const g of guests) set.add(guestInitial(g.full_name));
+    return set;
+  }, [guests]);
+
+  const segmentCounts = useMemo(() => ({
+    all: guests.length,
+    repeat: guests.filter(g => (g.total_stays || 0) > 1).length,
+    vip: guests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
+    blacklisted: guests.filter(g => g.is_blacklisted).length,
+    no_contact: guests.filter(g => !g.email && !g.phone).length,
+  }), [guests]);
+
+  const visibleGuests = useMemo(() => {
+    let rows = guests;
+    if (letter) rows = rows.filter(g => guestInitial(g.full_name) === letter);
+    if (segment === "repeat") rows = rows.filter(g => (g.total_stays || 0) > 1);
+    if (segment === "vip") rows = rows.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip"));
+    if (segment === "blacklisted") rows = rows.filter(g => g.is_blacklisted);
+    if (segment === "no_contact") rows = rows.filter(g => !g.email && !g.phone);
+    const sorted = [...rows];
+    if (sortKey === "name") sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    else if (sortKey === "stays") sorted.sort((a, b) => (b.total_stays || 0) - (a.total_stays || 0));
+    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0));
+    else sorted.sort((a, b) => (b.last_stay_date || "").localeCompare(a.last_stay_date || ""));
+    return sorted;
+  }, [guests, letter, segment, sortKey]);
+
+  const exportCsv = useCallback(() => {
+    const header = ["Name", "Email", "Phone", "Stays", "Spent", "Last stay", "Property", "Tags", "Blacklisted"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [header.map(esc).join(",")];
+    for (const g of visibleGuests) {
+      lines.push([
+        g.full_name, g.email || "", g.phone || "", g.total_stays || 0, g.total_spent || 0,
+        g.last_stay_date || "", (g.property_id && propertyNameById.get(g.property_id)) || "",
+        (g.tags || []).join(" | "), g.is_blacklisted ? "yes" : "no",
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `guest-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${visibleGuests.length} guest${visibleGuests.length === 1 ? "" : "s"}`);
+  }, [visibleGuests, propertyNameById]);
+
   const handleCreate = async () => {
     const targetPropertyId = propertyId || activeIds[0];
     if (!targetPropertyId || !form.full_name) return;
@@ -125,7 +208,7 @@ export default function PMSGuests() {
     setLoadingHistory(true);
     // Fetch bookings for this guest
     const { data } = await supabase.from("bookings")
-      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel")
+      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
       .eq("rolos_guest_id", guest.id)
       .order("check_in_date", { ascending: false })
       .limit(50);
@@ -194,11 +277,48 @@ export default function PMSGuests() {
           </TabsList>
 
           <TabsContent value="guests" className="space-y-4">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[220px] max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search guests by name, email, or phone..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+              </div>
+              <select
+                className="h-9 rounded-md border bg-background px-2 text-xs"
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                aria-label="Sort guests"
+              >
+                <option value="recent">Most recent stay</option>
+                <option value="name">Name A–Z</option>
+                <option value="stays">Most stays</option>
+                <option value="spent">Highest spend</option>
+              </select>
+              <Button variant="outline" size="sm" className="h-9" onClick={exportCsv} disabled={!visibleGuests.length}>
+                <Download className="h-4 w-4 mr-2" />Export CSV
+              </Button>
             </div>
 
+            {/* Segment chips */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {([
+                { key: "all", label: "All guests", icon: Users },
+                { key: "repeat", label: "Repeat", icon: Repeat },
+                { key: "vip", label: "VIP", icon: Star },
+                { key: "blacklisted", label: "Blacklisted", icon: Ban },
+                { key: "no_contact", label: "No contact details", icon: AlertCircle },
+              ] as { key: Segment; label: string; icon: typeof Users }[]).map(({ key, label, icon: Icon }) => (
+                <Button
+                  key={key}
+                  size="sm"
+                  variant={segment === key ? "default" : "outline"}
+                  className="h-7 rounded-full px-3 text-xs"
+                  onClick={() => setSegment(key)}
+                >
+                  <Icon className="h-3 w-3 mr-1.5" />{label}
+                  <span className="ml-1.5 opacity-70">{segmentCounts[key]}</span>
+                </Button>
+              ))}
+            </div>
 
             {loading ? (
               <div className="space-y-2">
@@ -209,36 +329,82 @@ export default function PMSGuests() {
             ) : guests.length === 0 ? (
               <Card><CardContent className="py-12 text-center"><Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" /><p className="text-muted-foreground">No guest profiles yet.</p></CardContent></Card>
             ) : (
-              <div className="space-y-2">
-                {guests.map((guest) => (
-                  <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
-                    <CardContent className="py-4 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                          {guest.full_name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-medium">{guest.full_name}</p>
-                          <div className="flex gap-3 text-xs text-muted-foreground">
-                            {guest.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{guest.email}</span>}
-                            {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+              <div className="flex gap-3">
+                {/* A–Z rail */}
+                <div className="flex flex-col items-center gap-0.5 pt-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setLetter(null)}
+                    className={`h-5 w-5 rounded text-[10px] font-semibold ${letter === null ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  >
+                    All
+                  </button>
+                  {[...ALPHABET, "#"].map((l) => {
+                    const has = lettersPresent.has(l);
+                    return (
+                      <button
+                        key={l}
+                        type="button"
+                        disabled={!has}
+                        onClick={() => setLetter(letter === l ? null : l)}
+                        className={`h-5 w-5 rounded text-[10px] font-semibold transition-colors ${
+                          letter === l
+                            ? "bg-primary text-primary-foreground"
+                            : has
+                              ? "text-foreground hover:bg-muted"
+                              : "text-muted-foreground/40 cursor-default"
+                        }`}
+                      >
+                        {l}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex-1 space-y-2">
+                  {visibleGuests.length === 0 ? (
+                    <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No guests match this filter.</CardContent></Card>
+                  ) : visibleGuests.map((guest) => {
+                    const homeProperty = guest.property_id ? propertyNameById.get(guest.property_id) : null;
+                    return (
+                      <Card key={guest.id} className="hover:shadow-sm transition-shadow cursor-pointer" onClick={() => openGuestDetail(guest)}>
+                        <CardContent className="py-4 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                              {guest.full_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">{guest.full_name}</p>
+                              <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                {guest.email && <span className="flex items-center gap-1 truncate"><Mail className="h-3 w-3" />{guest.email}</span>}
+                                {guest.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{guest.phone}</span>}
+                                {homeProperty && viewMode === "portfolio" && (
+                                  <span className="flex items-center gap-1"><Building2 className="h-3 w-3" />{homeProperty}</span>
+                                )}
+                                {guest.last_stay_date && (
+                                  <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Last {guest.last_stay_date}</span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right text-sm">
-                          <p className="font-medium">{guest.total_stays} stays</p>
-                          <p className="text-xs text-muted-foreground">R{guest.total_spent.toLocaleString()}</p>
-                        </div>
-                        {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
-                        {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right text-sm">
+                              <p className="font-medium">{guest.total_stays || 0} stay{(guest.total_stays || 0) === 1 ? "" : "s"}</p>
+                              <p className="text-xs text-muted-foreground">R{(guest.total_spent || 0).toLocaleString()}</p>
+                            </div>
+                            {(guest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-xs">Repeat</Badge>}
+                            {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
+                            {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               </div>
             )}
       </TabsContent>
+
 
           <TabsContent value="accounts">
             <CrmAccountsTab
@@ -321,8 +487,12 @@ export default function PMSGuests() {
                           </div>
                           <div className="flex justify-between mt-1 text-muted-foreground">
                             <span>R{bk.total_price.toLocaleString()}</span>
-                            {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
+                            <span className="flex items-center gap-2">
+                              <span className="flex items-center gap-1"><Moon className="h-3 w-3" />{nightsBetween(bk.check_in_date, bk.check_out_date)}</span>
+                              {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
+                            </span>
                           </div>
+                          <p className="mt-1 font-mono text-[10px] text-muted-foreground">{displayBookingReference(bk)}</p>
                           {bk.special_requests && <p className="mt-1 text-muted-foreground italic truncate">{bk.special_requests}</p>}
                         </div>
                       ))}

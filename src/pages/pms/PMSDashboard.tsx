@@ -90,6 +90,7 @@ import {
   Info,
 
 } from "lucide-react";
+import { rebuildGuestStats } from "@/lib/guestIdentity";
 import { toast } from "sonner";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 import { useBookingRoomLines } from "@/hooks/useBookingRoomLines";
@@ -3351,6 +3352,10 @@ function BookingDetail({
         await supabase.from("bookings").update({ status: "cancelled" }).eq("id", booking.id);
       } else if (action === "no_show") {
         await supabase.from("bookings").update({ status: "no_show" }).eq("id", booking.id);
+      }
+      /* Cancellations and no-shows drop out of the guest's history — refresh their totals. */
+      if (["cancel", "no_show", "mark_paid"].includes(action) && booking.rolos_guest_id) {
+        await rebuildGuestStats([booking.rolos_guest_id]);
       }
       toast.success(`Action "${action.replace("_", " ")}" completed`);
       onSaved();

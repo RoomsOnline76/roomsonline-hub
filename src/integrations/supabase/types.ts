@@ -10178,6 +10178,7 @@ export type Database = {
           is_blacklisted: boolean | null
           last_stay_date: string | null
           nationality: string | null
+          normalised_name: string | null
           notes: string | null
           phone: string | null
           preferences: Json | null
@@ -10199,6 +10200,7 @@ export type Database = {
           is_blacklisted?: boolean | null
           last_stay_date?: string | null
           nationality?: string | null
+          normalised_name?: string | null
           notes?: string | null
           phone?: string | null
           preferences?: Json | null
@@ -10220,6 +10222,7 @@ export type Database = {
           is_blacklisted?: boolean | null
           last_stay_date?: string | null
           nationality?: string | null
+          normalised_name?: string | null
           notes?: string | null
           phone?: string | null
           preferences?: Json | null
@@ -16015,6 +16018,7 @@ export type Database = {
       }
       next_rol_itinerary_reference: { Args: never; Returns: string }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      rebuild_guest_stats: { Args: { _guest_ids?: string[] }; Returns: number }
       resolve_property_owner_uuid: {
         Args: { _property_id: string }
         Returns: string

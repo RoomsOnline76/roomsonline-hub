@@ -17,6 +17,7 @@ import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { useActivePackages } from "@/hooks/useActivePackages";
+import { ensureGuestProfile, rebuildGuestStats } from "@/lib/guestIdentity";
 import {
   BookerSegmentationFields,
   emptyBookerSegmentation,
@@ -345,40 +346,14 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setSaving(true);
     const autoStatus = form.payment_status === "paid" ? "confirmed" : "pending";
 
-    // 1. Upsert guest profile
-    let guestId: string | null = null;
-    try {
-      const { data: existingGuest } = await supabase
-        .from("rolos_guest_profiles")
-        .select("id, total_stays, total_spent")
-        .eq("property_id", effectivePropertyId)
-        .eq("email", form.guest_email)
-        .maybeSingle();
+    // 1. Resolve the guest profile (email first, then normalised name — no duplicate people).
+    const guestId = await ensureGuestProfile({
+      propertyId: effectivePropertyId,
+      fullName: form.guest_name,
+      email: form.guest_email,
+      phone: form.guest_phone || null,
+    });
 
-      if (existingGuest) {
-        guestId = existingGuest.id;
-        await supabase.from("rolos_guest_profiles").update({
-          full_name: form.guest_name,
-          phone: form.guest_phone || null,
-          total_stays: (existingGuest.total_stays || 0) + 1,
-          total_spent: (existingGuest.total_spent || 0) + totalPrice,
-          last_stay_date: format(form.check_in!, "yyyy-MM-dd"),
-        }).eq("id", existingGuest.id);
-      } else {
-        const { data: newGuest } = await supabase.from("rolos_guest_profiles").insert({
-          property_id: effectivePropertyId,
-          full_name: form.guest_name,
-          email: form.guest_email,
-          phone: form.guest_phone || null,
-          total_stays: 1,
-          total_spent: totalPrice,
-          last_stay_date: format(form.check_in!, "yyyy-MM-dd"),
-        }).select("id").single();
-        guestId = newGuest?.id || null;
-      }
-    } catch (e) {
-      console.warn("Guest profile upsert failed:", e);
-    }
 
     // 2. Insert booking (aggregate occupancy across all room lines)
     const nameParts = form.guest_name.trim().split(/\s+/);
@@ -434,6 +409,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       toast.error("Failed to create booking: " + error.message);
       return;
     }
+
+    /* Stay totals are derived from bookings, never incremented by hand. */
+    await rebuildGuestStats([guestId]);
+
 
     // 3. Persist the per-room lines (rate plan + occupancy + nightly rate)
     if (insertedData?.id) {

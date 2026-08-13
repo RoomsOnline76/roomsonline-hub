@@ -14,6 +14,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { loadCanonicalRooms } from "../_shared/canonicalRooms.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { normaliseGuestName, rebuildGuestStats, resolveGuestProfiles } from "../_shared/guestStats.ts";
 import {
   mapNbRow,
   normaliseRoomKey,
@@ -40,6 +41,21 @@ const json = (body: unknown, status = 200) =>
  * the outcome so the operator sees it instead of silence. Past stays are never pushed.
  */
 /** Imported stays with a check-out still ahead of today — the ones that owe the channel. */
+/** Sibling properties in the same portfolio — a guest known next door is the same person. */
+async function loadPortfolioSiblings(sb: any, propertyId: string): Promise<string[]> {
+  const { data: mine } = await sb
+    .from("property_portfolio_members")
+    .select("portfolio_id")
+    .eq("property_id", propertyId);
+  const portfolioIds = [...new Set((mine ?? []).map((r: any) => r.portfolio_id).filter(Boolean))];
+  if (portfolioIds.length === 0) return [];
+  const { data: siblings } = await sb
+    .from("property_portfolio_members")
+    .select("property_id")
+    .in("portfolio_id", portfolioIds);
+  return [...new Set((siblings ?? []).map((r: any) => r.property_id as string))];
+}
+
 async function countFutureImportedStays(sb: any, propertyId: string): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   const { count } = await sb
@@ -1027,28 +1043,17 @@ Deno.serve(async (req) => {
     let created = 0;
     let updated = 0;
 
-    // Guest profiles by full name (NB exports carry no email).
+    // Guest profiles by normalised full name (NB exports carry no email), reusing
+    // profiles already known anywhere in this property's portfolio.
     const nameSet = [...new Set(writeSlice.map((m) => m.guest_name).filter(Boolean))];
-    const guestIdByName = new Map<string, string>();
-    for (let i = 0; i < nameSet.length; i += 200) {
-      const chunk = nameSet.slice(i, i + 200);
-      const { data } = await sb
-        .from("rolos_guest_profiles")
-        .select("id, full_name")
-        .eq("property_id", propertyId)
-        .in("full_name", chunk);
-      for (const p of data ?? []) guestIdByName.set(String(p.full_name).toLowerCase(), p.id as string);
-    }
-    const missingNames = nameSet.filter((n) => !guestIdByName.has(n.toLowerCase()));
-    for (let i = 0; i < missingNames.length; i += BATCH) {
-      const chunk = missingNames.slice(i, i + BATCH);
-      const { data, error } = await sb
-        .from("rolos_guest_profiles")
-        .insert(chunk.map((full_name) => ({ property_id: propertyId, full_name })))
-        .select("id, full_name");
-      if (error) break; // profiles are a nice-to-have; never block the booking import
-      for (const p of data ?? []) guestIdByName.set(String(p.full_name).toLowerCase(), p.id as string);
-    }
+    const portfolioScope = await loadPortfolioSiblings(sb, propertyId);
+    const guestIdByName = await resolveGuestProfiles(sb, {
+      propertyId,
+      scopeIds: portfolioScope,
+      names: nameSet,
+      batch: BATCH,
+    });
+    const touchedGuestIds = new Set<string>();
 
     const roomLines: Record<string, unknown>[] = [];
 
@@ -1084,10 +1089,12 @@ Deno.serve(async (req) => {
 
           external_reservation_id: m.external_id,
           internal_notes: m.internal_notes,
-          rolos_guest_id: guestIdByName.get(m.guest_name.toLowerCase()) ?? null,
+          rolos_guest_id: guestIdByName.get(normaliseGuestName(m.guest_name)) ?? null,
           rolos_room_ids: roomId ? [roomId] : null,
           room_type_id: roomTypeId,
         };
+        if (payload.rolos_guest_id) touchedGuestIds.add(payload.rolos_guest_id as string);
+
 
         const existingId = existing.get(m.external_id);
         if (existingId) {
@@ -1158,6 +1165,10 @@ Deno.serve(async (req) => {
       const { error } = await sb.from("rolos_booking_rooms").insert(chunk);
       if (error) errors.push({ row: 0, nbid: null, message: `Room lines: ${error.message}` });
     }
+
+    /* Roll the imported stays up onto the guest records so history shows in the CRM. */
+    await rebuildGuestStats(sb, [...touchedGuestIds]);
+
 
     const chunkDone = chunkedWrite ? chunkFrom + writeSlice.length : totalMapped;
     const liveSummary = {
