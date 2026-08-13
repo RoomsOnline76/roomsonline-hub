@@ -128,6 +128,7 @@ export function RoomPlanGrid({
   compact,
   dragDisabled,
   getRateForDate,
+  isBlocked,
   isHoliday,
   onSelectBooking,
   onQuickAction,
