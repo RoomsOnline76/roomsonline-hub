@@ -27,7 +27,10 @@ interface RoomType {
   id: string;
   name: string;
   default_rate: number | null;
+  /** Sleeping capacity of one unit of this type — enforced per booking line. */
+  max_occupancy?: number | null;
 }
+
 
 interface Room {
   id: string;
