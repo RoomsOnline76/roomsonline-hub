@@ -70,6 +70,8 @@ interface ExperienceRow {
   category?: string | null;
   distance_km?: number | string | null;
   is_active?: boolean | null;
+  /** Explicit dictionary mapping chosen by the owner — wins over keyword matching. */
+  ru_destination_id?: number | null;
 }
 
 interface DestinationRow {
@@ -81,7 +83,14 @@ interface DestinationRow {
 export function matchDestination(
   experience: ExperienceRow,
   dictionary: Map<string, DestinationRow>,
+  byId?: Map<number, DestinationRow>,
 ): DestinationRow | null {
+  const explicit = Number(experience.ru_destination_id);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    const hit = byId?.get(explicit);
+    if (hit) return hit;
+    return { ru_destination_id: explicit, name: "explicit" };
+  }
   const haystack = normalizeDestinationName(`${experience.title ?? ""} ${experience.category ?? ""}`);
   for (const group of GENERIC_DESTINATION_KEYWORDS) {
     if (group.keywords.some((kw) => haystack.includes(normalizeDestinationName(kw)))) {
@@ -96,6 +105,7 @@ export function matchDestination(
   }
   return null;
 }
+
 
 /** Map attraction rows + dictionary rows into channel distance entries (nearest wins). */
 export function buildDistanceEntries(
