@@ -1776,7 +1776,7 @@ async function loadBookingBlocks(
 
   // Imported bookings (NightsBridge) carry no `rooms` JSON — their unit lives in
   // `rolos_booking_rooms`, so those lines are the fallback for unit matching.
-  const bookingIds = (data as any[]).map((b) => String(b.id));
+  const bookingIds = sold.map((b) => String(b.id));
   const linesByBooking = new Map<string, { room_id: string | null; room_type_id: string | null }[]>();
   for (let i = 0; i < bookingIds.length; i += 200) {
     const chunk = bookingIds.slice(i, i + 200);
@@ -1790,7 +1790,7 @@ async function loadBookingBlocks(
     }
   }
 
-  for (const b of data as any[]) {
+  for (const b of sold) {
     const stays: { from: string; to: string }[] = [];
     const rooms = Array.isArray(b.rooms) ? b.rooms : [];
 
