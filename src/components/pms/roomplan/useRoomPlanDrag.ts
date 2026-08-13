@@ -184,5 +184,5 @@ export function useRoomPlanDrag({
     };
   }, [drag, colFromClientX, onCreateCommit, onMoveCommit, validateMove]);
 
-  return { drag, bodyRef, beginCreate, beginMove, colFromClientX };
+  return { drag, bodyRef, beginCreate, beginMove, colFromClientX, consumeGestureDrag };
 }
