@@ -96,6 +96,20 @@ interface RepairResponse {
   rooms: { id: string; label: string }[];
 }
 
+/** Result of the retired-room cleanup: bookings moved off inventory that no longer trades. */
+interface SupersededResponse {
+  ok: boolean;
+  error?: string;
+  dry_run: boolean;
+  bookings_repointed: number;
+  booking_lines_repointed: number;
+  links_repaired: number;
+  rooms_deleted: number;
+  room_types_deleted: number;
+  actions: string[];
+  retained: { kind: string; id: string; reason: string }[];
+}
+
 
 interface ImportResponse {
   ok: boolean;
