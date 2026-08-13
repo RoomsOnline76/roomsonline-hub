@@ -29,8 +29,6 @@ import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight
 const PLAN_NIGHTS = 45;
 const PLAN_NIGHTS_STEP = 30;
 const PLAN_NIGHTS_MAX = 180;
-/** Sentinel for the "all properties" option in the property filter dropdown. */
-const ALL_PROPERTIES = "__all__";
 /** Extra days of reservations loaded beyond the plan so search finds future stays. */
 const SEARCH_LOOKAHEAD_DAYS = 60;
 
