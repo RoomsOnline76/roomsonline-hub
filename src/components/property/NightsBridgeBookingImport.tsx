@@ -66,6 +66,17 @@ interface ImportSummary {
   written?: number;
   row_done?: number;
   has_more?: boolean;
+  /** Outcome of the channel availability update fired for the imported future stays. */
+  channel_delta?: ChannelDelta;
+}
+
+/** What happened when the imported occupancy was pushed to the channel manager. */
+interface ChannelDelta {
+  future_stays: number;
+  queued: boolean;
+  reason?: string;
+  error?: string;
+  blockers?: string[];
 }
 
 /** One recorded import run (preview or live) for this property. */
@@ -120,6 +131,7 @@ interface ImportResponse {
   skipped: { row: number; nbid: string | null; message: string }[];
   rooms?: { id: string; label: string }[];
   preview: PreviewRow[];
+  channel_delta?: ChannelDelta;
 }
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -578,6 +590,21 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             <span className="font-medium text-foreground">{result.summary.max_arrival}</span> ·{" "}
             {result.summary.future_stays ?? 0} future stay{(result.summary.future_stays ?? 0) === 1 ? "" : "s"}
             {(result.summary.future_stays ?? 0) === 0 && " — this export is history only"}
+          </p>
+        )}
+
+        {/* Did the imported occupancy actually reach the channel? */}
+        {!result?.dry_run && result?.channel_delta && (
+          <p className="text-xs text-muted-foreground">
+            {result.channel_delta.queued
+              ? `Channel availability updated — ${result.channel_delta.future_stays} imported stay${result.channel_delta.future_stays === 1 ? "" : "s"} now closed upstream.`
+              : result.channel_delta.reason === "gate_pending"
+                ? `Channel update parked until onboarding is clean${result.channel_delta.blockers?.length ? `: ${result.channel_delta.blockers.slice(0, 3).join(", ")}` : ""} — it fires automatically once cleared.`
+                : result.channel_delta.reason === "no_future_stays"
+                  ? "Nothing to send upstream — every imported stay is in the past."
+                  : result.channel_delta.reason === "not_connected"
+                    ? "No channel connection for this property, so nothing was sent upstream."
+                    : `Channel update did not complete: ${result.channel_delta.error ?? result.channel_delta.reason ?? "unknown"}`}
           </p>
         )}
 
