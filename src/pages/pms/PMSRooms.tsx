@@ -610,12 +610,24 @@ export default function PMSRooms() {
               ))}
             </SelectContent>
           </Select>
-          {filtersActive && (
+          {overbooking.nights > 0 && (
+            <Button
+              variant={overbookedOnly ? "destructive" : "outline"}
+              size="sm"
+              className={cn("h-7 px-2 text-xs", !overbookedOnly && "border-destructive text-destructive")}
+              onClick={() => setOverbookedOnly((prev) => !prev)}
+              title="Nights sold beyond available units in this window"
+            >
+              <AlertTriangle className="mr-1 h-3 w-3" />
+              {overbooking.nights} overbooked night{overbooking.nights === 1 ? "" : "s"}
+            </Button>
+          )}
+          {(filtersActive || overbookedOnly) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs px-2"
-              onClick={() => { setStatusFilter("all"); setTypeFilter("all"); setSleepsFilter("any"); }}
+              onClick={() => { setStatusFilter("all"); setTypeFilter("all"); setSleepsFilter("any"); setOverbookedOnly(false); }}
             >
               Clear filters
             </Button>
