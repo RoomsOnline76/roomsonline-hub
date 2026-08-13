@@ -409,6 +409,41 @@ export default function PMSRooms() {
     [statusFilter, typeFilter, sleepsFilter, displayStatusForRoom]
   );
 
+  // Oversold nights in the visible window, grouped per room type, so the toolbar
+  // can surface double bookings even when the offending row is scrolled away.
+  const overbooking = useMemo(() => {
+    const typeIds = new Set<string>();
+    let nights = 0;
+    const propertyIds = Array.from(new Set(roomTypes.map((t) => t.property_id)));
+    for (const pid of propertyIds) {
+      const planRows = buildRoomTypePlan(
+        dates,
+        roomTypes.filter((t) => t.property_id === pid),
+        rooms.filter((r) => r.property_id === pid),
+        bookings.filter((b) => b.property_id === pid)
+      );
+      for (const row of planRows) {
+        const affected = overbookedNights(row);
+        if (affected.length > 0) {
+          typeIds.add(row.roomType.id);
+          nights += affected.length;
+        }
+      }
+    }
+    return { typeIds, nights };
+  }, [dates, roomTypes, rooms, bookings]);
+
+  const visibleTypes = useCallback(
+    (types: PlanRoomType[]) =>
+      types.filter((t) => {
+        if (overbookedOnly && !overbooking.typeIds.has(t.id)) return false;
+        if (typeFilter !== "all" && t.id !== typeFilter) return false;
+        return true;
+      }),
+    [overbookedOnly, overbooking.typeIds, typeFilter]
+  );
+
+
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <PmsNoPropertyState description="No property is assigned to this account yet, so there is no room inventory to show. Rooms appear here once a property is linked." />;
 
