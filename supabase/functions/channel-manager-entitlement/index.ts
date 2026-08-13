@@ -390,8 +390,11 @@ Deno.serve(async (req) => {
         local_active: boolean;
         kind: "property" | "unit";
       }> = [];
+      // Every live listing, kept so same-name copies on one account can be grouped afterwards.
+      const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
 
       for (const ownerId of ownerIds) {
+
         const account = (accounts || []).find(
           (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
         ) as { owner_email: string | null } | undefined;
@@ -446,6 +449,7 @@ Deno.serve(async (req) => {
             }
           }
           seenOnChannel.add(id);
+          liveRows.push({ listing_id: id, name: l.name || local?.label || "Unnamed listing", owner_id: ownerId, matched: !!local });
           if (!local) {
             orphans.push({
               listing_id: id,
@@ -455,6 +459,7 @@ Deno.serve(async (req) => {
             });
             continue;
           }
+
           matched.push({
             listing_id: id,
             name: l.name || local.label,
@@ -463,6 +468,43 @@ Deno.serve(async (req) => {
             local_label: local.label,
             local_active: local.isActive,
             kind: local.kind,
+          });
+        }
+      }
+
+      /**
+       * Same-name copies on one account. Repeated creates put several listings on the account for
+       * one real unit; only one of them is the listing ROL'OS points at, so the rest are surplus
+       * (they still bill). The keeper is the matched listing, otherwise the lowest id — the
+       * oldest, which is the one the channel portal history is attached to.
+       */
+      const dupGroups = new Map<string, typeof liveRows>();
+      for (const row of liveRows) {
+        const key = `${row.owner_id}::${row.name.trim().toLowerCase()}`;
+        const bucket = dupGroups.get(key);
+        if (bucket) bucket.push(row);
+        else dupGroups.set(key, [row]);
+      }
+      const duplicates: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        keep_listing_id: string;
+        copies: number;
+      }> = [];
+      for (const rows of dupGroups.values()) {
+        if (rows.length < 2) continue;
+        const keeper =
+          rows.find((r) => r.matched) ??
+          [...rows].sort((a, b) => Number(a.listing_id) - Number(b.listing_id))[0];
+        for (const r of rows) {
+          if (r.listing_id === keeper.listing_id) continue;
+          duplicates.push({
+            listing_id: r.listing_id,
+            name: r.name,
+            owner_id: r.owner_id,
+            keep_listing_id: keeper.listing_id,
+            copies: rows.length,
           });
         }
       }
@@ -483,6 +525,7 @@ Deno.serve(async (req) => {
             }))
         : [];
 
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -494,6 +537,8 @@ Deno.serve(async (req) => {
           archived_orphans: archivedOrphans,
           matched,
           orphans,
+          duplicates,
+
           stale,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },

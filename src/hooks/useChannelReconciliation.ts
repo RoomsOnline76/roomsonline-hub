@@ -34,6 +34,17 @@ export interface ReconOrphan {
   is_archived: boolean;
 }
 
+/** A surplus same-name copy of a listing on one channel account. */
+export interface ReconDuplicate {
+  listing_id: string;
+  name: string;
+  owner_id: string;
+  /** The copy ROL'OS keeps — never removed. */
+  keep_listing_id: string;
+  copies: number;
+}
+
+
 export interface ReconStale {
   listing_id: string;
   label: string;
@@ -52,7 +63,9 @@ export interface ChannelReconciliation {
   archived_orphans: ReconArchived[];
   matched: ReconMatched[];
   orphans: ReconOrphan[];
+  duplicates: ReconDuplicate[];
   stale: ReconStale[];
+
 }
 
 export interface CleanupProgress {
@@ -122,7 +135,9 @@ export function useChannelReconciliation() {
         archived_orphans: payload.archived_orphans || [],
         matched: payload.matched || [],
         orphans: payload.orphans || [],
+        duplicates: payload.duplicates || [],
         stale: payload.stale || [],
+
       });
       return true;
     } catch (e) {
@@ -182,7 +197,9 @@ export function useChannelReconciliation() {
                   : a,
               ),
               orphans: prev.orphans.filter((o) => o.listing_id !== listing.listing_id),
+              duplicates: prev.duplicates.filter((d) => d.listing_id !== listing.listing_id),
               archived_orphans: prev.archived_orphans.filter((o) => o.listing_id !== listing.listing_id),
+
               archived_count:
                 prev.archived_orphans.some((o) => o.listing_id === listing.listing_id)
                   ? Math.max(0, prev.archived_count - 1)
@@ -219,19 +236,27 @@ export function useChannelReconciliation() {
    *
    * Default scope is "actionable": live orphans on the account plus stale local
    * ids. Archived listings cost nothing, so they are only deleted when the
-   * caller explicitly asks for the "archived" scope.
+   * caller explicitly asks for the "archived" scope. The "duplicates" scope removes
+   * surplus same-name copies and always leaves the keeper in place.
    */
-  const cleanupAll = useCallback(async (scope: "actionable" | "archived" = "actionable"): Promise<CleanupOutcome> => {
+  const cleanupAll = useCallback(async (
+    scope: "actionable" | "archived" | "duplicates" = "actionable",
+  ): Promise<CleanupOutcome> => {
     const snapshot = result;
     if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
     const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
-    const source = scope === "archived" ? snapshot.archived_orphans : snapshot.orphans;
+    const source =
+      scope === "archived" ? snapshot.archived_orphans
+      : scope === "duplicates" ? snapshot.duplicates
+      : snapshot.orphans;
     const listings: Array<{ listing_id: string; owner_id: string; name: string }> = source
       .filter((o) => !erroredOwners.has(o.owner_id))
       .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
-    const stale = scope === "archived" ? [] : snapshot.stale;
+    const stale = scope === "actionable" ? snapshot.stale : [];
     const total = listings.length + stale.length;
+
+
 
 
     const failed: CleanupOutcome["failures"] = [];

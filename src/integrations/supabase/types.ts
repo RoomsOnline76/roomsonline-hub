@@ -13742,6 +13742,45 @@ export type Database = {
           },
         ]
       }
+      ru_duplicate_repairs: {
+        Row: {
+          canonical_room_type_id: string | null
+          canonical_ru_property_id: string | null
+          created_at: string
+          id: string
+          property_id: string
+          resolution: string | null
+          status: string
+          surplus_ru_property_id: string
+          unit_name: string
+          updated_at: string
+        }
+        Insert: {
+          canonical_room_type_id?: string | null
+          canonical_ru_property_id?: string | null
+          created_at?: string
+          id?: string
+          property_id: string
+          resolution?: string | null
+          status?: string
+          surplus_ru_property_id: string
+          unit_name: string
+          updated_at?: string
+        }
+        Update: {
+          canonical_room_type_id?: string | null
+          canonical_ru_property_id?: string | null
+          created_at?: string
+          id?: string
+          property_id?: string
+          resolution?: string | null
+          status?: string
+          surplus_ru_property_id?: string
+          unit_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_fx_rates: {
         Row: {
           base_iso: string

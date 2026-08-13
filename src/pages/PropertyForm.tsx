@@ -3561,27 +3561,41 @@ export default function PropertyForm({
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
             };
 
-            // Try to upsert - if room has an id that exists, update it
-            if (room.id && room.id.length === 36) {
-              const { error: upsertError } = await supabase
-                .from("hostfully_room_types")
-                .upsert(roomTypeData, { onConflict: "id" });
-              if (upsertError) console.warn("Room type upsert warning:", upsertError);
-            } else {
-              // Check if a room with same name exists for this property
-              const { data: existingRoom } = await supabase
-                .from("hostfully_room_types")
-                .select("id")
-                .eq("property_id", savedPropertyId)
-                .eq("name", room.name)
-                .maybeSingle();
+            // One row per unit name, always. The old exact-name `maybeSingle()` lookup missed
+            // case/whitespace variants ("ALBATROS" vs "Albatros") and errored once two rows
+            // shared a name, so every save inserted another row — which the channel then pushed
+            // as a brand-new listing. Match on the normalised name and never insert blind.
+            const normalizedName = String(room.name || "").trim().toLowerCase();
+            const { data: sameNameRows } = await supabase
+              .from("hostfully_room_types")
+              .select("id, name, rentalsunited_property_id, created_at")
+              .eq("property_id", savedPropertyId);
+            const nameMatches = (sameNameRows || []).filter(
+              (r: any) => String(r.name || "").trim().toLowerCase() === normalizedName,
+            );
+            const targetId =
+              (room.id && room.id.length === 36 && nameMatches.some((r: any) => r.id === room.id)
+                ? room.id
+                : null) ??
+              nameMatches.sort(
+                (a: any, b: any) =>
+                  (b.rentalsunited_property_id ? 1 : 0) - (a.rentalsunited_property_id ? 1 : 0) ||
+                  String(a.created_at).localeCompare(String(b.created_at)),
+              )[0]?.id ??
+              null;
 
-              if (existingRoom) {
-                await supabase.from("hostfully_room_types").update(roomTypeData).eq("id", existingRoom.id);
-              } else {
-                await supabase.from("hostfully_room_types").insert(roomTypeData);
-              }
+            if (targetId) {
+              const { id: _ignoredId, ...updateData } = roomTypeData;
+              const { error: updateError } = await supabase
+                .from("hostfully_room_types")
+                .update(updateData)
+                .eq("id", targetId);
+              if (updateError) console.warn("Room type update warning:", updateError);
+            } else {
+              const { error: insertError } = await supabase.from("hostfully_room_types").insert(roomTypeData);
+              if (insertError) console.warn("Room type insert warning:", insertError);
             }
+
           }
           console.log(`[ROL Sync] Synced ${roomTypes.length} room types to hostfully_room_types`);
 
