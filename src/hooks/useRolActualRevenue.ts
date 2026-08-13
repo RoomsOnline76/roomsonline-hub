@@ -121,6 +121,9 @@ export function useRolActualRevenue() {
         passthroughZar,
         netMarginZar: total - passthroughZar,
         bookingCount,
+        volumeBookingCount,
+        grossBookingValueZar,
+
       };
     },
   });
