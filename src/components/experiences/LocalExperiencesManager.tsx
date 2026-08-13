@@ -63,6 +63,13 @@ interface LocalExperience {
   cuisine_type: string | null;
   reservation_required: boolean;
   dress_code: string | null;
+  /** Explicit channel destination mapping (optional — null means auto-match). */
+  ru_destination_id: number | null;
+}
+
+interface DestinationOption {
+  ru_destination_id: number;
+  name: string;
 }
 
 interface LocalExperiencesManagerProps {
@@ -70,9 +77,14 @@ interface LocalExperiencesManagerProps {
   propertyName: string;
   propertyCity?: string;
   propertyCountry?: string;
+  propertyLat?: number | null;
+  propertyLng?: number | null;
+  /** `compact` renders the embedded Facilities-tab surface. */
+  variant?: 'full' | 'compact';
 }
 
 import { Wine } from 'lucide-react';
+
 
 const categoryConfig = {
   nature: { icon: TreePine, color: 'bg-green-100 text-green-700' },
