@@ -84,9 +84,11 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
         r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
         r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
       ].filter(Boolean).join(", ");
+      const lineAmount = Number(r.lineTotal);
       const meta = [
         r.rateTypeName || r.mealPlan || "",
         occ,
+        Number.isFinite(lineAmount) && lineAmount > 0 ? formatCurrency(lineAmount, booking.currency) : "",
         `${formatDate(rCheckIn)} – ${formatDate(rCheckOut)}${rNights > 0 ? ` (${rNights} night${rNights > 1 ? "s" : ""})` : ""}`,
       ].filter(Boolean).join(" · ");
       return `<li style="margin: 0 0 8px;"><strong>${r.roomTypeName || r.roomName || "Room"}</strong>${meta ? `<br/><span style="color:#666;font-size:13px;">${meta}</span>` : ""}</li>`;
@@ -1448,8 +1450,37 @@ Deno.serve(async (req) => {
     if (!Array.isArray(booking.rooms) || booking.rooms.length === 0) {
       const hydrated: Array<Record<string, unknown>> = [];
       try {
+        // PRIMARY source: the booking's own room lines. Multi-unit stays (one booking,
+        // several units) live here — the booking row only carries the FIRST room type.
+        const { data: lines } = await supabaseClient
+          .from("rolos_booking_rooms")
+          .select(
+            "id, room_type_id, room_id, adults, teens, children, infants, rate_charged, nightly_rate, rolos_room_types(name), rolos_rooms(room_name, room_number)",
+          )
+          .eq("booking_id", booking.id)
+          .order("created_at", { ascending: true });
+        for (const line of lines || []) {
+          const typeName = (line as any)?.rolos_room_types?.name as string | undefined;
+          const unit = (line as any)?.rolos_rooms as { room_name?: string; room_number?: string } | null;
+          const unitLabel = unit
+            ? [unit.room_name || typeName, unit.room_number ? `#${unit.room_number}` : ""].filter(Boolean).join(" ")
+            : "";
+          hydrated.push({
+            roomTypeId: line.room_type_id,
+            roomTypeName: unitLabel || typeName || "Room",
+            checkIn: booking.check_in_date,
+            checkOut: booking.check_out_date,
+            numberOfAdults: line.adults ?? 0,
+            numberOfTeens: line.teens ?? 0,
+            numberOfChildren: line.children ?? 0,
+            numberOfInfants: line.infants ?? 0,
+            lineTotal: line.rate_charged ?? null,
+            nightlyRate: line.nightly_rate ?? null,
+          });
+        }
+
         const roomIds: string[] = Array.isArray(booking.rolos_room_ids) ? booking.rolos_room_ids : [];
-        if (roomIds.length > 0) {
+        if (hydrated.length === 0 && roomIds.length > 0) {
           const { data: rows } = await supabaseClient
             .from("rolos_rooms")
             .select("id, room_name, room_number, room_type_id, rolos_room_types(name)")
