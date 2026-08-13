@@ -1078,6 +1078,8 @@ Deno.serve(async (req) => {
           rolos_room_ids: roomId ? [roomId] : null,
           room_type_id: roomTypeId,
         };
+        if (payload.rolos_guest_id) touchedGuestIds.add(payload.rolos_guest_id as string);
+
 
         const existingId = existing.get(m.external_id);
         if (existingId) {
