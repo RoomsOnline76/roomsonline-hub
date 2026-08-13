@@ -22,11 +22,18 @@ export interface RoomPlanMoveDrag {
   cols: number;
   deltaCols: number;
   target: RoomPlanRowTarget;
-  /** false when the drop target is a different room type or occupied. */
+  /** false when the drop target cannot accept the stay (occupied, unknown row). */
   valid: boolean;
+  /** Why the drop is refused — surfaced as a toast on release. */
+  reason?: string;
 }
 
 export type RoomPlanDrag = RoomPlanCreateDrag | RoomPlanMoveDrag | null;
+
+export interface RoomPlanMoveVerdict {
+  valid: boolean;
+  reason?: string;
+}
 
 interface UseRoomPlanDragOptions {
   colWidth: number;
@@ -35,10 +42,13 @@ interface UseRoomPlanDragOptions {
   labelWidth: number;
   enabled: boolean;
   /** Should a candidate move be accepted? Called on every pointer move. */
-  validateMove: (drag: Omit<RoomPlanMoveDrag, "valid">) => boolean;
+  validateMove: (drag: Omit<RoomPlanMoveDrag, "valid" | "reason">) => RoomPlanMoveVerdict;
   onCreateCommit: (drag: RoomPlanCreateDrag) => void;
   onMoveCommit: (drag: RoomPlanMoveDrag) => void;
+  /** Called when a real drag ends on a target that refused the stay. */
+  onMoveRejected?: (drag: RoomPlanMoveDrag) => void;
 }
+
 
 const readRowTarget = (x: number, y: number): RoomPlanRowTarget | null => {
   // Hover cards / bars can sit under the pointer mid-drag, so walk the whole
