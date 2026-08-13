@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
-import { AlertTriangle, ChevronDown, ChevronUp, Pencil, Users } from "lucide-react";
+import { AlertTriangle, Ban, ChevronDown, ChevronUp, Pencil, Users } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,8 @@ interface Props {
   onStatusChange?: (roomId: string, status: string) => void;
   /** Opens the room edit dialog from a room line. */
   onEditRoom?: (room: PlanRoom) => void;
+  /** Blocked (stop-sell) nights keyed by `stopSellKey(roomTypeName, date)`. */
+  stopSellNights?: Set<string>;
   colW?: number;
   labelW?: number;
 }
@@ -80,10 +82,11 @@ export function RoomTypePlanRows({
   displayStatusFor,
   onStatusChange,
   onEditRoom,
+  stopSellNights,
   colW = MC_COL_W,
   labelW = MC_LABEL_W,
 }: Props) {
-  const rows = buildRoomTypePlan(dates, roomTypes, rooms, bookings);
+  const rows = buildRoomTypePlan(dates, roomTypes, rooms, bookings, stopSellNights);
   const today = new Date();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const resolveStatus = displayStatusFor || ((room: PlanRoom) => room.status);
@@ -147,12 +150,22 @@ export function RoomTypePlanRows({
                         cellHeatClass(cell),
                         isToday && "border-l-2 border-l-primary"
                       )}
-                      style={{ width: colW }}
+                      style={{
+                        width: colW,
+                        ...(cell.stopSell
+                          ? {
+                              backgroundImage:
+                                "repeating-linear-gradient(45deg, hsl(var(--destructive) / 0.25) 0 3px, transparent 3px 6px)",
+                            }
+                          : null),
+                      }}
                     >
                       {cell.overbooked > 0 ? (
                         <span className="flex items-center justify-center gap-0.5">
                           <AlertTriangle className="h-2.5 w-2.5" />−{cell.overbooked}
                         </span>
+                      ) : cell.stopSell ? (
+                        <Ban className="mx-auto h-2.5 w-2.5" />
                       ) : cell.sellable === 0 ? (
                         "–"
                       ) : (
@@ -167,6 +180,12 @@ export function RoomTypePlanRows({
                         <AlertTriangle className="h-3 w-3" />
                         Overbooked — {cell.used} reservation{cell.used === 1 ? "" : "s"} for {cell.sellable} unit
                         {cell.sellable === 1 ? "" : "s"}
+                      </p>
+                    )}
+                    {cell.stopSell && (
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-foreground">
+                        <Ban className="h-3 w-3" />
+                        Blocked — not sellable on this night
                       </p>
                     )}
                     <p className="text-[11px] text-muted-foreground">
