@@ -493,6 +493,11 @@ Deno.serve(async (req) => {
           payment_status: m.payment_status,
           booking_channel: m.booking_channel,
           integration_type: "nightsbridge",
+          // Imported actuals belong to the property but carry no ROL commission.
+          commission_type: "none",
+          calculated_commission: 0,
+          commission_rate_applied: 0,
+
           external_reservation_id: m.external_id,
           internal_notes: m.internal_notes,
           rolos_guest_id: guestIdByName.get(m.guest_name.toLowerCase()) ?? null,
