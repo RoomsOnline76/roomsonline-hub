@@ -177,36 +177,46 @@ export default function PMSGuests() {
     return set;
   }, [guests]);
 
+  /** Archived profiles are hidden everywhere except the Archived segment. */
+  const liveGuests = useMemo(() => guests.filter(g => !g.is_archived), [guests]);
+
   const segmentCounts = useMemo(() => ({
-    all: guests.length,
-    repeat: guests.filter(g => (g.total_stays || 0) > 1).length,
-    vip: guests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
-    blacklisted: guests.filter(g => g.is_blacklisted).length,
-    no_contact: guests.filter(g => !g.email && !g.phone).length,
-  }), [guests]);
+    all: liveGuests.length,
+    repeat: liveGuests.filter(g => (g.total_stays || 0) > 1).length,
+    vip: liveGuests.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip")).length,
+    owing: liveGuests.filter(g => (g.total_outstanding || 0) > 0).length,
+    never_paid: liveGuests.filter(g => (g.total_received || 0) <= 0).length,
+    blacklisted: liveGuests.filter(g => g.is_blacklisted).length,
+    no_contact: liveGuests.filter(g => !g.email && !g.phone).length,
+    archived: guests.filter(g => g.is_archived).length,
+  }), [guests, liveGuests]);
 
   const visibleGuests = useMemo(() => {
-    let rows = guests;
+    let rows = segment === "archived" ? guests.filter(g => g.is_archived) : liveGuests;
     if (letter) rows = rows.filter(g => guestInitial(g.full_name) === letter);
     if (segment === "repeat") rows = rows.filter(g => (g.total_stays || 0) > 1);
     if (segment === "vip") rows = rows.filter(g => (g.tags || []).some(t => t.toLowerCase() === "vip"));
+    if (segment === "owing") rows = rows.filter(g => (g.total_outstanding || 0) > 0);
+    if (segment === "never_paid") rows = rows.filter(g => (g.total_received || 0) <= 0);
     if (segment === "blacklisted") rows = rows.filter(g => g.is_blacklisted);
     if (segment === "no_contact") rows = rows.filter(g => !g.email && !g.phone);
     const sorted = [...rows];
     if (sortKey === "name") sorted.sort((a, b) => a.full_name.localeCompare(b.full_name));
     else if (sortKey === "stays") sorted.sort((a, b) => (b.total_stays || 0) - (a.total_stays || 0));
-    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_spent || 0) - (a.total_spent || 0));
+    else if (sortKey === "spent") sorted.sort((a, b) => (b.total_received || 0) - (a.total_received || 0));
+    else if (sortKey === "owing") sorted.sort((a, b) => (b.total_outstanding || 0) - (a.total_outstanding || 0));
     else sorted.sort((a, b) => (b.last_stay_date || "").localeCompare(a.last_stay_date || ""));
     return sorted;
-  }, [guests, letter, segment, sortKey]);
+  }, [guests, liveGuests, letter, segment, sortKey]);
 
   const exportCsv = useCallback(() => {
-    const header = ["Name", "Email", "Phone", "Stays", "Spent", "Last stay", "Property", "Tags", "Blacklisted"];
+    const header = ["Name", "Email", "Phone", "Stays", "Received", "Outstanding", "Cancelled value", "Last stay", "Property", "Tags", "Blacklisted"];
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [header.map(esc).join(",")];
     for (const g of visibleGuests) {
       lines.push([
-        g.full_name, g.email || "", g.phone || "", g.total_stays || 0, g.total_spent || 0,
+        g.full_name, g.email || "", g.phone || "", g.total_stays || 0,
+        g.total_received || 0, g.total_outstanding || 0, g.total_cancelled_value || 0,
         g.last_stay_date || "", (g.property_id && propertyNameById.get(g.property_id)) || "",
         (g.tags || []).join(" | "), g.is_blacklisted ? "yes" : "no",
       ].map(esc).join(","));
