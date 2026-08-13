@@ -104,17 +104,10 @@ export function autoAssignBookings<T extends AssignableBooking>(
     for (const id of ids) recordOcc(id, b);
   }
 
-  return bookings.map(b => {
-    const ids = b.rolos_room_ids || [];
-    const visibleIds = ids.filter((id) => visibleRoomIds.has(id));
-    if (visibleIds.length > 0) {
-      return visibleIds.length === ids.length ? b : { ...b, rolos_room_ids: visibleIds };
-    }
-    if (!b.room_type_id) return b;
-
-    let candidates = roomsByType.get(b.room_type_id) || [];
+  const candidatesForType = (b: AssignableBooking, roomTypeId: string): AssignableRoom[] => {
+    let candidates = roomsByType.get(roomTypeId) || [];
     if (candidates.length === 0) {
-      const typeInfo = typeInfoById.get(b.room_type_id);
+      const typeInfo = typeInfoById.get(roomTypeId);
       const tn = typeInfo?.name;
       if (tn) {
         candidates = roomsByTypeName.get(nameKey(b.property_id || typeInfo?.property_id, tn))
@@ -122,11 +115,35 @@ export function autoAssignBookings<T extends AssignableBooking>(
           || [];
       }
     }
-    if (candidates.length === 0) return b;
+    return candidates;
+  };
 
-    const pick = candidates.find(r => r.status !== "out_of_service" && !conflicts(r.id, b))
-      || candidates[0];
-    recordOcc(pick.id, b);
-    return { ...b, rolos_room_ids: [pick.id] };
+  return bookings.map(b => {
+    const ids = b.rolos_room_ids || [];
+    const visibleIds = ids.filter((id) => visibleRoomIds.has(id));
+    if (visibleIds.length > 0) {
+      return visibleIds.length === ids.length ? b : { ...b, rolos_room_ids: visibleIds };
+    }
+
+    // One unit per booking line: a 3-room stay claims 3 distinct units.
+    const lineTypes = (b.line_room_type_ids && b.line_room_type_ids.length
+      ? b.line_room_type_ids
+      : b.room_type_id ? [b.room_type_id] : []);
+    if (lineTypes.length === 0) return b;
+
+    const picked: string[] = [];
+    for (const roomTypeId of lineTypes) {
+      const candidates = candidatesForType(b, roomTypeId);
+      if (candidates.length === 0) continue;
+      const pick = candidates.find(
+        r => r.status !== "out_of_service" && !conflicts(r.id, b) && !picked.includes(r.id)
+      ) || candidates.find(r => !picked.includes(r.id)) || candidates[0];
+      if (picked.includes(pick.id)) continue;
+      picked.push(pick.id);
+      recordOcc(pick.id, b);
+    }
+    if (picked.length === 0) return b;
+    return { ...b, rolos_room_ids: picked };
   });
+
 }
