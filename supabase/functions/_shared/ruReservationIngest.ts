@@ -153,12 +153,67 @@ const RU_INTEGRATION_TYPES = ['rentalsunited', 'rentalsunited_lead'];
 async function findExistingBooking(supabase: Db, ruReservationId: string) {
   const { data } = await supabase
     .from('bookings')
-    .select('id, status, integration_type, property_id')
+    .select('id, status, integration_type, property_id, room_type_id, check_in_date, check_out_date')
     .eq('external_reservation_id', ruReservationId)
     .in('integration_type', RU_INTEGRATION_TYPES)
     .limit(1)
     .maybeSingle();
-  return data as { id: string; status: string; integration_type: string; property_id: string } | null;
+  return data as {
+    id: string;
+    status: string;
+    integration_type: string;
+    property_id: string;
+    room_type_id: string | null;
+    check_in_date: string;
+    check_out_date: string;
+  } | null;
+}
+
+/** Recover the mapped RU unit from an existing booking when a cancellation has no stay block. */
+async function resolveExistingBookingUnit(
+  supabase: Db,
+  existing: Awaited<ReturnType<typeof findExistingBooking>>,
+): Promise<ResolvedRuUnit> {
+  const empty: ResolvedRuUnit = {
+    propertyId: existing?.property_id ?? null,
+    roomTypeId: existing?.room_type_id ?? null,
+    mappingRoomTypeId: null,
+    unitName: null,
+  };
+  if (!existing?.property_id || !existing.room_type_id) return empty;
+
+  const { data: directMapping } = await supabase
+    .from('hostfully_room_types')
+    .select('id, name')
+    .eq('id', existing.room_type_id)
+    .eq('property_id', existing.property_id)
+    .maybeSingle();
+  if (directMapping) {
+    return { ...empty, mappingRoomTypeId: directMapping.id, unitName: directMapping.name ?? null };
+  }
+
+  const { data: canonical } = await supabase
+    .from('rolos_room_types')
+    .select('name')
+    .eq('id', existing.room_type_id)
+    .eq('property_id', existing.property_id)
+    .maybeSingle();
+  if (!canonical?.name) return empty;
+
+  const { data: mappings } = await supabase
+    .from('hostfully_room_types')
+    .select('id, name, is_active')
+    .eq('property_id', existing.property_id)
+    .order('is_active', { ascending: false });
+  const mapping = (mappings || []).find(
+    (row: { name: string | null }) =>
+      (row.name || '').trim().toLowerCase() === canonical.name.trim().toLowerCase(),
+  );
+  return {
+    ...empty,
+    mappingRoomTypeId: mapping?.id ?? null,
+    unitName: mapping?.name ?? canonical.name,
+  };
 }
 
 export interface RuIngestOptions {
@@ -202,20 +257,23 @@ export async function ingestRuReservation(
     return { ...base, outcome: 'skipped', note: 'Reservation without an RU id' };
   }
 
-  const unit = opts.unit ?? (await resolveRuUnit(supabase, r.ruPropertyId));
+  const statusKind = opts.kind ?? classifyRuNotification('', r.statusId);
+  // A lead-list response can retain rejected/expired rows. The explicit cancellation
+  // status must win over forceRequest or a later poll would re-open the released hold.
+  const resolvedKind: RuNotificationKind = opts.forceRequest && statusKind !== 'cancelled' ? 'request' : statusKind;
+  const kind = resolvedKind === 'modified' ? 'confirmed' : resolvedKind;
+  const existing = await findExistingBooking(supabase, r.ruReservationId);
+  base.deduped = Boolean(existing);
+
+  let unit = opts.unit ?? (await resolveRuUnit(supabase, r.ruPropertyId));
+  if (!unit.propertyId && kind === 'cancelled' && existing) {
+    unit = await resolveExistingBookingUnit(supabase, existing);
+  }
   const propertyId = unit.propertyId;
   if (!propertyId) {
     return { ...base, outcome: 'unmatched', note: `No ROL'OS property for RU PropertyID ${r.ruPropertyId ?? 'none'}` };
   }
   base.propertyId = propertyId;
-
-  // Modifications take the confirmed write path (the record is updated in place).
-  const resolvedKind: RuNotificationKind = opts.forceRequest
-    ? 'request'
-    : (opts.kind ?? classifyRuNotification('', r.statusId));
-  const kind = resolvedKind === 'modified' ? 'confirmed' : resolvedKind;
-  const existing = await findExistingBooking(supabase, r.ruReservationId);
-  base.deduped = Boolean(existing);
 
   // ── Cancellation: release the nights, never delete the record. ──
   if (kind === 'cancelled') {
@@ -228,10 +286,14 @@ export async function ingestRuReservation(
           // Channel-side cancellation, so the Reports mix can separate it from
           // guest-requested and operator-side losses.
           cancellation_reason_category: 'channel_cancelled',
+          hold_expires_at: null,
+          hold_released_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
-      if (r.dateFrom && r.dateTo && !opts.skipAvailability) {
-        await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, false, log);
+      const dateFrom = r.dateFrom || existing.check_in_date;
+      const dateTo = r.dateTo || existing.check_out_date;
+      if (dateFrom && dateTo && !opts.skipAvailability) {
+        await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, dateFrom, dateTo, false, log);
       }
       console.log(`${log} ✅ Cancelled booking for RU reservation ${r.ruReservationId}`);
       return { ...base, outcome: 'cancelled', bookingId: existing.id };
