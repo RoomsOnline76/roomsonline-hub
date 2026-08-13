@@ -241,57 +241,105 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     async (dryRun: boolean, overrideMap?: Record<string, string>) => {
       if (!file) return;
       const effective = overrideMap ?? overrides;
+      const roomOverrides = Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v)));
       setBusy(dryRun ? "dry" : "import");
-      setProgress(8);
-      const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 4 : p)), 500);
+      setOutcome(null);
+      setProgress(6);
+      const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 3 : p)), 600);
+      let writtenSoFar = 0;
       try {
         const fileBase64 = await toBase64(file);
-        setProgress(30);
-        const { data, error } = await supabase.functions.invoke<ImportResponse>("nb-import-bookings", {
-          body: {
-            property_id: propertyId,
-            file_name: file.name,
-            file_base64: fileBase64,
-            dry_run: dryRun,
-            room_overrides: Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v))),
-          },
-        });
-        if (error) throw new Error(error.message);
-        if (!data?.ok) throw new Error(data?.error || "Import failed");
-        setProgress(100);
-        setResult(data);
-        const excluded = data.summary.excluded ?? 0;
+        setProgress(dryRun ? 30 : 12);
+
+        const call = (extra: Record<string, unknown> = {}) =>
+          supabase.functions.invoke<ImportResponse>("nb-import-bookings", {
+            body: {
+              property_id: propertyId,
+              file_name: file.name,
+              file_base64: fileBase64,
+              dry_run: dryRun,
+              room_overrides: roomOverrides,
+              ...extra,
+            },
+          });
+
         if (dryRun) {
+          const { data, error } = await call();
+          if (error) throw new Error(error.message);
+          if (!data?.ok) throw new Error(data?.error || "Validation failed");
+          setProgress(100);
+          setResult(data);
+          const excluded = data.summary.excluded ?? 0;
           toast.success(
             `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates` +
               (excluded ? `, ${excluded} excluded` : ""),
           );
-        } else {
-          toast.success(
-            `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
-              (excluded ? `, ${excluded} excluded` : ""),
-          );
-          // Imported future stays are real occupancy — push availability so the channel stops selling them.
-          if ((data.summary.future_stays ?? 0) > 0) {
-            void queueChannelRatesSync(propertyId, "nb_import").then((outcome) => {
-              if (outcome?.queued || outcome?.accepted) {
-                toast.success("Availability update sent to the channel manager");
-              }
-            });
-          }
-          void refreshRepair();
+          void loadHistory();
+          return;
         }
 
+        /* Live import: walk the file in slices so a big export cannot time out mid-write. */
+        const totals = { created: 0, updated: 0, skipped: 0, excluded: 0, errors: 0, future: 0 };
+        const allErrors: ImportResponse["errors"] = [];
+        const allSkipped: ImportResponse["skipped"] = [];
+        let from = 0;
+        let parsed = result?.summary?.parsed ?? 0;
+        let last: ImportResponse | null = null;
+
+        for (let guard = 0; guard < 200; guard++) {
+          const { data, error } = await call({ row_from: from, row_limit: WRITE_CHUNK });
+          if (error) throw new Error(error.message);
+          if (!data?.ok) throw new Error(data?.error || "Import failed");
+          last = data;
+          parsed = data.summary.parsed ?? parsed;
+          totals.created += data.summary.created ?? 0;
+          totals.updated += data.summary.updated ?? 0;
+          totals.excluded = data.summary.excluded ?? totals.excluded;
+          totals.skipped = data.summary.skipped ?? totals.skipped;
+          totals.future = data.summary.future_stays ?? totals.future;
+          allErrors.push(...(data.errors ?? []));
+          allSkipped.push(...(data.skipped ?? []));
+          writtenSoFar = data.summary.row_done ?? from + WRITE_CHUNK;
+          if (parsed > 0) setProgress(Math.min(96, Math.round((writtenSoFar / parsed) * 100)));
+          if (!data.summary.has_more) break;
+          from = writtenSoFar;
+        }
+
+        totals.errors = allErrors.length;
+        setProgress(100);
+        if (last) {
+          setResult({
+            ...last,
+            errors: allErrors,
+            skipped: allSkipped,
+            summary: { ...last.summary, created: totals.created, updated: totals.updated, errors: totals.errors },
+          });
+        }
+        setOutcome({ kind: "saved", ...totals });
+        toast.success(`Saved ${totals.created} bookings, updated ${totals.updated}`);
+
+        // Imported future stays are real occupancy — push availability so the channel stops selling them.
+        if (totals.future > 0) {
+          void queueChannelRatesSync(propertyId, "nb_import").then((sync) => {
+            if (sync?.queued || sync?.accepted) toast.success("Availability update sent to the channel manager");
+          });
+        }
+        void refreshRepair();
+        void loadHistory();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Import failed");
+        const message = e instanceof Error ? e.message : "Import failed";
+        if (!dryRun) setOutcome({ kind: "failed", message, written: writtenSoFar });
+        toast.error(message);
+        void loadHistory();
       } finally {
         window.clearInterval(tick);
         setBusy(null);
         window.setTimeout(() => setProgress(0), 800);
       }
     },
-    [file, overrides, propertyId],
+    [file, overrides, propertyId, refreshRepair, loadHistory, result],
   );
+
 
   /**
    * Applying a decision invalidates the previous dry run, so re-validate immediately with
