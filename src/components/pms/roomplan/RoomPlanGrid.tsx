@@ -518,7 +518,8 @@ export function RoomPlanGrid({
                                           startCol: geometry.startCol,
                                           cols: geometry.cols,
                                         },
-                                        event.clientX
+                                        event.clientX,
+                                        event.clientY
                                       )
                               }
                             />
