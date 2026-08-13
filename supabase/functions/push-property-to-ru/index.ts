@@ -4148,6 +4148,13 @@ Deno.serve(async (req) => {
 
           if (pushErr || !pushResult?.success) {
             const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
+            // A failed create may still have registered the listing at the channel. Store the id
+            // it handed back so the next run updates that listing instead of creating a duplicate.
+            const stranded = Number(pushResult?.diagnostics?.stranded_ru_property_id ?? 0);
+            if (stranded > 0) {
+              await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: String(stranded) }).eq('id', unit.id);
+              console.warn(`[push-property-to-ru] Unit "${unit.name}" failed but the channel issued listing ${stranded} — stored it to prevent a duplicate on retry`);
+            }
             console.error(`[push-property-to-ru] Unit "${unit.name}" push failed:`, errMsg);
             unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: errMsg, diagnostics: pushResult?.diagnostics });
             continue;
@@ -4158,11 +4165,14 @@ Deno.serve(async (req) => {
             const extracted = extractRUPropertyId(pushResult.raw_xml);
             if (extracted) unitRuId = extracted;
           }
+          // The adapter may have adopted an existing listing by name instead of creating one.
+          if (pushResult.ru_property_id) unitRuId = String(pushResult.ru_property_id);
 
           if (unitRuId) {
             await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: unitRuId }).eq('id', unit.id);
-            console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"`);
+            console.log(`[push-property-to-ru] Saved RU ID ${unitRuId} for unit "${unit.name}"${pushResult.adopted_existing_listing ? ' (adopted existing listing)' : ''}`);
           }
+
 
           // Push ARI (availability + prices) for this standalone unit
           let ariResult: Record<string, any> = {};
