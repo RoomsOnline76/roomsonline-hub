@@ -1,4 +1,6 @@
-# Channel Monitor: make the test-inventory exclusion visible and consistent
+# cancel this plan   
+  
+Channel Monitor: make the test-inventory exclusion visible and consistent
 
 ## What is actually happening
 
@@ -13,11 +15,8 @@ Test properties stay excluded from counters (as you confirmed). The fix is to ap
 ## Changes
 
 1. **Label test records.** Each row for a sandbox property gets a small neutral "Test" chip next to the property name, so Live + excluded-from-counters is self-explanatory.
-
 2. **Consistent exclusion in the summary cards.** Billable listings, forecast cost, ROL revenue, channel margin, properties syncing, sub-account properties and push-enabled all use the same trading scope — test inventory is left out of every one of them, not just two cards. Today "Billable listings 13" counts the test units while the push card does not.
-
 3. **One honest footnote.** The summary strip gains a single line when test records exist: "2 test properties (13 listings) excluded from counters" with the property names on hover, so the numbers can be reconciled at a glance.
-
 4. **Keep the table complete.** The properties table continues to list test properties (with the chip) so archiving, reconciliation and push actions remain available for them.
 
 ## Technical notes
