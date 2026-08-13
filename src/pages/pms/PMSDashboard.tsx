@@ -1662,6 +1662,18 @@ export default function PMSDashboard() {
     refetchOverrides();
   };
 
+  /** Right-click a hatched night → open its restriction span for editing. */
+  const openBlockEditor = useCallback(
+    (types: { id: string; name: string }[], propId: string | null | undefined) =>
+      (roomTypeId: string, date: Date) => {
+        const name = types.find((t) => t.id === roomTypeId)?.name;
+        if (!name || !propId) return;
+        setFocusBlock({ propertyId: propId, roomType: name, date: format(date, "yyyy-MM-dd") });
+        setManageRestrictionsOpen(true);
+      },
+    [],
+  );
+
   // ─── Room Plan interactions ───
   const refreshBookingQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
@@ -2192,6 +2204,7 @@ export default function PMSDashboard() {
                           isHoliday={getHolidayName}
                           getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
                           isBlocked={portfolioIsBlockedByProperty.get(prop.id)}
+                          onEditBlock={openBlockEditor(planRoomTypes, prop.id)}
                           onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                           onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                           onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
@@ -2219,6 +2232,7 @@ export default function PMSDashboard() {
                   isHoliday={getHolidayName}
                   getRateForDate={getRateForDate}
                   isBlocked={isRoomTypeBlocked}
+                  onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                   onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                   onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                   onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
