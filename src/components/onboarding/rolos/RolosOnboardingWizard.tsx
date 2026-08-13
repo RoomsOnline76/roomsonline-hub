@@ -173,6 +173,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     overall,
     channelsConnected,
     publishedOk,
+    unpublishedUnits,
     blockingMacros,
     gateSignature,
 
