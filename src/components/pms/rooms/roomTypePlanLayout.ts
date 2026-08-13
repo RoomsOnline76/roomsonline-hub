@@ -87,9 +87,18 @@ export interface PlanCell {
   used: number;
   /** Surplus reservations beyond capacity — greater than 0 means double booked. */
   overbooked: number;
+  /** The night is blocked (stop-sell) for this room type — never sellable. */
+  stopSell?: boolean;
   /** Reservations touching this night for this room type. */
   bookings: RoomsBooking[];
 }
+
+/** Key for a stop-sell night: blocks are stored per room type NAME. */
+export function stopSellKey(roomTypeName: string, date: Date | string): string {
+  const day = typeof date === "string" ? date : format(date, "yyyy-MM-dd");
+  return `${roomTypeName.trim().toLowerCase()}|${day}`;
+}
+
 
 export interface PlanRow {
   roomType: PlanRoomType;
