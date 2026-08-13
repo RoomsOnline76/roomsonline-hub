@@ -41,13 +41,18 @@ interface UseRoomPlanDragOptions {
 }
 
 const readRowTarget = (x: number, y: number): RoomPlanRowTarget | null => {
-  const element = document.elementFromPoint(x, y);
-  const row = element?.closest<HTMLElement>("[data-row-key]");
-  if (!row) return null;
-  const rowKey = row.dataset.rowKey;
-  const roomTypeId = row.dataset.roomTypeId;
-  if (!rowKey || !roomTypeId) return null;
-  return { rowKey, roomTypeId, roomId: row.dataset.roomId || null };
+  // Hover cards / bars can sit under the pointer mid-drag, so walk the whole
+  // stack and take the first element that is (or sits inside) a plan row.
+  const stack = document.elementsFromPoint(x, y) as HTMLElement[];
+  for (const element of stack) {
+    const row = element?.closest?.<HTMLElement>("[data-row-key]");
+    if (!row) continue;
+    const rowKey = row.dataset.rowKey;
+    const roomTypeId = row.dataset.roomTypeId;
+    if (!rowKey || !roomTypeId) continue;
+    return { rowKey, roomTypeId, roomId: row.dataset.roomId || null };
+  }
+  return null;
 };
 
 /**
