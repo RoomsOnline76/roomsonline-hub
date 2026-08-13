@@ -304,28 +304,25 @@ Deno.serve(async (req) => {
             external_reservation_id: reservationId,
           }).eq('id', booking_id);
 
-          // Send owner notification
+          // Notification emails follow on the background queue — the PMS already holds the stay.
           const ownerEmail = property.owner_email;
-          if (ownerEmail) {
-            try {
-              await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ booking_id, status: 'property_notification', recipient_email: ownerEmail }),
-              });
-            } catch (e) { console.error('Failed to send owner notification:', e); }
-          }
-
-          // Send guest email (skip for itineraries)
-          if (booking.booking_channel !== 'rol_itinerary') {
-            try {
-              await fetch(`${supabaseUrl}/functions/v1/send-booking-email`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ booking_id, status: 'success' }),
-              });
-            } catch (e) { console.error('Failed to send guest email:', e); }
-          }
+          await enqueueJobs(supabaseClient, [
+            ...(ownerEmail
+              ? [{
+                  type: "booking_email" as const,
+                  payload: { booking_id, status: "property_notification", recipient_email: ownerEmail },
+                  options: { dedupeKey: `email:owner:${booking_id}` },
+                }]
+              : []),
+            ...(booking.booking_channel !== 'rol_itinerary'
+              ? [{
+                  type: "booking_email" as const,
+                  payload: { booking_id, status: "success" },
+                  options: { dedupeKey: `email:confirmation:${booking_id}` },
+                }]
+              : []),
+          ]);
+          kickWorker();
 
           return new Response(
             JSON.stringify({ success: true, message: 'ROL reservation created', reservation_id: reservationId }),
