@@ -988,6 +988,9 @@ export type Database = {
           adults: number
           agent_account_id: string | null
           ai_metadata: Json | null
+          amount_paid: number
+          amount_paid_source: string | null
+          balance_due: number
           booker_email: string | null
           booker_id: string | null
           booker_is_guest: boolean
@@ -1079,6 +1082,9 @@ export type Database = {
           adults?: number
           agent_account_id?: string | null
           ai_metadata?: Json | null
+          amount_paid?: number
+          amount_paid_source?: string | null
+          balance_due?: number
           booker_email?: string | null
           booker_id?: string | null
           booker_is_guest?: boolean
@@ -1170,6 +1176,9 @@ export type Database = {
           adults?: number
           agent_account_id?: string | null
           ai_metadata?: Json | null
+          amount_paid?: number
+          amount_paid_source?: string | null
+          balance_due?: number
           booker_email?: string | null
           booker_id?: string | null
           booker_is_guest?: boolean
