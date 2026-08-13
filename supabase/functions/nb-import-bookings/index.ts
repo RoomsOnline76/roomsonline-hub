@@ -742,13 +742,32 @@ Deno.serve(async (req) => {
     }
 
     if (mode === "repair") {
-
-      const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
+      const autoAssign = body?.auto_assign === true;
+      const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun, autoAssign);
       const channelDelta = dryRun
         ? undefined
-        : await queueImportedOccupancyDelta(sb, propertyId, await countFutureImportedStays(sb, propertyId), "nb_repair_remap");
+        : await queueImportedOccupancyDelta(sb, propertyId, await countFutureStays(sb, propertyId), "nb_repair_remap");
       return json({ ok: true, ...repair, channel_delta: channelDelta });
     }
+
+    /* Manual, per-booking assignment straight from the repair panel. */
+    if (mode === "assign_unmapped") {
+      const assignments = Array.isArray(body?.assignments)
+        ? (body.assignments as { booking_id?: unknown; room_id?: unknown }[])
+            .map((a) => ({ booking_id: String(a?.booking_id ?? ""), room_id: String(a?.room_id ?? "") }))
+            .filter((a) => a.booking_id && a.room_id)
+        : [];
+      if (assignments.length === 0) return json({ ok: false, error: "No assignments were provided" }, 400);
+      const result = await assignUnmappedBookings(sb, propertyId, assignments);
+      const channelDelta = await queueImportedOccupancyDelta(
+        sb,
+        propertyId,
+        await countFutureStays(sb, propertyId),
+        "nb_manual_assign",
+      );
+      return json({ ok: true, ...result, channel_delta: channelDelta });
+    }
+
 
 
     const bytes = decodeBase64(fileB64);
