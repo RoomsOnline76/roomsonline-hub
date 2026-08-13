@@ -22,6 +22,7 @@ import { z } from "npm:zod@3.23.8";
 import { normalizeRevenueStream, resolveBreakfastConfig, postBookingStreamSplit } from "../_shared/revenueStreams.ts";
 import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
+import { normaliseEmail, normaliseGuestName, rebuildGuestStats } from "../_shared/guestStats.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
