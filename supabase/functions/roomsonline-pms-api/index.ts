@@ -104,6 +104,8 @@ const baseRequestSchema = z.object({
     "get_guest_profile",
     "create_guest_profile",
     "update_guest_profile",
+    "delete_guest_profile",
+
     "check_in",
     "check_out",
     "get_folio",
