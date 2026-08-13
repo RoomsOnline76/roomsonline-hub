@@ -2605,16 +2605,24 @@ Deno.serve(async (req) => {
       /**
        * Gate #10 fallback — attraction distances are a nice-to-have and must never cost us the
        * content push. RU answers status 92 "Duplicate value in distances." for some listings even
-       * when every entry we send is unique (distinct DestinationID and distinct value), so the
-       * rule lives on their side. When that happens, re-send the identical payload once with the
-       * <Distances> block removed and report the unit as pushed with a soft note.
+       * when every entry we send is unique, so the rule lives on their side. When that happens,
+       * re-send once without the <Distances> block.
+       *
+       * Idempotency: distances are never sent on a create, so this retry always targets an
+       * existing listing id. If RU nevertheless returned an id on the failed attempt we adopt it
+       * before retrying, so the retry can never mint a second listing.
        */
       let distancesSkipped = 0;
       if (!ok && Array.isArray(p.distances) && p.distances.length > 0 && /distance/i.test(String(status.message ?? ''))) {
         distancesSkipped = p.distances.length;
+        const idFromFailure = extractReturnedPropertyId(response);
+        if (effectiveRuPropertyId === 0 && idFromFailure) {
+          console.warn(`[rentalsunited-api] Failed create returned listing ${idFromFailure} — retrying as an update, not a create`);
+          effectiveRuPropertyId = idFromFailure;
+        }
         console.warn(`[rentalsunited-api] RU rejected distances (${status.id}: ${status.message}) — retrying without the <Distances> block`);
         const retryPayload = { ...p, distances: [] };
-        xml = buildPushPropertyXml(scopedCreds, ru_property_id, retryPayload);
+        xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, retryPayload);
         compactRequestXml = compactXml(xml);
         response = await callRentalsUnited(scopedCreds, xml);
         const retryStatus = handleRUStatus(response);
@@ -2627,13 +2635,16 @@ Deno.serve(async (req) => {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
         console.error(`[rentalsunited-api] XML context around error: ${diag.xml_context}`);
-        return ruErrorResponse(status, diag);
+        // A create that failed may still have registered the listing at RU. Hand the id back so
+        // the caller stores it and pushes an update next time instead of creating a duplicate.
+        const strandedId = effectiveRuPropertyId === 0 ? extractReturnedPropertyId(response) : null;
+        return ruErrorResponse(status, { ...diag, stranded_ru_property_id: strandedId });
       }
 
 
-      // Extract returned PropertyID from RU response (e.g. <PropertyID>12345</PropertyID>)
-      const pidMatch = response.match(/<PropertyID[^>]*>(\d+)<\/PropertyID>/i);
-      const returnedPropertyId = pidMatch ? parseInt(pidMatch[1], 10) : null;
+      // RU answers a create with <ID>…</ID> and (historically) <PropertyID>…</PropertyID>.
+      const returnedPropertyId = extractReturnedPropertyId(response) ?? (effectiveRuPropertyId > 0 ? effectiveRuPropertyId : null);
+
 
       // ── Persist authoritative snake_case mapping on properties row ──
       let mapping_persisted = false;
