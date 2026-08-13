@@ -110,7 +110,18 @@ export function RoomTypePlanRows({
 
   return (
     <>
-      {rows.map((row) => (
+      {rows.map((row) => {
+        const todayCell = row.cells.find((c) => isSameDay(c.date, today));
+        const todayStatus = !todayCell
+          ? null
+          : todayCell.overbooked > 0
+            ? { dot: "bg-destructive", label: "Overbooked today" }
+            : todayCell.stopSell
+              ? { dot: statusMeta("out_of_order").dot, label: "Blocked today" }
+              : todayCell.free <= 0
+                ? { dot: statusMeta("occupied").dot, label: "Fully occupied today" }
+                : { dot: statusMeta("available").dot, label: `${todayCell.free} free today` };
+        return (
         <div key={row.roomType.id}>
           <div className="flex border-b border-border hover:bg-muted/20">
             <button
@@ -125,6 +136,13 @@ export function RoomTypePlanRows({
                   <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" />
                 ) : (
                   <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+                )}
+                {todayStatus && (
+                  <span
+                    className={cn("h-1.5 w-1.5 shrink-0 rounded-full", todayStatus.dot)}
+                    title={todayStatus.label}
+                    aria-label={todayStatus.label}
+                  />
                 )}
                 <span className="truncate text-[11px] font-medium" title={row.roomType.name}>
                   {row.roomType.name}
