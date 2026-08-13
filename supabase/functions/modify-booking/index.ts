@@ -598,11 +598,26 @@ Deno.serve(async (req) => {
       modifications.teens !== undefined ||
       modifications.infants !== undefined;
 
+    // S8c: Settle the money. The new total is compared with what was actually received, the
+    // difference is written to the booking, and it becomes either a pending refund for approval
+    // or an outstanding balance the guest can be asked to pay.
+    const effectiveTotal = Number(updateData.total_price ?? booking.total_price ?? 0);
+    const settlementOutcome = priceAffected
+      ? await applyBookingSettlement(supabase, booking, {
+          oldTotal: Number(booking.total_price ?? 0),
+          newTotal: effectiveTotal,
+          raiseRefund: settlement?.raise_refund !== false,
+          requestBalance: settlement?.request_balance !== false,
+          reasonNote: modifications.note ?? null,
+        })
+      : null;
+
     // The booking row and the availability blocks are now correct, so the operator can be
     // released. Commission, the channel ARI delta, the sync-status write and the guest email
     // only have to *follow* — they go onto the durable background queue and the worker is kicked
     // immediately, so the dialog no longer waits on a multi-second channel round-trip.
     await enqueueJobs(supabase, [
+
       ...(priceAffected
         ? [{
             type: "recalculate_commission" as const,
