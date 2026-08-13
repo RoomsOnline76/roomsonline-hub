@@ -42,10 +42,13 @@ export function useBookingRoomLines(bookingIds: string[]): BookingRoomLineIndex 
     const roomIdsByBooking = new Map<string, string[]>();
     for (const row of data || []) {
       if (row.room_type_id) {
+        // Keep one entry per line (not per distinct type): three rooms of the same
+        // type must still claim three units.
         const list = roomTypeIdsByBooking.get(row.booking_id) || [];
-        if (!list.includes(row.room_type_id)) list.push(row.room_type_id);
+        list.push(row.room_type_id);
         roomTypeIdsByBooking.set(row.booking_id, list);
       }
+
       if (row.room_id) {
         const list = roomIdsByBooking.get(row.booking_id) || [];
         if (!list.includes(row.room_id)) list.push(row.room_id);
