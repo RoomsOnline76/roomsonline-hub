@@ -1,11 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  classifyRuNotification,
+  classifyRuNotificationBlock,
   extractAllBlocks,
   parseRuReservation,
   resolveRuUnit,
   type RuNotificationKind,
 } from '../_shared/ruReservationParsing.ts';
+
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 
 /**
