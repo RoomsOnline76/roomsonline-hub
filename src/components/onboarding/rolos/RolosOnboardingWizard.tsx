@@ -54,6 +54,15 @@ interface Props {
 
 const COLLAPSE_KEY = "rolos-onboarding-wizard-collapsed";
 const DISMISS_KEY = "rolos-onboarding-wizard-dismissed";
+/** Per-property hide/collapse preference, valid only for one gate signature. */
+const PREFS_KEY = "rolos-wizard";
+
+interface StoredPrefs {
+  hidden?: boolean;
+  collapsed?: boolean;
+  signature?: string;
+}
+
 
 function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }) {
   if (complete) return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
@@ -163,6 +172,9 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     currentMacro,
     overall,
     channelsConnected,
+    publishedOk,
+    blockingMacros,
+    gateSignature,
 
     signoff,
     recordSignoff,
@@ -181,30 +193,54 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     [soleUnitName, unitNames],
   );
 
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      // Collapse is a per-load preference only: a page refresh must always bring
-      // the wizard back so readiness is re-derived and visible.
-      localStorage.removeItem(COLLAPSE_KEY);
-    } catch {
-      /* ignore */
-    }
-    return false;
-  });
+  const prefsKey = `${PREFS_KEY}:${propertyId ?? ""}`;
+
+  const [collapsed, setCollapsed] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  /** Set when the user opens the quiet pill for this page view. */
+  const [pillOpened, setPillOpened] = useState(false);
   const [openMacro, setOpenMacro] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
-  // "Hide" only lasts for the current page view — refreshing the editor always
-  // re-opens the wizard.
+  // Hide / collapse persist per property, but only while the mandatory gate state
+  // (steps 1-8) is unchanged. A new blocker changes the signature, which discards
+  // the stored preference and brings the wizard back on its own.
   useEffect(() => {
-    setDismissed(false);
+    setPillOpened(false);
+    let stored: StoredPrefs | null = null;
     try {
+      stored = JSON.parse(localStorage.getItem(prefsKey) ?? "null") as StoredPrefs | null;
+      // Legacy per-load keys are no longer used.
+      localStorage.removeItem(COLLAPSE_KEY);
       sessionStorage.removeItem(`${DISMISS_KEY}:${propertyId ?? ""}`);
     } catch {
       /* ignore */
     }
-  }, [propertyId]);
+    const valid = !!stored && stored.signature === gateSignature;
+    setDismissed(valid ? stored!.hidden === true : false);
+    setCollapsed(valid ? stored!.collapsed === true : false);
+  }, [gateSignature, prefsKey, propertyId]);
+
+  const savePrefs = useCallback(
+    (patch: Partial<StoredPrefs>) => {
+      try {
+        const current = JSON.parse(localStorage.getItem(prefsKey) ?? "null") as StoredPrefs | null;
+        localStorage.setItem(
+          prefsKey,
+          JSON.stringify({
+            hidden: false,
+            collapsed: false,
+            ...(current ?? {}),
+            ...patch,
+            signature: gateSignature,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
+    },
+    [gateSignature, prefsKey],
+  );
 
   // Keep the expanded row on the first incomplete step: a step that reaches
   // 100% collapses itself and hands over to the next outstanding macro.
@@ -218,12 +254,17 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
   }, [currentMacro, macros]);
 
   const toggleCollapsed = useCallback(() => {
-    setCollapsed((prev) => !prev);
-  }, []);
+    setCollapsed((prev) => {
+      savePrefs({ collapsed: !prev });
+      return !prev;
+    });
+  }, [savePrefs]);
 
   const dismiss = useCallback(() => {
     setDismissed(true);
-  }, []);
+    savePrefs({ hidden: true });
+  }, [savePrefs]);
+
 
 
   const goToField = useCallback(
@@ -371,6 +412,43 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
       </div>
     );
   }
+
+  // Published, with no mandatory step 1-8 outstanding: the remaining steps are
+  // administrative, so the wizard stops opening itself and waits as a quiet pill.
+  // Ordinary saves keep auto-pushing through the delta pipeline untouched.
+  if (publishedOk && blockingMacros.length === 0 && !pillOpened) {
+    return (
+      <div
+        className={`fixed bottom-[4.75rem] right-4 md:bottom-4 z-50 flex items-center gap-1 rounded-full border bg-card px-2 py-1 shadow-lg ${className ?? ""}`}
+        role="complementary"
+        aria-label="ROL'OS channel readiness"
+      >
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1.5 rounded-full px-2 text-[11px]"
+          onClick={() => setPillOpened(true)}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          Channel readiness · {overall.macrosComplete}/{overall.macrosTotal}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 rounded-full px-2 text-[11px]"
+          onClick={() => navigate(`/pms/channels?property=${propertyId}`)}
+        >
+          Connect Channels
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={dismiss} aria-label="Hide">
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+
 
 
   return (

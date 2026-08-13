@@ -441,6 +441,34 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [macros],
   );
 
+  /** True once every active unit (or the property) carries a stored listing id. */
+  const publishedOk = useMemo(
+    () => stateChecks.get("listing_ids")?.ok === true,
+    [stateChecks],
+  );
+
+  /**
+   * Macros 1-8 with outstanding mandatory work. These are the only steps that may
+   * force the wizard open: 9-11 are administrative and must not nag on every visit.
+   */
+  const blockingMacros = useMemo(
+    () => macros.filter((m) => m.macro.order <= 8 && !m.complete),
+    [macros],
+  );
+
+  /**
+   * Stable fingerprint of the mandatory gate state (steps 1-8). A persisted "hide"
+   * is honoured only while this signature is unchanged — the moment a new blocker
+   * appears the signature changes and the wizard re-opens by itself.
+   */
+  const gateSignature = useMemo(() => {
+    const parts = blockingMacros.map(
+      (m) => `${m.macro.key}:${[...m.outstandingLabels].sort().join("|")}`,
+    );
+    return `${publishedOk ? "pub" : "unpub"}#${parts.join(";")}`;
+  }, [blockingMacros, publishedOk]);
+
+
   const overall = useMemo(() => {
     const done = macros.filter((m) => m.complete).length;
     return {
@@ -523,6 +551,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     currentMacro,
     overall,
     channelsConnected,
+    publishedOk,
+    blockingMacros,
+    gateSignature,
+
     signoff,
     recordSignoff,
     recordSignoffCheck,
