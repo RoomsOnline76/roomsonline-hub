@@ -1724,8 +1724,7 @@ async function loadBookingBlocks(
   propertyId: string,
   windowFrom: string,
   windowTo: string,
-  unitId: string | null,
-  unitName: string | null,
+  unit: { id?: string | null; name?: string | null; linked_rolos_id?: string | null } | null,
 ): Promise<{ dates: Set<string>; stats: { bookings: number; nights: number; ranges: { from: string; to: string }[] } }> {
   const dates = new Set<string>();
   const ranges: { from: string; to: string }[] = [];
@@ -1733,7 +1732,7 @@ async function loadBookingBlocks(
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, room_type_id, rooms, check_in_date, check_out_date')
+    .select('id, status, payment_status, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
     .eq('property_id', propertyId)
     .lt('check_in_date', windowTo)
     .gt('check_out_date', windowFrom)
@@ -1741,27 +1740,74 @@ async function loadBookingBlocks(
 
   if (error || !Array.isArray(data)) return { dates, stats };
 
-  const wanted = unitName ? normalizeRoomLabel(unitName) : null;
+  /* A channel unit and the ROL'OS room that sells it can be linked by id, by the
+   * canonical room registry (duplicate/retired twins included) or by name. Missing any
+   * of these leaves sold nights open upstream, so all three are accepted. */
+  const registry = await loadCanonicalRooms(supabase, propertyId);
+  const canonical = unit ? registry.canonicalForUnit(unit) : null;
+  const acceptTypeIds = new Set<string>();
+  const acceptRoomIds = new Set<string>();
+  if (unit) {
+    if (unit.linked_rolos_id) acceptTypeIds.add(String(unit.linked_rolos_id));
+    if (unit.id) acceptTypeIds.add(String(unit.id));
+    if (canonical) {
+      for (const id of registry.typeIdsByKey.get(canonical.key) ?? []) acceptTypeIds.add(id);
+      for (const [roomId, key] of registry.keyByRoomId) {
+        if (key === canonical.key) acceptRoomIds.add(roomId);
+      }
+    }
+  }
+
+  const wanted = unit?.name ? normalizeRoomLabel(String(unit.name)) : canonical ? normalizeRoomLabel(canonical.name) : null;
+
+  // Imported bookings (NightsBridge) carry no `rooms` JSON — their unit lives in
+  // `rolos_booking_rooms`, so those lines are the fallback for unit matching.
+  const bookingIds = (data as any[]).map((b) => String(b.id));
+  const linesByBooking = new Map<string, { room_id: string | null; room_type_id: string | null }[]>();
+  for (let i = 0; i < bookingIds.length; i += 200) {
+    const chunk = bookingIds.slice(i, i + 200);
+    const { data: lineRows } = await supabase
+      .from('rolos_booking_rooms')
+      .select('booking_id, room_id, room_type_id')
+      .in('booking_id', chunk);
+    for (const l of (lineRows ?? []) as any[]) {
+      const key = String(l.booking_id);
+      linesByBooking.set(key, [...(linesByBooking.get(key) ?? []), { room_id: l.room_id ?? null, room_type_id: l.room_type_id ?? null }]);
+    }
+  }
 
   for (const b of data as any[]) {
     const stays: { from: string; to: string }[] = [];
     const rooms = Array.isArray(b.rooms) ? b.rooms : [];
 
-    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null): boolean => {
-      if (!unitId && !wanted) return true; // property-level push: any sold room closes a unit
-      if (unitId && roomTypeId && String(roomTypeId) === unitId) return true;
+    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null, roomId?: string | null): boolean => {
+      if (!unit) return true; // property-level push: any sold room closes a unit
+      if (roomTypeId && acceptTypeIds.has(String(roomTypeId))) return true;
+      if (roomId && acceptRoomIds.has(String(roomId))) return true;
       if (wanted && roomTypeName && normalizeRoomLabel(String(roomTypeName)) === wanted) return true;
       return false;
     };
 
+    const bookingRoomIds: string[] = Array.isArray(b.rolos_room_ids) ? b.rolos_room_ids.map(String) : [];
+    const lines = linesByBooking.get(String(b.id)) ?? [];
+    const bookingMatches =
+      matchesUnit(b.room_type_id, null, null) ||
+      bookingRoomIds.some((id) => matchesUnit(null, null, id)) ||
+      lines.some((l) => matchesUnit(l.room_type_id, null, l.room_id));
+
     if (rooms.length > 0) {
       for (const r of rooms) {
-        if (!matchesUnit(r?.roomTypeId ?? r?.room_type_id ?? null, r?.roomTypeName ?? r?.room_type_name ?? null)) continue;
+        const roomMatches = matchesUnit(
+          r?.roomTypeId ?? r?.room_type_id ?? null,
+          r?.roomTypeName ?? r?.room_type_name ?? null,
+          r?.roomId ?? r?.room_id ?? null,
+        );
+        if (!roomMatches && !bookingMatches) continue;
         const from = String(r?.checkIn ?? r?.check_in ?? b.check_in_date ?? '').slice(0, 10);
         const to = String(r?.checkOut ?? r?.check_out ?? b.check_out_date ?? '').slice(0, 10);
         if (from && to) stays.push({ from, to });
       }
-    } else if (matchesUnit(b.room_type_id, null)) {
+    } else if (bookingMatches) {
       const from = String(b.check_in_date ?? '').slice(0, 10);
       const to = String(b.check_out_date ?? '').slice(0, 10);
       if (from && to) stays.push({ from, to });
@@ -1785,6 +1831,7 @@ async function loadBookingBlocks(
   stats.nights = dates.size;
   return { dates, stats };
 }
+
 
 
 /** Overlay per-date manual overrides onto season-derived entries, then recompress ranges. */
