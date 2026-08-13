@@ -2878,6 +2878,7 @@ export type Database = {
           price_indicator: string | null
           property_id: string | null
           reservation_required: boolean | null
+          ru_destination_id: number | null
           source: string | null
           title: string
           updated_at: string | null
@@ -2901,6 +2902,7 @@ export type Database = {
           price_indicator?: string | null
           property_id?: string | null
           reservation_required?: boolean | null
+          ru_destination_id?: number | null
           source?: string | null
           title: string
           updated_at?: string | null
@@ -2924,6 +2926,7 @@ export type Database = {
           price_indicator?: string | null
           property_id?: string | null
           reservation_required?: boolean | null
+          ru_destination_id?: number | null
           source?: string | null
           title?: string
           updated_at?: string | null

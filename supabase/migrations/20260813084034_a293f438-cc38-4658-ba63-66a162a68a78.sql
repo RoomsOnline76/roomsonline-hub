@@ -1,0 +1,1 @@
+ALTER TABLE public.local_experiences ADD COLUMN IF NOT EXISTS ru_destination_id integer;
