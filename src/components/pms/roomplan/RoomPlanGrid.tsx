@@ -83,6 +83,8 @@ interface RoomPlanGridProps {
   /** Disable both drag interactions (touch / read-only contexts). */
   dragDisabled?: boolean;
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Stop-sell / blocked nights per room type — hatched and refused for new stays. */
+  isBlocked?: (roomTypeId: string, date: Date) => boolean;
   isHoliday?: (date: Date) => string | null;
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
