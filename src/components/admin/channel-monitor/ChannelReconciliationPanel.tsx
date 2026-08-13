@@ -182,7 +182,13 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               <Stat label="Live on the channel" value={result.channel_listing_count} />
               <Stat label="Matched locally" value={result.matched.length} />
               <Stat label="Orphans on channel" value={result.orphans.length} tone={result.orphans.length ? "warn" : undefined} />
+              <Stat
+                label="Duplicate copies"
+                value={result.duplicates.length}
+                tone={result.duplicates.length ? "warn" : undefined}
+              />
               <Stat label="Archived — not billable" value={result.archived_count} />
+
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
