@@ -472,7 +472,7 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
       )}
 
       <ol className="space-y-3">
-        {visiblePhases.map((phase, idx) => (
+        {visiblePhases.map((phase) => (
 
           <li key={phase.key} className="rounded-lg border p-4">
             <div className="flex items-start justify-between gap-4">
