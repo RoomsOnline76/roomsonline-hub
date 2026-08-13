@@ -537,6 +537,8 @@ Deno.serve(async (req) => {
           archived_orphans: archivedOrphans,
           matched,
           orphans,
+          duplicates,
+
           stale,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
