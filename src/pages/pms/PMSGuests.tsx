@@ -631,6 +631,18 @@ export default function PMSGuests() {
           )}
         </SheetContent>
       </Sheet>
+
+      <GuestEditDialog
+        guest={editGuest}
+        open={!!editGuest}
+        onOpenChange={(open) => !open && setEditGuest(null)}
+        onSaved={() => { setEditGuest(null); fetchGuests(); }}
+        onDeleted={(id) => {
+          setEditGuest(null);
+          setSelectedGuest(prev => (prev?.id === id ? null : prev));
+          fetchGuests();
+        }}
+      />
     </>
   );
 }
