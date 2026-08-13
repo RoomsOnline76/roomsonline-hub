@@ -39,6 +39,31 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [totalPrice, setTotalPrice] = useState(String(booking.total_price ?? 0));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  /** What has actually been received — drives the refund / balance preview. */
+  const [amountPaid, setAmountPaid] = useState<number | null>(null);
+  const [raiseRefund, setRaiseRefund] = useState(true);
+  const [requestBalance, setRequestBalance] = useState(true);
+
+  useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("amount_paid, payment_status, total_price")
+        .eq("id", booking.id)
+        .maybeSingle();
+      if (!mounted || !data) return;
+      const stored = Number(data.amount_paid ?? 0);
+      const paidFlag = ["paid", "complete", "completed", "success"].includes(
+        String(data.payment_status ?? "").toLowerCase(),
+      );
+      setAmountPaid(stored > 0 ? stored : paidFlag ? Number(data.total_price ?? 0) : 0);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [open, booking.id]);
 
   let nights = 0;
   try {
@@ -46,6 +71,16 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   } catch {
     nights = 0;
   }
+
+  /** Positive = guest still owes, negative = guest overpaid. */
+  const delta = useMemo(() => {
+    if (amountPaid === null) return 0;
+    return Math.round((Number(totalPrice || 0) - amountPaid) * 100) / 100;
+  }, [amountPaid, totalPrice]);
+
+  const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
+
+
 
   const submit = async () => {
     if (nights <= 0) {
