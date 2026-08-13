@@ -232,14 +232,24 @@ Deno.serve(async (req) => {
             summary.skipped++;
         }
 
+        const pollResolved = result.outcome !== 'unmatched' && result.outcome !== 'failed';
+        const pollUnmapped = !result.propertyId && !!r.ruPropertyId;
         await supabase.from('ru_notifications').insert({
           event_type: `poll_reservation_${kind}`,
           ru_reservation_id: r.ruReservationId,
           ru_property_id: r.ruPropertyId,
           property_id: result.propertyId,
           raw_xml: block,
-          processed: result.outcome !== 'unmatched' && result.outcome !== 'failed',
+          processed: pollResolved,
+          resolution_state: pollResolved ? 'resolved' : pollUnmapped ? 'unmapped' : 'failed',
+          error_message: pollResolved
+            ? null
+            : pollUnmapped
+              ? `Channel listing ${r.ruPropertyId} is not mapped to any ROL'OS unit`
+              : result.error ?? result.note ?? `Ingest outcome: ${result.outcome}`,
+          last_attempt_at: new Date().toISOString(),
         });
+
       } catch (resErr) {
         console.error(`[cron-pull-ru] Error processing reservation:`, resErr);
         summary.failed++;
