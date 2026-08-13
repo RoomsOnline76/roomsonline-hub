@@ -162,6 +162,8 @@ import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck, Loader2 } from "lucide-react";
 import { MIN_DESCRIPTION_CHARS } from "@/components/property/InfoFacilitiesTab";
+import { NearbyAttractionsPanel } from "@/components/experiences/NearbyAttractionsPanel";
+
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import {
   RuImageTagMap,
