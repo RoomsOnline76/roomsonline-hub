@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCanonicalRooms } from "../_shared/canonicalRooms.ts";
 import {
   mapNbRow,
   normaliseRoomKey,
@@ -20,6 +21,7 @@ import {
   type MappedNbBooking,
   type RowOutcome,
 } from "./nbRows.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,8 +128,8 @@ async function repairUnmappedBookings(
   overrides: Record<string, string>,
   dryRun: boolean,
 ) {
-  const [{ data: roomRows }, { data: bookingRows }] = await Promise.all([
-    sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
+  const [registry, { data: bookingRows }] = await Promise.all([
+    loadCanonicalRooms(sb, propertyId),
     sb
       .from("bookings")
       .select("id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id")
@@ -136,8 +138,17 @@ async function repairUnmappedBookings(
       .is("rolos_room_ids", null),
   ]);
 
-  const rooms = (roomRows ?? []) as { id: string; room_number: string | null; room_name: string | null; room_type_id: string | null }[];
+  // Only canonical rooms may be offered or accepted — retired twins are invisible here.
+  const rooms = [...registry.byKey.values()]
+    .filter((c) => c.roomId)
+    .map((c) => ({
+      id: c.roomId as string,
+      room_name: c.roomLabel,
+      room_number: null as string | null,
+      room_type_id: c.roomTypeId,
+    }));
   const byId = new Map(rooms.map((r) => [r.id, r]));
+
 
   interface Group {
     room_name: string;
@@ -240,6 +251,198 @@ async function repairUnmappedBookings(
   };
 }
 
+/**
+ * Repair superseded (retired) room inventory for one property.
+ *
+ * 1. Re-points bookings and their room lines from retired room types / rooms to the
+ *    canonical row for the same room name.
+ * 2. Repairs the channel-unit links (`linked_rolos_id`, `linked_overview_id`).
+ * 3. Deletes retired rooms and room types — only when nothing references them.
+ */
+async function repairSupersededRooms(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+  dryRun: boolean,
+) {
+  const registry = await loadCanonicalRooms(sb, propertyId);
+
+  const canonicalTypeIds = new Set([...registry.byKey.values()].map((c) => c.roomTypeId));
+  const canonicalRoomIds = new Set(
+    [...registry.byKey.values()].map((c) => c.roomId).filter(Boolean) as string[],
+  );
+
+  const report = {
+    mode: "repair_superseded_rooms",
+    dry_run: dryRun,
+    canonical: [...registry.byKey.values()].map((c) => ({
+      room_name: c.name,
+      room_type_id: c.roomTypeId,
+      room_id: c.roomId,
+      channel_units: c.unitIds.length,
+    })),
+    bookings_repointed: 0,
+    booking_lines_repointed: 0,
+    links_repaired: 0,
+    rooms_deleted: 0,
+    room_types_deleted: 0,
+    retained: [] as { kind: string; id: string; reason: string }[],
+    actions: [] as string[],
+  };
+
+  /* ---------------------------------------------- 1. bookings + room lines */
+
+  const { data: bookingRows } = await sb
+    .from("bookings")
+    .select("id, room_type_id, rolos_room_ids")
+    .eq("property_id", propertyId);
+
+  const moves: { id: string; room_type_id: string; room_id: string | null }[] = [];
+  for (const b of (bookingRows ?? []) as { id: string; room_type_id: string | null; rolos_room_ids: string[] | null }[]) {
+    const roomIds = Array.isArray(b.rolos_room_ids) ? b.rolos_room_ids : [];
+    const typeRetired = b.room_type_id ? registry.supersededTypeIds.has(b.room_type_id) : false;
+    const roomRetired = roomIds.some((id) => registry.supersededRoomIds.has(id));
+    if (!typeRetired && !roomRetired) continue;
+
+    const key =
+      (b.room_type_id ? registry.keyByTypeId.get(b.room_type_id) : null) ??
+      roomIds.map((id) => registry.keyByRoomId.get(id)).find(Boolean) ??
+      null;
+    const canonical = key ? registry.byKey.get(key) : null;
+    if (!canonical) {
+      report.retained.push({ kind: "booking", id: b.id, reason: "no current room with this name" });
+      continue;
+    }
+    moves.push({ id: b.id, room_type_id: canonical.roomTypeId, room_id: canonical.roomId });
+  }
+
+  report.bookings_repointed = moves.length;
+  if (moves.length > 0) report.actions.push(`Re-point ${moves.length} booking(s) to current rooms`);
+
+  if (!dryRun) {
+    for (const move of moves) {
+      const { error } = await sb
+        .from("bookings")
+        .update({
+          room_type_id: move.room_type_id,
+          rolos_room_ids: move.room_id ? [move.room_id] : null,
+        })
+        .eq("id", move.id);
+      if (error) {
+        report.retained.push({ kind: "booking", id: move.id, reason: error.message });
+        continue;
+      }
+      const { error: lineErr, count } = await sb
+        .from("rolos_booking_rooms")
+        .update({ room_type_id: move.room_type_id, room_id: move.room_id }, { count: "exact" })
+        .eq("booking_id", move.id);
+      if (!lineErr) report.booking_lines_repointed += count ?? 0;
+    }
+  }
+
+  /* ----------------------------------------------------- 2. channel links */
+
+  const { data: unitRows } = await sb
+    .from("hostfully_room_types")
+    .select("id, name, is_active, linked_rolos_id, rentalsunited_property_id")
+    .eq("property_id", propertyId);
+
+  for (const u of (unitRows ?? []) as { id: string; name: string | null; linked_rolos_id: string | null; is_active: boolean | null }[]) {
+    if (u.is_active === false) continue;
+    const canonical = registry.canonicalForUnit(u);
+    if (!canonical) {
+      report.retained.push({ kind: "channel_unit", id: u.id, reason: "no ROL'OS room with this name" });
+      continue;
+    }
+    const needsLink = u.linked_rolos_id !== canonical.roomTypeId;
+    if (!needsLink) continue;
+    report.links_repaired += 1;
+    report.actions.push(`Link channel unit "${u.name ?? u.id}" to its current room`);
+    if (!dryRun) {
+      await sb.from("hostfully_room_types").update({ linked_rolos_id: canonical.roomTypeId }).eq("id", u.id);
+      await sb.from("rolos_room_types").update({ linked_overview_id: u.id }).eq("id", canonical.roomTypeId);
+    }
+  }
+
+  /* --------------------------------------- 3. delete unreferenced retirees */
+
+  const referenceTables: { table: string; column: string }[] = [
+    { table: "bookings", column: "room_type_id" },
+    { table: "rolos_booking_rooms", column: "room_type_id" },
+    { table: "rolos_rate_plan_room_types", column: "room_type_id" },
+    { table: "rolos_rate_plan_season_rates", column: "room_type_id" },
+    { table: "rolos_rate_prices", column: "room_type_id" },
+    { table: "rolos_rate_strategies", column: "room_type_id" },
+    { table: "rolos_inventory_calendar", column: "room_type_id" },
+    { table: "rolos_stay_restrictions", column: "room_type_id" },
+    { table: "rolos_reservation_rooms", column: "room_type_id" },
+    { table: "rolos_group_reservations", column: "room_type_id" },
+    { table: "rolos_group_room_blocks", column: "room_type_id" },
+    { table: "rolos_channel_room_mapping", column: "room_type_id" },
+    { table: "rolos_waitlist", column: "room_type_id" },
+    { table: "hostfully_unit_map", column: "room_type_id" },
+  ];
+  const roomReferenceTables: { table: string; column: string }[] = [
+    { table: "rolos_booking_rooms", column: "room_id" },
+    { table: "rolos_reservation_rooms", column: "room_id" },
+    { table: "rolos_housekeeping_tasks", column: "room_id" },
+    { table: "rolos_housekeeping_schedules", column: "room_id" },
+    { table: "rolos_maintenance_requests", column: "room_id" },
+    { table: "rolos_group_reservations", column: "room_id" },
+  ];
+
+  const isReferenced = async (
+    id: string,
+    tables: { table: string; column: string }[],
+  ): Promise<string | null> => {
+    for (const t of tables) {
+      const { count, error } = await sb
+        .from(t.table)
+        .select("id", { count: "exact", head: true })
+        .eq(t.column, id);
+      if (error) continue;
+      if ((count ?? 0) > 0) return `${count} row(s) in ${t.table}`;
+    }
+    return null;
+  };
+
+  // Rooms first — a room type cannot go while its rooms remain.
+  for (const roomId of registry.supersededRoomIds) {
+    if (canonicalRoomIds.has(roomId)) continue;
+    const blocked = await isReferenced(roomId, roomReferenceTables);
+    if (blocked) {
+      report.retained.push({ kind: "room", id: roomId, reason: blocked });
+      continue;
+    }
+    report.rooms_deleted += 1;
+    if (!dryRun) await sb.from("rolos_rooms").delete().eq("id", roomId).eq("property_id", propertyId);
+  }
+
+  for (const typeId of registry.supersededTypeIds) {
+    if (canonicalTypeIds.has(typeId)) continue;
+    const blocked = await isReferenced(typeId, referenceTables);
+    if (blocked) {
+      report.retained.push({ kind: "room_type", id: typeId, reason: blocked });
+      continue;
+    }
+    const { count: roomCount } = await sb
+      .from("rolos_rooms")
+      .select("id", { count: "exact", head: true })
+      .eq("room_type_id", typeId);
+    if ((roomCount ?? 0) > 0 && dryRun === false) {
+      report.retained.push({ kind: "room_type", id: typeId, reason: `${roomCount} room(s) still attached` });
+      continue;
+    }
+    report.room_types_deleted += 1;
+    if (!dryRun) await sb.from("rolos_room_types").delete().eq("id", typeId).eq("property_id", propertyId);
+  }
+
+  if (report.rooms_deleted > 0) report.actions.push(`Remove ${report.rooms_deleted} retired room(s)`);
+  if (report.room_types_deleted > 0) report.actions.push(`Remove ${report.room_types_deleted} retired room type(s)`);
+
+  return report;
+}
+
 
 
 Deno.serve(async (req) => {
@@ -290,7 +493,13 @@ Deno.serve(async (req) => {
      * room name is preserved in `internal_notes` ("NB Room: <name>"), so it can be
      * grouped and mapped after the fact without re-uploading the export.
      */
+    if (mode === "repair_superseded_rooms") {
+      const result = await repairSupersededRooms(sb, propertyId, dryRun);
+      return json({ ok: true, ...result });
+    }
+
     if (mode === "repair") {
+
       const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
       return json({ ok: true, ...repair });
     }
@@ -309,34 +518,57 @@ Deno.serve(async (req) => {
     }
     const { rows } = parsedRows;
 
-    /* ---------------------------------------------------------- room lookup */
+    /* ---------------------------------------------------------- room lookup
+     * HARD GATE: only canonical (non-superseded) rooms may be matched. Legacy
+     * ALL-CAPS twins of a live unit are invisible here, so an import can never
+     * again attach bookings to inventory that no longer trades.
+     */
 
-    const [{ data: roomRows }, { data: typeRows }] = await Promise.all([
-      sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
-      sb.from("rolos_room_types").select("id, name, code").eq("property_id", propertyId),
-    ]);
+    const registry = await loadCanonicalRooms(sb, propertyId);
 
     const roomIndex = new Map<string, RoomRef>();
-    for (const r of roomRows ?? []) {
-      const ref: RoomRef = { id: r.id as string, room_type_id: (r.room_type_id as string) ?? null, keys: [] };
-      for (const candidate of [r.room_name, r.room_number]) {
-        const key = normaliseRoomKey(candidate as string | null);
-        if (key && !roomIndex.has(key)) roomIndex.set(key, ref);
-      }
-    }
     const typeIndex = new Map<string, string>();
-    for (const t of typeRows ?? []) {
-      for (const candidate of [t.name, t.code]) {
-        const key = normaliseRoomKey(candidate as string | null);
-        if (key && !typeIndex.has(key)) typeIndex.set(key, t.id as string);
+    for (const [key, canonical] of registry.byKey) {
+      if (canonical.roomId) {
+        roomIndex.set(key, { id: canonical.roomId, room_type_id: canonical.roomTypeId, keys: [key] });
       }
+      typeIndex.set(key, canonical.roomTypeId);
     }
+    const canonicalRoomList = [...registry.byKey.values()]
+      .filter((c) => c.roomId)
+      .map((c) => ({ id: c.roomId as string, label: c.roomLabel || c.name }));
+    const canonicalRoomIds = new Set(canonicalRoomList.map((r) => r.id));
+    /** Keys that exist in the database only as retired inventory (no canonical room/type). */
+    const retiredOnlyKeys = new Set<string>();
+    for (const [roomId, key] of registry.keyByRoomId) {
+      if (!registry.supersededRoomIds.has(roomId)) continue;
+      if (!registry.byKey.has(key)) retiredOnlyKeys.add(key);
+    }
+
 
     /** Operator decisions for unmatched room names. */
     const EXCLUDE = "__exclude__";
     const UNASSIGNED = "__unassigned__";
     /** Legacy sentinel from earlier builds — behaved as "import unassigned". */
     const LEGACY_SKIP = "__skip__";
+
+    /** Overrides pointing at a superseded (retired) room are refused outright. */
+    const rejectedOverrides = Object.entries(roomOverrides)
+      .filter(([, v]) => v && v !== EXCLUDE && v !== UNASSIGNED && v !== LEGACY_SKIP && !canonicalRoomIds.has(v))
+      .map(([name]) => name);
+    if (rejectedOverrides.length > 0) {
+      return json(
+        {
+          ok: false,
+          error:
+            `These room choices point at rooms that no longer exist: ${rejectedOverrides.join(", ")}. ` +
+            `Pick a current room instead.`,
+          rejected_overrides: rejectedOverrides,
+          rooms: canonicalRoomList,
+        },
+        400,
+      );
+    }
 
     const overrideFor = (name: string | null): string | null => {
       if (!name) return null;
@@ -347,8 +579,8 @@ Deno.serve(async (req) => {
       if (!name) return { roomId: null, roomTypeId: null };
       const override = overrideFor(name);
       if (override && override !== EXCLUDE && override !== UNASSIGNED && override !== LEGACY_SKIP) {
-        const byId = (roomRows ?? []).find((r) => r.id === override);
-        if (byId) return { roomId: byId.id as string, roomTypeId: (byId.room_type_id as string) ?? null };
+        const canonical = [...registry.byKey.values()].find((c) => c.roomId === override);
+        if (canonical) return { roomId: canonical.roomId, roomTypeId: canonical.roomTypeId };
       }
       if (override === UNASSIGNED || override === LEGACY_SKIP) return { roomId: null, roomTypeId: null };
       const key = normaliseRoomKey(name);
@@ -358,6 +590,7 @@ Deno.serve(async (req) => {
       if (typeId) return { roomId: null, roomTypeId: typeId };
       return { roomId: null, roomTypeId: null };
     };
+
 
 
     /* ------------------------------------------------------------- map rows */
@@ -476,6 +709,9 @@ Deno.serve(async (req) => {
       return { min: sorted[0] ?? null, max: sorted[sorted.length - 1] ?? null };
     })();
 
+    /** Names whose only inventory match is retired — the operator must pick a current room. */
+    const supersededNames = [...unmappedRooms].filter((name) => retiredOnlyKeys.has(normaliseRoomKey(name)));
+
     if (dryRun) {
       const summary = {
         total_rows: rows.length,
@@ -486,6 +722,9 @@ Deno.serve(async (req) => {
         excluded: excludedByOperator,
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
+        /** Rows blocked because the spreadsheet room no longer exists. */
+        blocked_superseded: supersededNames.length,
+        superseded_rooms: supersededNames,
         future_stays: futureStays,
         min_arrival: arrivalSpan.min,
         max_arrival: arrivalSpan.max,
@@ -512,13 +751,11 @@ Deno.serve(async (req) => {
         summary,
         errors,
         skipped,
-        rooms: (roomRows ?? []).map((r) => ({
-          id: r.id,
-          label: (r.room_name as string) || (r.room_number as string),
-        })),
+        rooms: canonicalRoomList,
         preview,
       });
     }
+
 
     /* ---------------------------------------------------------------- write */
 

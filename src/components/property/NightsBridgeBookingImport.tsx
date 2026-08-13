@@ -96,6 +96,20 @@ interface RepairResponse {
   rooms: { id: string; label: string }[];
 }
 
+/** Result of the retired-room cleanup: bookings moved off inventory that no longer trades. */
+interface SupersededResponse {
+  ok: boolean;
+  error?: string;
+  dry_run: boolean;
+  bookings_repointed: number;
+  booking_lines_repointed: number;
+  links_repaired: number;
+  rooms_deleted: number;
+  room_types_deleted: number;
+  actions: string[];
+  retained: { kind: string; id: string; reason: string }[];
+}
+
 
 interface ImportResponse {
   ok: boolean;
@@ -144,6 +158,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [dragging, setDragging] = useState(false);
   const [repair, setRepair] = useState<RepairResponse | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
+  const [superseded, setSuperseded] = useState<SupersededResponse | null>(null);
+  const [supersededBusy, setSupersededBusy] = useState(false);
+
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
   /** Persistent outcome of the last live import — stays until dismissed. */
   const [outcome, setOutcome] = useState<
@@ -235,6 +252,37 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
       setRepairBusy(false);
     }
   }, [propertyId, repairOverrides, refreshRepair]);
+
+  /* ------------------------------------------------- retired room cleanup ---
+   * Earlier imports attached bookings to room types that have since been replaced.
+   * Those ids never block dates upstream, so the cleanup re-points them onto the
+   * room that trades today and clears the leftovers.
+   */
+  const runSuperseded = useCallback(
+    async (dryRun: boolean) => {
+      setSupersededBusy(true);
+      try {
+        const { data, error } = await supabase.functions.invoke<SupersededResponse>("nb-import-bookings", {
+          body: { property_id: propertyId, mode: "repair_superseded_rooms", dry_run: dryRun },
+        });
+        if (error) throw new Error(error.message);
+        if (!data?.ok) throw new Error(data?.error || "Cleanup failed");
+        setSuperseded(data);
+        if (!dryRun) {
+          toast.success(
+            `Moved ${data.bookings_repointed} booking(s) and removed ${data.room_types_deleted} retired room type(s)`,
+          );
+        } else if (data.actions.length === 0) {
+          toast.success("Nothing to clean up — all bookings sit on current rooms");
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Cleanup failed");
+      } finally {
+        setSupersededBusy(false);
+      }
+    },
+    [propertyId],
+  );
 
 
   const run = useCallback(
@@ -903,6 +951,64 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             </div>
           )}
         </div>
+
+        {/* --- retired room cleanup: re-point bookings off superseded inventory --- */}
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Retired room cleanup</p>
+              <p className="text-xs text-muted-foreground">
+                Moves bookings sitting on replaced rooms onto the room that trades today, repairs the channel
+                links and removes the leftovers.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => void runSuperseded(true)} disabled={supersededBusy}>
+                {supersededBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                Preview
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void runSuperseded(false)}
+                disabled={supersededBusy || !superseded}
+              >
+                Apply cleanup
+              </Button>
+            </div>
+          </div>
+
+          {superseded && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline">{superseded.bookings_repointed} booking(s) to move</Badge>
+                <Badge variant="outline">{superseded.links_repaired} channel link(s) to repair</Badge>
+                <Badge variant="outline">{superseded.rooms_deleted} retired room(s)</Badge>
+                <Badge variant="outline">{superseded.room_types_deleted} retired room type(s)</Badge>
+              </div>
+              {superseded.actions.length > 0 && (
+                <ul className="space-y-0.5 text-muted-foreground">
+                  {superseded.actions.map((a) => (
+                    <li key={a}>• {a}</li>
+                  ))}
+                </ul>
+              )}
+              {superseded.retained.length > 0 && (
+                <div className="rounded-md border border-border p-2">
+                  <p className="font-medium">Kept for now</p>
+                  <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                    {superseded.retained.slice(0, 8).map((r) => (
+                      <li key={`${r.kind}-${r.id}`}>
+                        {r.kind.replace(/_/g, " ")} — {r.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+
 
       </CardContent>
     </Card>

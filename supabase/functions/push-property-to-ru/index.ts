@@ -17,6 +17,7 @@ import {
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
+import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -1724,8 +1725,7 @@ async function loadBookingBlocks(
   propertyId: string,
   windowFrom: string,
   windowTo: string,
-  unitId: string | null,
-  unitName: string | null,
+  unit: { id?: string | null; name?: string | null; linked_rolos_id?: string | null } | null,
 ): Promise<{ dates: Set<string>; stats: { bookings: number; nights: number; ranges: { from: string; to: string }[] } }> {
   const dates = new Set<string>();
   const ranges: { from: string; to: string }[] = [];
@@ -1733,7 +1733,7 @@ async function loadBookingBlocks(
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, room_type_id, rooms, check_in_date, check_out_date')
+    .select('id, status, payment_status, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
     .eq('property_id', propertyId)
     .lt('check_in_date', windowTo)
     .gt('check_out_date', windowFrom)
@@ -1741,27 +1741,74 @@ async function loadBookingBlocks(
 
   if (error || !Array.isArray(data)) return { dates, stats };
 
-  const wanted = unitName ? normalizeRoomLabel(unitName) : null;
+  /* A channel unit and the ROL'OS room that sells it can be linked by id, by the
+   * canonical room registry (duplicate/retired twins included) or by name. Missing any
+   * of these leaves sold nights open upstream, so all three are accepted. */
+  const registry = await loadCanonicalRooms(supabase, propertyId);
+  const canonical = unit ? registry.canonicalForUnit(unit) : null;
+  const acceptTypeIds = new Set<string>();
+  const acceptRoomIds = new Set<string>();
+  if (unit) {
+    if (unit.linked_rolos_id) acceptTypeIds.add(String(unit.linked_rolos_id));
+    if (unit.id) acceptTypeIds.add(String(unit.id));
+    if (canonical) {
+      for (const id of registry.typeIdsByKey.get(canonical.key) ?? []) acceptTypeIds.add(id);
+      for (const [roomId, key] of registry.keyByRoomId) {
+        if (key === canonical.key) acceptRoomIds.add(roomId);
+      }
+    }
+  }
+
+  const wanted = unit?.name ? normaliseRoomName(String(unit.name)) : canonical ? normaliseRoomName(canonical.name) : null;
+
+  // Imported bookings (NightsBridge) carry no `rooms` JSON — their unit lives in
+  // `rolos_booking_rooms`, so those lines are the fallback for unit matching.
+  const bookingIds = (data as any[]).map((b) => String(b.id));
+  const linesByBooking = new Map<string, { room_id: string | null; room_type_id: string | null }[]>();
+  for (let i = 0; i < bookingIds.length; i += 200) {
+    const chunk = bookingIds.slice(i, i + 200);
+    const { data: lineRows } = await supabase
+      .from('rolos_booking_rooms')
+      .select('booking_id, room_id, room_type_id')
+      .in('booking_id', chunk);
+    for (const l of (lineRows ?? []) as any[]) {
+      const key = String(l.booking_id);
+      linesByBooking.set(key, [...(linesByBooking.get(key) ?? []), { room_id: l.room_id ?? null, room_type_id: l.room_type_id ?? null }]);
+    }
+  }
 
   for (const b of data as any[]) {
     const stays: { from: string; to: string }[] = [];
     const rooms = Array.isArray(b.rooms) ? b.rooms : [];
 
-    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null): boolean => {
-      if (!unitId && !wanted) return true; // property-level push: any sold room closes a unit
-      if (unitId && roomTypeId && String(roomTypeId) === unitId) return true;
-      if (wanted && roomTypeName && normalizeRoomLabel(String(roomTypeName)) === wanted) return true;
+    const matchesUnit = (roomTypeId?: string | null, roomTypeName?: string | null, roomId?: string | null): boolean => {
+      if (!unit) return true; // property-level push: any sold room closes a unit
+      if (roomTypeId && acceptTypeIds.has(String(roomTypeId))) return true;
+      if (roomId && acceptRoomIds.has(String(roomId))) return true;
+      if (wanted && roomTypeName && normaliseRoomName(String(roomTypeName)) === wanted) return true;
       return false;
     };
 
+    const bookingRoomIds: string[] = Array.isArray(b.rolos_room_ids) ? b.rolos_room_ids.map(String) : [];
+    const lines = linesByBooking.get(String(b.id)) ?? [];
+    const bookingMatches =
+      matchesUnit(b.room_type_id, null, null) ||
+      bookingRoomIds.some((id) => matchesUnit(null, null, id)) ||
+      lines.some((l) => matchesUnit(l.room_type_id, null, l.room_id));
+
     if (rooms.length > 0) {
       for (const r of rooms) {
-        if (!matchesUnit(r?.roomTypeId ?? r?.room_type_id ?? null, r?.roomTypeName ?? r?.room_type_name ?? null)) continue;
+        const roomMatches = matchesUnit(
+          r?.roomTypeId ?? r?.room_type_id ?? null,
+          r?.roomTypeName ?? r?.room_type_name ?? null,
+          r?.roomId ?? r?.room_id ?? null,
+        );
+        if (!roomMatches && !bookingMatches) continue;
         const from = String(r?.checkIn ?? r?.check_in ?? b.check_in_date ?? '').slice(0, 10);
         const to = String(r?.checkOut ?? r?.check_out ?? b.check_out_date ?? '').slice(0, 10);
         if (from && to) stays.push({ from, to });
       }
-    } else if (matchesUnit(b.room_type_id, null)) {
+    } else if (bookingMatches) {
       const from = String(b.check_in_date ?? '').slice(0, 10);
       const to = String(b.check_out_date ?? '').slice(0, 10);
       if (from && to) stays.push({ from, to });
@@ -1785,6 +1832,7 @@ async function loadBookingBlocks(
   stats.nights = dates.size;
   return { dates, stats };
 }
+
 
 
 /** Overlay per-date manual overrides onto season-derived entries, then recompress ranges. */
@@ -2135,7 +2183,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       // Manual dashboard restrictions win over season-derived values.
       const manual = await loadManualRestrictions(supabase, property.id, todayStr, oneYearStr, unit?.name ?? null, unitUnits);
       // Sold nights close inventory even when the manual stop-sell rows are missing.
-      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit?.id ?? null, unit?.name ?? null);
+      const sold = await loadBookingBlocks(supabase, property.id, todayStr, oneYearStr, unit ? { id: unit.id, name: unit.name ?? null, linked_rolos_id: (unit as any).linked_rolos_id ?? null } : null);
       for (const day of sold.dates) {
         const existing = manual.overrides.get(day) ?? {};
         const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
@@ -3621,7 +3669,7 @@ Deno.serve(async (req) => {
 
       const report: Record<string, unknown>[] = [];
       for (const u of scoped) {
-        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id, u.label);
+        const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id ? { id: u.unit_id, name: u.label ?? null, linked_rolos_id: null } : null);
         const { data: calData, error: calErr } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'get_availability', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
         });
