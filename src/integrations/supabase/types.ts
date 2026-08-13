@@ -1011,6 +1011,7 @@ export type Database = {
           commission_type: string | null
           company_account_id: string | null
           created_at: string | null
+          credit_held: number
           deposit_amount: number
           deposit_due_date: string | null
           external_reservation_id: string | null
@@ -1105,6 +1106,7 @@ export type Database = {
           commission_type?: string | null
           company_account_id?: string | null
           created_at?: string | null
+          credit_held?: number
           deposit_amount?: number
           deposit_due_date?: string | null
           external_reservation_id?: string | null
@@ -1199,6 +1201,7 @@ export type Database = {
           commission_type?: string | null
           company_account_id?: string | null
           created_at?: string | null
+          credit_held?: number
           deposit_amount?: number
           deposit_due_date?: string | null
           external_reservation_id?: string | null
@@ -12036,6 +12039,8 @@ export type Database = {
           gateway: string | null
           gateway_error: string | null
           gateway_refund_id: string | null
+          guest_choice: string | null
+          guest_choice_at: string | null
           id: string
           internal_notes: string | null
           manual_settlement: boolean
@@ -12063,6 +12068,8 @@ export type Database = {
           gateway?: string | null
           gateway_error?: string | null
           gateway_refund_id?: string | null
+          guest_choice?: string | null
+          guest_choice_at?: string | null
           id?: string
           internal_notes?: string | null
           manual_settlement?: boolean
@@ -12090,6 +12097,8 @@ export type Database = {
           gateway?: string | null
           gateway_error?: string | null
           gateway_refund_id?: string | null
+          guest_choice?: string | null
+          guest_choice_at?: string | null
           id?: string
           internal_notes?: string | null
           manual_settlement?: boolean
@@ -16267,6 +16276,7 @@ export type Database = {
         | "processed"
         | "rejected"
         | "failed"
+        | "awaiting_guest_choice"
       rolos_reservation_status:
         | "pending"
         | "confirmed"
@@ -16561,7 +16571,14 @@ export const Constants = {
         "manual_override",
       ],
       referral_status: ["pending", "qualified", "converted", "churned"],
-      refund_status: ["pending", "approved", "processed", "rejected", "failed"],
+      refund_status: [
+        "pending",
+        "approved",
+        "processed",
+        "rejected",
+        "failed",
+        "awaiting_guest_choice",
+      ],
       rolos_reservation_status: [
         "pending",
         "confirmed",
