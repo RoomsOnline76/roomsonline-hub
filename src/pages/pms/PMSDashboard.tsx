@@ -1070,7 +1070,30 @@ export default function PMSDashboard() {
 
 
   // Group portfolio data by property
+  // Portfolio grids need the same per-unit line data so multi-room stays span every unit.
+  const portfolioBookingIds = useMemo(
+    () => (isPortfolioMode ? portfolioBookingsRaw.map((b) => (b as { id: string }).id) : []),
+    [isPortfolioMode, portfolioBookingsRaw],
+  );
+  const portfolioLines = useBookingRoomLines(portfolioBookingIds);
+  const portfolioBookingsWithLines = useMemo(
+    () => portfolioBookingsRaw.map((raw) => {
+      const b = raw as BookingRow;
+      const lineTypes = portfolioLines.roomTypeIdsByBooking.get(b.id);
+      const lineRooms = portfolioLines.roomIdsByBooking.get(b.id);
+      if (!lineTypes?.length && !lineRooms?.length) return b;
+      const existing = b.rolos_room_ids || [];
+      return {
+        ...b,
+        line_room_type_ids: lineTypes || null,
+        rolos_room_ids: existing.length ? existing : (lineRooms?.length ? lineRooms : existing),
+      } as BookingRow;
+    }),
+    [portfolioBookingsRaw, portfolioLines],
+  );
+
   const portfolioDataByProperty = useMemo(() => {
+
     if (!isPortfolioMode) return new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
     const map = new Map<string, { roomTypes: RoomType[]; rooms: Room[]; bookings: BookingRow[]; overrideMap: Map<string, AvailabilityOverride>; roomsByType: Map<string, Room[]>; propertyData: any }>();
 
