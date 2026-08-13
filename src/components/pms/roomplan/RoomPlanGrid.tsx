@@ -482,13 +482,15 @@ export function RoomPlanGrid({
                     {dates.map((date) => {
                       const rate = getRateForDate?.(group.type.id, date) ?? null;
                       const held = heldOn(group.type, date);
-                      const blocked = isBlocked?.(group.type.id, date) ?? false;
+                      const block = isBlocked?.(group.type.id, date) ?? null;
+                      const blocked = !!block;
+                      const blockDetail = typeof block === "object" ? block : null;
                       return (
                         <div
                           key={date.toISOString()}
                           title={
                             blocked
-                              ? `${group.type.name} is blocked on ${format(date, "d MMM yyyy")}`
+                              ? `${group.type.name}\n${formatBlockedTooltip(date, blockDetail)}`
                               : held
                                 ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}`
                                 : undefined
@@ -574,11 +576,16 @@ export function RoomPlanGrid({
                           }}
                         >
                           {dates.map((date, index) => {
-                            const blocked = isBlocked?.(row.roomTypeId, date) ?? false;
+                            const block = isBlocked?.(row.roomTypeId, date) ?? null;
+                            const blocked = !!block;
                             return (
                               <div
                                 key={date.toISOString()}
-                                title={blocked ? `Blocked — ${format(date, "d MMM yyyy")}` : undefined}
+                                title={
+                                  blocked
+                                    ? formatBlockedTooltip(date, typeof block === "object" ? block : null)
+                                    : undefined
+                                }
                                 className={cn(
                                   "shrink-0 border-r last:border-r-0",
                                   isWeekend(date) && "bg-muted/30",
