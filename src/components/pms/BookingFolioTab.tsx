@@ -362,7 +362,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
         </div>
       )}
 
-      {showPaymentForm && (
+      {showPaymentForm && canCollect && (
         <div className="border border-border rounded-md p-3 space-y-2">
           <h5 className="text-xs font-semibold uppercase text-muted-foreground">Record Payment</h5>
           <div className="grid grid-cols-2 gap-2">
