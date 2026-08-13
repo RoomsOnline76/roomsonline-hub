@@ -140,7 +140,18 @@ export function buildDistanceEntries(
     if (!existing || entry.value < existing.value) nearest.set(dest.ru_destination_id, entry);
   }
 
-  return [...nearest.values()].sort((a, b) => a.value - b.value).slice(0, maxEntries);
+  // The channel rejects a whole push with "Duplicate value in distances." — keep one entry per
+  // distance value as well as per destination so two attractions at the same km cannot trip it.
+  const seenValues = new Set<number>();
+  return [...nearest.values()]
+    .sort((a, b) => a.value - b.value)
+    .filter((e) => {
+      if (seenValues.has(e.value)) return false;
+      seenValues.add(e.value);
+      return true;
+    })
+    .slice(0, maxEntries);
+
 }
 
 type MinimalClient = {
