@@ -19,16 +19,18 @@ import { cn } from "@/lib/utils";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
-import { RoomTypePlanGrid } from "@/components/pms/rooms/RoomTypePlanGrid";
+import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@/components/pms/rooms/RoomTypePlanGrid";
+import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, groupIntoWeeks, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
-type ViewMode = "portfolio" | "single";
-
-/** Nights shown in the Room Type Plan — matched to the dashboard Room Plan window
- *  so a reservation visible on the dashboard is never off-screen here. */
-const PLAN_NIGHTS = 30;
+/** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
+const PLAN_NIGHTS = 45;
+const PLAN_NIGHTS_STEP = 30;
+const PLAN_NIGHTS_MAX = 180;
+/** Sentinel for the "all properties" option in the property filter dropdown. */
+const ALL_PROPERTIES = "__all__";
 /** Extra days of reservations loaded beyond the plan so search finds future stays. */
 const SEARCH_LOOKAHEAD_DAYS = 60;
 
@@ -41,17 +43,22 @@ const SLEEPS_OPTIONS = ["any", "2", "3", "4", "6"];
 
 export default function PMSRooms() {
   const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  const [viewMode, setViewMode] = useState<ViewMode>("single");
+  // One dropdown drives the whole page: every property stacked, or just one.
+  const [propertyScope, setPropertyScope] = useState<string>(ALL_PROPERTIES);
   const [autoDefaulted, setAutoDefaulted] = useState(false);
 
   useEffect(() => {
-    if (!autoDefaulted && properties.length > 1) {
-      setViewMode("portfolio");
+    if (!autoDefaulted && properties.length > 0) {
+      setPropertyScope(properties.length > 1 ? ALL_PROPERTIES : properties[0].id);
       setAutoDefaulted(true);
     }
-  }, [properties.length, autoDefaulted]);
+  }, [properties, autoDefaulted]);
 
-  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const isPortfolio = propertyScope === ALL_PROPERTIES && properties.length > 1;
+  const selectSingleProperty = useCallback((id: string) => {
+    setPropertyScope(id);
+    switchProperty(id);
+  }, [switchProperty]);
   const activePropertyIds = useMemo(
     () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
     [isPortfolio, properties, propertyId]
@@ -76,17 +83,25 @@ export default function PMSRooms() {
   const [showCards, setShowCards] = useState(false);
 
 
+  const [planNights, setPlanNights] = useState(PLAN_NIGHTS);
   const dates = useMemo(
-    () => Array.from({ length: PLAN_NIGHTS }, (_, i) => addDays(anchorDate, i)),
-    [anchorDate]
+    () => Array.from({ length: planNights }, (_, i) => addDays(anchorDate, i)),
+    [anchorDate, planNights]
   );
+  const weeks = useMemo(() => groupIntoWeeks(dates), [dates]);
+  const extendWindow = useCallback(() => {
+    setPlanNights((current) => (current >= PLAN_NIGHTS_MAX ? current : current + PLAN_NIGHTS_STEP));
+  }, []);
   const windowStart = format(dates[0], "yyyy-MM-dd");
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
   const shiftWindow = useCallback((direction: -1 | 1) => {
     setAnchorDate((current) => addDays(current, direction * 7));
   }, []);
-  const goToday = useCallback(() => setAnchorDate(startOfDay(new Date())), []);
+  const goToday = useCallback(() => {
+    setAnchorDate(startOfDay(new Date()));
+    setPlanNights(PLAN_NIGHTS);
+  }, []);
 
   // Auto-sync room types from the true Property Overview source for every
   // property currently in scope (single OR portfolio view).
@@ -402,12 +417,12 @@ export default function PMSRooms() {
   const goPrev = () => {
     if (!canCycle) return;
     const next = properties[(currentIdx - 1 + properties.length) % properties.length];
-    if (next) switchProperty(next.id);
+    if (next) selectSingleProperty(next.id);
   };
   const goNext = () => {
     if (!canCycle) return;
     const next = properties[(currentIdx + 1) % properties.length];
-    if (next) switchProperty(next.id);
+    if (next) selectSingleProperty(next.id);
   };
 
   // Group rooms & types per property for portfolio mode
@@ -458,38 +473,24 @@ export default function PMSRooms() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 1 && (
-              <div className="inline-flex rounded-md border border-border overflow-hidden">
-                <Button
-                  variant={isPortfolio ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none h-9"
-                  onClick={() => setViewMode("portfolio")}
-                >
-                  <LayoutGrid className="h-4 w-4 mr-1" />Portfolio
-                </Button>
-                <Button
-                  variant={!isPortfolio ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none h-9"
-                  onClick={() => setViewMode("single")}
-                >
-                  <Building2 className="h-4 w-4 mr-1" />Single
-                </Button>
-              </div>
-            )}
-            {!isPortfolio && properties.length > 0 && (
+            {properties.length > 0 && (
               <div className="flex items-center gap-1">
                 {canCycle && (
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Previous property">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                 )}
-                <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                <Select
+                  value={propertyScope}
+                  onValueChange={(v) => (v === ALL_PROPERTIES ? setPropertyScope(ALL_PROPERTIES) : selectSingleProperty(v))}
+                >
                   <SelectTrigger className="h-9 min-w-[220px]">
                     <SelectValue placeholder="Select property" />
                   </SelectTrigger>
                   <SelectContent>
+                    {properties.length > 1 && (
+                      <SelectItem value={ALL_PROPERTIES}>All properties ({properties.length})</SelectItem>
+                    )}
                     {properties.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
@@ -500,7 +501,7 @@ export default function PMSRooms() {
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Next property">
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <span className="text-xs text-muted-foreground ml-1 tabular-nums">
+                    <span className="ml-1 text-xs tabular-nums text-muted-foreground">
                       {currentIdx + 1} / {properties.length}
                     </span>
                   </>
@@ -598,46 +599,58 @@ export default function PMSRooms() {
         {loading ? (
           <PmsPageSkeleton rows={4} />
         ) : (
-          <div className="space-y-8">
-            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes, bookings: pBookings }) => {
+          <div className="space-y-4">
+            {/* One continuous multi-calendar: every property stacked, nights running sideways */}
+            <MultiCalendarSurface
+              dates={dates}
+              weeks={weeks}
+              title="Room type plan"
+              subtitle={planTitle}
+              labelHeader={<RoomTypePlanLabelHeader />}
+              onShiftWindow={shiftWindow}
+              onToday={goToday}
+              onExtend={extendWindow}
+              emptyMessage="No room types configured yet — add them in Property Overview to see the plan."
+              groups={propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes, bookings: pBookings }) => ({
+                id: property.id,
+                name: isPortfolio ? property.name : undefined,
+                meta: isPortfolio ? `${pRooms.length} room${pRooms.length !== 1 ? "s" : ""}` : undefined,
+                action: isPortfolio ? (
+                  <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]" onClick={() => selectSingleProperty(property.id)}>
+                    Manage →
+                  </Button>
+                ) : undefined,
+                rows: (
+                  <RoomTypePlanRows
+                    dates={dates}
+                    roomTypes={typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter)}
+                    rooms={pRooms.filter(matchesFilters)}
+                    bookings={pBookings}
+                    onSelectBooking={setSelectedBooking}
+                    displayStatusFor={displayStatusForRoom}
+                    onStatusChange={handleStatusChange}
+                    onEditRoom={openEditDialog}
+                  />
+                ),
+              }))}
+            />
+            <RoomTypePlanLegend />
+
+            {propertySections.map(({ property, rooms: pRooms, roomTypes: pTypes }) => {
               const filteredRooms = pRooms.filter(matchesFilters);
-              const planTypes = typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter);
               const grouped = new Map<string, number>();
               for (const rt of pTypes) {
                 const count = pRooms.filter((r) => r.room_type_id === rt.id).length;
                 grouped.set(rt.name, (grouped.get(rt.name) || 0) + count);
               }
-
               return (
                 <section key={property.id} className="space-y-3">
-                  {isPortfolio && (
-                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-b border-border pb-2">
-                      <h2 className="text-base sm:text-lg font-semibold flex min-w-0 flex-wrap items-center gap-2">
-                        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0 break-words">{property.name}</span>
-                        <span className="whitespace-nowrap text-xs font-normal text-muted-foreground">
-                          ({pRooms.length} room{pRooms.length !== 1 ? "s" : ""})
-                        </span>
-                      </h2>
-                      <Button variant="ghost" size="sm" className="shrink-0" onClick={() => { switchProperty(property.id); setViewMode("single"); }}>
-                        Manage →
-                      </Button>
-                    </div>
+                  {isPortfolio && (pTypes.length > 0 || showCards) && (
+                    <h2 className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border pb-1 text-sm font-semibold">
+                      <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 break-words">{property.name}</span>
+                    </h2>
                   )}
-
-                  <RoomTypePlanGrid
-                    dates={dates}
-                    roomTypes={planTypes}
-                    rooms={pRooms.filter(matchesFilters)}
-                    bookings={pBookings}
-                    onSelectBooking={setSelectedBooking}
-                    onShiftWindow={shiftWindow}
-                    onToday={goToday}
-                    title={isPortfolio ? `${property.name} · ${planTitle}` : planTitle}
-                    displayStatusFor={displayStatusForRoom}
-                    onStatusChange={handleStatusChange}
-                    onEditRoom={openEditDialog}
-                  />
 
                   {pTypes.length > 0 && (
                     <div className="flex flex-wrap items-center gap-2">
@@ -668,7 +681,6 @@ export default function PMSRooms() {
                     </Card>
                   ) : (
                     renderRoomGrid(filteredRooms)
-
                   )}
                 </section>
               );
