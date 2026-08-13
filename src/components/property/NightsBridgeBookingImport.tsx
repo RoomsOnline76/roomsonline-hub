@@ -56,7 +56,24 @@ interface ImportSummary {
 
   errors: number;
   unmapped_rooms: string[];
+  /** Stays still ahead of today — these must also block availability on the channel. */
+  future_stays?: number;
 }
+
+/** Result of the post-import repair pass over bookings that never matched a unit. */
+interface RepairResponse {
+  ok: boolean;
+  error?: string;
+  mode: "repair";
+  dry_run: boolean;
+  repaired: number;
+  unmapped_total: number;
+  unnamed: number;
+  groups: { key: string; room_name: string; count: number }[];
+  suspect_dates: { id: string; check_in_date: string; check_out_date: string; nights: number }[];
+  rooms: { id: string; label: string }[];
+}
+
 
 interface ImportResponse {
   ok: boolean;
