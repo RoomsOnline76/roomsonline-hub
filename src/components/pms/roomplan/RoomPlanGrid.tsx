@@ -263,9 +263,20 @@ export function RoomPlanGrid({
           )} – ${format(parseISO(clash.check_out_date), "d MMM")}).`,
         };
       }
+      const blocked = firstBlockedNight(targetRow.roomTypeId, nextIn, nextOut);
+      if (blocked) {
+        return {
+          valid: false,
+          reason: `${typeNameById.get(targetRow.roomTypeId) || targetRow.label} is blocked on ${format(
+            blocked,
+            "d MMM"
+          )} — unblock those dates first.`,
+        };
+      }
       return { valid: true };
     },
-    [bookingById, rowByKey]
+    [bookingById, rowByKey, firstBlockedNight, typeNameById]
+
   );
 
   const handleMoveRejected = useCallback((drag: RoomPlanMoveDrag) => {
