@@ -565,15 +565,31 @@ export default function PMSGuests() {
                     <p className="text-xs text-muted-foreground">No bookings found.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {guestBookings.map(bk => (
+                      {guestBookings.map(bk => {
+                        const pay = paymentState(bk);
+                        return (
                         <div key={bk.id} className="text-xs bg-muted/30 p-2 rounded border border-border">
                           <div className="flex items-center justify-between">
                             <span className="font-medium">{bk.check_in_date} → {bk.check_out_date}</span>
                             <Badge variant={bk.status === "checked_out" ? "outline" : bk.status === "cancelled" ? "destructive" : "secondary"} className="text-[10px] capitalize">{bk.status.replace("_", " ")}</Badge>
                           </div>
                           <div className="flex justify-between mt-1 text-muted-foreground">
-                            <span>R{bk.total_price.toLocaleString()}</span>
+                            <span className={pay.tone === "cancelled" ? "line-through" : ""}>
+                              {zar(bk.total_price)}
+                              {pay.tone === "part" && <span className="ml-1">({zar(bk.amount_paid)} paid)</span>}
+                            </span>
                             <span className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] ${
+                                  pay.tone === "paid" ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                                  : pay.tone === "part" ? "border-amber-500 text-amber-600 dark:text-amber-400"
+                                  : pay.tone === "unpaid" ? "border-destructive text-destructive"
+                                  : "text-muted-foreground"
+                                }`}
+                              >
+                                {pay.label}
+                              </Badge>
                               <span className="flex items-center gap-1"><Moon className="h-3 w-3" />{nightsBetween(bk.check_in_date, bk.check_out_date)}</span>
                               {bk.booking_channel && <span className="capitalize">{bk.booking_channel}</span>}
                             </span>
@@ -581,7 +597,8 @@ export default function PMSGuests() {
                           <p className="mt-1 font-mono text-[10px] text-muted-foreground">{displayBookingReference(bk)}</p>
                           {bk.special_requests && <p className="mt-1 text-muted-foreground italic truncate">{bk.special_requests}</p>}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
