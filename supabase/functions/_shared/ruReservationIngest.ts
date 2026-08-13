@@ -336,6 +336,15 @@ export async function ingestRuReservation(
   if (unit.roomTypeId) fields.room_type_id = unit.roomTypeId;
   if (r.comments) fields.special_requests = r.comments;
 
+  // Anchor the stay on the physical unit straight away: without this the grids have no
+  // unit line to draw the channel request on until someone assigns it by hand.
+  const existingRoomIds = existing?.id
+    ? ((await supabase.from('bookings').select('rolos_room_ids').eq('id', existing.id).maybeSingle()).data
+        ?.rolos_room_ids as string[] | null) ?? []
+    : [];
+  if (unit.roomId && !existingRoomIds.length) fields.rolos_room_ids = [unit.roomId];
+
+
   // ── Unconfirmed request → provisional hold ──
   if (kind === 'request') {
     const leadCreatedAt = r.createdDate ? new Date(r.createdDate.replace(' ', 'T') + 'Z') : new Date();
