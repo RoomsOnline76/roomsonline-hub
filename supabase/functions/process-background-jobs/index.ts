@@ -109,6 +109,18 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
     const limit = Math.min(25, Math.max(1, Number(body?.limit ?? 10)));
 
+    // Operator-driven retry from the Command Centre: re-arm exhausted jobs with a fresh budget
+    // so failed follow-up work can be pushed through without touching the database directly.
+    if (body?.retry_failed) {
+      const ids = Array.isArray(body.job_ids) ? (body.job_ids as string[]) : null;
+      let query = supabase
+        .from("background_jobs")
+        .update({ status: "pending", attempts: 0, run_after: new Date().toISOString() })
+        .eq("status", "failed");
+      if (ids && ids.length > 0) query = query.in("id", ids);
+      await query;
+    }
+
     const jobs = await claimJobs(supabase, limit);
     const results: Array<{ id: string; job_type: string; ok: boolean; error?: string }> = [];
 
