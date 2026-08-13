@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
 import { RoomPlanBar, RoomPlanBooking } from "./RoomPlanBar";
 import {
   ROOM_PLAN_COL_W,
@@ -83,8 +84,12 @@ interface RoomPlanGridProps {
   /** Disable both drag interactions (touch / read-only contexts). */
   dragDisabled?: boolean;
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
-  /** Stop-sell / blocked nights per room type — hatched and refused for new stays. */
-  isBlocked?: (roomTypeId: string, date: Date) => boolean;
+  /**
+   * Stop-sell / blocked nights per room type — hatched and refused for new stays.
+   * May return attribution details (who blocked it) for the tooltip; any truthy
+   * value means "blocked".
+   */
+  isBlocked?: (roomTypeId: string, date: Date) => BlockDetail | boolean | null;
   isHoliday?: (date: Date) => string | null;
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
