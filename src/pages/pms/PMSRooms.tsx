@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { addDays, format, startOfDay } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 
@@ -24,7 +25,7 @@ import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@
 import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, stopSellKey, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
 /** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
 const PLAN_NIGHTS = 45;
@@ -110,6 +111,28 @@ export default function PMSRooms() {
   }, []);
   const windowStart = format(dates[0], "yyyy-MM-dd");
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
+
+  /* Blocked (stop-sell) nights live in property_availability, keyed by room type NAME. */
+  const { data: stopSellNights } = useQuery({
+    queryKey: ["pms-rooms-stop-sell", activePropertyIds, windowStart, windowEnd],
+    queryFn: async () => {
+      const set = new Set<string>();
+      if (activePropertyIds.length === 0) return set;
+      const { data } = await supabase
+        .from("property_availability")
+        .select("property_id, room_type, date, is_stop_sell, available_units")
+        .in("property_id", activePropertyIds)
+        .gte("date", windowStart)
+        .lte("date", windowEnd);
+      (data || []).forEach((row: any) => {
+        if (!(row.is_stop_sell === true || row.available_units === 0)) return;
+        set.add(stopSellKey(row.property_id, String(row.room_type || ""), row.date));
+      });
+      return set;
+    },
+    enabled: activePropertyIds.length > 0,
+  });
+
 
   const shiftWindow = useCallback((direction: -1 | 1) => {
     setAnchorDate((current) => addDays(current, direction * 7));
@@ -680,6 +703,7 @@ export default function PMSRooms() {
                     displayStatusFor={displayStatusForRoom}
                     onStatusChange={handleStatusChange}
                     onEditRoom={openEditDialog}
+                    stopSellNights={stopSellNights}
                   />
                 ),
               }))}

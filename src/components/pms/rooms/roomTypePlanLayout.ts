@@ -87,9 +87,18 @@ export interface PlanCell {
   used: number;
   /** Surplus reservations beyond capacity — greater than 0 means double booked. */
   overbooked: number;
+  /** The night is blocked (stop-sell) for this room type — never sellable. */
+  stopSell?: boolean;
   /** Reservations touching this night for this room type. */
   bookings: RoomsBooking[];
 }
+
+/** Key for a stop-sell night: blocks are stored per property + room type NAME. */
+export function stopSellKey(propertyId: string, roomTypeName: string, date: Date | string): string {
+  const day = typeof date === "string" ? date : format(date, "yyyy-MM-dd");
+  return `${propertyId}|${roomTypeName.trim().toLowerCase()}|${day}`;
+}
+
 
 export interface PlanRow {
   roomType: PlanRoomType;
@@ -112,8 +121,11 @@ export function buildRoomTypePlan(
   dates: Date[],
   roomTypes: PlanRoomType[],
   rooms: PlanRoom[],
-  bookings: RoomsBooking[]
+  bookings: RoomsBooking[],
+  /** Blocked nights keyed by `stopSellKey(roomTypeName, date)`. */
+  stopSellNights?: Set<string>
 ): PlanRow[] {
+
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const hasAnyUnits = rooms.length > 0;
 
@@ -146,15 +158,19 @@ export function buildRoomTypePlan(
         // unit — deduplicating by room id would hide real double bookings.
         used += assigned.length > 0 ? assigned.length : 1;
       }
+      const stopSell = stopSellNights?.has(stopSellKey(roomType.property_id, roomType.name, date)) ?? false;
       return {
         date,
-        free: Math.max(0, sellable - used),
+        // A blocked night is never sellable, whatever the unit count says.
+        free: stopSell ? 0 : Math.max(0, sellable - used),
         sellable,
         used,
         overbooked: Math.max(0, used - sellable),
+        stopSell,
         bookings: nightBookings,
       };
     });
+
 
     return { roomType, units: typeRooms.length, blocked, cells };
   });
@@ -169,7 +185,9 @@ export function overbookedNights(row: PlanRow): PlanCell[] {
 export function cellHeatClass(cell: PlanCell): string {
   // Oversold nights outrank everything else — they need action, not just a "0".
   if (cell.overbooked > 0) return "bg-destructive text-destructive-foreground font-bold";
+  if (cell.stopSell) return "bg-muted text-muted-foreground line-through";
   if (cell.sellable === 0) return "bg-muted/40 text-muted-foreground";
+
   if (cell.free <= 0) return "bg-destructive/15 text-destructive font-semibold";
   if (cell.free === 1) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold";
   if (cell.free / cell.sellable <= 0.34) return "bg-amber-500/10 text-amber-700 dark:text-amber-300";

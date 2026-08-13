@@ -83,6 +83,8 @@ interface RoomPlanGridProps {
   /** Disable both drag interactions (touch / read-only contexts). */
   dragDisabled?: boolean;
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Stop-sell / blocked nights per room type — hatched and refused for new stays. */
+  isBlocked?: (roomTypeId: string, date: Date) => boolean;
   isHoliday?: (date: Date) => string | null;
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
@@ -126,6 +128,7 @@ export function RoomPlanGrid({
   compact,
   dragDisabled,
   getRateForDate,
+  isBlocked,
   isHoliday,
   onSelectBooking,
   onQuickAction,
@@ -160,6 +163,21 @@ export function RoomPlanGrid({
       return rooms > 0 ? { rooms, labels: [...new Set(names)].join(", ") } : null;
     },
     [groupBlocks]
+  );
+
+  /** First blocked night in a stay window (check-out night excluded), if any. */
+  const firstBlockedNight = useCallback(
+    (roomTypeId: string, checkIn: string, checkOut: string): Date | null => {
+      if (!isBlocked) return null;
+      let cursor = parseISO(checkIn);
+      const end = parseISO(checkOut);
+      while (cursor < end) {
+        if (isBlocked(roomTypeId, cursor)) return cursor;
+        cursor = addDays(cursor, 1);
+      }
+      return null;
+    },
+    [isBlocked]
   );
 
 
@@ -245,9 +263,20 @@ export function RoomPlanGrid({
           )} – ${format(parseISO(clash.check_out_date), "d MMM")}).`,
         };
       }
+      const blocked = firstBlockedNight(targetRow.roomTypeId, nextIn, nextOut);
+      if (blocked) {
+        return {
+          valid: false,
+          reason: `${typeNameById.get(targetRow.roomTypeId) || targetRow.label} is blocked on ${format(
+            blocked,
+            "d MMM"
+          )} — unblock those dates first.`,
+        };
+      }
       return { valid: true };
     },
-    [bookingById, rowByKey]
+    [bookingById, rowByKey, firstBlockedNight, typeNameById]
+
   );
 
   const handleMoveRejected = useCallback((drag: RoomPlanMoveDrag) => {
@@ -267,14 +296,32 @@ export function RoomPlanGrid({
       const checkIn = dates[from];
       const lastNight = dates[to];
       if (!checkIn || !lastNight) return;
+      const checkOut = addDays(lastNight, 1);
+      const blocked = firstBlockedNight(
+        drag.roomTypeId,
+        format(checkIn, "yyyy-MM-dd"),
+        format(checkOut, "yyyy-MM-dd")
+      );
+      if (blocked) {
+        toast({
+          title: "Dates blocked",
+          description: `${typeNameById.get(drag.roomTypeId) || "This room"} is blocked on ${format(
+            blocked,
+            "d MMM"
+          )} — unblock those dates first.`,
+          variant: "destructive",
+        });
+        return;
+      }
       onCreateBooking({
         roomTypeId: drag.roomTypeId,
         roomId: drag.roomId,
         checkIn,
-        checkOut: addDays(lastNight, 1),
+        checkOut,
       });
     },
-    [dates, onCreateBooking]
+    [dates, onCreateBooking, firstBlockedNight, typeNameById]
+
   );
 
   const handleMoveCommit = useCallback(
@@ -430,30 +477,44 @@ export function RoomPlanGrid({
                     {dates.map((date) => {
                       const rate = getRateForDate?.(group.type.id, date) ?? null;
                       const held = heldOn(group.type, date);
+                      const blocked = isBlocked?.(group.type.id, date) ?? false;
                       return (
                         <div
                           key={date.toISOString()}
-                          title={held ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}` : undefined}
+                          title={
+                            blocked
+                              ? `${group.type.name} is blocked on ${format(date, "d MMM yyyy")}`
+                              : held
+                                ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}`
+                                : undefined
+                          }
                           className={cn(
                             "relative shrink-0 border-r text-center text-[9px] leading-[22px] text-muted-foreground last:border-r-0",
                             isWeekend(date) && "bg-muted/40",
-                            held && "text-foreground/80"
+                            held && "text-foreground/80",
+                            blocked && "text-destructive"
                           )}
                           style={{
                             width: colWidth,
                             height: 22,
-                            ...(held
+                            ...(blocked
                               ? {
                                   backgroundImage:
-                                    "repeating-linear-gradient(45deg, hsl(var(--warning) / 0.28) 0 3px, transparent 3px 6px)",
+                                    "repeating-linear-gradient(45deg, hsl(var(--destructive) / 0.3) 0 3px, transparent 3px 6px)",
                                 }
-                              : null),
+                              : held
+                                ? {
+                                    backgroundImage:
+                                      "repeating-linear-gradient(45deg, hsl(var(--warning) / 0.28) 0 3px, transparent 3px 6px)",
+                                  }
+                                : null),
                           }}
                         >
-                          {held ? `${held.rooms}·` : ""}{rate ? Math.round(rate).toLocaleString() : ""}
+                          {blocked ? "×" : `${held ? `${held.rooms}·` : ""}${rate ? Math.round(rate).toLocaleString() : ""}`}
                         </div>
                       );
                     })}
+
 
                   </div>
 
@@ -507,17 +568,30 @@ export function RoomPlanGrid({
                             );
                           }}
                         >
-                          {dates.map((date, index) => (
-                            <div
-                              key={date.toISOString()}
-                              className={cn(
-                                "shrink-0 border-r last:border-r-0",
-                                isWeekend(date) && "bg-muted/30",
-                                index === todayIndex && "bg-primary/10"
-                              )}
-                              style={{ width: colWidth }}
-                            />
-                          ))}
+                          {dates.map((date, index) => {
+                            const blocked = isBlocked?.(row.roomTypeId, date) ?? false;
+                            return (
+                              <div
+                                key={date.toISOString()}
+                                title={blocked ? `Blocked — ${format(date, "d MMM yyyy")}` : undefined}
+                                className={cn(
+                                  "shrink-0 border-r last:border-r-0",
+                                  isWeekend(date) && "bg-muted/30",
+                                  index === todayIndex && "bg-primary/10"
+                                )}
+                                style={{
+                                  width: colWidth,
+                                  ...(blocked
+                                    ? {
+                                        backgroundImage:
+                                          "repeating-linear-gradient(45deg, hsl(var(--destructive) / 0.22) 0 3px, transparent 3px 6px)",
+                                      }
+                                    : null),
+                                }}
+                              />
+                            );
+                          })}
+
 
                           {/* Create-drag selection */}
                           {createDrag && (
