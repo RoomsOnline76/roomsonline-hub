@@ -448,11 +448,12 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   );
 
   /**
-   * Macros 1-8 with outstanding mandatory work. These are the only steps that may
-   * force the wizard open: 9-11 are administrative and must not nag on every visit.
+   * Macros 1-7 (property preparation) with outstanding mandatory work. These are the
+   * only steps that may force the wizard open: 8-10 (push, currency, sign-off) are
+   * administrative and must not nag on every visit.
    */
   const blockingMacros = useMemo(
-    () => macros.filter((m) => m.macro.order <= 8 && !m.complete),
+    () => macros.filter((m) => m.macro.order <= 7 && !m.complete),
     [macros],
   );
 
