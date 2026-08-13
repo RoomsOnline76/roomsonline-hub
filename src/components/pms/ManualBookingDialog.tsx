@@ -172,6 +172,116 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setForm(p => ({ ...p, guest_company: a.name }));
   }, []);
 
+  // ───── Guest lookup hydration ─────
+  /** The guest record chosen from the search, used for the summary strip. */
+  const [pickedGuest, setPickedGuest] = useState<GuestSuggestion | null>(null);
+
+  /** Property names for the suggestion rows (portfolio scope shows where a guest is known). */
+  const propertyNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of portfolioOptions || []) map.set(p.id, p.name);
+    return map;
+  }, [portfolioOptions]);
+
+  const searchScopeIds = useMemo(() => {
+    if (portfolioMode) return (portfolioOptions || []).map(p => p.id);
+    return effectivePropertyId ? [effectivePropertyId] : [];
+  }, [portfolioMode, portfolioOptions, effectivePropertyId]);
+
+  /**
+   * Fill everything already known about a guest without ever clobbering values
+   * the user has typed. Pulls contact + preference data from the profile and
+   * habitual details (company, second guest, booker, channel) from their most
+   * recent booking.
+   */
+  const hydrateFromGuest = useCallback(async (g: GuestSuggestion) => {
+    setPickedGuest(g);
+    const keepOrTake = (current: string, incoming?: string | null) =>
+      current.trim() ? current : (incoming || "");
+
+    setForm(p => ({
+      ...p,
+      guest_name: g.full_name || p.guest_name,
+      guest_email: keepOrTake(p.guest_email, g.email),
+      guest_phone: keepOrTake(p.guest_phone, g.phone),
+    }));
+
+    // Guest notes / nationality are appended to internal notes so nothing is lost.
+    const profileBits = [
+      g.nationality ? `Nationality: ${g.nationality}` : null,
+      g.notes ? `Guest notes: ${g.notes}` : null,
+    ].filter(Boolean).join("\n");
+    if (profileBits) {
+      setForm(p => ({
+        ...p,
+        internal_notes: p.internal_notes.includes(profileBits)
+          ? p.internal_notes
+          : [p.internal_notes.trim(), profileBits].filter(Boolean).join("\n"),
+      }));
+    }
+
+    if (g.is_blacklisted) {
+      toast.warning(`${g.full_name} is flagged as blacklisted — check before confirming.`);
+    }
+
+    // Most recent booking for habitual details.
+    let query = supabase
+      .from("bookings")
+      .select("guest_company, second_guest_name, booking_made_by, booking_channel, booker_is_guest, booker_name, booker_email, booker_phone, market_segment, check_in_date")
+      .order("check_in_date", { ascending: false })
+      .limit(1);
+    if (g.from_history || !g.email) {
+      const email = g.email;
+      query = email ? query.eq("guest_email", email) : query.eq("guest_name", g.full_name);
+    } else {
+      query = query.or(`rolos_guest_id.eq.${g.id},guest_email.eq.${g.email}`);
+    }
+    const { data, error } = await query;
+    if (error) { console.warn("guest history hydration failed:", error); return; }
+    const last = data?.[0];
+    if (!last) return;
+
+    setForm(p => ({
+      ...p,
+      guest_company: keepOrTake(p.guest_company, last.guest_company),
+      second_guest_name: keepOrTake(p.second_guest_name, last.second_guest_name),
+      booking_made_by: keepOrTake(p.booking_made_by, last.booking_made_by),
+      booking_channel: p.booking_channel && p.booking_channel !== "direct"
+        ? p.booking_channel
+        : (last.booking_channel || p.booking_channel),
+    }));
+
+    // Booker details when someone else historically booked for this guest.
+    if (last.booker_is_guest === false && (last.booker_name || last.booker_email)) {
+      setCrm(prev => ({
+        ...prev,
+        booker_is_guest: false,
+        booker_name: prev.booker_name || last.booker_name || "",
+        booker_email: prev.booker_email || last.booker_email || "",
+        booker_phone: prev.booker_phone || last.booker_phone || "",
+        market_segment: prev.market_segment || last.market_segment || "",
+      }));
+    } else if (last.market_segment) {
+      setCrm(prev => ({ ...prev, market_segment: prev.market_segment || last.market_segment || "" }));
+    }
+
+    // Match the historic company to a CRM account so invoice identity fills too.
+    if (last.guest_company) {
+      const target = last.guest_company.trim().toLowerCase();
+      const account = accounts.find(a => a.name.trim().toLowerCase() === target);
+      if (account) {
+        setCrm(prev => ({ ...prev, company_account_id: prev.company_account_id || account.id }));
+        applyCompany(account);
+      }
+    }
+  }, [accounts, applyCompany]);
+
+  /** Undo a wrong pick: clears the guest identity fields only. */
+  const clearPickedGuest = useCallback(() => {
+    setPickedGuest(null);
+    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "" }));
+  }, []);
+
   // Reset room lines when the active property changes so we never carry a room
   // type from a different property into the booking payload.
   useEffect(() => {
@@ -306,6 +416,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setLines([newLine()]);
     setCrm(emptyBookerSegmentation());
     setInvoiceTo({ name: "", vat: "", address: "" });
+    setPickedGuest(null);
   };
 
   const handleSave = async () => {
@@ -556,17 +667,39 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   <Label>Guest Name *</Label>
                   <GuestNameAutocomplete
                     propertyId={effectivePropertyId}
+                    portfolioPropertyIds={portfolioMode ? searchScopeIds : undefined}
+                    propertyNames={propertyNames}
                     value={form.guest_name}
-                    onChange={(v) => update("guest_name", v)}
-                    onSelect={(g) => {
-                      setForm((p) => ({
-                        ...p,
-                        guest_name: g.full_name || p.guest_name,
-                        guest_email: g.email || p.guest_email,
-                        guest_phone: g.phone || p.guest_phone,
-                      }));
-                    }}
+                    onChange={(v) => { if (pickedGuest) setPickedGuest(null); update("guest_name", v); }}
+                    onSelect={(g) => { void hydrateFromGuest(g); }}
                   />
+                  {pickedGuest && (
+                    <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium">Known guest</span>
+                          {(pickedGuest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-[10px]">Repeat</Badge>}
+                          {(pickedGuest.tags || []).some(t => t.toLowerCase() === "vip") && <Badge variant="secondary" className="text-[10px]">VIP</Badge>}
+                          {pickedGuest.is_blacklisted && <Badge variant="destructive" className="text-[10px]">Blacklisted</Badge>}
+                          {pickedGuest.from_history && <Badge variant="outline" className="text-[10px]">From booking history</Badge>}
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={clearPickedGuest}>
+                          Clear guest
+                        </Button>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {[
+                          `${pickedGuest.total_stays || 0} stay${(pickedGuest.total_stays || 0) === 1 ? "" : "s"}`,
+                          `R${Math.round(Number(pickedGuest.total_received) || 0).toLocaleString("en-ZA")} received`,
+                          (pickedGuest.total_outstanding || 0) > 0
+                            ? `R${Math.round(Number(pickedGuest.total_outstanding)).toLocaleString("en-ZA")} outstanding`
+                            : null,
+                          pickedGuest.last_stay_date ? `last stay ${pickedGuest.last_stay_date}` : null,
+                          pickedGuest.property_id ? propertyNames.get(pickedGuest.property_id) : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -874,22 +1007,52 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   );
 }
 
-interface GuestSuggestion {
+export interface GuestSuggestion {
   id: string;
   full_name: string;
   email: string | null;
   phone: string | null;
   total_stays: number | null;
   last_stay_date: string | null;
+  nationality?: string | null;
+  notes?: string | null;
+  tags?: string[] | null;
+  is_blacklisted?: boolean | null;
+  is_archived?: boolean | null;
+  total_received?: number | null;
+  total_outstanding?: number | null;
+  property_id?: string | null;
+  /** True when the row came from booking history rather than a CRM profile. */
+  from_history?: boolean;
+}
+
+/** Partially hide contact details so a crowded list stays readable but distinguishable. */
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [user, domain] = email.split("@");
+  if (!domain) return email;
+  const head = user.slice(0, 2);
+  return `${head}${user.length > 2 ? "…" : ""}@${domain}`;
+}
+
+function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = phone.replace(/\s+/g, "");
+  return digits.length <= 4 ? digits : `…${digits.slice(-4)}`;
 }
 
 function GuestNameAutocomplete({
   propertyId,
+  portfolioPropertyIds,
+  propertyNames,
   value,
   onChange,
   onSelect,
 }: {
   propertyId: string;
+  /** When set, the search covers every property in the portfolio. */
+  portfolioPropertyIds?: string[];
+  propertyNames?: Map<string, string>;
   value: string;
   onChange: (v: string) => void;
   onSelect: (g: GuestSuggestion) => void;
@@ -900,11 +1063,19 @@ function GuestNameAutocomplete({
   const lastPicked = useRef<string>("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Debounced search across guest profiles (name/email/phone) for this property.
+  const scopeIds = useMemo(() => {
+    const ids = (portfolioPropertyIds && portfolioPropertyIds.length > 0)
+      ? portfolioPropertyIds
+      : (propertyId ? [propertyId] : []);
+    return Array.from(new Set(ids.filter(Boolean)));
+  }, [portfolioPropertyIds, propertyId]);
+  const scopeKey = scopeIds.join(",");
+
+  // Debounced search across guest profiles (name/email/phone) for this scope.
   useEffect(() => {
     const term = value.trim();
     if (term && term === lastPicked.current) return;
-    if (term.length < 2 || !propertyId) {
+    if (term.length < 2 || scopeIds.length === 0) {
       setSuggestions([]);
       setOpen(false);
       return;
@@ -917,20 +1088,20 @@ function GuestNameAutocomplete({
       const [profileRes, bookingRes] = await Promise.all([
         supabase
           .from("rolos_guest_profiles")
-          .select("id, full_name, email, phone, total_stays, last_stay_date")
-          .eq("property_id", propertyId)
+          .select("id, full_name, email, phone, nationality, notes, tags, is_blacklisted, is_archived, total_stays, total_received, total_outstanding, last_stay_date, property_id")
+          .in("property_id", scopeIds)
           .or(`full_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`)
           .order("last_stay_date", { ascending: false, nullsFirst: false })
-          .limit(8),
+          .limit(12),
         // Imported guests (e.g. NightsBridge history) have no CRM profile yet, so
         // search the booking history too and offer those names.
         supabase
           .from("bookings")
-          .select("id, guest_name, guest_email, guest_phone, check_in_date")
-          .eq("property_id", propertyId)
+          .select("id, guest_name, guest_email, guest_phone, check_in_date, property_id")
+          .in("property_id", scopeIds)
           .or(`guest_name.ilike.${like},guest_email.ilike.${like},guest_phone.ilike.${like}`)
           .order("check_in_date", { ascending: false })
-          .limit(25),
+          .limit(40),
       ]);
 
       if (cancelled) return;
@@ -938,19 +1109,24 @@ function GuestNameAutocomplete({
       if (bookingRes.error) console.warn("booking guest search failed:", bookingRes.error);
 
       const profiles = (profileRes.data || []) as GuestSuggestion[];
-      const seen = new Set(
-        profiles.flatMap((p) => [p.email?.toLowerCase(), p.full_name?.trim().toLowerCase()].filter(Boolean) as string[]),
-      );
+
+      // Identity keys are contact-based, never name-only: two different people
+      // may legitimately share a name and both must remain selectable.
+      const identityKey = (name: string, email?: string | null, phone?: string | null) => {
+        const n = name.trim().toLowerCase();
+        if (email) return `e:${email.trim().toLowerCase()}`;
+        if (phone) return `p:${phone.replace(/\s+/g, "")}|${n}`;
+        return `n:${n}`;
+      };
+      const seen = new Set(profiles.map(p => identityKey(p.full_name || "", p.email, p.phone)));
 
       const fromBookings: GuestSuggestion[] = [];
       for (const b of bookingRes.data || []) {
         const name = (b.guest_name || "").trim();
         if (!name) continue;
-        const emailKey = b.guest_email?.toLowerCase();
-        const nameKey = name.toLowerCase();
-        if (seen.has(nameKey) || (emailKey && seen.has(emailKey))) continue;
-        seen.add(nameKey);
-        if (emailKey) seen.add(emailKey);
+        const key = identityKey(name, b.guest_email, b.guest_phone);
+        if (seen.has(key)) continue;
+        seen.add(key);
         fromBookings.push({
           id: `booking:${b.id}`,
           full_name: name,
@@ -958,10 +1134,19 @@ function GuestNameAutocomplete({
           phone: b.guest_phone || null,
           total_stays: null,
           last_stay_date: b.check_in_date || null,
-        } as GuestSuggestion);
+          property_id: b.property_id || null,
+          from_history: true,
+        });
       }
 
-      const merged = [...profiles, ...fromBookings].slice(0, 10);
+      // Order: profiles with stay history, then other profiles, then history-only,
+      // with archived records always last.
+      const rank = (g: GuestSuggestion) =>
+        (g.is_archived ? 100 : 0) + (g.from_history ? 10 : 0) + ((g.total_stays || 0) > 0 ? 0 : 1);
+      const merged = [...profiles, ...fromBookings]
+        .sort((a, b) => rank(a) - rank(b) || (b.last_stay_date || "").localeCompare(a.last_stay_date || ""))
+        .slice(0, 12);
+
       setSuggestions(merged);
       setOpen(merged.length > 0);
       setLoading(false);
@@ -972,7 +1157,18 @@ function GuestNameAutocomplete({
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [value, propertyId]);
+  }, [value, scopeKey, scopeIds]);
+
+  // Group same-name records so duplicates read as variants of one name.
+  const groups = useMemo(() => {
+    const byName = new Map<string, GuestSuggestion[]>();
+    for (const s of suggestions) {
+      const key = s.full_name.trim().toLowerCase();
+      const arr = byName.get(key);
+      if (arr) arr.push(s); else byName.set(key, [s]);
+    }
+    return Array.from(byName.entries()).map(([key, rows]) => ({ key, name: rows[0].full_name, rows }));
+  }, [suggestions]);
 
   // Close on outside click.
   useEffect(() => {
@@ -985,6 +1181,12 @@ function GuestNameAutocomplete({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+
+  const pick = (g: GuestSuggestion) => {
+    lastPicked.current = g.full_name;
+    onSelect(g);
+    setOpen(false);
+  };
 
   return (
     <div ref={containerRef} className="relative">
@@ -1001,37 +1203,53 @@ function GuestNameAutocomplete({
         autoComplete="off"
       />
       {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-72 overflow-auto">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover shadow-lg max-h-80 overflow-auto">
           {loading && (
             <div className="px-3 py-2 text-xs text-muted-foreground">Searching…</div>
           )}
           {!loading && suggestions.length === 0 && (
             <div className="px-3 py-2 text-xs text-muted-foreground">No matching guests</div>
           )}
-          {suggestions.map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              onClick={() => {
-                lastPicked.current = g.full_name;
-                onSelect(g);
-                setOpen(false);
-              }}
-              className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground border-b border-border/40 last:border-b-0"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium truncate">{g.full_name}</span>
-                {g.total_stays ? (
-                  <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                    {g.total_stays} stay{g.total_stays === 1 ? "" : "s"}
-                  </span>
-                ) : null}
-              </div>
-              <div className="text-[11px] text-muted-foreground truncate">
-                {[g.email, g.phone].filter(Boolean).join(" · ") || "—"}
-                {g.last_stay_date ? ` · last ${g.last_stay_date}` : ""}
-              </div>
-            </button>
+          {groups.map((group) => (
+            <div key={group.key} className="border-b border-border/40 last:border-b-0">
+              {group.rows.length > 1 && (
+                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {group.rows.length} records named {group.name} — pick the right one
+                </div>
+              )}
+              {group.rows.map((g) => {
+                const propName = g.property_id ? propertyNames?.get(g.property_id) : null;
+                const detail = [
+                  propName,
+                  maskEmail(g.email),
+                  maskPhone(g.phone),
+                  g.nationality || null,
+                  g.total_stays ? `${g.total_stays} stay${g.total_stays === 1 ? "" : "s"}` : null,
+                  g.last_stay_date ? `last ${g.last_stay_date}` : null,
+                ].filter(Boolean).join(" · ");
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => pick(g)}
+                    className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{g.full_name}</span>
+                      <span className="flex items-center gap-1 shrink-0">
+                        {(g.tags || []).some(t => t.toLowerCase() === "vip") && (
+                          <Badge variant="secondary" className="text-[10px]">VIP</Badge>
+                        )}
+                        {g.is_blacklisted && <Badge variant="destructive" className="text-[10px]">Blacklisted</Badge>}
+                        {g.is_archived && <Badge variant="outline" className="text-[10px] text-muted-foreground">Archived</Badge>}
+                        {g.from_history && <Badge variant="outline" className="text-[10px]">From booking history</Badge>}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate">{detail || "No further details"}</div>
+                  </button>
+                );
+              })}
+            </div>
           ))}
         </div>
       )}
