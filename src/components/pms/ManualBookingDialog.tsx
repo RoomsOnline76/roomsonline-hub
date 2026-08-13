@@ -64,8 +64,11 @@ interface ManualBookingDialogProps {
   onCreated: () => void;
   /** Optional: resolve the nightly rate for a room type on a specific date. */
   getRateForDate?: (roomTypeId: string, date: Date) => number | null;
+  /** Portfolio mode: resolve rates for any property in scope, not just the selected one. */
+  getRateForPropertyDate?: (propertyId: string, roomTypeId: string, date: Date) => number | null;
   /** Optional portfolio scope selector. */
   portfolioOptions?: PortfolioPropertyOption[];
+
   /** Optional prefill, e.g. when the Room Plan opens the dialog from a dragged date span. */
   initialValues?: {
     propertyId?: string | null;
