@@ -46,6 +46,7 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RuReadinessReport | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -72,12 +73,27 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
     void load();
   }, [load]);
 
+  // A fresh check always starts filtered to outstanding items only.
+  useEffect(() => {
+    setShowAll(false);
+  }, [report]);
+
   // Nothing to act on at 100% — keep the checklist folded away and re-open it the moment a
   // requirement slips, so the owner only ever sees the long list when it needs work.
   const satisfied = !!report && !report.blocked && report.score >= 100;
   useEffect(() => {
     setDetailsOpen(!satisfied);
   }, [satisfied]);
+
+  // Outstanding-only filtering: hide fully-passed groups and passed checks unless the owner
+  // explicitly asks for the full picture.
+  const { visibleGroups, hiddenGroups, hasPassedToHide } = useMemo(() => {
+    const groups = report?.groups ?? [];
+    const visible = groups.filter((g) => showAll || g.passed < g.total);
+    const hidden = groups.filter((g) => g.passed === g.total);
+    const hasHide = groups.some((g) => g.passed < g.total && g.passed > 0) || hidden.length > 0;
+    return { visibleGroups: visible, hiddenGroups: hidden, hasPassedToHide: hasHide };
+  }, [report, showAll]);
 
   const scoreTone = !report
     ? "text-muted-foreground"
