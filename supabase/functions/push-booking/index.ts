@@ -451,68 +451,35 @@ Deno.serve(async (req) => {
         // Don't fail the booking if date blocking fails
       }
 
-      // Newly blocked nights must reach RU immediately, not on the next cron tick.
-      await queueRuAriDelta(supabaseClient, property.id, "booking_confirmed", { force: true });
+      // The booking and its blocked nights are committed. The channel push and the notification
+      // emails follow on the background queue so confirming a booking never waits on them.
+      const ownerEmail = property.owner_email;
+      await enqueueJobs(supabaseClient, [
+        {
+          type: "channel_ari_delta" as const,
+          payload: { property_id: property.id, trigger: "booking_confirmed", force: true },
+          options: { dedupeKey: `ari:${property.id}` },
+        },
+        ...(ownerEmail
+          ? [{
+              type: "booking_email" as const,
+              payload: { booking_id, status: "property_notification", recipient_email: ownerEmail },
+              options: { dedupeKey: `email:owner:${booking_id}` },
+            }]
+          : []),
+        // Itinerary bookings receive a single journey email instead of per-booking mail.
+        ...(booking.booking_channel !== "rol_itinerary"
+          ? [{
+              type: "booking_email" as const,
+              payload: { booking_id, status: "success" },
+              options: { dedupeKey: `email:confirmation:${booking_id}` },
+            }]
+          : []),
+      ]);
+      kickWorker();
+      if (!ownerEmail) console.warn('No owner_email configured for property:', property.id);
 
       
-      // Send property owner notification email
-      const ownerEmail = property.owner_email;
-      if (ownerEmail) {
-        try {
-          const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-          
-          await fetch(
-            `${supabaseUrl}/functions/v1/send-booking-email`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${serviceKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                booking_id,
-                status: 'property_notification',
-                recipient_email: ownerEmail,
-              }),
-            }
-          );
-          console.log('Property owner notification sent to:', ownerEmail);
-        } catch (error) {
-          console.error('Failed to send owner notification:', error);
-        }
-      } else {
-        console.warn('No owner_email configured for property:', property.id);
-      }
-      
-      // Send guest confirmation email ONLY if NOT part of an itinerary
-      // (Itinerary bookings get a single journey email instead of individual booking emails)
-      if (booking.booking_channel !== 'rol_itinerary') {
-        try {
-          const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-          const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-          
-          await fetch(
-            `${supabaseUrl}/functions/v1/send-booking-email`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${serviceKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                booking_id,
-                status: 'success',
-              }),
-            }
-          );
-          console.log('Guest confirmation email sent');
-        } catch (error) {
-          console.error('Failed to send guest confirmation:', error);
-        }
-      } else {
-        console.log('Skipping individual booking email - this is part of an itinerary (will receive journey email instead)');
-      }
       
       return new Response(
         JSON.stringify({ success: true, message: 'Booking confirmed, dates blocked, owner notified' }),
