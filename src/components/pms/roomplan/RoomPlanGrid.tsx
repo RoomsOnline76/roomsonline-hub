@@ -568,17 +568,30 @@ export function RoomPlanGrid({
                             );
                           }}
                         >
-                          {dates.map((date, index) => (
-                            <div
-                              key={date.toISOString()}
-                              className={cn(
-                                "shrink-0 border-r last:border-r-0",
-                                isWeekend(date) && "bg-muted/30",
-                                index === todayIndex && "bg-primary/10"
-                              )}
-                              style={{ width: colWidth }}
-                            />
-                          ))}
+                          {dates.map((date, index) => {
+                            const blocked = isBlocked?.(row.roomTypeId, date) ?? false;
+                            return (
+                              <div
+                                key={date.toISOString()}
+                                title={blocked ? `Blocked — ${format(date, "d MMM yyyy")}` : undefined}
+                                className={cn(
+                                  "shrink-0 border-r last:border-r-0",
+                                  isWeekend(date) && "bg-muted/30",
+                                  index === todayIndex && "bg-primary/10"
+                                )}
+                                style={{
+                                  width: colWidth,
+                                  ...(blocked
+                                    ? {
+                                        backgroundImage:
+                                          "repeating-linear-gradient(45deg, hsl(var(--destructive) / 0.22) 0 3px, transparent 3px 6px)",
+                                      }
+                                    : null),
+                                }}
+                              />
+                            );
+                          })}
+
 
                           {/* Create-drag selection */}
                           {createDrag && (
