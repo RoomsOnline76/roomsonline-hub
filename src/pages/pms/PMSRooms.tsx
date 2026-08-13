@@ -117,7 +117,7 @@ export default function PMSRooms() {
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
   /* Blocked (stop-sell) nights live in property_availability, keyed by room type NAME. */
-  const { data: stopSellData } = useQuery({
+  const { data: stopSellData, refetch: refetchStopSell } = useQuery({
     queryKey: ["pms-rooms-stop-sell", activePropertyIds, windowStart, windowEnd],
     queryFn: async () => {
       const set = new Set<string>();
