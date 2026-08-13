@@ -294,7 +294,7 @@ Deno.serve(async (req) => {
     const userId = claimsData.claims.sub;
 
     const body: ModifyRequest = await req.json();
-    const { booking_id, modifications } = body;
+    const { booking_id, modifications, settlement } = body;
 
     if (!booking_id || !modifications) {
       return new Response(
