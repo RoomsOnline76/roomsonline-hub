@@ -19,7 +19,7 @@ import {
   useRefundRegister,
 } from "@/hooks/useRefundRegister";
 import { displayBookingReference } from "@/lib/bookingReference";
-import { AlertTriangle, BadgeCheck, Clock, RotateCcw, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Clock, RotateCcw, Wallet, XCircle } from "lucide-react";
 
 interface RefundRegisterPanelProps {
   propertyId?: string | null;
