@@ -132,13 +132,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    /** Operator decisions for unmatched room names. */
+    const EXCLUDE = "__exclude__";
+    const UNASSIGNED = "__unassigned__";
+    /** Legacy sentinel from earlier builds — behaved as "import unassigned". */
+    const LEGACY_SKIP = "__skip__";
+
+    const overrideFor = (name: string | null): string | null => {
+      if (!name) return null;
+      return roomOverrides[name] ?? roomOverrides[normaliseRoomKey(name)] ?? null;
+    };
+
     const resolveRoom = (name: string | null): { roomId: string | null; roomTypeId: string | null } => {
       if (!name) return { roomId: null, roomTypeId: null };
-      const override = roomOverrides[name] ?? roomOverrides[normaliseRoomKey(name)];
-      if (override) {
+      const override = overrideFor(name);
+      if (override && override !== EXCLUDE && override !== UNASSIGNED && override !== LEGACY_SKIP) {
         const byId = (roomRows ?? []).find((r) => r.id === override);
         if (byId) return { roomId: byId.id as string, roomTypeId: (byId.room_type_id as string) ?? null };
       }
+      if (override === UNASSIGNED || override === LEGACY_SKIP) return { roomId: null, roomTypeId: null };
       const key = normaliseRoomKey(name);
       const room = roomIndex.get(key);
       if (room) return { roomId: room.id, roomTypeId: room.room_type_id };
@@ -146,6 +158,7 @@ Deno.serve(async (req) => {
       if (typeId) return { roomId: null, roomTypeId: typeId };
       return { roomId: null, roomTypeId: null };
     };
+
 
     /* ------------------------------------------------------------- map rows */
 
