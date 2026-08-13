@@ -2048,24 +2048,86 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
+/** Stable references so folio seeding is a lookup, not a heuristic. */
+const SEED_ACCOMMODATION_REF = "ROL-SEED-ACCOMMODATION";
+const SEED_SETTLEMENT_REF = "ROL-SEED-EXTERNAL-SETTLEMENT";
+
+/** Seeds an empty folio from the booking (accommodation charge + already-collected payment).
+ *  Idempotent: only runs when the folio has zero transactions. */
+// deno-lint-ignore no-explicit-any
+async function seedFolioFromBooking(supabase: any, folioId: string, booking: any): Promise<void> {
+  const total = Number(booking?.total_price) || 0;
+  const paid = Number(booking?.amount_paid) || 0;
+  if (total <= 0 && paid <= 0) return;
+
+  const rows: Record<string, unknown>[] = [];
+  if (total > 0) {
+    rows.push({
+      folio_id: folioId,
+      transaction_type: "charge",
+      description: "Accommodation",
+      amount: total,
+      revenue_stream: "accommodation",
+      reference: SEED_ACCOMMODATION_REF,
+    });
+  }
+  if (paid > 0) {
+    const viaChannel = booking?.amount_paid_source === "channel";
+    rows.push({
+      folio_id: folioId,
+      transaction_type: "payment",
+      description: viaChannel
+        ? `Settled externally via ${booking?.booking_channel ?? "channel"}`
+        : "Settled externally (paid direct to property)",
+      amount: -Math.abs(paid),
+      revenue_stream: "accommodation",
+      reference: SEED_SETTLEMENT_REF,
+    });
+  }
+  if (rows.length) await supabase.from("rolos_folio_transactions").insert(rows);
+}
+
 // deno-lint-ignore no-explicit-any
 async function handleGetFolio(body: any, supabase: any): Promise<Response> {
   if (!body.booking_id) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id required", "get_folio")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  const { data: folio, error } = await supabase.from("rolos_folios").select("*, transactions:rolos_folio_transactions(*)").eq("booking_id", body.booking_id).single();
-  if (error) {
-    // Auto-create folio if doesn't exist
-    const { data: newFolio, error: createError } = await supabase.from("rolos_folios").insert({ booking_id: body.booking_id }).select("*, transactions:rolos_folio_transactions(*)").single();
+
+  const folioSelect = "*, transactions:rolos_folio_transactions(*)";
+  let { data: folio } = await supabase.from("rolos_folios").select(folioSelect).eq("booking_id", body.booking_id).maybeSingle();
+  if (!folio) {
+    const { data: newFolio, error: createError } = await supabase.from("rolos_folios")
+      .insert({ booking_id: body.booking_id }).select(folioSelect).single();
     if (createError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, createError.message, "get_folio")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
-    return new Response(JSON.stringify(createSuccessResponse(newFolio, "get_folio")),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    folio = newFolio;
   }
-  return new Response(JSON.stringify(createSuccessResponse(folio, "get_folio")),
+
+  const { data: booking } = await supabase.from("bookings")
+    .select("payment_status, total_price, amount_paid, amount_paid_source, booking_channel")
+    .eq("id", body.booking_id).maybeSingle();
+
+  // Seed once from the booking so externally settled stays never open on an empty folio.
+  if (booking && (folio.transactions || []).length === 0) {
+    await seedFolioFromBooking(supabase, folio.id, booking);
+    const { data: reloaded } = await supabase.from("rolos_folios").select(folioSelect).eq("id", folio.id).maybeSingle();
+    if (reloaded) folio = reloaded;
+  }
+
+  const paidExternally = booking?.payment_status === "paid_externally";
+  const payload = {
+    ...folio,
+    external_settlement: paidExternally,
+    settlement_source: paidExternally ? (booking?.amount_paid_source ?? null) : null,
+    booking_total: Number(booking?.total_price) || 0,
+    amount_paid: Number(booking?.amount_paid) || 0,
+  };
+
+  return new Response(JSON.stringify(createSuccessResponse(payload, "get_folio")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
 
 // deno-lint-ignore no-explicit-any
 async function handleAddFolioCharge(body: any, supabase: any): Promise<Response> {
