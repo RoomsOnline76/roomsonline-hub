@@ -29,6 +29,7 @@ const STATUS_META: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
+  awaiting_guest_choice: { label: "Awaiting guest choice", variant: "outline" },
   pending: { label: "Awaiting approval", variant: "secondary" },
   approved: { label: "Approved", variant: "default" },
   processed: { label: "Processed", variant: "outline" },
