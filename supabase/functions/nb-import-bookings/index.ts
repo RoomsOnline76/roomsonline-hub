@@ -56,6 +56,145 @@ interface RoomRef {
   keys: string[];
 }
 
+const EXCLUDE_SENTINEL = "__exclude__";
+const UNASSIGNED_SENTINEL = "__unassigned__";
+
+/** NightsBridge room name kept on the booking note by the importer. */
+function nbRoomFromNotes(notes: string | null): string | null {
+  if (!notes) return null;
+  const line = notes.split("\n").find((l) => l.trim().toLowerCase().startsWith("nb room:"));
+  if (!line) return null;
+  const value = line.slice(line.indexOf(":") + 1).trim();
+  return value || null;
+}
+
+/**
+ * Re-map imported NightsBridge bookings that carry no unit / room type. Dry run reports the
+ * outstanding groups; a live run writes `rolos_room_ids`, `room_type_id` and room lines.
+ */
+async function repairUnmappedBookings(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  propertyId: string,
+  overrides: Record<string, string>,
+  dryRun: boolean,
+) {
+  const [{ data: roomRows }, { data: bookingRows }] = await Promise.all([
+    sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
+    sb
+      .from("bookings")
+      .select("id, internal_notes, total_price, adults, children, check_in_date, check_out_date, rolos_room_ids, room_type_id")
+      .eq("property_id", propertyId)
+      .eq("integration_type", "nightsbridge")
+      .is("rolos_room_ids", null),
+  ]);
+
+  const rooms = (roomRows ?? []) as { id: string; room_number: string | null; room_name: string | null; room_type_id: string | null }[];
+  const byId = new Map(rooms.map((r) => [r.id, r]));
+
+  interface Group {
+    room_name: string;
+    bookings: { id: string; total_price: number; adults: number; children: number; nights: number }[];
+  }
+  const groups = new Map<string, Group>();
+  let unnamed = 0;
+  const suspectDates: { id: string; check_in_date: string; check_out_date: string; nights: number }[] = [];
+
+  for (const b of (bookingRows ?? []) as Record<string, unknown>[]) {
+    const inDate = String(b.check_in_date ?? "");
+    const outDate = String(b.check_out_date ?? "");
+    const nights = Math.round(
+      (new Date(outDate).getTime() - new Date(inDate).getTime()) / 86_400_000,
+    );
+    if (!Number.isFinite(nights) || nights <= 0 || nights > 60) {
+      suspectDates.push({ id: String(b.id), check_in_date: inDate, check_out_date: outDate, nights });
+    }
+    const name = nbRoomFromNotes(b.internal_notes as string | null);
+    if (!name) {
+      unnamed++;
+      continue;
+    }
+    const key = normaliseRoomKey(name) || name;
+    const group = groups.get(key) ?? { room_name: name, bookings: [] };
+    group.bookings.push({
+      id: String(b.id),
+      total_price: Number(b.total_price ?? 0),
+      adults: Number(b.adults ?? 1),
+      children: Number(b.children ?? 0),
+      nights: Number.isFinite(nights) && nights > 0 ? nights : 1,
+    });
+    groups.set(key, group);
+  }
+
+  const groupList = [...groups.entries()].map(([key, g]) => ({
+    key,
+    room_name: g.room_name,
+    count: g.bookings.length,
+  }));
+
+  if (dryRun) {
+    return {
+      mode: "repair",
+      dry_run: true,
+      unmapped_total: (bookingRows ?? []).length,
+      unnamed,
+      groups: groupList,
+      suspect_dates: suspectDates,
+      rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
+      repaired: 0,
+    };
+  }
+
+  let repaired = 0;
+  const lines: Record<string, unknown>[] = [];
+  for (const [key, group] of groups) {
+    const decision = overrides[group.room_name] ?? overrides[key] ?? null;
+    if (!decision || decision === EXCLUDE_SENTINEL || decision === UNASSIGNED_SENTINEL) continue;
+    const room = byId.get(decision);
+    if (!room) continue;
+    for (let i = 0; i < group.bookings.length; i += BATCH) {
+      const chunk = group.bookings.slice(i, i + BATCH);
+      const { error } = await sb
+        .from("bookings")
+        .update({ rolos_room_ids: [room.id], room_type_id: room.room_type_id })
+        .in("id", chunk.map((b) => b.id));
+      if (error) continue;
+      repaired += chunk.length;
+      for (const b of chunk) {
+        lines.push({
+          booking_id: b.id,
+          room_id: room.id,
+          room_type_id: room.room_type_id,
+          rate_charged: b.total_price,
+          nightly_rate: b.nights > 0 ? Number((b.total_price / b.nights).toFixed(2)) : b.total_price,
+          adults: b.adults,
+          children: b.children,
+        });
+      }
+    }
+  }
+
+  for (let i = 0; i < lines.length; i += BATCH) {
+    const chunk = lines.slice(i, i + BATCH);
+    const ids = chunk.map((l) => l.booking_id as string);
+    await sb.from("rolos_booking_rooms").delete().in("booking_id", ids);
+    await sb.from("rolos_booking_rooms").insert(chunk);
+  }
+
+  return {
+    mode: "repair",
+    dry_run: false,
+    repaired,
+    unmapped_total: (bookingRows ?? []).length,
+    unnamed,
+    groups: groupList,
+    suspect_dates: suspectDates,
+    rooms: rooms.map((r) => ({ id: r.id, label: r.room_name || r.room_number || r.id })),
+  };
+}
+
+
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -77,14 +216,17 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return json({ ok: false, error: "A valid property_id is required" }, 400);
 
     const dryRun = body?.dry_run === true;
+    const mode = String(body?.mode ?? "import").trim() || "import";
     const fileName = String(body?.file_name ?? "").trim();
     const fileB64 = String(body?.file_base64 ?? "");
     const defaultCurrency = String(body?.default_currency ?? "ZAR").toUpperCase().slice(0, 3);
     const roomOverrides: Record<string, string> = (body?.room_overrides ?? {}) as Record<string, string>;
 
-    if (!fileB64) return json({ ok: false, error: "No file was received" }, 400);
-    if (fileName && !/\.(xlsx|xls|csv)$/i.test(fileName)) {
-      return json({ ok: false, error: "Only .xlsx, .xls and .csv exports are supported" }, 400);
+    if (mode === "import") {
+      if (!fileB64) return json({ ok: false, error: "No file was received" }, 400);
+      if (fileName && !/\.(xlsx|xls|csv)$/i.test(fileName)) {
+        return json({ ok: false, error: "Only .xlsx, .xls and .csv exports are supported" }, 400);
+      }
     }
 
     // Access: mirrors the property write checks used elsewhere (admin / fearless_leader /
@@ -95,6 +237,17 @@ Deno.serve(async (req) => {
     });
     if (accessErr) return json({ ok: false, error: accessErr.message }, 403);
     if (allowed !== true) return json({ ok: false, error: "You do not have access to this property" }, 403);
+
+    /* ------------------------------------------------------- repair mode ---
+     * Re-maps already-imported bookings that never matched a unit. The NightsBridge
+     * room name is preserved in `internal_notes` ("NB Room: <name>"), so it can be
+     * grouped and mapped after the fact without re-uploading the export.
+     */
+    if (mode === "repair") {
+      const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
+      return json({ ok: true, ...repair });
+    }
+
 
     const bytes = decodeBase64(fileB64);
     if (bytes.byteLength > MAX_BYTES) {
@@ -273,6 +426,8 @@ Deno.serve(async (req) => {
           excluded: excludedByOperator,
           errors: errors.length,
           unmapped_rooms: [...unmappedRooms],
+          future_stays: mapped.filter((m) => m.check_out_date >= today).length,
+
         },
 
         errors,
@@ -340,6 +495,11 @@ Deno.serve(async (req) => {
           payment_status: m.payment_status,
           booking_channel: m.booking_channel,
           integration_type: "nightsbridge",
+          // Imported actuals belong to the property but carry no ROL commission.
+          commission_type: "none",
+          calculated_commission: 0,
+          commission_rate_applied: 0,
+
           external_reservation_id: m.external_id,
           internal_notes: m.internal_notes,
           rolos_guest_id: guestIdByName.get(m.guest_name.toLowerCase()) ?? null,
@@ -430,10 +590,13 @@ Deno.serve(async (req) => {
 
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
+        /** Stays that still lie ahead — these must block channel availability upstream. */
+        future_stays: mapped.filter((m) => m.check_out_date >= today).length,
       },
       errors,
       skipped,
       preview: [],
+
     });
   } catch (e) {
     console.error("nb-import-bookings failed", e);

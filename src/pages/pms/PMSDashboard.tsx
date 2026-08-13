@@ -40,6 +40,8 @@ import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, type RoomPlanGroupBlock } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
+import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
+
 import { CHANNEL_SOURCE_BADGE, channelSourceLabel } from "@/lib/channelVocabulary";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -653,6 +655,9 @@ export default function PMSDashboard() {
   );
   const bookingsLoading = bookingsInfinite.isLoading;
 
+
+
+
   const bookings: BookingRow[] = useMemo(
     () => autoAssignBookings(
       remapBookingsToCanonicalRoomTypes(bookingsRaw, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
@@ -938,6 +943,28 @@ export default function PMSDashboard() {
     },
     enabled: isPortfolioMode,
   });
+
+  /* Imported history (NightsBridge exports and similar) often sits entirely outside the
+   * forward-looking calendar window, which reads as "no bookings". Surface the real coverage
+   * and let the user jump straight to it instead of showing an empty grid. */
+  const coverageIds = useMemo(
+    () => (isPortfolioMode ? portfolioPropertyIds : propertyId ? [propertyId] : []),
+    [isPortfolioMode, portfolioPropertyIds, propertyId],
+  );
+  const { data: bookingCoverage } = useBookingCoverage(coverageIds);
+  const visibleBookingCount = isPortfolioMode ? portfolioBookingsRaw.length : bookingsRaw.length;
+  const outsideWindowNotice = useMemo(() => {
+    if (bookingsLoading || visibleBookingCount > 0) return null;
+    if (!bookingCoverage || bookingCoverage.total === 0) return null;
+    const windowStart = format(dateRange.start, "yyyy-MM-dd");
+    const target =
+      bookingCoverage.latest && bookingCoverage.latest < windowStart
+        ? bookingCoverage.latest
+        : bookingCoverage.earliest;
+    if (!target) return null;
+    return { total: bookingCoverage.total, target };
+  }, [bookingsLoading, visibleBookingCount, bookingCoverage, dateRange.start]);
+
 
   const { data: portfolioOverridesRaw = [] } = useQuery({
     queryKey: ["pms-portfolio-overrides", portfolioPropertyIds, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
@@ -1947,6 +1974,25 @@ export default function PMSDashboard() {
                 </Popover>
               </div>
             </div>
+
+            {outsideWindowNotice && (
+              <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted px-3 py-2 text-xs">
+                <span className="text-muted-foreground">
+                  No stays in this window. This property has {outsideWindowNotice.total} booking
+                  {outsideWindowNotice.total === 1 ? "" : "s"} on record — the nearest is{" "}
+                  {format(parseISO(outsideWindowNotice.target), "d MMM yyyy")}.
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setAnchorDate(parseISO(outsideWindowNotice.target))}
+                >
+                  Jump to {format(parseISO(outsideWindowNotice.target), "MMM yyyy")}
+                </Button>
+              </div>
+            )}
+
 
             {viewMode === "roomplan" && (
               <p className="mb-2 text-[11px] text-muted-foreground">

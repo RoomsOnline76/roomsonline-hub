@@ -821,6 +821,41 @@ const Bookings = () => {
                 </Select>
               </div>
 
+              {/* Period presets — imported history often predates the default forward window. */}
+              <div className="space-y-1">
+                <Label className="text-xs">Period</Label>
+                <Select
+                  value="custom"
+                  onValueChange={(preset) => {
+                    const forward = format(addDays(new Date(), 60), "yyyy-MM-dd");
+                    if (preset === "default") {
+                      setDateFrom(format(subDays(new Date(), 30), "yyyy-MM-dd"));
+                      setDateTo(forward);
+                    } else if (preset === "last_3_months") {
+                      setDateFrom(format(subDays(new Date(), 90), "yyyy-MM-dd"));
+                      setDateTo(forward);
+                    } else if (preset === "last_12_months") {
+                      setDateFrom(format(subDays(new Date(), 365), "yyyy-MM-dd"));
+                      setDateTo(forward);
+                    } else if (preset === "all_time") {
+                      setDateFrom("2015-01-01");
+                      setDateTo(format(addDays(new Date(), 730), "yyyy-MM-dd"));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="Choose period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">Default window</SelectItem>
+                    <SelectItem value="last_3_months">Last 3 months</SelectItem>
+                    <SelectItem value="last_12_months">Last 12 months</SelectItem>
+                    <SelectItem value="all_time">All time (incl. imports)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+
               {/* Date From */}
               <div className="space-y-1">
                 <Label className="text-xs">From</Label>
@@ -1021,6 +1056,16 @@ const Bookings = () => {
                                 {booking.booking_channel === 'rentals_united' && (
                                   <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1 py-0 font-bold shrink-0">RU</Badge>
                                 )}
+                                {booking.integration_type === 'nightsbridge' && (
+                                  <Badge
+                                    variant="outline"
+                                    className="shrink-0 border-border text-[10px] px-1 py-0 text-muted-foreground"
+                                    title="Imported from a NightsBridge export — no ROL commission applies"
+                                  >
+                                    Imported · NB
+                                  </Badge>
+                                )}
+
                                 {(booking.ai_metadata as any)?.itinerary_id && (
                                   <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
                                 )}

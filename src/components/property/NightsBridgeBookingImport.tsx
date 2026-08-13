@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
 
 interface Props {
   propertyId: string;
@@ -56,7 +57,24 @@ interface ImportSummary {
 
   errors: number;
   unmapped_rooms: string[];
+  /** Stays still ahead of today — these must also block availability on the channel. */
+  future_stays?: number;
 }
+
+/** Result of the post-import repair pass over bookings that never matched a unit. */
+interface RepairResponse {
+  ok: boolean;
+  error?: string;
+  mode: "repair";
+  dry_run: boolean;
+  repaired: number;
+  unmapped_total: number;
+  unnamed: number;
+  groups: { key: string; room_name: string; count: number }[];
+  suspect_dates: { id: string; check_in_date: string; check_out_date: string; nights: number }[];
+  rooms: { id: string; label: string }[];
+}
+
 
 interface ImportResponse {
   ok: boolean;
@@ -100,6 +118,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [result, setResult] = useState<ImportResponse | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [dragging, setDragging] = useState(false);
+  const [repair, setRepair] = useState<RepairResponse | null>(null);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
 
   const rooms = useMemo(() => result?.rooms ?? [], [result]);
   const unmapped = useMemo(() => result?.summary?.unmapped_rooms ?? [], [result]);
@@ -120,6 +141,50 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     setOverrides({});
     toast.success(`${next.name} attached (${formatSize(next.size)}) — validate to preview`);
   }, []);
+
+  /* ---------------------------------------------------------------- repair pass ---
+   * Bookings imported before a room name was mapped carry no unit, so they never reach the
+   * room plan or per-unit metrics. The NightsBridge room name survives on the booking note,
+   * so they can be mapped after the fact without re-uploading the export.
+   */
+  const refreshRepair = useCallback(async () => {
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: true },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Could not read unmapped bookings");
+      setRepair(data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read unmapped bookings");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId]);
+
+  const applyRepair = useCallback(async () => {
+    const chosen = Object.fromEntries(Object.entries(repairOverrides).filter(([, v]) => Boolean(v)));
+    if (!Object.keys(chosen).length) {
+      toast.error("Choose a unit for at least one room name");
+      return;
+    }
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: false, room_overrides: chosen },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Repair failed");
+      toast.success(`Mapped ${data.repaired} booking${data.repaired === 1 ? "" : "s"} to units`);
+      setRepairOverrides({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Repair failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId, repairOverrides, refreshRepair]);
 
 
   const run = useCallback(
@@ -156,7 +221,17 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
               (excluded ? `, ${excluded} excluded` : ""),
           );
+          // Imported future stays are real occupancy — push availability so the channel stops selling them.
+          if ((data.summary.future_stays ?? 0) > 0) {
+            void queueChannelRatesSync(propertyId, "nb_import").then((outcome) => {
+              if (outcome?.queued || outcome?.accepted) {
+                toast.success("Availability update sent to the channel manager");
+              }
+            });
+          }
+          void refreshRepair();
         }
+
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Import failed");
       } finally {
@@ -532,6 +607,93 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Fix unmapped rooms — repairs bookings already in the database */}
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Fix unmapped rooms</p>
+              <p className="text-xs text-muted-foreground">
+                Imported bookings that never matched a unit are missing from the room plan and per-unit
+                metrics. Map them here — no re-upload needed.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void refreshRepair()} disabled={repairBusy}>
+              {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+              {repair ? "Re-check" : "Check imported bookings"}
+            </Button>
+          </div>
+
+          {repair && (
+            <div className="mt-3 space-y-3">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <Badge variant={repair.unmapped_total > 0 ? "destructive" : "secondary"}>
+                  {repair.unmapped_total} without a unit
+                </Badge>
+                {repair.unnamed > 0 && (
+                  <Badge variant="outline">{repair.unnamed} with no room name on record</Badge>
+                )}
+                {repair.suspect_dates.length > 0 && (
+                  <Badge variant="outline">{repair.suspect_dates.length} implausible date ranges</Badge>
+                )}
+              </div>
+
+              {repair.groups.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {repair.unmapped_total === 0
+                    ? "Every imported booking is mapped to a unit."
+                    : "No recoverable room names — these bookings need to be re-imported."}
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {repair.groups.map((group) => (
+                      <div key={group.key} className="flex flex-wrap items-center gap-2">
+                        <span className="min-w-[160px] text-xs font-medium">{group.room_name}</span>
+                        <Badge variant="outline" className="text-[10px]">{group.count} bookings</Badge>
+                        <Select
+                          value={repairOverrides[group.room_name] ?? ""}
+                          onValueChange={(value) =>
+                            setRepairOverrides((prev) => ({ ...prev, [group.room_name]: value }))
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-[220px] text-xs">
+                            <SelectValue placeholder="Map to unit…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {repair.rooms.map((room) => (
+                              <SelectItem key={room.id} value={room.id}>
+                                {room.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ))}
+                  </div>
+                  <Button size="sm" onClick={() => void applyRepair()} disabled={repairBusy}>
+                    {repairBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-2 h-3.5 w-3.5" />}
+                    Apply mapping
+                  </Button>
+                </>
+              )}
+
+              {repair.suspect_dates.length > 0 && (
+                <div className="rounded-md border border-border p-2">
+                  <p className="text-xs font-medium">Check these date ranges</p>
+                  <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                    {repair.suspect_dates.slice(0, 6).map((row) => (
+                      <li key={row.id}>
+                        {row.check_in_date} → {row.check_out_date} ({row.nights} nights)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
       </CardContent>
     </Card>
   );
