@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
 import { OverbookingAlertCard } from "@/components/pms/OverbookingAlertCard";
+import { ChannelRequestBacklogCard } from "@/components/pms/ChannelRequestBacklogCard";
 import { usePortfolioOverbookings } from "@/hooks/usePortfolioOverbookings";
 import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
 
@@ -926,6 +927,9 @@ export default function PMSCommandCentre() {
           {format(weekStart, "MMM d")} – {format(weekEnd, "MMM d, yyyy")}
         </span>
       </div>
+
+      {/* Channel requests that never became a stay */}
+      <ChannelRequestBacklogCard propertyIds={clashPropertyIds} propertyNames={clashPropertyNames} />
 
       {/* Overbooking alerts — clashes need attention before anything else */}
       <OverbookingAlertCard

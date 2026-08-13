@@ -432,10 +432,15 @@ async function attemptListLookup(
   reservationId: string,
   scope: { propertyId?: string | null; ownerId?: string | null },
   windowDays = 90,
+  forwardDays = 365,
 ): Promise<RuDetailLookup> {
   const now = new Date();
   const start = new Date(now);
   start.setDate(now.getDate() - windowDays);
+  // Leads and reservations are listed by stay date, so a request for a future stay is
+  // invisible in a past-only window. Always look ahead as well.
+  const end = new Date(now);
+  end.setDate(now.getDate() + forwardDays);
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   const scopePayload = {
     ...(scope.propertyId ? { property_id: scope.propertyId } : {}),
@@ -447,7 +452,7 @@ async function attemptListLookup(
       body: {
         action,
         date_from: fmt(start),
-        date_to: fmt(now),
+        date_to: fmt(end),
         ...(action === 'list_reservations' ? { statuses: [1, 2, 4, 6, 7, 8] } : {}),
         ...scopePayload,
       },
@@ -462,8 +467,17 @@ async function attemptListLookup(
     if (blocks.length === 0) blocks = extractAllBlocks(xml, 'LeadInfo');
     for (const block of blocks) {
       const parsed = parseRuReservation(block);
-      const id = parsed.ruReservationId || extractTag(block, 'LeadID');
-      if (String(id) !== String(reservationId)) continue;
+      // The same request can be keyed as ReservationID, LeadID or ID depending on the
+      // listing method, so compare against every id the block carries.
+      const candidateIds = [
+        parsed.ruReservationId,
+        extractTag(block, 'LeadID'),
+        extractTag(block, 'ReservationID'),
+        extractTag(block, 'ID'),
+      ]
+        .filter(Boolean)
+        .map((v) => String(v).trim());
+      if (!candidateIds.includes(String(reservationId).trim())) continue;
       return {
         reservation: { ...parsed, ruReservationId: String(reservationId) },
         rawXml: block,
