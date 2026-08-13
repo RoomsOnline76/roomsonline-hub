@@ -647,26 +647,43 @@ Deno.serve(async (req) => {
       if (error) errors.push({ row: 0, nbid: null, message: `Room lines: ${error.message}` });
     }
 
+    const liveSummary = {
+      total_rows: rows.length,
+      parsed: mapped.length,
+      created,
+      updated,
+      skipped: skipped.length,
+      excluded: excludedByOperator,
+      errors: errors.length,
+      unmapped_rooms: [...unmappedRooms],
+      /** Stays that still lie ahead — these must block channel availability upstream. */
+      future_stays: futureStays,
+      min_arrival: arrivalSpan.min,
+      max_arrival: arrivalSpan.max,
+    };
+
+    const liveRunId = await logImportRun(sb, {
+      property_id: propertyId,
+      created_by: userId,
+      file_name: fileName,
+      file_bytes: bytes.byteLength,
+      mode: "live",
+      summary: liveSummary,
+      errors,
+      skipped,
+      unmapped_rooms: [...unmappedRooms],
+      arrivals,
+      future_stays: futureStays,
+    });
+
     return json({
       ok: true,
       dry_run: false,
-      summary: {
-        total_rows: rows.length,
-        parsed: mapped.length,
-        created,
-        updated,
-        skipped: skipped.length,
-        excluded: excludedByOperator,
-
-        errors: errors.length,
-        unmapped_rooms: [...unmappedRooms],
-        /** Stays that still lie ahead — these must block channel availability upstream. */
-        future_stays: mapped.filter((m) => m.check_out_date >= today).length,
-      },
+      run_id: liveRunId,
+      summary: liveSummary,
       errors,
       skipped,
       preview: [],
-
     });
   } catch (e) {
     console.error("nb-import-bookings failed", e);
