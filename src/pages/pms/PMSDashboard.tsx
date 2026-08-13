@@ -676,15 +676,35 @@ export default function PMSDashboard() {
 
 
 
+  // Per-unit booking lines: needed so a multi-room stay draws one bar per room.
+  const bookingIdsForLines = useMemo(() => bookingsRaw.map((b) => b.id), [bookingsRaw]);
+  const { roomTypeIdsByBooking, roomIdsByBooking } = useBookingRoomLines(bookingIdsForLines);
+
+  const bookingsWithLines: BookingRow[] = useMemo(
+    () => bookingsRaw.map((b) => {
+      const lineTypes = roomTypeIdsByBooking.get(b.id);
+      const lineRooms = roomIdsByBooking.get(b.id);
+      if (!lineTypes?.length && !lineRooms?.length) return b;
+      const existing = b.rolos_room_ids || [];
+      return {
+        ...b,
+        line_room_type_ids: lineTypes || null,
+        rolos_room_ids: existing.length ? existing : (lineRooms?.length ? lineRooms : existing),
+      } as BookingRow;
+    }),
+    [bookingsRaw, roomTypeIdsByBooking, roomIdsByBooking]
+  );
+
   const bookings: BookingRow[] = useMemo(
     () => autoAssignBookings(
-      remapBookingsToCanonicalRoomTypes(bookingsRaw, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
+      remapBookingsToCanonicalRoomTypes(bookingsWithLines, [...aliasRoomTypes, ...roomTypeNamesForRooms], roomTypes),
       rooms,
       roomTypes,
       [...aliasRoomTypes, ...roomTypeNamesForRooms],
     ) as BookingRow[],
-    [bookingsRaw, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
+    [bookingsWithLines, rooms, roomTypes, aliasRoomTypes, roomTypeNamesForRooms]
   );
+
 
   // Persist resolved unit assignments so folio, housekeeping and check-in all agree
   // with what the grid shows (the matcher itself is presentation-only).
