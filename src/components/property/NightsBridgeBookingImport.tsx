@@ -138,6 +138,50 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     toast.success(`${next.name} attached (${formatSize(next.size)}) — validate to preview`);
   }, []);
 
+  /* ---------------------------------------------------------------- repair pass ---
+   * Bookings imported before a room name was mapped carry no unit, so they never reach the
+   * room plan or per-unit metrics. The NightsBridge room name survives on the booking note,
+   * so they can be mapped after the fact without re-uploading the export.
+   */
+  const refreshRepair = useCallback(async () => {
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: true },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Could not read unmapped bookings");
+      setRepair(data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not read unmapped bookings");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId]);
+
+  const applyRepair = useCallback(async () => {
+    const chosen = Object.fromEntries(Object.entries(repairOverrides).filter(([, v]) => Boolean(v)));
+    if (!Object.keys(chosen).length) {
+      toast.error("Choose a unit for at least one room name");
+      return;
+    }
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: false, room_overrides: chosen },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Repair failed");
+      toast.success(`Mapped ${data.repaired} booking${data.repaired === 1 ? "" : "s"} to units`);
+      setRepairOverrides({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Repair failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId, repairOverrides, refreshRepair]);
+
 
   const run = useCallback(
     async (dryRun: boolean, overrideMap?: Record<string, string>) => {
