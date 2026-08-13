@@ -1,11 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
-  classifyRuNotification,
+  classifyRuNotificationBlock,
   extractAllBlocks,
   parseRuReservation,
   resolveRuUnit,
   type RuNotificationKind,
 } from '../_shared/ruReservationParsing.ts';
+
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 
 /**
@@ -67,6 +68,51 @@ Deno.serve(async (req) => {
       return ok();
     }
 
+    // ── Operator retry path: JSON body { notification_id? , reservation_id? } re-runs the
+    // detail pull + ingest for a single stuck notification (see the Reservations panel).
+    if (rawXml.trimStart().startsWith('{')) {
+      const body = JSON.parse(rawXml) as { notification_id?: string; reservation_id?: string };
+      let reservationId = body.reservation_id ?? null;
+      let propertyId: string | null = null;
+      if (body.notification_id) {
+        const { data: row } = await supabase
+          .from('ru_notifications')
+          .select('ru_reservation_id, property_id')
+          .eq('id', body.notification_id)
+          .maybeSingle();
+        reservationId = reservationId ?? (row?.ru_reservation_id ? String(row.ru_reservation_id) : null);
+        propertyId = row?.property_id ?? null;
+      }
+      if (!reservationId) {
+        return new Response(JSON.stringify({ success: false, error: 'No reservation id to retry' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const retried = await refreshRuReservationById(supabase, reservationId, {
+        propertyId,
+        logPrefix: '[ru-reservation-handler][retry]',
+      });
+      const resolved = retried.outcome !== 'failed' && retried.outcome !== 'unmatched';
+      if (body.notification_id) {
+        await supabase
+          .from('ru_notifications')
+          .update({
+            processed: resolved,
+            resolution_state: resolved ? 'resolved' : 'failed',
+            error_message: resolved ? null : retried.error ?? `Ingest outcome: ${retried.outcome}`,
+            last_attempt_at: new Date().toISOString(),
+          })
+          .eq('id', body.notification_id);
+      }
+      return new Response(
+        JSON.stringify({ success: resolved, outcome: retried.outcome, booking_id: retried.bookingId, error: retried.error ?? null }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+
+
     // Keep each block's own XML: a multi-reservation envelope can mix confirmations and
     // cancellations, so classification has to happen per block (falling back to the envelope).
     const blocks = extractAllBlocks(rawXml, 'Reservation');
@@ -78,15 +124,13 @@ Deno.serve(async (req) => {
     let needsReconcile = false;
 
     for (const { raw, parsed: r } of parsedBlocks) {
-      // Envelope name wins over the numeric status; the block only refines it. A block with
-      // no StatusID inherits the envelope's kind instead of defaulting to "request".
-      const envelopeKind = classifyRuNotification(rawXml, null);
-      const blockKind = r.statusId ? classifyRuNotification(raw, r.statusId) : envelopeKind;
-      const kind: RuNotificationKind =
-        envelopeKind === 'cancelled' || envelopeKind === 'modified' ? envelopeKind : blockKind;
+      // Envelope intent always wins: an inner <Reservation> block carries no envelope name,
+      // so a lead's StatusID 4 would otherwise read as a cancellation.
+      const kind: RuNotificationKind = classifyRuNotificationBlock(rawXml, raw, r.statusId);
       const eventType = EVENT_BY_KIND[kind];
       const unit = await resolveRuUnit(supabase, r.ruPropertyId);
       const propertyId = unit.propertyId;
+      const unmappedListing = !!r.ruPropertyId && !propertyId;
 
       const { data: notification } = await supabase
         .from('ru_notifications')
@@ -97,13 +141,34 @@ Deno.serve(async (req) => {
           property_id: propertyId,
           raw_xml: rawXml.slice(0, 20000),
           processed: false,
+          resolution_state: unmappedListing ? 'unmapped' : 'pending',
+          error_message: unmappedListing
+            ? `Channel listing ${r.ruPropertyId} is not mapped to any ROL'OS unit`
+            : null,
+          last_attempt_at: new Date().toISOString(),
         })
         .select('id')
         .maybeSingle();
       const notificationId = notification?.id as string | undefined;
 
+      const markResolved = async (state: 'resolved' | 'failed' | 'unmapped', error: string | null, ownerId?: string | null) => {
+        if (!notificationId) return;
+        await supabase
+          .from('ru_notifications')
+          .update({
+            processed: state === 'resolved',
+            resolution_state: state,
+            error_message: error,
+            resolved_owner_id: ownerId ?? null,
+            last_attempt_at: new Date().toISOString(),
+          })
+          .eq('id', notificationId);
+      };
+
       // RU sometimes notifies with an empty <StayInfos /> — pull that one reservation by id
-      // (Pull_GetReservationByID_RQ) instead of reconciling the whole account window.
+      // (Pull_GetReservationByID_RQ) instead of reconciling the whole account window. The
+      // lookup fans out across every distribution account, since the envelope rarely says
+      // which one owns the reservation.
       if (!propertyId || !r.dateFrom || !r.dateTo) {
         if (r.ruReservationId) {
           const refreshed = await refreshRuReservationById(supabase, r.ruReservationId, {
@@ -113,16 +178,21 @@ Deno.serve(async (req) => {
             kind,
           });
           if (refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched') {
-            if (notificationId) {
-              await supabase.from('ru_notifications').update({ processed: true }).eq('id', notificationId);
-            }
+            await markResolved('resolved', null, null);
             continue;
           }
+          await markResolved(
+            unmappedListing ? 'unmapped' : 'failed',
+            refreshed.error ?? 'Detail pull could not resolve the reservation',
+          );
+        } else {
+          await markResolved('failed', 'Notification carried no reservation id');
         }
         console.warn(
           `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — detail pull unavailable, queued for reconciliation pull`,
         );
-        needsReconcile = true;
+        // Unmapped upstream listings are a data problem, not something a wider pull fixes.
+        if (!unmappedListing) needsReconcile = true;
         continue;
       }
 
@@ -135,13 +205,11 @@ Deno.serve(async (req) => {
         unit,
       });
 
-      if (result.outcome === 'failed') {
+      if (result.outcome === 'failed' || result.outcome === 'unmatched') {
         console.error(`[ru-reservation-handler] Ingest failed for ${r.ruReservationId}: ${result.error}`);
-      } else if (notificationId) {
-        await supabase
-          .from('ru_notifications')
-          .update({ processed: true })
-          .eq('id', notificationId);
+        await markResolved('failed', result.error ?? `Ingest outcome: ${result.outcome}`);
+      } else {
+        await markResolved('resolved', null);
       }
     }
 
@@ -152,6 +220,7 @@ Deno.serve(async (req) => {
         .invoke('cron-pull-ru-reservations', { body: { trigger: 'rlnm_reconcile' } })
         .catch((e: unknown) => console.warn('[ru-reservation-handler] Reconciliation pull failed:', e));
     }
+
 
     return ok();
   } catch (error) {

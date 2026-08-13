@@ -22,11 +22,15 @@ import {
   applyRuAvailabilityBlock,
   buildRuChannelNotes,
   classifyRuNotification,
+  extractAllBlocks,
+  extractTag,
+  parseRuReservation,
   resolveRuUnit,
   type ParsedRuReservation,
   type ResolvedRuUnit,
   type RuNotificationKind,
 } from './ruReservationParsing.ts';
+
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -382,18 +386,26 @@ export async function ingestRuReservation(
  * more precise) than reconciling the whole account window, and it is the method RU
  * certification exercises for reservation-detail and support cases.
  */
-export async function fetchRuReservationById(
+interface RuDetailLookup {
+  reservation: ParsedRuReservation | null;
+  rawXml: string | null;
+  error: string | null;
+  /** RU sub-account that answered with the reservation (null = master). */
+  resolvedOwnerId?: string | null;
+}
+
+/** One `Pull_GetReservationByID_RQ` attempt against a single account scope. */
+async function attemptGetReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null } = {},
-): Promise<{ reservation: ParsedRuReservation | null; rawXml: string | null; error: string | null }> {
-  const ownerId = opts.ownerId ?? (opts.propertyId ? await resolveRuOwnerIdForProperty(supabase, opts.propertyId) : null);
+  scope: { propertyId?: string | null; ownerId?: string | null },
+): Promise<RuDetailLookup> {
   const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
     body: {
       action: 'get_reservation_by_id',
       reservation_id: reservationId,
-      ...(opts.propertyId ? { property_id: opts.propertyId } : {}),
-      ...(ownerId ? { owner_id: ownerId } : {}),
+      ...(scope.propertyId ? { property_id: scope.propertyId } : {}),
+      ...(scope.ownerId ? { owner_id: scope.ownerId } : {}),
     },
   });
   if (error) return { reservation: null, rawXml: null, error: error.message };
@@ -409,6 +421,115 @@ export async function fetchRuReservationById(
   }
   return { reservation: res.reservation ?? null, rawXml: res.raw_xml ?? null, error: null };
 }
+
+/**
+ * List-based fallback for one account: leads are not always retrievable by id, and a
+ * request/lead answers "Reservation does not exist" on `Pull_GetReservationByID_RQ`.
+ * Scans the lead list and the reservation list for the same id.
+ */
+async function attemptListLookup(
+  supabase: Db,
+  reservationId: string,
+  scope: { propertyId?: string | null; ownerId?: string | null },
+  windowDays = 90,
+): Promise<RuDetailLookup> {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(now.getDate() - windowDays);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const scopePayload = {
+    ...(scope.propertyId ? { property_id: scope.propertyId } : {}),
+    ...(scope.ownerId ? { owner_id: scope.ownerId } : {}),
+  };
+
+  for (const action of ['get_leads', 'list_reservations'] as const) {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: {
+        action,
+        date_from: fmt(start),
+        date_to: fmt(now),
+        ...(action === 'list_reservations' ? { statuses: [1, 2, 4, 6, 7, 8] } : {}),
+        ...scopePayload,
+      },
+    });
+    if (error) continue;
+    const res = (data || {}) as { success?: boolean; raw_xml?: string };
+    const xml = res.raw_xml || '';
+    if (!xml) continue;
+
+    let blocks = extractAllBlocks(xml, 'Reservation');
+    if (blocks.length === 0) blocks = extractAllBlocks(xml, 'Lead');
+    if (blocks.length === 0) blocks = extractAllBlocks(xml, 'LeadInfo');
+    for (const block of blocks) {
+      const parsed = parseRuReservation(block);
+      const id = parsed.ruReservationId || extractTag(block, 'LeadID');
+      if (String(id) !== String(reservationId)) continue;
+      return {
+        reservation: { ...parsed, ruReservationId: String(reservationId) },
+        rawXml: block,
+        error: null,
+        resolvedOwnerId: scope.ownerId ?? null,
+      };
+    }
+  }
+  return { reservation: null, rawXml: null, error: 'Reservation not found in any account listing' };
+}
+
+/**
+ * Resolve a reservation from RU without knowing which account owns it.
+ *
+ * The RLNM envelope often carries no property id, and reservations that live on a
+ * white-label sub-account are invisible to the master credentials ("Reservation does not
+ * exist"). So the lookup fans out: known scope first, then every sub-account, then master,
+ * with a list/lead fallback per account.
+ */
+export async function fetchRuReservationById(
+  supabase: Db,
+  reservationId: string,
+  opts: { propertyId?: string | null; ownerId?: string | null } = {},
+): Promise<RuDetailLookup> {
+  const knownOwnerId =
+    opts.ownerId ?? (opts.propertyId ? await resolveRuOwnerIdForProperty(supabase, opts.propertyId) : null);
+
+  const scopes: { propertyId?: string | null; ownerId: string | null }[] = [];
+  const seen = new Set<string>();
+  const push = (ownerId: string | null, propertyId?: string | null) => {
+    const key = `${ownerId ?? 'master'}:${propertyId ?? ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    scopes.push({ ownerId, propertyId });
+  };
+
+  if (knownOwnerId || opts.propertyId) push(knownOwnerId, opts.propertyId ?? null);
+
+  const { data: accounts } = await supabase
+    .from('ru_owner_accounts')
+    .select('ru_owner_id')
+    .not('ru_owner_id', 'is', null);
+  for (const a of (accounts || []) as { ru_owner_id: string | number }[]) push(String(a.ru_owner_id));
+  push(null); // master last
+
+  let lastError: string | null = null;
+
+  // Pass 1 — by id, across accounts.
+  for (const scope of scopes) {
+    const attempt = await attemptGetReservationById(supabase, reservationId, scope);
+    if (attempt.reservation?.ruReservationId && attempt.reservation.dateFrom) {
+      return { ...attempt, resolvedOwnerId: scope.ownerId };
+    }
+    if (attempt.error) lastError = attempt.error;
+  }
+
+  // Pass 2 — lead/reservation listings, across accounts.
+  for (const scope of scopes) {
+    const listed = await attemptListLookup(supabase, reservationId, scope);
+    if (listed.reservation?.dateFrom) return listed;
+  }
+
+  return { reservation: null, rawXml: null, error: lastError ?? 'Reservation not found in Rentals United' };
+}
+
+
 
 /** Sub-user OwnerID for a property — direct link first, then its portfolio's account. */
 export async function resolveRuOwnerIdForProperty(supabase: Db, propertyId: string): Promise<string | null> {

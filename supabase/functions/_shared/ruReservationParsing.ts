@@ -230,17 +230,46 @@ export async function applyRuAvailabilityBlock(
  *  - `LNM_PutCancelation_RQ` / `LNM_PutCancellation` → cancelled
  *  - `LNM_PutUnconfirmedReservation_RQ` / request / lead envelopes → request (3-day hold)
  *
- * Numeric StatusID map: 1/6 confirmed, 3/5 modified, 2/4/7/8 cancelled, anything else a request.
+ * Numeric StatusID map: 1/6 confirmed, 3/5 modified, 2/7/8 cancelled, 4 request (pending),
+ * anything else a request. StatusID 4 is RU's "request/pending" state — never a cancellation.
  */
 export type RuNotificationKind = 'confirmed' | 'modified' | 'cancelled' | 'request';
 
 export function classifyRuNotification(xml: string, statusId: string | null): RuNotificationKind {
   const lower = (xml || '').toLowerCase();
 
-  // Envelope name / explicit cancellation flags first — cancellations must never fall
-  // through to the "request" default, which would re-open a hold on cancelled nights.
+  const envelope = detectRuEnvelopeKind(lower);
+  if (envelope === 'cancelled' || envelope === 'modified') return envelope;
+  if (envelope === 'request') {
+    if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
+    return 'request';
+  }
+  if (envelope === 'confirmed') {
+    if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
+    // A confirmed envelope carrying the pending status is still a live hold, not a booking.
+    return statusId === '4' ? 'request' : 'confirmed';
+  }
+
+  if (statusId && ['2', '7', '8'].includes(statusId)) return 'cancelled';
+  if (statusId && ['1', '6'].includes(statusId)) return 'confirmed';
+  if (statusId && ['3', '5'].includes(statusId)) return 'modified';
+  return 'request';
+}
+
+
+/**
+ * Envelope-name detection only (no numeric status). Returns null when the XML fragment
+ * carries no envelope name — which is always the case for an inner `<Reservation>` block,
+ * so per-block classification must inherit the envelope's kind instead of guessing.
+ */
+export function detectRuEnvelopeKind(xml: string): RuNotificationKind | null {
+  const lower = (xml || '').toLowerCase();
+
+  // Cancellations must never fall through to the "request" default, which would re-open
+  // a hold on cancelled nights.
   if (
     lower.includes('putcancel') ||
+    lower.includes('cancelreservation') ||
     lower.includes('cancelation_rq') ||
     lower.includes('cancellation_rq') ||
     lower.includes('<iscancel>true</iscancel>') ||
@@ -249,7 +278,11 @@ export function classifyRuNotification(xml: string, statusId: string | null): Ru
   ) {
     return 'cancelled';
   }
-  if (lower.includes('reservationmod') || lower.includes('reservationmodification') || lower.includes('<ismodification>true</ismodification>')) {
+  if (
+    lower.includes('reservationmod') ||
+    lower.includes('reservationmodification') ||
+    lower.includes('<ismodification>true</ismodification>')
+  ) {
     return 'modified';
   }
   if (
@@ -261,12 +294,26 @@ export function classifyRuNotification(xml: string, statusId: string | null): Ru
   ) {
     return 'request';
   }
-  if (lower.includes('putconfirmedreservation')) {
-    return statusId && ['2', '4', '7', '8'].includes(statusId) ? 'cancelled' : 'confirmed';
-  }
-
-  if (statusId && ['2', '4', '7', '8'].includes(statusId)) return 'cancelled';
-  if (statusId && ['1', '6'].includes(statusId)) return 'confirmed';
-  if (statusId && ['3', '5'].includes(statusId)) return 'modified';
-  return 'request';
+  if (lower.includes('putconfirmedreservation')) return 'confirmed';
+  return null;
 }
+
+/**
+ * Classify one `<Reservation>` block in the context of its envelope. The block has no
+ * envelope name, so the envelope's intent (cancel / modify / unconfirmed) always wins;
+ * the block's StatusID only refines a classification within the same family.
+ */
+export function classifyRuNotificationBlock(
+  envelopeXml: string,
+  blockXml: string,
+  statusId: string | null,
+): RuNotificationKind {
+  const envelope = detectRuEnvelopeKind(envelopeXml);
+  if (envelope === 'cancelled' || envelope === 'modified') return envelope;
+  if (envelope) {
+    // Re-run the full classifier with the envelope name in scope.
+    return classifyRuNotification(`${envelope === 'request' ? 'putunconfirmedreservation' : 'putconfirmedreservation'} ${blockXml}`, statusId);
+  }
+  return classifyRuNotification(blockXml, statusId);
+}
+
