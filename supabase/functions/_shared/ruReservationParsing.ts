@@ -121,7 +121,10 @@ export interface ResolvedRuUnit {
   /** `hostfully_room_types` id carrying the RU mapping (used for availability rows). */
   mappingRoomTypeId: string | null;
   unitName: string | null;
+  /** Physical `rolos_rooms` id of the canonical unit, so the grid places the stay at once. */
+  roomId?: string | null;
 }
+
 
 /**
  * Resolve an RU PropertyID to the property + the room type the ROL'OS dashboard renders.
