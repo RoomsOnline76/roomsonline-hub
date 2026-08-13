@@ -472,6 +472,43 @@ Deno.serve(async (req) => {
         }
       }
 
+      /**
+       * Same-name copies on one account. Repeated creates put several listings on the account for
+       * one real unit; only one of them is the listing ROL'OS points at, so the rest are surplus
+       * (they still bill). The keeper is the matched listing, otherwise the lowest id — the
+       * oldest, which is the one the channel portal history is attached to.
+       */
+      const dupGroups = new Map<string, typeof liveRows>();
+      for (const row of liveRows) {
+        const key = `${row.owner_id}::${row.name.trim().toLowerCase()}`;
+        const bucket = dupGroups.get(key);
+        if (bucket) bucket.push(row);
+        else dupGroups.set(key, [row]);
+      }
+      const duplicates: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        keep_listing_id: string;
+        copies: number;
+      }> = [];
+      for (const rows of dupGroups.values()) {
+        if (rows.length < 2) continue;
+        const keeper =
+          rows.find((r) => r.matched) ??
+          [...rows].sort((a, b) => Number(a.listing_id) - Number(b.listing_id))[0];
+        for (const r of rows) {
+          if (r.listing_id === keeper.listing_id) continue;
+          duplicates.push({
+            listing_id: r.listing_id,
+            name: r.name,
+            owner_id: r.owner_id,
+            keep_listing_id: keeper.listing_id,
+            copies: rows.length,
+          });
+        }
+      }
+
       // Local ids the account no longer returns — only trustworthy when at least
       // one account read succeeded, otherwise everything would look stale.
       const anyRead = accountResults.some((a) => a.error === null);
@@ -487,6 +524,7 @@ Deno.serve(async (req) => {
               local_active: l.isActive,
             }))
         : [];
+
 
       return new Response(
         JSON.stringify({
