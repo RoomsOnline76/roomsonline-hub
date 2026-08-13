@@ -2535,8 +2535,9 @@ Deno.serve(async (req) => {
         return errorResponse('VALIDATION', 'Property must include a resolvable detailed_location_id (>1). Got: ' + p.detailed_location_id);
       }
 
-      const xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
-      const compactRequestXml = compactXml(xml);
+      let xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
+      let compactRequestXml = compactXml(xml);
+
       console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}, dry_run: ${body.dry_run === true}`);
 
       // ── Dry-run short-circuit: compose XML, validate, do NOT POST to RU ──
