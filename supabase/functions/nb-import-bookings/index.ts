@@ -1074,7 +1074,7 @@ Deno.serve(async (req) => {
 
           external_reservation_id: m.external_id,
           internal_notes: m.internal_notes,
-          rolos_guest_id: guestIdByName.get(m.guest_name.toLowerCase()) ?? null,
+          rolos_guest_id: guestIdByName.get(normaliseGuestName(m.guest_name)) ?? null,
           rolos_room_ids: roomId ? [roomId] : null,
           room_type_id: roomTypeId,
         };
