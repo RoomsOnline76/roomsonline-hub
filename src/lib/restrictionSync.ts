@@ -60,7 +60,7 @@ export async function syncRestrictionsToChannels(
     toast.info("Saved — the channel update pushes itself once readiness clears", { id: toastId });
   } else if (summary.pushed > 0) {
     toast.success(
-      `Channel updated (${summary.pushed} propert${summary.pushed === 1 ? "y" : "ies"})`,
+      `Saved — Channel Manager updating in the background (${summary.pushed} propert${summary.pushed === 1 ? "y" : "ies"})`,
       { id: toastId },
     );
   } else {
