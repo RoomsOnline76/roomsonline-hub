@@ -33,7 +33,17 @@ interface ModifyRequest {
     already_paid?: number;
     arrival_time?: string;
   };
+  /**
+   * Money side of the change. A shorter stay leaves the guest overpaid and a longer one leaves a
+   * balance owing — the operator decides in the dialog whether we raise the refund for approval
+   * and whether the guest is asked to settle the shortfall.
+   */
+  settlement?: {
+    raise_refund?: boolean;
+    request_balance?: boolean;
+  };
 }
+
 
 
 // Calculate number of nights between two date strings
