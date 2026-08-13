@@ -162,6 +162,8 @@ import { pmsIntegrationStatus } from "@/components/ApiMilestones";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Sparkles, Globe, Palette, ShieldCheck, Loader2 } from "lucide-react";
 import { MIN_DESCRIPTION_CHARS } from "@/components/property/InfoFacilitiesTab";
+import { NearbyAttractionsPanel } from "@/components/experiences/NearbyAttractionsPanel";
+
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import {
   RuImageTagMap,
@@ -6314,7 +6316,20 @@ export default function PropertyForm({
                           />
                         </div>
                       </div>
+
+                      {/* Nearby attractions — geolocation search + channel destination mapping */}
+                      <div className="border-t pt-3">
+                        <NearbyAttractionsPanel
+                          propertyId={propertyId ?? undefined}
+                          propertyName={formData.name}
+                          propertyCity={formData.city}
+                          propertyCountry={formData.country}
+                          latitude={latitude}
+                          longitude={longitude}
+                        />
+                      </div>
                     </CardContent>
+
                   </CollapsibleContent>
                 </Card>
               </Collapsible>

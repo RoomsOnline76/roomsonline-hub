@@ -70,6 +70,8 @@ interface ExperienceRow {
   category?: string | null;
   distance_km?: number | string | null;
   is_active?: boolean | null;
+  /** Explicit dictionary mapping chosen by the owner — wins over keyword matching. */
+  ru_destination_id?: number | null;
 }
 
 interface DestinationRow {
@@ -81,7 +83,14 @@ interface DestinationRow {
 export function matchDestination(
   experience: ExperienceRow,
   dictionary: Map<string, DestinationRow>,
+  byId?: Map<number, DestinationRow>,
 ): DestinationRow | null {
+  const explicit = Number(experience.ru_destination_id);
+  if (Number.isFinite(explicit) && explicit > 0) {
+    const hit = byId?.get(explicit);
+    if (hit) return hit;
+    return { ru_destination_id: explicit, name: "explicit" };
+  }
   const haystack = normalizeDestinationName(`${experience.title ?? ""} ${experience.category ?? ""}`);
   for (const group of GENERIC_DESTINATION_KEYWORDS) {
     if (group.keywords.some((kw) => haystack.includes(normalizeDestinationName(kw)))) {
@@ -97,6 +106,7 @@ export function matchDestination(
   return null;
 }
 
+
 /** Map attraction rows + dictionary rows into channel distance entries (nearest wins). */
 export function buildDistanceEntries(
   experiences: ExperienceRow[],
@@ -109,13 +119,17 @@ export function buildDistanceEntries(
     if (!dictionary.has(key)) dictionary.set(key, row);
   }
 
+  const byId = new Map<number, DestinationRow>();
+  for (const row of destinations) byId.set(row.ru_destination_id, row);
+
   const nearest = new Map<number, RuDistanceEntry>();
   for (const exp of experiences) {
     if (exp.is_active === false) continue;
     const km = Number(exp.distance_km);
     if (!Number.isFinite(km) || km <= 0) continue;
-    const dest = matchDestination(exp, dictionary);
+    const dest = matchDestination(exp, dictionary, byId);
     if (!dest) continue;
+
     const entry: RuDistanceEntry = {
       destination_id: dest.ru_destination_id,
       value: Math.round(km * 10) / 10,
@@ -147,7 +161,7 @@ export async function loadPropertyDistances(
     const [{ data: experiences }, { data: destinations }] = await Promise.all([
       supabase
         .from("local_experiences")
-        .select("title, category, distance_km, is_active")
+        .select("title, category, distance_km, is_active, ru_destination_id")
         .eq("property_id", propertyId)
         .eq("is_active", true),
       supabase.from("ru_destinations").select("ru_destination_id, name").eq("is_generic", true),

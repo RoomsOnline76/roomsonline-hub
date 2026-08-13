@@ -18,6 +18,8 @@ import {
   Heart
 } from 'lucide-react';
 import { queueChannelContentSync } from '@/lib/channelContentSync';
+import { AttractionPlaceSearch, type PickedPlace } from '@/components/experiences/AttractionPlaceSearch';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,6 +65,13 @@ interface LocalExperience {
   cuisine_type: string | null;
   reservation_required: boolean;
   dress_code: string | null;
+  /** Explicit channel destination mapping (optional — null means auto-match). */
+  ru_destination_id: number | null;
+}
+
+interface DestinationOption {
+  ru_destination_id: number;
+  name: string;
 }
 
 interface LocalExperiencesManagerProps {
@@ -70,9 +79,14 @@ interface LocalExperiencesManagerProps {
   propertyName: string;
   propertyCity?: string;
   propertyCountry?: string;
+  propertyLat?: number | null;
+  propertyLng?: number | null;
+  /** `compact` renders the embedded Facilities-tab surface. */
+  variant?: 'full' | 'compact';
 }
 
 import { Wine } from 'lucide-react';
+
 
 const categoryConfig = {
   nature: { icon: TreePine, color: 'bg-green-100 text-green-700' },
@@ -95,13 +109,18 @@ export function LocalExperiencesManager({
   propertyId, 
   propertyName,
   propertyCity,
-  propertyCountry
+  propertyCountry,
+  propertyLat,
+  propertyLng,
+  variant = 'full'
 }: LocalExperiencesManagerProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExperience, setEditingExperience] = useState<LocalExperience | null>(null);
+  const [prefill, setPrefill] = useState<Partial<LocalExperience> | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const isCompact = variant === 'compact';
 
   // Fetch experiences
   const { data: experiences, isLoading } = useQuery({
@@ -117,6 +136,26 @@ export function LocalExperiencesManager({
       return data as LocalExperience[];
     }
   });
+
+  // Channel destination dictionary (generic destinations only)
+  const { data: destinations } = useQuery({
+    queryKey: ['ru-generic-destinations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('ru_destinations')
+        .select('ru_destination_id, name')
+        .eq('is_generic', true)
+        .order('name');
+      if (error) return [] as DestinationOption[];
+      return (data ?? []) as DestinationOption[];
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
+  const withDistance = (experiences ?? []).filter(
+    (e) => e.is_active && e.distance_km !== null && Number(e.distance_km) > 0,
+  ).length;
+
 
   // Create/Update mutation
   const saveMutation = useMutation({
@@ -145,8 +184,10 @@ export function LocalExperiencesManager({
           why_locals_love_it: experience.why_locals_love_it || null,
           best_time: experience.best_time || null,
           is_active: experience.is_active ?? true,
+          ru_destination_id: experience.ru_destination_id ?? null,
           property_id: propertyId
         };
+
         const { error } = await supabase
           .from('local_experiences')
           .insert([insertData]);
@@ -157,8 +198,10 @@ export function LocalExperiencesManager({
       queryClient.invalidateQueries({ queryKey: ['local-experiences', propertyId] });
       setIsDialogOpen(false);
       setEditingExperience(null);
+      setPrefill(null);
       // Attraction distances are part of the channel content payload — push the change itself.
       void queueChannelContentSync(propertyId, 'local_experience_save');
+
       toast({ title: 'Experience saved!' });
     },
     onError: (error) => {
@@ -226,19 +269,44 @@ export function LocalExperiencesManager({
     await saveMutation.mutateAsync({ id, is_active: isActive });
   };
 
+  const handlePickPlace = (place: PickedPlace) => {
+    setEditingExperience(null);
+    setPrefill({
+      title: place.title,
+      description: place.address ?? '',
+      distance_km: place.distanceKm ?? null,
+    });
+    setIsDialogOpen(true);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={isCompact ? 'space-y-2' : 'flex items-center justify-between'}>
         <div>
-          <h3 className="text-lg font-medium">Local Experiences</h3>
-          <p className="text-sm text-muted-foreground">
-            Curate local activities and attractions for guests
+          <h3 className={isCompact ? 'text-sm font-medium' : 'text-lg font-medium'}>
+            {isCompact ? 'Nearby attractions' : 'Local Experiences'}
+          </h3>
+          <p className={isCompact ? 'text-xs text-muted-foreground' : 'text-sm text-muted-foreground'}>
+            {isCompact
+              ? 'Search a place to capture it with a calculated distance. Attractions with a distance are shared with the channel.'
+              : 'Curate local activities and attractions for guests'}
           </p>
         </div>
-        <div className="flex gap-2">
+
+        {isCompact && (
+          <AttractionPlaceSearch
+            propertyLat={propertyLat}
+            propertyLng={propertyLng}
+            regionHint={[propertyCity, propertyCountry].filter(Boolean).join(', ') || undefined}
+            onPick={handlePickPlace}
+          />
+        )}
+
+        <div className={isCompact ? 'flex flex-wrap items-center gap-2' : 'flex gap-2'}>
           <Button 
             variant="outline" 
+            size={isCompact ? 'sm' : 'default'}
             onClick={handleGenerateWithAI}
             disabled={isGenerating}
           >
@@ -247,13 +315,25 @@ export function LocalExperiencesManager({
             ) : (
               <Sparkles className="h-4 w-4 mr-2" />
             )}
-            Generate with TOBI
+            {isCompact ? 'Suggest with TOBI' : 'Generate with TOBI'}
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) setPrefill(null);
+            }}
+          >
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingExperience(null)}>
+              <Button
+                size={isCompact ? 'sm' : 'default'}
+                onClick={() => {
+                  setEditingExperience(null);
+                  setPrefill(null);
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Experience
+                {isCompact ? 'Add manually' : 'Add Experience'}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -263,14 +343,25 @@ export function LocalExperiencesManager({
                 </DialogTitle>
               </DialogHeader>
               <ExperienceForm
+                key={editingExperience?.id ?? prefill?.title ?? 'new'}
                 experience={editingExperience}
+                prefill={prefill}
+                destinations={destinations ?? []}
                 onSave={(data) => saveMutation.mutate(data)}
                 isLoading={saveMutation.isPending}
               />
             </DialogContent>
           </Dialog>
+          {isCompact && (
+            <span className="text-[11px] text-muted-foreground">
+              {withDistance} of {(experiences ?? []).length} carry a distance and will be shared
+              with the channel (recommended).
+            </span>
+          )}
         </div>
       </div>
+
+
 
       {/* Experiences List */}
       {isLoading ? (
@@ -389,16 +480,18 @@ export function LocalExperiencesManager({
 // Experience Form Component
 interface ExperienceFormProps {
   experience: LocalExperience | null;
+  prefill?: Partial<LocalExperience> | null;
+  destinations?: DestinationOption[];
   onSave: (data: Partial<LocalExperience>) => void;
   isLoading: boolean;
 }
 
-function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) {
+function ExperienceForm({ experience, prefill, destinations = [], onSave, isLoading }: ExperienceFormProps) {
   const [formData, setFormData] = useState<Partial<LocalExperience>>({
-    title: experience?.title || '',
-    description: experience?.description || '',
+    title: experience?.title || prefill?.title || '',
+    description: experience?.description || prefill?.description || '',
     category: experience?.category || null,
-    distance_km: experience?.distance_km || null,
+    distance_km: experience?.distance_km ?? prefill?.distance_km ?? null,
     duration_hours: experience?.duration_hours || null,
     price_indicator: experience?.price_indicator || null,
     image_url: experience?.image_url || '',
@@ -407,12 +500,14 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
     best_time: experience?.best_time || '',
     is_active: experience?.is_active ?? true,
     id: experience?.id,
+    ru_destination_id: experience?.ru_destination_id ?? null,
     // Dining-specific fields
     venue_type: experience?.venue_type || null,
     cuisine_type: experience?.cuisine_type || '',
     reservation_required: experience?.reservation_required ?? false,
     dress_code: experience?.dress_code || ''
   });
+
 
   const isDiningCategory = formData.category === 'dining';
 
@@ -567,6 +662,38 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
           />
         </div>
       </div>
+
+      {destinations.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="ru_destination">Channel destination type</Label>
+          <Select
+            value={formData.ru_destination_id ? String(formData.ru_destination_id) : 'auto'}
+            onValueChange={(value) =>
+              setFormData({
+                ...formData,
+                ru_destination_id: value === 'auto' ? null : Number(value),
+              })
+            }
+          >
+            <SelectTrigger id="ru_destination">
+              <SelectValue placeholder="Auto-match" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto-match from the name</SelectItem>
+              {destinations.map((d) => (
+                <SelectItem key={d.ru_destination_id} value={String(d.ru_destination_id)}>
+                  {d.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Used when the distance is shared with the channel. Leave on auto-match unless the
+            name is ambiguous.
+          </p>
+        </div>
+      )}
+
 
       <div className="space-y-2">
         <Label htmlFor="why_locals">Why Locals Love It</Label>
