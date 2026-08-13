@@ -211,6 +211,8 @@ const isBookDomainAllowedPath = (): boolean => {
   if (path.startsWith("/booking-confirmation/")) return true;
   if (path.startsWith("/journey-confirmation/")) return true;
   if (path.startsWith("/guest-portal/")) return true;
+  if (path.startsWith("/booking-balance/")) return true;
+
   // Embed routes used by the booking widget
   if (path.startsWith("/embed/")) return true;
   // Property / room / booking / confirmation paths for allowlisted properties
