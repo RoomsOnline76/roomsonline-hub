@@ -503,21 +503,41 @@ export default function PMSGuests() {
               </SheetHeader>
 
               <div className="space-y-4 mt-4">
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Figures below are derived from bookings.</p>
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setEditGuest(selectedGuest)}>
+                    <Pencil className="h-3 w-3 mr-1.5" />Edit
+                  </Button>
+                </div>
+
+                {/* Stats — received / owing / cancelled kept apart */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Received</p>
+                    <p className="text-sm font-semibold">{zar(selectedGuest.total_received)}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Outstanding</p>
+                    <p className={`text-sm font-semibold ${(selectedGuest.total_outstanding || 0) > 0 ? "text-amber-600 dark:text-amber-400" : ""}`}>
+                      {zar(selectedGuest.total_outstanding)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/50 rounded-md p-3 text-center">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cancelled</p>
+                    <p className="text-sm font-semibold text-muted-foreground">
+                      {zar(selectedGuest.total_cancelled_value)}
+                      {(selectedGuest.cancelled_stays || 0) > 0 && (
+                        <span className="ml-1 text-[10px]">({selectedGuest.cancelled_stays})</span>
+                      )}
+                    </p>
+                  </div>
                   <div className="bg-muted/50 rounded-md p-3 text-center">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Stays</p>
-                    <p className="text-lg font-bold">{selectedGuest.total_stays}</p>
-                  </div>
-                  <div className="bg-muted/50 rounded-md p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Spent</p>
-                    <p className="text-sm font-semibold">R{selectedGuest.total_spent.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-muted/50 rounded-md p-3 text-center">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Last Stay</p>
-                    <p className="text-xs font-medium">{selectedGuest.last_stay_date || "—"}</p>
+                    <p className="text-sm font-semibold">{selectedGuest.total_stays || 0}</p>
+                    <p className="text-[10px] text-muted-foreground">Last {selectedGuest.last_stay_date || "—"}</p>
                   </div>
                 </div>
+
 
                 {selectedGuest.phone && (
                   <div className="flex items-center gap-2 text-sm"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{selectedGuest.phone}</div>
