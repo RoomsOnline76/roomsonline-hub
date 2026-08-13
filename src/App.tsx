@@ -317,6 +317,8 @@ const App = () => (
                         <Route path="/recaptcha-bridge" element={<RecaptchaBridge />} />
                         <Route path="/subscribe/pay/:token" element={<SubscriptionPay />} />
                         <Route path="/billing/pay/:token" element={<PropertyInvoicePay />} />
+                        <Route path="/booking-balance/:token" element={<BookingBalancePay />} />
+
 
                         {/* ═══ Journey routes (public) ═══════════════════ */}
                         <Route path="/journey/builder" element={<ItineraryBuilder />} />
