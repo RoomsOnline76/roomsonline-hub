@@ -84,8 +84,10 @@ const formatSize = (bytes: number) =>
 const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: currency || "ZAR", maximumFractionDigits: 0 }).format(amount);
 
-/** Sentinel meaning "leave this NightsBridge room name unmapped" — never sent to the backend. */
-const SKIP = "__skip__";
+/** Operator decisions for unmatched NightsBridge room names (sent to the backend as-is). */
+const EXCLUDE = "__exclude__";
+const UNASSIGNED = "__unassigned__";
+
 
 export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
