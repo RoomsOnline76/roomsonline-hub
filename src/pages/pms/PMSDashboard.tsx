@@ -653,24 +653,7 @@ export default function PMSDashboard() {
   );
   const bookingsLoading = bookingsInfinite.isLoading;
 
-  /* Imported history (NightsBridge exports and similar) often sits entirely outside the
-   * forward-looking calendar window, which reads as "no bookings". Surface the real coverage
-   * and let the user jump straight to it instead of showing an empty grid. */
-  const coverageIds = useMemo(
-    () => (isPortfolioMode ? portfolioPropertyIds : propertyId ? [propertyId] : []),
-    [isPortfolioMode, portfolioPropertyIds, propertyId],
-  );
-  const { data: bookingCoverage } = useBookingCoverage(coverageIds);
-  const visibleBookingCount = isPortfolioMode ? portfolioBookingsRaw.length : bookingsRaw.length;
-  const outsideWindowNotice = useMemo(() => {
-    if (bookingsLoading || visibleBookingCount > 0) return null;
-    if (!bookingCoverage || bookingCoverage.total === 0) return null;
-    const target = bookingCoverage.latest && bookingCoverage.latest < format(dateRange.start, "yyyy-MM-dd")
-      ? bookingCoverage.latest
-      : bookingCoverage.earliest;
-    if (!target) return null;
-    return { total: bookingCoverage.total, target };
-  }, [bookingsLoading, visibleBookingCount, bookingCoverage, dateRange.start]);
+
 
 
   const bookings: BookingRow[] = useMemo(
