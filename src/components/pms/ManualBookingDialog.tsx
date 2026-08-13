@@ -410,6 +410,10 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       return;
     }
 
+    /* Stay totals are derived from bookings, never incremented by hand. */
+    await rebuildGuestStats([guestId]);
+
+
     // 3. Persist the per-room lines (rate plan + occupancy + nightly rate)
     if (insertedData?.id) {
       const lineRows = validLines.map(l => {
