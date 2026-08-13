@@ -904,6 +904,64 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
           )}
         </div>
 
+        {/* --- retired room cleanup: re-point bookings off superseded inventory --- */}
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-medium">Retired room cleanup</p>
+              <p className="text-xs text-muted-foreground">
+                Moves bookings sitting on replaced rooms onto the room that trades today, repairs the channel
+                links and removes the leftovers.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => void runSuperseded(true)} disabled={supersededBusy}>
+                {supersededBusy ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
+                Preview
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => void runSuperseded(false)}
+                disabled={supersededBusy || !superseded}
+              >
+                Apply cleanup
+              </Button>
+            </div>
+          </div>
+
+          {superseded && (
+            <div className="mt-3 space-y-2 text-xs">
+              <div className="flex flex-wrap gap-1.5">
+                <Badge variant="outline">{superseded.bookings_repointed} booking(s) to move</Badge>
+                <Badge variant="outline">{superseded.links_repaired} channel link(s) to repair</Badge>
+                <Badge variant="outline">{superseded.rooms_deleted} retired room(s)</Badge>
+                <Badge variant="outline">{superseded.room_types_deleted} retired room type(s)</Badge>
+              </div>
+              {superseded.actions.length > 0 && (
+                <ul className="space-y-0.5 text-muted-foreground">
+                  {superseded.actions.map((a) => (
+                    <li key={a}>• {a}</li>
+                  ))}
+                </ul>
+              )}
+              {superseded.retained.length > 0 && (
+                <div className="rounded-md border border-border p-2">
+                  <p className="font-medium">Kept for now</p>
+                  <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground">
+                    {superseded.retained.slice(0, 8).map((r) => (
+                      <li key={`${r.kind}-${r.id}`}>
+                        {r.kind.replace(/_/g, " ")} — {r.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+
+
       </CardContent>
     </Card>
   );
