@@ -289,6 +289,62 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     }
   }, [propertyId, repairOverrides, refreshRepair]);
 
+  /**
+   * Auto-assign pass: canonical name match first, then any current room that is free for the
+   * whole stay. Historical rows are tidied for reporting; future rows also re-queue the channel.
+   */
+  const autoAssign = useCallback(async () => {
+    setRepairBusy(true);
+    try {
+      const chosen = Object.fromEntries(Object.entries(repairOverrides).filter(([, v]) => Boolean(v)));
+      const { data, error } = await supabase.functions.invoke<RepairResponse>("nb-import-bookings", {
+        body: { property_id: propertyId, mode: "repair", dry_run: false, auto_assign: true, room_overrides: chosen },
+      });
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Auto-assign failed");
+      toast.success(
+        `Assigned ${data.repaired} booking${data.repaired === 1 ? "" : "s"}` +
+          (data.unresolved ? ` — ${data.unresolved} still need a room` : ""),
+      );
+      setRepairOverrides({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Auto-assign failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [propertyId, repairOverrides, refreshRepair]);
+
+  /** Apply the per-booking room picks made in the unmapped list. */
+  const applyBookingPicks = useCallback(async () => {
+    const assignments = Object.entries(bookingPicks)
+      .filter(([, roomId]) => Boolean(roomId))
+      .map(([booking_id, room_id]) => ({ booking_id, room_id }));
+    if (assignments.length === 0) {
+      toast.error("Pick a room for at least one booking");
+      return;
+    }
+    setRepairBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke<{ ok: boolean; error?: string; assigned: number; rejected: { booking_id: string; reason: string }[] }>(
+        "nb-import-bookings",
+        { body: { property_id: propertyId, mode: "assign_unmapped", assignments } },
+      );
+      if (error) throw new Error(error.message);
+      if (!data?.ok) throw new Error(data?.error || "Assignment failed");
+      toast.success(`Assigned ${data.assigned} booking${data.assigned === 1 ? "" : "s"}`);
+      if (data.rejected?.length) toast.error(data.rejected[0].reason);
+      setBookingPicks({});
+      await refreshRepair();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Assignment failed");
+    } finally {
+      setRepairBusy(false);
+    }
+  }, [bookingPicks, propertyId, refreshRepair]);
+
+
+
   /* ------------------------------------------------- retired room cleanup ---
    * Earlier imports attached bookings to room types that have since been replaced.
    * Those ids never block dates upstream, so the cleanup re-points them onto the
