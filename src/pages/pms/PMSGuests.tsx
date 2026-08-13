@@ -18,14 +18,26 @@ import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CrmAccountsTab } from "@/components/pms/crm/CrmAccountsTab";
 import { useCrmAccounts } from "@/hooks/useCrmAccounts";
+import { GuestEditDialog } from "@/components/pms/crm/GuestEditDialog";
 
 interface Guest {
   id: string;
   full_name: string;
   email: string | null;
   phone: string | null;
+  nationality?: string | null;
+  notes?: string | null;
   total_stays: number;
+  /** Legacy alias, kept in sync with total_received. */
   total_spent: number;
+  /** Money actually paid on live bookings. */
+  total_received: number;
+  /** Booked value still owing on live bookings. */
+  total_outstanding: number;
+  /** Value of cancelled / no-show bookings — never counted as spend. */
+  total_cancelled_value: number;
+  cancelled_stays: number;
+  is_archived?: boolean;
   tags: string[];
   is_blacklisted: boolean;
   last_stay_date: string | null;
@@ -33,7 +45,7 @@ interface Guest {
   complaints?: any[];
 }
 
-type Segment = "all" | "repeat" | "vip" | "blacklisted" | "no_contact";
+type Segment = "all" | "repeat" | "vip" | "owing" | "never_paid" | "blacklisted" | "no_contact" | "archived";
 type SortKey = "recent" | "name" | "stays" | "spent";
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
