@@ -2535,10 +2535,44 @@ Deno.serve(async (req) => {
         return errorResponse('VALIDATION', 'Property must include a resolvable detailed_location_id (>1). Got: ' + p.detailed_location_id);
       }
 
-      let xml = buildPushPropertyXml(scopedCreds, ru_property_id, p);
+      /**
+       * Duplicate-listing safety. A create (`ru_property_id === 0`) is the only call that can
+       * mint a new listing, so it must be idempotent:
+       *   1. Attraction distances are never sent on a create — RU answers status 92 for them on
+       *      some accounts, and a failed create may still have registered the listing, which is
+       *      how the account collected duplicates. Distances ride along on updates only.
+       *   2. Before composing the XML we ask the owner account whether a listing with this exact
+       *      name already exists. If it does we adopt its id and push an UPDATE instead.
+       */
+      let effectiveRuPropertyId = ru_property_id as number;
+      let adoptedExistingListing: { id: number; name: string } | null = null;
+      if (effectiveRuPropertyId === 0) {
+        p.distances = [];
+        try {
+          const ownerId = Number(p.owner_id);
+          const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
+          const listStatus = handleRUStatus(listXml);
+          if (listStatus.ok) {
+            const wanted = String(p.name || '').trim().toLowerCase();
+            const hit = extractPropertyIds(listXml).find(
+              (l) => l.name.trim().toLowerCase() === wanted && !l.is_archived,
+            );
+            if (hit) {
+              effectiveRuPropertyId = parseInt(hit.id, 10);
+              adoptedExistingListing = { id: effectiveRuPropertyId, name: hit.name };
+              console.log(`[rentalsunited-api] Adopting existing listing ${hit.id} for "${p.name}" instead of creating a duplicate`);
+            }
+          }
+        } catch (e) {
+          console.warn('[rentalsunited-api] Duplicate pre-check failed (continuing as create):', e instanceof Error ? e.message : String(e));
+        }
+      }
+
+      let xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, p);
       let compactRequestXml = compactXml(xml);
 
-      console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${ru_property_id}, dry_run: ${body.dry_run === true}`);
+      console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${effectiveRuPropertyId}, dry_run: ${body.dry_run === true}`);
+
 
       // ── Dry-run short-circuit: compose XML, validate, do NOT POST to RU ──
       if (body.dry_run === true) {
