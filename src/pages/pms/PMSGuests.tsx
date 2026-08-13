@@ -247,7 +247,7 @@ export default function PMSGuests() {
     setLoadingHistory(true);
     // Fetch bookings for this guest
     const { data } = await supabase.from("bookings")
-      .select("id, check_in_date, check_out_date, status, total_price, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
+      .select("id, check_in_date, check_out_date, status, total_price, amount_paid, payment_status, special_requests, booking_channel, rol_reference, external_reservation_id, property_id")
       .eq("rolos_guest_id", guest.id)
       .order("check_in_date", { ascending: false })
       .limit(50);
