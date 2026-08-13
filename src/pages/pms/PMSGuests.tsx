@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon } from "lucide-react";
+import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon, Pencil, Archive, Wallet } from "lucide-react";
 import { displayBookingReference } from "@/lib/bookingReference";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { supabase } from "@/integrations/supabase/client";
