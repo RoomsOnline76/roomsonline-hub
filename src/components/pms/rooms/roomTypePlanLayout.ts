@@ -158,15 +158,19 @@ export function buildRoomTypePlan(
         // unit — deduplicating by room id would hide real double bookings.
         used += assigned.length > 0 ? assigned.length : 1;
       }
+      const stopSell = stopSellNights?.has(stopSellKey(roomType.name, date)) ?? false;
       return {
         date,
-        free: Math.max(0, sellable - used),
+        // A blocked night is never sellable, whatever the unit count says.
+        free: stopSell ? 0 : Math.max(0, sellable - used),
         sellable,
         used,
         overbooked: Math.max(0, used - sellable),
+        stopSell,
         bookings: nightBookings,
       };
     });
+
 
     return { roomType, units: typeRooms.length, blocked, cells };
   });
