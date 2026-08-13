@@ -136,7 +136,7 @@ export default function PMSGuests() {
     try {
       let q = supabase
         .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, total_stays, total_spent, tags, is_blacklisted, last_stay_date, property_id")
+        .select("id, full_name, email, phone, nationality, notes, total_stays, total_spent, total_received, total_outstanding, total_cancelled_value, cancelled_stays, is_archived, tags, is_blacklisted, last_stay_date, property_id")
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .limit(1000);
 
