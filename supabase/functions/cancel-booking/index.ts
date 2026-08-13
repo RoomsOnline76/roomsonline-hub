@@ -413,26 +413,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // S9: Send cancellation email
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
+    // S9: Cancellation email — queued, so the operator is not held up by the mail round-trip.
+    await enqueueJobs(supabase, [
+      {
+        type: "booking_email" as const,
+        payload: {
           booking_id,
-          bookingId: booking_id,
           type: "cancellation_confirmation",
           reason,
           partial: isPartialCancel,
           cancelled_rooms: cancel_rooms,
-        }),
-      });
-    } catch (emailErr) {
-      console.error("Email send failed (non-critical):", emailErr);
-    }
+        },
+        options: { dedupeKey: `email:cancellation:${booking_id}` },
+      },
+    ]);
+    kickWorker();
+
 
     return new Response(
       JSON.stringify({
