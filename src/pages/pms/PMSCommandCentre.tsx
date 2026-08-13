@@ -17,6 +17,8 @@ import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isToday, fo
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
+import { OverbookingAlertCard } from "@/components/pms/OverbookingAlertCard";
+import { usePortfolioOverbookings } from "@/hooks/usePortfolioOverbookings";
 import { getBookingStatusColor, bookingHasSpecialIndicator, type CalendarBookingRow } from "@/components/pms/bookingCalendarHelpers";
 
 
@@ -120,6 +122,18 @@ export default function PMSCommandCentre() {
       }
     }
   }, [propertyId, agentProperties]);
+
+  // Forward-looking clash scan for the visible property scope
+  const clashPropertyIds = useMemo(() => filteredProperties.map((p) => p.id), [filteredProperties]);
+  const clashPropertyNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const p of filteredProperties) map[p.id] = p.name;
+    return map;
+  }, [filteredProperties]);
+  const { clashes, loading: clashesLoading, suggestFor } = usePortfolioOverbookings({
+    propertyIds: clashPropertyIds,
+    propertyNames: clashPropertyNames,
+  });
 
   // Week date range
   const weekStart = startOfWeek(addDays(new Date(), weekOffset * 7), { weekStartsOn: 1 });
