@@ -109,6 +109,15 @@ const Bookings = () => {
   const [originFilter, setOriginFilter] = useState<string>("all");
   const [kindFilter, setKindFilter] = useState<string>("all");
 
+  /* Coverage of real (non-cancelled) stays so an empty grid can say where the data actually lives. */
+  const coverageIds = useMemo(
+    () => (selectedProperty === "all" ? properties.map((p) => p.id) : [selectedProperty]),
+    [selectedProperty, properties],
+  );
+  const { data: bookingCoverage } = useBookingCoverage(coverageIds);
+
+
+
   const [syncingBookings, setSyncingBookings] = useState(false);
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [cancellingBookingId, setCancellingBookingId] = useState<string | null>(null);
