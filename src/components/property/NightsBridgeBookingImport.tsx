@@ -51,6 +51,9 @@ interface ImportSummary {
   created: number;
   updated: number;
   skipped: number;
+  /** Rows dropped because the operator excluded their unmatched room name. */
+  excluded?: number;
+
   errors: number;
   unmapped_rooms: string[];
 }
