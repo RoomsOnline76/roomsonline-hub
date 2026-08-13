@@ -90,6 +90,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
+import { useBookingRoomLines } from "@/hooks/useBookingRoomLines";
+
 import { displayBookingReference } from "@/lib/bookingReference";
 
 // ──────────── SA Public Holidays ────────────
