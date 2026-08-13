@@ -25,7 +25,11 @@ const InitiatePaymentSchema = z.object({
   booking_id: z.string().uuid(),
   return_url: z.string().url().optional(),
   cancel_url: z.string().url().optional(),
+  /** "balance" collects only the outstanding amount after a modification. */
+  purpose: z.enum(["full", "balance"]).optional(),
+  amount_override: z.number().positive().optional(),
 });
+
 
 const InitiateOnsitePaymentSchema = z.object({
   action: z.literal("initiate_onsite_payment"),
