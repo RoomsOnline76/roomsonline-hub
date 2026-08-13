@@ -2363,6 +2363,8 @@ export default function PMSDashboard() {
         rooms={rooms}
         ratePlans={ratePlansWithRate}
         getRateForDate={getRateForDate}
+        getRateForPropertyDate={getPortfolioRateForDate}
+
         portfolioOptions={isPortfolioMode ? (portfolioProperties || []).map(p => {
           const pd = portfolioDataByProperty.get(p.id);
           return { id: p.id, name: p.name, roomTypes: pd?.roomTypes || [], rooms: pd?.rooms || [] };
