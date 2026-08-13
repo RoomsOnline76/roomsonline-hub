@@ -541,13 +541,7 @@ export default function PMSRooms() {
               <Button onClick={openCreateDialog}><Plus className="h-4 w-4 mr-2" />Add Room</Button>
             )}
           </div>
-            <Button variant="outline" size="sm" onClick={fetchData}>
-              <RefreshCw className="h-4 w-4 mr-2" />Refresh
-            </Button>
-            {!isPortfolio && (
-              <Button onClick={openCreateDialog}><Plus className="h-4 w-4 mr-2" />Add Room</Button>
-            )}
-          </div>
+        </div>
         </div>
 
         {/* Find a reservation in one keystroke */}
