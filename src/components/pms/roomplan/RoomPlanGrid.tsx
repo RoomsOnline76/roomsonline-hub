@@ -132,7 +132,11 @@ export function RoomPlanGrid({
   onMoveBooking,
 }: RoomPlanGridProps) {
   const colWidth = compact ? ROOM_PLAN_COL_W_COMPACT : ROOM_PLAN_COL_W;
-  const [pendingMove, setPendingMove] = useState<(RoomPlanMovePayload & { fromLabel: string; toLabel: string }) | null>(null);
+  const [pendingMove, setPendingMove] = useState<
+    | (RoomPlanMovePayload & { fromLabel: string; toLabel: string; fromTypeLabel: string; toTypeLabel: string })
+    | null
+  >(null);
+
   const [saving, setSaving] = useState(false);
 
   /** Rooms still held (blocked minus picked up) for this type on this night. */
