@@ -121,8 +121,11 @@ export function buildRoomTypePlan(
   dates: Date[],
   roomTypes: PlanRoomType[],
   rooms: PlanRoom[],
-  bookings: RoomsBooking[]
+  bookings: RoomsBooking[],
+  /** Blocked nights keyed by `stopSellKey(roomTypeName, date)`. */
+  stopSellNights?: Set<string>
 ): PlanRow[] {
+
   const roomById = new Map(rooms.map((r) => [r.id, r]));
   const hasAnyUnits = rooms.length > 0;
 
