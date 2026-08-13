@@ -1731,15 +1731,28 @@ async function loadBookingBlocks(
   const ranges: { from: string; to: string }[] = [];
   const stats = { bookings: 0, nights: 0, ranges };
 
+  /* Sold statuses. `pending` is deliberately excluded for native ROL bookings (those are
+   * unpaid checkout carts), but an imported/ingested reservation is real occupancy even when
+   * it arrives as `pending` — a NightsBridge export carries no ROL confirmation step. Those
+   * nights must close upstream or the unit stays double-sellable at the channel. */
+  const SOLD_STATUSES = ['confirmed', 'checked_in', 'checked_out', 'completed', 'in_house'];
+  const IMPORTED_SOURCES = new Set(['nightsbridge', 'checkfront', 'hostfully', 'external_import']);
+
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
+    .select('id, status, payment_status, integration_type, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
     .eq('property_id', propertyId)
     .lt('check_in_date', windowTo)
     .gt('check_out_date', windowFrom)
-    .in('status', ['confirmed', 'checked_in', 'checked_out', 'completed', 'in_house']);
+    .in('status', [...SOLD_STATUSES, 'pending']);
 
   if (error || !Array.isArray(data)) return { dates, stats };
+
+  const sold = (data as any[]).filter((b) => {
+    if (SOLD_STATUSES.includes(String(b.status))) return true;
+    return IMPORTED_SOURCES.has(String(b.integration_type ?? ''));
+  });
+
 
   /* A channel unit and the ROL'OS room that sells it can be linked by id, by the
    * canonical room registry (duplicate/retired twins included) or by name. Missing any
@@ -1763,7 +1776,7 @@ async function loadBookingBlocks(
 
   // Imported bookings (NightsBridge) carry no `rooms` JSON — their unit lives in
   // `rolos_booking_rooms`, so those lines are the fallback for unit matching.
-  const bookingIds = (data as any[]).map((b) => String(b.id));
+  const bookingIds = sold.map((b) => String(b.id));
   const linesByBooking = new Map<string, { room_id: string | null; room_type_id: string | null }[]>();
   for (let i = 0; i < bookingIds.length; i += 200) {
     const chunk = bookingIds.slice(i, i + 200);
@@ -1777,7 +1790,7 @@ async function loadBookingBlocks(
     }
   }
 
-  for (const b of data as any[]) {
+  for (const b of sold) {
     const stays: { from: string; to: string }[] = [];
     const rooms = Array.isArray(b.rooms) ? b.rooms : [];
 

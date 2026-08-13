@@ -13,6 +13,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { loadCanonicalRooms } from "../_shared/canonicalRooms.ts";
+import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 import {
   mapNbRow,
   normaliseRoomKey,
@@ -31,6 +32,36 @@ const corsHeaders = {
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+/**
+ * Imported reservations are real occupancy, so the channel must be told about every stay
+ * that still lies ahead. The ARI push is owned by `push-property-to-ru`; here we only fire
+ * the delta (forced — a cron refresh seconds earlier must not swallow the import) and report
+ * the outcome so the operator sees it instead of silence. Past stays are never pushed.
+ */
+/** Imported stays with a check-out still ahead of today — the ones that owe the channel. */
+async function countFutureImportedStays(sb: any, propertyId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await sb
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .eq("integration_type", "nightsbridge")
+    .neq("status", "cancelled")
+    .gte("check_out_date", today);
+  return count ?? 0;
+}
+
+async function queueImportedOccupancyDelta(
+  sb: any,
+  propertyId: string,
+  futureStays: number,
+  trigger: string,
+): Promise<{ future_stays: number; queued: boolean; reason?: string; error?: string; blockers?: string[] }> {
+  if (futureStays <= 0) return { future_stays: 0, queued: false, reason: "no_future_stays" };
+  const outcome = await queueRuAriDelta(sb, propertyId, trigger, { force: true });
+  return { future_stays: futureStays, queued: outcome.queued, reason: outcome.reason, error: outcome.error, blockers: outcome.blockers };
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -495,13 +526,19 @@ Deno.serve(async (req) => {
      */
     if (mode === "repair_superseded_rooms") {
       const result = await repairSupersededRooms(sb, propertyId, dryRun);
-      return json({ ok: true, ...result });
+      const channelDelta = dryRun
+        ? undefined
+        : await queueImportedOccupancyDelta(sb, propertyId, await countFutureImportedStays(sb, propertyId), "nb_repair_superseded");
+      return json({ ok: true, ...result, channel_delta: channelDelta });
     }
 
     if (mode === "repair") {
 
       const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
-      return json({ ok: true, ...repair });
+      const channelDelta = dryRun
+        ? undefined
+        : await queueImportedOccupancyDelta(sb, propertyId, await countFutureImportedStays(sb, propertyId), "nb_repair_remap");
+      return json({ ok: true, ...repair, channel_delta: channelDelta });
     }
 
 
@@ -929,11 +966,17 @@ Deno.serve(async (req) => {
       future_stays: futureStays,
     });
 
+    /* Only the final chunk pushes: a chunked run would otherwise fire one delta per slice. */
+    const channelDelta = liveSummary.has_more
+      ? { future_stays: futureStays, queued: false, reason: "awaiting_remaining_chunks" as const }
+      : await queueImportedOccupancyDelta(sb, propertyId, await countFutureImportedStays(sb, propertyId), "nb_import");
+
     return json({
       ok: true,
       dry_run: false,
       run_id: liveRunId,
-      summary: liveSummary,
+      summary: { ...liveSummary, channel_delta: channelDelta },
+      channel_delta: channelDelta,
       errors,
       skipped,
       preview: [],
