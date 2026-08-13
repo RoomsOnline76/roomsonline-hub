@@ -72,7 +72,15 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Wallet className="h-3 w-3" />Guest deciding
+            </p>
+            <p className="text-xl font-semibold">{money(totals.guestChoice)}</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="pt-5">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
