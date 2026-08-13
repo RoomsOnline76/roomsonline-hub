@@ -160,13 +160,22 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
     );
 
     const firstError = updateResults.find((result) => result.error)?.error;
-    if (firstError) throw firstError;
+    if (firstError) {
+      // Read-only viewers (staff, agencies) legitimately lack write access to
+      // rolos_room_types. Treat the RLS refusal as a no-op instead of an error.
+      if (isWriteDenied(firstError)) return { ...NO_WRITE_ACCESS_RESULT };
+      throw firstError;
+    }
   }
 
   if (inserts.length > 0) {
     const { error: insertError } = await supabase.from("rolos_room_types").insert(inserts);
-    if (insertError) throw insertError;
+    if (insertError) {
+      if (isWriteDenied(insertError)) return { ...NO_WRITE_ACCESS_RESULT };
+      throw insertError;
+    }
   }
+
 
   // Retire stale room types: active records that no longer match the Property
   // Overview list and carry no physical units or bookings. Prevents archived /
