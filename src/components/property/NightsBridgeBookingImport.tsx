@@ -144,6 +144,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [dragging, setDragging] = useState(false);
   const [repair, setRepair] = useState<RepairResponse | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
+  const [superseded, setSuperseded] = useState<SupersededResponse | null>(null);
+  const [supersededBusy, setSupersededBusy] = useState(false);
+
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
   /** Persistent outcome of the last live import — stays until dismissed. */
   const [outcome, setOutcome] = useState<
