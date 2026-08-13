@@ -23,7 +23,7 @@ import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@
 import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, groupIntoWeeks, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
 /** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
 const PLAN_NIGHTS = 45;
@@ -79,6 +79,7 @@ export default function PMSRooms() {
   const [anchorDate, setAnchorDate] = useState<Date>(() => startOfDay(new Date()));
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [overbookedOnly, setOverbookedOnly] = useState(false);
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
   const [showCards, setShowCards] = useState(false);
 
@@ -658,7 +659,7 @@ export default function PMSRooms() {
                 rows: (
                   <RoomTypePlanRows
                     dates={dates}
-                    roomTypes={typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter)}
+                    roomTypes={visibleTypes(pTypes)}
                     rooms={pRooms.filter(matchesFilters)}
                     bookings={pBookings}
                     onSelectBooking={setSelectedBooking}
