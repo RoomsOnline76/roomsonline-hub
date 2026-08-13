@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
 
 interface Props {
   propertyId: string;
@@ -117,6 +118,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [result, setResult] = useState<ImportResponse | null>(null);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [dragging, setDragging] = useState(false);
+  const [repair, setRepair] = useState<RepairResponse | null>(null);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
 
   const rooms = useMemo(() => result?.rooms ?? [], [result]);
   const unmapped = useMemo(() => result?.summary?.unmapped_rooms ?? [], [result]);
