@@ -173,6 +173,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     overall,
     channelsConnected,
     publishedOk,
+    unpublishedUnits,
     blockingMacros,
     gateSignature,
 
@@ -413,11 +414,11 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     );
   }
 
-  // Pushed and syncing, with no mandatory step 1-7 outstanding: property preparation
-  // is done and the remaining steps (8-10) are administrative, so the wizard stops
-  // opening itself and shows a single Connect Channel action. Ordinary saves keep
-  // auto-pushing through the delta pipeline untouched.
-  if (publishedOk && blockingMacros.length === 0 && !pillOpened) {
+  // Property preparation (steps 1-7) is clean: the remaining steps (8-10 — push,
+  // currency, sign-off) are administrative, so the wizard stops opening itself and
+  // shows a single Connect Channel action. A partial push is surfaced as a quiet
+  // marker only — the error text and the retry live on the Publish card.
+  if (blockingMacros.length === 0 && !pillOpened) {
     return (
       <div
         className={`fixed bottom-[4.75rem] right-4 md:bottom-4 z-50 flex items-center gap-1 rounded-full border bg-card px-1.5 py-1 shadow-lg ${className ?? ""}`}
@@ -433,6 +434,15 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
           <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
           Connect Channel
         </Button>
+        {!publishedOk && unpublishedUnits > 0 && (
+          <button
+            type="button"
+            onClick={() => setPillOpened(true)}
+            className="rounded-full px-2 text-[10px] text-muted-foreground hover:text-foreground"
+          >
+            {unpublishedUnits} unit{unpublishedUnits === 1 ? "" : "s"} not published
+          </button>
+        )}
         <Button
           type="button"
           size="icon"
@@ -449,6 +459,7 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
       </div>
     );
   }
+
 
 
 

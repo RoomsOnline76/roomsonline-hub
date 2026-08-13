@@ -448,6 +448,17 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   );
 
   /**
+   * Active units still missing a stored listing id. Non-blocking: the push card owns
+   * the error text and the retry, the wizard only labels its quiet pill with this.
+   */
+  const unpublishedUnits = useMemo(() => {
+    const units = (d?.units ?? []) as { is_active: boolean | null; rentalsunited_property_id: string | null }[];
+    const active = units.filter((u) => u.is_active !== false);
+    return active.filter((u) => !String(u.rentalsunited_property_id ?? "").trim()).length;
+  }, [d?.units]);
+
+
+  /**
    * Macros 1-7 (property preparation) with outstanding mandatory work. These are the
    * only steps that may force the wizard open: 8-10 (push, currency, sign-off) are
    * administrative and must not nag on every visit.
@@ -553,6 +564,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     overall,
     channelsConnected,
     publishedOk,
+    unpublishedUnits,
     blockingMacros,
     gateSignature,
 
