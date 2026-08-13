@@ -542,7 +542,6 @@ export default function PMSRooms() {
             )}
           </div>
         </div>
-        </div>
 
         {/* Find a reservation in one keystroke */}
         <ReservationFinder
