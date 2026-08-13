@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
