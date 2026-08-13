@@ -34,6 +34,31 @@ interface ExistingRolosRoomType {
 
 const normalizeRoomTypeName = (value: string) => value.trim().toLowerCase();
 
+export interface RoomTypeSyncResult {
+  inserted: number;
+  updated: number;
+  reactivated: number;
+  retired: number;
+  skipped?: "no_write_access";
+}
+
+const NO_WRITE_ACCESS_RESULT: RoomTypeSyncResult = {
+  inserted: 0,
+  updated: 0,
+  reactivated: 0,
+  retired: 0,
+  skipped: "no_write_access",
+};
+
+/**
+ * Row-level security refusal — the signed-in user can view the property but is
+ * not an owner/linked owner/admin, so seeding room types is not their job.
+ */
+const isWriteDenied = (error: { code?: string; message?: string } | null) =>
+  error?.code === "42501" ||
+  /row-level security/i.test(error?.message ?? "");
+
+
 const toAmenitiesRoomTypes = (amenities: PropertyAmenities | null): OverviewRoomType[] => {
   if (!Array.isArray(amenities?.room_types)) return [];
 
