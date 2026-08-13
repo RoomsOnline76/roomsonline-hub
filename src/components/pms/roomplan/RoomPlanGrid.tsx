@@ -444,7 +444,11 @@ export function RoomPlanGrid({
                           onPointerDown={(event) => {
                             if (dragDisabled || !onCreateBooking) return;
                             if ((event.target as HTMLElement).closest("[data-booking-bar]")) return;
-                            beginCreate({ rowKey: row.key, roomId: row.roomId, roomTypeId: row.roomTypeId }, event.clientX);
+                            beginCreate(
+                              { rowKey: row.key, roomId: row.roomId, roomTypeId: row.roomTypeId },
+                              event.clientX,
+                              event.clientY
+                            );
                           }}
                         >
                           {dates.map((date, index) => (
@@ -496,7 +500,8 @@ export function RoomPlanGrid({
                               roomLabel={row.roomId ? row.label : "No unit assigned"}
                               propertyName={propertyName}
                               dragging={moveDrag?.bookingId === booking.id}
-                              onOpen={onSelectBooking}
+                              onOpen={openBooking}
+                              wasDragGesture={consumeGestureDrag}
                               onQuickAction={onQuickAction}
                               onModify={onModifyBooking}
                               onCancel={onCancelBooking}
