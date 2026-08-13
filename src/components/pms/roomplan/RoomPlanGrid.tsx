@@ -323,7 +323,22 @@ export function RoomPlanGrid({
     [onSelectBooking, pendingMove]
   );
 
+  // Re-typing a stay can change what it should be charged — say so before saving.
+  const moveRateNote = useMemo(() => {
+    if (!pendingMove?.roomTypeChanged || !getRateForDate) return null;
+    const night = parseISO(pendingMove.checkIn);
+    const fromRate = getRateForDate(pendingMove.booking.room_type_id || "", night);
+    const toRate = getRateForDate(pendingMove.roomTypeId, night);
+    if (fromRate == null || toRate == null) return "Check the rate for the new room type — it may differ.";
+    const delta = Math.round(toRate - fromRate);
+    if (delta === 0) return null;
+    return `${pendingMove.toTypeLabel || "The new room type"} is ${
+      delta > 0 ? "dearer" : "cheaper"
+    } by ${Math.abs(delta).toLocaleString()} per night — the reservation total is not adjusted automatically.`;
+  }, [pendingMove, getRateForDate]);
+
   const confirmMove = async () => {
+
     if (!pendingMove || !onMoveBooking) return;
     setSaving(true);
     try {
