@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { RoomPlanBar, RoomPlanBooking } from "./RoomPlanBar";
 import {
@@ -264,7 +265,7 @@ export function RoomPlanGrid({
     [bookingById, onMoveBooking, rowByKey]
   );
 
-  const { drag, bodyRef, beginCreate, beginMove } = useRoomPlanDrag({
+  const { drag, bodyRef, beginCreate, beginMove, consumeGestureDrag } = useRoomPlanDrag({
     colWidth,
     colCount: dates.length,
     labelWidth: ROOM_PLAN_LABEL_W,
@@ -274,6 +275,16 @@ export function RoomPlanGrid({
     onMoveCommit: handleMoveCommit,
   });
 
+  // While a move is awaiting confirmation the dialog must stay the top surface,
+  // so booking-sheet opens are ignored until it is resolved.
+  const openBooking = useCallback(
+    (booking: RoomPlanBooking) => {
+      if (pendingMove) return;
+      onSelectBooking(booking);
+    },
+    [onSelectBooking, pendingMove]
+  );
+
   const confirmMove = async () => {
     if (!pendingMove || !onMoveBooking) return;
     setSaving(true);
@@ -281,6 +292,13 @@ export function RoomPlanGrid({
       const { fromLabel: _from, toLabel: _to, ...payload } = pendingMove;
       await onMoveBooking(payload);
       setPendingMove(null);
+    } catch (error) {
+      // Keep the dialog open so the move can be retried or abandoned deliberately.
+      toast({
+        title: "Move failed",
+        description: error instanceof Error ? error.message : "The reservation could not be moved.",
+        variant: "destructive",
+      });
     } finally {
       setSaving(false);
     }
@@ -426,7 +444,11 @@ export function RoomPlanGrid({
                           onPointerDown={(event) => {
                             if (dragDisabled || !onCreateBooking) return;
                             if ((event.target as HTMLElement).closest("[data-booking-bar]")) return;
-                            beginCreate({ rowKey: row.key, roomId: row.roomId, roomTypeId: row.roomTypeId }, event.clientX);
+                            beginCreate(
+                              { rowKey: row.key, roomId: row.roomId, roomTypeId: row.roomTypeId },
+                              event.clientX,
+                              event.clientY
+                            );
                           }}
                         >
                           {dates.map((date, index) => (
@@ -478,7 +500,8 @@ export function RoomPlanGrid({
                               roomLabel={row.roomId ? row.label : "No unit assigned"}
                               propertyName={propertyName}
                               dragging={moveDrag?.bookingId === booking.id}
-                              onOpen={onSelectBooking}
+                              onOpen={openBooking}
+                              wasDragGesture={consumeGestureDrag}
                               onQuickAction={onQuickAction}
                               onModify={onModifyBooking}
                               onCancel={onCancelBooking}
@@ -495,7 +518,8 @@ export function RoomPlanGrid({
                                           startCol: geometry.startCol,
                                           cols: geometry.cols,
                                         },
-                                        event.clientX
+                                        event.clientX,
+                                        event.clientY
                                       )
                               }
                             />

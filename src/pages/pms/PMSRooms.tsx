@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, BedDouble, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Building2, Users } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, ChevronLeft, ChevronRight, LayoutGrid, Building2, Users, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
@@ -23,7 +23,7 @@ import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@
 import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, groupIntoWeeks, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
 /** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
 const PLAN_NIGHTS = 45;
@@ -79,6 +79,7 @@ export default function PMSRooms() {
   const [anchorDate, setAnchorDate] = useState<Date>(() => startOfDay(new Date()));
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [overbookedOnly, setOverbookedOnly] = useState(false);
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
   const [showCards, setShowCards] = useState(false);
 
@@ -409,6 +410,41 @@ export default function PMSRooms() {
     [statusFilter, typeFilter, sleepsFilter, displayStatusForRoom]
   );
 
+  // Oversold nights in the visible window, grouped per room type, so the toolbar
+  // can surface double bookings even when the offending row is scrolled away.
+  const overbooking = useMemo(() => {
+    const typeIds = new Set<string>();
+    let nights = 0;
+    const propertyIds = Array.from(new Set(roomTypes.map((t) => t.property_id)));
+    for (const pid of propertyIds) {
+      const planRows = buildRoomTypePlan(
+        dates,
+        roomTypes.filter((t) => t.property_id === pid),
+        rooms.filter((r) => r.property_id === pid),
+        bookings.filter((b) => b.property_id === pid)
+      );
+      for (const row of planRows) {
+        const affected = overbookedNights(row);
+        if (affected.length > 0) {
+          typeIds.add(row.roomType.id);
+          nights += affected.length;
+        }
+      }
+    }
+    return { typeIds, nights };
+  }, [dates, roomTypes, rooms, bookings]);
+
+  const visibleTypes = useCallback(
+    (types: PlanRoomType[]) =>
+      types.filter((t) => {
+        if (overbookedOnly && !overbooking.typeIds.has(t.id)) return false;
+        if (typeFilter !== "all" && t.id !== typeFilter) return false;
+        return true;
+      }),
+    [overbookedOnly, overbooking.typeIds, typeFilter]
+  );
+
+
   if (propertyLoading) return <PmsPageSkeleton rows={4} />;
   if (!propertyId && !isPortfolio) return <PmsNoPropertyState description="No property is assigned to this account yet, so there is no room inventory to show. Rooms appear here once a property is linked." />;
 
@@ -574,12 +610,24 @@ export default function PMSRooms() {
               ))}
             </SelectContent>
           </Select>
-          {filtersActive && (
+          {overbooking.nights > 0 && (
+            <Button
+              variant={overbookedOnly ? "destructive" : "outline"}
+              size="sm"
+              className={cn("h-7 px-2 text-xs", !overbookedOnly && "border-destructive text-destructive")}
+              onClick={() => setOverbookedOnly((prev) => !prev)}
+              title="Nights sold beyond available units in this window"
+            >
+              <AlertTriangle className="mr-1 h-3 w-3" />
+              {overbooking.nights} overbooked night{overbooking.nights === 1 ? "" : "s"}
+            </Button>
+          )}
+          {(filtersActive || overbookedOnly) && (
             <Button
               variant="ghost"
               size="sm"
               className="h-7 text-xs px-2"
-              onClick={() => { setStatusFilter("all"); setTypeFilter("all"); setSleepsFilter("any"); }}
+              onClick={() => { setStatusFilter("all"); setTypeFilter("all"); setSleepsFilter("any"); setOverbookedOnly(false); }}
             >
               Clear filters
             </Button>
@@ -623,7 +671,7 @@ export default function PMSRooms() {
                 rows: (
                   <RoomTypePlanRows
                     dates={dates}
-                    roomTypes={typeFilter === "all" ? pTypes : pTypes.filter((t) => t.id === typeFilter)}
+                    roomTypes={visibleTypes(pTypes)}
                     rooms={pRooms.filter(matchesFilters)}
                     bookings={pBookings}
                     onSelectBooking={setSelectedBooking}
