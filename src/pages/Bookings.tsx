@@ -808,6 +808,32 @@ const Bookings = () => {
           </Card>
         </div>
 
+        {/* Imported stays frequently sit outside the default forward window — say so instead of "no bookings". */}
+        {!loading && bookingCoverage && bookingCoverage.total > 0 && (bookingCoverage.earliest ?? "") < dateFrom && (
+          <Card className="mb-3 border-primary/40">
+            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3">
+              <p className="text-xs text-muted-foreground">
+                This property has <span className="font-semibold text-foreground">{bookingCoverage.total}</span>{" "}
+                bookings on record, with stays from{" "}
+                <span className="font-semibold text-foreground">{bookingCoverage.earliest}</span> to{" "}
+                <span className="font-semibold text-foreground">{bookingCoverage.latest}</span>. Some fall outside the
+                selected window.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setDateFrom(bookingCoverage.earliest ?? "2015-01-01");
+                  setDateTo(bookingCoverage.latest ?? format(addDays(new Date(), 730), "yyyy-MM-dd"));
+                }}
+              >
+                Show all imported stays
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
 
         {/* Filters */}
         <Card className="mb-3">
