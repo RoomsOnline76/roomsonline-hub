@@ -172,6 +172,116 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setForm(p => ({ ...p, guest_company: a.name }));
   }, []);
 
+  // ───── Guest lookup hydration ─────
+  /** The guest record chosen from the search, used for the summary strip. */
+  const [pickedGuest, setPickedGuest] = useState<GuestSuggestion | null>(null);
+
+  /** Property names for the suggestion rows (portfolio scope shows where a guest is known). */
+  const propertyNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of portfolioOptions || []) map.set(p.id, p.name);
+    return map;
+  }, [portfolioOptions]);
+
+  const searchScopeIds = useMemo(() => {
+    if (portfolioMode) return (portfolioOptions || []).map(p => p.id);
+    return effectivePropertyId ? [effectivePropertyId] : [];
+  }, [portfolioMode, portfolioOptions, effectivePropertyId]);
+
+  /**
+   * Fill everything already known about a guest without ever clobbering values
+   * the user has typed. Pulls contact + preference data from the profile and
+   * habitual details (company, second guest, booker, channel) from their most
+   * recent booking.
+   */
+  const hydrateFromGuest = useCallback(async (g: GuestSuggestion) => {
+    setPickedGuest(g);
+    const keepOrTake = (current: string, incoming?: string | null) =>
+      current.trim() ? current : (incoming || "");
+
+    setForm(p => ({
+      ...p,
+      guest_name: g.full_name || p.guest_name,
+      guest_email: keepOrTake(p.guest_email, g.email),
+      guest_phone: keepOrTake(p.guest_phone, g.phone),
+    }));
+
+    // Guest notes / nationality are appended to internal notes so nothing is lost.
+    const profileBits = [
+      g.nationality ? `Nationality: ${g.nationality}` : null,
+      g.notes ? `Guest notes: ${g.notes}` : null,
+    ].filter(Boolean).join("\n");
+    if (profileBits) {
+      setForm(p => ({
+        ...p,
+        internal_notes: p.internal_notes.includes(profileBits)
+          ? p.internal_notes
+          : [p.internal_notes.trim(), profileBits].filter(Boolean).join("\n"),
+      }));
+    }
+
+    if (g.is_blacklisted) {
+      toast.warning(`${g.full_name} is flagged as blacklisted — check before confirming.`);
+    }
+
+    // Most recent booking for habitual details.
+    let query = supabase
+      .from("bookings")
+      .select("guest_company, second_guest_name, booking_made_by, booking_channel, booker_is_guest, booker_name, booker_email, booker_phone, market_segment, check_in_date")
+      .order("check_in_date", { ascending: false })
+      .limit(1);
+    if (g.from_history || !g.email) {
+      const email = g.email;
+      query = email ? query.eq("guest_email", email) : query.eq("guest_name", g.full_name);
+    } else {
+      query = query.or(`rolos_guest_id.eq.${g.id},guest_email.eq.${g.email}`);
+    }
+    const { data, error } = await query;
+    if (error) { console.warn("guest history hydration failed:", error); return; }
+    const last = data?.[0];
+    if (!last) return;
+
+    setForm(p => ({
+      ...p,
+      guest_company: keepOrTake(p.guest_company, last.guest_company),
+      second_guest_name: keepOrTake(p.second_guest_name, last.second_guest_name),
+      booking_made_by: keepOrTake(p.booking_made_by, last.booking_made_by),
+      booking_channel: p.booking_channel && p.booking_channel !== "direct"
+        ? p.booking_channel
+        : (last.booking_channel || p.booking_channel),
+    }));
+
+    // Booker details when someone else historically booked for this guest.
+    if (last.booker_is_guest === false && (last.booker_name || last.booker_email)) {
+      setCrm(prev => ({
+        ...prev,
+        booker_is_guest: false,
+        booker_name: prev.booker_name || last.booker_name || "",
+        booker_email: prev.booker_email || last.booker_email || "",
+        booker_phone: prev.booker_phone || last.booker_phone || "",
+        market_segment: prev.market_segment || last.market_segment || "",
+      }));
+    } else if (last.market_segment) {
+      setCrm(prev => ({ ...prev, market_segment: prev.market_segment || last.market_segment || "" }));
+    }
+
+    // Match the historic company to a CRM account so invoice identity fills too.
+    if (last.guest_company) {
+      const target = last.guest_company.trim().toLowerCase();
+      const account = accounts.find(a => a.name.trim().toLowerCase() === target);
+      if (account) {
+        setCrm(prev => ({ ...prev, company_account_id: prev.company_account_id || account.id }));
+        applyCompany(account);
+      }
+    }
+  }, [accounts, applyCompany]);
+
+  /** Undo a wrong pick: clears the guest identity fields only. */
+  const clearPickedGuest = useCallback(() => {
+    setPickedGuest(null);
+    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "" }));
+  }, []);
+
   // Reset room lines when the active property changes so we never carry a room
   // type from a different property into the booking payload.
   useEffect(() => {
