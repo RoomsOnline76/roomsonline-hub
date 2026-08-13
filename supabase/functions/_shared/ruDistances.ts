@@ -119,13 +119,17 @@ export function buildDistanceEntries(
     if (!dictionary.has(key)) dictionary.set(key, row);
   }
 
+  const byId = new Map<number, DestinationRow>();
+  for (const row of destinations) byId.set(row.ru_destination_id, row);
+
   const nearest = new Map<number, RuDistanceEntry>();
   for (const exp of experiences) {
     if (exp.is_active === false) continue;
     const km = Number(exp.distance_km);
     if (!Number.isFinite(km) || km <= 0) continue;
-    const dest = matchDestination(exp, dictionary);
+    const dest = matchDestination(exp, dictionary, byId);
     if (!dest) continue;
+
     const entry: RuDistanceEntry = {
       destination_id: dest.ru_destination_id,
       value: Math.round(km * 10) / 10,
