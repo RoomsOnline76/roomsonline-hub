@@ -77,14 +77,17 @@ Deno.serve(async (req) => {
     if (!/^[0-9a-f-]{36}$/i.test(propertyId)) return json({ ok: false, error: "A valid property_id is required" }, 400);
 
     const dryRun = body?.dry_run === true;
+    const mode = String(body?.mode ?? "import").trim() || "import";
     const fileName = String(body?.file_name ?? "").trim();
     const fileB64 = String(body?.file_base64 ?? "");
     const defaultCurrency = String(body?.default_currency ?? "ZAR").toUpperCase().slice(0, 3);
     const roomOverrides: Record<string, string> = (body?.room_overrides ?? {}) as Record<string, string>;
 
-    if (!fileB64) return json({ ok: false, error: "No file was received" }, 400);
-    if (fileName && !/\.(xlsx|xls|csv)$/i.test(fileName)) {
-      return json({ ok: false, error: "Only .xlsx, .xls and .csv exports are supported" }, 400);
+    if (mode === "import") {
+      if (!fileB64) return json({ ok: false, error: "No file was received" }, 400);
+      if (fileName && !/\.(xlsx|xls|csv)$/i.test(fileName)) {
+        return json({ ok: false, error: "Only .xlsx, .xls and .csv exports are supported" }, 400);
+      }
     }
 
     // Access: mirrors the property write checks used elsewhere (admin / fearless_leader /
@@ -95,6 +98,17 @@ Deno.serve(async (req) => {
     });
     if (accessErr) return json({ ok: false, error: accessErr.message }, 403);
     if (allowed !== true) return json({ ok: false, error: "You do not have access to this property" }, 403);
+
+    /* ------------------------------------------------------- repair mode ---
+     * Re-maps already-imported bookings that never matched a unit. The NightsBridge
+     * room name is preserved in `internal_notes` ("NB Room: <name>"), so it can be
+     * grouped and mapped after the fact without re-uploading the export.
+     */
+    if (mode === "repair") {
+      const repair = await repairUnmappedBookings(sb, propertyId, roomOverrides, dryRun);
+      return json({ ok: true, ...repair });
+    }
+
 
     const bytes = decodeBase64(fileB64);
     if (bytes.byteLength > MAX_BYTES) {
