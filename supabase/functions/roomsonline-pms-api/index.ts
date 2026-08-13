@@ -480,6 +480,10 @@ Deno.serve(async (req) => {
       case "update_guest_profile":
         result = await handleUpdateGuestProfile(body, supabase);
         break;
+      case "delete_guest_profile":
+        result = await handleDeleteGuestProfile(body, supabase);
+        break;
+
       case "check_in":
         result = await handleCheckIn(body, supabase);
         break;
