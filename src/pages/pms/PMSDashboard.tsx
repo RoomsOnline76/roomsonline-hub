@@ -3272,7 +3272,10 @@ function BookingDetail({
             teens: booking.teens,
             infants: booking.infants,
             total_price: booking.total_price,
+            property_id: booking.property_id ?? null,
+            room_type_id: booking.room_type_id ?? null,
           }}
+
           isRuBooking={isRuSourced}
           onDone={onSaved}
         />

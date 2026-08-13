@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { differenceInDays, parseISO } from "date-fns";
-import { CalendarClock, Loader2, Undo2, Wallet } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addDays, differenceInDays, format, parseISO, startOfDay } from "date-fns";
+import { CalendarClock, CalendarIcon, Loader2, Undo2, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
-
+import { fetchLiveRates } from "@/lib/pmsLiveAvailability";
+import { cn } from "@/lib/utils";
 
 interface Props {
   open: boolean;
@@ -25,11 +28,32 @@ interface Props {
     teens?: number | null;
     infants?: number | null;
     total_price: number;
+    property_id?: string | null;
+    room_type_id?: string | null;
   };
   /** Shows the channel-push notice for Rentals United reservations. */
   isRuBooking?: boolean;
   onDone: () => void;
 }
+
+type QuoteSource = "live" | "average" | null;
+
+const toDate = (iso: string): Date | undefined => {
+  try {
+    const parsed = parseISO(iso);
+    return Number.isNaN(parsed.getTime()) ? undefined : startOfDay(parsed);
+  } catch {
+    return undefined;
+  }
+};
+
+const nightsBetween = (from: string, to: string) => {
+  try {
+    return differenceInDays(parseISO(to), parseISO(from));
+  } catch {
+    return 0;
+  }
+};
 
 export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking = false, onDone }: Props) {
   const [checkIn, setCheckIn] = useState(booking.check_in_date);
@@ -43,6 +67,28 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [amountPaid, setAmountPaid] = useState<number | null>(null);
   const [raiseRefund, setRaiseRefund] = useState(true);
   const [requestBalance, setRequestBalance] = useState(true);
+  const [datesOpen, setDatesOpen] = useState(false);
+
+  // ─── Automatic re-pricing ───
+  const [quotedTotal, setQuotedTotal] = useState<number | null>(null);
+  const [quoteSource, setQuoteSource] = useState<QuoteSource>(null);
+  const [quoting, setQuoting] = useState(false);
+  /** Once the operator types a total, their figure wins over later auto-quotes. */
+  const [manualTotal, setManualTotal] = useState(false);
+  const quoteSeq = useRef(0);
+
+  useEffect(() => {
+    if (!open) return;
+    setCheckIn(booking.check_in_date);
+    setCheckOut(booking.check_out_date);
+    setAdults(String(booking.adults ?? 1));
+    setChildren(String(booking.children ?? 0));
+    setTotalPrice(String(booking.total_price ?? 0));
+    setNote("");
+    setManualTotal(false);
+    setQuotedTotal(null);
+    setQuoteSource(null);
+  }, [open, booking.id, booking.check_in_date, booking.check_out_date, booking.adults, booking.children, booking.total_price]);
 
   useEffect(() => {
     if (!open) return;
@@ -65,12 +111,90 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     };
   }, [open, booking.id]);
 
-  let nights = 0;
-  try {
-    nights = differenceInDays(parseISO(checkOut), parseISO(checkIn));
-  } catch {
-    nights = 0;
-  }
+  const originalNights = useMemo(
+    () => nightsBetween(booking.check_in_date, booking.check_out_date),
+    [booking.check_in_date, booking.check_out_date],
+  );
+  const nights = useMemo(() => nightsBetween(checkIn, checkOut), [checkIn, checkOut]);
+  const nightsDelta = nights - originalNights;
+  const datesChanged = checkIn !== booking.check_in_date || checkOut !== booking.check_out_date;
+  const paxChanged =
+    Number(adults) !== (booking.adults ?? 0) || Number(children) !== (booking.children ?? 0);
+
+  /** Pro-rata fallback: the booking's own nightly average applied to the new stay. */
+  const averageQuote = useMemo(() => {
+    if (originalNights <= 0 || nights <= 0) return null;
+    const perNight = Number(booking.total_price || 0) / originalNights;
+    if (!perNight) return null;
+    return Math.round(perNight * nights * 100) / 100;
+  }, [booking.total_price, originalNights, nights]);
+
+  // Re-price whenever the stay or the guest count moves.
+  useEffect(() => {
+    if (!open || nights <= 0) return;
+    if (!datesChanged && !paxChanged) {
+      setQuotedTotal(null);
+      setQuoteSource(null);
+      return;
+    }
+
+    const seq = ++quoteSeq.current;
+    const timer = setTimeout(() => {
+      (async () => {
+        setQuoting(true);
+        let resolved: number | null = null;
+        let source: QuoteSource = null;
+
+        if (booking.property_id) {
+          try {
+            const live = await fetchLiveRates(booking.property_id, null, checkIn, checkOut);
+            const room =
+              live.rooms.find((r) => r.roomTypeId === booking.room_type_id) ||
+              (live.rooms.length === 1 ? live.rooms[0] : undefined);
+            if (room) {
+              let sum = 0;
+              let covered = 0;
+              for (let i = 0; i < nights; i++) {
+                const key = format(addDays(parseISO(checkIn), i), "yyyy-MM-dd");
+                const rate = room.ratesByDate?.[key];
+                if (typeof rate === "number" && rate > 0) {
+                  sum += rate;
+                  covered++;
+                }
+              }
+              if (covered === nights && sum > 0) {
+                resolved = Math.round(sum * 100) / 100;
+                source = "live";
+              } else if (room.minRate && room.minRate > 0) {
+                resolved = Math.round(room.minRate * nights * 100) / 100;
+                source = "live";
+              }
+            }
+          } catch (err) {
+            console.warn("[BookingModifyDialog] live re-pricing failed:", err);
+          }
+        }
+
+        if (resolved === null && averageQuote !== null) {
+          resolved = averageQuote;
+          source = "average";
+        }
+
+        if (seq !== quoteSeq.current) return;
+        setQuotedTotal(resolved);
+        setQuoteSource(resolved === null ? null : source);
+        setQuoting(false);
+      })();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [open, checkIn, checkOut, nights, datesChanged, paxChanged, booking.property_id, booking.room_type_id, averageQuote]);
+
+  // Push the quote into the field unless the operator has taken over.
+  useEffect(() => {
+    if (manualTotal || quotedTotal === null) return;
+    setTotalPrice(String(quotedTotal));
+  }, [quotedTotal, manualTotal]);
 
   /** Positive = guest still owes, negative = guest overpaid. */
   const delta = useMemo(() => {
@@ -80,7 +204,30 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
+  const originalFrom = toDate(booking.check_in_date);
+  const originalTo = toDate(booking.check_out_date);
+  const selectedFrom = toDate(checkIn);
+  const selectedTo = toDate(checkOut);
 
+  const originalRangeDays = useMemo(() => {
+    if (!originalFrom || originalNights <= 0) return [] as Date[];
+    return Array.from({ length: originalNights + 1 }, (_, i) => addDays(originalFrom, i));
+  }, [originalFrom, originalNights]);
+
+  const onRangeSelect = useCallback(
+    (range: { from?: Date; to?: Date } | undefined) => {
+      if (!range?.from) return;
+      setCheckIn(format(range.from, "yyyy-MM-dd"));
+      if (range.to && differenceInDays(range.to, range.from) > 0) {
+        setCheckOut(format(range.to, "yyyy-MM-dd"));
+        setDatesOpen(false);
+      } else {
+        // First click restarts the range — hold check-out one night out.
+        setCheckOut(format(addDays(range.from, 1), "yyyy-MM-dd"));
+      }
+    },
+    [],
+  );
 
   const submit = async () => {
     if (nights <= 0) {
@@ -94,6 +241,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       if (checkOut !== booking.check_out_date) modifications.check_out_date = checkOut;
       if (Number(adults) !== (booking.adults ?? 0)) modifications.adults = Number(adults);
       if (Number(children) !== (booking.children ?? 0)) modifications.children = Number(children);
+      // Always carry the corrected figure so the channel push and settlement
+      // loop see the re-priced total, not the stale one.
       if (Number(totalPrice) !== Number(booking.total_price)) modifications.total_price = Number(totalPrice);
 
       const changedKeys = Object.keys(modifications).filter((k) => k !== "note");
@@ -142,19 +291,52 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Check-in</Label>
-              <Input type="date" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Check-out</Label>
-              <Input type="date" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+          <div className="space-y-1.5">
+            <Label className="text-xs">Stay dates</Label>
+            <Popover open={datesOpen} onOpenChange={setDatesOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedFrom && selectedTo
+                    ? `${format(selectedFrom, "d MMM yyyy")} → ${format(selectedTo, "d MMM yyyy")}`
+                    : "Pick the stay"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="border-b px-3 py-2 space-y-1">
+                  <p className="text-[11px] text-muted-foreground">
+                    {originalFrom && originalTo
+                      ? `Originally ${format(originalFrom, "d MMM")} – ${format(originalTo, "d MMM yyyy")} · ${originalNights} night${originalNights === 1 ? "" : "s"}`
+                      : "Original stay unavailable"}
+                  </p>
+                  <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted ring-1 ring-border" />
+                    Original stay
+                  </p>
+                </div>
+                <Calendar
+                  mode="range"
+                  numberOfMonths={2}
+                  defaultMonth={selectedFrom}
+                  selected={selectedFrom ? { from: selectedFrom, to: selectedTo } : undefined}
+                  onSelect={onRangeSelect as any}
+                  modifiers={{ originalStay: originalRangeDays }}
+                  modifiersClassNames={{ originalStay: "bg-muted text-foreground rounded-sm" }}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <div className="flex items-center gap-2">
+              <p className={nights > 0 ? "text-[11px] text-muted-foreground" : "text-[11px] text-destructive"}>
+                {nights > 0 ? `${nights} night${nights === 1 ? "" : "s"}` : "Check-out must be after check-in"}
+              </p>
+              {nights > 0 && nightsDelta !== 0 && (
+                <span className="rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {nightsDelta > 0 ? `+${nightsDelta}` : nightsDelta} night{Math.abs(nightsDelta) === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
           </div>
-          <p className={nights > 0 ? "text-[11px] text-muted-foreground" : "text-[11px] text-destructive"}>
-            {nights > 0 ? `${nights} night${nights === 1 ? "" : "s"}` : "Check-out must be after check-in"}
-          </p>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
@@ -169,10 +351,46 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
           <div className="space-y-1.5">
             <Label className="text-xs">Total (ZAR)</Label>
-            <Input type="number" min={0} value={totalPrice} onChange={(e) => setTotalPrice(e.target.value)} />
-            <p className="text-[11px] text-muted-foreground">
-              Current: R{Number(booking.total_price || 0).toLocaleString()}
-            </p>
+            <Input
+              type="number"
+              min={0}
+              value={totalPrice}
+              onChange={(e) => {
+                setManualTotal(true);
+                setTotalPrice(e.target.value);
+              }}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] text-muted-foreground">
+                Current: R{Number(booking.total_price || 0).toLocaleString()}
+              </p>
+              {quoting && (
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />Re-pricing
+                </span>
+              )}
+            </div>
+            {!quoting && quotedTotal !== null && (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">
+                  {quoteSource === "live"
+                    ? `Re-priced for ${nights} night${nights === 1 ? "" : "s"} — live rates`
+                    : "Estimated from the current nightly average"}
+                </p>
+                {manualTotal && Number(totalPrice) !== quotedTotal && (
+                  <button
+                    type="button"
+                    className="text-[11px] underline text-primary"
+                    onClick={() => {
+                      setManualTotal(false);
+                      setTotalPrice(String(quotedTotal));
+                    }}
+                  >
+                    Reset to re-priced
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {amountPaid !== null && amountPaid > 0 && (
@@ -220,8 +438,6 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               )}
             </div>
           )}
-
-
 
           <div className="space-y-1.5">
             <Label className="text-xs">Note to guest (optional)</Label>
