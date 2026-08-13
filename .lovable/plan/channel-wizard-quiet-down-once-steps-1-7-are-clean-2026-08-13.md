@@ -6,7 +6,7 @@ The onboarding wizard currently only goes quiet once the property is **published
 
 New behaviour:
 
-- When steps 1–7 have no outstanding mandatory work, the floating wizard collapses to a single **Connect Channel** button — no step counter, no expanded checklist.
+- When steps 1–7 have no outstanding mandatory work, the floating wizard collapses to a single **Connect Channel** button — no step counter, no expanded checklist. Only if already been pushed and are actively push/pull and syncing.
 - The button routes to the channels page as it does today, and a small hide (X) control remains.
 - The full wizard re-opens by itself only when a mandatory item in steps 1–7 regresses (existing gate-signature mechanism, re-scoped to 1–7).
 - Steps 8–10 (push, currency verification, sign-off) stay reachable by clicking the pill to expand, but never force themselves open.
