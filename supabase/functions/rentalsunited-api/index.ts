@@ -392,6 +392,20 @@ function extractPropertyIds(xml: string): { id: string; name: string; is_active:
 }
 
 
+/**
+ * The listing id RU returns for a push. Creates answer `<ID>5772722</ID>`; older/other shapes
+ * use `<PropertyID>`. Both are read here so a create is never repeated blindly — a repeated
+ * create is exactly how duplicate listings appeared on the account.
+ */
+function extractReturnedPropertyId(xml: string): number | null {
+  const direct = xml.match(/<PropertyID[^>]*>\s*(\d+)\s*<\/PropertyID>/i)?.[1]
+    ?? xml.match(/<\/Status>\s*(?:<ResponseID>[^<]*<\/ResponseID>\s*)?<ID[^>]*>\s*(\d+)\s*<\/ID>/i)?.[1]
+    ?? xml.match(/<ID[^>]*>\s*(\d+)\s*<\/ID>/i)?.[1];
+  const id = direct ? parseInt(direct, 10) : NaN;
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+
 
 function compactXml(xml: string): string {
   return xml.replace(/<\?xml[^?]*\?>\s*/gi, '').replace(/>\s+</g, '><').trim();
