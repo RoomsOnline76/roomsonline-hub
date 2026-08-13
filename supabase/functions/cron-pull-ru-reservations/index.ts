@@ -56,6 +56,8 @@ Deno.serve(async (req) => {
 
   // Cadence evidence for the RU certification console (Pull_ListReservations_RQ),
   // logged per account so staleness rotation can order the next run.
+  let retrySweep: Awaited<ReturnType<typeof sweepRuNotificationRetries>> | null = null;
+
   const logCadence = async (
     success: boolean,
     errorMessage: string | null,
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
 
     // Re-attempt notifications parked earlier (RU often cannot serve a request straight
     // after its own callback) before polling — a resolved retry saves a wider pull.
-    const retrySweep = await sweepRuNotificationRetries(supabase, { logPrefix: '[cron-pull-ru][retry]' });
+    retrySweep = await sweepRuNotificationRetries(supabase, { logPrefix: '[cron-pull-ru][retry]' });
 
     // Sub-users ONLY. Every ROL'OS listing lives on a white-label sub-account, so
     // the master account never holds reservations or leads — polling it just burns
