@@ -1862,20 +1862,78 @@ async function handleCreateGuestProfile(body: any, supabase: any): Promise<Respo
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
+/**
+ * Fields a CRM editor may write. Derived read-model columns
+ * (total_stays / total_received / total_outstanding / total_cancelled_value /
+ * last_stay_date) are owned by rebuild_guest_stats and never accepted here.
+ */
+const GUEST_EDITABLE_FIELDS = [
+  "full_name", "email", "phone", "nationality", "date_of_birth", "address",
+  "notes", "tags", "is_blacklisted", "is_archived", "preferences",
+  "communication_preferences", "complaints",
+] as const;
+
 // deno-lint-ignore no-explicit-any
 async function handleUpdateGuestProfile(body: any, supabase: any): Promise<Response> {
-  const { guest_id, ...updates } = body;
+  const { guest_id } = body;
   if (!guest_id) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "guest_id required", "update_guest_profile")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  const { propertyId, action, ...safeUpdates } = updates;
+  // deno-lint-ignore no-explicit-any
+  const safeUpdates: Record<string, any> = {};
+  for (const key of GUEST_EDITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) safeUpdates[key] = body[key];
+  }
+  if (!Object.keys(safeUpdates).length) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "No editable fields supplied", "update_guest_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  if (typeof safeUpdates.full_name === "string") {
+    safeUpdates.full_name = safeUpdates.full_name.trim();
+    if (!safeUpdates.full_name) {
+      return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "full_name cannot be empty", "update_guest_profile")),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
+  }
+  safeUpdates.updated_at = new Date().toISOString();
   const { data, error } = await supabase.from("rolos_guest_profiles").update(safeUpdates).eq("id", guest_id).select().single();
   if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "update_guest_profile")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
   return new Response(JSON.stringify(createSuccessResponse(data, "update_guest_profile")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
+/**
+ * Permanent delete — refused when booking history exists so records never
+ * end up orphaned. The caller is told to archive instead.
+ */
+// deno-lint-ignore no-explicit-any
+async function handleDeleteGuestProfile(body: any, supabase: any): Promise<Response> {
+  const { guest_id } = body;
+  if (!guest_id) {
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "guest_id required", "delete_guest_profile")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+  }
+  const { count, error: countError } = await supabase
+    .from("bookings").select("id", { count: "exact", head: true }).eq("rolos_guest_id", guest_id);
+  if (countError) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, countError.message, "delete_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  if ((count || 0) > 0) {
+    return new Response(JSON.stringify({
+      ...createErrorResponse(ERROR_CODES.INVALID_REQUEST, `Guest has ${count} booking(s) — archive instead of deleting`, "delete_guest_profile"),
+      reason: "HAS_BOOKINGS",
+      booking_count: count,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 409 });
+  }
+  await supabase.from("rolos_guest_comments").delete().eq("guest_id", guest_id);
+  const { error } = await supabase.from("rolos_guest_profiles").delete().eq("id", guest_id);
+  if (error) return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INTERNAL_ADAPTER_ERROR, error.message, "delete_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 });
+  return new Response(JSON.stringify(createSuccessResponse({ deleted: true, guest_id }, "delete_guest_profile")),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
 
 // deno-lint-ignore no-explicit-any
 async function handleCheckIn(body: any, supabase: any): Promise<Response> {
