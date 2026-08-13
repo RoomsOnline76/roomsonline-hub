@@ -236,6 +236,37 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     }
   }, [propertyId, repairOverrides, refreshRepair]);
 
+  /* ------------------------------------------------- retired room cleanup ---
+   * Earlier imports attached bookings to room types that have since been replaced.
+   * Those ids never block dates upstream, so the cleanup re-points them onto the
+   * room that trades today and clears the leftovers.
+   */
+  const runSuperseded = useCallback(
+    async (dryRun: boolean) => {
+      setSupersededBusy(true);
+      try {
+        const { data, error } = await supabase.functions.invoke<SupersededResponse>("nb-import-bookings", {
+          body: { property_id: propertyId, mode: "repair_superseded_rooms", dry_run: dryRun },
+        });
+        if (error) throw new Error(error.message);
+        if (!data?.ok) throw new Error(data?.error || "Cleanup failed");
+        setSuperseded(data);
+        if (!dryRun) {
+          toast.success(
+            `Moved ${data.bookings_repointed} booking(s) and removed ${data.room_types_deleted} retired room type(s)`,
+          );
+        } else if (data.actions.length === 0) {
+          toast.success("Nothing to clean up — all bookings sit on current rooms");
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Cleanup failed");
+      } finally {
+        setSupersededBusy(false);
+      }
+    },
+    [propertyId],
+  );
+
 
   const run = useCallback(
     async (dryRun: boolean, overrideMap?: Record<string, string>) => {
