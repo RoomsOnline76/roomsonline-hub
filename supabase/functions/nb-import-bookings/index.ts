@@ -329,6 +329,13 @@ Deno.serve(async (req) => {
       .filter((c) => c.roomId)
       .map((c) => ({ id: c.roomId as string, label: c.roomLabel || c.name }));
     const canonicalRoomIds = new Set(canonicalRoomList.map((r) => r.id));
+    /** Keys that exist in the database only as retired inventory (no canonical room/type). */
+    const retiredOnlyKeys = new Set<string>();
+    for (const [roomId, key] of registry.keyByRoomId) {
+      if (!registry.supersededRoomIds.has(roomId)) continue;
+      if (!registry.byKey.has(key)) retiredOnlyKeys.add(key);
+    }
+
 
     /** Operator decisions for unmatched room names. */
     const EXCLUDE = "__exclude__";
