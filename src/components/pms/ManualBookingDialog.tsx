@@ -766,6 +766,17 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                         <div><Label className="text-[10px]">Teens</Label><Input className="h-8 px-2" type="number" min={0} value={l.teens} onChange={e => updateLine(l.key, { teens: e.target.value })} /></div>
                         <div><Label className="text-[10px]">Pets</Label><Input className="h-8 px-2" type="number" min={0} value={l.pets} onChange={e => updateLine(l.key, { pets: e.target.value })} /></div>
                       </div>
+                      {(() => {
+                        const cap = lineCapacity.get(l.key);
+                        if (!cap?.max) return null;
+                        return (
+                          <p className={cn("text-[10px]", cap.over ? "font-medium text-destructive" : "text-muted-foreground")}>
+                            Sleeps {cap.max} · {cap.guests} guest{cap.guests === 1 ? "" : "s"} on this unit
+                            {cap.over ? " — over capacity" : ""}
+                          </p>
+                        );
+                      })()}
+
 
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
