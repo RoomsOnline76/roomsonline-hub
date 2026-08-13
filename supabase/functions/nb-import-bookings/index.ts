@@ -966,11 +966,17 @@ Deno.serve(async (req) => {
       future_stays: futureStays,
     });
 
+    /* Only the final chunk pushes: a chunked run would otherwise fire one delta per slice. */
+    const channelDelta = liveSummary.has_more
+      ? { future_stays: futureStays, queued: false, reason: "awaiting_remaining_chunks" as const }
+      : await queueImportedOccupancyDelta(sb, propertyId, await countFutureImportedStays(sb, propertyId), "nb_import");
+
     return json({
       ok: true,
       dry_run: false,
       run_id: liveRunId,
-      summary: liveSummary,
+      summary: { ...liveSummary, channel_delta: channelDelta },
+      channel_delta: channelDelta,
       errors,
       skipped,
       preview: [],
