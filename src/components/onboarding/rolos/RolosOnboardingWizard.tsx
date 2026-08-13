@@ -54,6 +54,15 @@ interface Props {
 
 const COLLAPSE_KEY = "rolos-onboarding-wizard-collapsed";
 const DISMISS_KEY = "rolos-onboarding-wizard-dismissed";
+/** Per-property hide/collapse preference, valid only for one gate signature. */
+const PREFS_KEY = "rolos-wizard";
+
+interface StoredPrefs {
+  hidden?: boolean;
+  collapsed?: boolean;
+  signature?: string;
+}
+
 
 function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }) {
   if (complete) return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
