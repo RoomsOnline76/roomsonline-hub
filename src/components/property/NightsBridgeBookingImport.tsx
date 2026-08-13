@@ -131,6 +131,9 @@ const EXCLUDE = "__exclude__";
 const UNASSIGNED = "__unassigned__";
 
 
+/** Rows written per live call — keeps a large export well inside the function timeout. */
+const WRITE_CHUNK = 250;
+
 export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -142,10 +145,36 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const [repair, setRepair] = useState<RepairResponse | null>(null);
   const [repairBusy, setRepairBusy] = useState(false);
   const [repairOverrides, setRepairOverrides] = useState<Record<string, string>>({});
+  /** Persistent outcome of the last live import — stays until dismissed. */
+  const [outcome, setOutcome] = useState<
+    | { kind: "saved"; created: number; updated: number; skipped: number; excluded: number; errors: number; future: number }
+    | { kind: "failed"; message: string; written: number }
+    | null
+  >(null);
+  const [history, setHistory] = useState<ImportRun[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const rooms = useMemo(() => result?.rooms ?? [], [result]);
   const unmapped = useMemo(() => result?.summary?.unmapped_rooms ?? [], [result]);
   const validated = Boolean(result?.dry_run && result.ok);
+
+  const loadHistory = useCallback(async () => {
+    const { data } = await supabase
+      .from("nb_import_runs")
+      .select("id, created_at, file_name, mode, summary, min_arrival, max_arrival, future_stays, unmapped_rooms")
+      .eq("property_id", propertyId)
+      .order("created_at", { ascending: false })
+      .limit(12);
+    setHistory((data ?? []) as unknown as ImportRun[]);
+  }, [propertyId]);
+
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  /** True when the newest recorded action was a preview that was never followed by a live import. */
+  const previewOnly = useMemo(() => history.length > 0 && history[0].mode === "preview", [history]);
+
 
   const pickFile = useCallback((next: File | null) => {
     if (!next) return;
