@@ -8,6 +8,7 @@ import {
 } from '../_shared/ruReservationParsing.ts';
 
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
+import { scheduleRuNotificationRetry, sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
 
 /**
  * RU Reservation Live Notification Mechanism (RLNM) Handler
@@ -71,7 +72,15 @@ Deno.serve(async (req) => {
     // ── Operator retry path: JSON body { notification_id? , reservation_id? } re-runs the
     // detail pull + ingest for a single stuck notification (see the Reservations panel).
     if (rawXml.trimStart().startsWith('{')) {
-      const body = JSON.parse(rawXml) as { notification_id?: string; reservation_id?: string };
+      const body = JSON.parse(rawXml) as { notification_id?: string; reservation_id?: string; sweep?: boolean };
+      // Timed sweep of parked notifications (called by the reservation cron).
+      if (body.sweep) {
+        const sweep = await sweepRuNotificationRetries(supabase, { logPrefix: '[ru-reservation-handler][sweep]' });
+        return new Response(JSON.stringify({ success: true, sweep }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       let reservationId = body.reservation_id ?? null;
       let propertyId: string | null = null;
       if (body.notification_id) {
@@ -99,8 +108,9 @@ Deno.serve(async (req) => {
           .from('ru_notifications')
           .update({
             processed: resolved,
-            resolution_state: resolved ? 'resolved' : 'failed',
+            resolution_state: resolved ? 'resolved' : 'retrying',
             error_message: resolved ? null : retried.error ?? `Ingest outcome: ${retried.outcome}`,
+            next_attempt_at: resolved ? null : new Date(Date.now() + 60_000).toISOString(),
             last_attempt_at: new Date().toISOString(),
           })
           .eq('id', body.notification_id);
@@ -181,10 +191,18 @@ Deno.serve(async (req) => {
             await markResolved('resolved', null, null);
             continue;
           }
-          await markResolved(
-            unmappedListing ? 'unmapped' : 'failed',
-            refreshed.error ?? 'Detail pull could not resolve the reservation',
-          );
+          // RU is often not able to serve the reservation for the first minute or two after
+          // the callback. Park it for a timed retry instead of losing the stay.
+          if (notificationId) {
+            const state = await scheduleRuNotificationRetry(supabase, notificationId, {
+              attemptCount: 0,
+              error: refreshed.error ?? 'Detail pull could not resolve the reservation',
+              state: unmappedListing ? 'unmapped' : undefined,
+            });
+            console.warn(
+              `[ru-reservation-handler] Reservation ${r.ruReservationId} parked as ${state}: ${refreshed.error ?? 'detail pull unresolved'}`,
+            );
+          }
         } else {
           await markResolved('failed', 'Notification carried no reservation id');
         }
