@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
+import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
@@ -448,6 +449,8 @@ export default function PMSDashboard() {
 
   // Restriction dialogs
   const [stopSellOpen, setStopSellOpen] = useState(false);
+  const [manageRestrictionsOpen, setManageRestrictionsOpen] = useState(false);
+  const [focusRestrictionKey, setFocusRestrictionKey] = useState<string | null>(null);
   const [minStayOpen, setMinStayOpen] = useState(false);
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
@@ -2031,6 +2034,10 @@ export default function PMSDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48 bg-popover">
+                  <DropdownMenuItem onClick={() => { setFocusRestrictionKey(null); setManageRestrictionsOpen(true); }}>
+                    <Settings2 className="mr-2 h-3 w-3" />Manage existing…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
                     <div className="w-2 h-2 rounded-full bg-red-500 mr-2" />Stop Sell
                   </DropdownMenuItem>
@@ -2474,6 +2481,21 @@ export default function PMSDashboard() {
             <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
             <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
             <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <RestrictionsManagerDialog
+              open={manageRestrictionsOpen}
+              onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusRestrictionKey(null); }}
+              propertyIds={
+                isPortfolioMode
+                  ? (portfolioProperties || []).map((p) => p.id)
+                  : propertyId
+                    ? [propertyId]
+                    : []
+              }
+              propertyNames={Object.fromEntries((portfolioProperties || []).map((p) => [p.id, p.name]))}
+              windowStart={dateRange.start}
+              focusSpanKey={focusRestrictionKey}
+              onChanged={handleRuleCreated}
+            />
           </>
         );
       })()}
