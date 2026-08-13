@@ -93,10 +93,10 @@ export interface PlanCell {
   bookings: RoomsBooking[];
 }
 
-/** Key for a stop-sell night: blocks are stored per room type NAME. */
-export function stopSellKey(roomTypeName: string, date: Date | string): string {
+/** Key for a stop-sell night: blocks are stored per property + room type NAME. */
+export function stopSellKey(propertyId: string, roomTypeName: string, date: Date | string): string {
   const day = typeof date === "string" ? date : format(date, "yyyy-MM-dd");
-  return `${roomTypeName.trim().toLowerCase()}|${day}`;
+  return `${propertyId}|${roomTypeName.trim().toLowerCase()}|${day}`;
 }
 
 
@@ -158,7 +158,7 @@ export function buildRoomTypePlan(
         // unit — deduplicating by room id would hide real double bookings.
         used += assigned.length > 0 ? assigned.length : 1;
       }
-      const stopSell = stopSellNights?.has(stopSellKey(roomType.name, date)) ?? false;
+      const stopSell = stopSellNights?.has(stopSellKey(roomType.property_id, roomType.name, date)) ?? false;
       return {
         date,
         // A blocked night is never sellable, whatever the unit count says.
