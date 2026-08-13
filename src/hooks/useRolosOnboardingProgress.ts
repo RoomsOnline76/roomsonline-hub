@@ -564,6 +564,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     overall,
     channelsConnected,
     publishedOk,
+    unpublishedUnits,
     blockingMacros,
     gateSignature,
 
