@@ -296,14 +296,32 @@ export function RoomPlanGrid({
       const checkIn = dates[from];
       const lastNight = dates[to];
       if (!checkIn || !lastNight) return;
+      const checkOut = addDays(lastNight, 1);
+      const blocked = firstBlockedNight(
+        drag.roomTypeId,
+        format(checkIn, "yyyy-MM-dd"),
+        format(checkOut, "yyyy-MM-dd")
+      );
+      if (blocked) {
+        toast({
+          title: "Dates blocked",
+          description: `${typeNameById.get(drag.roomTypeId) || "This room"} is blocked on ${format(
+            blocked,
+            "d MMM"
+          )} — unblock those dates first.`,
+          variant: "destructive",
+        });
+        return;
+      }
       onCreateBooking({
         roomTypeId: drag.roomTypeId,
         roomId: drag.roomId,
         checkIn,
-        checkOut: addDays(lastNight, 1),
+        checkOut,
       });
     },
-    [dates, onCreateBooking]
+    [dates, onCreateBooking, firstBlockedNight, typeNameById]
+
   );
 
   const handleMoveCommit = useCallback(
