@@ -2,6 +2,8 @@ import { canonicalPricingModel, stayTotalForModel } from "../_shared/ratePricing
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
+import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
+
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
   getRateResolutionMode,
