@@ -267,19 +267,44 @@ export function LocalExperiencesManager({
     await saveMutation.mutateAsync({ id, is_active: isActive });
   };
 
+  const handlePickPlace = (place: PickedPlace) => {
+    setEditingExperience(null);
+    setPrefill({
+      title: place.title,
+      description: place.address ?? '',
+      distance_km: place.distanceKm ?? null,
+    });
+    setIsDialogOpen(true);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className={isCompact ? 'space-y-3' : 'space-y-6'}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={isCompact ? 'space-y-2' : 'flex items-center justify-between'}>
         <div>
-          <h3 className="text-lg font-medium">Local Experiences</h3>
-          <p className="text-sm text-muted-foreground">
-            Curate local activities and attractions for guests
+          <h3 className={isCompact ? 'text-sm font-medium' : 'text-lg font-medium'}>
+            {isCompact ? 'Nearby attractions' : 'Local Experiences'}
+          </h3>
+          <p className={isCompact ? 'text-xs text-muted-foreground' : 'text-sm text-muted-foreground'}>
+            {isCompact
+              ? 'Search a place to capture it with a calculated distance. Attractions with a distance are shared with the channel.'
+              : 'Curate local activities and attractions for guests'}
           </p>
         </div>
-        <div className="flex gap-2">
+
+        {isCompact && (
+          <AttractionPlaceSearch
+            propertyLat={propertyLat}
+            propertyLng={propertyLng}
+            regionHint={[propertyCity, propertyCountry].filter(Boolean).join(', ') || undefined}
+            onPick={handlePickPlace}
+          />
+        )}
+
+        <div className={isCompact ? 'flex flex-wrap items-center gap-2' : 'flex gap-2'}>
           <Button 
             variant="outline" 
+            size={isCompact ? 'sm' : 'default'}
             onClick={handleGenerateWithAI}
             disabled={isGenerating}
           >
@@ -288,13 +313,25 @@ export function LocalExperiencesManager({
             ) : (
               <Sparkles className="h-4 w-4 mr-2" />
             )}
-            Generate with TOBI
+            {isCompact ? 'Suggest with TOBI' : 'Generate with TOBI'}
           </Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) setPrefill(null);
+            }}
+          >
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingExperience(null)}>
+              <Button
+                size={isCompact ? 'sm' : 'default'}
+                onClick={() => {
+                  setEditingExperience(null);
+                  setPrefill(null);
+                }}
+              >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Experience
+                {isCompact ? 'Add manually' : 'Add Experience'}
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -304,14 +341,25 @@ export function LocalExperiencesManager({
                 </DialogTitle>
               </DialogHeader>
               <ExperienceForm
+                key={editingExperience?.id ?? prefill?.title ?? 'new'}
                 experience={editingExperience}
+                prefill={prefill}
+                destinations={destinations ?? []}
                 onSave={(data) => saveMutation.mutate(data)}
                 isLoading={saveMutation.isPending}
               />
             </DialogContent>
           </Dialog>
+          {isCompact && (
+            <span className="text-[11px] text-muted-foreground">
+              {withDistance} of {(experiences ?? []).length} carry a distance and will be shared
+              with the channel (recommended).
+            </span>
+          )}
         </div>
       </div>
+
+
 
       {/* Experiences List */}
       {isLoading ? (
