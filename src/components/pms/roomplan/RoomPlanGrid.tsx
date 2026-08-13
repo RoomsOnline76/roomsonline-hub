@@ -207,24 +207,46 @@ export function RoomPlanGrid({
 
   const bookingById = useMemo(() => new Map(bookings.map((b) => [b.id, b])), [bookings]);
 
+  const typeNameById = useMemo(() => new Map(roomTypes.map((type) => [type.id, type.name])), [roomTypes]);
+
   const validateMove = useCallback(
-    (drag: Omit<RoomPlanMoveDrag, "valid">) => {
-      if (drag.target.roomTypeId !== drag.roomTypeId) return false;
+    (drag: Omit<RoomPlanMoveDrag, "valid" | "reason">): RoomPlanMoveVerdict => {
       const booking = bookingById.get(drag.bookingId);
-      if (!booking) return false;
+      if (!booking) return { valid: false, reason: "This reservation is no longer on the plan." };
       const nextIn = shiftDate(booking.check_in_date, drag.deltaCols);
       const nextOut = shiftDate(booking.check_out_date, drag.deltaCols);
       const targetRow = rowByKey.get(drag.target.rowKey);
-      if (!targetRow) return false;
-      return !targetRow.bookings.some(
+      if (!targetRow) return { valid: false, reason: "Drop the reservation on a unit row." };
+      // A move across room types is allowed — the unit, not the type, holds the
+      // stay — so only real occupancy blocks the drop.
+      const clash = targetRow.bookings.find(
         (other) =>
           other.id !== booking.id &&
           !["cancelled", "no_show"].includes(other.status) &&
           overlaps(nextIn, nextOut, other.check_in_date, other.check_out_date)
       );
+      if (clash) {
+        return {
+          valid: false,
+          reason: `${targetRow.label} is already taken by ${clash.guest_name} (${format(
+            parseISO(clash.check_in_date),
+            "d MMM"
+          )} – ${format(parseISO(clash.check_out_date), "d MMM")}).`,
+        };
+      }
+      return { valid: true };
     },
     [bookingById, rowByKey]
   );
+
+  const handleMoveRejected = useCallback((drag: RoomPlanMoveDrag) => {
+    toast({
+      title: "Reservation not moved",
+      description: drag.reason || "That unit cannot take this stay.",
+      variant: "destructive",
+    });
+  }, []);
+
 
   const handleCreateCommit = useCallback(
     (drag: { roomTypeId: string; roomId: string | null; startCol: number; endCol: number }) => {
