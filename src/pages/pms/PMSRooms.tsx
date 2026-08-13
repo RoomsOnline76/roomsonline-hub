@@ -40,26 +40,35 @@ const emptyForm: RoomForm = { room_number: "", room_name: "", floor: "", room_ty
 const SLEEPS_OPTIONS = ["any", "2", "3", "4", "6"];
 
 export default function PMSRooms() {
-  const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  // One dropdown drives the whole page: every property stacked, or just one.
-  const [propertyScope, setPropertyScope] = useState<string>(ALL_PROPERTIES);
+  const {
+    propertyId,
+    properties,
+    portfolioProperties,
+    switchProperty,
+    showPortfolioToggle,
+    loading: propertyLoading,
+  } = usePmsPropertyId();
+  // Property scope is controlled by a Portfolio | Property toggle in the header.
+  // The active property itself is chosen from the sidebar switcher (top-left).
+  const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
   const [autoDefaulted, setAutoDefaulted] = useState(false);
 
   useEffect(() => {
     if (!autoDefaulted && properties.length > 0) {
-      setPropertyScope(properties.length > 1 ? ALL_PROPERTIES : properties[0].id);
+      setViewMode(showPortfolioToggle ? "portfolio" : "single");
       setAutoDefaulted(true);
     }
-  }, [properties, autoDefaulted]);
+  }, [properties, showPortfolioToggle, autoDefaulted]);
 
-  const isPortfolio = propertyScope === ALL_PROPERTIES && properties.length > 1;
+  const portfolioList = portfolioProperties || properties;
+  const isPortfolio = viewMode === "portfolio" && portfolioList.length > 1;
   const selectSingleProperty = useCallback((id: string) => {
-    setPropertyScope(id);
+    setViewMode("single");
     switchProperty(id);
   }, [switchProperty]);
   const activePropertyIds = useMemo(
-    () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
-    [isPortfolio, properties, propertyId]
+    () => (isPortfolio ? portfolioList.map((p) => p.id) : propertyId ? [propertyId] : []),
+    [isPortfolio, portfolioList, propertyId]
   );
 
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
