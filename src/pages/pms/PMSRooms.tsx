@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { addDays, format, startOfDay } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 
@@ -24,7 +25,7 @@ import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@
 import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, stopSellKey, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
 /** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
 const PLAN_NIGHTS = 45;
