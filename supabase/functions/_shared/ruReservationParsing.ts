@@ -121,7 +121,10 @@ export interface ResolvedRuUnit {
   /** `hostfully_room_types` id carrying the RU mapping (used for availability rows). */
   mappingRoomTypeId: string | null;
   unitName: string | null;
+  /** Physical `rolos_rooms` id of the canonical unit, so the grid places the stay at once. */
+  roomId?: string | null;
 }
+
 
 /**
  * Resolve an RU PropertyID to the property + the room type the ROL'OS dashboard renders.
@@ -130,12 +133,12 @@ export interface ResolvedRuUnit {
  * never matches a displayed unit.
  */
 export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): Promise<ResolvedRuUnit> {
-  const empty: ResolvedRuUnit = { propertyId: null, roomTypeId: null, mappingRoomTypeId: null, unitName: null };
+  const empty: ResolvedRuUnit = { propertyId: null, roomTypeId: null, mappingRoomTypeId: null, unitName: null, roomId: null };
   if (!ruPropertyId) return empty;
 
   const { data: mapping } = await supabase
     .from('hostfully_room_types')
-    .select('id, name, property_id')
+    .select('id, name, property_id, linked_rolos_id')
     .eq('rentalsunited_property_id', ruPropertyId)
     .order('is_active', { ascending: false })
     .limit(1)
@@ -143,21 +146,52 @@ export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): 
 
   if (mapping?.property_id) {
     let canonicalId: string | null = null;
-    if (mapping.name) {
-      const { data: canonical } = await supabase
-        .from('rolos_room_types')
-        .select('id, name')
-        .eq('property_id', mapping.property_id);
-      canonicalId = (canonical || []).find(
-        (rt: { name: string | null }) =>
-          (rt.name || '').trim().toLowerCase() === (mapping.name || '').trim().toLowerCase(),
-      )?.id ?? null;
+    const { data: types } = await supabase
+      .from('rolos_room_types')
+      .select('id, name, is_active, created_at')
+      .eq('property_id', mapping.property_id);
+    const rows = (types || []) as Array<{ id: string; name: string | null; is_active: boolean | null; created_at: string | null }>;
+
+    // A linked room type always wins.
+    if (mapping.linked_rolos_id && rows.some((rt) => rt.id === mapping.linked_rolos_id)) {
+      canonicalId = mapping.linked_rolos_id;
     }
+
+    // Otherwise pick the canonical twin by name: active first, then most recently created.
+    // Duplicate/archived copies of the same unit must never win, or the stay lands on a
+    // room type the calendar does not render.
+    if (!canonicalId && mapping.name) {
+      const target = (mapping.name || '').trim().toLowerCase();
+      const matches = rows
+        .filter((rt) => (rt.name || '').trim().toLowerCase() === target)
+        .sort((a, b) => {
+          const activeDelta = Number(!!b.is_active) - Number(!!a.is_active);
+          if (activeDelta !== 0) return activeDelta;
+          return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+        });
+      canonicalId = matches[0]?.id ?? null;
+    }
+
+    // Physical unit for the canonical type, so the grid can place the stay immediately.
+    let roomId: string | null = null;
+    if (canonicalId) {
+      const { data: room } = await supabase
+        .from('rolos_rooms')
+        .select('id')
+        .eq('property_id', mapping.property_id)
+        .eq('room_type_id', canonicalId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      roomId = room?.id ?? null;
+    }
+
     return {
       propertyId: mapping.property_id,
       roomTypeId: canonicalId || mapping.id,
       mappingRoomTypeId: mapping.id,
       unitName: mapping.name ?? null,
+      roomId,
     };
   }
 
@@ -169,6 +203,7 @@ export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): 
     .maybeSingle();
   return { ...empty, propertyId: prop?.id ?? null };
 }
+
 
 /** Block (or release) the booked nights so the ROL booking engine cannot resell them. */
 export async function applyRuAvailabilityBlock(
