@@ -1598,6 +1598,36 @@ export default function PMSDashboard() {
     return overrideMap.get(`${roomTypeName}-${format(date, "yyyy-MM-dd")}`);
   };
 
+  /* Blocked nights live in property_availability keyed by room type NAME, so several
+   * room-type records sharing a name (legacy duplicates) all read as blocked. */
+  const makeIsBlocked = useCallback(
+    (types: { id: string; name: string }[], oMap: Map<string, AvailabilityOverride>) => {
+      const nameById = new Map(types.map(t => [t.id, t.name]));
+      return (roomTypeId: string, date: Date) => {
+        const name = nameById.get(roomTypeId);
+        if (!name) return false;
+        const o = oMap.get(`${name}-${format(date, "yyyy-MM-dd")}`);
+        if (!o) return false;
+        return o.is_stop_sell === true || o.available_units === 0;
+      };
+    },
+    [],
+  );
+
+  const isRoomTypeBlocked = useMemo(
+    () => makeIsBlocked(roomTypes, overrideMap),
+    [makeIsBlocked, roomTypes, overrideMap],
+  );
+
+  const portfolioIsBlockedByProperty = useMemo(() => {
+    const map = new Map<string, (roomTypeId: string, date: Date) => boolean>();
+    portfolioDataByProperty.forEach((propData, propId) => {
+      map.set(propId, makeIsBlocked(propData.roomTypes, propData.overrideMap));
+    });
+    return map;
+  }, [portfolioDataByProperty, makeIsBlocked]);
+
+
   // Navigation
   const navigateBy = (dir: number) => {
     setAnchorDate(prev => addDays(prev, dir * (viewMode === "week" ? 7 : 30)));
