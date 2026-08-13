@@ -2581,7 +2581,9 @@ Deno.serve(async (req) => {
           dry_run: true,
           message: 'Dry-run: XML composed and validated; no HTTP POST sent to Rentals United',
           validation: {
-            ru_property_id,
+            ru_property_id: effectiveRuPropertyId,
+            adopted_existing_listing: adoptedExistingListing,
+
             building_id: p.building_id ?? null,
             name: p.name,
             amenities_count: p.amenities?.length ?? 0,
