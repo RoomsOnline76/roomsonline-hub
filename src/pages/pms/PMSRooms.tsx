@@ -111,6 +111,28 @@ export default function PMSRooms() {
   const windowStart = format(dates[0], "yyyy-MM-dd");
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
+  /* Blocked (stop-sell) nights live in property_availability, keyed by room type NAME. */
+  const { data: stopSellNights } = useQuery({
+    queryKey: ["pms-rooms-stop-sell", activePropertyIds, windowStart, windowEnd],
+    queryFn: async () => {
+      const set = new Set<string>();
+      if (activePropertyIds.length === 0) return set;
+      const { data } = await supabase
+        .from("property_availability")
+        .select("property_id, room_type, date, is_stop_sell, available_units")
+        .in("property_id", activePropertyIds)
+        .gte("date", windowStart)
+        .lte("date", windowEnd);
+      (data || []).forEach((row: any) => {
+        if (!(row.is_stop_sell === true || row.available_units === 0)) return;
+        set.add(stopSellKey(row.property_id, String(row.room_type || ""), row.date));
+      });
+      return set;
+    },
+    enabled: activePropertyIds.length > 0,
+  });
+
+
   const shiftWindow = useCallback((direction: -1 | 1) => {
     setAnchorDate((current) => addDays(current, direction * 7));
   }, []);
