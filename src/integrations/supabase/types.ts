@@ -10168,6 +10168,7 @@ export type Database = {
       rolos_guest_profiles: {
         Row: {
           address: Json | null
+          cancelled_stays: number
           communication_preferences: Json | null
           complaints: Json | null
           created_at: string | null
@@ -10175,6 +10176,7 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          is_archived: boolean
           is_blacklisted: boolean | null
           last_stay_date: string | null
           nationality: string | null
@@ -10184,12 +10186,16 @@ export type Database = {
           preferences: Json | null
           property_id: string
           tags: string[] | null
+          total_cancelled_value: number
+          total_outstanding: number
+          total_received: number
           total_spent: number | null
           total_stays: number | null
           updated_at: string | null
         }
         Insert: {
           address?: Json | null
+          cancelled_stays?: number
           communication_preferences?: Json | null
           complaints?: Json | null
           created_at?: string | null
@@ -10197,6 +10203,7 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          is_archived?: boolean
           is_blacklisted?: boolean | null
           last_stay_date?: string | null
           nationality?: string | null
@@ -10206,12 +10213,16 @@ export type Database = {
           preferences?: Json | null
           property_id: string
           tags?: string[] | null
+          total_cancelled_value?: number
+          total_outstanding?: number
+          total_received?: number
           total_spent?: number | null
           total_stays?: number | null
           updated_at?: string | null
         }
         Update: {
           address?: Json | null
+          cancelled_stays?: number
           communication_preferences?: Json | null
           complaints?: Json | null
           created_at?: string | null
@@ -10219,6 +10230,7 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          is_archived?: boolean
           is_blacklisted?: boolean | null
           last_stay_date?: string | null
           nationality?: string | null
@@ -10228,6 +10240,9 @@ export type Database = {
           preferences?: Json | null
           property_id?: string
           tags?: string[] | null
+          total_cancelled_value?: number
+          total_outstanding?: number
+          total_received?: number
           total_spent?: number | null
           total_stays?: number | null
           updated_at?: string | null
