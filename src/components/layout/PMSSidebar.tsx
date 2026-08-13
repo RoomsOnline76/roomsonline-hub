@@ -70,16 +70,16 @@ export const pmsNavGroups: NavGroup[] = [
     label: "Front Desk",
     items: [
       { title: "Dashboard", icon: LayoutDashboard, href: "/pms", module: "dashboard" },
-      { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
+      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
       { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
+      { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
     ],
   },
   {
     label: "Operations",
     items: [
-      { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
       { title: "Housekeeping", icon: Sparkles, href: "/pms/housekeeping", module: "housekeeping" },
       { title: "Events", icon: CalendarHeart, href: "/pms/events", module: "events" },
       { title: "Night Audit", icon: Moon, href: "/pms/night-audit", module: "night-audit" },
