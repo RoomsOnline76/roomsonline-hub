@@ -104,8 +104,13 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       }
 
       const { data, error } = await supabase.functions.invoke("modify-booking", {
-        body: { booking_id: booking.id, modifications },
+        body: {
+          booking_id: booking.id,
+          modifications,
+          settlement: { raise_refund: raiseRefund, request_balance: requestBalance },
+        },
       });
+
       if (error) throw new Error(await extractFunctionError(error, "Modification failed"));
       if (data && data.success === false) throw new Error(data.message || "Modification failed");
 
