@@ -274,17 +274,23 @@ export function RoomPlanGrid({
       const targetRow = rowByKey.get(drag.target.rowKey);
       const checkIn = shiftDate(booking.check_in_date, drag.deltaCols);
       const checkOut = shiftDate(booking.check_out_date, drag.deltaCols);
+      const targetTypeId = targetRow?.roomTypeId || drag.target.roomTypeId;
+      const roomTypeChanged = targetTypeId !== drag.roomTypeId;
       setPendingMove({
         booking,
         roomId: drag.target.roomId,
+        roomTypeId: targetTypeId,
+        roomTypeChanged,
         checkIn,
         checkOut,
         datesChanged: drag.deltaCols !== 0,
         fromLabel: originRow?.label || "Unassigned",
         toLabel: targetRow?.label || "Unassigned",
+        fromTypeLabel: typeNameById.get(drag.roomTypeId) || "",
+        toTypeLabel: typeNameById.get(targetTypeId) || "",
       });
     },
-    [bookingById, onMoveBooking, rowByKey]
+    [bookingById, onMoveBooking, rowByKey, typeNameById]
   );
 
   const { drag, bodyRef, beginCreate, beginMove, consumeGestureDrag } = useRoomPlanDrag({
@@ -295,7 +301,9 @@ export function RoomPlanGrid({
     validateMove,
     onCreateCommit: handleCreateCommit,
     onMoveCommit: handleMoveCommit,
+    onMoveRejected: handleMoveRejected,
   });
+
 
   // While a move is awaiting confirmation the dialog must stay the top surface,
   // so booking-sheet opens are ignored until it is resolved.
