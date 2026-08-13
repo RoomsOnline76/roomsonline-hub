@@ -84,9 +84,11 @@ function replaceTemplateVariables(template: string, booking: any, property: any)
         r.numberOfChildren ? `${r.numberOfChildren} child${r.numberOfChildren > 1 ? "ren" : ""}` : "",
         r.numberOfInfants ? `${r.numberOfInfants} infant${r.numberOfInfants > 1 ? "s" : ""}` : "",
       ].filter(Boolean).join(", ");
+      const lineAmount = Number(r.lineTotal);
       const meta = [
         r.rateTypeName || r.mealPlan || "",
         occ,
+        Number.isFinite(lineAmount) && lineAmount > 0 ? formatCurrency(lineAmount, booking.currency) : "",
         `${formatDate(rCheckIn)} – ${formatDate(rCheckOut)}${rNights > 0 ? ` (${rNights} night${rNights > 1 ? "s" : ""})` : ""}`,
       ].filter(Boolean).join(" · ");
       return `<li style="margin: 0 0 8px;"><strong>${r.roomTypeName || r.roomName || "Room"}</strong>${meta ? `<br/><span style="color:#666;font-size:13px;">${meta}</span>` : ""}</li>`;
