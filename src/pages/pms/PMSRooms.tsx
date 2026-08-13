@@ -76,10 +76,18 @@ export default function PMSRooms() {
   const [selectedBooking, setSelectedBooking] = useState<RoomsBooking | null>(null);
 
   // ─── Plan window & filters ───
-  const [anchorDate, setAnchorDate] = useState<Date>(() => startOfDay(new Date()));
+  // Deep links from the Command Centre clash alert land on the affected nights
+  // with the conflict filter already applied.
+  const [anchorDate, setAnchorDate] = useState<Date>(() => {
+    const from = new URLSearchParams(window.location.search).get("from");
+    const parsed = from ? new Date(`${from}T00:00:00`) : null;
+    return parsed && !Number.isNaN(parsed.getTime()) ? startOfDay(parsed) : startOfDay(new Date());
+  });
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [overbookedOnly, setOverbookedOnly] = useState(false);
+  const [overbookedOnly, setOverbookedOnly] = useState(
+    () => new URLSearchParams(window.location.search).get("conflicts") === "1"
+  );
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
   const [showCards, setShowCards] = useState(false);
 
