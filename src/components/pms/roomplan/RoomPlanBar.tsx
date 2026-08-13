@@ -81,6 +81,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   onModify,
   onCancel,
   onDragStart,
+  wasDragGesture,
 }: RoomPlanBarProps) {
   const nights = bookingNights(booking);
   const draggable = isBookingDraggable(booking) && !!onDragStart;
@@ -95,14 +96,21 @@ export const RoomPlanBar = memo(function RoomPlanBar({
     [booking, draggable, onDragStart]
   );
 
+  const handleClick = useCallback(() => {
+    // A drag always ends with a click on this bar — opening the booking sheet
+    // then would cover the move confirmation, so swallow that click.
+    if (wasDragGesture?.()) return;
+    onOpen(booking);
+  }, [booking, onOpen, wasDragGesture]);
+
   return (
-    <HoverCard openDelay={150} closeDelay={80}>
+    <HoverCard openDelay={150} closeDelay={80} open={dragging ? false : undefined}>
       <HoverCardTrigger asChild>
         <button
           type="button"
           data-booking-bar={booking.id}
           onPointerDown={handlePointerDown}
-          onClick={() => onOpen(booking)}
+          onClick={handleClick}
           style={{
             left: geometry.startCol * colWidth + colWidth * 0.28,
             width: geometry.cols * colWidth - colWidth * 0.56,
