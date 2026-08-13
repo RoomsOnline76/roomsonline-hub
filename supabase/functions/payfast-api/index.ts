@@ -1156,6 +1156,26 @@ Deno.serve(async (req) => {
         })
         .eq("id", transaction.id);
       
+      // Money received must be reflected on the booking itself: a balance top-up after a
+      // modification adds to what was already received and closes out `balance_due`.
+      let settlementFields: Record<string, unknown> = {};
+      if (newStatus === "paid") {
+        const { data: current } = await supabase
+          .from("bookings")
+          .select("total_price, amount_paid")
+          .eq("id", transaction.booking_id)
+          .maybeSingle();
+        const isTopUp = String((transaction.gateway_response as any)?.purpose ?? "") === "balance";
+        const priorPaid = Number(current?.amount_paid ?? 0);
+        const paid = Math.round(((isTopUp ? priorPaid : 0) + amountGross) * 100) / 100;
+        const total = Number(current?.total_price ?? 0);
+        settlementFields = {
+          amount_paid: paid,
+          amount_paid_source: "gateway",
+          balance_due: Math.max(0, Math.round((total - paid) * 100) / 100),
+        };
+      }
+
       // Update booking - also set status to 'confirmed' when payment is successful
       await supabase
         .from("bookings")
@@ -1165,10 +1185,12 @@ Deno.serve(async (req) => {
           payment_method: "payfast",
           paid_at: newStatus === "paid" ? new Date().toISOString() : null,
           status: newStatus === "paid" ? "confirmed" : undefined,
+          ...settlementFields,
         })
         .eq("id", transaction.booking_id);
       
       console.log(`[PayFast] Updated booking ${transaction.booking_id} to status: ${newStatus}`);
+
       
       // If payment successful, trigger push-booking and send email
       if (newStatus === "paid") {
