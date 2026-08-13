@@ -1931,7 +1931,10 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
   // Ensure guest profile exists and link
   if (booking && !booking.rolos_guest_id && booking.guest_email) {
     const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price, booking.guest_nationality);
-    if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+    if (guestId) {
+      await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+      await rebuildGuestStats(supabase, [guestId]);
+    }
   }
 
   // Mark assigned rooms as occupied (use final room list)
@@ -1978,7 +1981,10 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
   // Ensure guest profile on checkout too
   if (booking && !booking.rolos_guest_id && booking.guest_email) {
     const guestId = await ensureGuestProfile(supabase, booking.property_id, booking.guest_name, booking.guest_email, booking.guest_phone, booking.total_price, booking.guest_nationality);
-    if (guestId) await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+    if (guestId) {
+      await supabase.from("bookings").update({ rolos_guest_id: guestId }).eq("id", booking_id);
+      await rebuildGuestStats(supabase, [guestId]);
+    }
   }
   // Get room IDs from booking_rooms table OR fallback to rolos_room_ids on the booking
   const { data: assignedRooms } = await supabase.from("rolos_booking_rooms").select("room_id").eq("booking_id", booking_id);
