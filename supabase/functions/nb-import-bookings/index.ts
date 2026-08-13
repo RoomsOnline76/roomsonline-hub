@@ -50,6 +50,53 @@ function decodeBase64(b64: string): Uint8Array {
   return out;
 }
 
+/**
+ * Persist one import run (preview or live) so an upload can never disappear
+ * without a trace. Never throws — logging must not break an import.
+ */
+async function logImportRun(
+  sb: ReturnType<typeof createClient>,
+  run: {
+    property_id: string;
+    created_by: string | null;
+    file_name: string | null;
+    file_bytes: number | null;
+    mode: "preview" | "live";
+    summary: Record<string, unknown>;
+    errors: unknown[];
+    skipped: unknown[];
+    unmapped_rooms: string[];
+    arrivals: string[];
+    future_stays: number;
+  },
+): Promise<string | null> {
+  try {
+    const sorted = [...run.arrivals].filter(Boolean).sort();
+    const { data } = await sb
+      .from("nb_import_runs")
+      .insert({
+        property_id: run.property_id,
+        created_by: run.created_by,
+        file_name: run.file_name || null,
+        file_bytes: run.file_bytes,
+        mode: run.mode,
+        summary: run.summary,
+        errors: run.errors.slice(0, 200),
+        skipped: run.skipped.slice(0, 200),
+        unmapped_rooms: run.unmapped_rooms,
+        min_arrival: sorted[0] ?? null,
+        max_arrival: sorted[sorted.length - 1] ?? null,
+        future_stays: run.future_stays,
+      })
+      .select("id")
+      .maybeSingle();
+    return (data?.id as string) ?? null;
+  } catch (e) {
+    console.error("nb-import-bookings: could not log run", e);
+    return null;
+  }
+}
+
 interface RoomRef {
   id: string;
   room_type_id: string | null;
