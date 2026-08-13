@@ -203,7 +203,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
                 <LogOut className="mr-1 h-3 w-3" />Check out
               </Button>
             )}
-            {onModify && (
+            {onModify && !isLead && (
               <Button
                 size="sm"
                 variant="outline"
