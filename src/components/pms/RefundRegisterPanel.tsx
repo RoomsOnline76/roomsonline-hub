@@ -177,6 +177,14 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
                       Rejected: {r.rejected_reason}
                     </p>
                   )}
+                  {r.status === "awaiting_guest_choice" && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Wallet className="h-3 w-3" />
+                      The guest is choosing whether to hold this as credit or be refunded now — no
+                      money moves until they decide.
+                    </p>
+                  )}
+
 
                   {["pending", "approved", "failed"].includes(r.status) && (
                     <>
