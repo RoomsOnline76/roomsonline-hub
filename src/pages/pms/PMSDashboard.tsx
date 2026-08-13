@@ -346,6 +346,21 @@ function isChannelLead(booking: Pick<BookingRow, "integration_type">): boolean {
   return (booking.integration_type ?? "").endsWith("_lead");
 }
 
+/** Rentals United bookings must be cancelled / modified at the channel first. */
+function isRuSourcedBooking(booking: Pick<BookingRow, "booking_channel" | "integration_type">): boolean {
+  return (
+    (booking.booking_channel || "").toLowerCase() === "rentals_united" ||
+    (booking.integration_type || "").toLowerCase().startsWith("rentalsunited")
+  );
+}
+
+/** Unconfirmed RU requests are rejected rather than cancelled. */
+function isRuLeadOrigin(booking: Pick<BookingRow, "integration_type">): boolean {
+  return (booking.integration_type || "").toLowerCase() === "rentalsunited_lead";
+}
+
+
+
 /** Colour a calendar bar: enquiries read as held (dashed) or lapsed (muted). */
 function getBookingColor(booking: Pick<BookingRow, "status" | "integration_type" | "hold_released_at">) {
   if (isChannelLead(booking) && booking.status === "pending") {
@@ -2274,6 +2289,42 @@ export default function PMSDashboard() {
         </SheetContent>
       </Sheet>
 
+      {/* Hover-card actions from the room plan: modify / cancel without opening the sheet */}
+      {modifyTarget && (
+        <BookingModifyDialog
+          key={`modify-${modifyTarget.id}`}
+          open={!!modifyTarget}
+          onOpenChange={(open) => { if (!open) setModifyTarget(null); }}
+          booking={{
+            id: modifyTarget.id,
+            guest_name: modifyTarget.guest_name,
+            check_in_date: modifyTarget.check_in_date,
+            check_out_date: modifyTarget.check_out_date,
+            adults: modifyTarget.adults,
+            children: modifyTarget.children,
+            teens: modifyTarget.teens,
+            infants: modifyTarget.infants,
+            total_price: modifyTarget.total_price,
+            property_id: modifyTarget.property_id ?? null,
+            room_type_id: modifyTarget.room_type_id ?? null,
+          }}
+          isRuBooking={isRuSourcedBooking(modifyTarget)}
+          onDone={() => { setModifyTarget(null); refreshBookingQueries(); }}
+        />
+      )}
+      {cancelTarget && (
+        <BookingCancelDialog
+          key={`cancel-${cancelTarget.id}`}
+          open={!!cancelTarget}
+          onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+          bookingId={cancelTarget.id}
+          guestName={cancelTarget.guest_name}
+          isRuBooking={isRuSourcedBooking(cancelTarget)}
+          isRuLead={isRuLeadOrigin(cancelTarget)}
+          onDone={() => { setCancelTarget(null); refreshBookingQueries(); }}
+        />
+      )}
+
       {/* Manual Booking Dialog */}
       <ManualBookingDialog
         open={manualBookingOpen}
@@ -3153,10 +3204,8 @@ function BookingDetail({
   const availableRooms = rooms.filter(r => r.status === "available");
   const guestId = b.rolos_guest_id || null;
   // Rentals United bookings must be cancelled/modified at the channel first.
-  const isRuSourced =
-    (b.booking_channel || "").toLowerCase() === "rentals_united" ||
-    (b.integration_type || "").toLowerCase().startsWith("rentalsunited");
-  const isRuLeadBooking = (b.integration_type || "").toLowerCase() === "rentalsunited_lead";
+  const isRuSourced = isRuSourcedBooking(b);
+  const isRuLeadBooking = isRuLeadOrigin(b);
 
 
   // Lifecycle buttons based on status
