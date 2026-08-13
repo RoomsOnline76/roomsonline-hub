@@ -81,6 +81,9 @@ export interface SettlementResult {
   refund_error: string | null;
   balance_requested: boolean;
   balance_token: string | null;
+  /** Token for the guest's credit-or-refund choice page. */
+  credit_token: string | null;
+  credit_requested: boolean;
 }
 
 async function raisePendingRefund(
@@ -88,6 +91,7 @@ async function raisePendingRefund(
   booking: { id: string; guest_name?: string | null },
   amount: number,
   reason: string,
+  holdForGuestChoice: boolean,
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
     const url = Deno.env.get("SUPABASE_URL")!;
@@ -101,7 +105,10 @@ async function raisePendingRefund(
         amount,
         reason,
         reason_category: "date_change",
-        internal_notes: "Raised automatically by a booking modification — awaiting approval.",
+        hold_for_guest_choice: holdForGuestChoice,
+        internal_notes: holdForGuestChoice
+          ? "Raised by a booking modification — the guest is choosing between credit and a refund."
+          : "Raised automatically by a booking modification — awaiting approval.",
       }),
     });
     const text = await response.text();
@@ -114,10 +121,11 @@ async function raisePendingRefund(
   }
 }
 
-/** Fresh 30-day token the guest uses to settle the outstanding balance. */
-async function createBalanceToken(
+/** Fresh 30-day token the guest uses to settle a balance or choose credit vs refund. */
+async function createGuestToken(
   supabase: Db,
   booking: { id: string; guest_email?: string | null },
+  usedFor: "balance" | "settlement",
 ): Promise<string | null> {
   const email = (booking.guest_email ?? "").trim();
   if (!email.includes("@")) return null;
@@ -126,21 +134,21 @@ async function createBalanceToken(
     .from("guest_portal_tokens")
     .delete()
     .eq("booking_id", booking.id)
-    .eq("used_for", "balance");
+    .eq("used_for", usedFor);
 
   const { data, error } = await supabase
     .from("guest_portal_tokens")
     .insert({
       booking_id: booking.id,
       guest_email: email,
-      used_for: "balance",
+      used_for: usedFor,
       expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
     })
     .select("token")
     .single();
 
   if (error) {
-    console.error("[settlement] balance token failed:", error.message);
+    console.error(`[settlement] ${usedFor} token failed:`, error.message);
     return null;
   }
   return (data?.token as string) ?? null;
@@ -188,6 +196,8 @@ export async function applyBookingSettlement(
     refund_error: null,
     balance_requested: false,
     balance_token: null,
+    credit_token: null,
+    credit_requested: false,
   };
 
   await supabase
@@ -203,13 +213,19 @@ export async function applyBookingSettlement(
     const reason = params.reasonNote?.trim()
       ? `Booking modified — ${params.reasonNote.trim()}`
       : "Booking modified: the new total is lower than the amount received.";
-    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason);
+
+    // The guest decides: hold the difference as credit for the stay, or take the refund now. The
+    // refund is recorded straight away but held out of the approval queue until they answer.
+    const creditToken = await createGuestToken(supabase, booking, "settlement");
+    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason, !!creditToken);
     result.refund_raised = outcome.ok;
     result.refund_error = outcome.error;
+    result.credit_token = creditToken;
+    result.credit_requested = outcome.ok && !!creditToken;
   }
 
   if (balanceDue > 0 && params.requestBalance) {
-    const token = await createBalanceToken(supabase, booking);
+    const token = await createGuestToken(supabase, booking, "balance");
     result.balance_token = token;
     result.balance_requested = !!token;
   }

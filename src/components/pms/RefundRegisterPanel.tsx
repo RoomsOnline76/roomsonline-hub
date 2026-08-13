@@ -19,7 +19,7 @@ import {
   useRefundRegister,
 } from "@/hooks/useRefundRegister";
 import { displayBookingReference } from "@/lib/bookingReference";
-import { AlertTriangle, BadgeCheck, Clock, RotateCcw, XCircle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Clock, RotateCcw, Wallet, XCircle } from "lucide-react";
 
 interface RefundRegisterPanelProps {
   propertyId?: string | null;
@@ -29,6 +29,7 @@ const STATUS_META: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
+  awaiting_guest_choice: { label: "Awaiting guest choice", variant: "outline" },
   pending: { label: "Awaiting approval", variant: "secondary" },
   approved: { label: "Approved", variant: "default" },
   processed: { label: "Processed", variant: "outline" },
@@ -49,7 +50,9 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
   const visible = useMemo(() => {
     if (filter === "all") return refunds;
     if (filter === "open")
-      return refunds.filter((r) => ["pending", "approved", "failed"].includes(r.status));
+      return refunds.filter((r) =>
+        ["awaiting_guest_choice", "pending", "approved", "failed"].includes(r.status),
+      );
     return refunds.filter((r) => r.status === filter);
   }, [refunds, filter]);
 
@@ -59,15 +62,25 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
         .filter((r) => statuses.includes(r.status))
         .reduce((s, r) => s + Number(r.amount || 0), 0);
     return {
+      guestChoice: sum(["awaiting_guest_choice"]),
       pending: sum(["pending"]),
       approved: sum(["approved", "failed"]),
       processed: sum(["processed"]),
     };
   }, [refunds]);
 
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <Wallet className="h-3 w-3" />Guest deciding
+            </p>
+            <p className="text-xl font-semibold">{money(totals.guestChoice)}</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardContent className="pt-5">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
@@ -100,6 +113,7 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
           <Tabs value={filter} onValueChange={setFilter}>
             <TabsList>
               <TabsTrigger value="open">Open</TabsTrigger>
+              <TabsTrigger value="awaiting_guest_choice">Guest</TabsTrigger>
               <TabsTrigger value="pending">Pending</TabsTrigger>
               <TabsTrigger value="processed">Processed</TabsTrigger>
               <TabsTrigger value="all">All</TabsTrigger>
@@ -163,6 +177,14 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
                       Rejected: {r.rejected_reason}
                     </p>
                   )}
+                  {r.status === "awaiting_guest_choice" && (
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Wallet className="h-3 w-3" />
+                      The guest is choosing whether to hold this as credit or be refunded now — no
+                      money moves until they decide.
+                    </p>
+                  )}
+
 
                   {["pending", "approved", "failed"].includes(r.status) && (
                     <>

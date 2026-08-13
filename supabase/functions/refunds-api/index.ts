@@ -43,6 +43,8 @@ const RequestSchema = z.object({
   reason: z.string().min(3).max(500),
   reason_category: z.enum(REASON_CATEGORIES),
   internal_notes: z.string().max(2000).optional(),
+  /** Record the refund but keep it out of the approval queue until the guest chooses. */
+  hold_for_guest_choice: z.boolean().optional(),
 });
 
 const DecisionSchema = z.object({
@@ -54,7 +56,7 @@ const DecisionSchema = z.object({
 const ListSchema = z.object({
   action: z.literal("list_refunds"),
   property_id: z.string().uuid().nullish(),
-  status: z.string().max(20).nullish(),
+  status: z.string().max(40).nullish(),
 });
 
 const CapabilitySchema = z.object({
@@ -247,6 +249,7 @@ Deno.serve(async (req) => {
       const parsed = RequestSchema.safeParse(body);
       if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
       const { booking_id, amount, reason, reason_category, internal_notes } = parsed.data;
+      const holdForGuestChoice = parsed.data.hold_for_guest_choice === true;
 
       const { data: booking, error: bErr } = await supabase
         .from("bookings")
@@ -283,6 +286,7 @@ Deno.serve(async (req) => {
       const withinEntitlement =
         entitlement.entitled_amount !== null && amount <= entitlement.entitled_amount + 0.01;
       const autoApprove =
+        !holdForGuestChoice &&
         property?.refund_auto_approve_enabled === true &&
         withinEntitlement &&
         amount <= Number(property?.refund_auto_approve_cap || 0);
@@ -303,7 +307,8 @@ Deno.serve(async (req) => {
           reason_category,
           internal_notes: internal_notes ?? null,
           requested_by: userId,
-          status: autoApprove ? "approved" : "pending",
+          status: holdForGuestChoice ? "awaiting_guest_choice" : autoApprove ? "approved" : "pending",
+          guest_choice: holdForGuestChoice ? "pending" : null,
           approved_by: autoApprove ? userId : null,
           approved_at: autoApprove ? new Date().toISOString() : null,
         })
@@ -313,13 +318,15 @@ Deno.serve(async (req) => {
 
       await notify(
         supabase,
-        `Refund ${autoApprove ? "auto-approved" : "requested"}: ${booking.rol_reference ?? booking_id}`,
+        `Refund ${holdForGuestChoice ? "awaiting guest choice" : autoApprove ? "auto-approved" : "requested"}: ${booking.rol_reference ?? booking_id}`,
         [
           `Guest: ${booking.guest_name ?? "—"}`,
           `Amount: R${amount.toFixed(2)}`,
           `Policy entitlement: ${entitlement.entitled_amount === null ? "no policy resolved" : `R${entitlement.entitled_amount.toFixed(2)}`}`,
           `Reason: ${reason} (${reason_category})`,
-          autoApprove
+          holdForGuestChoice
+            ? "The guest has been asked whether to hold this as credit for the stay or be refunded now. Held until they answer."
+            : autoApprove
             ? "Auto-approved under the property's refund threshold — awaiting execution."
             : "Awaiting approval.",
         ],
