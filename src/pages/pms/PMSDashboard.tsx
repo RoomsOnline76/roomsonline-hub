@@ -2293,6 +2293,7 @@ export default function PMSDashboard() {
                           getSeasonForDate={getSeasonForDate}
                           getRestriction={propGetRestriction}
                           onSelectBooking={openBookingSheet}
+                          onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
                       </div>
@@ -2347,6 +2348,7 @@ export default function PMSDashboard() {
                           getSeasonForDate={getSeasonForDate}
                           getRestriction={propGetRestriction}
                           onSelectBooking={openBookingSheet}
+                          onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
                       </div>
@@ -2374,6 +2376,7 @@ export default function PMSDashboard() {
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
                 onSelectBooking={openBookingSheet}
+                onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                 bookingsLoading={bookingsLoading}
               />
               )
@@ -2395,6 +2398,7 @@ export default function PMSDashboard() {
                 getSeasonForDate={getSeasonForDate}
                 getRestriction={getRestriction}
                 onSelectBooking={openBookingSheet}
+                onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                 bookingsLoading={bookingsLoading}
               />
             )}
