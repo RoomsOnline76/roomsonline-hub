@@ -90,6 +90,7 @@ import {
   Info,
 
 } from "lucide-react";
+import { rebuildGuestStats } from "@/lib/guestIdentity";
 import { toast } from "sonner";
 import { useRealtimeBookings } from "@/hooks/useRealtimeBookings";
 import { useBookingRoomLines } from "@/hooks/useBookingRoomLines";
