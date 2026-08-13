@@ -666,17 +666,39 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   <Label>Guest Name *</Label>
                   <GuestNameAutocomplete
                     propertyId={effectivePropertyId}
+                    portfolioPropertyIds={portfolioMode ? searchScopeIds : undefined}
+                    propertyNames={propertyNames}
                     value={form.guest_name}
-                    onChange={(v) => update("guest_name", v)}
-                    onSelect={(g) => {
-                      setForm((p) => ({
-                        ...p,
-                        guest_name: g.full_name || p.guest_name,
-                        guest_email: g.email || p.guest_email,
-                        guest_phone: g.phone || p.guest_phone,
-                      }));
-                    }}
+                    onChange={(v) => { if (pickedGuest) setPickedGuest(null); update("guest_name", v); }}
+                    onSelect={(g) => { void hydrateFromGuest(g); }}
                   />
+                  {pickedGuest && (
+                    <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium">Known guest</span>
+                          {(pickedGuest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-[10px]">Repeat</Badge>}
+                          {(pickedGuest.tags || []).some(t => t.toLowerCase() === "vip") && <Badge variant="secondary" className="text-[10px]">VIP</Badge>}
+                          {pickedGuest.is_blacklisted && <Badge variant="destructive" className="text-[10px]">Blacklisted</Badge>}
+                          {pickedGuest.from_history && <Badge variant="outline" className="text-[10px]">From booking history</Badge>}
+                        </span>
+                        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-[11px]" onClick={clearPickedGuest}>
+                          Clear guest
+                        </Button>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        {[
+                          `${pickedGuest.total_stays || 0} stay${(pickedGuest.total_stays || 0) === 1 ? "" : "s"}`,
+                          `R${Math.round(Number(pickedGuest.total_received) || 0).toLocaleString("en-ZA")} received`,
+                          (pickedGuest.total_outstanding || 0) > 0
+                            ? `R${Math.round(Number(pickedGuest.total_outstanding)).toLocaleString("en-ZA")} outstanding`
+                            : null,
+                          pickedGuest.last_stay_date ? `last stay ${pickedGuest.last_stay_date}` : null,
+                          pickedGuest.property_id ? propertyNames.get(pickedGuest.property_id) : null,
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
