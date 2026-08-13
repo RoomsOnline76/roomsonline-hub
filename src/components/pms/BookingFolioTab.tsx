@@ -210,6 +210,8 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
 
   const hasChargesApplied = bookingCharges.length > 0;
   const pendingRefunds = bookingCharges.filter(c => c.is_refundable && c.refund_status === "pending");
+  /** Only collect when money is genuinely owed. Externally settled stays with no balance are locked. */
+  const canCollect = balance > 0;
 
   return (
     <div className="space-y-4">
