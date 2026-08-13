@@ -182,8 +182,10 @@ export function LocalExperiencesManager({
           why_locals_love_it: experience.why_locals_love_it || null,
           best_time: experience.best_time || null,
           is_active: experience.is_active ?? true,
+          ru_destination_id: experience.ru_destination_id ?? null,
           property_id: propertyId
         };
+
         const { error } = await supabase
           .from('local_experiences')
           .insert([insertData]);
