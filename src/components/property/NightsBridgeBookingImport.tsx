@@ -113,7 +113,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     setFile(next);
     setResult(null);
     setOverrides({});
+    toast.success(`${next.name} attached (${formatSize(next.size)}) — validate to preview`);
   }, []);
+
 
   const run = useCallback(
     async (dryRun: boolean) => {
