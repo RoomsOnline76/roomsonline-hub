@@ -245,9 +245,14 @@ Deno.serve(async (req) => {
         is_history: m.is_history,
       };
     });
-    // Room warnings must cover every row, not just the previewed ones.
-    for (const m of mapped) {
+    // Room warnings must cover every row, not just the previewed ones — and must keep
+    // listing names the operator excluded so their decision stays visible/editable.
+    for (const m of kept) {
       if (!m.room_name) continue;
+      if (overrideFor(m.room_name) === EXCLUDE) {
+        unmappedRooms.add(m.room_name);
+        continue;
+      }
       const { roomId, roomTypeId } = resolveRoom(m.room_name);
       if (!roomId && !roomTypeId) unmappedRooms.add(m.room_name);
     }
@@ -265,9 +270,11 @@ Deno.serve(async (req) => {
           created: willCreate,
           updated: willUpdate,
           skipped: skipped.length,
+          excluded: excludedByOperator,
           errors: errors.length,
           unmapped_rooms: [...unmappedRooms],
         },
+
         errors,
         skipped,
         rooms: (roomRows ?? []).map((r) => ({
