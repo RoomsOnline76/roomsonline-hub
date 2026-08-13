@@ -1056,6 +1056,16 @@ const Bookings = () => {
                                 {booking.booking_channel === 'rentals_united' && (
                                   <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-1 py-0 font-bold shrink-0">RU</Badge>
                                 )}
+                                {booking.integration_type === 'nightsbridge' && (
+                                  <Badge
+                                    variant="outline"
+                                    className="shrink-0 border-border text-[10px] px-1 py-0 text-muted-foreground"
+                                    title="Imported from a NightsBridge export — no ROL commission applies"
+                                  >
+                                    Imported · NB
+                                  </Badge>
+                                )}
+
                                 {(booking.ai_metadata as any)?.itinerary_id && (
                                   <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">J</Badge>
                                 )}
