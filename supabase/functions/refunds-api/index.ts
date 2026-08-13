@@ -56,7 +56,7 @@ const DecisionSchema = z.object({
 const ListSchema = z.object({
   action: z.literal("list_refunds"),
   property_id: z.string().uuid().nullish(),
-  status: z.string().max(20).nullish(),
+  status: z.string().max(40).nullish(),
 });
 
 const CapabilitySchema = z.object({
