@@ -34,6 +34,17 @@ export interface ReconOrphan {
   is_archived: boolean;
 }
 
+/** A surplus same-name copy of a listing on one channel account. */
+export interface ReconDuplicate {
+  listing_id: string;
+  name: string;
+  owner_id: string;
+  /** The copy ROL'OS keeps — never removed. */
+  keep_listing_id: string;
+  copies: number;
+}
+
+
 export interface ReconStale {
   listing_id: string;
   label: string;
