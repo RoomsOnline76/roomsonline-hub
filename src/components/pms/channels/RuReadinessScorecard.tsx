@@ -138,6 +138,18 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
         )}
       </div>
 
+      {detailsOpen && hasPassedToHide && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Show outstanding only" : "Show all requirements"}
+        </Button>
+      )}
+
       {satisfied && !detailsOpen && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
