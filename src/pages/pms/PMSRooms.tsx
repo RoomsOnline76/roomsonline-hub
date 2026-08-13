@@ -417,12 +417,12 @@ export default function PMSRooms() {
   const goPrev = () => {
     if (!canCycle) return;
     const next = properties[(currentIdx - 1 + properties.length) % properties.length];
-    if (next) switchProperty(next.id);
+    if (next) selectSingleProperty(next.id);
   };
   const goNext = () => {
     if (!canCycle) return;
     const next = properties[(currentIdx + 1) % properties.length];
-    if (next) switchProperty(next.id);
+    if (next) selectSingleProperty(next.id);
   };
 
   // Group rooms & types per property for portfolio mode
@@ -473,38 +473,24 @@ export default function PMSRooms() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {properties.length > 1 && (
-              <div className="inline-flex rounded-md border border-border overflow-hidden">
-                <Button
-                  variant={isPortfolio ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none h-9"
-                  onClick={() => setViewMode("portfolio")}
-                >
-                  <LayoutGrid className="h-4 w-4 mr-1" />Portfolio
-                </Button>
-                <Button
-                  variant={!isPortfolio ? "default" : "ghost"}
-                  size="sm"
-                  className="rounded-none h-9"
-                  onClick={() => setViewMode("single")}
-                >
-                  <Building2 className="h-4 w-4 mr-1" />Single
-                </Button>
-              </div>
-            )}
-            {!isPortfolio && properties.length > 0 && (
+            {properties.length > 0 && (
               <div className="flex items-center gap-1">
                 {canCycle && (
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={goPrev} aria-label="Previous property">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
                 )}
-                <Select value={propertyId ?? undefined} onValueChange={(v) => switchProperty(v)}>
+                <Select
+                  value={propertyScope}
+                  onValueChange={(v) => (v === ALL_PROPERTIES ? setPropertyScope(ALL_PROPERTIES) : selectSingleProperty(v))}
+                >
                   <SelectTrigger className="h-9 min-w-[220px]">
                     <SelectValue placeholder="Select property" />
                   </SelectTrigger>
                   <SelectContent>
+                    {properties.length > 1 && (
+                      <SelectItem value={ALL_PROPERTIES}>All properties ({properties.length})</SelectItem>
+                    )}
                     {properties.map((p) => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
@@ -515,7 +501,7 @@ export default function PMSRooms() {
                     <Button variant="outline" size="icon" className="h-9 w-9" onClick={goNext} aria-label="Next property">
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                    <span className="text-xs text-muted-foreground ml-1 tabular-nums">
+                    <span className="ml-1 text-xs tabular-nums text-muted-foreground">
                       {currentIdx + 1} / {properties.length}
                     </span>
                   </>
