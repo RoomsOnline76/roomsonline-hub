@@ -63,6 +63,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bookingCharges, setBookingCharges] = useState<BookingCharge[]>([]);
   const [folioStatus, setFolioStatus] = useState<string>("open");
+  const [externalSettlement, setExternalSettlement] = useState(false);
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [saving, setSaving] = useState(false);
