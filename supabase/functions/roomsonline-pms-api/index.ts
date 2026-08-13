@@ -2160,11 +2160,34 @@ async function handleProcessFolioPayment(body: any, supabase: any): Promise<Resp
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.INVALID_REQUEST, "booking_id and amount required", "process_folio_payment")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
-  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
+  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).maybeSingle();
   if (!folio) {
     const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
     folio = newFolio;
   }
+
+  // Guard: never collect again on a stay the channel/property already settled.
+  const { data: guardBooking } = await supabase.from("bookings")
+    .select("payment_status").eq("id", booking_id).maybeSingle();
+  if (guardBooking?.payment_status === "paid_externally") {
+    const { data: existing } = await supabase.from("rolos_folio_transactions")
+      .select("amount").eq("folio_id", folio.id);
+    // deno-lint-ignore no-explicit-any
+    const rows = (existing || []) as any[];
+    const charges = rows.filter(t => Number(t.amount) > 0).reduce((s, t) => s + Number(t.amount), 0);
+    const payments = rows.filter(t => Number(t.amount) < 0).reduce((s, t) => s + Math.abs(Number(t.amount)), 0);
+    const outstanding = charges - payments;
+    if (Math.abs(amount) > outstanding + 0.01) {
+      return new Response(JSON.stringify(createErrorResponse(
+        ERROR_CODES.INVALID_REQUEST,
+        outstanding <= 0
+          ? "This booking is settled externally — there is nothing to collect."
+          : `This booking is settled externally — at most ${outstanding.toFixed(2)} is outstanding.`,
+        "process_folio_payment",
+      )), { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
+    }
+  }
+
   const { data, error } = await supabase.from("rolos_folio_transactions").insert({
     folio_id: folio.id, transaction_type: "payment", description: `Payment - ${payment_method || "cash"}`,
     amount: -Math.abs(amount), reference,
