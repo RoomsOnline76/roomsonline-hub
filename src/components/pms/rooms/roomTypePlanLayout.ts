@@ -185,7 +185,9 @@ export function overbookedNights(row: PlanRow): PlanCell[] {
 export function cellHeatClass(cell: PlanCell): string {
   // Oversold nights outrank everything else — they need action, not just a "0".
   if (cell.overbooked > 0) return "bg-destructive text-destructive-foreground font-bold";
+  if (cell.stopSell) return "bg-muted text-muted-foreground line-through";
   if (cell.sellable === 0) return "bg-muted/40 text-muted-foreground";
+
   if (cell.free <= 0) return "bg-destructive/15 text-destructive font-semibold";
   if (cell.free === 1) return "bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold";
   if (cell.free / cell.sellable <= 0.34) return "bg-amber-500/10 text-amber-700 dark:text-amber-300";
