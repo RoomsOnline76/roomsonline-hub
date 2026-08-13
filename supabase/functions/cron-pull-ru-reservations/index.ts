@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
@@ -30,6 +31,8 @@ const corsHeaders = {
 const METHOD_WINDOW_MS = 61_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
+/** Leads are listed by stay date — cover the forward booking window as well. */
+const PULL_FORWARD_DAYS = 365;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
 
@@ -72,6 +75,7 @@ Deno.serve(async (req) => {
         ...summary,
         ...extra,
         scope: 'reservation_poll',
+        retry_sweep: retrySweep,
         ru_owner_id: scope.ownerId,
         account: scope.label,
       },
@@ -84,8 +88,15 @@ Deno.serve(async (req) => {
     const now = new Date();
     const windowStart = new Date(now);
     windowStart.setDate(now.getDate() - PULL_WINDOW_DAYS);
-    const dateTo = formatDate(now);
+    // Leads for future stays are not visible in a past-only window, so look ahead too.
+    const windowEnd = new Date(now);
+    windowEnd.setDate(now.getDate() + PULL_FORWARD_DAYS);
+    const dateTo = formatDate(windowEnd);
     const dateFrom = formatDate(windowStart);
+
+    // Re-attempt notifications parked earlier (RU often cannot serve a request straight
+    // after its own callback) before polling — a resolved retry saves a wider pull.
+    const retrySweep = await sweepRuNotificationRetries(supabase, { logPrefix: '[cron-pull-ru][retry]' });
 
     // Sub-users ONLY. Every ROL'OS listing lives on a white-label sub-account, so
     // the master account never holds reservations or leads — polling it just burns
