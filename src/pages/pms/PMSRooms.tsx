@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, BedDouble, RefreshCw, LayoutGrid, Building2, Users, AlertTriangle } from "lucide-react";
+import { Plus, BedDouble, RefreshCw, LayoutGrid, Building2, Users, AlertTriangle, SlidersHorizontal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { BlockDetail } from "@/lib/blockAttribution";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
@@ -25,6 +25,7 @@ import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
 import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@/components/pms/rooms/RoomTypePlanGrid";
 import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
+import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
 import { BLOCKED_ROOM_STATUSES, buildRoomTypePlan, groupIntoWeeks, occupiesNight, overbookedNights, stopSellKey, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
@@ -99,6 +100,8 @@ export default function PMSRooms() {
   );
   const [sleepsFilter, setSleepsFilter] = useState<string>("any");
   const [showCards, setShowCards] = useState(false);
+  const [manageRestrictionsOpen, setManageRestrictionsOpen] = useState(false);
+  const [focusBlock, setFocusBlock] = useState<{ propertyId: string; roomType: string; date: string } | null>(null);
 
 
   const [planNights, setPlanNights] = useState(PLAN_NIGHTS);
@@ -114,7 +117,7 @@ export default function PMSRooms() {
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
   /* Blocked (stop-sell) nights live in property_availability, keyed by room type NAME. */
-  const { data: stopSellData } = useQuery({
+  const { data: stopSellData, refetch: refetchStopSell } = useQuery({
     queryKey: ["pms-rooms-stop-sell", activePropertyIds, windowStart, windowEnd],
     queryFn: async () => {
       const set = new Set<string>();
@@ -580,6 +583,13 @@ export default function PMSRooms() {
                 </Button>
               </div>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setFocusBlock(null); setManageRestrictionsOpen(true); }}
+            >
+              <SlidersHorizontal className="h-4 w-4 mr-2" />Restrictions
+            </Button>
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
             </Button>
@@ -716,6 +726,10 @@ export default function PMSRooms() {
                     onEditRoom={openEditDialog}
                     stopSellNights={stopSellData?.set}
                     blockDetails={stopSellData?.details}
+                    onEditBlock={(propId, roomTypeName, date) => {
+                      setFocusBlock({ propertyId: propId, roomType: roomTypeName, date: format(date, "yyyy-MM-dd") });
+                      setManageRestrictionsOpen(true);
+                    }}
                   />
                 ),
               }))}
@@ -781,6 +795,19 @@ export default function PMSRooms() {
         propertyId={propertyId}
         onOpenChange={(open) => { if (!open) setSelectedBooking(null); }}
       />
+
+      {/* Edit / move / remove existing restrictions */}
+      <RestrictionsManagerDialog
+        open={manageRestrictionsOpen}
+        onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusBlock(null); }}
+        propertyIds={activePropertyIds}
+        propertyNames={Object.fromEntries(properties.map((p) => [p.id, p.name]))}
+        windowStart={dates[0]}
+        focusBlock={focusBlock}
+        onChanged={() => { refetchStopSell(); fetchData(); }}
+      />
+
+
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingRoom(null); setForm(emptyForm); } }}>

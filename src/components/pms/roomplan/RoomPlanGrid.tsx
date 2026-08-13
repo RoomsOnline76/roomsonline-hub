@@ -91,6 +91,8 @@ interface RoomPlanGridProps {
    */
   isBlocked?: (roomTypeId: string, date: Date) => BlockDetail | boolean | null;
   isHoliday?: (date: Date) => string | null;
+  /** Right-click / long-press on a blocked night — opens the restriction editor. */
+  onEditBlock?: (roomTypeId: string, date: Date) => void;
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
   onModifyBooking?: (booking: RoomPlanBooking) => void;
@@ -134,6 +136,7 @@ export function RoomPlanGrid({
   dragDisabled,
   getRateForDate,
   isBlocked,
+  onEditBlock,
   isHoliday,
   onSelectBooking,
   onQuickAction,
@@ -488,9 +491,14 @@ export function RoomPlanGrid({
                       return (
                         <div
                           key={date.toISOString()}
+                          onContextMenu={(event) => {
+                            if (!blocked || !onEditBlock) return;
+                            event.preventDefault();
+                            onEditBlock(group.type.id, date);
+                          }}
                           title={
                             blocked
-                              ? `${group.type.name}\n${formatBlockedTooltip(date, blockDetail)}`
+                              ? `${group.type.name}\n${formatBlockedTooltip(date, blockDetail)}\nRight-click to edit`
                               : held
                                 ? `${held.rooms} room${held.rooms === 1 ? "" : "s"} held — ${held.labels}`
                                 : undefined
@@ -581,9 +589,14 @@ export function RoomPlanGrid({
                             return (
                               <div
                                 key={date.toISOString()}
+                                onContextMenu={(event) => {
+                                  if (!blocked || !onEditBlock) return;
+                                  event.preventDefault();
+                                  onEditBlock(row.roomTypeId, date);
+                                }}
                                 title={
                                   blocked
-                                    ? formatBlockedTooltip(date, typeof block === "object" ? block : null)
+                                    ? `${formatBlockedTooltip(date, typeof block === "object" ? block : null)}\nRight-click to edit`
                                     : undefined
                                 }
                                 className={cn(

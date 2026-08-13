@@ -38,6 +38,8 @@ interface Props {
   stopSellNights?: Set<string>;
   /** Attribution for blocked nights, keyed by the same `stopSellKey`. */
   blockDetails?: Map<string, BlockDetail>;
+  /** Jump to the restriction editor for a blocked night. */
+  onEditBlock?: (propertyId: string, roomTypeName: string, date: Date) => void;
   colW?: number;
   labelW?: number;
 }
@@ -88,6 +90,7 @@ export function RoomTypePlanRows({
   onEditRoom,
   stopSellNights,
   blockDetails,
+  onEditBlock,
   colW = MC_COL_W,
   labelW = MC_LABEL_W,
 }: Props) {
@@ -204,6 +207,15 @@ export function RoomTypePlanRows({
                           </p>
                           {detail?.reason && (
                             <p className="text-[11px] italic text-muted-foreground">{detail.reason}</p>
+                          )}
+                          {onEditBlock && (
+                            <button
+                              type="button"
+                              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+                              onClick={() => onEditBlock(row.roomType.property_id, row.roomType.name, cell.date)}
+                            >
+                              Edit restriction
+                            </button>
                           )}
                         </>
                       );

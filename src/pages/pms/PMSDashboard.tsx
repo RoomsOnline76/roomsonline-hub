@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import type { BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
+import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
@@ -448,6 +449,8 @@ export default function PMSDashboard() {
 
   // Restriction dialogs
   const [stopSellOpen, setStopSellOpen] = useState(false);
+  const [manageRestrictionsOpen, setManageRestrictionsOpen] = useState(false);
+  const [focusBlock, setFocusBlock] = useState<{ propertyId: string; roomType: string; date: string } | null>(null);
   const [minStayOpen, setMinStayOpen] = useState(false);
   const [maxStayOpen, setMaxStayOpen] = useState(false);
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
@@ -1659,6 +1662,18 @@ export default function PMSDashboard() {
     refetchOverrides();
   };
 
+  /** Right-click a hatched night → open its restriction span for editing. */
+  const openBlockEditor = useCallback(
+    (types: { id: string; name: string }[], propId: string | null | undefined) =>
+      (roomTypeId: string, date: Date) => {
+        const name = types.find((t) => t.id === roomTypeId)?.name;
+        if (!name || !propId) return;
+        setFocusBlock({ propertyId: propId, roomType: name, date: format(date, "yyyy-MM-dd") });
+        setManageRestrictionsOpen(true);
+      },
+    [],
+  );
+
   // ─── Room Plan interactions ───
   const refreshBookingQueries = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["pms-cal-bookings"] });
@@ -2031,6 +2046,10 @@ export default function PMSDashboard() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-48 bg-popover">
+                  <DropdownMenuItem onClick={() => { setFocusBlock(null); setManageRestrictionsOpen(true); }}>
+                    <Settings2 className="mr-2 h-3 w-3" />Manage existing…
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => setStopSellOpen(true)}>
                     <div className="w-2 h-2 rounded-full bg-red-500 mr-2" />Stop Sell
                   </DropdownMenuItem>
@@ -2185,6 +2204,7 @@ export default function PMSDashboard() {
                           isHoliday={getHolidayName}
                           getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
                           isBlocked={portfolioIsBlockedByProperty.get(prop.id)}
+                          onEditBlock={openBlockEditor(planRoomTypes, prop.id)}
                           onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                           onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                           onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
@@ -2212,6 +2232,7 @@ export default function PMSDashboard() {
                   isHoliday={getHolidayName}
                   getRateForDate={getRateForDate}
                   isBlocked={isRoomTypeBlocked}
+                  onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                   onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                   onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                   onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
@@ -2474,6 +2495,21 @@ export default function PMSDashboard() {
             <BulkMaximumStayDialog open={maxStayOpen} onOpenChange={setMaxStayOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
             <BulkLeadDaysAdvanceDialog open={leadDaysAdvanceOpen} onOpenChange={setLeadDaysAdvanceOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
             <BulkLeadDaysPostDialog open={leadDaysPostOpen} onOpenChange={setLeadDaysPostOpen} propertyId={propertyId || undefined} propertyName={displayName} roomTypes={dialogRoomTypes} portfolioProperties={scopePortfolio} roomTypesByProperty={scopeRoomTypesByProperty} onRuleCreated={handleRuleCreated} />
+            <RestrictionsManagerDialog
+              open={manageRestrictionsOpen}
+              onOpenChange={(v) => { setManageRestrictionsOpen(v); if (!v) setFocusBlock(null); }}
+              propertyIds={
+                isPortfolioMode
+                  ? (portfolioProperties || []).map((p) => p.id)
+                  : propertyId
+                    ? [propertyId]
+                    : []
+              }
+              propertyNames={Object.fromEntries((portfolioProperties || []).map((p) => [p.id, p.name]))}
+              windowStart={dateRange.start}
+              focusBlock={focusBlock}
+              onChanged={handleRuleCreated}
+            />
           </>
         );
       })()}
