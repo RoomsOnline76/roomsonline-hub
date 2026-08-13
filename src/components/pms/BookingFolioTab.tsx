@@ -63,6 +63,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [bookingCharges, setBookingCharges] = useState<BookingCharge[]>([]);
   const [folioStatus, setFolioStatus] = useState<string>("open");
+  const [externalSettlement, setExternalSettlement] = useState(false);
   const [showChargeForm, setShowChargeForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -81,12 +82,13 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
     setLoading(true);
     try {
       const [folioRes, chargesRes] = await Promise.all([
-        callPmsApi<{ transactions: Transaction[]; status: string }>("get_folio", { booking_id: bookingId }),
+        callPmsApi<{ transactions: Transaction[]; status: string; external_settlement?: boolean }>("get_folio", { booking_id: bookingId }),
         callPmsApi<{ charges: BookingCharge[] }>("get_booking_charges", { booking_id: bookingId }),
       ]);
       if (folioRes.success && folioRes.data) {
         setTransactions(folioRes.data.transactions || []);
         setFolioStatus(folioRes.data.status || "open");
+        setExternalSettlement(!!folioRes.data.external_settlement);
       }
       if (chargesRes.success && chargesRes.data) {
         setBookingCharges(chargesRes.data.charges || []);
@@ -96,6 +98,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
   };
 
   useEffect(() => { fetchFolio(); }, [bookingId]);
+
 
   const totalCharges = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
   const totalPayments = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
@@ -207,6 +210,8 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
 
   const hasChargesApplied = bookingCharges.length > 0;
   const pendingRefunds = bookingCharges.filter(c => c.is_refundable && c.refund_status === "pending");
+  /** Only collect when money is genuinely owed. Externally settled stays with no balance are locked. */
+  const canCollect = balance > 0;
 
   return (
     <div className="space-y-4">
@@ -221,10 +226,17 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
           <p className="text-sm font-semibold text-success">R{totalPayments.toLocaleString()}</p>
         </div>
         <div className={`rounded-md p-3 text-center ${balance > 0 ? "bg-destructive/10" : "bg-green-500/10"}`}>
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Balance</p>
-          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-success"}`}>R{balance.toLocaleString()}</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{balance < 0 ? "Credit" : "Balance"}</p>
+          <p className={`text-sm font-bold ${balance > 0 ? "text-destructive" : "text-success"}`}>R{Math.abs(balance).toLocaleString()}</p>
         </div>
       </div>
+
+      {externalSettlement && (
+        <p className="text-[11px] text-muted-foreground">
+          Settled externally via the channel — nothing to collect{balance > 0 ? " beyond the outstanding extras below" : ""}.
+        </p>
+      )}
+
 
       {/* Applied Service Charges */}
       {hasChargesApplied && (
@@ -284,9 +296,20 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
           <Button size="sm" variant="outline" onClick={() => setShowChargeForm(!showChargeForm)} className="flex-1">
             <Plus className="h-3 w-3 mr-1" />Add Charge
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setShowPaymentForm(!showPaymentForm)} className="flex-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (!showPaymentForm) setPaymentForm(p => ({ ...p, amount: balance > 0 ? String(balance) : "" }));
+              setShowPaymentForm(!showPaymentForm);
+            }}
+            disabled={!canCollect}
+            title={canCollect ? undefined : "Nothing to collect — this booking is settled"}
+            className="flex-1"
+          >
             <CreditCard className="h-3 w-3 mr-1" />Record Payment
           </Button>
+
         </div>
       )}
 
@@ -339,7 +362,7 @@ export function BookingFolioTab({ bookingId, propertyId }: BookingFolioTabProps)
         </div>
       )}
 
-      {showPaymentForm && (
+      {showPaymentForm && canCollect && (
         <div className="border border-border rounded-md p-3 space-y-2">
           <h5 className="text-xs font-semibold uppercase text-muted-foreground">Record Payment</h5>
           <div className="grid grid-cols-2 gap-2">
