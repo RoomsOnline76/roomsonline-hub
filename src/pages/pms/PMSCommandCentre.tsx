@@ -931,6 +931,9 @@ export default function PMSCommandCentre() {
       {/* Channel requests that never became a stay */}
       <ChannelRequestBacklogCard propertyIds={clashPropertyIds} propertyNames={clashPropertyNames} />
 
+      {/* Follow-up work queued by booking changes */}
+      <BackgroundWorkCard />
+
       {/* Overbooking alerts — clashes need attention before anything else */}
       <OverbookingAlertCard
         clashes={clashes}
