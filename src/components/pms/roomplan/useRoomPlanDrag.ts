@@ -22,11 +22,18 @@ export interface RoomPlanMoveDrag {
   cols: number;
   deltaCols: number;
   target: RoomPlanRowTarget;
-  /** false when the drop target is a different room type or occupied. */
+  /** false when the drop target cannot accept the stay (occupied, unknown row). */
   valid: boolean;
+  /** Why the drop is refused — surfaced as a toast on release. */
+  reason?: string;
 }
 
 export type RoomPlanDrag = RoomPlanCreateDrag | RoomPlanMoveDrag | null;
+
+export interface RoomPlanMoveVerdict {
+  valid: boolean;
+  reason?: string;
+}
 
 interface UseRoomPlanDragOptions {
   colWidth: number;
@@ -35,10 +42,13 @@ interface UseRoomPlanDragOptions {
   labelWidth: number;
   enabled: boolean;
   /** Should a candidate move be accepted? Called on every pointer move. */
-  validateMove: (drag: Omit<RoomPlanMoveDrag, "valid">) => boolean;
+  validateMove: (drag: Omit<RoomPlanMoveDrag, "valid" | "reason">) => RoomPlanMoveVerdict;
   onCreateCommit: (drag: RoomPlanCreateDrag) => void;
   onMoveCommit: (drag: RoomPlanMoveDrag) => void;
+  /** Called when a real drag ends on a target that refused the stay. */
+  onMoveRejected?: (drag: RoomPlanMoveDrag) => void;
 }
+
 
 const readRowTarget = (x: number, y: number): RoomPlanRowTarget | null => {
   // Hover cards / bars can sit under the pointer mid-drag, so walk the whole
@@ -67,6 +77,8 @@ export function useRoomPlanDrag({
   validateMove,
   onCreateCommit,
   onMoveCommit,
+  onMoveRejected,
+
 }: UseRoomPlanDragOptions) {
   const [drag, setDrag] = useState<RoomPlanDrag>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
@@ -155,8 +167,9 @@ export function useRoomPlanDrag({
       const target = readRowTarget(event.clientX, event.clientY) || current.target;
       const deltaCols = col - grabColRef.current;
       const candidate = { ...current, deltaCols, target };
-      const { valid: _ignored, ...rest } = candidate;
-      setDrag({ ...candidate, valid: validateMove(rest) });
+      const { valid: _ignored, reason: _ignoredReason, ...rest } = candidate;
+      const verdict = validateMove(rest);
+      setDrag({ ...candidate, valid: verdict.valid, reason: verdict.reason });
     };
 
     const handleUp = () => {
@@ -170,9 +183,14 @@ export function useRoomPlanDrag({
       }
       if (!movedRef.current) return;
       if (current.deltaCols === 0 && current.target.rowKey === current.originRowKey) return;
-      if (!current.valid) return;
+      if (!current.valid) {
+        // A refused drop used to vanish silently, which read as "drag broken".
+        onMoveRejected?.(current);
+        return;
+      }
       onMoveCommit(current);
     };
+
 
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);

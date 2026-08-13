@@ -40,6 +40,8 @@ import { BookingNotesTab } from "@/components/pms/BookingNotesTab";
 import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, type RoomPlanGroupBlock } from "@/components/pms/roomplan/RoomPlanGrid";
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
+
 import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
 
 import { CHANNEL_SOURCE_BADGE, channelSourceLabel } from "@/lib/channelVocabulary";
@@ -1553,7 +1555,7 @@ export default function PMSDashboard() {
     setManualBookingOpen(true);
   }, [propertyId]);
 
-  const handleRoomPlanMove = useCallback(async ({ booking, roomId, checkIn, checkOut, datesChanged }: RoomPlanMovePayload) => {
+  const handleRoomPlanMove = useCallback(async ({ booking, roomId, roomTypeId, roomTypeChanged, checkIn, checkOut, datesChanged }: RoomPlanMovePayload) => {
     try {
       if (datesChanged) {
         const { data, error } = await supabase.functions.invoke("modify-booking", {
@@ -1564,19 +1566,27 @@ export default function PMSDashboard() {
       }
       const currentRooms = booking.rolos_room_ids || [];
       const nextRooms = roomId ? [roomId] : [];
-      if (currentRooms.join(",") !== nextRooms.join(",")) {
-        const { error } = await supabase
-          .from("bookings")
-          .update({ rolos_room_ids: nextRooms.length ? nextRooms : null })
-          .eq("id", booking.id);
+      const roomsChanged = currentRooms.join(",") !== nextRooms.join(",");
+      // Moving across room types must re-type the stay, or the old type keeps
+      // showing the night as sold and the new one keeps selling it.
+      if (roomsChanged || roomTypeChanged) {
+        const update: Record<string, unknown> = {};
+        if (roomsChanged) update.rolos_room_ids = nextRooms.length ? nextRooms : null;
+        if (roomTypeChanged && roomTypeId) update.room_type_id = roomTypeId;
+        const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
         if (error) throw error;
       }
       toast.success("Reservation moved");
       refreshBookingQueries();
+      // Both the vacated and the newly sold room type need re-pushing upstream.
+      if (roomsChanged || roomTypeChanged || datesChanged) {
+        void queueChannelRatesSync(booking.property_id || propertyId, "booking_moved", { force: true });
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not move the reservation");
     }
-  }, [refreshBookingQueries]);
+  }, [refreshBookingQueries, propertyId]);
+
 
   const displayName = isPortfolioMode ? (portfolioName || "Portfolio") : (brandName || propertyData?.name || "");
 

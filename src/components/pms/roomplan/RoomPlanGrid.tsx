@@ -24,7 +24,7 @@ import {
   bookingNights,
   getBarGeometry,
 } from "./roomPlanLayout";
-import { RoomPlanMoveDrag, useRoomPlanDrag } from "./useRoomPlanDrag";
+import { RoomPlanMoveDrag, RoomPlanMoveVerdict, useRoomPlanDrag } from "./useRoomPlanDrag";
 
 interface RoomPlanRoomType {
   id: string;
@@ -43,10 +43,14 @@ interface RoomPlanRoom {
 export interface RoomPlanMovePayload {
   booking: RoomPlanBooking;
   roomId: string | null;
+  /** Room type of the target unit — differs from the booking's when moved across types. */
+  roomTypeId: string;
+  roomTypeChanged: boolean;
   checkIn: string;
   checkOut: string;
   datesChanged: boolean;
 }
+
 
 export interface RoomPlanCreatePayload {
   roomTypeId: string;
@@ -128,7 +132,11 @@ export function RoomPlanGrid({
   onMoveBooking,
 }: RoomPlanGridProps) {
   const colWidth = compact ? ROOM_PLAN_COL_W_COMPACT : ROOM_PLAN_COL_W;
-  const [pendingMove, setPendingMove] = useState<(RoomPlanMovePayload & { fromLabel: string; toLabel: string }) | null>(null);
+  const [pendingMove, setPendingMove] = useState<
+    | (RoomPlanMovePayload & { fromLabel: string; toLabel: string; fromTypeLabel: string; toTypeLabel: string })
+    | null
+  >(null);
+
   const [saving, setSaving] = useState(false);
 
   /** Rooms still held (blocked minus picked up) for this type on this night. */
@@ -207,24 +215,46 @@ export function RoomPlanGrid({
 
   const bookingById = useMemo(() => new Map(bookings.map((b) => [b.id, b])), [bookings]);
 
+  const typeNameById = useMemo(() => new Map(roomTypes.map((type) => [type.id, type.name])), [roomTypes]);
+
   const validateMove = useCallback(
-    (drag: Omit<RoomPlanMoveDrag, "valid">) => {
-      if (drag.target.roomTypeId !== drag.roomTypeId) return false;
+    (drag: Omit<RoomPlanMoveDrag, "valid" | "reason">): RoomPlanMoveVerdict => {
       const booking = bookingById.get(drag.bookingId);
-      if (!booking) return false;
+      if (!booking) return { valid: false, reason: "This reservation is no longer on the plan." };
       const nextIn = shiftDate(booking.check_in_date, drag.deltaCols);
       const nextOut = shiftDate(booking.check_out_date, drag.deltaCols);
       const targetRow = rowByKey.get(drag.target.rowKey);
-      if (!targetRow) return false;
-      return !targetRow.bookings.some(
+      if (!targetRow) return { valid: false, reason: "Drop the reservation on a unit row." };
+      // A move across room types is allowed — the unit, not the type, holds the
+      // stay — so only real occupancy blocks the drop.
+      const clash = targetRow.bookings.find(
         (other) =>
           other.id !== booking.id &&
           !["cancelled", "no_show"].includes(other.status) &&
           overlaps(nextIn, nextOut, other.check_in_date, other.check_out_date)
       );
+      if (clash) {
+        return {
+          valid: false,
+          reason: `${targetRow.label} is already taken by ${clash.guest_name} (${format(
+            parseISO(clash.check_in_date),
+            "d MMM"
+          )} – ${format(parseISO(clash.check_out_date), "d MMM")}).`,
+        };
+      }
+      return { valid: true };
     },
     [bookingById, rowByKey]
   );
+
+  const handleMoveRejected = useCallback((drag: RoomPlanMoveDrag) => {
+    toast({
+      title: "Reservation not moved",
+      description: drag.reason || "That unit cannot take this stay.",
+      variant: "destructive",
+    });
+  }, []);
+
 
   const handleCreateCommit = useCallback(
     (drag: { roomTypeId: string; roomId: string | null; startCol: number; endCol: number }) => {
@@ -252,17 +282,23 @@ export function RoomPlanGrid({
       const targetRow = rowByKey.get(drag.target.rowKey);
       const checkIn = shiftDate(booking.check_in_date, drag.deltaCols);
       const checkOut = shiftDate(booking.check_out_date, drag.deltaCols);
+      const targetTypeId = targetRow?.roomTypeId || drag.target.roomTypeId;
+      const roomTypeChanged = targetTypeId !== drag.roomTypeId;
       setPendingMove({
         booking,
         roomId: drag.target.roomId,
+        roomTypeId: targetTypeId,
+        roomTypeChanged,
         checkIn,
         checkOut,
         datesChanged: drag.deltaCols !== 0,
         fromLabel: originRow?.label || "Unassigned",
         toLabel: targetRow?.label || "Unassigned",
+        fromTypeLabel: typeNameById.get(drag.roomTypeId) || "",
+        toTypeLabel: typeNameById.get(targetTypeId) || "",
       });
     },
-    [bookingById, onMoveBooking, rowByKey]
+    [bookingById, onMoveBooking, rowByKey, typeNameById]
   );
 
   const { drag, bodyRef, beginCreate, beginMove, consumeGestureDrag } = useRoomPlanDrag({
@@ -273,7 +309,9 @@ export function RoomPlanGrid({
     validateMove,
     onCreateCommit: handleCreateCommit,
     onMoveCommit: handleMoveCommit,
+    onMoveRejected: handleMoveRejected,
   });
+
 
   // While a move is awaiting confirmation the dialog must stay the top surface,
   // so booking-sheet opens are ignored until it is resolved.
@@ -285,11 +323,26 @@ export function RoomPlanGrid({
     [onSelectBooking, pendingMove]
   );
 
+  // Re-typing a stay can change what it should be charged — say so before saving.
+  const moveRateNote = useMemo(() => {
+    if (!pendingMove?.roomTypeChanged || !getRateForDate) return null;
+    const night = parseISO(pendingMove.checkIn);
+    const fromRate = getRateForDate(pendingMove.booking.room_type_id || "", night);
+    const toRate = getRateForDate(pendingMove.roomTypeId, night);
+    if (fromRate == null || toRate == null) return "Check the rate for the new room type — it may differ.";
+    const delta = Math.round(toRate - fromRate);
+    if (delta === 0) return null;
+    return `${pendingMove.toTypeLabel || "The new room type"} is ${
+      delta > 0 ? "dearer" : "cheaper"
+    } by ${Math.abs(delta).toLocaleString()} per night — the reservation total is not adjusted automatically.`;
+  }, [pendingMove, getRateForDate]);
+
   const confirmMove = async () => {
+
     if (!pendingMove || !onMoveBooking) return;
     setSaving(true);
     try {
-      const { fromLabel: _from, toLabel: _to, ...payload } = pendingMove;
+      const { fromLabel: _from, toLabel: _to, fromTypeLabel: _ft, toTypeLabel: _tt, ...payload } = pendingMove;
       await onMoveBooking(payload);
       setPendingMove(null);
     } catch (error) {
@@ -547,6 +600,11 @@ export function RoomPlanGrid({
                     Unit: {pendingMove.fromLabel} → {pendingMove.toLabel}
                   </p>
                 )}
+                {pendingMove?.roomTypeChanged && (
+                  <p>
+                    Room type: {pendingMove.fromTypeLabel || "—"} → {pendingMove.toTypeLabel || "—"}
+                  </p>
+                )}
                 {pendingMove?.datesChanged && (
                   <p>
                     Dates: {format(parseISO(pendingMove.booking.check_in_date), "d MMM")} –{" "}
@@ -554,10 +612,17 @@ export function RoomPlanGrid({
                     {format(parseISO(pendingMove.checkIn), "d MMM")} – {format(parseISO(pendingMove.checkOut), "d MMM")}
                   </p>
                 )}
+                {pendingMove?.roomTypeChanged && moveRateNote && (
+                  <p className="text-xs text-status-warning">{moveRateNote}</p>
+                )}
                 <p className="text-xs text-muted-foreground">
                   {pendingMove ? bookingNights(pendingMove.booking) : 0} nights stay length is unchanged.
                   {pendingMove?.datesChanged ? " Availability and any channel push are updated." : ""}
+                  {pendingMove?.roomTypeChanged
+                    ? " The reservation is re-typed to the new unit and both room types are re-pushed to channels."
+                    : ""}
                 </p>
+
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
