@@ -320,6 +320,22 @@ export function BulkStopSellDialog({
                 </div>
               </div>
 
+              {isStopSell && (
+                <div className="space-y-2">
+                  <Label htmlFor="stopsell-reason">Reason (optional)</Label>
+                  <Input
+                    id="stopsell-reason"
+                    value={blockReason}
+                    onChange={(e) => setBlockReason(e.target.value)}
+                    placeholder="e.g. Owner stay, Maintenance"
+                    maxLength={120}
+                  />
+                  <p className="text-xs text-muted-foreground">Shown on the calendar tooltip together with your name.</p>
+                </div>
+              )}
+
+
+
               <div className="space-y-2">
                 <Label>Apply to Days</Label>
                 <div className="flex flex-wrap gap-3">
