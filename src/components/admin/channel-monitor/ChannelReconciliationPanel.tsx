@@ -95,7 +95,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   );
 
   const runCleanup = useCallback(
-    async (scope: "actionable" | "archived") => {
+    async (scope: "actionable" | "archived" | "duplicates") => {
       setConfirmOpen(false);
       const outcome = await cleanupAll(scope);
       const problems = outcome.failures.length + outcome.refused;
@@ -115,6 +115,8 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
   const handleCleanupAll = useCallback(() => runCleanup("actionable"), [runCleanup]);
   const handleDeleteArchived = useCallback(() => runCleanup("archived"), [runCleanup]);
+  const handleRemoveDuplicates = useCallback(() => runCleanup("duplicates"), [runCleanup]);
+
 
 
   const gap = result ? result.channel_listing_count - billableListings : 0;
