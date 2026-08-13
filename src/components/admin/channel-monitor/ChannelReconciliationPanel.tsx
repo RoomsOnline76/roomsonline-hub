@@ -277,7 +277,60 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               </section>
             )}
 
+            {result.duplicates.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-medium">
+                    Duplicate listings — {result.duplicates.length} surplus cop
+                    {result.duplicates.length === 1 ? "y" : "ies"} of a unit already on the account
+                  </h4>
+                  {duplicateCleanable.length > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={running || cleaning}
+                      onClick={() => void handleRemoveDuplicates()}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      Remove duplicates ({duplicateCleanable.length})
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Same-name copies on one account. Each one bills like a real listing. The copy ROL'OS
+                  syncs with is kept — only the surplus copies are removed.
+                </p>
+                <ul className="divide-y rounded-md border">
+                  {result.duplicates.map((d) => (
+                    <li key={d.listing_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate">
+                        {d.name}{" "}
+                        <span className="text-muted-foreground">
+                          #{d.listing_id} · {d.copies} copies · keeping #{d.keep_listing_id}
+                        </span>
+                        {(refused[d.listing_id] || failures[d.listing_id]) && (
+                          <span className="block text-xs text-destructive">
+                            {refused[d.listing_id] || failures[d.listing_id]}
+                          </span>
+                        )}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busyId === d.listing_id || cleaning}
+                        onClick={() => void handlePurge(d)}
+                      >
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        Delete from channel
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {result.orphans.length > 0 && (
+
               <section className="space-y-2">
                 <h4 className="text-sm font-medium">Orphans on the channel — no local record points at these</h4>
                 <ul className="divide-y rounded-md border">
