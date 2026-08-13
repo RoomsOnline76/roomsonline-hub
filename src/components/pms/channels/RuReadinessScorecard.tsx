@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +46,7 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<RuReadinessReport | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
@@ -72,12 +73,27 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
     void load();
   }, [load]);
 
+  // A fresh check always starts filtered to outstanding items only.
+  useEffect(() => {
+    setShowAll(false);
+  }, [report]);
+
   // Nothing to act on at 100% — keep the checklist folded away and re-open it the moment a
   // requirement slips, so the owner only ever sees the long list when it needs work.
   const satisfied = !!report && !report.blocked && report.score >= 100;
   useEffect(() => {
     setDetailsOpen(!satisfied);
   }, [satisfied]);
+
+  // Outstanding-only filtering: hide fully-passed groups and passed checks unless the owner
+  // explicitly asks for the full picture.
+  const { visibleGroups, hiddenGroups, hasPassedToHide } = useMemo(() => {
+    const groups = report?.groups ?? [];
+    const visible = groups.filter((g) => showAll || g.passed < g.total);
+    const hidden = groups.filter((g) => g.passed === g.total);
+    const hasHide = groups.some((g) => g.passed < g.total && g.passed > 0) || hidden.length > 0;
+    return { visibleGroups: visible, hiddenGroups: hidden, hasPassedToHide: hasHide };
+  }, [report, showAll]);
 
   const scoreTone = !report
     ? "text-muted-foreground"
@@ -122,6 +138,18 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
         )}
       </div>
 
+      {detailsOpen && hasPassedToHide && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Show outstanding only" : "Show all requirements"}
+        </Button>
+      )}
+
       {satisfied && !detailsOpen && (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
@@ -149,40 +177,58 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
       )}
 
       {detailsOpen && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {(report?.groups ?? []).map((g) => (
-            <div key={g.group} className="rounded-lg border border-border p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">{g.group}</p>
-                <Badge variant={g.passed === g.total ? "secondary" : "destructive"} className="text-[10px]">
-                  {g.passed}/{g.total}
-                </Badge>
+        <div className="space-y-3">
+          <div className="grid gap-4 md:grid-cols-2">
+            {visibleGroups.map((g) => (
+              <div key={g.group} className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium">{g.group}</p>
+                  <Badge variant={g.passed === g.total ? "secondary" : "destructive"} className="text-[10px]">
+                    {g.passed}/{g.total}
+                  </Badge>
+                </div>
+                <ul className="space-y-1.5">
+                  {(report?.checks ?? [])
+                    .filter((c) => c.group === g.group)
+                    .filter((c) => showAll || !c.passed)
+                    .map((c, i) => (
+                      <li key={`${c.key}-${c.unit ?? ""}-${i}`} className="flex items-start gap-2 text-xs">
+                        {c.passed ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 mt-0.5 text-destructive shrink-0" />
+                        )}
+                        <span className={c.passed ? "text-muted-foreground" : ""}>
+                          {c.unit ? <span className="font-medium">{c.unit}: </span> : null}
+                          {c.label}
+                          {!c.passed && c.detail ? (
+                            <span className="block text-destructive">{c.detail}</span>
+                          ) : null}
+                          {!c.passed && c.fix_hint ? (
+                            <span className="block text-muted-foreground">Fix in: {c.fix_hint}</span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                </ul>
               </div>
-              <ul className="space-y-1.5">
-                {(report?.checks ?? [])
-                  .filter((c) => c.group === g.group)
-                  .map((c, i) => (
-                    <li key={`${c.key}-${c.unit ?? ""}-${i}`} className="flex items-start gap-2 text-xs">
-                      {c.passed ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 text-primary shrink-0" />
-                      ) : (
-                        <XCircle className="h-3.5 w-3.5 mt-0.5 text-destructive shrink-0" />
-                      )}
-                      <span className={c.passed ? "text-muted-foreground" : ""}>
-                        {c.unit ? <span className="font-medium">{c.unit}: </span> : null}
-                        {c.label}
-                        {!c.passed && c.detail ? (
-                          <span className="block text-destructive">{c.detail}</span>
-                        ) : null}
-                        {!c.passed && c.fix_hint ? (
-                          <span className="block text-muted-foreground">Fix in: {c.fix_hint}</span>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ))}
+            ))}
+          </div>
+
+          {!showAll && hiddenGroups.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="flex w-full items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-left text-xs text-muted-foreground hover:bg-primary/10"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span>
+                {report?.checks_passed ?? 0}/{report?.checks_total ?? 0} requirements met —{" "}
+                {hiddenGroups.length} group{hiddenGroups.length > 1 ? "s" : ""} complete.
+              </span>
+              <span className="ml-auto font-medium text-primary">Show all requirements</span>
+            </button>
+          )}
         </div>
       )}
 
