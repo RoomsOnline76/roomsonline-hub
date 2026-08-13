@@ -480,16 +480,18 @@ export function LocalExperiencesManager({
 // Experience Form Component
 interface ExperienceFormProps {
   experience: LocalExperience | null;
+  prefill?: Partial<LocalExperience> | null;
+  destinations?: DestinationOption[];
   onSave: (data: Partial<LocalExperience>) => void;
   isLoading: boolean;
 }
 
-function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) {
+function ExperienceForm({ experience, prefill, destinations = [], onSave, isLoading }: ExperienceFormProps) {
   const [formData, setFormData] = useState<Partial<LocalExperience>>({
-    title: experience?.title || '',
-    description: experience?.description || '',
+    title: experience?.title || prefill?.title || '',
+    description: experience?.description || prefill?.description || '',
     category: experience?.category || null,
-    distance_km: experience?.distance_km || null,
+    distance_km: experience?.distance_km ?? prefill?.distance_km ?? null,
     duration_hours: experience?.duration_hours || null,
     price_indicator: experience?.price_indicator || null,
     image_url: experience?.image_url || '',
@@ -498,12 +500,14 @@ function ExperienceForm({ experience, onSave, isLoading }: ExperienceFormProps) 
     best_time: experience?.best_time || '',
     is_active: experience?.is_active ?? true,
     id: experience?.id,
+    ru_destination_id: experience?.ru_destination_id ?? null,
     // Dining-specific fields
     venue_type: experience?.venue_type || null,
     cuisine_type: experience?.cuisine_type || '',
     reservation_required: experience?.reservation_required ?? false,
     dress_code: experience?.dress_code || ''
   });
+
 
   const isDiningCategory = formData.category === 'dining';
 
