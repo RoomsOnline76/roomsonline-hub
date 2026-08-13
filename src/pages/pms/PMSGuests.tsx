@@ -63,6 +63,21 @@ function guestInitial(name: string): string {
   return /[A-Z]/.test(ch) ? ch : "#";
 }
 
+/** Rand amounts, no cents — CRM figures are summaries, not invoices. */
+function zar(value: number | null | undefined): string {
+  return `R${Math.round(Number(value) || 0).toLocaleString("en-ZA")}`;
+}
+
+/** Payment state of a single booking, used for the honesty badges. */
+function paymentState(bk: GuestBooking): { label: string; tone: "paid" | "part" | "unpaid" | "cancelled" } {
+  if (["cancelled", "no_show"].includes(bk.status)) return { label: "Cancelled", tone: "cancelled" };
+  const paid = Number(bk.amount_paid) || 0;
+  const total = Number(bk.total_price) || 0;
+  if (paid <= 0) return { label: "Unpaid", tone: "unpaid" };
+  if (paid + 0.01 < total) return { label: "Part paid", tone: "part" };
+  return { label: "Paid", tone: "paid" };
+}
+
 interface GuestBooking {
   id: string;
   check_in_date: string;
