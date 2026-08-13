@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { currentBlockAttribution } from "@/lib/blockAttribution";
 import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 
@@ -126,6 +127,8 @@ export function BulkAvailabilityRuleDialog({
         return;
       }
 
+      // Zero units = a block; stamp who did it so calendars can show attribution.
+      const attribution = units === 0 ? await currentBlockAttribution() : null;
       const records = [];
       for (const roomType of selectedRoomTypes) {
         for (const date of filteredDates) {
@@ -136,6 +139,7 @@ export function BulkAvailabilityRuleDialog({
             available_units: units,
             is_stop_sell: units === 0,
             external_system: 'manual',
+            ...(attribution || {}),
           });
         }
       }
