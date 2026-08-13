@@ -1131,7 +1131,7 @@ export default function PMSDashboard() {
       // Keep physical rooms whose legacy/stale room_type_id maps by name to the canonical active type.
       // This prevents valid units like GRYSBOK from disappearing when duplicate type rows exist.
       const propRooms = normalizeRoomsToCanonicalRoomTypes(propRoomsRawForProp, propRoomTypesRaw, propRoomTypes);
-      const propBookingsRaw = portfolioBookingsRaw.filter(b => (b as any).property_id === prop.id) as BookingRow[];
+      const propBookingsRaw = portfolioBookingsWithLines.filter(b => (b as any).property_id === prop.id) as BookingRow[];
       const propAliasTypes = [
         ...portfolioAliasRoomTypes.filter(t => t.property_id === prop.id),
         ...propRoomTypesRaw.map(rt => ({ id: rt.id, name: rt.name, property_id: prop.id })),
@@ -1173,7 +1173,7 @@ export default function PMSDashboard() {
       map.set(prop.id, { roomTypes: propRoomTypes, rooms: propRooms, bookings: propBookings, overrideMap: oMap, roomsByType: rbtMap, propertyData: propData });
     }
     return map;
-  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsRaw, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
+  }, [isPortfolioMode, portfolioProperties, portfolioRoomTypesRaw, portfolioRoomsRaw, portfolioBookingsWithLines, portfolioOverridesRaw, portfolioPropertiesData, portfolioAliasRoomTypes]);
 
   // Resolve room names for a booking (single or portfolio mode)
   const getBookingRoomNames = useCallback((b: BookingRow): string[] => {
