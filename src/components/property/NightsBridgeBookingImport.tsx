@@ -120,8 +120,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
 
 
   const run = useCallback(
-    async (dryRun: boolean) => {
+    async (dryRun: boolean, overrideMap?: Record<string, string>) => {
       if (!file) return;
+      const effective = overrideMap ?? overrides;
       setBusy(dryRun ? "dry" : "import");
       setProgress(8);
       const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 4 : p)), 500);
@@ -134,21 +135,24 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             file_name: file.name,
             file_base64: fileBase64,
             dry_run: dryRun,
-            room_overrides: Object.fromEntries(
-              Object.entries(overrides).filter(([, v]) => v && v !== SKIP),
-            ),
+            room_overrides: Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v))),
           },
         });
         if (error) throw new Error(error.message);
         if (!data?.ok) throw new Error(data?.error || "Import failed");
         setProgress(100);
         setResult(data);
+        const excluded = data.summary.excluded ?? 0;
         if (dryRun) {
           toast.success(
-            `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates`,
+            `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates` +
+              (excluded ? `, ${excluded} excluded` : ""),
           );
         } else {
-          toast.success(`Imported: ${data.summary.created} created, ${data.summary.updated} updated`);
+          toast.success(
+            `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
+              (excluded ? `, ${excluded} excluded` : ""),
+          );
         }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Import failed");
@@ -160,6 +164,19 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     },
     [file, overrides, propertyId],
   );
+
+  /**
+   * Applying a decision invalidates the previous dry run, so re-validate immediately with
+   * the new map (state updates are async — pass it through explicitly).
+   */
+  const applyOverrides = useCallback(
+    (next: Record<string, string>) => {
+      setOverrides(next);
+      void run(true, next);
+    },
+    [run],
+  );
+
 
   const downloadLog = useCallback(() => {
     if (!result) return;
