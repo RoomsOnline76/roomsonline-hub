@@ -18,6 +18,14 @@ export interface RolActualRevenue {
   netMarginZar: number;
   /** Number of commission-bearing bookings in the trailing window. */
   bookingCount: number;
+  /**
+   * All confirmed bookings in the window, including non-commissionable actuals such as imported
+   * NightsBridge history. These add property volume but earn ROL nothing.
+   */
+  volumeBookingCount: number;
+  /** Gross value of every confirmed booking in the window (ZAR) — property turnover, not ROL revenue. */
+  grossBookingValueZar: number;
+
 }
 
 const monthsAgo = (months: number) => {
