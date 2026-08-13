@@ -588,10 +588,13 @@ Deno.serve(async (req) => {
 
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
+        /** Stays that still lie ahead — these must block channel availability upstream. */
+        future_stays: mapped.filter((m) => m.check_out_date >= today).length,
       },
       errors,
       skipped,
       preview: [],
+
     });
   } catch (e) {
     console.error("nb-import-bookings failed", e);
