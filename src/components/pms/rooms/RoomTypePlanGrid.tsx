@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format, isSameDay, parseISO } from "date-fns";
-import { ChevronDown, ChevronUp, Pencil, Users } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, Pencil, Users } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { MC_COL_W, MC_LABEL_W } from "@/components/pms/calendar/MultiCalendarSur
 import {
   buildRoomTypePlan,
   cellHeatClass,
+  overbookedNights,
   paxLabel,
   stayNights,
   type PlanRoom,
@@ -55,6 +56,10 @@ export function RoomTypePlanLegend() {
           {statusMeta(status).label}
         </span>
       ))}
+      <span className="flex items-center gap-1.5 text-[10px] font-medium text-destructive">
+        <span className="h-2 w-2 rounded-full bg-destructive" />
+        Overbooked
+      </span>
       <span className="ml-auto text-[10px] text-muted-foreground">Click a room type to open its room lines</span>
     </div>
   );
@@ -114,7 +119,17 @@ export function RoomTypePlanRows({
                   {row.roomType.name}
                 </span>
               </span>
-              <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground">
+              <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold tabular-nums text-muted-foreground">
+                {overbookedNights(row).length > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="gap-0.5 px-1 py-0 text-[9px]"
+                    title={`${overbookedNights(row).length} overbooked night(s) in view`}
+                  >
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    {overbookedNights(row).length}
+                  </Badge>
+                )}
                 {row.units}
                 {row.blocked > 0 && <span className="text-destructive"> −{row.blocked}</span>}
               </span>
@@ -134,11 +149,26 @@ export function RoomTypePlanRows({
                       )}
                       style={{ width: colW }}
                     >
-                      {cell.sellable === 0 ? "–" : cell.free}
+                      {cell.overbooked > 0 ? (
+                        <span className="flex items-center justify-center gap-0.5">
+                          <AlertTriangle className="h-2.5 w-2.5" />−{cell.overbooked}
+                        </span>
+                      ) : cell.sellable === 0 ? (
+                        "–"
+                      ) : (
+                        cell.free
+                      )}
                     </div>
                   </HoverCardTrigger>
                   <HoverCardContent align="center" className="w-72 p-3">
                     <p className="text-xs font-semibold">{row.roomType.name}</p>
+                    {cell.overbooked > 0 && (
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-destructive">
+                        <AlertTriangle className="h-3 w-3" />
+                        Overbooked — {cell.used} reservation{cell.used === 1 ? "" : "s"} for {cell.sellable} unit
+                        {cell.sellable === 1 ? "" : "s"}
+                      </p>
+                    )}
                     <p className="text-[11px] text-muted-foreground">
                       {format(cell.date, "EEE d MMM yyyy")} · {cell.free} of {cell.sellable} free
                       {row.blocked > 0 && ` · ${row.blocked} blocked`}
