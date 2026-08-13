@@ -493,6 +493,9 @@ Deno.serve(async (req) => {
       return { min: sorted[0] ?? null, max: sorted[sorted.length - 1] ?? null };
     })();
 
+    /** Names whose only inventory match is retired — the operator must pick a current room. */
+    const supersededNames = [...unmappedRooms].filter((name) => retiredOnlyKeys.has(normaliseRoomKey(name)));
+
     if (dryRun) {
       const summary = {
         total_rows: rows.length,
@@ -503,6 +506,9 @@ Deno.serve(async (req) => {
         excluded: excludedByOperator,
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
+        /** Rows blocked because the spreadsheet room no longer exists. */
+        blocked_superseded: supersededNames.length,
+        superseded_rooms: supersededNames,
         future_stays: futureStays,
         min_arrival: arrivalSpan.min,
         max_arrival: arrivalSpan.max,
@@ -529,13 +535,11 @@ Deno.serve(async (req) => {
         summary,
         errors,
         skipped,
-        rooms: (roomRows ?? []).map((r) => ({
-          id: r.id,
-          label: (r.room_name as string) || (r.room_number as string),
-        })),
+        rooms: canonicalRoomList,
         preview,
       });
     }
+
 
     /* ---------------------------------------------------------------- write */
 
