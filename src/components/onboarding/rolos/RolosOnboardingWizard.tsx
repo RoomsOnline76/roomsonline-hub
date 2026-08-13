@@ -413,6 +413,43 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
     );
   }
 
+  // Published, with no mandatory step 1-8 outstanding: the remaining steps are
+  // administrative, so the wizard stops opening itself and waits as a quiet pill.
+  // Ordinary saves keep auto-pushing through the delta pipeline untouched.
+  if (publishedOk && blockingMacros.length === 0 && !pillOpened) {
+    return (
+      <div
+        className={`fixed bottom-[4.75rem] right-4 md:bottom-4 z-50 flex items-center gap-1 rounded-full border bg-card px-2 py-1 shadow-lg ${className ?? ""}`}
+        role="complementary"
+        aria-label="ROL'OS channel readiness"
+      >
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1.5 rounded-full px-2 text-[11px]"
+          onClick={() => setPillOpened(true)}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          Channel readiness · {overall.macrosComplete}/{overall.macrosTotal}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          className="h-7 rounded-full px-2 text-[11px]"
+          onClick={() => navigate(`/pms/channels?property=${propertyId}`)}
+        >
+          Connect Channels
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="h-6 w-6" onClick={dismiss} aria-label="Hide">
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    );
+  }
+
+
+
 
   return (
     <div
