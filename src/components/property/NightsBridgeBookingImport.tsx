@@ -51,6 +51,9 @@ interface ImportSummary {
   created: number;
   updated: number;
   skipped: number;
+  /** Rows dropped because the operator excluded their unmatched room name. */
+  excluded?: number;
+
   errors: number;
   unmapped_rooms: string[];
 }
@@ -84,8 +87,10 @@ const formatSize = (bytes: number) =>
 const money = (amount: number, currency: string) =>
   new Intl.NumberFormat("en-ZA", { style: "currency", currency: currency || "ZAR", maximumFractionDigits: 0 }).format(amount);
 
-/** Sentinel meaning "leave this NightsBridge room name unmapped" — never sent to the backend. */
-const SKIP = "__skip__";
+/** Operator decisions for unmatched NightsBridge room names (sent to the backend as-is). */
+const EXCLUDE = "__exclude__";
+const UNASSIGNED = "__unassigned__";
+
 
 export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -118,8 +123,9 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
 
 
   const run = useCallback(
-    async (dryRun: boolean) => {
+    async (dryRun: boolean, overrideMap?: Record<string, string>) => {
       if (!file) return;
+      const effective = overrideMap ?? overrides;
       setBusy(dryRun ? "dry" : "import");
       setProgress(8);
       const tick = window.setInterval(() => setProgress((p) => (p < 88 ? p + 4 : p)), 500);
@@ -132,21 +138,24 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             file_name: file.name,
             file_base64: fileBase64,
             dry_run: dryRun,
-            room_overrides: Object.fromEntries(
-              Object.entries(overrides).filter(([, v]) => v && v !== SKIP),
-            ),
+            room_overrides: Object.fromEntries(Object.entries(effective).filter(([, v]) => Boolean(v))),
           },
         });
         if (error) throw new Error(error.message);
         if (!data?.ok) throw new Error(data?.error || "Import failed");
         setProgress(100);
         setResult(data);
+        const excluded = data.summary.excluded ?? 0;
         if (dryRun) {
           toast.success(
-            `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates`,
+            `Validated ${data.summary.parsed} of ${data.summary.total_rows} rows — ${data.summary.created} new, ${data.summary.updated} updates` +
+              (excluded ? `, ${excluded} excluded` : ""),
           );
         } else {
-          toast.success(`Imported: ${data.summary.created} created, ${data.summary.updated} updated`);
+          toast.success(
+            `Imported: ${data.summary.created} created, ${data.summary.updated} updated` +
+              (excluded ? `, ${excluded} excluded` : ""),
+          );
         }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Import failed");
@@ -158,6 +167,19 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
     },
     [file, overrides, propertyId],
   );
+
+  /**
+   * Applying a decision invalidates the previous dry run, so re-validate immediately with
+   * the new map (state updates are async — pass it through explicitly).
+   */
+  const applyOverrides = useCallback(
+    (next: Record<string, string>) => {
+      setOverrides(next);
+      void run(true, next);
+    },
+    [run],
+  );
+
 
   const downloadLog = useCallback(() => {
     if (!result) return;
@@ -313,6 +335,11 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             </Badge>
             <Badge variant="outline">{result.summary.updated} {result.dry_run ? "to update" : "updated"}</Badge>
             <Badge variant="outline">{result.summary.skipped} skipped</Badge>
+            {(result.summary.excluded ?? 0) > 0 && (
+              <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+                {result.summary.excluded} excluded (unknown room)
+              </Badge>
+            )}
             {result.summary.errors > 0 ? (
               <Badge variant="destructive">{result.summary.errors} errors</Badge>
             ) : (
@@ -329,26 +356,50 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Unmatched room names</AlertTitle>
             <AlertDescription className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs">
-                  Mapping is optional. These NightsBridge room names don't match a ROL'OS room — map the ones you
-                  care about, or skip them and the bookings import without a room assignment.
-                </p>
+              <p className="text-xs">
+                These NightsBridge room names don't match a ROL'OS room. Map the ones you care about, import the
+                rest unassigned, or exclude their rows entirely. Every choice re-runs the dry run so the preview
+                below reflects exactly what will be imported.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 shrink-0 text-xs"
+                  disabled={busy !== null}
+                  onClick={() => {
+                    const next = { ...overrides };
+                    unmapped.forEach((name) => {
+                      next[name] = EXCLUDE;
+                    });
+                    applyOverrides(next);
+                  }}
+                >
+                  Skip all unknown rooms
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 shrink-0 text-xs"
-                  onClick={() =>
-                    setOverrides((prev) => {
-                      const next = { ...prev };
-                      unmapped.forEach((name) => {
-                        if (!next[name]) next[name] = SKIP;
-                      });
-                      return next;
-                    })
-                  }
+                  disabled={busy !== null}
+                  onClick={() => {
+                    const next = { ...overrides };
+                    unmapped.forEach((name) => {
+                      next[name] = UNASSIGNED;
+                    });
+                    applyOverrides(next);
+                  }}
                 >
-                  Skip all
+                  Import all unassigned
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 text-xs text-muted-foreground"
+                  disabled={busy !== null || Object.keys(overrides).length === 0}
+                  onClick={() => applyOverrides({})}
+                >
+                  Clear all
                 </Button>
               </div>
               <div className="space-y-2">
@@ -357,14 +408,18 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                     <span className="w-40 shrink-0 truncate text-xs font-medium">{name}</span>
                     <Select
                       value={overrides[name] ?? ""}
-                      onValueChange={(v) => setOverrides((prev) => ({ ...prev, [name]: v }))}
+                      disabled={busy !== null}
+                      onValueChange={(v) => applyOverrides({ ...overrides, [name]: v })}
                     >
                       <SelectTrigger className="h-8 w-64 text-xs">
                         <SelectValue placeholder="Choose a ROL'OS room, or skip" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={SKIP} className="text-xs">
-                          Skip — import without a room
+                        <SelectItem value={EXCLUDE} className="text-xs">
+                          Skip — exclude these rows
+                        </SelectItem>
+                        <SelectItem value={UNASSIGNED} className="text-xs">
+                          Import unassigned (no room)
                         </SelectItem>
                         {rooms.map((r) => (
                           <SelectItem key={r.id} value={r.id} className="text-xs">
@@ -373,7 +428,10 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                         ))}
                       </SelectContent>
                     </Select>
-                    {overrides[name] === SKIP && (
+                    {overrides[name] === EXCLUDE && (
+                      <span className="text-[10px] text-amber-700 dark:text-amber-400">rows excluded</span>
+                    )}
+                    {overrides[name] === UNASSIGNED && (
                       <span className="text-[10px] text-muted-foreground">will import unassigned</span>
                     )}
                     {overrides[name] && (
@@ -381,13 +439,12 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                         variant="ghost"
                         size="sm"
                         className="h-7 px-2 text-xs text-muted-foreground"
-                        onClick={() =>
-                          setOverrides((prev) => {
-                            const next = { ...prev };
-                            delete next[name];
-                            return next;
-                          })
-                        }
+                        disabled={busy !== null}
+                        onClick={() => {
+                          const next = { ...overrides };
+                          delete next[name];
+                          applyOverrides(next);
+                        }}
                       >
                         Clear
                       </Button>
@@ -395,6 +452,7 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                   </div>
                 ))}
               </div>
+
             </AlertDescription>
           </Alert>
         )}
@@ -434,7 +492,7 @@ export function NightsBridgeBookingImport({ propertyId, propertyName }: Props) {
                       <TableCell className="text-xs">
                         {p.room_name ?? "—"}
                         {p.room_name && !p.room_matched && (
-                          overrides[p.room_name] === SKIP ? (
+                          overrides[p.room_name] === UNASSIGNED ? (
                             <Badge variant="outline" className="ml-1 text-[10px] text-muted-foreground">
                               unassigned
                             </Badge>

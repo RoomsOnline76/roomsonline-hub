@@ -132,13 +132,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    /** Operator decisions for unmatched room names. */
+    const EXCLUDE = "__exclude__";
+    const UNASSIGNED = "__unassigned__";
+    /** Legacy sentinel from earlier builds — behaved as "import unassigned". */
+    const LEGACY_SKIP = "__skip__";
+
+    const overrideFor = (name: string | null): string | null => {
+      if (!name) return null;
+      return roomOverrides[name] ?? roomOverrides[normaliseRoomKey(name)] ?? null;
+    };
+
     const resolveRoom = (name: string | null): { roomId: string | null; roomTypeId: string | null } => {
       if (!name) return { roomId: null, roomTypeId: null };
-      const override = roomOverrides[name] ?? roomOverrides[normaliseRoomKey(name)];
-      if (override) {
+      const override = overrideFor(name);
+      if (override && override !== EXCLUDE && override !== UNASSIGNED && override !== LEGACY_SKIP) {
         const byId = (roomRows ?? []).find((r) => r.id === override);
         if (byId) return { roomId: byId.id as string, roomTypeId: (byId.room_type_id as string) ?? null };
       }
+      if (override === UNASSIGNED || override === LEGACY_SKIP) return { roomId: null, roomTypeId: null };
       const key = normaliseRoomKey(name);
       const room = roomIndex.get(key);
       if (room) return { roomId: room.id, roomTypeId: room.room_type_id };
@@ -147,6 +159,7 @@ Deno.serve(async (req) => {
       return { roomId: null, roomTypeId: null };
     };
 
+
     /* ------------------------------------------------------------- map rows */
 
     const today = todayIso();
@@ -154,7 +167,7 @@ Deno.serve(async (req) => {
 
     const errors: { row: number; nbid: string | null; message: string }[] = [];
     const skipped: { row: number; nbid: string | null; message: string }[] = [];
-    const mapped: MappedNbBooking[] = [];
+    const kept: MappedNbBooking[] = [];
     const seen = new Set<string>();
 
     for (const o of outcomes) {
@@ -171,8 +184,25 @@ Deno.serve(async (req) => {
         continue;
       }
       seen.add(o.mapped.external_id);
-      mapped.push(o.mapped);
+      kept.push(o.mapped);
     }
+
+    // Rows whose unmatched room name the operator chose to exclude never reach the writes.
+    let excludedByOperator = 0;
+    const mapped: MappedNbBooking[] = [];
+    for (const m of kept) {
+      if (overrideFor(m.room_name) === EXCLUDE) {
+        excludedByOperator++;
+        skipped.push({
+          row: m.row,
+          nbid: m.nbid,
+          message: `Unknown room "${m.room_name}" — excluded by operator`,
+        });
+        continue;
+      }
+      mapped.push(m);
+    }
+
 
     // Existing NightsBridge bookings for this property, keyed by external id.
     const existing = new Map<string, string>();
@@ -215,9 +245,14 @@ Deno.serve(async (req) => {
         is_history: m.is_history,
       };
     });
-    // Room warnings must cover every row, not just the previewed ones.
-    for (const m of mapped) {
+    // Room warnings must cover every row, not just the previewed ones — and must keep
+    // listing names the operator excluded so their decision stays visible/editable.
+    for (const m of kept) {
       if (!m.room_name) continue;
+      if (overrideFor(m.room_name) === EXCLUDE) {
+        unmappedRooms.add(m.room_name);
+        continue;
+      }
       const { roomId, roomTypeId } = resolveRoom(m.room_name);
       if (!roomId && !roomTypeId) unmappedRooms.add(m.room_name);
     }
@@ -235,9 +270,11 @@ Deno.serve(async (req) => {
           created: willCreate,
           updated: willUpdate,
           skipped: skipped.length,
+          excluded: excludedByOperator,
           errors: errors.length,
           unmapped_rooms: [...unmappedRooms],
         },
+
         errors,
         skipped,
         rooms: (roomRows ?? []).map((r) => ({
@@ -389,6 +426,8 @@ Deno.serve(async (req) => {
         created,
         updated,
         skipped: skipped.length,
+        excluded: excludedByOperator,
+
         errors: errors.length,
         unmapped_rooms: [...unmappedRooms],
       },
