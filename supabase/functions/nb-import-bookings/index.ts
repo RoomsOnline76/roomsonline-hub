@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { loadCanonicalRooms } from "../_shared/canonicalRooms.ts";
 import {
   mapNbRow,
   normaliseRoomKey,
@@ -20,6 +21,7 @@ import {
   type MappedNbBooking,
   type RowOutcome,
 } from "./nbRows.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
