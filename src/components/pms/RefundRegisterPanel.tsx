@@ -113,6 +113,7 @@ export function RefundRegisterPanel({ propertyId }: RefundRegisterPanelProps) {
           <Tabs value={filter} onValueChange={setFilter}>
             <TabsList>
               <TabsTrigger value="open">Open</TabsTrigger>
+              <TabsTrigger value="awaiting_guest_choice">Guest</TabsTrigger>
               <TabsTrigger value="pending">Pending</TabsTrigger>
               <TabsTrigger value="processed">Processed</TabsTrigger>
               <TabsTrigger value="all">All</TabsTrigger>
