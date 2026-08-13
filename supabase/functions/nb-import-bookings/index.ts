@@ -14,6 +14,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { loadCanonicalRooms } from "../_shared/canonicalRooms.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
+import { normaliseGuestName, rebuildGuestStats, resolveGuestProfiles } from "../_shared/guestStats.ts";
 import {
   mapNbRow,
   normaliseRoomKey,
