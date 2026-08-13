@@ -17,7 +17,7 @@ import {
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
-import { loadCanonicalRooms } from '../_shared/canonicalRooms.ts';
+import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -1759,7 +1759,7 @@ async function loadBookingBlocks(
     }
   }
 
-  const wanted = unit?.name ? normalizeRoomLabel(String(unit.name)) : canonical ? normalizeRoomLabel(canonical.name) : null;
+  const wanted = unit?.name ? normaliseRoomName(String(unit.name)) : canonical ? normaliseRoomName(canonical.name) : null;
 
   // Imported bookings (NightsBridge) carry no `rooms` JSON — their unit lives in
   // `rolos_booking_rooms`, so those lines are the fallback for unit matching.
@@ -1785,7 +1785,7 @@ async function loadBookingBlocks(
       if (!unit) return true; // property-level push: any sold room closes a unit
       if (roomTypeId && acceptTypeIds.has(String(roomTypeId))) return true;
       if (roomId && acceptRoomIds.has(String(roomId))) return true;
-      if (wanted && roomTypeName && normalizeRoomLabel(String(roomTypeName)) === wanted) return true;
+      if (wanted && roomTypeName && normaliseRoomName(String(roomTypeName)) === wanted) return true;
       return false;
     };
 
