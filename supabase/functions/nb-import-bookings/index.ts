@@ -403,6 +403,16 @@ Deno.serve(async (req) => {
       mapped.push(m);
     }
 
+    /* Chunked live writes: the client may walk a large export in slices so a single
+     * invocation can never time out mid-write. Preview always sees the whole file. */
+    const totalMapped = mapped.length;
+    const chunkFrom = Math.max(0, Number(body?.row_from ?? 0) || 0);
+    const chunkSize = Number(body?.row_limit ?? 0) || 0;
+    const chunkedWrite = !dryRun && chunkSize > 0;
+    const writeSlice = chunkedWrite ? mapped.slice(chunkFrom, chunkFrom + chunkSize) : mapped;
+
+
+
 
     // Existing NightsBridge bookings for this property, keyed by external id.
     const existing = new Map<string, string>();
