@@ -121,8 +121,7 @@ const Dashboard = () => {
     queryFn: async () => {
       let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
         .eq("is_active", true)
-        .eq("is_trading", true)
-        .eq("is_sandbox", false);
+        .eq("is_trading", true);
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }

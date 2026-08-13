@@ -338,7 +338,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           archivedAt: p.ru_archived_at,
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
-          isTrading: p.is_trading === true && p.is_sandbox !== true,
+          isTrading: p.is_trading === true,
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
         } satisfies ChannelPropertyRow;
@@ -358,8 +358,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
 
       // Sub-account footprint — mirrors the Portfolio Management → Rentals United counters.
       const membersRows = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
-      // Trading scope: sandbox/parked records must not inflate channel counters.
-      const isTradingProp = (p: PropertyRecord) => p.is_trading === true && p.is_sandbox !== true;
+      // Trading scope: only the Trading toggle gates counters — test rows count normally.
+      const isTradingProp = (p: PropertyRecord) => p.is_trading === true;
       const tradingProps = allProps.filter(isTradingProp);
       const tradingIds = new Set(tradingProps.map((p) => p.id));
 

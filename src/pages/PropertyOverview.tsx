@@ -284,8 +284,8 @@ const PropertyOverview = () => {
   };
 
   // Trading = counted in dashboards and metrics. Everything else is stale inventory.
-  const isTradingProperty = (property: any): boolean =>
-    property.is_trading === true && !isSandboxProperty(property);
+  // The test/sandbox marker never affects this — those properties trade normally.
+  const isTradingProperty = (property: any): boolean => property.is_trading === true;
 
   // Filter and sort active properties
   const activeProperties = useMemo(() => {

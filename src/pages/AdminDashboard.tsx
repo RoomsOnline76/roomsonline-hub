@@ -77,7 +77,7 @@ export default function AdminDashboard() {
         // Trading properties only — stale inventory (connected/contracted but not
         // processing anything) must never inflate the operational counts.
         applyAdminScope(
-          supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_trading', true).eq('is_sandbox', false),
+          supabase.from('properties').select('*', { count: 'exact', head: true }).eq('is_trading', true),
           'id',
           scopedPropertyIds,
         ),

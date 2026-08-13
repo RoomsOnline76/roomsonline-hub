@@ -592,7 +592,7 @@ export function GeneralTab(props: GeneralTabProps) {
                     </div>
                     <div className="flex items-center gap-2 pt-1">
                       <Checkbox id="is_test_property" checked={isTestProperty} onCheckedChange={(c) => { setIsTestProperty(c as boolean); setIsDirty(true); }} />
-                      <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-warning">⚠ Test / Sandbox</Label>
+                      <Label htmlFor="is_test_property" className="text-xs cursor-pointer text-warning" title="Marker only: behaves as a normal property, including channel syncs.">⚠ Test</Label>
                     </div>
                   </>
                 )}
