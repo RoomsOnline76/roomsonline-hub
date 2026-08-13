@@ -309,34 +309,50 @@ Deno.serve(async (req) => {
     }
     const { rows } = parsedRows;
 
-    /* ---------------------------------------------------------- room lookup */
+    /* ---------------------------------------------------------- room lookup
+     * HARD GATE: only canonical (non-superseded) rooms may be matched. Legacy
+     * ALL-CAPS twins of a live unit are invisible here, so an import can never
+     * again attach bookings to inventory that no longer trades.
+     */
 
-    const [{ data: roomRows }, { data: typeRows }] = await Promise.all([
-      sb.from("rolos_rooms").select("id, room_number, room_name, room_type_id").eq("property_id", propertyId),
-      sb.from("rolos_room_types").select("id, name, code").eq("property_id", propertyId),
-    ]);
+    const registry = await loadCanonicalRooms(sb, propertyId);
 
     const roomIndex = new Map<string, RoomRef>();
-    for (const r of roomRows ?? []) {
-      const ref: RoomRef = { id: r.id as string, room_type_id: (r.room_type_id as string) ?? null, keys: [] };
-      for (const candidate of [r.room_name, r.room_number]) {
-        const key = normaliseRoomKey(candidate as string | null);
-        if (key && !roomIndex.has(key)) roomIndex.set(key, ref);
-      }
-    }
     const typeIndex = new Map<string, string>();
-    for (const t of typeRows ?? []) {
-      for (const candidate of [t.name, t.code]) {
-        const key = normaliseRoomKey(candidate as string | null);
-        if (key && !typeIndex.has(key)) typeIndex.set(key, t.id as string);
+    for (const [key, canonical] of registry.byKey) {
+      if (canonical.roomId) {
+        roomIndex.set(key, { id: canonical.roomId, room_type_id: canonical.roomTypeId, keys: [key] });
       }
+      typeIndex.set(key, canonical.roomTypeId);
     }
+    const canonicalRoomList = [...registry.byKey.values()]
+      .filter((c) => c.roomId)
+      .map((c) => ({ id: c.roomId as string, label: c.roomLabel || c.name }));
+    const canonicalRoomIds = new Set(canonicalRoomList.map((r) => r.id));
 
     /** Operator decisions for unmatched room names. */
     const EXCLUDE = "__exclude__";
     const UNASSIGNED = "__unassigned__";
     /** Legacy sentinel from earlier builds — behaved as "import unassigned". */
     const LEGACY_SKIP = "__skip__";
+
+    /** Overrides pointing at a superseded (retired) room are refused outright. */
+    const rejectedOverrides = Object.entries(roomOverrides)
+      .filter(([, v]) => v && v !== EXCLUDE && v !== UNASSIGNED && v !== LEGACY_SKIP && !canonicalRoomIds.has(v))
+      .map(([name]) => name);
+    if (rejectedOverrides.length > 0) {
+      return json(
+        {
+          ok: false,
+          error:
+            `These room choices point at rooms that no longer exist: ${rejectedOverrides.join(", ")}. ` +
+            `Pick a current room instead.`,
+          rejected_overrides: rejectedOverrides,
+          rooms: canonicalRoomList,
+        },
+        400,
+      );
+    }
 
     const overrideFor = (name: string | null): string | null => {
       if (!name) return null;
@@ -347,8 +363,8 @@ Deno.serve(async (req) => {
       if (!name) return { roomId: null, roomTypeId: null };
       const override = overrideFor(name);
       if (override && override !== EXCLUDE && override !== UNASSIGNED && override !== LEGACY_SKIP) {
-        const byId = (roomRows ?? []).find((r) => r.id === override);
-        if (byId) return { roomId: byId.id as string, roomTypeId: (byId.room_type_id as string) ?? null };
+        const canonical = [...registry.byKey.values()].find((c) => c.roomId === override);
+        if (canonical) return { roomId: canonical.roomId, roomTypeId: canonical.roomTypeId };
       }
       if (override === UNASSIGNED || override === LEGACY_SKIP) return { roomId: null, roomTypeId: null };
       const key = normaliseRoomKey(name);
@@ -358,6 +374,7 @@ Deno.serve(async (req) => {
       if (typeId) return { roomId: null, roomTypeId: typeId };
       return { roomId: null, roomTypeId: null };
     };
+
 
 
     /* ------------------------------------------------------------- map rows */
