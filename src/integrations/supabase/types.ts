@@ -2996,6 +2996,60 @@ export type Database = {
         }
         Relationships: []
       }
+      nb_import_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          errors: Json
+          file_bytes: number | null
+          file_name: string | null
+          future_stays: number
+          id: string
+          max_arrival: string | null
+          min_arrival: string | null
+          mode: string
+          property_id: string
+          skipped: Json
+          summary: Json
+          unmapped_rooms: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          errors?: Json
+          file_bytes?: number | null
+          file_name?: string | null
+          future_stays?: number
+          id?: string
+          max_arrival?: string | null
+          min_arrival?: string | null
+          mode?: string
+          property_id: string
+          skipped?: Json
+          summary?: Json
+          unmapped_rooms?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          errors?: Json
+          file_bytes?: number | null
+          file_name?: string | null
+          future_stays?: number
+          id?: string
+          max_arrival?: string | null
+          min_arrival?: string | null
+          mode?: string
+          property_id?: string
+          skipped?: Json
+          summary?: Json
+          unmapped_rooms?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       nightsbridge_booking_sessions: {
         Row: {
           check_in_date: string | null
