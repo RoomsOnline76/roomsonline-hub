@@ -825,8 +825,20 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   </div>
                   <div>
                     <Label className="text-[11px]">Deposit</Label>
-                    <Input className="h-8" type="number" min={0} value={form.deposit_amount} onChange={e => update("deposit_amount", e.target.value)} placeholder="0.00" />
+                    <Input
+                      className="h-8"
+                      type="number"
+                      min={0}
+                      value={form.payment_status === "paid" ? "" : form.deposit_amount}
+                      onChange={e => update("deposit_amount", e.target.value)}
+                      disabled={form.payment_status === "paid"}
+                      placeholder={form.payment_status === "paid" ? "Not applicable" : "0.00"}
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {form.payment_status === "paid" ? "Paid in full — no deposit needed." : "Optional — leave blank if no deposit applies."}
+                    </p>
                   </div>
+
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
