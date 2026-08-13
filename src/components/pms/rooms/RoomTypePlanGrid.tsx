@@ -366,7 +366,8 @@ export function RoomTypePlanRows({
               );
             })}
         </div>
-      ))}
+        );
+      })}
     </>
   );
 }
