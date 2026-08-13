@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
 
     const errors: { row: number; nbid: string | null; message: string }[] = [];
     const skipped: { row: number; nbid: string | null; message: string }[] = [];
-    const mapped: MappedNbBooking[] = [];
+    const kept: MappedNbBooking[] = [];
     const seen = new Set<string>();
 
     for (const o of outcomes) {
@@ -184,8 +184,25 @@ Deno.serve(async (req) => {
         continue;
       }
       seen.add(o.mapped.external_id);
-      mapped.push(o.mapped);
+      kept.push(o.mapped);
     }
+
+    // Rows whose unmatched room name the operator chose to exclude never reach the writes.
+    let excludedByOperator = 0;
+    const mapped: MappedNbBooking[] = [];
+    for (const m of kept) {
+      if (overrideFor(m.room_name) === EXCLUDE) {
+        excludedByOperator++;
+        skipped.push({
+          row: m.row,
+          nbid: m.nbid,
+          message: `Unknown room "${m.room_name}" — excluded by operator`,
+        });
+        continue;
+      }
+      mapped.push(m);
+    }
+
 
     // Existing NightsBridge bookings for this property, keyed by external id.
     const existing = new Map<string, string>();
