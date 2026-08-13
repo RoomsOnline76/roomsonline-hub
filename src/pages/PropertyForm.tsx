@@ -3611,11 +3611,23 @@ export default function PropertyForm({
           if (allRolosTypes && allRolosTypes.length > 0) {
             const { data: existingPhysical } = await supabase
               .from("rolos_rooms")
-              .select("room_type_id")
+              .select("room_type_id, room_number, room_name")
               .eq("property_id", savedPropertyId);
 
+            const normaliseUnitName = (value: string | null | undefined) =>
+              String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
             const hasPhysical = new Set((existingPhysical || []).map((r: any) => r.room_type_id).filter(Boolean));
-            const missingPhysical = allRolosTypes.filter((rt) => !hasPhysical.has(rt.id));
+            // A unit already exists for this *name* — a differently cased or
+            // duplicated room type must never spawn a second physical unit.
+            const namesWithUnit = new Set(
+              (existingPhysical || []).flatMap((r: any) =>
+                [normaliseUnitName(r.room_number), normaliseUnitName(r.room_name)].filter(Boolean)
+              )
+            );
+            const missingPhysical = allRolosTypes.filter(
+              (rt) => !hasPhysical.has(rt.id) && !namesWithUnit.has(normaliseUnitName(rt.name))
+            );
 
             if (missingPhysical.length > 0) {
               const physicalRooms = missingPhysical.map((rt) => ({
@@ -3630,6 +3642,7 @@ export default function PropertyForm({
               else console.log(`[ROL Sync] Created ${missingPhysical.length} physical rooms`);
             }
           }
+
         } catch (syncErr) {
           console.warn("Room types sync warning:", syncErr);
         }

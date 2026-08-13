@@ -97,24 +97,42 @@ Deno.serve(async (req) => {
           .eq("property_id", property.id)
           .eq("is_active", true);
 
-        for (const rt of (allRolosTypes || [])) {
-          const { count } = await supabase.from("rolos_rooms")
-            .select("id", { count: "exact", head: true })
-            .eq("room_type_id", rt.id)
-            .eq("property_id", property.id);
+        const { data: existingRooms } = await supabase
+          .from("rolos_rooms")
+          .select("room_type_id, room_number, room_name")
+          .eq("property_id", property.id);
 
-          if (!count || count === 0) {
-            // Create one default room
-            await supabase.from("rolos_rooms").insert({
-              property_id: property.id,
-              room_type_id: rt.id,
-              room_number: `${rt.name}-1`,
-              room_name: rt.name,
-              status: "available",
-            });
-            roomsCreated++;
-          }
+        const normaliseUnitName = (value: string | null | undefined) =>
+          String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+        const typesWithRooms = new Set(
+          (existingRooms || []).map((r: { room_type_id: string | null }) => r.room_type_id).filter(Boolean)
+        );
+        // Guard against duplicate / differently cased room types spawning a
+        // second physical unit for a room that already exists.
+        const namesWithRooms = new Set(
+          (existingRooms || []).flatMap((r: { room_number: string | null; room_name: string | null }) =>
+            [normaliseUnitName(r.room_number), normaliseUnitName(r.room_name)].filter(Boolean)
+          )
+        );
+
+        for (const rt of (allRolosTypes || [])) {
+          if (typesWithRooms.has(rt.id)) continue;
+          const key = normaliseUnitName(rt.name);
+          if (namesWithRooms.has(key)) continue;
+
+          await supabase.from("rolos_rooms").insert({
+            property_id: property.id,
+            room_type_id: rt.id,
+            room_number: `${rt.name}-1`,
+            room_name: rt.name,
+            status: "available",
+          });
+          namesWithRooms.add(key);
+          typesWithRooms.add(rt.id);
+          roomsCreated++;
         }
+
 
         results[property.id] = { types_created: typesCreated, rooms_created: roomsCreated };
       } catch (err) {
