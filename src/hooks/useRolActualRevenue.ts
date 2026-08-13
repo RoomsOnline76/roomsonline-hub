@@ -61,7 +61,7 @@ export function useRolActualRevenue() {
       const [bookingsRes, subsRes] = await Promise.all([
         supabase
           .from("bookings")
-          .select("calculated_commission, created_at, status")
+          .select("calculated_commission, total_price, created_at, status")
           .in("status", CONFIRMED_STATUSES)
           .gte("created_at", windowStart),
         supabase
@@ -80,14 +80,22 @@ export function useRolActualRevenue() {
       let passthroughZar = 0;
       let currentMonthZar = 0;
       let bookingCount = 0;
+      let volumeBookingCount = 0;
+      let grossBookingValueZar = 0;
 
       for (const row of bookingsRes.data ?? []) {
+        // Every confirmed stay counts as volume — including non-commissionable imported actuals.
+        volumeBookingCount += 1;
+        const gross = Number(row.total_price ?? 0);
+        if (Number.isFinite(gross)) grossBookingValueZar += gross;
+
         const amount = Number(row.calculated_commission ?? 0);
         if (!Number.isFinite(amount) || amount === 0) continue;
         commissionZar += amount;
         bookingCount += 1;
         if ((row.created_at ?? "") >= monthStart) currentMonthZar += amount;
       }
+
 
       for (const row of subsRes.data ?? []) {
         const amount = Number(row.amount ?? 0);
