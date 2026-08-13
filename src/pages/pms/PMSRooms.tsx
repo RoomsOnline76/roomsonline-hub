@@ -19,16 +19,18 @@ import { cn } from "@/lib/utils";
 import { PmsPageSkeleton } from "@/components/pms/PmsPageSkeleton";
 import { PmsNoPropertyState } from "@/components/pms/PmsNoPropertyState";
 import { BookingQuickViewSheet } from "@/components/pms/BookingQuickViewSheet";
-import { RoomTypePlanGrid } from "@/components/pms/rooms/RoomTypePlanGrid";
+import { RoomTypePlanLabelHeader, RoomTypePlanLegend, RoomTypePlanRows } from "@/components/pms/rooms/RoomTypePlanGrid";
+import { MultiCalendarSurface, type MultiCalendarGroup } from "@/components/pms/calendar/MultiCalendarSurface";
 import { ReservationFinder } from "@/components/pms/rooms/ReservationFinder";
 import { RoomCard, ROOM_STATUS_COLORS } from "@/components/pms/rooms/RoomCard";
-import { BLOCKED_ROOM_STATUSES, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
+import { BLOCKED_ROOM_STATUSES, groupIntoWeeks, occupiesNight, type PlanRoom, type PlanRoomType, type RoomsBooking } from "@/components/pms/rooms/roomTypePlanLayout";
 
-type ViewMode = "portfolio" | "single";
-
-/** Nights shown in the Room Type Plan — matched to the dashboard Room Plan window
- *  so a reservation visible on the dashboard is never off-screen here. */
-const PLAN_NIGHTS = 30;
+/** Nights loaded into the multi-calendar. Scrolling to the right edge extends it. */
+const PLAN_NIGHTS = 45;
+const PLAN_NIGHTS_STEP = 30;
+const PLAN_NIGHTS_MAX = 180;
+/** Sentinel for the "all properties" option in the property filter dropdown. */
+const ALL_PROPERTIES = "__all__";
 /** Extra days of reservations loaded beyond the plan so search finds future stays. */
 const SEARCH_LOOKAHEAD_DAYS = 60;
 
@@ -41,17 +43,22 @@ const SLEEPS_OPTIONS = ["any", "2", "3", "4", "6"];
 
 export default function PMSRooms() {
   const { propertyId, properties, switchProperty, loading: propertyLoading } = usePmsPropertyId();
-  const [viewMode, setViewMode] = useState<ViewMode>("single");
+  // One dropdown drives the whole page: every property stacked, or just one.
+  const [propertyScope, setPropertyScope] = useState<string>(ALL_PROPERTIES);
   const [autoDefaulted, setAutoDefaulted] = useState(false);
 
   useEffect(() => {
-    if (!autoDefaulted && properties.length > 1) {
-      setViewMode("portfolio");
+    if (!autoDefaulted && properties.length > 0) {
+      setPropertyScope(properties.length > 1 ? ALL_PROPERTIES : properties[0].id);
       setAutoDefaulted(true);
     }
-  }, [properties.length, autoDefaulted]);
+  }, [properties, autoDefaulted]);
 
-  const isPortfolio = viewMode === "portfolio" && properties.length > 1;
+  const isPortfolio = propertyScope === ALL_PROPERTIES && properties.length > 1;
+  const selectSingleProperty = useCallback((id: string) => {
+    setPropertyScope(id);
+    switchProperty(id);
+  }, [switchProperty]);
   const activePropertyIds = useMemo(
     () => (isPortfolio ? properties.map((p) => p.id) : propertyId ? [propertyId] : []),
     [isPortfolio, properties, propertyId]
@@ -76,17 +83,25 @@ export default function PMSRooms() {
   const [showCards, setShowCards] = useState(false);
 
 
+  const [planNights, setPlanNights] = useState(PLAN_NIGHTS);
   const dates = useMemo(
-    () => Array.from({ length: PLAN_NIGHTS }, (_, i) => addDays(anchorDate, i)),
-    [anchorDate]
+    () => Array.from({ length: planNights }, (_, i) => addDays(anchorDate, i)),
+    [anchorDate, planNights]
   );
+  const weeks = useMemo(() => groupIntoWeeks(dates), [dates]);
+  const extendWindow = useCallback(() => {
+    setPlanNights((current) => (current >= PLAN_NIGHTS_MAX ? current : current + PLAN_NIGHTS_STEP));
+  }, []);
   const windowStart = format(dates[0], "yyyy-MM-dd");
   const windowEnd = format(addDays(dates[dates.length - 1], SEARCH_LOOKAHEAD_DAYS), "yyyy-MM-dd");
 
   const shiftWindow = useCallback((direction: -1 | 1) => {
     setAnchorDate((current) => addDays(current, direction * 7));
   }, []);
-  const goToday = useCallback(() => setAnchorDate(startOfDay(new Date())), []);
+  const goToday = useCallback(() => {
+    setAnchorDate(startOfDay(new Date()));
+    setPlanNights(PLAN_NIGHTS);
+  }, []);
 
   // Auto-sync room types from the true Property Overview source for every
   // property currently in scope (single OR portfolio view).
