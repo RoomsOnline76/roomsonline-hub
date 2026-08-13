@@ -256,36 +256,34 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Freed nights must reach RU immediately, not on the next cron tick.
-    await queueRuAriDelta(supabase, booking.property_id, "guest_cancelled", { force: true });
-
-
     // Mark token as used
     await supabase
       .from("guest_portal_tokens")
       .update({ used_for: "cancel" })
       .eq("id", tokenRow.id);
 
-    // Send cancellation email
-    try {
-      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-email`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
+    // The freed nights and the cancellation email follow on the background queue so the guest
+    // sees the confirmation immediately instead of waiting on the channel round-trip.
+    await enqueueJobs(supabase, [
+      {
+        type: "channel_ari_delta" as const,
+        payload: { property_id: booking.property_id, trigger: "guest_cancelled", force: true },
+        options: { dedupeKey: `ari:${booking.property_id}` },
+      },
+      {
+        type: "booking_email" as const,
+        payload: {
           booking_id: booking.id,
-          bookingId: booking.id,
           type: "cancellation_confirmation",
           reason: reason.trim(),
           partial: isPartialCancel,
           cancelled_rooms: cancel_rooms,
-        }),
-      });
-    } catch (emailErr) {
-      console.error("Cancellation email failed (non-critical):", emailErr);
-    }
+        },
+        options: { dedupeKey: `email:cancellation:${booking.id}` },
+      },
+    ]);
+    kickWorker();
+
 
     return new Response(
       JSON.stringify({
