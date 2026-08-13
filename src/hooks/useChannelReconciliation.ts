@@ -63,7 +63,9 @@ export interface ChannelReconciliation {
   archived_orphans: ReconArchived[];
   matched: ReconMatched[];
   orphans: ReconOrphan[];
+  duplicates: ReconDuplicate[];
   stale: ReconStale[];
+
 }
 
 export interface CleanupProgress {
