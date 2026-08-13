@@ -197,7 +197,9 @@ export function useChannelReconciliation() {
                   : a,
               ),
               orphans: prev.orphans.filter((o) => o.listing_id !== listing.listing_id),
+              duplicates: prev.duplicates.filter((d) => d.listing_id !== listing.listing_id),
               archived_orphans: prev.archived_orphans.filter((o) => o.listing_id !== listing.listing_id),
+
               archived_count:
                 prev.archived_orphans.some((o) => o.listing_id === listing.listing_id)
                   ? Math.max(0, prev.archived_count - 1)
