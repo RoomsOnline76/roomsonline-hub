@@ -83,6 +83,10 @@ export interface PlanCell {
   free: number;
   /** Units that exist for this type, excluding blocked rooms. */
   sellable: number;
+  /** Units consumed by reservations on this night (can exceed `sellable`). */
+  used: number;
+  /** Surplus reservations beyond capacity — greater than 0 means double booked. */
+  overbooked: number;
   /** Reservations touching this night for this room type. */
   bookings: RoomsBooking[];
 }
