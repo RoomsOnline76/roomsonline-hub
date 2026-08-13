@@ -51,17 +51,15 @@ export default function PMSRooms() {
   } = usePmsPropertyId();
   // Property scope is controlled by a Portfolio | Property toggle in the header.
   // The active property itself is chosen from the sidebar switcher (top-left).
+  // Default scope is always the selected property — never the whole portfolio.
   const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
-  const [autoDefaulted, setAutoDefaulted] = useState(false);
 
+  // Switching the property (sidebar switcher / URL) re-scopes the page to it.
   useEffect(() => {
-    if (!autoDefaulted && properties.length > 0) {
-      setViewMode(showPortfolioToggle ? "portfolio" : "single");
-      setAutoDefaulted(true);
-    }
-  }, [properties, showPortfolioToggle, autoDefaulted]);
+    setViewMode("single");
+  }, [propertyId]);
 
-  const portfolioList = portfolioProperties || properties;
+  const portfolioList = useMemo(() => portfolioProperties ?? [], [portfolioProperties]);
   const isPortfolio = viewMode === "portfolio" && portfolioList.length > 1;
   const selectSingleProperty = useCallback((id: string) => {
     setViewMode("single");
@@ -71,6 +69,7 @@ export default function PMSRooms() {
     () => (isPortfolio ? portfolioList.map((p) => p.id) : propertyId ? [propertyId] : []),
     [isPortfolio, portfolioList, propertyId]
   );
+
 
   const [rooms, setRooms] = useState<PlanRoom[]>([]);
   const [roomTypes, setRoomTypes] = useState<PlanRoomType[]>([]);
