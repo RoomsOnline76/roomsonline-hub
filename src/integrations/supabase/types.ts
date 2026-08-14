@@ -14037,6 +14037,30 @@ export type Database = {
           },
         ]
       }
+      ru_method_rate_limits: {
+        Row: {
+          action: string | null
+          created_at: string
+          last_called_at: string
+          method_key: string
+          updated_at: string
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string
+          last_called_at?: string
+          method_key: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string | null
+          created_at?: string
+          last_called_at?: string
+          method_key?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_notifications: {
         Row: {
           attempt_count: number
@@ -16094,6 +16118,13 @@ export type Database = {
       rolos_room_type_capacity: {
         Args: { _property_id: string; _room_type_id: string }
         Returns: number
+      }
+      ru_claim_rate_slot: {
+        Args: { _action: string; _method_key: string; _window_seconds: number }
+        Returns: {
+          granted: boolean
+          wait_ms: number
+        }[]
       }
       scoped_admin_can_access_portfolio: {
         Args: { _portfolio_id: string; _user_id: string }
