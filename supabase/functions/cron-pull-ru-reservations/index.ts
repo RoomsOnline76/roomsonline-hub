@@ -153,6 +153,15 @@ Deno.serve(async (req) => {
               httpStatus: null,
               errorCode: ruResult?.error?.code ?? null,
             };
+        // A rate deferral means another caller already used this method's sliding-minute slot —
+        // that is compliance working, not an outage. Record it as a skip and roll to the next run.
+        if (failure.errorCode === 'RU_RATE_DEFERRED' || /rate limited/i.test(failure.message ?? '')) {
+          summary.rate_deferred += 1;
+          deferred.push(scope.label);
+          console.log(`[cron-pull-ru] ${scope.label} deferred by the sliding-minute gate: ${failure.message}`);
+          await logCadence(true, null, scope, { rate_deferred: true });
+          continue;
+        }
         console.error(
           `[cron-pull-ru] ${scope.label} API call failed (http=${failure.httpStatus ?? 'n/a'}, code=${failure.errorCode ?? 'n/a'}): ${failure.message}`,
         );
