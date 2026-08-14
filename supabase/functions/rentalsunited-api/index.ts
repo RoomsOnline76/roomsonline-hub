@@ -438,7 +438,30 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   let responseText: string | null = null;
   let errorMessage: string | null = null;
 
+  // The channel allows one request per method with the same parameters per sliding minute.
+  // Claim the shared slot (waiting out a short remainder) before spending the call — a deferral
+  // is raised as RuRateDeferredError and answered with 429 + RU_RATE_DEFERRED by the handler.
   try {
+    await reserveRuSlot(getLogClient(), compactRequestXml, { ownerId: context?.ru_owner_id ?? null });
+  } catch (gateErr) {
+    if (gateErr instanceof RuRateDeferredError) {
+      await logRuExchange(getLogClient(), {
+        ...(context ?? {}),
+        action: context?.parent_action ?? 'ru_api_call',
+        endpoint: creds.endpoint,
+        request_xml: compactRequestXml,
+        response_xml: null,
+        http_status: 429,
+        success: false,
+        elapsed_ms: Date.now() - startedAt,
+        error_message: `${RU_RATE_DEFERRED_CODE}: ${gateErr.message}`,
+      });
+    }
+    throw gateErr;
+  }
+
+  try {
+
     const response = await fetch(creds.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'text/xml; charset=utf-8' },
