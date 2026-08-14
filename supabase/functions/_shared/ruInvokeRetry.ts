@@ -102,12 +102,18 @@ export async function invokeRuWithRetry(
 
     last = { data, ok: false, attempts: attempt, httpStatus, errorCode, message };
 
-    const retryable = errorCode === null && isTransient(httpStatus, message);
+    // The sliding-minute rate limit is retryable even though it carries a business code —
+    // waiting out the window is the documented way to comply with it.
+    const rateLimited = isRateLimited(data, errorCode, message);
+    const retryable = rateLimited || (errorCode === null && isTransient(httpStatus, message));
     if (!retryable || attempt === maxAttempts) break;
 
-    const wait = BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
+    const suggested = Number(data?.error?.retry_after_ms ?? 0);
+    const wait = rateLimited
+      ? Math.max(suggested + 500, RATE_BACKOFF_MS[attempt - 1] ?? RATE_BACKOFF_MS[RATE_BACKOFF_MS.length - 1])
+      : (BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
     console.warn(
-      `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms`,
+      `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms${rateLimited ? ' [rate limit backoff]' : ''}`,
     );
     await new Promise((r) => setTimeout(r, wait));
   }
