@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { applyAdminScope } from "@/lib/adminScope";
+import { applyAdminScope, filterToItTestProperties, isItTestAdminEmail } from "@/lib/adminScope";
 import { SalesRepDashboard } from "@/components/dashboard/SalesRepDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -120,15 +120,19 @@ const Dashboard = () => {
     queryKey: ["dashboard-properties", isAdmin, profile?.email, scopedPropertyIds.join(",")],
     queryFn: async () => {
       let query = supabase.from("properties").select("id, name, owner_email, owner_name, property_type, bedrooms, max_guests, external_system, created_at, is_active, is_trading, is_sandbox")
-        .eq("is_active", true)
-        .eq("is_trading", true);
+        .eq("is_active", true);
+      // Unrestricted admins/owners only count trading inventory. A scoped IT
+      // tester must still see Seesig + Tidal even if they are not flagged trading.
+      if (scopedPropertyIds.length === 0) {
+        query = query.eq("is_trading", true);
+      }
       if (!isAdmin && profile?.email) {
         query = query.eq("owner_email", profile.email);
       }
-      // Scoped admins (e.g. certification auditors) only ever see their properties.
       query = applyAdminScope(query, "id", scopedPropertyIds);
       const { data } = await query;
-      return data || [];
+      const rows = data || [];
+      return isItTestAdminEmail(profile?.email ?? user?.email) ? filterToItTestProperties(rows) : rows;
     },
     enabled: !!user && (isAdmin || !!profile?.email),
   });
@@ -173,18 +177,23 @@ const Dashboard = () => {
 
   // Fetch NightsBridge booking sessions (intent tracking)
   const { data: nbSessions = [] } = useQuery({
-    queryKey: ["dashboard-nb-sessions"],
+    queryKey: ["dashboard-nb-sessions", properties.map((p) => p.name).join(",")],
     queryFn: async () => {
-      const now = new Date();
-      const thisMonthStart = startOfMonth(now);
-      const lastMonthStart = startOfMonth(subMonths(now, 1));
-      const lastMonthEnd = endOfMonth(subMonths(now, 1));
+      const lastMonthStart = startOfMonth(subMonths(new Date(), 1));
       
       const { data } = await supabase
         .from("nightsbridge_booking_sessions")
         .select("id, status, created_at, match_confidence, estimated_revenue, property_name")
         .gte("created_at", lastMonthStart.toISOString());
-      return data || [];
+      const rows = data || [];
+      if (scopedPropertyIds.length === 0) return rows;
+      const allowed = new Set(properties.map((p) => (p.name ?? "").toLowerCase()).filter(Boolean));
+      return rows.filter((s) => {
+        const name = (s.property_name ?? "").toLowerCase();
+        if (!name) return false;
+        if (allowed.has(name)) return true;
+        return [...allowed].some((n) => name.includes(n) || n.includes(name));
+      });
     },
     enabled: isAdmin,
   });

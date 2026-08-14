@@ -11,6 +11,7 @@
  * per sub-user that has usable API credentials, each with its own auth.
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { ownerIdsWithOperationalSync } from './ruSyncGate.ts';
 
 export interface RuOwnerScope {
   /** null for the master account. */
@@ -36,7 +37,7 @@ export const MASTER_SCOPE: RuOwnerScope = { ownerId: null, label: 'master', payl
 export async function resolveRuOwnerScopes(
   admin: SupabaseClient,
   cadenceAction: string,
-  options: { includeMaster?: boolean } = {},
+  options: { includeMaster?: boolean; requireOperationalPush?: boolean } = {},
 ): Promise<RuOwnerScope[]> {
   const includeMaster = options.includeMaster !== false;
 
@@ -92,6 +93,17 @@ export async function resolveRuOwnerScopes(
   }
 
   children.sort((a, b) => (lastSeen.get(a.ownerId!) ?? 0) - (lastSeen.get(b.ownerId!) ?? 0));
+
+  if (options.requireOperationalPush) {
+    const ready = await ownerIdsWithOperationalSync(admin);
+    const blocked = children.filter((c) => !ready.has(String(c.ownerId)));
+    if (blocked.length) {
+      console.warn(
+        `[ruOwnerScopes] ${blocked.length} RU sub-user(s) skipped for ${cadenceAction} — Channel wizard has not passed: ${blocked.map((c) => c.label).join(', ')}`,
+      );
+    }
+    children = children.filter((c) => ready.has(String(c.ownerId)));
+  }
 
   if (skipped.length) {
     console.warn(

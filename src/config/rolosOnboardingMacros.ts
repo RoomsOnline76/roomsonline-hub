@@ -200,6 +200,29 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     ],
 
   },
+  {
+    key: "entitlement",
+    order: 11,
+    title: "Enable Channel Manager",
+    goal: "Channel Manager is on the billing profile so channels can connect.",
+    section: "admin",
+    adminOnly: true,
+    tasks: [{ kind: "state", key: "channel_entitlement" }],
+    notes: [
+      "This is the billing switch — not a separate admin page. Enabling it unlocks the channel console on this same screen.",
+    ],
+  },
+  {
+    key: "connect",
+    order: 12,
+    title: "Connect channels",
+    goal: "The owner activates the sales channels they want to trade on.",
+    action: "open_channels",
+    tasks: [{ kind: "state", key: "channels_connected" }],
+    notes: [
+      "Connect channels one at a time in the Channel Manager on this page. A first inbound test reservation should write a booking and block availability.",
+    ],
+  },
 ];
 
 export function getMacro(key: string): MacroDef | undefined {

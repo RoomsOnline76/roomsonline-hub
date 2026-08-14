@@ -1,4 +1,5 @@
 import { readInvokeErrorBody } from './ruInvokeBody.ts';
+import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts';
 
 // Event-driven Rentals United STATIC CONTENT delta (Push_PutProperty_RQ).
 //
@@ -39,7 +40,7 @@ export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
 export const RU_STATIC_DELTA_PENDING_ACTION = 'static_delta_pending';
 
 /** Gate refusals that mean "correct content, not yet allowed" rather than a hard failure. */
-export const RU_GATE_ERROR_CODES = ['PHASE_BLOCKED', 'READINESS_UNVERIFIED', 'READINESS_FAILED'];
+export const RU_GATE_ERROR_CODES = ['PHASE_BLOCKED', 'READINESS_UNVERIFIED', 'READINESS_FAILED', RU_WIZARD_SYNC_CODE];
 
 /** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
 const RU_STATIC_DELTA_MAX_CHUNKS = 12;
@@ -151,11 +152,12 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
 
   const unitRows = (units ?? []) as Record<string, unknown>[];
   const listedUnit = unitRows.some((u) => !!u.rentalsunited_property_id);
+  const gate = await evaluateRuOperationalSync(supabase, propertyId);
   return {
     property: (property ?? null) as Record<string, unknown> | null,
     units: unitRows,
-    ruConnected: Boolean(property?.rentalsunited_property_id) || listedUnit,
-    pushEnabled: property?.ru_push_enabled !== false,
+    ruConnected: gate.allowed && (Boolean(property?.rentalsunited_property_id) || listedUnit),
+    pushEnabled: gate.allowed,
   };
 }
 

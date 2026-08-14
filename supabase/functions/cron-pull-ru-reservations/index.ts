@@ -103,7 +103,10 @@ Deno.serve(async (req) => {
     // Sub-users ONLY. Every ROL'OS listing lives on a white-label sub-account, so
     // the master account never holds reservations or leads — polling it just burns
     // a sliding-minute slot and files an empty, always-failing run.
-    const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations', { includeMaster: false });
+    const scopes = await resolveRuOwnerScopes(supabase, 'pull_reservations', {
+      includeMaster: false,
+      requireOperationalPush: true,
+    });
     const covered: string[] = [];
     const deferred: string[] = [];
 

@@ -13,6 +13,7 @@
 // Failures are logged and swallowed: a channel refresh must never break the booking flow.
 
 import { readInvokeErrorBody } from "./ruInvokeBody.ts";
+import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from "./ruSyncGate.ts";
 
 /** Minimum gap between two deltas for the same property. */
 export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
@@ -28,27 +29,12 @@ export interface RuAriDeltaOutcome {
 export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
 
 /** Gate refusals that mean "correct data, not yet allowed" rather than a hard failure. */
-const GATE_CODES = ["PHASE_BLOCKED", "READINESS_UNVERIFIED", "READINESS_FAILED"];
+const GATE_CODES = ["PHASE_BLOCKED", "READINESS_UNVERIFIED", "READINESS_FAILED", RU_WIZARD_SYNC_CODE];
 
 
 async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
-  const [{ data: prop }, { data: units }] = await Promise.all([
-    supabase
-      .from("properties")
-      .select("rentalsunited_property_id, ru_push_enabled")
-      .eq("id", propertyId)
-      .maybeSingle(),
-    // Only ACTIVE units count as listed — archived duplicates keep dead channel IDs.
-    supabase
-      .from("hostfully_room_types")
-      .select("id")
-      .eq("property_id", propertyId)
-      .eq("is_active", true)
-      .not("rentalsunited_property_id", "is", null)
-      .limit(1),
-  ]);
-  if (prop?.ru_push_enabled === false) return false;
-  return Boolean(prop?.rentalsunited_property_id) || (units?.length ?? 0) > 0;
+  const gate = await evaluateRuOperationalSync(supabase, propertyId);
+  return gate.allowed;
 }
 
 

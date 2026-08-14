@@ -318,11 +318,18 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(200);
 
+    const setupResetAt =
+      cfg?.custom_overrides && typeof cfg.custom_overrides === "object"
+        ? String((cfg.custom_overrides as { setup_reset_at?: string }).setup_reset_at || "")
+        : "";
+    const afterOwnerReset = (i: { created_at?: string }) =>
+      !setupResetAt || String(i.created_at || "") >= setupResetAt;
+
     let openSetup = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "once_off" && !["paid", "void", "cancelled"].includes(i.status),
     );
     const paidSetup = (invoices ?? []).find(
-      (i: any) => i.invoice_kind === "once_off" && i.status === "paid",
+      (i: any) => i.invoice_kind === "once_off" && i.status === "paid" && afterOwnerReset(i),
     );
     const openSubscription = (invoices ?? []).find(
       (i: any) => i.invoice_kind === "activation" && !["paid", "void", "cancelled"].includes(i.status),
@@ -333,7 +340,7 @@ Deno.serve(async (req) => {
     // subscription invoice. When it differs from the contracted fee the account
     // is drifting and the plan change must be scheduled / activated.
     const lastPaidSub = (invoices ?? []).find(
-      (i: any) => i.invoice_kind !== "once_off" && i.status === "paid",
+      (i: any) => i.invoice_kind !== "once_off" && i.status === "paid" && afterOwnerReset(i),
     );
     const billedAmount = lastPaidSub ? Number(lastPaidSub.amount) || 0 : 0;
     const amountDrift = billedAmount > 0 && Math.abs(fee - billedAmount) > 0.005;
@@ -422,7 +429,7 @@ Deno.serve(async (req) => {
     // never re-billed: a later increase or a brand-new fee is invoiced for the
     // outstanding balance only.
     const paidSetupAmount = (invoices ?? [])
-      .filter((i: any) => i.invoice_kind === "once_off" && i.status === "paid")
+      .filter((i: any) => i.invoice_kind === "once_off" && i.status === "paid" && afterOwnerReset(i))
       .reduce((sum: number, i: any) => sum + (Number(i.amount) || 0), 0);
     const setupBalance = Math.max(0, Math.round((setupTotal - paidSetupAmount) * 100) / 100);
 
@@ -849,6 +856,73 @@ Deno.serve(async (req) => {
       }
 
       return json({ success: true, cancel_effective_date: paidThrough });
+    }
+
+    // Owner unbound or replaced: cancel any live subscription first, then
+    // invalidate it and reopen once-off setup so the new owner pays again.
+    if (action === "reset_for_owner_change") {
+      const reason = body.reason === "owner_unbound" ? "owner_unbound" : "owner_changed";
+      const status = String(cfg.subscription_status || "pending");
+      const hadSubscription = ["active", "past_due", "cancelling"].includes(status);
+      const nowIso = new Date().toISOString();
+
+      const mandateToken = String((cfg as any).mandate_token || "").trim();
+      if (mandateToken) {
+        try {
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/payfast-api`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ action: "cancel_subscription_mandate", mandate_token: mandateToken }),
+          });
+        } catch (e) {
+          console.warn("[reset_for_owner_change] mandate cancel failed", e);
+        }
+      }
+
+      const overrides =
+        cfg.custom_overrides && typeof cfg.custom_overrides === "object" && !Array.isArray(cfg.custom_overrides)
+          ? { ...(cfg.custom_overrides as Record<string, unknown>) }
+          : {};
+      overrides.setup_reset_at = nowIso;
+      overrides.owner_billing_reset_reason = reason;
+
+      const { error } = await supabase
+        .from(cfgTable)
+        .update({
+          cancel_at_period_end: false,
+          cancel_effective_date: null,
+          cancelled_at: hadSubscription ? nowIso : cfg.cancelled_at,
+          subscription_status: "pending",
+          subscription_started_on: null,
+          current_period_start: null,
+          current_period_end: null,
+          billing_enabled: true,
+          suspended_at: null,
+          subscription_reset_pending: false,
+          mandate_token: null,
+          mandate_status: mandateToken ? "cancelled" : (cfg as any).mandate_status,
+          mandate_cancelled_at: mandateToken ? nowIso : (cfg as any).mandate_cancelled_at,
+          mandate_requires_reauth: false,
+          custom_overrides: overrides,
+        })
+        .eq(entityCol, entityId);
+      if (error) return json({ error: error.message }, 400);
+
+      await supabase
+        .from("subscription_invoices")
+        .update({ status: "cancelled" })
+        .eq(entityCol, entityId)
+        .in("status", ["pending", "open", "draft"]);
+
+      return json({
+        success: true,
+        cancelled_subscription: hadSubscription,
+        setup_reset_at: nowIso,
+        reason,
+      });
     }
 
     // Undo a scheduled cancellation while the paid period is still running.

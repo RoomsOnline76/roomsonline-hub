@@ -119,7 +119,7 @@ export default function AdminChannelMonitor() {
             scope: "purge_duplicates",
             entity_id: row.id,
             unit_id: unit?.id,
-            reason: "Duplicate listing purge from channel cost monitor",
+            reason: "Duplicate listing purge from Channel Monitor",
           },
         });
         if (error) throw new Error(error.message);
@@ -161,6 +161,17 @@ export default function AdminChannelMonitor() {
 
 
         if (error) throw new Error(error.message);
+        const skipped = (
+          res as { results?: Array<{ status?: string; detail?: string }> } | null
+        )?.results?.filter((r) => r.status === "skipped") ?? [];
+        if (mode === "reactivate" && skipped.length) {
+          toast.error(
+            skipped[0]?.detail ||
+              "Push cannot be enabled until the Channel wizard gates pass (owner bound, key & secret, company details).",
+          );
+          await data.refresh();
+          return;
+        }
         const failed = (res as { failed?: number } | null)?.failed ?? 0;
         const noticeError = (res as { notification_error?: string | null } | null)?.notification_error;
         const ariRow = (
@@ -231,7 +242,7 @@ export default function AdminChannelMonitor() {
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
         <PageHeader
-          title="Channel Manager — Cost, Accounts & Certification"
+          title="Channel Monitor"
           subtitle="One console for distribution spend, sub-accounts and certification: everything needed to onboard and stay compliant."
           actions={
             <Button variant="outline" size="sm" onClick={() => void data.refresh()} disabled={data.loading}>
@@ -252,7 +263,7 @@ export default function AdminChannelMonitor() {
         <Tabs value={tab} onValueChange={setTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
-            <TabsTrigger value="accounts">Accounts</TabsTrigger>
+            <TabsTrigger value="accounts">RU Accounts Manager</TabsTrigger>
             <TabsTrigger value="cert">Certification</TabsTrigger>
             <TabsTrigger value="reservations">Reservations</TabsTrigger>
             <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>

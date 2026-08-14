@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { UserRole, computeUserRole } from "@/lib/permissions";
+import { resolveScopedPropertyIds } from "@/lib/adminScope";
 
 interface Profile {
   id: string;
@@ -164,11 +165,21 @@ export function useAuth() {
     refetchOnWindowFocus: false,
   });
 
-  const scopedPropertyIds = useMemo(() => scopeRows ?? [], [scopeRows]);
+  const scopeEmail =
+    user?.email ??
+    (typeof user?.user_metadata?.email === "string" ? user.user_metadata.email : null) ??
+    context?.profile?.email ??
+    null;
+  const scopedPropertyIds = useMemo(
+    () => resolveScopedPropertyIds(scopeEmail, scopeRows),
+    [scopeEmail, scopeRows],
+  );
   const isScopedAdmin = scopedPropertyIds.length > 0;
-  // Pages must not query before the scope is known, or a scoped admin briefly
-  // sees the unrestricted result set.
-  const scopeResolved = !userId || !isAdmin || !scopePending;
+  // Roles come from a separate request. Until they are known, isAdmin is false
+  // and we must not treat the account as unrestricted — that flash-loads every
+  // property onto Onboarding / Pulse.
+  const rolesKnown = !userId || !!context || !isPending;
+  const scopeResolved = !userId || (rolesKnown && (!isAdmin || !scopePending));
 
   const userRole: UserRole = useMemo(
     () => computeUserRole(isDev, isFearlessLeader, isAdmin, isSalesRep),

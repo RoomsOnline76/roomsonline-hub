@@ -34,12 +34,13 @@ import { CompanyInformationCard, type RuCompanyProfile } from "@/components/prop
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuMcqPrompts } from "@/components/property/RuMcqPrompts";
 
-import { RolosOnboardingWizard } from "@/components/onboarding/rolos/RolosOnboardingWizard";
+import { GoLiveContinueBar } from "@/components/onboarding/channel/GoLiveContinueBar";
 
 
 import { PortfolioIdentityCopy } from "@/components/property/PortfolioIdentityCopy";
 import { PortfolioCommonsCard } from "@/components/property/PortfolioCommonsCard";
 import { runAutoShare } from "@/lib/portfolioCommons";
+import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -469,6 +470,7 @@ export default function PropertyForm({
     Array<{ id: string; user_id: string; owner_email: string; owner_name: string | null }>
   >([]);
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
+  const persistedOwnerEmailRef = useRef("");
 
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
@@ -2294,6 +2296,7 @@ export default function PropertyForm({
         if (data) {
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
+          persistedOwnerEmailRef.current = String(data.owner_email || "").trim().toLowerCase();
 
           // Check if Experience Engine is enabled
           supabase
@@ -3222,6 +3225,26 @@ export default function PropertyForm({
 
       schema.parse(formData);
 
+      const nextOwnerEmail = String(formData.owner_email || "").trim().toLowerCase();
+      const prevOwnerEmail = persistedOwnerEmailRef.current;
+      if (isEditMode && propertyId && prevOwnerEmail !== nextOwnerEmail) {
+        const reset = await resetBillingAfterOwnerChange(
+          propertyId,
+          nextOwnerEmail ? "owner_changed" : "owner_unbound",
+        );
+        if (!reset.ok) {
+          toast({
+            title: "Owner change blocked",
+            description:
+              reset.message ||
+              "The existing subscription could not be cancelled. The owner was not changed.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       // The Arrival policy editor (Policies tab) is the sole author of
       // amenities.house_rules.check_in_instructions and writes it directly. Read the stored
       // value back here so this save preserves it instead of rebuilding house_rules without it.
@@ -3913,6 +3936,8 @@ export default function PropertyForm({
         notifyArrivalPolicySaved(savedPropertyId);
       }
 
+      persistedOwnerEmailRef.current = nextOwnerEmail;
+
       toast({
         title: "Success",
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
@@ -4072,6 +4097,10 @@ export default function PropertyForm({
     <FormShell embedded={embedded}>
       <div className={embedded ? "property-form-container property-form-dense w-full p-2" : "property-form-container property-form-dense w-full"}>
         {/* Breadcrumb + Header — hidden in embed mode */}
+        {!embedded && isEditMode && propertyId && (
+          <GoLiveContinueBar propertyId={propertyId} />
+        )}
+
         {!embedded && (
           <>
             <div className="flex items-center gap-1 text-xs mb-2 text-muted-foreground">
@@ -8410,9 +8439,6 @@ export default function PropertyForm({
           });
         }}
       />
-      {!embedded && isEditMode && propertyId && (
-        <RolosOnboardingWizard propertyId={propertyId} />
-      )}
     </FormShell>
   );
 }

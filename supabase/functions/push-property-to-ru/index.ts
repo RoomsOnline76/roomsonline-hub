@@ -3369,7 +3369,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, ru_location_id, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, ru_location_id, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived, ru_push_enabled')
       .eq('id', property_id)
       .single();
 
@@ -3735,10 +3735,37 @@ Deno.serve(async (req) => {
     // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
 
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
-    // at RU. It never calls Push_PutProperty_RQ, so the static-content gate does not apply
-    // (that content is live at RU already) — a content shortfall must never stall ARI. Sub-user
-    // keys and a resolved OwnerID are still mandatory.
+    // at RU. Dashboard bookings/cancels/mods/blockouts always write locally; they only
+    // reach RU after a clear Channel wizard pass (bound owner, keys, company details,
+    // explicit push on, phase 1+2). Sub-user keys and a resolved OwnerID are still mandatory.
     if (action === 'refresh_ari') {
+      if (!dry_run && !forcePush) {
+        if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
+          const blockedBody = !phaseGate.ready_for_push
+            ? phaseBlockedResponse(phaseGate)
+            : {
+                success: false,
+                error: {
+                  code: 'WIZARD_SYNC_NOT_READY',
+                  message:
+                    'RU push/pull is disabled until the Channel wizard is completed. Local availability was saved and will sync once the gates pass.',
+                },
+              };
+          try {
+            await supabase.from('ru_sync_runs').insert({
+              property_id,
+              action: 'wizard_sync_blocked',
+              success: false,
+              error_code: (blockedBody as { error?: { code?: string } }).error?.code ?? 'WIZARD_SYNC_NOT_READY',
+              error_message: (blockedBody as { error?: { message?: string } }).error?.message ?? 'Wizard gates not passed',
+            });
+          } catch (_e) { /* evidence only */ }
+          return new Response(JSON.stringify(blockedBody), {
+            status: 422,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
       const targets: { label: string; ru_id: number; unit?: UnitContext; units: number }[] = [];
       if (isMultiUnit) {
         for (const rt of activeRoomTypes) {
@@ -3904,6 +3931,18 @@ Deno.serve(async (req) => {
      * evidenced in ru_sync_runs without re-sending static content or ARI.
      */
     if (action === 'discounts_only') {
+      if (!dry_run && !forcePush && ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push)) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: {
+              code: 'WIZARD_SYNC_NOT_READY',
+              message: 'RU push/pull is disabled until the Channel wizard is completed.',
+            },
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
       const discountTargets: { ruId: number; roomTypeId?: string }[] = [];
       if (isMultiUnit) {
         for (const rt of activeRoomTypes) {

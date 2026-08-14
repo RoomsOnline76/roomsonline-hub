@@ -265,6 +265,80 @@ RULES
     }
 
 
+    if (action === "generate_marketing_summary" || action === "generate_unique_selling_points") {
+      const ctx = propertyContext || {};
+      const isSummary = action === "generate_marketing_summary";
+      const extractChatText = (json: Record<string, unknown>): string => {
+        const choice = (json?.choices as Array<Record<string, unknown>> | undefined)?.[0];
+        const message = (choice?.message ?? {}) as Record<string, unknown>;
+        if (typeof message.content === "string") return message.content.trim();
+        if (Array.isArray(message.content)) {
+          return message.content
+            .map((part) => (typeof part === "string" ? part : String((part as { text?: string })?.text ?? "")))
+            .join("")
+            .trim();
+        }
+        return "";
+      };
+      const prompt = isSummary
+        ? `You are a hospitality copywriter writing a marketing summary for search results.
+
+PROPERTY: ${ctx.name || "Unknown"} (${ctx.property_type || "Accommodation"})
+LOCATION: ${[ctx.city, ctx.country].filter(Boolean).join(", ") || "Not specified"}
+EXISTING DRAFT: ${ctx.current || ctx.description || "none"}
+
+RULES
+- Write 140-280 characters, one or two sentences.
+- Warm, specific, no clichés, no emojis.
+- Prefer facts given. If a fact is missing, write a short honest listing line from the name and location only.
+- Return ONLY the summary text.`
+        : `You are a hospitality copywriter listing what makes this property special.
+
+PROPERTY: ${ctx.name || "Unknown"} (${ctx.property_type || "Accommodation"})
+LOCATION: ${[ctx.city, ctx.country].filter(Boolean).join(", ") || "Not specified"}
+FACILITIES: ${Array.isArray(ctx.facilities) ? ctx.facilities.join(", ") : "Not specified"}
+EXISTING DRAFT: ${ctx.current || ctx.description || "none"}
+
+RULES
+- Write 2-4 short sentences (220-500 characters) about genuine differentiators.
+- No clichés ("hidden gem", "nestled"), no bullets, no emojis.
+- Prefer facts given. If little is provided, write from the property name, type and location only.
+- Return ONLY the text.`;
+
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: AI_MODELS.property_description,
+          temperature: 0.5,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        console.error("TOBI listing copy error:", res.status, detail.slice(0, 400));
+        return new Response(JSON.stringify({ error: "TOBI could not write that copy." }), {
+          status: res.status === 429 || res.status === 402 ? res.status : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const json = await res.json();
+      let text = extractChatText(json);
+      if (!text) {
+        const loc = [ctx.city, ctx.country].filter(Boolean).join(", ");
+        text = isSummary
+          ? `${ctx.name || "This property"} is a ${ctx.property_type || "stay"}${loc ? ` in ${loc}` : ""}, written for guests who want a clear, honest listing.`
+          : `${ctx.name || "This property"} stands out as a ${ctx.property_type || "stay"}${loc ? ` in ${loc}` : ""}. Its character comes from the setting and the way the property is run — review the draft and add the details only you know.`;
+      }
+      return new Response(JSON.stringify({ text, enhanced: text, description: text }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "enhance_description") {
+      body.action = "generate_property_description";
+    }
+
     // Original property editorial content generation
 
     // Build comprehensive property context

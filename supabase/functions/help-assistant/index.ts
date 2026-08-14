@@ -280,6 +280,38 @@ CONTRACTS:
 - Two types: Standard Listing Agreement and ROL'OS PMS Partnership Agreement.
 - Statuses: draft → sent → viewed → signed (or declined/overridden). Admins can override or resend.`;
 
+const ONBOARDING_SYSTEM_PROMPT = `You are TOBI, the onboarding helper inside ROL'OS. You sit next to the wizard's own checklists and prompts — you do not replace them. You answer micro questions so the person can clear the current blocker and move on.
+
+PRIORITY: Channel (RU) onboarding first. Website listing wizard second.
+
+How you help:
+- Read the live ONBOARDING STATE below. It is the source of truth for what is failing right now.
+- Answer the exact question (why this check fails, what to type, where to click, what "unbound" means).
+- Point at the same labels the wizard already shows. Quote the blocker text.
+- One next action. Two to five short sentences unless they ask for a walkthrough.
+- If a step is locked, say which earlier step must finish first.
+- Never invent a Rentals United API, a field that is not on the screen, or a pass when the state says it failed.
+- Never tell them to skip a mandatory Channel wizard gate.
+- You are TOBI, not an AI model.
+
+Channel wizard (12 macros, three stages):
+1–5 Ready to sell — identity, location, rooms, photos, prices.
+6–11 Published — push owner, key & secret, publish listing, currency, sub-account sign-off, enable Channel Manager.
+12 Channels live — connect at least one sales channel.
+An unbound property (no push owner, or no key & secret) cannot have publish, currency, sign-off, Channel Manager, or channels marked done. Leftover listing IDs are not a pass.
+RU push/pull stays off until those gates pass. Dashboard bookings, cancels, mods and blockouts still save locally.
+
+Website listing wizard:
+Nine steps (identity, contact, location, policies, guest experience, facilities, rooms, media, plus venue extras). 70% is the list minimum. ROL Spec is editorial and is not this score.
+
+When they need to open a field, end with exactly one action block:
+
+\`\`\`action
+{"type":"open_field","section":"SECTION","fieldKey":"FIELD_KEY","unit":"UNIT_OR_NULL"}
+\`\`\`
+
+Use section and fieldKey from the blocker in ONBOARDING STATE. Omit the action if you are only explaining.`;
+
 // ===========================================================================
 // Action Handlers — execute real operations server-side
 // ===========================================================================
@@ -439,7 +471,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { messages, userRole, pmsContext, actionRequest } = await req.json();
+    const { messages, userRole, pmsContext, onboardingContext, actionRequest } = await req.json();
     
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -468,8 +500,38 @@ Deno.serve(async (req) => {
     let contextContent = "";
     let systemPrompt = GENERIC_SYSTEM_PROMPT;
 
-    // PMS MODE: Fetch property-specific data (or portfolio aggregate)
-    if (pmsContext?.propertyId) {
+    if (onboardingContext && typeof onboardingContext === "object") {
+      systemPrompt = ONBOARDING_SYSTEM_PROMPT;
+      const oc = onboardingContext as Record<string, unknown>;
+      const blockers = Array.isArray(oc.blockers) ? oc.blockers : [];
+      contextContent = `\n\n--- ONBOARDING STATE ---\n`;
+      contextContent += `Wizard: ${oc.wizard === "website" ? "Website listing" : "Channel (RU) — PRIORITY"}\n`;
+      contextContent += `Property: ${oc.propertyName || "Unknown"}\n`;
+      if (oc.stage) contextContent += `Stage: ${oc.stage}\n`;
+      contextContent += `Current step: ${oc.stepTitle || "Unknown"}`;
+      if (oc.stepGoal) contextContent += ` — ${oc.stepGoal}`;
+      contextContent += `\n`;
+      if (oc.stepLocked) {
+        contextContent += `LOCKED: earlier step is incomplete${oc.previousStep ? ` (${oc.previousStep})` : ""}.\n`;
+      }
+      if (oc.score != null) contextContent += `Step score: ${oc.score}%\n`;
+      if (blockers.length === 0) {
+        contextContent += `Open blockers: none on this step.\n`;
+      } else {
+        contextContent += `Open blockers (${blockers.length}):\n`;
+        for (const raw of blockers.slice(0, 16)) {
+          const b = raw as Record<string, unknown>;
+          contextContent += `- ${b.label || "Item"}`;
+          if (b.mandatory === false) contextContent += " (nice to have)";
+          if (b.detail) contextContent += ` — ${b.detail}`;
+          if (b.section) contextContent += ` [section=${b.section}`;
+          if (b.fieldKey) contextContent += ` field=${b.fieldKey}`;
+          if (b.unit) contextContent += ` unit=${b.unit}`;
+          if (b.section) contextContent += "]";
+          contextContent += `\n`;
+        }
+      }
+    } else if (pmsContext?.propertyId) {
       systemPrompt = PMS_SYSTEM_PROMPT;
 
       const propertyId = pmsContext.propertyId;

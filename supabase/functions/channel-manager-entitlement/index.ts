@@ -101,6 +101,36 @@ async function sendReactivationNotice(payload: {
  * warning ("Property with given ID does not exist") and changes nothing, so the
  * OwnerID must be resolved and passed through.
  */
+async function distributionPushAllowed(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string,
+  ruOwnerId: string | null,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!ruOwnerId) {
+    return {
+      ok: false,
+      reason: "Property is unbound — bind the push owner and capture the key & secret before enabling push.",
+    };
+  }
+  const { data: cred } = await admin
+    .from("ru_api_credentials")
+    .select("access_key")
+    .eq("ru_owner_id", ruOwnerId)
+    .maybeSingle();
+  const { data: acc } = await admin
+    .from("ru_owner_accounts")
+    .select("ru_api_access_key, company_details_sent")
+    .eq("ru_owner_id", ruOwnerId)
+    .maybeSingle();
+  if (!cred?.access_key && !acc?.ru_api_access_key) {
+    return { ok: false, reason: "Sub-account key & secret are not configured — Channel wizard gates are not passed." };
+  }
+  if (acc && acc.company_details_sent !== true) {
+    return { ok: false, reason: "Company details have not been sent to Rentals United — push cannot be enabled." };
+  }
+  return { ok: true };
+}
+
 async function resolveRuOwnerId(
   admin: ReturnType<typeof createClient>,
   propertyId: string,
@@ -835,6 +865,12 @@ Deno.serve(async (req) => {
       let unitAri: string | null = null;
       let unitAriRetryable = false;
       if (!unitArchive) {
+        const unitOwnerId = await resolveRuOwnerId(admin, unit.property_id);
+        const gate = await distributionPushAllowed(admin, unit.property_id, unitOwnerId);
+        if (!gate.ok) {
+          unitStatus = "ru_failed";
+          unitDetail = gate.reason ?? unitDetail;
+        } else {
         await admin
           .from("properties")
           .update({ ru_archived: false, ru_archived_at: null, ru_push_enabled: true })
@@ -862,6 +898,7 @@ Deno.serve(async (req) => {
               unitAriRetryable ? "ARI re-push will retry" : "ARI re-push failed"
             }: ${unitAri}`;
           }
+        }
         }
       }
 
@@ -957,6 +994,19 @@ Deno.serve(async (req) => {
       let status: "updated" | "skipped" | "ru_failed" = "updated";
 
       const ruOwnerId = await resolveRuOwnerId(admin, p.id);
+      if (!archive) {
+        const gate = await distributionPushAllowed(admin, p.id, ruOwnerId);
+        if (!gate.ok) {
+          results.push({
+            property_id: p.id,
+            name: p.name,
+            ru_property_id: p.rentalsunited_property_id,
+            status: "skipped",
+            detail: gate.reason,
+          });
+          continue;
+        }
+      }
 
       if (p.rentalsunited_property_id) {
         const failure = await pushListingStatus(admin, {

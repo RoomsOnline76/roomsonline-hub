@@ -524,21 +524,51 @@ export async function fetchCommonsState(propertyId: string): Promise<CommonsStat
   };
 }
 
+/** Postgrest / fetch failures are often plain objects, not `Error` instances. */
+export function describeUnknownError(error: unknown, fallback = "Unknown error"): string {
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const message = typeof record.message === "string" ? record.message.trim() : "";
+    if (message) {
+      return typeof record.code === "string" && record.code ? `${message} (${record.code})` : message;
+    }
+    if (typeof record.details === "string" && record.details.trim()) return record.details;
+    if (typeof record.hint === "string" && record.hint.trim()) return record.hint;
+  }
+  if (typeof error === "string" && error.trim()) return error;
+  return fallback;
+}
+
 export async function setPortfolioAutoShare(portfolioIds: string[], enabled: boolean): Promise<void> {
+  if (portfolioIds.length === 0) {
+    throw new Error("This property is not in a portfolio.");
+  }
   for (const portfolioId of portfolioIds) {
     const { data, error } = await supabase
       .from("property_portfolios")
       .select("metadata")
       .eq("id", portfolioId)
       .maybeSingle();
-    if (error) throw error;
-    const metadata = asRecord(data?.metadata);
+    if (error) throw new Error(describeUnknownError(error, "Could not load the portfolio."));
+    if (!data) {
+      throw new Error("You can see this portfolio, but it could not be loaded for update.");
+    }
+    const metadata = asRecord(data.metadata);
     metadata.commons = { ...asRecord(metadata.commons), auto_share: enabled };
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("property_portfolios")
       .update({ metadata: metadata as Json })
-      .eq("id", portfolioId);
-    if (updateError) throw updateError;
+      .eq("id", portfolioId)
+      .select("id");
+    if (updateError) {
+      throw new Error(describeUnknownError(updateError, "Could not save auto-share."));
+    }
+    if (!updated?.length) {
+      throw new Error(
+        "You do not have permission to change auto-share on this portfolio. The toggle was not saved.",
+      );
+    }
   }
 }
 

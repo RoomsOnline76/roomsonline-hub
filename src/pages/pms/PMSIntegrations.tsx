@@ -72,7 +72,7 @@ export default function PMSIntegrations() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Code2 className="h-6 w-6 text-primary" />
-              Website Integrations
+              Website widgets
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               {isPortfolioMode

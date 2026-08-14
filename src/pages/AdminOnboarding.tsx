@@ -1,6 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { applyAdminScope } from "@/lib/adminScope";
+import {
+  applyAdminScope,
+  filterToItTestProperties,
+  isItTestAdminEmail,
+  IT_TEST_PROPERTY_IDS,
+} from "@/lib/adminScope";
+import {
+  channelQueueProgress,
+  ruMandatoryCheckSummary,
+  websiteQueueProgress,
+  type ChannelQueueStage,
+} from "@/lib/onboardingQueueProgress";
+import { scoreWebsiteListing } from "@/lib/websiteWizardScore";
 import { useAuth } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -59,6 +71,7 @@ import {
   Circle,
   Globe,
   Zap,
+  Sparkles,
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
@@ -90,6 +103,8 @@ interface PropertyData {
   show_on_website: boolean;
   is_active: boolean;
   external_system: string | null;
+  rentalsunited_property_id: string | null;
+  ru_push_enabled: boolean | null;
   amenities: Record<string, unknown> | null;
   description: string | null;
   short_description: string | null;
@@ -99,8 +114,15 @@ interface PropertyData {
   price_per_night: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
-  images: string[] | null;
+  images: unknown;
   hero_video_url: string | null;
+  property_type?: string | null;
+  property_url?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  owner_name?: string | null;
+  ru_location_id?: number | null;
+  listing_intent?: string | null;
   // ROL Spec fields
   why_we_chose_this_place: string | null;
   who_this_suits: string | null;
@@ -118,11 +140,22 @@ interface PropertyOnboardingRow {
   show_on_website: boolean;
   external_system: string | null;
   isNightsBridge: boolean;
+  isRolos: boolean;
   onboarding_score: number;
   fieldCompletionScore: number;
   rolSpecScore: number;
-  effectiveProgress: number;
+  websitePercent: number;
+  websiteLabel: string;
+  websiteHint: string;
+  websiteMeetsMinimum: boolean;
   token: TokenData | null;
+  contractStatus: string | null;
+  channelStage: ChannelQueueStage;
+  channelPercent: number;
+  channelLabel: string;
+  channelHint: string;
+  channelsConnected: number;
+  channelManagerEnabled: boolean;
 }
 
 // Calculate ROL Spec completion (applies to ALL properties)
@@ -176,38 +209,15 @@ const calculateFieldCompletion = (prop: PropertyData): number => {
   return Math.round((filledWeight / totalWeight) * 100);
 };
 
-// Calculate combined progress including ROL Spec
-const calculateEffectiveProgress = (
-  onboardingScore: number,
-  fieldCompletionScore: number,
-  rolSpecScore: number,
-  isNightsBridge: boolean
-): number => {
-  // ROL Spec contributes 20% to overall progress for all properties
-  const rolSpecWeight = 0.20;
-  const baseWeight = 0.80;
-  
-  if (isNightsBridge) {
-    // NightsBridge: Field data comes from PMS (assume 100% complete), only ROL Spec matters
-    const pmsDataScore = fieldCompletionScore; // Use actual field completion from NightsBridge
-    return Math.round((pmsDataScore * baseWeight) + (rolSpecScore * rolSpecWeight));
-  } else {
-    // Standard properties: Use higher of wizard or field completion, plus ROL Spec
-    const baseScore = Math.max(onboardingScore, fieldCompletionScore);
-    return Math.round((baseScore * baseWeight) + (rolSpecScore * rolSpecWeight));
-  }
-};
-
 type StatusFilter = "all" | OnboardingStatus;
 
 // Helper function to derive onboarding status
 const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
   if (row.show_on_website) return "live";
   
-  // NightsBridge properties: only "completed" if ROL Spec content is substantially filled (>=80%)
-  // Otherwise they're still "in_progress" even though PMS data is synced
+  // NightsBridge properties: only "completed" if the listing wizard meets the 70% floor
   if (row.isNightsBridge && !row.token) {
-    return row.effectiveProgress >= 80 ? "completed" : "in_progress";
+    return row.websiteMeetsMinimum ? "completed" : "in_progress";
   }
   
   if (!row.token) return "not_started";
@@ -281,7 +291,8 @@ const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isN
 
 export default function AdminOnboarding() {
   const navigate = useNavigate();
-  const { scopedPropertyIds, scopeResolved } = useAuth();
+  const { scopedPropertyIds, scopeResolved, user, profile } = useAuth();
+  const actorEmail = user?.email ?? profile?.email ?? null;
   const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -302,20 +313,30 @@ export default function AdminOnboarding() {
 
   useEffect(() => {
     if (!scopeResolved) return;
+    // Email is what pins ru-admin to Seesig + Tidal. Do not fetch the full
+    // onboarding queue until we know who is signed in.
+    if (user && !actorEmail) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeResolved, scopedPropertyIds.join(",")]);
+  }, [scopeResolved, scopedPropertyIds.join(","), actorEmail, user?.id]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
+      const itTestPin = isItTestAdminEmail(actorEmail);
+      const pinIds = itTestPin
+        ? [...IT_TEST_PROPERTY_IDS]
+        : scopedPropertyIds;
+
       // Load only ACTIVE properties (non-deleted, is_active = true)
       const propQuery = supabase
         .from("properties")
         .select(`
-          id, name, owner_email, listing_status, show_on_website, is_active,
-          external_system, amenities, description, short_description, 
+          id, name, owner_email, owner_name, listing_status, show_on_website, is_active,
+          external_system, rentalsunited_property_id, ru_push_enabled, ru_location_id,
+          amenities, description, short_description, listing_intent,
+          property_type, property_url, latitude, longitude,
           address, city, country, price_per_night, bedrooms, bathrooms, 
           images, hero_video_url,
           why_we_chose_this_place, who_this_suits, what_its_really_like,
@@ -328,7 +349,7 @@ export default function AdminOnboarding() {
       const { data: propData, error: propError } = await applyAdminScope(
         propQuery,
         "id",
-        scopedPropertyIds,
+        pinIds,
       );
 
       if (propError) throw propError;
@@ -340,6 +361,121 @@ export default function AdminOnboarding() {
         .order("created_at", { ascending: false });
 
       if (tokenError) throw tokenError;
+
+      const ids = (propData || []).map((p) => p.id);
+      const emails = [...new Set((propData || []).map((p) => p.owner_email).filter(Boolean))] as string[];
+
+      const [{ data: connectionData }, { data: billingData }, { data: contractData }, { data: unitData }, { data: ratePlanData }, contactResult] =
+        await Promise.all([
+        ids.length
+          ? supabase.from("rolos_channel_connections").select("property_id, status").in("property_id", ids)
+          : Promise.resolve({ data: [] as { property_id: string; status: string }[] }),
+        ids.length
+          ? supabase.from("property_billing_configs").select("property_id, channel_manager_enabled").in("property_id", ids)
+          : Promise.resolve({ data: [] as { property_id: string; channel_manager_enabled: boolean | null }[] }),
+        emails.length
+          ? supabase
+              .from("owner_contracts")
+              .select("owner_email, status")
+              .in("owner_email", emails)
+              .order("version", { ascending: false })
+          : Promise.resolve({ data: [] as { owner_email: string; status: string }[] }),
+        ids.length
+          ? supabase
+              .from("hostfully_room_types")
+              .select("id, property_id, name, is_active, rentalsunited_property_id, max_guests, daily_rate, total_units, description")
+              .in("property_id", ids)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                property_id: string;
+                name: string | null;
+                is_active: boolean | null;
+                rentalsunited_property_id: string | null;
+                max_guests: number | null;
+                daily_rate: number | null;
+                total_units: number | null;
+                description: string | null;
+              }[],
+            }),
+        ids.length
+          ? supabase
+              .from("rolos_rate_plans")
+              .select("property_id, base_rate, is_primary_sell, is_active")
+              .in("property_id", ids)
+          : Promise.resolve({
+              data: [] as {
+                property_id: string;
+                base_rate: number | null;
+                is_primary_sell: boolean | null;
+                is_active: boolean | null;
+              }[],
+            }),
+        ids.length
+          ? supabase
+              .from("property_contact_details")
+              .select("property_id, role, phone, name, email")
+              .in("property_id", ids)
+              .then((r) => r)
+              .catch(() => ({
+                data: [] as {
+                  property_id: string;
+                  role: string | null;
+                  phone: string | null;
+                  name: string | null;
+                  email: string | null;
+                }[],
+              }))
+          : Promise.resolve({
+              data: [] as {
+                property_id: string;
+                role: string | null;
+                phone: string | null;
+                name: string | null;
+                email: string | null;
+              }[],
+            }),
+      ]);
+      const contactData = contactResult?.data ?? [];
+
+      const connectedByProperty = new Map<string, number>();
+      (connectionData ?? []).forEach((c) => {
+        if (["connected", "active", "live"].includes(String(c.status ?? "").toLowerCase())) {
+          connectedByProperty.set(c.property_id, (connectedByProperty.get(c.property_id) ?? 0) + 1);
+        }
+      });
+      const billingByProperty = new Map(
+        (billingData ?? []).map((b) => [b.property_id, b.channel_manager_enabled === true]),
+      );
+      const unitsByProperty = new Map<string, { active: number; published: number }>();
+      const roomsByProperty = new Map<string, NonNullable<typeof unitData>>();
+      (unitData ?? []).forEach((u) => {
+        const rooms = roomsByProperty.get(u.property_id) ?? [];
+        rooms.push(u);
+        roomsByProperty.set(u.property_id, rooms);
+        if (u.is_active === false) return;
+        const cur = unitsByProperty.get(u.property_id) ?? { active: 0, published: 0 };
+        cur.active += 1;
+        if (String(u.rentalsunited_property_id ?? "").trim()) cur.published += 1;
+        unitsByProperty.set(u.property_id, cur);
+      });
+      const ratePlansByProperty = new Map<string, NonNullable<typeof ratePlanData>>();
+      (ratePlanData ?? []).forEach((p) => {
+        const list = ratePlansByProperty.get(p.property_id) ?? [];
+        list.push(p);
+        ratePlansByProperty.set(p.property_id, list);
+      });
+      const contactsByProperty = new Map<string, typeof contactData>();
+      contactData.forEach((c) => {
+        const list = contactsByProperty.get(c.property_id) ?? [];
+        list.push(c);
+        contactsByProperty.set(c.property_id, list);
+      });
+      const contractByEmail = new Map<string, string>();
+      (contractData ?? []).forEach((c) => {
+        const key = String(c.owner_email ?? "").toLowerCase();
+        if (key && !contractByEmail.has(key)) contractByEmail.set(key, c.status);
+      });
 
       // Build property-centric view - use most recent token per property
       const tokensByProperty = new Map<string, TokenData>();
@@ -354,13 +490,44 @@ export default function AdminOnboarding() {
       const testPattern = /\b(test|demo|staging|dummy|sandbox)\b/i;
       const realProperties = (propData || []).filter((prop) => !testPattern.test(prop.name));
 
+      const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
+
+      const rolosIds = realProperties
+        .filter((prop) => rolosSystems.has(String(prop.external_system ?? "").toLowerCase()))
+        .map((prop) => prop.id);
+      const ruByProperty = new Map<string, ReturnType<typeof ruMandatoryCheckSummary>>();
+      await Promise.all(
+        rolosIds.map(async (propertyId) => {
+          try {
+            const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+              body: { action: "phase_status", property_id: propertyId, probe_ari: true },
+            });
+            if (error || data?.success !== true) return;
+            ruByProperty.set(propertyId, ruMandatoryCheckSummary(data.readiness ?? null));
+          } catch {
+            // Leave unknown — channelQueueProgress will not claim Ready.
+          }
+        }),
+      );
+
       const enrichedProperties: PropertyOnboardingRow[] = realProperties.map((prop) => {
         const amenities = prop.amenities as Record<string, unknown> | null;
-        const onboardingScore = typeof amenities?.onboarding_score === "number" 
-          ? amenities.onboarding_score 
-          : 0;
-        
         const isNightsBridge = prop.external_system === "nightsbridge";
+        const isRolos = rolosSystems.has(String(prop.external_system ?? "").toLowerCase());
+        const channelsConnected = connectedByProperty.get(prop.id) ?? 0;
+        const channelManagerEnabled = billingByProperty.get(prop.id) === true;
+        const units = unitsByProperty.get(prop.id) ?? { active: 0, published: 0 };
+        const ruChecks = ruByProperty.get(prop.id);
+        const channel = channelQueueProgress({
+          isRolos,
+          channelsConnected,
+          propertyListingId: prop.rentalsunited_property_id ?? null,
+          activeUnits: units.active,
+          publishedUnits: units.published,
+          hasDistributionIdentity: channelManagerEnabled || !!prop.ru_push_enabled,
+          ruMandatoryPass: ruChecks?.known ? ruChecks.pass : null,
+          ruMandatoryPercent: ruChecks?.known ? ruChecks.percent : null,
+        });
         
         const propertyData: PropertyData = {
           id: prop.id,
@@ -370,6 +537,8 @@ export default function AdminOnboarding() {
           show_on_website: prop.show_on_website || false,
           is_active: prop.is_active || true,
           external_system: prop.external_system,
+          rentalsunited_property_id: prop.rentalsunited_property_id ?? null,
+          ru_push_enabled: prop.ru_push_enabled ?? null,
           amenities,
           description: prop.description,
           short_description: prop.short_description,
@@ -379,8 +548,15 @@ export default function AdminOnboarding() {
           price_per_night: prop.price_per_night,
           bedrooms: prop.bedrooms,
           bathrooms: prop.bathrooms,
-          images: prop.images as string[] | null,
+          images: prop.images,
           hero_video_url: prop.hero_video_url,
+          property_type: prop.property_type,
+          property_url: prop.property_url,
+          latitude: prop.latitude,
+          longitude: prop.longitude,
+          owner_name: prop.owner_name,
+          ru_location_id: prop.ru_location_id,
+          listing_intent: prop.listing_intent,
           why_we_chose_this_place: prop.why_we_chose_this_place,
           who_this_suits: prop.who_this_suits,
           what_its_really_like: prop.what_its_really_like,
@@ -388,17 +564,39 @@ export default function AdminOnboarding() {
           who_its_not_for: prop.who_its_not_for,
           navigation_tags: prop.navigation_tags,
         };
+
+        const liveWebsiteScore = scoreWebsiteListing({
+          property: {
+            name: prop.name,
+            property_type: prop.property_type,
+            property_url: prop.property_url,
+            address: prop.address,
+            city: prop.city,
+            country: prop.country,
+            latitude: prop.latitude,
+            longitude: prop.longitude,
+            description: prop.description,
+            short_description: prop.short_description,
+            images: prop.images,
+            amenities,
+            listing_intent: prop.listing_intent,
+            owner_name: prop.owner_name,
+            owner_email: prop.owner_email,
+            ru_location_id: prop.ru_location_id,
+            price_per_night: prop.price_per_night,
+          },
+          rooms: roomsByProperty.get(prop.id) ?? [],
+          ratePlans: ratePlansByProperty.get(prop.id) ?? [],
+          contacts: contactsByProperty.get(prop.id) ?? [],
+        });
         
         // Calculate scores
         const fieldCompletionScore = calculateFieldCompletion(propertyData);
         const rolSpecScore = calculateROLSpecCompletion(propertyData);
-        
-        // Calculate effective progress including ROL Spec
-        const effectiveProgress = calculateEffectiveProgress(
-          onboardingScore,
-          fieldCompletionScore,
-          rolSpecScore,
-          isNightsBridge
+        const website = websiteQueueProgress(
+          liveWebsiteScore,
+          liveWebsiteScore,
+          prop.show_on_website || false,
         );
         
         return {
@@ -409,15 +607,28 @@ export default function AdminOnboarding() {
           show_on_website: prop.show_on_website || false,
           external_system: prop.external_system,
           isNightsBridge,
-          onboarding_score: onboardingScore,
+          isRolos,
+          onboarding_score: liveWebsiteScore,
           fieldCompletionScore,
           rolSpecScore,
-          effectiveProgress,
+          websitePercent: website.percent,
+          websiteLabel: website.label,
+          websiteHint: website.hint,
+          websiteMeetsMinimum: website.meetsMinimum,
           token: tokensByProperty.get(prop.id) || null,
+          contractStatus: prop.owner_email
+            ? contractByEmail.get(String(prop.owner_email).toLowerCase()) ?? null
+            : null,
+          channelStage: channel.stage,
+          channelPercent: channel.percent,
+          channelLabel: channel.label,
+          channelHint: channel.hint,
+          channelsConnected,
+          channelManagerEnabled,
         };
       });
 
-      setPropertyRows(enrichedProperties);
+      setPropertyRows(itTestPin ? filterToItTestProperties(enrichedProperties) : enrichedProperties);
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
     } finally {
@@ -427,15 +638,18 @@ export default function AdminOnboarding() {
 
   // Filtered properties based on search, status filter, and show completed toggle
   const filteredProperties = useMemo(() => {
-    let result = propertyRows;
+    let result = isItTestAdminEmail(actorEmail)
+      ? filterToItTestProperties(propertyRows)
+      : propertyRows;
+    if (scopedPropertyIds.length) {
+      result = result.filter((r) => scopedPropertyIds.includes(r.id));
+    }
 
-    // Only show properties where onboarding was actually initiated:
-    // - Has a token (onboarding email was sent)
-    // - Has onboarding_score > 0 (wizard was started from edit page)
-    // - Is already live (show_on_website)
-    // - Has an active listing status indicating progress
+    // Parties that still have a job: website onboarding started, or any ROL'OS
+    // property that can be taken live on channels.
     const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
     result = result.filter((r) => {
+      if (r.isRolos) return true;
       if (r.show_on_website) return true;
       if (r.token) return true;
       if (r.onboarding_score > 0) return true;
@@ -443,11 +657,12 @@ export default function AdminOnboarding() {
       return false;
     });
 
-    // Hide completed/live unless toggle is on
+    // Hide only when BOTH outcomes are done (website live, and channels live or not applicable).
     if (!showCompleted) {
       result = result.filter((r) => {
-        const status = getOnboardingStatus(r);
-        return status !== "completed" && status !== "live";
+        const websiteDone = r.show_on_website;
+        const channelsDone = r.channelStage === "live" || r.channelStage === "na";
+        return !(websiteDone && channelsDone);
       });
     }
 
@@ -464,7 +679,7 @@ export default function AdminOnboarding() {
         const tokenSentDate = r.token 
           ? format(new Date(r.token.created_at), "MMM d, yyyy").toLowerCase() 
           : "";
-        const progressStr = String(r.effectiveProgress || 0);
+        const progressStr = String(r.websitePercent || 0);
 
         return (
           r.name.toLowerCase().includes(query) ||
@@ -478,19 +693,23 @@ export default function AdminOnboarding() {
     }
 
     return result;
-  }, [propertyRows, showCompleted, statusFilter, searchQuery]);
+  }, [actorEmail, propertyRows, scopedPropertyIds, showCompleted, statusFilter, searchQuery]);
 
   // Stats calculated from properties with actual onboarding activity
   const onboardingActiveRows = useMemo(() => {
     const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
-    return propertyRows.filter((r) => {
+    const source = isItTestAdminEmail(actorEmail)
+      ? filterToItTestProperties(propertyRows)
+      : propertyRows;
+    return source.filter((r) => {
+      if (r.isRolos) return true;
       if (r.show_on_website) return true;
       if (r.token) return true;
       if (r.onboarding_score > 0) return true;
       if (r.listing_status && activeStatuses.includes(r.listing_status)) return true;
       return false;
     });
-  }, [propertyRows]);
+  }, [actorEmail, propertyRows]);
 
   const stats = useMemo(() => ({
     total: onboardingActiveRows.length,
@@ -617,12 +836,12 @@ export default function AdminOnboarding() {
   return (
     <AppLayout>
       <PageHeader
-        title="Onboarding Management"
-        subtitle="Track and manage property onboarding across all lifecycle stages"
+        title="Onboarding"
+        subtitle="Every new property — website listing and channel go-live — starts here"
         actions={
           <Button onClick={() => setSendModalOpen(true)}>
             <Plus className="h-4 w-4 mr-2" />
-            Send Onboarding
+            Send website invite
           </Button>
         }
       />
@@ -708,7 +927,7 @@ export default function AdminOnboarding() {
               onCheckedChange={setShowCompleted}
             />
             <Label htmlFor="show-completed" className="text-sm text-muted-foreground whitespace-nowrap">
-              Show Completed & Live
+              Show finished properties
             </Label>
           </div>
         </div>
@@ -720,40 +939,57 @@ export default function AdminOnboarding() {
           <TableHeader>
             <TableRow>
               <TableHead>Property</TableHead>
-              <TableHead>Owner Email</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Progress</TableHead>
-              <TableHead>ROL Spec</TableHead>
-              <TableHead>Token Sent</TableHead>
-              <TableHead>Expires</TableHead>
+              <TableHead>Owner</TableHead>
+              <TableHead>Contract</TableHead>
+              <TableHead>Website listing</TableHead>
+              <TableHead>RU channels</TableHead>
+              <TableHead>Next</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   Loading properties...
                 </TableCell>
               </TableRow>
             ) : filteredProperties.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                   {propertyRows.length === 0 
                     ? "No active properties found" 
                     : showCompleted 
                       ? "No properties match your filters"
-                      : "No active onboarding. Toggle 'Show Completed & Live' to see all."}
+                      : "No properties still in progress. Toggle 'Show finished properties' to see everyone."}
                 </TableCell>
               </TableRow>
             ) : (
               filteredProperties.map((row) => {
                 const status = getOnboardingStatus(row);
+                const nextLabel = row.isRolos
+                  ? row.channelStage === "live"
+                    ? row.show_on_website
+                      ? "Finished"
+                      : "Activate website"
+                    : row.channelStage === "connect"
+                      ? "Connect a channel"
+                      : "Channel wizard"
+                  : status === "live"
+                    ? "On website"
+                    : "Website profile";
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow
+                    key={row.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate(`/admin/onboarding/${row.id}`)}
+                  >
                     <TableCell>
                       <button
-                        onClick={() => navigate(`/admin/properties/${row.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/admin/onboarding/${row.id}`);
+                        }}
                         className="font-medium hover:text-primary hover:underline text-left"
                       >
                         {row.name}
@@ -763,53 +999,113 @@ export default function AdminOnboarding() {
                       {row.owner_email || <span className="italic">Not set</span>}
                     </TableCell>
                     <TableCell>
-                      <StatusBadge status={status} isNightsBridge={row.isNightsBridge} />
+                      <span className="text-xs capitalize text-muted-foreground">
+                        {row.contractStatus ? row.contractStatus.replace("_", " ") : "—"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <div className="flex items-center gap-2 min-w-32">
-                              <Progress value={row.effectiveProgress} className="h-2" />
-                              <span className="text-sm text-muted-foreground w-10">
-                                {row.effectiveProgress}%
-                              </span>
+                            <div className="min-w-36 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <Progress value={row.websitePercent} className="h-2" />
+                                <span className="w-10 shrink-0 text-sm text-muted-foreground">
+                                  {row.websitePercent}%
+                                </span>
+                              </div>
+                              <p
+                                className={`text-[10px] leading-tight ${
+                                  row.show_on_website || row.websiteMeetsMinimum
+                                    ? "text-emerald-600"
+                                    : "text-amber-600"
+                                }`}
+                              >
+                                {row.websiteLabel}
+                              </p>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Fields: {row.fieldCompletionScore}%</p>
-                            <p>ROL Spec: {row.rolSpecScore}%</p>
+                          <TooltipContent className="max-w-xs">
+                            <p className="font-medium">Website listing wizard</p>
+                            <p>{row.websiteHint}</p>
+                            <p className="mt-1 text-muted-foreground">
+                              Same score as the Website wizard ({row.onboarding_score}%). ROL Spec {row.rolSpecScore}% is editorial and is not in this bar.
+                            </p>
                             {row.isNightsBridge && <p className="text-amber-400">NightsBridge synced</p>}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-2 min-w-20">
-                        <Progress 
-                          value={row.rolSpecScore} 
-                          className={`h-2 ${row.rolSpecScore < 50 ? "[&>div]:bg-amber-500" : ""}`} 
-                        />
-                        <span className="text-sm text-muted-foreground w-10">
-                          {row.rolSpecScore}%
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {row.token 
-                        ? format(new Date(row.token.created_at), "MMM d, yyyy")
-                        : <span className="text-muted-foreground">{row.isNightsBridge ? "N/A" : "Never"}</span>}
-                    </TableCell>
-                    <TableCell>
-                      {row.token ? (
-                        <span className={isBefore(new Date(row.token.expires_at), new Date()) ? "text-destructive" : ""}>
-                          {format(new Date(row.token.expires_at), "MMM d, yyyy")}
-                        </span>
+                      {row.channelStage === "na" ? (
+                        <span className="text-xs text-muted-foreground">Not ROL'OS</span>
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="min-w-36 space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Progress
+                                    value={row.channelPercent}
+                                    className={`h-2 ${
+                                      row.channelStage === "live" || row.channelStage === "connect"
+                                        ? "[&>div]:bg-emerald-500"
+                                        : ""
+                                    }`}
+                                  />
+                                  <span className="w-10 shrink-0 text-sm text-muted-foreground">
+                                    {row.channelPercent}%
+                                  </span>
+                                </div>
+                                <p
+                                  className={`text-[10px] leading-tight ${
+                                    row.channelStage === "live" || row.channelStage === "connect"
+                                      ? "text-emerald-600"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {row.channelLabel}
+                                </p>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="font-medium">RU channel wizard</p>
+                              <p>{row.channelHint}</p>
+                              <p className="mt-1 text-muted-foreground">
+                                Ready to connect only after live RU onboarding tests pass — listing IDs alone are not enough.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/properties/${row.id}?section=onboarding`);
+                          }}
+                        >
+                          Website wizard
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={row.isRolos && row.channelStage !== "live" ? "default" : "outline"}
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/admin/onboarding/${row.id}`);
+                          }}
+                        >
+                          {nextLabel}
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -817,6 +1113,15 @@ export default function AdminOnboarding() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-popover">
+                          <DropdownMenuItem onClick={() => navigate(`/admin/properties/${row.id}?section=onboarding`)}>
+                            <Building2 className="h-4 w-4 mr-2" />
+                            Open website listing wizard
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
+                            <Sparkles className="h-4 w-4 mr-2" />
+                            Open channel wizard
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           {/* Issue/Resend token based on status */}
                           {status === "not_started" && !row.isNightsBridge ? (
                             <DropdownMenuItem onClick={() => handleIssueToken(row)}>

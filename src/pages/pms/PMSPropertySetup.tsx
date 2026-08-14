@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PropertySectionRail } from "@/components/property/PropertySectionRail";
 import { RequirementLegend } from "@/components/property/RequirementLegend";
+import { GoLiveContinueBar } from "@/components/onboarding/channel/GoLiveContinueBar";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import {
@@ -182,9 +183,8 @@ export default function PMSPropertySetup() {
         </div>
       </header>
 
-      {/* Legacy readiness checksheet + section stepper retired — the floating
-          ROL'OS onboarding wizard owns gating. Only the field-highlighting
-          legend stays. */}
+      {propertyId ? <GoLiveContinueBar propertyId={propertyId} /> : null}
+
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <RequirementLegend
           className="flex-1"

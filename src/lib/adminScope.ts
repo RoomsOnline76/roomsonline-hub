@@ -9,6 +9,52 @@
  * Absence of rows = a normal, unrestricted admin. Nothing changes for them.
  */
 
+/** Rentals United IT tester — always Seesig + Tidal, regardless of seed user id. */
+export const IT_TEST_ADMIN_EMAIL = "ru-admin@roomsonline.co.za";
+
+/** Canonical Seesig + Tidal listing ids used by the IT tester pin. */
+export const IT_TEST_PROPERTY_IDS = [
+  "76f524f3-8229-4097-b45d-18489f897195", // Seesig
+  "af57b357-9c95-47f5-b7d5-43d3b2f05bb7", // Tidal
+] as const;
+
+export function normalizeAdminEmail(email?: string | null): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+export function isItTestAdminEmail(email?: string | null): boolean {
+  return normalizeAdminEmail(email) === IT_TEST_ADMIN_EMAIL;
+}
+
+export function isItTestProperty(row: { id?: string | null; name?: string | null }): boolean {
+  if (row.id && (IT_TEST_PROPERTY_IDS as readonly string[]).includes(row.id)) return true;
+  const name = (row.name ?? "").toLowerCase();
+  return name.includes("seesig") || name.includes("tidal");
+}
+
+export function filterToItTestProperties<T extends { id?: string | null; name?: string | null }>(
+  rows: T[] | null | undefined,
+): T[] {
+  return (rows ?? []).filter(isItTestProperty);
+}
+
+/**
+ * Scope ids for an admin. The IT tester is always pinned to Seesig + Tidal even
+ * if `scoped_admin_properties` is empty or the auth user id drifted from the seed.
+ */
+export function resolveScopedPropertyIds(
+  email: string | null | undefined,
+  dbScopeIds: string[] | undefined,
+): string[] {
+  if (isItTestAdminEmail(email)) {
+    const fromDb = (dbScopeIds ?? []).filter((id) =>
+      (IT_TEST_PROPERTY_IDS as readonly string[]).includes(id),
+    );
+    return fromDb.length > 0 ? fromDb : [...IT_TEST_PROPERTY_IDS];
+  }
+  return dbScopeIds ?? [];
+}
+
 /** Nav item ids a scoped admin may see (see `src/config/navigation.ts`). */
 export const SCOPED_ADMIN_NAV_ITEM_IDS = new Set<string>([
   "admin-dashboard",
@@ -24,6 +70,7 @@ export const SCOPED_ADMIN_NAV_SECTION_IDS = new Set<string>([
   "administration",
   "insights",
   "workspace",
+  "pms",
 ]);
 
 /**

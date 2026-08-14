@@ -59,11 +59,11 @@ Deno.serve(async (req) => {
 
     const propMap = new Map<string, { id: string; name: string; ru_push_enabled?: boolean }>();
     for (const p of buildingProps ?? []) {
-      if (p.ru_push_enabled !== false) propMap.set(p.id, p);
+      if (p.ru_push_enabled === true) propMap.set(p.id, p);
     }
     for (const row of (unitRows ?? []) as any[]) {
       const p = row.properties;
-      if (p && p.is_active !== false && !propMap.has(p.id) && p.ru_push_enabled !== false) propMap.set(p.id, p);
+      if (p && p.is_active !== false && !propMap.has(p.id) && p.ru_push_enabled === true) propMap.set(p.id, p);
     }
 
     let properties = Array.from(propMap.values());

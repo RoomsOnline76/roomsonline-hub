@@ -424,8 +424,11 @@ const FIELD_ALTERNATIVES: Record<string, string[]> = {
   'amenities.check_out_time': ['house_rules.check_out_to', 'check_out_to', 'check_out_from', 'house_rules.check_out_from'],
   'amenities.contact_email': ['contact.email', 'contact_email'],
   'amenities.telephone': ['contact.telephone', 'telephone', 'contact.mobile', 'mobile'],
-  'amenities.cancellation_policy': ['cancellation_policies', 'cancellation_policy'],
-  'amenities.meal_plan': ['meal_plan', 'breakfast_options'],
+  'amenities.cancellation_policy': ['cancellation_policies', 'cancellation_policy', 'cancellation_policy_text'],
+  'amenities.meal_plan': ['meal_plan', 'breakfast_options', 'meal_types'],
+  'amenities.star_grading': ['star_grading', 'star_rating'],
+  'amenities.ru_location_id': ['ru_location_id'],
+  'amenities.region': ['region', 'address_details.region', 'address_details.province'],
 };
 
 // Helper to get nested values from an object

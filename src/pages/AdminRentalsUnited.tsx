@@ -26,7 +26,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
 import { RuCalendarVerifyPanel } from "@/components/integrations/RuCalendarVerifyPanel";
 
-import { RuOnboardingPipeline } from "@/components/integrations/RuOnboardingPipeline";
 import { RuSyncProgressTracker } from "@/components/integrations/RuSyncProgressTracker";
 import { RuLnmPanel } from "@/components/integrations/RuLnmPanel";
 import { RuMcqReportPanel } from "@/components/integrations/RuMcqReportPanel";
@@ -222,8 +221,8 @@ export default function AdminRentalsUnited() {
   return (
     <AppLayout>
       <PageHeader
-        title="Rentals United — White-Label Sync"
-        subtitle="Observability for auto-managed ROLOS PMS sync"
+        title="Channel diagnostics"
+        subtitle="Sync logs, errors and coverage — go-live lives under Onboarding"
       />
 
       <div className="px-6 pb-10 space-y-6">
@@ -246,34 +245,38 @@ export default function AdminRentalsUnited() {
         <TabsContent value="onboarding" className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Property</CardTitle>
+              <CardTitle className="text-base">Go-live moved</CardTitle>
             </CardHeader>
-            <CardContent>
-              <Select value={onboardingPropertyId} onValueChange={setOnboardingPropertyId}>
-                <SelectTrigger className="w-full md:w-96">
-                  <SelectValue placeholder="Select a property to onboard" />
-                </SelectTrigger>
-                <SelectContent>
-                  {enabledProperties.length === 0 ? (
-                    <div className="px-2 py-3 text-sm text-muted-foreground">
-                      No properties are enabled for Rentals United yet.
-                    </div>
-                  ) : (
-                    enabledProperties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <p>
+                Taking a party live on channels now happens in one workspace — identity through
+                publish through connect. This page stays for sync diagnostics.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={onboardingPropertyId} onValueChange={setOnboardingPropertyId}>
+                  <SelectTrigger className="w-full md:w-80">
+                    <SelectValue placeholder="Choose a property" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {enabledProperties.length === 0 ? (
+                      <div className="px-2 py-3 text-sm text-muted-foreground">
+                        No properties are enabled for Rentals United yet.
+                      </div>
+                    ) : (
+                      enabledProperties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button asChild size="sm" disabled={!onboardingPropertyId}>
+                  <Link to={onboardingPropertyId ? `/admin/onboarding/${onboardingPropertyId}` : "/admin/onboarding"}>
+                    Open go-live workspace
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
-          {onboardingPropertyId ? (
-            <RuOnboardingPipeline propertyId={onboardingPropertyId} />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Pick an RU-enabled property to walk the four-phase Rentals United onboarding.
-            </p>
-          )}
         </TabsContent>
 
         <TabsContent value="errors" className="space-y-4">

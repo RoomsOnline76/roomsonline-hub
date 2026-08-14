@@ -17,6 +17,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
+import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { pushPropertyToRu } from "@/lib/ruPushDriver";
 import {
   CheckCircle2,
@@ -675,6 +676,14 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
               variant="destructive"
               disabled={busy !== null}
               onClick={async () => {
+                const reset = await resetBillingAfterOwnerChange(propertyId, "owner_unbound");
+                if (!reset.ok) {
+                  toast.error(
+                    reset.message ||
+                      "The existing subscription could not be cancelled. Unbind was not completed.",
+                  );
+                  return;
+                }
                 setResetOpen(false);
                 await runAction(
                   "p1_subuser",

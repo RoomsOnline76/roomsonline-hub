@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { roomHasMaxGuests, roomHasRate } from "@/lib/websiteWizardHydrate";
 
 interface MissingItem {
   label: string;
@@ -209,11 +210,11 @@ export function StepReviewSubmit({
     });
 
     // Rooms
-    const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number; base_rate?: number }> | undefined;
-    const hasRooms = roomTypes && roomTypes.length > 0;
-    const allRoomsNamed = roomTypes?.every(r => r.name) ?? false;
-    const allRoomsHaveGuests = roomTypes?.every(r => r.max_guests) ?? false;
-    const allRoomsHaveRates = roomTypes?.every(r => r.base_rate) ?? false;
+    const roomTypes = (amenities.room_types as Record<string, unknown>[] | undefined) ?? [];
+    const hasRooms = roomTypes.length > 0;
+    const allRoomsNamed = roomTypes.every((r) => !!String(r.name ?? "").trim());
+    const allRoomsHaveGuests = roomTypes.length > 0 && roomTypes.every((r) => roomHasMaxGuests(r));
+    const allRoomsHaveRates = roomTypes.length > 0 && roomTypes.every((r) => roomHasRate(r));
     const roomsComplete = hasRooms && allRoomsNamed && allRoomsHaveGuests;
     
     const roomMissing: MissingItem[] = [];

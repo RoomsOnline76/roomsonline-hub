@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RuLastSentPanel } from "./RuLastSentPanel";
+import { companySyncEligible, pushReportedOn } from "@/lib/channelDistributionGate";
+import { resetBillingForScope } from "@/lib/ownerBillingReset";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -269,6 +271,19 @@ export function PortfolioRuAccountsTab() {
     }
     setBinding("unbind");
     try {
+      const billingScope = acc.portfolio_id ? "portfolio" : acc.property_id ? "property" : null;
+      const billingEntity = acc.portfolio_id || acc.property_id;
+      if (billingScope && billingEntity) {
+        const reset = await resetBillingForScope(billingScope, billingEntity, "owner_unbound");
+        if (!reset.ok) {
+          toast.error(
+            reset.message ||
+              "The existing subscription could not be cancelled. Unbind was not completed.",
+          );
+          return;
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: {
           action: "reset_phase1",
@@ -299,7 +314,10 @@ export function PortfolioRuAccountsTab() {
       toast.success("RU account unbound — login and OwnerID cleared. Choose the new RU login email.");
       hideCredentials(acc.id);
       setBindFor(null);
-      await refreshAccounts();
+      await Promise.all([
+        refreshAccounts(),
+        queryClient.invalidateQueries({ queryKey: ["ru-properties-lite"] }),
+      ]);
     } finally {
       setBinding(null);
     }
@@ -723,7 +741,7 @@ export function PortfolioRuAccountsTab() {
   }, [rows, search]);
 
   // Scoped to the sub-account footprint and trading properties only, so this
-  // counter matches the Channel Cost Monitor card it links to.
+  // counter matches the Channel Monitor card it links to.
   const linkedPropertyIds = useMemo(
     () => new Set(rows.flatMap((r) => r.linked.map((p) => p.id))),
     [rows]
@@ -733,16 +751,22 @@ export function PortfolioRuAccountsTab() {
     () => new Set([...linkedPropertyIds].filter((id) => channelFootprintIds.has(id))),
     [linkedPropertyIds, channelFootprintIds]
   );
-  const totalPushEnabled = useMemo(
-    () =>
-      properties.filter(
-        (p) =>
-          p.ru_push_enabled &&
-          p.is_trading === true &&
-          footprintLinkedIds.has(p.id)
-      ).length,
-    [properties, footprintLinkedIds]
-  );
+  const totalPushEnabled = useMemo(() => {
+    return properties.filter((p) => {
+      if (p.is_trading !== true || !footprintLinkedIds.has(p.id)) return false;
+      const acc = rows.find((r) => r.linked.some((l) => l.id === p.id))?.acc;
+      const ownerKey = acc?.ru_owner_id ? storedKeyByOwner.get(String(acc.ru_owner_id)) : undefined;
+      const keysCaptured = acc?.ru_owner_id
+        ? !!ownerKey?.access_key
+        : !!acc?.ru_api_access_key;
+      return pushReportedOn({
+        ruPushEnabled: p.ru_push_enabled,
+        ruOwnerId: acc?.ru_owner_id,
+        keysCaptured,
+        companyDetailsSent: acc?.company_details_sent,
+      });
+    }).length;
+  }, [properties, footprintLinkedIds, rows, storedKeyByOwner]);
 
   if (isLoading) {
     return (
@@ -774,7 +798,7 @@ export function PortfolioRuAccountsTab() {
                 <div className="text-2xl font-semibold">{card.value}</div>
                 <p className="text-xs text-muted-foreground">{card.label}</p>
                 <p className="mt-1 flex items-center gap-1 text-[10px] text-primary">
-                  Channel cost monitor <ChevronRight className="h-3 w-3" />
+                  Channel Monitor <ChevronRight className="h-3 w-3" />
                 </p>
               </CardContent>
             </Card>
@@ -972,12 +996,14 @@ export function PortfolioRuAccountsTab() {
                       <Badge
                         variant="outline"
                         className={
-                          acc.company_details_sent
+                          acc.ru_owner_id && acc.company_details_sent
                             ? "text-success border-success/40 text-[10px]"
                             : "text-muted-foreground text-[10px]"
                         }
                       >
-                        {acc.company_details_sent ? "Company details sent" : "Company details pending"}
+                        {acc.ru_owner_id && acc.company_details_sent
+                          ? "Company details sent"
+                          : "Company details pending"}
                       </Badge>
                       {acc.ru_owner_id && !activeAccessKey && (
                         <Badge variant="outline" className="text-[10px] text-muted-foreground">
@@ -1188,12 +1214,24 @@ export function PortfolioRuAccountsTab() {
                               <Badge
                                 variant="outline"
                                 className={
-                                  p.ru_push_enabled
+                                  pushReportedOn({
+                                    ruPushEnabled: p.ru_push_enabled,
+                                    ruOwnerId: acc.ru_owner_id,
+                                    keysCaptured: !!activeAccessKey,
+                                    companyDetailsSent: acc.company_details_sent,
+                                  })
                                     ? "text-success border-success/40 text-[9px]"
                                     : "text-muted-foreground text-[9px]"
                                 }
                               >
-                                {p.ru_push_enabled ? "Push on" : "Off"}
+                                {pushReportedOn({
+                                  ruPushEnabled: p.ru_push_enabled,
+                                  ruOwnerId: acc.ru_owner_id,
+                                  keysCaptured: !!activeAccessKey,
+                                  companyDetailsSent: acc.company_details_sent,
+                                })
+                                  ? "Push on"
+                                  : "Off"}
                               </Badge>
                             )}
 
@@ -1206,6 +1244,22 @@ export function PortfolioRuAccountsTab() {
                       sentPayload={acc.company_payload ?? null}
                       currentProfile={acc.company_profile ?? null}
                       sentAt={acc.company_filled_at ?? null}
+                      syncEligible={
+                        companySyncEligible({
+                          ruOwnerId: acc.ru_owner_id,
+                          keysCaptured: !!activeAccessKey,
+                          companyDetailsSent: acc.company_details_sent,
+                          companyFilledAt: acc.company_filled_at,
+                          ruPushEnabled: linked.some((p) =>
+                            pushReportedOn({
+                              ruPushEnabled: p.ru_push_enabled,
+                              ruOwnerId: acc.ru_owner_id,
+                              keysCaptured: !!activeAccessKey,
+                              companyDetailsSent: acc.company_details_sent,
+                            }),
+                          ),
+                        })
+                      }
                     />
                   </CardContent>
                 )}

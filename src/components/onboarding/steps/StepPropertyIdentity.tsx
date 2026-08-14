@@ -20,11 +20,17 @@ import {
   normalizeRuTimeZone,
 } from "@/lib/ruTimeZones";
 
-// PMS options: only systems that are actually live in ROL'OS today.
-const ACTIVE_PMS_KEYS = ["benson", "hostfully", "checkfront", "nightsbridge", "wetu"];
-const PMS_OPTIONS = ACTIVE_PMS_KEYS
-  .map(key => VISIBLE_PMS_SYSTEMS.find(s => s.key === key))
-  .filter((s): s is NonNullable<typeof s> => Boolean(s));
+// PMS options: only active deployed systems available for a new listing.
+const ACTIVE_PMS_KEYS = ["benson", "hostfully", "roomsonline"] as const;
+const PMS_FALLBACK_NAMES: Record<(typeof ACTIVE_PMS_KEYS)[number], string> = {
+  benson: "Benson",
+  hostfully: "Hostfully",
+  roomsonline: "ROL'OS",
+};
+const PMS_OPTIONS = ACTIVE_PMS_KEYS.map((key) => {
+  const sys = VISIBLE_PMS_SYSTEMS.find((s) => s.key === key);
+  return { key, name: sys?.name ?? PMS_FALLBACK_NAMES[key] };
+});
 
 // Channel Manager options: the channels distributed through our channel-manager account.
 const CHANNEL_MANAGER_OPTIONS = CHANNEL_REGISTRY

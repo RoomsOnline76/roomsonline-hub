@@ -81,6 +81,7 @@ const AdminHelpArticles = lazy(() => import("./pages/AdminHelpArticles"));
 const HelpArticleEditor = lazy(() => import("./pages/HelpArticleEditor"));
 const AdminContracts = lazy(() => import("./pages/AdminContracts"));
 const AdminOnboarding = lazy(() => import("./pages/AdminOnboarding"));
+const ChannelOnboarding = lazy(() => import("./pages/ChannelOnboarding"));
 const AdminContractEditor = lazy(() => import("./pages/AdminContractEditor"));
 const AdminWizardEditor = lazy(() => import("./pages/AdminWizardEditor"));
 const AdminPreFlight = lazy(() => import("./pages/AdminPreFlight"));
@@ -355,6 +356,7 @@ const App = () => (
                           <Route path="/admin/portfolios" element={<AdminPortfolios />} />
                           <Route path="/admin/contracts" element={<AdminContracts />} />
                           <Route path="/admin/onboarding" element={<AdminOnboarding />} />
+                          <Route path="/admin/onboarding/:propertyId" element={<ChannelOnboarding />} />
                           <Route path="/admin/contract-editor" element={<AdminContractEditor />} />
                           <Route path="/admin/contract-editor/:templateId" element={<AdminContractEditor />} />
                           <Route path="/admin/wizard-editor" element={<AdminWizardEditor />} />

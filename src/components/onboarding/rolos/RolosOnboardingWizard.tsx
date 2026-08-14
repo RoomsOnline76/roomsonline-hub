@@ -65,8 +65,8 @@ interface StoredPrefs {
 
 
 function StatusIcon({ complete, locked }: { complete: boolean; locked: boolean }) {
-  if (complete) return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
   if (locked) return <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />;
+  if (complete) return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
   return <Circle className="h-4 w-4 shrink-0 text-primary" />;
 }
 

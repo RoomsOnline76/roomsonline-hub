@@ -3539,12 +3539,38 @@ Deno.serve(async (req) => {
         patch.ru_login_email = null;
         patch.ru_login_url = null;
         patch.ru_login_password_enc = null;
+        patch.company_payload = null;
       }
 
       const ids = accounts.map((a: { id: string }) => a.id);
       const { error: upErr } = await admin.from("ru_owner_accounts").update(patch).in("id", ids);
       if (upErr) {
         return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
+      }
+
+      // Unbind turns push off on every property in scope. Leftover ru_push_enabled
+      // would keep Channel Monitor / RU Accounts showing "Push on" while the
+      // Channel wizard gates cannot pass.
+      if (mode === "identity") {
+        let scopedPropertyIds: string[] = [];
+        if (portfolioId) {
+          const { data: members } = await admin
+            .from("property_portfolio_members")
+            .select("property_id")
+            .eq("portfolio_id", portfolioId);
+          scopedPropertyIds = (members ?? []).map((m: { property_id: string }) => m.property_id);
+        } else if (propertyId) {
+          scopedPropertyIds = [propertyId];
+        }
+        if (scopedPropertyIds.length) {
+          const { error: pushErr } = await admin
+            .from("properties")
+            .update({ ru_push_enabled: false })
+            .in("id", scopedPropertyIds);
+          if (pushErr) {
+            console.warn("[ru-cert-portal] reset_phase1 could not disable ru_push_enabled", pushErr.message);
+          }
+        }
       }
 
       return json({ success: true, reset: mode, accounts: ids });

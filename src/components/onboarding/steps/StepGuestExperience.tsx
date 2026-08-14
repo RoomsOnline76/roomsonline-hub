@@ -29,7 +29,7 @@ export function StepGuestExperience({
   getAmenityValue
 }: StepProps) {
   const { toast } = useToast();
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [writingField, setWritingField] = useState<"description" | "summary" | "usp" | null>(null);
 
   const isPMSDesc = isPMSManaged("description");
   const mealPlan = getAmenityValue<string[]>("meal_types", []);
@@ -39,41 +39,83 @@ export function StepGuestExperience({
   const charCount = description.length;
   const shortCharCount = shortDescription.length;
 
-  const handleAIEnhance = async () => {
-    setIsGenerating(true);
+  const extractTobiText = (data: unknown): string => {
+    if (!data || typeof data !== "object") return "";
+    const d = data as Record<string, unknown>;
+    if (typeof d.error === "string" && d.error.trim()) throw new Error(d.error);
+    const direct = [d.text, d.enhanced, d.description].find((v) => typeof v === "string" && v.trim());
+    if (direct) return String(direct).trim();
+    const suggestions = d.suggestions;
+    if (suggestions && typeof suggestions === "object") {
+      const s = suggestions as Record<string, unknown>;
+      const pick = [s.what_its_really_like, s.why_we_chose_this_place, s.why_this_place_matters, s.who_this_suits]
+        .find((v) => typeof v === "string" && v.trim());
+      if (pick) return String(pick).trim();
+    }
+    return "";
+  };
 
+  const clipSummary = (text: string, max = 300) => {
+    const clean = text.replace(/\s+/g, " ").trim();
+    if (clean.length <= max) return clean;
+    const cut = clean.slice(0, max);
+    const lastStop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+    return (lastStop >= 80 ? cut.slice(0, lastStop + 1) : `${cut.slice(0, max - 1).trim()}…`).trim();
+  };
+
+  const writeWithTobi = async (field: "description" | "summary" | "usp") => {
+    setWritingField(field);
+    const context = {
+      name: propertyData.name,
+      property_type: propertyData.property_type,
+      city: propertyData.city,
+      country: propertyData.country,
+      facilities: mealPlan,
+      current: field === "summary" ? shortDescription : field === "usp" ? uniqueSellingPoints : description,
+      description,
+    };
     try {
-      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+      const first = await supabase.functions.invoke("editorial-ai-assist", {
         body: {
-          action: "enhance_description",
-          content: description,
-          context: {
-            name: propertyData.name,
-            property_type: propertyData.property_type,
-            city: propertyData.city,
-            country: propertyData.country
-          }
-        }
+          action:
+            field === "summary"
+              ? "generate_marketing_summary"
+              : field === "usp"
+                ? "generate_unique_selling_points"
+                : "generate_property_description",
+          minChars: field === "summary" ? 140 : field === "usp" ? 220 : 400,
+          propertyContext: context,
+        },
       });
-
-      if (error) throw error;
-
-      if (data?.enhanced) {
-        updateField("description", data.enhanced);
-        toast({
-          title: "Description enhanced",
-          description: "Your description has been improved by TOBI"
+      if (first.error) throw first.error;
+      let text = extractTobiText(first.data);
+      if (!text) {
+        const fallback = await supabase.functions.invoke("editorial-ai-assist", {
+          body: {
+            action: "generate_property_description",
+            minChars: field === "summary" ? 160 : 280,
+            propertyContext: context,
+          },
         });
+        if (fallback.error) throw fallback.error;
+        text = extractTobiText(fallback.data);
       }
-    } catch (error) {
-      console.error("AI enhancement error:", error);
+      if (!text) throw new Error("TOBI returned no text");
+      if (field === "summary") updateField("short_description", clipSummary(text));
+      else if (field === "usp") updateField("amenities.unique_selling_points", text);
+      else updateField("description", text);
       toast({
-        title: "Enhancement failed",
-        description: "Could not enhance description",
-        variant: "destructive"
+        title: "TOBI wrote the copy",
+        description: "Review it, then continue.",
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI could not write that",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
       });
     } finally {
-      setIsGenerating(false);
+      setWritingField(null);
     }
   };
 
@@ -88,9 +130,22 @@ export function StepGuestExperience({
     <div className="space-y-6">
       {/* Short Description (Marketing Summary) */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <PenLine className="h-4 w-4 text-primary" />
-          <Label htmlFor="short_description">Marketing Summary</Label>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <PenLine className="h-4 w-4 text-primary" />
+            <Label htmlFor="short_description">Marketing Summary</Label>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            disabled={writingField !== null}
+            onClick={() => void writeWithTobi("summary")}
+          >
+            {writingField === "summary" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {shortDescription.trim() ? "Improve with TOBI" : "Write with TOBI"}
+          </Button>
         </div>
         <Textarea
           id="short_description"
@@ -120,16 +175,16 @@ export function StepGuestExperience({
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleAIEnhance}
-            disabled={isGenerating || !description}
+            onClick={() => void writeWithTobi("description")}
+            disabled={writingField !== null}
             className="gap-1.5 h-8"
           >
-            {isGenerating ? (
+            {writingField === "description" ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               <Sparkles className="h-3 w-3" />
             )}
-            Enhance
+            {description.trim() ? "Improve with TOBI" : "Write with TOBI"}
           </Button>
         </div>
         <Textarea
@@ -148,9 +203,22 @@ export function StepGuestExperience({
 
       {/* What Makes This Property Special */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Star className="h-4 w-4 text-primary" />
-          <Label htmlFor="unique_selling_points">What Makes This Property Special?</Label>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-primary" />
+            <Label htmlFor="unique_selling_points">What Makes This Property Special?</Label>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            disabled={writingField !== null}
+            onClick={() => void writeWithTobi("usp")}
+          >
+            {writingField === "usp" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {uniqueSellingPoints.trim() ? "Improve with TOBI" : "Write with TOBI"}
+          </Button>
         </div>
         <Textarea
           id="unique_selling_points"

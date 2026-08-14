@@ -280,6 +280,15 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
           </Card>
         </div>
 
+        <div id="guest-policies" className="space-y-2">
+          <div>
+            <h3 className="text-sm font-semibold">Guest Policies</h3>
+            <p className="text-xs text-muted-foreground">
+              Same fields as Website wizard → Policies &amp; Pricing → Guest Policies.
+            </p>
+          </div>
+        </div>
+
         {/* Age restriction, pets, cot & extra beds */}
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
           <Card>

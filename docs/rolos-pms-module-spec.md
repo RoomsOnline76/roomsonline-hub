@@ -918,6 +918,9 @@ TOBI is the property-specific AI assistant embedded in the ROL'OS PMS via the `P
 |---|---|---|---|
 | **Generic** | No propertyId | GENERIC_SYSTEM_PROMPT | Help articles from `help_articles` table |
 | **PMS** | propertyId provided | PMS_SYSTEM_PROMPT | Full property operational data |
+| **Onboarding** | `onboardingContext` on the Channel or Website wizard | ONBOARDING_SYSTEM_PROMPT | Live step, score, locked state, and the same blockers the wizard already lists |
+
+Onboarding TOBI is an extra help layer beside the existing checklists and “why it matters” copy. Channel wizard is the priority: it answers why a gate failed and can open the matching field. It must not invent a pass when the wizard still shows a fail.
 
 ### PMS Context Data
 

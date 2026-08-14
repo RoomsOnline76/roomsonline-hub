@@ -91,6 +91,24 @@ function paidByKey(invoices: OnceOffInvoiceLike[]): Record<string, number> {
   return out;
 }
 
+/** Billing config stamp written when the owner is unbound or replaced. */
+export function setupResetAt(cfg: { custom_overrides?: unknown } | null | undefined): string | null {
+  const raw = cfg?.custom_overrides;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const value = (raw as Record<string, unknown>).setup_reset_at;
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+/** Paid once-off invoices from before an owner-change reset do not settle the new owner's fees. */
+export function invoiceCountsTowardSetup(
+  invoice: { created_at?: string | null },
+  resetAt: string | null,
+): boolean {
+  if (!resetAt) return true;
+  const created = String(invoice.created_at || "");
+  return !created || created >= resetAt;
+}
+
 export function resolveSetupSettlement(
   contracted: ContractedSetupLine[],
   invoices: OnceOffInvoiceLike[] | null | undefined,

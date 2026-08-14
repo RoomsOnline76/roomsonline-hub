@@ -107,6 +107,7 @@ export interface OwnerBillingConfig {
   branding_addon_enabled: boolean | null;
   branding_addon_monthly_fee: number | null;
   byo_gateway_monthly_fee: number | null;
+  custom_overrides?: Record<string, unknown> | null;
 }
 
 /* ------------------------------------------------------------------ */

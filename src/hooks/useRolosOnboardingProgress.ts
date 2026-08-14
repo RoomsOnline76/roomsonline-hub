@@ -9,6 +9,7 @@ import {
   type DistributionCheckKey,
   type MacroDef,
 } from "@/config/rolosOnboardingMacros";
+import { isDistributionBound, unboundDependentDetail } from "@/lib/channelDistributionGate";
 
 
 /**
@@ -85,6 +86,8 @@ interface IdentityPayload {
   account?: { ru_owner_id?: string | null } | null;
   keys?: { verified_at?: string | null; access_key_last4?: string | null } | null;
   keys_captured?: boolean;
+  push_gated?: boolean;
+  gate_reason?: string | null;
 }
 
 export interface SignoffCheckRecord {
@@ -137,7 +140,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const [property, phase, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
+          .select("id, name, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
@@ -285,25 +288,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     // Macro 7 — key pair
     const keysCaptured = !!d?.identity?.keys_captured;
     const verifiedAt = d?.identity?.keys?.verified_at ?? null;
+    const bound = isDistributionBound({
+      ruOwnerId,
+      keysCaptured,
+      pushGated: d?.identity?.push_gated,
+    });
     put("api_keys_stored", "Sub-account key & secret stored", keysCaptured, {
       detail: keysCaptured
         ? `Key ending ${d?.identity?.keys?.access_key_last4 ?? "····"}`
         : "No key pair captured",
       hint: "Integrations → ROL'OS owner panel",
     });
-    put("api_keys_verified", "Key pair verified", !!verifiedAt, {
-      detail: verifiedAt ? `Verified ${new Date(verifiedAt).toLocaleDateString()}` : "Not verified",
+    put("api_keys_verified", "Key pair verified", keysCaptured && !!verifiedAt, {
+      detail: !keysCaptured
+        ? "No key pair captured"
+        : verifiedAt
+          ? `Verified ${new Date(verifiedAt).toLocaleDateString()}`
+          : "Not verified",
     });
 
-    // Macro 8 — publish
+    // Macro 8 — publish. Leftover listing IDs from a previous bind do not count
+    // while the property is unbound (no owner key & secret).
     const units = (d?.units ?? []) as { name?: string | null; is_active: boolean | null; rentalsunited_property_id: string | null }[];
     const activeUnits = units.filter((u) => u.is_active !== false);
     const unitsWithIds = activeUnits.filter((u) => !!String(u.rentalsunited_property_id ?? "").trim()).length;
     const propertyListingId = !!String(prop.rentalsunited_property_id ?? "").trim();
-    const listingOk = activeUnits.length > 0 ? unitsWithIds === activeUnits.length : propertyListingId;
+    const listingIdsPresent = activeUnits.length > 0 ? unitsWithIds === activeUnits.length : propertyListingId;
+    const listingOk = bound && listingIdsPresent;
     put("listing_ids", "Listing published & IDs stored", listingOk, {
-      detail:
-        activeUnits.length > 0
+      detail: !bound
+        ? unboundDependentDetail("publish", listingIdsPresent)
+        : activeUnits.length > 0
           ? `${unitsWithIds}/${activeUnits.length} units published`
           : propertyListingId
             ? "Listing published"
@@ -330,42 +345,53 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
     // Macro 9 — currency
     const cur = (d?.currency ?? null) as Record<string, string | null> | null;
-    const currencyOk =
+    const currencyRecorded =
       !!cur?.verified_at &&
       (!cur.ru_reported_currency_iso ||
         !cur.published_currency_iso ||
         cur.ru_reported_currency_iso === cur.published_currency_iso);
+    const currencyOk = bound && currencyRecorded;
     put("currency_verified", "Published currency verified", currencyOk, {
-      detail: cur?.published_currency_iso
-        ? `${cur.published_currency_iso}${cur.verified_at ? " · verified" : " · unverified"}`
-        : "No currency state recorded",
+      detail: !bound
+        ? unboundDependentDetail("currency")
+        : cur?.published_currency_iso
+          ? `${cur.published_currency_iso}${cur.verified_at ? " · verified" : " · unverified"}`
+          : "No currency state recorded",
     });
 
     // Macro 10 — manual sign-off
     const tickedCount = ROLOS_SIGNOFF_CHECKLIST.filter(
       (i) => signoff.checks[i.key]?.checked === true,
     ).length;
-    put("manual_signoff", "Manual verification checklist", signoff.signed_off, {
-      detail: signoff.signed_off
-        ? `All ${ROLOS_SIGNOFF_CHECKLIST.length} items confirmed${
-            signoff.signed_off_by ? ` · ${signoff.signed_off_by}` : ""
-          }`
-        : `${tickedCount}/${ROLOS_SIGNOFF_CHECKLIST.length} items ticked`,
+    put("manual_signoff", "Manual verification checklist", bound && signoff.signed_off, {
+      detail: !bound
+        ? unboundDependentDetail("signoff")
+        : signoff.signed_off
+          ? `All ${ROLOS_SIGNOFF_CHECKLIST.length} items confirmed${
+              signoff.signed_off_by ? ` · ${signoff.signed_off_by}` : ""
+            }`
+          : `${tickedCount}/${ROLOS_SIGNOFF_CHECKLIST.length} items ticked`,
     });
 
 
     // Macro 11 — channels
-    put("channel_entitlement", "Channel Manager enabled on billing", billing?.channel_manager_enabled === true, {
-      detail:
-        billing?.channel_manager_enabled === true
+    const entitlementOn = billing?.channel_manager_enabled === true;
+    put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
+      detail: !bound
+        ? unboundDependentDetail("entitlement")
+        : entitlementOn
           ? "Enabled"
           : "Disabled — switch it on in the property's billing config",
     });
     const connected = ((d?.channels ?? []) as { status: string }[]).filter((c) =>
       ["connected", "active", "live"].includes(String(c.status ?? "").toLowerCase()),
     ).length;
-    put("channels_connected", "At least one channel connected", connected > 0, {
-      detail: connected > 0 ? `${connected} connected` : "None connected yet",
+    put("channels_connected", "At least one channel connected", bound && connected > 0, {
+      detail: !bound
+        ? unboundDependentDetail("connect")
+        : connected > 0
+          ? `${connected} connected`
+          : "None connected yet",
     });
 
     return map;
@@ -483,11 +509,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
   const overall = useMemo(() => {
     const done = macros.filter((m) => m.complete).length;
+    const beforeConnect = macros.filter((m) => m.macro.key !== "connect");
     return {
       macrosComplete: done,
       macrosTotal: macros.length,
       percent: macros.length ? Math.round((done / macros.length) * 100) : 0,
-      readyToConnect: macros.every((m) => m.complete),
+      /** Published + entitled — the channel console can open. */
+      readyToConnect: beforeConnect.length > 0 && beforeConnect.every((m) => m.complete),
     };
   }, [macros]);
 
@@ -575,7 +603,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     refresh,
     isLoading: readiness.isLoading || distribution.isLoading,
     isFetching: readiness.isFetching || distribution.isFetching,
-    propertyName: String((d?.property as any)?.name ?? ""),
+    propertyName: String((d?.property as Record<string, unknown> | null)?.name ?? ""),
+    ownerEmail: String((d?.property as Record<string, unknown> | null)?.owner_email ?? ""),
+    websiteLive: (d?.property as Record<string, unknown> | null)?.show_on_website === true,
     /**
      * Name of the only active unit, when the property has exactly one. Single-unit
      * listings report unit-owned failures without a unit prefix, so the wizard uses this

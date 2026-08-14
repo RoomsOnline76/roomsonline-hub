@@ -11,6 +11,7 @@ import {
   monthKey,
   tierFor,
 } from "@/lib/channelBillingForecast";
+import { pushReportedOn } from "@/lib/channelDistributionGate";
 
 export type ChannelSyncState = "live" | "paused" | "archived";
 
@@ -227,7 +228,11 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
           .order("sort_order", { ascending: true }),
-        supabase.from("ru_owner_accounts").select("id, portfolio_id, property_id, owner_email, ru_owner_id, ru_user_id"),
+        supabase
+          .from("ru_owner_accounts")
+          .select(
+            "id, portfolio_id, property_id, owner_email, ru_owner_id, ru_user_id, ru_api_access_key, company_details_sent",
+          ),
       ]);
 
 
@@ -276,12 +281,32 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         owner_email: string | null;
         ru_owner_id: string | null;
         ru_user_id: string | null;
+        ru_api_access_key: string | null;
+        company_details_sent: boolean | null;
       }>;
-      const accountByProperty = new Map<string, { ownerId: string | null; subUserId: string | null }>();
-      for (const p of relevant) {
+      const ownerIds = [...new Set(ruAccounts.map((a) => a.ru_owner_id).filter(Boolean))] as string[];
+      const { data: credRows } = ownerIds.length
+        ? await supabase.from("ru_api_credentials").select("ru_owner_id, access_key").in("ru_owner_id", ownerIds)
+        : { data: [] as { ru_owner_id: string; access_key: string | null }[] };
+      const ownersWithKeys = new Set(
+        (credRows ?? [])
+          .filter((c) => !!c.access_key)
+          .map((c) => String(c.ru_owner_id)),
+      );
+      const credsOf = (acc?: (typeof ruAccounts)[number]) => ({
+        ownerId: acc?.ru_owner_id ?? null,
+        subUserId: acc?.ru_user_id ?? null,
+        keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
+        companyDetailsSent: acc?.company_details_sent === true,
+      });
+      const accountByProperty = new Map<
+        string,
+        { ownerId: string | null; subUserId: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
+      >();
+      for (const p of allProps) {
         const direct = ruAccounts.find((a) => a.property_id === p.id);
         if (direct) {
-          accountByProperty.set(p.id, { ownerId: direct.ru_owner_id, subUserId: direct.ru_user_id });
+          accountByProperty.set(p.id, credsOf(direct));
           continue;
         }
         const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
@@ -289,16 +314,13 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           ? ruAccounts.find((a) => a.portfolio_id === portfolioId)
           : undefined;
         if (portfolioMatch) {
-          accountByProperty.set(p.id, { ownerId: portfolioMatch.ru_owner_id, subUserId: portfolioMatch.ru_user_id });
+          accountByProperty.set(p.id, credsOf(portfolioMatch));
           continue;
         }
         const emailMatch = p.owner_email
           ? ruAccounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
           : undefined;
-        accountByProperty.set(p.id, {
-          ownerId: emailMatch?.ru_owner_id ?? null,
-          subUserId: emailMatch?.ru_user_id ?? null,
-        });
+        accountByProperty.set(p.id, credsOf(emailMatch));
       }
 
       const draft = relevant.map((p) => {
@@ -316,8 +338,19 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
             : archived || !p.rentalsunited_property_id
               ? 0
               : 1;
-        const state: ChannelSyncState = archived ? "archived" : p.ru_push_enabled ? "live" : "paused";
-        const creds = accountByProperty.get(p.id) ?? { ownerId: null, subUserId: null };
+        const creds = accountByProperty.get(p.id) ?? {
+          ownerId: null,
+          subUserId: null,
+          keysCaptured: false,
+          companyDetailsSent: false,
+        };
+        const pushOn = pushReportedOn({
+          ruPushEnabled: p.ru_push_enabled,
+          ruOwnerId: creds.ownerId,
+          keysCaptured: creds.keysCaptured,
+          companyDetailsSent: creds.companyDetailsSent,
+        });
+        const state: ChannelSyncState = archived ? "archived" : pushOn ? "live" : "paused";
         const toRow = (u: UnitRecord): ChannelUnitRow => ({
           id: u.id,
           name: u.name || "Unit",
@@ -386,7 +419,15 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         [...subAccountPropertyIds].filter((id) => footprintIds.has(id)),
       );
 
-      const pushEnabled = tradingProps.filter((p) => p.ru_push_enabled === true);
+      const pushEnabled = tradingProps.filter((p) => {
+        const creds = accountByProperty.get(p.id);
+        return pushReportedOn({
+          ruPushEnabled: p.ru_push_enabled,
+          ruOwnerId: creds?.ownerId,
+          keysCaptured: creds?.keysCaptured,
+          companyDetailsSent: creds?.companyDetailsSent,
+        });
+      });
       setAccountFootprint({
         subAccounts: ruAccounts.length,
         subAccountProperties: footprintSubAccountIds.size,

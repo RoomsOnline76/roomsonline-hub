@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { usePropertyOnboarding } from "@/hooks/usePropertyOnboarding";
+import { OnboardingTobiPanel } from "@/components/onboarding/OnboardingTobiPanel";
 import { COMPLETION_STATES, FieldImpactLevel } from "@/config/onboardingFieldSchema";
 import {
   Tooltip,
@@ -215,6 +216,39 @@ export function PropertyOnboardingWizard({ propertyId, mode, ownerEmail, onCompl
                     <p className="text-sm text-muted-foreground">{currentSection.whyItMatters}</p>
                   </div>
                 )}
+                <div className="mt-3">
+                  <OnboardingTobiPanel
+                    context={{
+                      wizard: "website",
+                      propertyId,
+                      propertyName: propertyData.name || "this property",
+                      stepTitle: currentSection?.title || "Website listing",
+                      stepGoal: currentSection?.description,
+                      score: completionPercent,
+                      blockers: [
+                        ...missingFields.critical,
+                        ...missingFields.high,
+                        ...missingFields.medium,
+                      ].map((field) => ({
+                        label: field.label,
+                        section: field.section,
+                        fieldKey: field.key,
+                        mandatory: field.impact === "critical" || field.impact === "high",
+                      })),
+                    }}
+                    onOpenField={(_section, fieldKey) => {
+                      if (fieldKey) {
+                        const field = [
+                          ...missingFields.critical,
+                          ...missingFields.high,
+                          ...missingFields.medium,
+                          ...missingFields.low,
+                        ].find((f) => f.key === fieldKey);
+                        if (field) goToStepById(field.section);
+                      }
+                    }}
+                  />
+                </div>
               </div>
               
               {CurrentStepComponent && (

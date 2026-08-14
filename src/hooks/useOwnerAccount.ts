@@ -29,6 +29,7 @@ import {
   type RevenueRow,
   type SettlementBooking,
 } from "@/lib/ownerAccount";
+import { invoiceCountsTowardSetup, setupResetAt } from "@/lib/setupSettlement";
 import { resolveBookingCommission, type CommissionConfigLike } from "@/lib/commissionResolver";
 import { DEFAULT_VAT_SETTINGS, type VatSettings } from "@/lib/payoutStatement";
 
@@ -284,8 +285,13 @@ export function useOwnerAccount(scope: OwnerScope | null) {
     // Once-off (setup) is payable on signature. Only count it as invoiced when a
     // live (non-cancelled/void) invoice carries it.
     const contractedSetup = expectedSetupFee(data.config, data.unitCount, data.byoGateway);
+    const resetAt = setupResetAt(data.config);
     const invoicedSetup = data.subscriptionInvoices
-      .filter((inv) => !["cancelled", "canceled", "void"].includes(String(inv.status)))
+      .filter(
+        (inv) =>
+          !["cancelled", "canceled", "void"].includes(String(inv.status)) &&
+          invoiceCountsTowardSetup(inv, resetAt),
+      )
       .reduce(
         (sum, inv) =>
           sum +

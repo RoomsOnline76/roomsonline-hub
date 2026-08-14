@@ -15,6 +15,7 @@ import { StepProps } from "./types";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatCancellationPolicy } from "@/lib/websiteWizardHydrate";
 
 const ACCOUNT_TYPES = [
   { value: "cheque", label: "Cheque/Current" },
@@ -93,7 +94,9 @@ export function StepPoliciesPricing({
 
   // Terms — nested under house_rules (text fields)
   const paymentPolicy = getHouseRule<string>("payment_policy", "");
-  const cancellationPolicy = getAmenityValue<string>("cancellation_policies", "");
+  const cancellationPolicy =
+    (getAmenityValue<string>("cancellation_policy_text", "") || "").trim() ||
+    formatCancellationPolicy(getAmenityValue<unknown>("cancellation_policies", ""));
   const noShowPolicy = getHouseRule<string>("no_show_policy", "");
   const houseRulesText = getHouseRule<string>("house_rules_text", "");
 
@@ -269,6 +272,9 @@ export function StepPoliciesPricing({
           <div className="flex items-center gap-2">
             <PawPrint className="h-4 w-4 text-primary" />
             <span className="font-medium">Guest Policies</span>
+            <span className="text-xs text-muted-foreground font-normal">
+              Saved on the property under Policies → Guest Policies
+            </span>
           </div>
           <ChevronDown className={cn("h-4 w-4 transition-transform", openSections.guests && "rotate-180")} />
         </CollapsibleTrigger>
@@ -489,7 +495,7 @@ export function StepPoliciesPricing({
             <Textarea
               id="cancellation_policy"
               value={cancellationPolicy}
-              onChange={(e) => updateField("amenities.cancellation_policies", e.target.value)}
+              onChange={(e) => updateField("amenities.cancellation_policy_text", e.target.value)}
               placeholder="e.g., Free cancellation up to 48 hours before arrival..."
               rows={3}
             />

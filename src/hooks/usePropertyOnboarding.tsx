@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { queueChannelContentSync } from "@/lib/channelContentSync";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  SCORE_WEIGHTS, 
   getScoreBand, 
   PMS_SENSITIVE_FIELDS, 
   WIZARD_SECTIONS, 
@@ -20,6 +19,8 @@ import {
   COMPLETION_STATES
 } from "@/config/onboardingFieldSchema";
 import { Json } from "@/integrations/supabase/types";
+import { hydrateWebsiteWizardAmenitiesFromInventory } from "@/lib/websiteWizardHydrate";
+import { calculateWebsiteWizardScore } from "@/lib/websiteWizardScore";
 
 interface PropertyData {
   id: string;
@@ -38,6 +39,10 @@ interface PropertyData {
   pms_managed_fields: string[] | null;
   listing_intent?: string | null;
   listing_status?: string | null;
+  price_per_night?: number | null;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  ru_location_id?: number | null;
   [key: string]: unknown; // Allow dynamic property access for updateField
 }
 
@@ -79,6 +84,45 @@ interface OnboardingState {
 }
 
 const DEBOUNCE_MS = 2000;
+
+async function hydrateRoomsFromInventory(propertyId: string, propertyData: PropertyData): Promise<PropertyData> {
+  const amenities = { ...((propertyData.amenities || {}) as Record<string, unknown>) };
+
+  const [{ data: units }, { data: plans }, { data: contacts }] = await Promise.all([
+    supabase
+      .from("hostfully_room_types")
+      .select("id, name, is_active, max_guests, daily_rate, total_units, description")
+      .eq("property_id", propertyId),
+    supabase
+      .from("rolos_rate_plans")
+      .select("base_rate, is_primary_sell, is_active")
+      .eq("property_id", propertyId),
+    supabase
+      .from("property_contact_details")
+      .select("role, phone, name, email")
+      .eq("property_id", propertyId)
+      .then((r) => r)
+      .catch(() => ({ data: [] as { role: string | null; phone: string | null; name: string | null; email: string | null }[] })),
+  ]);
+
+  const filled = hydrateWebsiteWizardAmenitiesFromInventory(
+    amenities,
+    {
+      owner_name: propertyData.owner_name,
+      owner_email: propertyData.owner_email,
+      ru_location_id: propertyData.ru_location_id,
+      price_per_night: propertyData.price_per_night,
+    },
+    { rooms: units ?? [], ratePlans: plans ?? [], contacts: contacts ?? [] },
+  );
+
+  const before = JSON.stringify(amenities);
+  const after = JSON.stringify(filled);
+  if (before === after) return propertyData;
+
+  await supabase.from("properties").update({ amenities: filled as Json }).eq("id", propertyId);
+  return { ...propertyData, amenities: filled as Json };
+}
 
 // Helper to get stored step from sessionStorage
 const getStoredStep = (propId: string): number => {
@@ -252,7 +296,7 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
 
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, property_type, property_url, address, city, country, latitude, longitude, description, short_description, images, amenities, pms_managed_fields, listing_intent, listing_status")
+        .select("id, name, property_type, property_url, address, city, country, latitude, longitude, description, short_description, images, amenities, pms_managed_fields, listing_intent, listing_status, price_per_night, owner_name, owner_email, ru_location_id")
         .eq("id", propertyId)
         .single();
 
@@ -281,8 +325,19 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
         await supabase.from("properties").update({ listing_status: 'onboarding_active' }).eq("id", propertyId);
         propertyData = { ...propertyData, listing_status: 'onboarding_active' };
       }
+
+      // Fill website-wizard room fields from the live RU / property inventory
+      // so completed channel work raises the listing score and the Rooms step
+      // is not blank.
+      propertyData = await hydrateRoomsFromInventory(propertyId, propertyData);
       
       const { completionPercent, score } = calculateScores(propertyData, listingIntent);
+      const amenitiesForScore = { ...((propertyData.amenities || {}) as Record<string, unknown>) };
+      if (amenitiesForScore.onboarding_score !== score) {
+        amenitiesForScore.onboarding_score = score;
+        propertyData = { ...propertyData, amenities: amenitiesForScore as Json };
+        void supabase.from("properties").update({ amenities: amenitiesForScore as Json }).eq("id", propertyId);
+      }
       const completionState = getCompletionState(score);
       const completionStateDetails = getCompletionStateDetails(score);
       
@@ -330,143 +385,9 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
     fetchProperty();
   }, [fetchProperty]);
 
-  const calculateScores = useCallback((data: PropertyData | null, intent: ListingIntent = 'accommodation') => {
-    if (!data) return { completionPercent: 0, score: 0 };
-
-    const amenities = (data.amenities || {}) as Record<string, unknown>;
-    
-    // Helper to get nested values from amenities
-    const getNestedValue = (...paths: string[]): unknown => {
-      for (const path of paths) {
-        const parts = path.split('.');
-        let current: unknown = amenities;
-        for (const part of parts) {
-          if (current && typeof current === 'object' && part in (current as Record<string, unknown>)) {
-            current = (current as Record<string, unknown>)[part];
-          } else {
-            current = undefined;
-            break;
-          }
-        }
-        if (current !== undefined && current !== null && current !== '') {
-          return current;
-        }
-      }
-      return undefined;
-    };
-    
-    let earnedScore = 0;
-    let totalWeight = 0;
-
-    // Get steps for this intent to determine which sections to score
-    const steps = getWizardStepsForIntent(intent);
-    const stepIds = steps.map(s => s.id);
-
-    // Property Identity (20%)
-    if (stepIds.includes('property_identity')) {
-      totalWeight += SCORE_WEIGHTS.property_identity;
-      const offerings = amenities.offerings as Record<string, boolean> | undefined;
-      const offeringCount = offerings ? Object.values(offerings).filter(Boolean).length : 0;
-      const identityFields = [data.name, data.property_type, data.property_url, offeringCount > 0].filter(Boolean).length;
-      earnedScore += (identityFields / 4) * SCORE_WEIGHTS.property_identity;
-    }
-
-    // Contact Details (5%)
-    if (stepIds.includes('contact_details')) {
-      totalWeight += SCORE_WEIGHTS.contact_details;
-      // Check both flat and nested paths for contact info
-      const hasPhone = !!(getNestedValue('contact.telephone', 'telephone') || getNestedValue('contact.mobile', 'mobile'));
-      const hasEmail = !!(getNestedValue('contact.email', 'contact_email'));
-      const contactFields = [hasPhone, hasEmail].filter(Boolean).length;
-      earnedScore += (contactFields / 2) * SCORE_WEIGHTS.contact_details;
-    }
-
-    // Location (15%)
-    if (stepIds.includes('location')) {
-      totalWeight += SCORE_WEIGHTS.location;
-      const locationFields = [data.address, data.city, data.country, data.latitude, data.longitude].filter(Boolean).length;
-      earnedScore += (locationFields / 5) * SCORE_WEIGHTS.location;
-    }
-
-    // Policies & Pricing (15%)
-    if (stepIds.includes('policies_pricing')) {
-      totalWeight += SCORE_WEIGHTS.policies_pricing;
-      // Check nested house_rules paths for check-in/out times
-      const hasCheckIn = !!(getNestedValue('house_rules.check_in_from', 'check_in_from', 'check_in_time'));
-      const hasCheckOut = !!(getNestedValue('house_rules.check_out_to', 'check_out_to', 'check_out_from'));
-      // Check nested banking paths
-      const hasBanking = !!(getNestedValue('banking.bank_name', 'bank_name', 'banking.bank_confirmation_letter_url', 'bank_confirmation_letter_url'));
-      // Check both cancellation_policies array and flat field
-      const cancellationPolicies = getNestedValue('cancellation_policies') as unknown[] | undefined;
-      const hasCancellation = !!(cancellationPolicies && cancellationPolicies.length > 0) || !!getNestedValue('cancellation_policy');
-      const hasPaymentPolicy = !!getNestedValue('payment_policy');
-      const hasKeyCollection = !!getNestedValue('key_collection_procedure');
-      
-      const policyFields = [hasCheckIn, hasCheckOut, hasBanking, hasCancellation, hasPaymentPolicy || hasKeyCollection].filter(Boolean).length;
-      earnedScore += (policyFields / 5) * SCORE_WEIGHTS.policies_pricing;
-    }
-
-    // Guest Experience (10%)
-    if (stepIds.includes('guest_experience')) {
-      totalWeight += SCORE_WEIGHTS.guest_experience;
-      // Check both flat and nested meal_plan paths
-      const hasMealPlan = !!(getNestedValue('meal_plan') || (getNestedValue('breakfast_options') as unknown[] | undefined)?.length);
-      const descFields = [
-        data.description, 
-        data.short_description,
-        getNestedValue('unique_selling_points'),
-        hasMealPlan
-      ].filter(Boolean).length;
-      earnedScore += (descFields / 4) * SCORE_WEIGHTS.guest_experience;
-    }
-
-    // Facilities (10%)
-    if (stepIds.includes('facilities')) {
-      totalWeight += SCORE_WEIGHTS.facilities;
-      const facilities = amenities.facilities as string[] | undefined;
-      earnedScore += (facilities && facilities.length > 0 ? 1 : 0) * SCORE_WEIGHTS.facilities;
-    }
-
-    // Rooms (10%)
-    if (stepIds.includes('rooms_overview')) {
-      totalWeight += SCORE_WEIGHTS.rooms_overview;
-      const roomTypes = amenities.room_types as Array<{ name?: string; units?: number; max_guests?: number }> | undefined;
-      const roomsComplete = roomTypes && roomTypes.length > 0 && roomTypes.every(r => r.name && r.max_guests);
-      earnedScore += (roomsComplete ? 1 : roomTypes && roomTypes.length > 0 ? 0.5 : 0) * SCORE_WEIGHTS.rooms_overview;
-    }
-
-    // Media & Documents (15%)
-    if (stepIds.includes('media_documents')) {
-      totalWeight += SCORE_WEIGHTS.media_documents;
-      const rawImages = data.images;
-      const images: OnboardingImage[] = Array.isArray(rawImages) ? rawImages as unknown as OnboardingImage[] : [];
-      const hasHero = images.some(img => img.type === 'hero');
-      const hasMinImages = images.length >= 3;
-      const imageScore = hasHero && hasMinImages ? 1 : 
-                         hasMinImages ? 0.7 : 
-                         images.length / 3;
-      earnedScore += imageScore * SCORE_WEIGHTS.media_documents;
-    }
-
-    // Venue Capacity (for venue/hybrid)
-    if (stepIds.includes('capacity') && SCORE_WEIGHTS.capacity) {
-      totalWeight += SCORE_WEIGHTS.capacity;
-      const hasCapacity = getNestedValue('venue_capacity', 'max_event_capacity');
-      earnedScore += (hasCapacity ? 1 : 0) * SCORE_WEIGHTS.capacity;
-    }
-
-    // Event Types (for venue/hybrid)
-    if (stepIds.includes('event_types') && SCORE_WEIGHTS.event_types) {
-      totalWeight += SCORE_WEIGHTS.event_types;
-      const eventTypes = amenities.event_types as string[] | undefined;
-      earnedScore += (eventTypes && eventTypes.length > 0 ? 1 : 0) * SCORE_WEIGHTS.event_types;
-    }
-
-    // Normalize score based on total weight for this intent
-    const normalizedScore = totalWeight > 0 ? Math.round((earnedScore / totalWeight) * 100) : 0;
-    const completionPercent = normalizedScore;
-
-    return { completionPercent, score: normalizedScore };
+  const calculateScores = useCallback((data: PropertyData | null, _intent: ListingIntent = 'accommodation') => {
+    const score = calculateWebsiteWizardScore(data);
+    return { completionPercent: score, score };
   }, []);
 
   const saveChanges = useCallback(async (changes: Partial<PropertyData>) => {
@@ -611,7 +532,35 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
   const getAmenityValue = useCallback(<T,>(key: string, defaultValue: T): T => {
     if (!state.propertyData?.amenities) return defaultValue;
     const amenities = state.propertyData.amenities as Record<string, unknown>;
-    return (amenities[key] as T) ?? defaultValue;
+    const nested = (path: string): unknown => {
+      const parts = path.split(".");
+      let current: unknown = amenities;
+      for (const part of parts) {
+        if (!current || typeof current !== "object" || !(part in (current as Record<string, unknown>))) {
+          return undefined;
+        }
+        current = (current as Record<string, unknown>)[part];
+      }
+      return current;
+    };
+    const aliases: Record<string, string[]> = {
+      star_grading: ["star_grading", "star_rating"],
+      contact_email: ["contact_email", "contact.email"],
+      telephone: ["telephone", "contact.telephone"],
+      main_contact_name: ["main_contact_name", "key_representative", "contact.owner"],
+      ru_location_id: ["ru_location_id"],
+      region: ["region", "address_details.region", "address_details.province"],
+      meal_types: ["meal_types", "breakfast_options"],
+      facilities: ["facilities"],
+    };
+    for (const path of aliases[key] ?? [key]) {
+      const value = nested(path);
+      if (value !== undefined && value !== null && value !== "") return value as T;
+    }
+    if (key === "ru_location_id" && state.propertyData.ru_location_id != null) {
+      return state.propertyData.ru_location_id as T;
+    }
+    return defaultValue;
   }, [state.propertyData]);
 
   useEffect(() => {

@@ -13,6 +13,7 @@ import {
   PORTFOLIO_COMMONS_GROUPS,
   backfillCommonsFromPortfolio,
   fetchCommonsState,
+  describeUnknownError,
   setPortfolioAutoShare,
   shareCommonsToSiblings,
   type CommonsState,
@@ -37,7 +38,7 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
   const queryClient = useQueryClient();
   const [state, setState] = useState<CommonsState | null>(null);
   const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState<"share" | "pull" | null>(null);
+  const [busy, setBusy] = useState<"share" | "pull" | "auto" | null>(null);
   const [selectedGroups, setSelectedGroups] = useState<Record<string, boolean>>(
     Object.fromEntries(PORTFOLIO_COMMONS_GROUPS.map((g) => [g.key, true])),
   );
@@ -56,7 +57,7 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
       console.error("Portfolio commons load failed:", error);
       toast({
         title: "Could not load portfolio commons",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: describeUnknownError(error, "Unknown error"),
         variant: "destructive",
       });
     } finally {
@@ -98,7 +99,7 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
     } catch (error) {
       toast({
         title: "Share failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: describeUnknownError(error, "Unknown error"),
         variant: "destructive",
       });
     } finally {
@@ -122,7 +123,7 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
     } catch (error) {
       toast({
         title: "Fill failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: describeUnknownError(error, "Unknown error"),
         variant: "destructive",
       });
     } finally {
@@ -132,7 +133,8 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
 
   const handleAutoShare = useCallback(
     async (enabled: boolean) => {
-      if (!state) return;
+      if (!state || busy) return;
+      setBusy("auto");
       setState({ ...state, autoShare: enabled });
       try {
         await setPortfolioAutoShare(state.portfolioIds, enabled);
@@ -146,12 +148,14 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
         setState({ ...state, autoShare: !enabled });
         toast({
           title: "Could not change auto-share",
-          description: error instanceof Error ? error.message : "Unknown error",
+          description: describeUnknownError(error, "Unknown error"),
           variant: "destructive",
         });
+      } finally {
+        setBusy(null);
       }
     },
-    [state, toast],
+    [state, busy, toast],
   );
 
   if (!propertyId) return null;
@@ -184,7 +188,14 @@ export function PortfolioCommonsCard({ propertyId, isDirty }: Props) {
             <Label htmlFor="commons-auto-share" className="text-xs text-muted-foreground">
               Auto-share on save
             </Label>
-            <Switch id="commons-auto-share" checked={state.autoShare} onCheckedChange={handleAutoShare} />
+            <Switch
+              id="commons-auto-share"
+              type="button"
+              checked={state.autoShare}
+              disabled={busy !== null}
+              onCheckedChange={handleAutoShare}
+              onClick={(event) => event.preventDefault()}
+            />
             <Button
               type="button"
               variant="ghost"

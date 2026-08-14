@@ -107,7 +107,7 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Property Setup", icon: SlidersHorizontal, href: "/pms/property-setup", module: "property-setup" },
       { title: "Branding", icon: Palette, href: "/pms/branding", module: "branding" },
       { title: "Staff", icon: UserCog, href: "/pms/staff", module: "staff" },
-      { title: "Integrations", icon: Code2, href: "/pms/integrations", module: "integrations" },
+      { title: "Website widgets", icon: Code2, href: "/pms/integrations", module: "integrations" },
     ],
   },
 ];

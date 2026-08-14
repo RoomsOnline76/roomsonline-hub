@@ -81,11 +81,11 @@ const workspaceSection: NavSection = {
 
     {
       id: "integrations",
-      title: "Integrations",
+      title: "Website widgets",
       icon: Code2,
       href: "/admin/integrations",
       minRole: "owner",
-      description: "Website booking widgets & API",
+      description: "Booking widgets, embeds & API",
     },
   ],
 };
@@ -142,7 +142,14 @@ const adminSection: NavSection = {
     // Property lifecycle
     { id: "all-properties", title: "All Properties", icon: Building2, href: "/admin/all-properties", minRole: "admin" },
     { id: "all-bookings", title: "All Bookings", icon: BookOpen, href: "/admin/all-bookings", minRole: "admin" },
-    { id: "onboarding", title: "Onboarding", icon: Sparkles, href: "/admin/onboarding", minRole: "admin" },
+    {
+      id: "onboarding",
+      title: "Onboarding",
+      icon: Sparkles,
+      href: "/admin/onboarding",
+      minRole: "admin",
+      description: "New parties — website listing and channel go-live",
+    },
     { id: "contracts", title: "Contracts", icon: FileSignature, href: "/admin/contracts", minRole: "admin" },
     { id: "review-queue", title: "Review Queue", icon: ClipboardCheck, href: "/admin/review-queue", minRole: "admin" },
     { id: "portfolios", title: "Portfolios", icon: FolderOpen, href: "/admin/portfolios", minRole: "admin" },

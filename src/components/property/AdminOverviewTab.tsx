@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import { usePropertyReferrals } from "@/hooks/useRepCommissions";
 import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
-import { resolveSetupSettlement, setupKeyFromLabel } from "@/lib/setupSettlement";
+import { invoiceCountsTowardSetup, resolveSetupSettlement, setupKeyFromLabel, setupResetAt } from "@/lib/setupSettlement";
 import {
   Loader2,
   Receipt,
@@ -174,12 +174,18 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
     queryFn: async () => {
       const q = supabase
         .from("subscription_invoices")
-        .select("status, amount, paid_at, line_items, invoice_number")
+        .select("status, amount, paid_at, line_items, invoice_number, created_at")
         .eq("invoice_kind", "once_off");
       const { data } = scope.source === "portfolio" && scope.portfolioId
         ? await q.eq("portfolio_id", scope.portfolioId)
         : await q.eq("property_id", propertyId);
-      return (data || []) as { status: string | null; amount: number | null; paid_at: string | null; line_items: unknown }[];
+      return (data || []) as {
+        status: string | null;
+        amount: number | null;
+        paid_at: string | null;
+        line_items: unknown;
+        created_at?: string | null;
+      }[];
     },
     enabled: !!propertyId,
   });
@@ -336,7 +342,7 @@ export function AdminOverviewTab({ propertyId, onNavigate }: AdminOverviewTabPro
   // Reconcile the contracted once-off fees against what has actually been paid.
   const settlement = resolveSetupSettlement(
     costLines.filter((l) => l.once).map((l) => ({ key: setupKeyFromLabel(l.label), amount: l.amount })),
-    onceOffInvoices,
+    (onceOffInvoices || []).filter((inv) => invoiceCountsTowardSetup(inv, setupResetAt(config))),
   );
   const drift = detectSubscriptionDrift({
     contractedMonthlyFee: monthlyTotal,

@@ -63,10 +63,13 @@ export function RuLastSentPanel({
   sentPayload,
   currentProfile,
   sentAt,
+  syncEligible = true,
 }: {
   sentPayload: Json;
   currentProfile: Json;
   sentAt?: string | null;
+  /** False while unbound or Channel wizard gates have not passed — never show In sync. */
+  syncEligible?: boolean;
 }) {
   const rows = useMemo(() => {
     const sent = (sentPayload ?? {}) as Record<string, unknown>;
@@ -113,7 +116,11 @@ export function RuLastSentPanel({
           )}
         </p>
         <div className="flex items-center gap-1.5">
-          {drift > 0 ? (
+          {!syncEligible ? (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              Not in sync
+            </Badge>
+          ) : drift > 0 ? (
             <Badge variant="outline" className="text-[10px] text-amber-700 border-amber-500/50 dark:text-amber-300">
               {drift} field{drift === 1 ? "" : "s"} changed since push
             </Badge>
@@ -167,7 +174,13 @@ export function RuLastSentPanel({
         </table>
       </div>
 
-      {drift > 0 && (
+      {!syncEligible && (
+        <p className="text-[10px] text-muted-foreground">
+          Company details cannot be in sync while push is off. Bind the owner, capture the key &
+          secret, and finish the Channel wizard gates first.
+        </p>
+      )}
+      {syncEligible && drift > 0 && (
         <p className="text-[10px] text-muted-foreground">
           Re-run Phase 1 (company details) to push the current ROLOS values to Rentals United.
         </p>

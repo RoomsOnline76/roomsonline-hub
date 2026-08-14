@@ -802,6 +802,19 @@ const PropertyOverview = () => {
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
+                            {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
+                              String(property.external_system ?? "").toLowerCase(),
+                            ) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => navigate(`/admin/onboarding/${property.id}`)}
+                                title="Open go-live workspace"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                              </Button>
+                            )}
                           </TableCell>
                           <TableCell className="py-1">
                             {(() => {

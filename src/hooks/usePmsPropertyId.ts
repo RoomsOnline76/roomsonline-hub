@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope, filterToItTestProperties, isItTestAdminEmail } from "@/lib/adminScope";
 
 export interface RolProperty {
   id: string;
@@ -38,7 +39,7 @@ function subscribe(cb: () => void) {
 export function usePmsPropertyId() {
   const [searchParams, setSearchParams] = useSearchParams();
   const paramId = searchParams.get("property");
-  const { user, isDev, isAdmin, isFearlessLeader, loading: authLoading } = useAuth();
+  const { user, isDev, isAdmin, isFearlessLeader, loading: authLoading, scopedPropertyIds } = useAuth();
 
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
 
@@ -47,17 +48,20 @@ export function usePmsPropertyId() {
 
   // Cached query for available properties — shared across all PMS pages
   const { data: properties = [], isLoading: propertiesLoading } = useQuery({
-    queryKey: ["pms-available-properties", user?.id, isPlatformUser],
+    queryKey: ["pms-available-properties", user?.id, isPlatformUser, scopedPropertyIds.join(",")],
     queryFn: async () => {
       if (!user) return [];
 
       if (isPlatformUser) {
-        const { data } = await supabase
+        let query = supabase
           .from("properties")
           .select("id, name")
           .eq("is_active", true)
           .order("name");
-        return (data || []) as RolProperty[];
+        query = applyAdminScope(query, "id", scopedPropertyIds);
+        const { data } = await query;
+        const rows = (data || []) as RolProperty[];
+        return isItTestAdminEmail(user.email) ? filterToItTestProperties(rows) : rows;
       }
 
       // Check both primary ownership and linked ownership

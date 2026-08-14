@@ -1,18 +1,25 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy } from "lucide-react";
+import { Plus, Trash2, Bed, Users, DollarSign, Hash, Copy, Sparkles, Loader2 } from "lucide-react";
 import { StepProps } from "./types";
 import { OnboardingRoomType, RATE_UNIT_OPTIONS } from "@/config/onboardingFieldSchema";
 import { ACCOMMODATION_LABEL_OPTIONS, ACCOMMODATION_TYPES, getAccommodationLabel, AccommodationLabelKey } from "@/lib/accommodationLabels";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { MIN_ROOM_DESCRIPTION_CHARS } from "@/components/property/RoomManagerTab";
 
 export function StepRoomsOverview({
+  propertyData,
   updateField,
   getAmenityValue
 }: StepProps) {
+  const { toast } = useToast();
+  const [writingIndex, setWritingIndex] = useState<number | null>(null);
   const roomTypes = getAmenityValue<OnboardingRoomType[]>("room_types", []);
 
   // Resolve the accommodation label for dynamic text
@@ -48,6 +55,48 @@ export function StepRoomsOverview({
     updateField("amenities.room_types", updated);
   };
 
+  const writeDescriptionWithTobi = async (index: number) => {
+    const room = roomTypes[index];
+    if (!room) return;
+    setWritingIndex(index);
+    try {
+      const { data, error } = await supabase.functions.invoke("editorial-ai-assist", {
+        body: {
+          action: "generate_room_description",
+          minChars: MIN_ROOM_DESCRIPTION_CHARS,
+          propertyContext: {
+            name: room.name || s,
+            description: room.description,
+            maxPeople: room.max_guests,
+            propertyName: propertyData.name,
+            propertyType: propertyData.property_type || s,
+            city: propertyData.city,
+            country: propertyData.country,
+          },
+        },
+      });
+      if (error) throw error;
+      const text: string = String(data?.description ?? "").trim();
+      if (!text) throw new Error("TOBI returned no text");
+      updateRoom(index, "description", text);
+      toast({
+        title: text.length >= MIN_ROOM_DESCRIPTION_CHARS ? "TOBI wrote the description" : "Description still too short",
+        description:
+          text.length >= MIN_ROOM_DESCRIPTION_CHARS
+            ? `${text.length} characters — review and continue.`
+            : `TOBI wrote ${text.length} characters — still under the ${MIN_ROOM_DESCRIPTION_CHARS} minimum. Ask TOBI again or expand it.`,
+      });
+    } catch (err) {
+      toast({
+        title: "TOBI could not write the description",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setWritingIndex(null);
+    }
+  };
+
   const duplicateRoom = (index: number) => {
     const room = roomTypes[index];
     const roomId = `wizard-room-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
@@ -59,7 +108,11 @@ export function StepRoomsOverview({
     updateField("amenities.room_types", [...roomTypes, duplicated]);
   };
 
-  const totalCapacity = roomTypes.reduce((sum, room) => sum + (room.max_guests || 0) * (room.units || 1), 0);
+  const roomGuests = (room: OnboardingRoomType) =>
+    Number(room.max_guests || (room as { maxPeople?: number }).maxPeople || 0);
+  const roomRate = (room: OnboardingRoomType) =>
+    Number(room.base_rate || (room as { baseRate?: number }).baseRate || 0);
+  const totalCapacity = roomTypes.reduce((sum, room) => sum + roomGuests(room) * (room.units || 1), 0);
   const totalUnits = roomTypes.reduce((sum, room) => sum + (room.units || 1), 0);
 
   return (
@@ -170,7 +223,7 @@ export function StepRoomsOverview({
                     type="number"
                     min={1}
                     max={20}
-                    value={room.max_guests || ""}
+                    value={roomGuests(room) || ""}
                     onChange={(e) => updateRoom(index, "max_guests", parseInt(e.target.value) || 1)}
                   />
                 </div>
@@ -184,7 +237,7 @@ export function StepRoomsOverview({
                     id={`room-rate-${index}`}
                     type="number"
                     min={0}
-                    value={room.base_rate || ""}
+                    value={roomRate(room) || ""}
                     onChange={(e) => updateRoom(index, "base_rate", parseFloat(e.target.value) || undefined)}
                     placeholder="From"
                   />
@@ -212,15 +265,50 @@ export function StepRoomsOverview({
               </div>
 
               {/* Description */}
-              <div className="space-y-2">
-                <Label htmlFor={`room-desc-${index}`}>{s} Description</Label>
+              <div className="space-y-2" data-field="room_description">
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor={`room-desc-${index}`}>{s} Description</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1.5 text-xs"
+                    disabled={writingIndex !== null}
+                    onClick={() => void writeDescriptionWithTobi(index)}
+                  >
+                    {writingIndex === index ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        TOBI is writing…
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-3 w-3" />
+                        {(room.description || "").trim() ? "Improve with TOBI" : "Write with TOBI"}
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <Textarea
                   id={`room-desc-${index}`}
                   value={room.description || ""}
                   onChange={(e) => updateRoom(index, "description", e.target.value)}
-                  placeholder={`Describe this ${sLower} type - features, views, amenities...`}
-                  rows={2}
+                  placeholder={`Describe this ${sLower} — space, beds, facilities and who it suits. TOBI can draft ${MIN_ROOM_DESCRIPTION_CHARS}+ characters.`}
+                  rows={6}
+                  className="resize-y min-h-[120px]"
                 />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Channel requirement: {MIN_ROOM_DESCRIPTION_CHARS}+ original characters</span>
+                  <span
+                    className={
+                      (room.description || "").trim().length >= MIN_ROOM_DESCRIPTION_CHARS
+                        ? "text-emerald-600"
+                        : "text-amber-600 font-medium"
+                    }
+                  >
+                    {(room.description || "").trim().length}/{MIN_ROOM_DESCRIPTION_CHARS}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
