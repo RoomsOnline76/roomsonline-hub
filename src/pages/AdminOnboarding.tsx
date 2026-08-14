@@ -416,16 +416,18 @@ export default function AdminOnboarding() {
               .from("property_contact_details")
               .select("property_id, role, phone, name, email")
               .in("property_id", ids)
-              .then((r) => r)
-              .catch(() => ({
-                data: [] as {
-                  property_id: string;
-                  role: string | null;
-                  phone: string | null;
-                  name: string | null;
-                  email: string | null;
-                }[],
-              }))
+              .then(
+                (r) => r,
+                () => ({
+                  data: [] as {
+                    property_id: string;
+                    role: string | null;
+                    phone: string | null;
+                    name: string | null;
+                    email: string | null;
+                  }[],
+                }),
+              )
           : Promise.resolve({
               data: [] as {
                 property_id: string;
