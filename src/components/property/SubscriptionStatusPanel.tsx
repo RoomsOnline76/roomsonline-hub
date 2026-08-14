@@ -53,7 +53,7 @@ export function SubscriptionStatusPanel({ scope, entityId }: Props) {
   const pendingCharges = data?.pendingCharges || [];
   const unbilledCharges = pendingCharges.filter((c: any) => !c.invoiced_on_invoice_id);
   const unbilledTotal = unbilledCharges.reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
-  // GLOBAL RULE: shareable payment links must never use the preview/lovable host.
+  // GLOBAL RULE: shareable payment links must never use a preview/sandbox host.
   const payUrl = latest?.payfast_token ? `${ADMIN_DOMAIN}/subscribe/pay/${latest.payfast_token}` : null;
 
   const copyLink = () => {

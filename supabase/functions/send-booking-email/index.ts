@@ -1194,7 +1194,7 @@ function generateAdminAlertEmail(booking: any, property: any, errorMessage?: str
   const nights = calculateNights(booking.check_in_date, booking.check_out_date);
   const totalGuests = (booking.adults || 0) + (booking.teens || 0) + (booking.children || 0) + (booking.infants || 0);
   const bookingRef = guestReference(booking);
-  const dashboardUrl = "https://roomsonline-hub.lovable.app/dashboard/bookings";
+  const dashboardUrl = "https://sleepinafrica.roomsonline.co.za/dashboard/bookings";
 
   return `
 <!DOCTYPE html>

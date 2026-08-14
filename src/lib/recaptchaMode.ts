@@ -21,22 +21,15 @@ const CANONICAL_HOSTS_EXACT = new Set([
   "roomsonline.co.za",
 ]);
 
-// Lovable preview / sandbox / local dev — reCAPTCHA site key is not registered
-// for these hosts, so we bypass verification client-side to unblock login and
-// forms. Server-side verify is intentionally skipped on these hosts too.
-const BYPASS_HOST_SUFFIXES = [
-  ".lovable.app",
-  ".lovable.dev",
-  ".lovableproject.com",
-  ".lovableproject.app",
-];
+// Local dev — reCAPTCHA site key is not registered for these hosts, so we
+// bypass verification client-side to unblock login and forms. Server-side
+// verify is intentionally skipped on these hosts too.
 const BYPASS_HOSTS_EXACT = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 
 export function isRecaptchaBypassHost(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): boolean {
   const normalizedHostname = hostname.toLowerCase().split(":")[0] ?? "";
   if (!normalizedHostname) return false;
-  if (BYPASS_HOSTS_EXACT.has(normalizedHostname)) return true;
-  return BYPASS_HOST_SUFFIXES.some((suffix) => normalizedHostname.endsWith(suffix));
+  return BYPASS_HOSTS_EXACT.has(normalizedHostname);
 }
 
 export function getRecaptchaMode(hostname: string = typeof window !== "undefined" ? window.location.hostname : ""): RecaptchaMode {

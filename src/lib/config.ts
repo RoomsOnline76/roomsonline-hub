@@ -1,5 +1,5 @@
 // Application configuration constants
-// GLOBAL RULE: All generated/shared links MUST use production domains, never lovable.* domains.
+// GLOBAL RULE: All generated/shared links MUST use production domains, never preview/sandbox hosts.
 
 import { supabase } from "@/integrations/supabase/client";
 

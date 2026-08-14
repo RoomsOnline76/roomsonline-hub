@@ -334,6 +334,6 @@ export const systemMobileNavItem: NavItem = {
   id: "system",
   title: "System",
   icon: Server,
-  href: "/dev/overview",
+  href: "/dev/system-health",
   minRole: "dev",
 };

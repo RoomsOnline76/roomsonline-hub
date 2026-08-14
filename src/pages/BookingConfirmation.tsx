@@ -190,7 +190,7 @@ const BookingConfirmation = () => {
     ? `https://sleepinafrica.roomsonline.co.za/p/${property.slug}`
     : "https://sleepinafrica.roomsonline.co.za";
 
-  const CANONICAL_HOST_RE = /(^|\.)roomsonline\.co\.za$|\.lovable\.(app|dev)$|^localhost$/i;
+  const CANONICAL_HOST_RE = /(^|\.)roomsonline\.co\.za$|^localhost$/i;
   const isCanonicalHost = (host: string) => CANONICAL_HOST_RE.test(host);
 
   const inIframe = typeof window !== "undefined" && window.parent !== window;

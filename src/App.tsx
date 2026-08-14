@@ -21,7 +21,6 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 
 // ─── Eager — critical path only (FCP) ────────────────────────────
-import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
 import UnderConstruction from "./pages/UnderConstruction";
 

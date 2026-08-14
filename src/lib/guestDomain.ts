@@ -36,11 +36,6 @@ const BUILTIN_GUEST_HOSTS: Record<string, GuestHostTarget> = {
 export const currentHost = (): string =>
   typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
 
-const isInternalPreviewHost = (host: string): boolean =>
-  host.endsWith(".lovable.app") ||
-  host.endsWith(".lovableproject.com") ||
-  host.endsWith(".lovable.dev");
-
 /**
  * True when the current host is a public guest booking host (white-label
  * domain or a `book.` subdomain) rather than the staff/admin surface.
@@ -49,7 +44,6 @@ export const isGuestBookingHost = (): boolean => {
   const host = currentHost();
   if (!host) return false;
   if (ADMIN_HOSTS.has(host)) return false;
-  if (isInternalPreviewHost(host)) return false;
   if (host in BUILTIN_GUEST_HOSTS) return true;
   if (host.startsWith("book.")) return true;
   // Any other custom host that resolved to a booking surface previously.
