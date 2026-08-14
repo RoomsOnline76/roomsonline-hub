@@ -22,6 +22,7 @@ import {
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
+import { RU_RATE_DEFERRED_CODE, RuRateDeferredError, reserveRuSlot } from '../_shared/ruRateGate.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
