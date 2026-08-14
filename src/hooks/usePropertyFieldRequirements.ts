@@ -10,8 +10,13 @@ interface UsePropertyFieldRequirementsOptions {
   propertyId?: string | null;
   /** Active section key — statuses are painted for this section only. */
   section?: string | null;
-  /** Container to decorate. Defaults to the whole document. */
+  /** Container to decorate. Prefer `root` so attach retriggers the effect. */
   containerRef?: React.RefObject<HTMLElement | null>;
+  /**
+   * Live painted root. When provided, painting never walks `document` —
+   * observing the whole page during typing is a main-thread stall.
+   */
+  root?: HTMLElement | null;
   /** Disable painting (keeps the counts). */
   paint?: boolean;
 }
@@ -28,6 +33,7 @@ export function usePropertyFieldRequirements({
   propertyId,
   section,
   containerRef,
+  root,
   paint = true,
 }: UsePropertyFieldRequirementsOptions) {
   const readiness = usePropertyReadiness(propertyId);
@@ -52,31 +58,43 @@ export function usePropertyFieldRequirements({
 
   // Paint + keep painting as the tab body renders lazily.
   const timers = useRef<number[]>([]);
+  const resolvedRoot = root ?? containerRef?.current ?? null;
   useEffect(() => {
     if (!paint) return;
-    const root = containerRef?.current ?? document;
+    // Never fall back to `document` — a body-wide observer + querySelectorAll
+    // on every keystroke is the PropertyForm typing stall.
+    if (!resolvedRoot) return;
     if (sectionStatuses.length === 0) {
-      clearRequirementDecoration(root);
+      clearRequirementDecoration(resolvedRoot);
       return;
     }
 
-    const run = () => decorateRequirements(sectionStatuses, root);
+    const run = () => decorateRequirements(sectionStatuses, resolvedRoot);
     run();
     // Radix / collapsibles mount after the first frame — repaint a few times.
     timers.current = [120, 400, 900, 1800].map((ms) => window.setTimeout(run, ms));
 
-    const observer = new MutationObserver(() => run());
-    observer.observe((root as Document).body ?? (root as HTMLElement), {
+    const observeTarget =
+      resolvedRoot instanceof Document ? resolvedRoot.body : resolvedRoot;
+    if (!observeTarget) return;
+
+    let debounceId = 0;
+    const observer = new MutationObserver(() => {
+      window.clearTimeout(debounceId);
+      debounceId = window.setTimeout(run, 160);
+    });
+    observer.observe(observeTarget, {
       childList: true,
       subtree: true,
     });
 
     return () => {
       observer.disconnect();
+      window.clearTimeout(debounceId);
       timers.current.forEach((t) => window.clearTimeout(t));
       timers.current = [];
     };
-  }, [containerRef, paint, sectionStatuses]);
+  }, [paint, resolvedRoot, sectionStatuses]);
 
   const outstandingBySection: Record<string, SectionReadinessCounts> =
     readiness.outstandingBySection;

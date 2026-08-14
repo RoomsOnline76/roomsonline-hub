@@ -86,7 +86,7 @@ export function OnboardingTobiPanel({ context, defaultOpen = false, onOpenField 
       return `I'm TOBI 🐱 I can see **${first.label}** is still open on ${context.stepTitle}. Ask why it fails, or what to do next — I'll work with the checks already on this page.`;
     }
     return `I'm TOBI 🐱 **${context.stepTitle}** looks clear on this page. Ask if you're unsure what happens next.`;
-  }, [context]);
+  }, [context.stepLocked, context.previousStep, context.blockers, context.stepTitle, context.wizard]);
 
   useEffect(() => {
     setMessages([{ role: "assistant", content: greeting }]);

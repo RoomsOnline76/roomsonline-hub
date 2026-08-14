@@ -146,6 +146,7 @@ const persistStep = (propId: string, step: number) => {
 export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: string) {
   const { toast } = useToast();
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const scoreTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingChangesRef = useRef<Partial<PropertyData>>({});
   const emailPrePopulatedRef = useRef(false);
 
@@ -474,20 +475,27 @@ export function usePropertyOnboarding(propertyId: string, initialOwnerEmail?: st
         saveChanges({ [field]: value } as Partial<PropertyData>);
       }
 
-      const { completionPercent, score } = calculateScores(newPropertyData, prev.listingIntent);
-      const completionState = getCompletionState(score);
-      const completionStateDetails = getCompletionStateDetails(score);
-      
-      return { 
-        ...prev, 
-        propertyData: newPropertyData, 
-        completionPercent, 
-        score, 
-        scoreBand: getScoreBand(score),
-        completionState,
-        completionStateDetails
+      return {
+        ...prev,
+        propertyData: newPropertyData,
       };
     });
+
+    if (scoreTimeoutRef.current) clearTimeout(scoreTimeoutRef.current);
+    scoreTimeoutRef.current = setTimeout(() => {
+      setState((latest) => {
+        if (!latest.propertyData) return latest;
+        const { completionPercent, score } = calculateScores(latest.propertyData, latest.listingIntent);
+        return {
+          ...latest,
+          completionPercent,
+          score,
+          scoreBand: getScoreBand(score),
+          completionState: getCompletionState(score),
+          completionStateDetails: getCompletionStateDetails(score),
+        };
+      });
+    }, 160);
   }, [saveChanges, calculateScores]);
 
   const isPMSManaged = useCallback((field: string): boolean => {

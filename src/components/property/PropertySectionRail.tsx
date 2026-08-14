@@ -37,7 +37,7 @@ interface PropertySectionRailProps {
  * Shared grouped left-rail navigation for property editing surfaces.
  * Used by ROLOS Property Setup and the Admin PropertyForm so both share one IA + look.
  */
-export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
+export const PropertySectionRail: React.FC<PropertySectionRailProps> = React.memo(({
   groups,
   activeKey,
   onSelect,
@@ -250,4 +250,5 @@ export const PropertySectionRail: React.FC<PropertySectionRailProps> = ({
       ))}
     </nav>
   );
-};
+});
+PropertySectionRail.displayName = "PropertySectionRail";

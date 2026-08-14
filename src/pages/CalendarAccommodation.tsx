@@ -1842,8 +1842,9 @@ const CalendarAccommodation = () => {
   };
 
   // Filter rooms based on selected room types (using dynamic property data)
-  const filteredRooms = canonicalRoomData.filter(room => 
-    selectedRoomTypes.includes(room.name)
+  const filteredRooms = React.useMemo(
+    () => canonicalRoomData.filter((room) => selectedRoomTypes.includes(room.name)),
+    [canonicalRoomData, selectedRoomTypes],
   );
 
   // Group filtered rooms by category for Hostfully properties

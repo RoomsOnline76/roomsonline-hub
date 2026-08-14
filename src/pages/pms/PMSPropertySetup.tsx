@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import { useSearchParams } from "react-router-dom";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import PropertyForm from "@/pages/PropertyForm";
@@ -95,21 +95,23 @@ export default function PMSPropertySetup() {
 
   const handleSelectTab = useCallback(
     (key: TabKey) => {
-      setActiveTab(key);
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.set("section", key);
-          return next;
-        },
-        { replace: true },
-      );
+      startTransition(() => {
+        setActiveTab(key);
+        setSearchParams(
+          (prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("section", key);
+            return next;
+          },
+          { replace: true },
+        );
+      });
     },
     [setSearchParams],
   );
 
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have)
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const [bodyRoot, setBodyRoot] = useState<HTMLDivElement | null>(null);
   const {
     outstandingInSection,
     outstandingBySection,
@@ -120,7 +122,7 @@ export default function PMSPropertySetup() {
   } = usePropertyFieldRequirements({
     propertyId,
     section: activeTab,
-    containerRef: bodyRef,
+    root: bodyRoot,
   });
 
   const requirementCounts = useMemo(
@@ -139,6 +141,14 @@ export default function PMSPropertySetup() {
         ]),
       ),
     [outstandingBySection],
+  );
+
+  const onSelectRequirement = useCallback(
+    (section: string, item: { paintable?: boolean; key: string }) => {
+      handleSelectTab(section as TabKey);
+      if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
+    },
+    [handleSelectTab],
   );
 
   // Deep links from the checksheet carry ?focus=<fieldKey>
@@ -208,16 +218,13 @@ export default function PMSPropertySetup() {
           activeKey={activeTab}
           onSelect={(key) => handleSelectTab(key as TabKey)}
           requirementCounts={requirementCounts}
-          onSelectRequirement={(section, item) => {
-            handleSelectTab(section as TabKey);
-            if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
-          }}
+          onSelectRequirement={onSelectRequirement}
           collapsed={railCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />
 
 
-        <div ref={bodyRef} className="min-w-0 overflow-hidden rounded-lg border bg-background">
+        <div ref={setBodyRoot} className="min-w-0 overflow-hidden rounded-lg border bg-background">
           {activeTab === "contacts" ? (
             <PropertyContactDetails propertyId={propertyId} />
           ) : (

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense, startTransition, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePropertyFieldRequirements } from "@/hooks/usePropertyFieldRequirements";
 import { focusRequirementField } from "@/lib/requirementFocus";
@@ -23,6 +23,31 @@ const PropertyContactDetails = lazy(() => import("@/components/property/Property
 const RateManagerTab = lazy(() => import("@/components/property/RateManagerTab").then((m) => ({ default: m.RateManagerTab })));
 const RatePlansPanel = lazy(() => import("@/components/pms/rateplans/RatePlansPanel").then((m) => ({ default: m.RatePlansPanel })));
 const HostfullyRoomDetails = lazy(() => import("@/components/pms/HostfullyRoomDetails").then((m) => ({ default: m.HostfullyRoomDetails })));
+
+/** Skip building inactive tab trees. Radix already unmounts them; this avoids
+ *  allocating the General/Rooms/Rates element forests on every keystroke. */
+function DeferredWhen({ when, children }: { when: boolean; children: () => ReactNode }) {
+  return when ? children() : null;
+}
+
+const FIELD_TO_TAB: Record<string, string> = {
+  owner_email: "general",
+  name: "general",
+  property_type: "general",
+  description: "general",
+  address: "general",
+  city: "general",
+  country: "general",
+  external_id: "general",
+  nightsbridge_property_code: "general",
+  hostfully_property_code: "general",
+  images: "images",
+  "amenities.bank_name": "info-facilities",
+  "amenities.telephone": "general",
+  "amenities.contact_email": "general",
+  "amenities.room_types": "rooms",
+  "amenities.check_in_time": "rates",
+};
 const PropertyMap = lazy(() => import("@/components/PropertyMap").then((m) => ({ default: m.PropertyMap })));
 const BrandingTab = lazy(() => import("@/components/property/BrandingTab").then((m) => ({ default: m.BrandingTab })));
 const WebsiteSyncModal = lazy(() => import("@/components/property/WebsiteSyncModal").then((m) => ({ default: m.WebsiteSyncModal })));
@@ -2143,15 +2168,17 @@ export default function PropertyForm({
 
   const handleTabChange = useCallback(
     (next: string) => {
-      setActiveTab(next);
-      // Drop the wizard deep-link params so nothing pulls the user back.
-      const params = new URLSearchParams(searchParams);
-      if (params.has("section") || params.has("focus") || params.has("rq")) {
-        params.delete("section");
-        params.delete("focus");
-        params.delete("rq");
-        setSearchParams(params, { replace: true });
-      }
+      startTransition(() => {
+        setActiveTab(next);
+        // Drop the wizard deep-link params so nothing pulls the user back.
+        const params = new URLSearchParams(searchParams);
+        if (params.has("section") || params.has("focus") || params.has("rq")) {
+          params.delete("section");
+          params.delete("focus");
+          params.delete("rq");
+          setSearchParams(params, { replace: true });
+        }
+      });
     },
     [searchParams, setSearchParams],
   );
@@ -2160,7 +2187,7 @@ export default function PropertyForm({
   // --- Field-level readiness highlighting (pink = mandatory, blue = nice-to-have).
   // When embedded in the ROLOS hub, that shell owns the painting/legend/stepper.
   const queryClient = useQueryClient();
-  const requirementBodyRef = useRef<HTMLDivElement>(null);
+  const [requirementRoot, setRequirementRoot] = useState<HTMLDivElement | null>(null);
   const {
     outstandingInSection: requirementOutstandingInSection,
     outstandingBySection: requirementOutstandingBySection,
@@ -2171,7 +2198,7 @@ export default function PropertyForm({
   } = usePropertyFieldRequirements({
     propertyId,
     section: activeTab,
-    containerRef: requirementBodyRef,
+    root: requirementRoot,
     paint: !embedded,
   });
 
@@ -2204,25 +2231,6 @@ export default function PropertyForm({
 
   // Quality gate blocker awareness
   const { data: activationReadiness } = useActivationReadiness(propertyId || "");
-
-  const FIELD_TO_TAB: Record<string, string> = {
-    owner_email: "general",
-    name: "general",
-    property_type: "general",
-    description: "general",
-    address: "general",
-    city: "general",
-    country: "general",
-    external_id: "general",
-    nightsbridge_property_code: "general",
-    hostfully_property_code: "general",
-    images: "images",
-    "amenities.bank_name": "info-facilities",
-    "amenities.telephone": "general",
-    "amenities.contact_email": "general",
-    "amenities.room_types": "rooms",
-    "amenities.check_in_time": "rates",
-  };
 
   const tabsWithBlockers = useMemo(() => {
     const set = new Set<string>();
@@ -3069,10 +3077,10 @@ export default function PropertyForm({
     }
   };
 
-  const handleInputChange = (field: keyof PropertyFormData, value: string | boolean) => {
+  const handleInputChange = useCallback((field: keyof PropertyFormData, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setIsDirty(true);
-  };
+  }, []);
 
   const toggleFacility = (facility: string) => {
     setSelectedFacilities((prev) =>
@@ -4084,13 +4092,25 @@ export default function PropertyForm({
    * connected system — ROL'OS remains the source of truth for its sections, which
    * the banner below states, but the section stays reachable here.
    */
-  const visibleSectionKeys = PROPERTY_SECTION_ORDER.filter((s) => {
-    if (s.key === "onboarding" && !propertyId) return false;
-    if (s.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
-    return true;
-  }).map((s) => s.key as string);
+  const visibleSectionKeys = useMemo(
+    () =>
+      PROPERTY_SECTION_ORDER.filter((s) => {
+        if (s.key === "onboarding" && !propertyId) return false;
+        if (s.adminOnly && !(isAdmin || isDev || isFearlessLeader)) return false;
+        return true;
+      }).map((s) => s.key as string),
+    [propertyId, isAdmin, isDev, isFearlessLeader],
+  );
 
-  const railGroups = buildSectionGroups(visibleSectionKeys);
+  const railGroups = useMemo(() => buildSectionGroups(visibleSectionKeys), [visibleSectionKeys]);
+
+  const onSelectRequirement = useCallback(
+    (section: string, item: { paintable?: boolean; key: string }) => {
+      handleTabChange(section);
+      if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
+    },
+    [handleTabChange],
+  );
 
   return (
 
@@ -4284,16 +4304,14 @@ export default function PropertyForm({
               onSelect={handleTabChange}
               blockerKeys={tabsWithBlockers}
               requirementCounts={requirementCounts}
-              onSelectRequirement={(section, item) => {
-                handleTabChange(section);
-                if (item.paintable) window.setTimeout(() => focusRequirementField(item.key), 350);
-              }}
+              onSelectRequirement={onSelectRequirement}
               collapsed={railCollapsed}
               onToggleCollapsed={toggleRailCollapsed}
             />
           )}
 
 
+        <div ref={setRequirementRoot} className="min-w-0">
         <Suspense
           fallback={
             <div className="min-w-0 space-y-3 p-3" aria-hidden>
@@ -4320,6 +4338,8 @@ export default function PropertyForm({
 
           {/* Onboarding Tab - Full-screen wizard */}
           <TabsContent value="onboarding" className="mt-0">
+            <DeferredWhen when={activeTab === "onboarding"}>{() => (
+            <>
             {propertyId ? (
               <div className="rounded-lg border bg-card">
                 <PropertyOnboardingWizard
@@ -4335,9 +4355,13 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
             )}
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           <TabsContent value="general">
+            <DeferredWhen when={activeTab === "general"}>{() => (
+            <>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Rates Overview Section - Show comprehensive rates setup */}
               {!selectedPMS && roomTypes.length > 0 && (
@@ -5857,11 +5881,15 @@ export default function PropertyForm({
                 )}
               </div>
             </form>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* House Style Tab */}
 
           <TabsContent value="rol-spec">
+            <DeferredWhen when={activeTab === "rol-spec"}>{() => (
+            <>
             <ROLSpecTab
               data={rolSpecData}
               onChange={setRolSpecData}
@@ -5895,9 +5923,13 @@ export default function PropertyForm({
               }}
               onDirty={() => setIsDirty(true)}
             />
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           <TabsContent value="branding">
+            <DeferredWhen when={activeTab === "branding"}>{() => (
+            <>
             <BrandingTab
               data={brandingData}
               onChange={setBrandingData}
@@ -5907,9 +5939,13 @@ export default function PropertyForm({
               ownerEmail={formData.owner_email}
             />
             {propertyId && <BrandVoiceCard propertyId={propertyId} />}
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           <TabsContent value="info-facilities">
+            <DeferredWhen when={activeTab === "info-facilities"}>{() => (
+            <>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Property Info */}
               <Card>
@@ -6393,9 +6429,13 @@ export default function PropertyForm({
               </Collapsible>
 
             </form>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           <TabsContent value="images">
+            <DeferredWhen when={activeTab === "images"}>{() => (
+            <>
             <Card data-field="images">
               <CardHeader className="py-2 px-4 flex-row items-center justify-between gap-2">
 
@@ -6538,10 +6578,14 @@ export default function PropertyForm({
                 </Button>
               )}
             </div>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Templates and Notifications Tab */}
           <TabsContent value="templates">
+            <DeferredWhen when={activeTab === "templates"}>{() => (
+            <>
             {experienceEngineEnabled && propertyId ? (
               <ExperienceEmailDesigner propertyId={propertyId} />
             ) : (
@@ -6657,10 +6701,14 @@ export default function PropertyForm({
                 </Button>
               )}
             </div>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Addons Tab */}
           <TabsContent value="addons">
+            <DeferredWhen when={activeTab === "addons"}>{() => (
+            <>
             <Card>
               <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm">Addons</CardTitle>
@@ -6944,10 +6992,14 @@ export default function PropertyForm({
                 </div>
               </CardContent>
             </Card>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Specials Tab */}
           <TabsContent value="specials">
+            <DeferredWhen when={activeTab === "specials"}>{() => (
+            <>
             <Card>
               <CardHeader className="py-2 px-4">
                 <Tabs value={specialsCategory} onValueChange={setSpecialsCategory}>
@@ -7221,10 +7273,14 @@ export default function PropertyForm({
                 )}
               </CardContent>
             </Card>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Calendar / Seasons Tab */}
           <TabsContent value="rates" className="space-y-0">
+            <DeferredWhen when={activeTab === "rates"}>{() => (
+            <>
             <RateManagerTab
               view="rates"
               propertyId={propertyId}
@@ -7293,10 +7349,14 @@ export default function PropertyForm({
               }
 
             />
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Contacts Tab (same editor ROL'OS Property Setup uses) */}
           <TabsContent value="contacts" className="space-y-0">
+            <DeferredWhen when={activeTab === "contacts"}>{() => (
+            <>
             {!propertyId ? (
               <p className="p-3 text-sm text-muted-foreground">
                 Save the property first to configure public contacts.
@@ -7304,10 +7364,14 @@ export default function PropertyForm({
             ) : (
               <PropertyContactDetails propertyId={propertyId} />
             )}
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Rate Plans Tab (standalone section — sole nightly-rate authoring surface) */}
           <TabsContent value="rate-plans" className="space-y-0">
+            <DeferredWhen when={activeTab === "rate-plans"}>{() => (
+            <>
             <div className="p-3">
               {!propertyId ? (
                 <p className="text-sm text-muted-foreground">Save the property first to configure rate plans.</p>
@@ -7319,10 +7383,14 @@ export default function PropertyForm({
                 />
               )}
             </div>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Policies Tab (standalone section) */}
           <TabsContent value="policies" className="space-y-0">
+            <DeferredWhen when={activeTab === "policies"}>{() => (
+            <>
             <RateManagerTab
               view="policies"
               propertyId={propertyId}
@@ -7390,10 +7458,14 @@ export default function PropertyForm({
                 </form>
               }
             />
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Charges Tab (standalone section) */}
           <TabsContent value="charges" className="space-y-0">
+            <DeferredWhen when={activeTab === "charges"}>{() => (
+            <>
             <RateManagerTab
               view="charges"
               propertyId={propertyId}
@@ -7417,10 +7489,14 @@ export default function PropertyForm({
               isFearlessLeader={isFearlessLeader ?? false}
               setIsDirty={setIsDirty}
             />
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Room Information Tab */}
           <TabsContent value="rooms" className="space-y-0" data-field="rooms">
+            <DeferredWhen when={activeTab === "rooms"}>{() => (
+            <>
             <RoomManagerTab
 
               propertyId={propertyId}
@@ -7443,10 +7519,14 @@ export default function PropertyForm({
               mealTypeSuggestions={mealTypeSuggestions}
               handleNewMealType={handleNewMealType}
             />
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Packages Tab */}
           <TabsContent value="packages" className="space-y-2">
+            <DeferredWhen when={activeTab === "packages"}>{() => (
+            <>
             <Tabs value={packagesCategory} onValueChange={(v) => setPackagesCategory(v as any)} className="w-full">
               <TabsList className="h-7">
                 <TabsTrigger value="accommodations" className="text-xs h-6">
@@ -7606,10 +7686,14 @@ export default function PropertyForm({
                 </TabsContent>
               ))}
             </Tabs>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Announcements Tab */}
           <TabsContent value="announcements" className="space-y-2">
+            <DeferredWhen when={activeTab === "announcements"}>{() => (
+            <>
             <Card>
               <CardHeader className="py-2 px-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm">Announcements</CardTitle>
@@ -7692,11 +7776,15 @@ export default function PropertyForm({
                 )}
               </CardContent>
             </Card>
+            </>
+            )}</DeferredWhen>
           </TabsContent>
 
           {/* Integrations Tab - All Properties */}
           {propertyId && (
             <TabsContent value="integrations" className="space-y-2">
+              <DeferredWhen when={activeTab === "integrations"}>{() => (
+              <>
               <PropertyFormIntegrationsTab
                 property={{
                   id: propertyId,
@@ -7705,12 +7793,16 @@ export default function PropertyForm({
                   brand_primary_color: brandingData.brand_primary_color || null,
                 }}
               />
+              </>
+              )}</DeferredWhen>
             </TabsContent>
           )}
 
           {/* Admin Tab - Admin/Dev/FearlessLeader only */}
           {propertyId && (isAdmin || isDev || isFearlessLeader) && (
             <TabsContent value="admin" className="space-y-3">
+              <DeferredWhen when={activeTab === "admin"}>{() => (
+              <>
               <Alert className="border-amber-500/40 bg-amber-500/5">
                 <ShieldCheck className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-xs">
@@ -7733,10 +7825,13 @@ export default function PropertyForm({
                   </div>
                 </TabsContent>
               </Tabs>
+              </>
+              )}</DeferredWhen>
             </TabsContent>
           )}
         </Tabs>
         </Suspense>
+        </div>
         </div>
 
 
@@ -8442,3 +8537,5 @@ export default function PropertyForm({
     </FormShell>
   );
 }
+
+
