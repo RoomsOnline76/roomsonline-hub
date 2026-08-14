@@ -101,8 +101,10 @@ async function hydrateRoomsFromInventory(propertyId: string, propertyData: Prope
       .from("property_contact_details")
       .select("role, phone, name, email")
       .eq("property_id", propertyId)
-      .then((r) => r)
-      .catch(() => ({ data: [] as { role: string | null; phone: string | null; name: string | null; email: string | null }[] })),
+      .then(
+        (r) => r,
+        () => ({ data: [] as { role: string | null; phone: string | null; name: string | null; email: string | null }[] }),
+      ),
   ]);
 
   const filled = hydrateWebsiteWizardAmenitiesFromInventory(
