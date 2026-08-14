@@ -22,6 +22,7 @@ import {
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
+import { RU_RATE_DEFERRED_CODE, RuRateDeferredError, reserveRuSlot } from '../_shared/ruRateGate.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
@@ -437,7 +438,30 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   let responseText: string | null = null;
   let errorMessage: string | null = null;
 
+  // The channel allows one request per method with the same parameters per sliding minute.
+  // Claim the shared slot (waiting out a short remainder) before spending the call — a deferral
+  // is raised as RuRateDeferredError and answered with 429 + RU_RATE_DEFERRED by the handler.
   try {
+    await reserveRuSlot(getLogClient(), compactRequestXml, { ownerId: context?.ru_owner_id ?? null });
+  } catch (gateErr) {
+    if (gateErr instanceof RuRateDeferredError) {
+      await logRuExchange(getLogClient(), {
+        ...(context ?? {}),
+        action: context?.parent_action ?? 'ru_api_call',
+        endpoint: creds.endpoint,
+        request_xml: compactRequestXml,
+        response_xml: null,
+        http_status: 429,
+        success: false,
+        elapsed_ms: Date.now() - startedAt,
+        error_message: `${RU_RATE_DEFERRED_CODE}: ${gateErr.message}`,
+      });
+    }
+    throw gateErr;
+  }
+
+  try {
+
     const response = await fetch(creds.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'text/xml; charset=utf-8' },
@@ -3867,6 +3891,14 @@ Deno.serve(async (req) => {
 
 
   } catch (error) {
+    // A rate deferral is not a fault: the channel simply owes this method another slot.
+    if (error instanceof RuRateDeferredError) {
+      console.warn(`[rentalsunited-api] ${RU_RATE_DEFERRED_CODE}: ${error.message}`);
+      return jsonResponse({
+        success: false,
+        error: { code: RU_RATE_DEFERRED_CODE, message: error.message, retry_after_ms: error.waitMs },
+      }, 429);
+    }
     console.error('[rentalsunited-api] Error:', error);
     return jsonResponse({
       success: false,

@@ -18,6 +18,17 @@ export interface RuInvokeResult {
 
 const BACKOFF_MS = [1500, 4000];
 
+/** Longer ladder for the channel's own 1-per-sliding-minute rate limit. */
+const RATE_BACKOFF_MS = [20_000, 45_000, 70_000];
+
+/** True when the failure is the channel's sliding-minute rate limit (status -6 / our gate). */
+function isRateLimited(data: any, errorCode: string | null, message: string | null): boolean {
+  if (errorCode === 'RU_RATE_DEFERRED') return true;
+  const m = (message || '').toLowerCase();
+  if (String(data?.error?.ru_status_id ?? data?.ru_status_id ?? '') === '-6') return true;
+  return m.includes('rate limited') || m.includes('ru_rate_deferred') || m.includes('per 1 minute sliding');
+}
+
 /** Transport-level failures worth retrying: upstream 5xx, rate limits, boot/timeouts. */
 function isTransient(httpStatus: number | null, message: string | null): boolean {
   if (httpStatus !== null) {
@@ -91,12 +102,18 @@ export async function invokeRuWithRetry(
 
     last = { data, ok: false, attempts: attempt, httpStatus, errorCode, message };
 
-    const retryable = errorCode === null && isTransient(httpStatus, message);
+    // The sliding-minute rate limit is retryable even though it carries a business code —
+    // waiting out the window is the documented way to comply with it.
+    const rateLimited = isRateLimited(data, errorCode, message);
+    const retryable = rateLimited || (errorCode === null && isTransient(httpStatus, message));
     if (!retryable || attempt === maxAttempts) break;
 
-    const wait = BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1];
+    const suggested = Number(data?.error?.retry_after_ms ?? 0);
+    const wait = rateLimited
+      ? Math.max(suggested + 500, RATE_BACKOFF_MS[attempt - 1] ?? RATE_BACKOFF_MS[RATE_BACKOFF_MS.length - 1])
+      : (BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
     console.warn(
-      `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms`,
+      `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms${rateLimited ? ' [rate limit backoff]' : ''}`,
     );
     await new Promise((r) => setTimeout(r, wait));
   }

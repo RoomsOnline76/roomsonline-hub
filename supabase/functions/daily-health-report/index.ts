@@ -168,6 +168,8 @@ interface RuWlMetrics {
   live_properties: number;
   current_ok: boolean | null;
   recovered_actions: number;
+  /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
+  rate_deferrals: number;
 }
 
 const RU_PRIORITY_ACTIONS = [
@@ -338,6 +340,10 @@ function generateEmailHtml(
           </tr>`).join('')}
         </tbody>
       </table>` : '<p style="margin:0;font-size:13px;color:#9ca3af;">No channel activity recorded in the window.</p>'}
+      ${ruWl.rate_deferrals > 0 ? `
+      <p style="margin:6px 0 0;font-size:11px;color:#6b6b78;">
+        ${ruWl.rate_deferrals} call(s) were held back by the channel's one-per-minute rate gate and retried — no data was lost.
+      </p>` : ''}
       ${ruWl.top_errors.length > 0 ? `
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#b91c1c;">Top failures (24h)</strong>${ruWl.recovered_actions > 0 ? `<span style="font-size:11px;color:#9ca3af;"> · ${ruWl.recovered_actions} action(s) have since recovered — see the “Now” column</span>` : ''}
@@ -865,8 +871,15 @@ Deno.serve(async (req) => {
         })
         .slice(0, 8);
 
+      // The channel allows one call per method per sliding minute. A deferral means the shared
+      // gate held the call back, so it belongs in its own counter rather than the error ladder.
+      const isRateDeferral = (r: { error_code?: string | null; error_message?: string | null }) =>
+        r.error_code === 'RU_RATE_DEFERRED' ||
+        /rate limited|per 1 minute sliding/i.test(r.error_message ?? '');
+      const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
+
       const errorCounts = new Map<string, { count: number; sample: string }>();
-      for (const r of runs.filter(x => x.success === false)) {
+      for (const r of runs.filter(x => x.success === false && !isRateDeferral(x))) {
         const code = r.error_code || 'UNKNOWN';
         const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
         entry.count += 1;
@@ -878,7 +891,7 @@ Deno.serve(async (req) => {
         .slice(0, 4);
 
       const totalRuns = runs.length;
-      const failedRuns = runs.filter(r => r.success === false).length;
+      const failedRuns = runs.filter(r => r.success === false && !isRateDeferral(r)).length;
       const ariRuns = runs.filter(r => (r.action || '').includes('ari') || (r.action || '').includes('availab') || (r.action || '').includes('price'));
       const lastAri = ariRuns[0]?.created_at ?? null;
       const cert = certRuns?.[0]
@@ -897,6 +910,7 @@ Deno.serve(async (req) => {
         success_rate: totalRuns > 0 ? ((totalRuns - failedRuns) / totalRuns) * 100 : 100,
         actions,
         top_errors: topErrors,
+        rate_deferrals: rateDeferrals,
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
