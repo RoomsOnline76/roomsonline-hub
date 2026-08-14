@@ -168,6 +168,8 @@ interface RuWlMetrics {
   live_properties: number;
   current_ok: boolean | null;
   recovered_actions: number;
+  /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
+  rate_deferrals: number;
 }
 
 const RU_PRIORITY_ACTIONS = [
@@ -865,8 +867,15 @@ Deno.serve(async (req) => {
         })
         .slice(0, 8);
 
+      // The channel allows one call per method per sliding minute. A deferral means the shared
+      // gate held the call back, so it belongs in its own counter rather than the error ladder.
+      const isRateDeferral = (r: { error_code?: string | null; error_message?: string | null }) =>
+        r.error_code === 'RU_RATE_DEFERRED' ||
+        /rate limited|per 1 minute sliding/i.test(r.error_message ?? '');
+      const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
+
       const errorCounts = new Map<string, { count: number; sample: string }>();
-      for (const r of runs.filter(x => x.success === false)) {
+      for (const r of runs.filter(x => x.success === false && !isRateDeferral(x))) {
         const code = r.error_code || 'UNKNOWN';
         const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
         entry.count += 1;
@@ -897,6 +906,7 @@ Deno.serve(async (req) => {
         success_rate: totalRuns > 0 ? ((totalRuns - failedRuns) / totalRuns) * 100 : 100,
         actions,
         top_errors: topErrors,
+        rate_deferrals: rateDeferrals,
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
