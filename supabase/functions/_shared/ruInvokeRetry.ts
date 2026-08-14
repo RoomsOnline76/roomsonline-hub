@@ -18,6 +18,17 @@ export interface RuInvokeResult {
 
 const BACKOFF_MS = [1500, 4000];
 
+/** Longer ladder for the channel's own 1-per-sliding-minute rate limit. */
+const RATE_BACKOFF_MS = [20_000, 45_000, 70_000];
+
+/** True when the failure is the channel's sliding-minute rate limit (status -6 / our gate). */
+function isRateLimited(data: any, errorCode: string | null, message: string | null): boolean {
+  if (errorCode === 'RU_RATE_DEFERRED') return true;
+  const m = (message || '').toLowerCase();
+  if (String(data?.error?.ru_status_id ?? data?.ru_status_id ?? '') === '-6') return true;
+  return m.includes('rate limited') || m.includes('ru_rate_deferred') || m.includes('per 1 minute sliding');
+}
+
 /** Transport-level failures worth retrying: upstream 5xx, rate limits, boot/timeouts. */
 function isTransient(httpStatus: number | null, message: string | null): boolean {
   if (httpStatus !== null) {
