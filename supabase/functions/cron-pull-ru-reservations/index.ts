@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0, leads_held: 0 };
+  const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0, leads_held: 0, rate_deferred: 0 };
   const cronStartedAt = Date.now();
   const deadline = cronStartedAt + RUN_BUDGET_MS;
 
@@ -305,7 +305,12 @@ Deno.serve(async (req) => {
         if (leadsErr || !leadsResult?.success) {
           const failure = leadsErr
             ? await readInvokeError(leadsErr)
-            : { message: leadsResult?.error?.message || 'Unknown', httpStatus: null, errorCode: null };
+            : { message: leadsResult?.error?.message || 'Unknown', httpStatus: null, errorCode: leadsResult?.error?.code ?? null };
+          if (failure.errorCode === 'RU_RATE_DEFERRED' || /rate limited/i.test(failure.message ?? '')) {
+            summary.rate_deferred += 1;
+            console.log(`[cron-pull-ru] ${scope.label} leads deferred by the sliding-minute gate`);
+            continue;
+          }
           console.warn(
             `[cron-pull-ru] ${scope.label} leads API call failed (http=${failure.httpStatus ?? 'n/a'}): ${failure.message}`,
           );
