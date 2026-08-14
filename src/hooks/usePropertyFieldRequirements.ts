@@ -74,8 +74,8 @@ export function usePropertyFieldRequirements({
     // Radix / collapsibles mount after the first frame — repaint a few times.
     timers.current = [120, 400, 900, 1800].map((ms) => window.setTimeout(run, ms));
 
-    const observeTarget =
-      resolvedRoot instanceof Document ? resolvedRoot.body : resolvedRoot;
+    const observeTarget: HTMLElement | Document | null =
+      resolvedRoot instanceof Document ? (resolvedRoot as Document).body : resolvedRoot;
     if (!observeTarget) return;
 
     let debounceId = 0;
