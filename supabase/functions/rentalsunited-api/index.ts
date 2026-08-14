@@ -3891,6 +3891,14 @@ Deno.serve(async (req) => {
 
 
   } catch (error) {
+    // A rate deferral is not a fault: the channel simply owes this method another slot.
+    if (error instanceof RuRateDeferredError) {
+      console.warn(`[rentalsunited-api] ${RU_RATE_DEFERRED_CODE}: ${error.message}`);
+      return jsonResponse({
+        success: false,
+        error: { code: RU_RATE_DEFERRED_CODE, message: error.message, retry_after_ms: error.waitMs },
+      }, 429);
+    }
     console.error('[rentalsunited-api] Error:', error);
     return jsonResponse({
       success: false,
