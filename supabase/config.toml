@@ -218,7 +218,7 @@ schedule = "20 2 * * *"
 
 [functions.cron-refresh-ru-discounts]
 verify_jwt = false
-schedule = "40 2 * * *"
+schedule = "0 4 * * *"
 
 [functions.cron-pull-ru-reservations]
 verify_jwt = false
