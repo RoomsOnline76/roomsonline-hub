@@ -3963,7 +3963,13 @@ Deno.serve(async (req) => {
           (u: { rentalsunited_property_id: unknown }) => Number(u.rentalsunited_property_id) > 0,
         );
       }
-      const probeAri = body.probe_ari === false ? false : body.probe_ari === true || hasChannelListing;
+      // Page loads must not force a live channel pull: it is slow, rate limited, and the
+      // verdict barely moves. Probe only when the caller explicitly asks, or when the
+      // listing exists but no verdict has ever been stored (so the first one is earned).
+      const storedVerdict = hasChannelListing ? await loadAriSnapshot(admin, propertyId) : null;
+      const probeAri = body.probe_ari === false
+        ? false
+        : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
         readiness = await scoreProperty(prop as any, { probe_ari: probeAri }) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
