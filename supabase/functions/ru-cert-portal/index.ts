@@ -3268,7 +3268,18 @@ Deno.serve(async (req) => {
         .select("ru_owner_id, login_email, access_key, key_label, verified_at")
         .order("updated_at", { ascending: false });
       if (error) return json({ success: false, error: { code: "READ_FAILED", message: error.message } }, 500);
-      return json({ success: true, credentials: data ?? [] });
+      // Flag any AccessKey held against more than one OwnerID — that means one sub-user's keys
+      // were pasted onto another account, and every scoped call for it hits the wrong RU account.
+      const seen = new Map<string, number>();
+      for (const row of data ?? []) {
+        const k = String((row as { access_key?: string }).access_key ?? "");
+        if (k) seen.set(k, (seen.get(k) ?? 0) + 1);
+      }
+      const credentials = (data ?? []).map((row) => ({
+        ...row,
+        shared_with_other_account: (seen.get(String((row as { access_key?: string }).access_key ?? "")) ?? 0) > 1,
+      }));
+      return json({ success: true, credentials });
     }
     /**
      * ── resolve_ru_property_ids: capture the RUIDs RU already holds for a property.
