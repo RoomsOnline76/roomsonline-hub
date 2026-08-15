@@ -165,8 +165,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   /** Last successful ARI verdict, reused when a later probe comes back empty. */
   const ariCache = useRef<{ propertyId: string; groups: RuGroup[]; at: number } | null>(null);
 
+  /**
+   * The channel scorecard (`phase_status`) is by far the slowest call in the wizard, so it
+   * runs in its OWN query. The local/field truth below paints immediately and the
+   * distribution verdict fills in when it lands.
+   */
+  const phaseQuery = useQuery({
+    queryKey: ["rolos-onboarding-phase", propertyId, probeAri],
+    enabled: !!propertyId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const id = propertyId as string;
+      const phase = await invokeCert<PhaseStatusPayload>("phase_status", id, probeAri ? { probe_ari: true } : {});
+      // Keep the last good availability / pricing verdict instead of dropping the
+      // groups when a probe is skipped or throttled — losing them silently
+      // un-completed steps the owner had already finished.
+      const groups = (phase?.readiness?.groups ?? []) as RuGroup[];
+      const freshAri = groups.filter((g) => ARI_GROUPS.includes(String(g.group ?? "")));
+      let ariAge: number | null = null;
+      if (freshAri.length > 0) {
+        ariCache.current = { propertyId: id, groups: freshAri, at: Date.now() };
+      } else if (ariCache.current?.propertyId === id && phase?.readiness) {
+        phase.readiness.groups = [...groups, ...ariCache.current.groups];
+        ariAge = ariCache.current.at;
+      }
+      return { phase, ariAge };
+    },
+  });
+
   const distribution = useQuery({
-    queryKey: ["rolos-onboarding-distribution", propertyId, probeAri],
+    queryKey: ["rolos-onboarding-distribution", propertyId],
     enabled: !!propertyId,
     // Field truth is cheap and re-derived on mount; the channel snapshot is held
     // briefly so tab navigation does not re-run the whole derivation.
@@ -174,15 +203,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const id = propertyId as string;
-      const [property, phase, identity, currency, channels, roadmap, units] = await Promise.all([
+      const [property, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
           .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
-        invokeCert<PhaseStatusPayload>("phase_status", id, probeAri ? { probe_ari: true } : {}),
-
         invokeCert<IdentityPayload>("property_ru_identity", id),
         supabase
           .from("ru_currency_state")
@@ -237,24 +264,17 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         if (signed(legacyContract)) return legacyContract;
         return ownerContract ?? legacyContract ?? null;
       })();
-      // Keep the last good availability / pricing verdict instead of dropping the
-      // groups when a probe is skipped or throttled — losing them silently
-      // un-completed steps the owner had already finished.
-      const groups = (phase?.readiness?.groups ?? []) as RuGroup[];
-      const freshAri = groups.filter((g) => ARI_GROUPS.includes(String(g.group ?? "")));
-      let ariAge: number | null = null;
-      if (freshAri.length > 0) {
-        ariCache.current = { propertyId: id, groups: freshAri, at: Date.now() };
-      } else if (ariCache.current?.propertyId === id && phase?.readiness) {
-        phase.readiness.groups = [...groups, ...ariCache.current.groups];
-        ariAge = ariCache.current.at;
-      }
-      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail, ariAge };
-
+      return { property, identity, currency, channels, roadmap, units, contract, ownerEmail };
     },
   });
 
-  const d = distribution.data;
+  const d = useMemo(
+    () => (distribution.data
+      ? { ...distribution.data, phase: phaseQuery.data?.phase ?? null, ariAge: phaseQuery.data?.ariAge ?? null }
+      : undefined),
+    [distribution.data, phaseQuery.data],
+  );
+
 
   const isRolosPms = useMemo(() => {
     const sys = String((d?.property as any)?.external_system ?? "").toLowerCase();
