@@ -128,7 +128,7 @@ export function usePmsPropertyId() {
 
   // Fetch portfolio memberships for the selected property
   const { data: portfolioContext, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: ["pms-property-portfolio-context", propertyId, user?.id],
+    queryKey: ["pms-property-portfolio-context", propertyId, user?.id, scopedPropertyIds.join(",")],
     queryFn: async () => {
       if (!propertyId) return null;
 
