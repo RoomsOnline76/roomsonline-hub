@@ -290,6 +290,30 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     }
   }, [propertyId, recordListingPull, refresh, user?.email]);
 
+  /**
+   * Push_FillCompanyDetails_RQ. The sub-account's company profile must be sent with
+   * its own verified keys before the verification checklist can be completed.
+   */
+  const pushCompanyDetails = useCallback(async () => {
+    setBusy("company_details");
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "ensure_company_details", property_id: propertyId, force: true },
+      });
+      if (error || data?.success !== true) {
+        toast.error(data?.error?.message ?? error?.message ?? "Could not send the company details");
+        return;
+      }
+      toast.success("Company details sent to the Channel Manager");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the company details");
+    } finally {
+      setBusy(null);
+    }
+  }, [propertyId, refresh]);
+
+
   const publishListing = useCallback(async () => {
     setBusy("publish");
     setPushErrors([]);
