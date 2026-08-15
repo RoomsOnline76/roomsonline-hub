@@ -696,6 +696,30 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         </div>
         <div className="mt-2 border-t pt-2">
           <ChannelContentSyncStatus propertyId={propertyId} />
+          {published && (
+            <Collapsible open={rePushOpen} onOpenChange={setRePushOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-[11px] text-muted-foreground">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${rePushOpen ? "rotate-180" : ""}`} />
+                  Manual re-push (not needed)
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={pushToRU}
+                  disabled={loading || dryRunning || identityGate.gated}
+                  title="Force a full re-push of this listing and its inventory to the Channel Manager"
+                >
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                  {loading ? "Pushing…" : isMultiUnit ? "Force re-push building + units" : "Force re-push listing"}
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
         </div>
       </CardHeader>
 
