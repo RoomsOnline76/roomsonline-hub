@@ -440,8 +440,9 @@ Deno.serve(async (req) => {
       propertiesText = property?.name || "your property";
     }
 
-    // Send confirmation emails
-    if (resendKey) {
+    // Send confirmation emails (once per contract)
+    const alreadyNotified = !!(contract.metadata as Record<string, unknown> | null)?.signed_notification_sent_at;
+    if (resendKey && !alreadyNotified) {
       const resend = new Resend(resendKey);
 
       // Check if this was a new owner - send welcome email
