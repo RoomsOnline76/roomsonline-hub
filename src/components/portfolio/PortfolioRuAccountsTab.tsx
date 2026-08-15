@@ -453,7 +453,9 @@ export function PortfolioRuAccountsTab() {
 
   const refreshStoredKeys = useCallback(async () => {
     await queryClient.refetchQueries({ queryKey: ["ru-stored-api-keys"] });
+    notifyRuAccountsChanged();
   }, [queryClient]);
+
 
   const openKeys = useCallback(async (acc: RuAccount) => {
     setKeysFor({ id: acc.id, email: acc.ru_login_email || acc.owner_email, ownerId: acc.ru_owner_id });
