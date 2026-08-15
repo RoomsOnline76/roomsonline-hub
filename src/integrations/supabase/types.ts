@@ -14352,6 +14352,61 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_readiness_snapshots: {
+        Row: {
+          created_at: string
+          groups: Json
+          phase_payload: Json | null
+          phase_payload_at: string | null
+          probed_at: string
+          property_id: string
+          ru_owner_id: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          groups?: Json
+          phase_payload?: Json | null
+          phase_payload_at?: string | null
+          probed_at?: string
+          property_id: string
+          ru_owner_id?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          groups?: Json
+          phase_payload?: Json | null
+          phase_payload_at?: string | null
+          probed_at?: string
+          property_id?: string
+          ru_owner_id?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_readiness_snapshots_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_readiness_snapshots_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_readiness_snapshots_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_sync_runs: {
         Row: {
           action: string

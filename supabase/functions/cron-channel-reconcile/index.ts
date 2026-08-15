@@ -250,9 +250,34 @@ Deno.serve(async (req) => {
       alert_error: alertError,
     });
 
+    // Refresh the stored availability/pricing verdicts overnight so the wizard can serve
+    // them instantly during the day instead of pulling the channel on every page load.
+    let refreshed = 0;
+    try {
+      const { data: listed } = await admin
+        .from('properties')
+        .select('id')
+        .not('rentalsunited_property_id', 'is', null)
+        .eq('is_active', true)
+        .limit(100);
+      for (const row of (listed ?? []) as { id: string }[]) {
+        try {
+          await admin.functions.invoke('ru-cert-portal', {
+            body: { action: 'property_readiness', property_id: row.id, probe_ari: true },
+          });
+          refreshed += 1;
+        } catch (e) {
+          console.warn('[cron-channel-reconcile] readiness refresh failed for', row.id, e);
+        }
+      }
+    } catch (e) {
+      console.warn('[cron-channel-reconcile] readiness refresh sweep failed:', e);
+    }
+
     console.log(
-      `[cron-channel-reconcile] disparity=${hasDisparity} orphans=${orphans.length} duplicates=${duplicates.length} stale=${stale.length} alert_sent=${alertSent}`,
+      `[cron-channel-reconcile] disparity=${hasDisparity} orphans=${orphans.length} duplicates=${duplicates.length} stale=${stale.length} alert_sent=${alertSent} readiness_refreshed=${refreshed}`,
     );
+
 
     return json({
       success: true,

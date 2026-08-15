@@ -127,6 +127,82 @@ const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
 
+/** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
+const PHASE_STATUS_TTL_MS = 90_000;
+const phaseStatusCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
+
+/**
+ * The in-memory cache above dies with the function instance, so a cold start (or a
+ * throttled pull) used to erase a verdict the owner had already earned and flip the
+ * wizard back to "not ready". The last SUCCESSFUL live verdict is therefore persisted
+ * per property and reused whenever a probe is skipped, throttled or times out.
+ */
+export interface AriSnapshot {
+  availability_ok: boolean;
+  prices_ok: boolean;
+  units?: any[];
+  worst_window?: any;
+  probed_at: string;
+  ru_owner_id?: number | null;
+}
+
+async function loadAriSnapshot(admin: any, propertyId: string): Promise<AriSnapshot | null> {
+  try {
+    const { data } = await admin
+      .from("ru_readiness_snapshots")
+      .select("groups, probed_at, ru_owner_id")
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    if (!data) return null;
+    const g = (data.groups ?? {}) as Record<string, unknown>;
+    if (typeof g.availability_ok !== "boolean" || typeof g.prices_ok !== "boolean") return null;
+    return {
+      availability_ok: g.availability_ok as boolean,
+      prices_ok: g.prices_ok as boolean,
+      units: (g.units as any[]) ?? [],
+      worst_window: g.worst_window ?? null,
+      probed_at: String(data.probed_at ?? new Date().toISOString()),
+      ru_owner_id: data.ru_owner_id ?? null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function saveAriSnapshot(
+  admin: any,
+  propertyId: string,
+  snapshot: Omit<AriSnapshot, "probed_at">,
+): Promise<void> {
+  try {
+    await admin.from("ru_readiness_snapshots").upsert({
+      property_id: propertyId,
+      ru_owner_id: snapshot.ru_owner_id ?? null,
+      groups: {
+        availability_ok: snapshot.availability_ok,
+        prices_ok: snapshot.prices_ok,
+        units: snapshot.units ?? [],
+        worst_window: snapshot.worst_window ?? null,
+      },
+      probed_at: new Date().toISOString(),
+    }, { onConflict: "property_id" });
+  } catch (e) {
+    console.warn("[ru-cert-portal] readiness snapshot save failed:", e);
+  }
+}
+
+/** Human label for a stored verdict, e.g. "verified 2 h ago on the channel". */
+function snapshotAge(probedAt: string): string {
+  const ms = Date.now() - Date.parse(probedAt);
+  if (!Number.isFinite(ms) || ms < 0) return "previously verified on the channel";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `verified on the channel ${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `verified on the channel ${hours} h ago`;
+  return `verified on the channel ${Math.round(hours / 24)} day(s) ago`;
+}
+
+
 /** Time-box one channel pull; a timeout reads as "no answer" (verification pending). */
 function withProbeTimeout<T extends { data?: any; error?: any }>(
   call: Promise<T>,
@@ -1304,6 +1380,11 @@ Deno.serve(async (req) => {
         ids.length === 1 ? nameFor(ids[0]) : (ids.length === 0 ? soleUnitName ?? undefined : undefined);
       const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+      // Last known good live verdict — used when a probe is skipped, throttled or times out
+      // so an earned verification never regresses to "not ready".
+      const ariSnapshot = ruIds.length > 0 ? await loadAriSnapshot(admin, p.id) : null;
+
+
 
 
       // Phase 2 must mean the SAME thing everywhere: when the live channel calendar is not
@@ -1356,7 +1437,7 @@ Deno.serve(async (req) => {
 
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
         const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
-        const pricingReady = livePricesVerified || localCoverage?.complete === true;
+        const pricingReady = livePricesVerified || ariSnapshot?.prices_ok === true || localCoverage?.complete === true;
         const liveAvailabilityResponded = unitProbes.every((probe) =>
           probe.availability_error == null && probe.open_days > 0
         );
@@ -1370,7 +1451,10 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
         const localAvailabilityReady = localWindow.ok && localWindow.open_days > 0;
-        const availabilityReady = hasAvailability || (
+        // A throttled or timed-out read-back must never erase a verdict already earned.
+        const snapshotHeldAvailability = !liveAvailabilityResponded && ariSnapshot?.availability_ok === true;
+        const snapshotHeldPrices = !livePricesVerified && ariSnapshot?.prices_ok === true;
+        const availabilityReady = hasAvailability || snapshotHeldAvailability || (
           !liveAvailabilityResponded && !!latestSuccessfulPush && localAvailabilityReady
         );
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
@@ -1390,11 +1474,25 @@ Deno.serve(async (req) => {
         if (worstWindow && liveAvailabilityResponded) {
           // Worst unit wins — and the check carries that unit's name so the wizard opens it.
           extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
+        } else if (!liveAvailabilityResponded && ariSnapshot?.worst_window) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
           );
         }
+
+        // Persist only genuine live successes — never a throttled or empty answer.
+        if (hasAvailability || livePricesVerified) {
+          await saveAriSnapshot(admin, p.id, {
+            availability_ok: hasAvailability || ariSnapshot?.availability_ok === true,
+            prices_ok: livePricesVerified || ariSnapshot?.prices_ok === true,
+            units: unitProbes,
+            worst_window: worstWindow ?? ariSnapshot?.worst_window ?? null,
+            ru_owner_id: scopedOwnerId,
+          });
+        }
+
 
 
         extraChecks.push({
@@ -1406,22 +1504,28 @@ Deno.serve(async (req) => {
           unit: availabilityReady ? undefined : singleFailingUnit(failedAvailabilityIds),
           ...(hasAvailability
             ? { detail: `Verified on ${unitProbes.length} RU unit(s)` }
-            : availabilityReady
-              ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
-              : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
+            : snapshotHeldAvailability
+              ? { detail: `${snapshotAge(ariSnapshot!.probed_at)} — the latest read-back did not answer, so the stored verification stands` }
+              : availabilityReady
+                ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
+                : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
           key: "ari_prices",
           group: "Pricing 365d",
-          label: livePricesVerified ? "Rates verified on RU for the next 365 days" : "Local rates ready to push for the next 365 days",
+          label: livePricesVerified || snapshotHeldPrices
+            ? "Rates verified on RU for the next 365 days"
+            : "Local rates ready to push for the next 365 days",
           mandatory: true,
           passed: pricingReady,
           unit: pricingReady ? undefined : singleFailingUnit(failedPriceIds),
           ...(pricingReady
             ? { detail: livePricesVerified
               ? `Verified on ${unitProbes.length} RU unit(s)${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}`
-              : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${describeUnits(failedPriceIds)}` }
+              : snapshotHeldPrices
+                ? `${snapshotAge(ariSnapshot!.probed_at)} — the latest read-back did not answer, so the stored verification stands`
+                : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${describeUnits(failedPriceIds)}` }
             : { detail: `${describeUnits(failedPriceIds)}: prices missing or non-positive${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
           fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
@@ -1437,6 +1541,49 @@ Deno.serve(async (req) => {
           prices_ok: pricingReady,
           live_prices_verified: livePricesVerified,
           rate_coverage: localCoverage,
+          snapshot_at: ariSnapshot?.probed_at ?? null,
+          snapshot_held: snapshotHeldAvailability || snapshotHeldPrices,
+        };
+
+      } else if (ruIds.length > 0 && ariSnapshot) {
+        // Published, probing intentionally skipped for a fast paint: serve the stored verdict
+        // instead of re-pulling every unit's calendar on page load.
+        const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
+        if (ariSnapshot.worst_window) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+        } else {
+          extraChecks.push(
+            ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
+          );
+        }
+        extraChecks.push({
+          key: "ari_availability", group: "Availability 365d",
+          label: "Availability pushed for the next 365 days",
+          mandatory: true,
+          passed: ariSnapshot.availability_ok || (localWindow.ok && localWindow.open_days > 0),
+          detail: ariSnapshot.availability_ok
+            ? snapshotAge(ariSnapshot.probed_at)
+            : `${localWindow.open_days} open day(s) in the local calendar — refresh to re-verify on the channel`,
+          fix_hint: "Rate Manager → Calendar / availability",
+        });
+        extraChecks.push({
+          key: "ari_prices", group: "Pricing 365d",
+          label: ariSnapshot.prices_ok ? "Rates verified on RU for the next 365 days" : "Local rates ready for the next 365 days",
+          mandatory: true,
+          passed: ariSnapshot.prices_ok || localPricingReady,
+          detail: ariSnapshot.prices_ok
+            ? snapshotAge(ariSnapshot.probed_at)
+            : `Local rates ready${localCoverage ? ` — ${localCoverage.summary}` : ""}; refresh to re-verify on the channel`,
+          fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
+        });
+        ari = {
+          ru_property_ids: ruIds,
+          rate_coverage: localCoverage,
+          availability_ok: ariSnapshot.availability_ok,
+          prices_ok: ariSnapshot.prices_ok || localPricingReady,
+          units: ariSnapshot.units ?? [],
+          from_snapshot: true,
+          snapshot_at: ariSnapshot.probed_at,
         };
       } else {
         // Pre-publish: there is no RU property ID yet, so live ARI simply cannot exist.
@@ -1469,6 +1616,7 @@ Deno.serve(async (req) => {
         });
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
+
 
       // A unit whose ROL'OS room-type link is dangling (the room type was replaced) resolves
       // to no plan, no rack rate and no daily rate. Reporting that as "rates missing for 365
@@ -3794,6 +3942,25 @@ Deno.serve(async (req) => {
     if (action === "phase_status") {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      if (body.probe_ari !== true) {
+        const hit = phaseStatusCache.get(propertyId);
+        if (hit && Date.now() - hit.at < PHASE_STATUS_TTL_MS) return json({ ...hit.payload, cached: "memory" });
+        // Edge isolates are short-lived, so the in-memory hit above misses often. The
+        // persisted copy keeps re-opening the wizard instant across cold starts.
+        try {
+          const { data: stored } = await admin
+            .from("ru_readiness_snapshots")
+            .select("phase_payload, phase_payload_at")
+            .eq("property_id", propertyId)
+            .maybeSingle();
+          const at = stored?.phase_payload_at ? Date.parse(stored.phase_payload_at) : 0;
+          if (stored?.phase_payload && Date.now() - at < PHASE_STATUS_TTL_MS) {
+            return json({ ...(stored.phase_payload as Record<string, unknown>), cached: "stored" });
+          }
+        } catch (_e) { /* cache miss is never fatal */ }
+      } else {
+        phaseStatusCache.delete(propertyId);
+      }
       const { data: prop } = await admin
         .from("properties")
         .select("id, name, owner_email, external_system, rentalsunited_property_id, rentalsunited_building_id")
@@ -3819,7 +3986,13 @@ Deno.serve(async (req) => {
           (u: { rentalsunited_property_id: unknown }) => Number(u.rentalsunited_property_id) > 0,
         );
       }
-      const probeAri = body.probe_ari === false ? false : body.probe_ari === true || hasChannelListing;
+      // Page loads must not force a live channel pull: it is slow, rate limited, and the
+      // verdict barely moves. Probe only when the caller explicitly asks, or when the
+      // listing exists but no verdict has ever been stored (so the first one is earned).
+      const storedVerdict = hasChannelListing ? await loadAriSnapshot(admin, propertyId) : null;
+      const probeAri = body.probe_ari === false
+        ? false
+        : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
         readiness = await scoreProperty(prop as any, { probe_ari: probeAri }) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
@@ -3877,7 +4050,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({
+      const payload = {
         success: true,
         gate,
         readiness,
@@ -3886,7 +4059,22 @@ Deno.serve(async (req) => {
         availability_source: probeAri ? "channel" : "local",
         last_mcq: mcq ?? null,
         sales_channel: salesChannel,
-      });
+      };
+      // Re-opening the wizard (or switching tabs) must not re-derive the whole scorecard.
+      if (!readinessUnknown) {
+        phaseStatusCache.set(propertyId, { at: Date.now(), payload });
+        try {
+          await admin.from("ru_readiness_snapshots").upsert({
+            property_id: propertyId,
+            phase_payload: payload,
+            phase_payload_at: new Date().toISOString(),
+          }, { onConflict: "property_id" });
+        } catch (e) {
+          console.warn("[ru-cert-portal] phase payload cache write failed:", e);
+        }
+      }
+      return json(payload);
+
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
