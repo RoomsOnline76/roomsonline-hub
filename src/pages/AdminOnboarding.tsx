@@ -336,6 +336,7 @@ export default function AdminOnboarding() {
           id, name, owner_email, owner_name, listing_status, show_on_website, is_active,
           external_system, rentalsunited_property_id, ru_push_enabled, ru_location_id,
           amenities, description, short_description, listing_intent,
+          is_sandbox, is_test_property,
           property_type, property_url, latitude, longitude,
           address, city, country, price_per_night, bedrooms, bathrooms, 
           images, hero_video_url,
