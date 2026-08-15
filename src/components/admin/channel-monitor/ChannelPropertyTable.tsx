@@ -60,6 +60,37 @@ export function ChannelPropertyTable({
     });
   }, [rows, search, stateFilter, portfolioFilter]);
 
+  const groups = useMemo(() => {
+    const map = new Map<string, ChannelPropertyRow[]>();
+    for (const r of filtered) {
+      const key = r.portfolioName || UNASSIGNED;
+      const list = map.get(key);
+      if (list) list.push(r);
+      else map.set(key, [r]);
+    }
+    return Array.from(map.entries())
+      .map(([name, groupRows]) => ({
+        name,
+        rows: [...groupRows].sort((a, b) => a.name.localeCompare(b.name)),
+        listings: groupRows.reduce((sum, r) => sum + r.listings, 0),
+        duplicates: groupRows.reduce((sum, r) => sum + r.duplicateListings, 0),
+        monthlyCostEur: groupRows.reduce((sum, r) => sum + r.monthlyCostEur, 0),
+      }))
+      .sort((a, b) => {
+        if (a.name === UNASSIGNED) return 1;
+        if (b.name === UNASSIGNED) return -1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [filtered]);
+
+  const toggleGroup = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
   return (
     <Card>
       <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
