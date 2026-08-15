@@ -3795,19 +3795,48 @@ Deno.serve(async (req) => {
         .then(() => {}, (e: unknown) => console.warn("[ru-cert-portal] listing verification write failed", e));
 
 
+      /**
+       * Per-listing evidence: "pushed but not visible in the portal" is almost always a
+       * listing sitting under a different sub-account login, so name the account that
+       * actually holds each listing rather than reporting a bare miss.
+       */
+      const listingStatus = [
+        ...activeUnits.map((u) => {
+          const hit = matched.find((m) => m.scope === "unit" && m.name === String(u.name ?? ""));
+          return {
+            scope: "unit" as const,
+            name: String(u.name ?? u.id),
+            ru_property_id: hit?.ru_property_id ?? null,
+            status: hit ? ("live_in_account" as const) : ("not_in_account" as const),
+            owner_label: subAccountLabel,
+          };
+        }),
+        ...(activeUnits.length === 0
+          ? [{
+            scope: "property" as const,
+            name: String(prop.name ?? targetPropertyId),
+            ru_property_id: propertyHit?.id ?? null,
+            status: propertyHit ? ("live_in_account" as const) : ("not_in_account" as const),
+            owner_label: subAccountLabel,
+          }]
+          : []),
+      ];
+
       return json({
         success: true,
         ru_owner_id: ownerId,
-        ru_owner_label: `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`,
+        ru_owner_label: subAccountLabel,
         rentalsunited_property_id: propertyHit?.id ?? prop.rentalsunited_property_id ?? null,
         matched,
         unmatched,
+        listing_status: listingStatus,
         remote_count: remote.length,
         auth_mode: listed.auth_mode ?? null,
         listings_verified: fullyVerified,
         listings_verified_units: verifiedUnits,
         listings_expected_units: expectedUnits,
       });
+
     }
 
 
