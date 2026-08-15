@@ -95,6 +95,24 @@ function json(body: unknown, status = 200): Response {
 const jsonResponse = json;
 
 /**
+ * `functions.invoke` discards the response body on a non-2xx status, which hides the callee's
+ * real error code (e.g. RU_RATE_DEFERRED / RU_CHILD_AUTH_REQUIRED). Recover it from the
+ * FunctionsHttpError context so the reason can be surfaced verbatim.
+ */
+// deno-lint-ignore no-explicit-any
+async function readInvokeErrorBody(err: any): Promise<any | null> {
+  const res = err?.context;
+  if (!res || typeof res.text !== "function") return null;
+  try {
+    return JSON.parse(await res.text());
+  } catch {
+    return null;
+  }
+}
+
+
+
+/**
  * Console actions that actually touch a Rentals United endpoint. Every one of these is
  * written to `ru_sync_runs` so the Coverage tab can evidence real usage — without this,
  * work done from the RU console (buildings pull, company push, currency flip, ARI push …)
@@ -3649,23 +3667,30 @@ Deno.serve(async (req) => {
       const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
         body: { action: "list_properties", owner_id: Number(ownerId) },
       });
-      if (listErr || listed?.success !== true) {
+      // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
+      const listedBody = listed ?? (await readInvokeErrorBody(listErr));
+      if (listErr || listedBody?.success !== true) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
         // never be reported as "the sub-account was empty".
-        const code = typeof listed?.error?.code === "string" ? listed.error.code : "RU_LIST_FAILED";
-        const detail = listed?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const code = typeof listedBody?.error?.code === "string" ? listedBody.error.code : "RU_LIST_FAILED";
+        const detail = listedBody?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
         return json({
           success: false,
           ru_owner_id: ownerId,
           ru_owner_label: subAccountLabel,
+          retry_after_ms: retryMs > 0 ? retryMs : undefined,
           error: {
             code,
             message: code === "RU_CHILD_AUTH_REQUIRED"
               ? `API keys are required for ${subAccountLabel} before its listings can be pulled. ${detail}`
-              : `${detail} (sub-account ${subAccountLabel})`,
+              : code === "RU_RATE_DEFERRED"
+                ? `Channel rate limit — retry in ${Math.ceil((retryMs || 60000) / 1000)}s (sub-account ${subAccountLabel}).`
+                : `${detail} (sub-account ${subAccountLabel})`,
           },
         }, 422);
       }
+
 
       const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
       const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
