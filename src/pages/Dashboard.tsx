@@ -131,8 +131,7 @@ const Dashboard = () => {
       }
       query = applyAdminScope(query, "id", scopedPropertyIds);
       const { data } = await query;
-      const rows = data || [];
-      return isItTestAdminEmail(profile?.email ?? user?.email) ? filterToItTestProperties(rows) : rows;
+      return data || [];
     },
     enabled: !!user && (isAdmin || !!profile?.email),
   });
