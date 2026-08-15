@@ -488,7 +488,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
 
-    // Macro 9 — currency
+    // Macro 11 — currency
     const cur = (d?.currency ?? null) as Record<string, string | null> | null;
     const currencyRecorded =
       !!cur?.verified_at &&
@@ -505,7 +505,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           : "No currency state recorded",
     });
 
-    // Macro 10 — manual sign-off
+    // Macro 8 — manual sub-account verification (ticked before the push)
     const tickedCount = ROLOS_SIGNOFF_CHECKLIST.filter(
       (i) => signoff.checks[i.key]?.checked === true,
     ).length;
@@ -521,7 +521,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
 
-    // Macro 11 — channels
+    // Macros 12-13 — entitlement & channels
     const entitlementOn = billing?.channel_manager_enabled === true;
     put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
       waiting: !bound,
@@ -544,7 +544,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
     return map;
-  }, [billing?.channel_manager_enabled, d, signoff]);
+  }, [billing?.channel_manager_enabled, d, listingPull, signoff]);
 
   const macros: MacroProgress[] = useMemo(() => {
     const items = readiness.items;
