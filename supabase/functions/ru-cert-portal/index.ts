@@ -22,6 +22,7 @@ import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsi
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
+import { ensureLiveNotificationsForOwner } from "../_shared/ruLnmSubscribe.ts";
 import { classifyMcqOrder, parseMcqFailingPoints, resolveMcqChannelId, resolveMcqTargets } from "../_shared/ruMcq.ts";
 import {
   RU_EMPLOYEE_RANGES,
