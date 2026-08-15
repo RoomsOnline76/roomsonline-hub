@@ -511,7 +511,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         locked: !previousComplete,
         outstandingLabels: [
           ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
-          ...mandatoryStateChecks.filter((c) => !c.ok).map((c) => c.label),
+          ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
         ],
       });
 
