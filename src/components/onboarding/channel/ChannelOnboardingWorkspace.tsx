@@ -123,6 +123,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     macros,
     overall,
     channelsConnected,
+    channelsLive,
+    readyRegressed,
     publishedOk,
     unpublishedUnits,
     signoff,
@@ -149,22 +151,29 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const requestedMacro = searchParams.get("step");
   const requestedSection = searchParams.get("section");
 
-  const [activeMacroKey, setActiveMacroKey] = useState<string | null>(null);
+  const [activeMacroKey, setActiveMacroKey] = useState<string | null>(requestedMacro);
   const [editorSection, setEditorSection] = useState(requestedSection || "general");
   const [liveExpanded, setLiveExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [pushErrors, setPushErrors] = useState<string[]>([]);
 
+  /**
+   * One owner of "current step". The user's pick is honoured while that step
+   * still has work; once it completes the wizard advances by itself (and keeps
+   * the URL in step) instead of stranding the user on a finished step.
+   */
   useEffect(() => {
-    if (requestedMacro) {
-      setActiveMacroKey(requestedMacro);
-      return;
-    }
+    if (macros.length === 0) return;
     setActiveMacroKey((prev) => {
       if (prev && macros.some((m) => m.macro.key === prev && !m.complete)) return prev;
-      return firstOpenStage?.currentMacro?.macro.key ?? firstOpenStage?.macros[0]?.macro.key ?? null;
+      const next =
+        firstOpenStage?.currentMacro?.macro.key ??
+        firstOpenStage?.macros[0]?.macro.key ??
+        macros[macros.length - 1]?.macro.key ??
+        null;
+      return next ?? prev;
     });
-  }, [firstOpenStage, macros, requestedMacro]);
+  }, [firstOpenStage, macros]);
 
   const activeMacro = macros.find((m) => m.macro.key === activeMacroKey) ?? null;
   const activeStageKey: ChannelOnboardingStageKey =
@@ -172,7 +181,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     firstOpenStage?.def.key ??
     "ready";
 
-  const channelsLive = channelsConnected > 0 && overall.readyToConnect;
   const compactLive = variant === "pms" && channelsLive && !liveExpanded;
 
   const selectMacro = useCallback(
@@ -187,7 +195,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           next.set("section", nextSection);
           if (focus) next.set("focus", focus);
           else next.delete("focus");
-          next.set("rq", String(Date.now()));
           return next;
         },
         { replace: true },
@@ -198,11 +205,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
   const goToField = useCallback(
     (section: string, focus?: string, unit?: string) => {
-      const owner =
-        macros.find((m) => m.macro.section === section && !m.complete) ??
-        macros.find((m) => m.macro.section === section) ??
-        activeMacro;
-      selectMacro(owner?.macro.key ?? activeMacroKey ?? "identity", section, focus);
+      const ownerKey =
+        macros.find((m) => m.macro.section === section && !m.complete)?.macro.key ??
+        macroKeyForSection(section) ??
+        activeMacroKey ??
+        "identity";
+      selectMacro(ownerKey, section, focus);
       window.setTimeout(() => {
         if (unit) {
           focusUnitCard(unit);
@@ -212,8 +220,9 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         if (focus) focusRequirementField(focus);
       }, 400);
     },
-    [activeMacro, activeMacroKey, macros, selectMacro],
+    [activeMacroKey, macros, selectMacro],
   );
+
 
   const pushOwner = useCallback(async () => {
     setBusy("ensure_owner");
