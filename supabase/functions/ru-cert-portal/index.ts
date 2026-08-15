@@ -22,6 +22,7 @@ import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsi
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
+import { ensureLiveNotificationsForOwner } from "../_shared/ruLnmSubscribe.ts";
 import { classifyMcqOrder, parseMcqFailingPoints, resolveMcqChannelId, resolveMcqTargets } from "../_shared/ruMcq.ts";
 import {
   RU_EMPLOYEE_RANGES,
@@ -811,6 +812,26 @@ Deno.serve(async (req) => {
         };
       }
     };
+
+    /**
+     * Register live notifications for a sub-account the moment its keys verify.
+     *
+     * Runs in the background: a portfolio must never be left unmonitored until the
+     * nightly cron, but a subscription failure must never fail key verification.
+     */
+    const autoSubscribeLiveNotifications = (ruOwnerId: string | null | undefined, label: string) => {
+      const ownerId = String(ruOwnerId ?? "").trim();
+      if (!/^\d+$/.test(ownerId)) return;
+      const task = ensureLiveNotificationsForOwner(admin, ownerId, label)
+        .then((outcome) => {
+          if (outcome.warning) console.warn(`[ru-cert-portal] auto-subscribe ${label}: ${outcome.warning}`);
+          else console.log(`[ru-cert-portal] live notifications subscribed + verified for ${label}`);
+        })
+        .catch((e) => console.warn("[ru-cert-portal] auto-subscribe threw", e instanceof Error ? e.message : e));
+      const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+      if (runtime?.waitUntil) runtime.waitUntil(task);
+    };
+
 
 
     // Property-scoped users (ROLOS owners / staff) may read status/readiness
@@ -3258,6 +3279,8 @@ Deno.serve(async (req) => {
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       const company = await provisionCompanyAfterKeyVerification();
+      // Verified keys mean this account can be monitored — subscribe it now.
+      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
@@ -3347,6 +3370,7 @@ Deno.serve(async (req) => {
         }, 422);
       }
       const company = await provisionCompanyAfterKeyVerification();
+      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
@@ -3626,6 +3650,29 @@ Deno.serve(async (req) => {
         unmatched.push(String(prop.name ?? targetPropertyId));
       }
 
+      /**
+       * Persist the read-back result. This is the property's listing-verification
+       * record: a push whose listings were never pulled back stays unverified, and a
+       * pull that leaves units unmatched is recorded as such rather than "verified".
+       */
+      const expectedUnits = activeUnits.length || 1;
+      const verifiedUnits = activeUnits.length
+        ? matched.filter((m) => m.scope === "unit").length
+        : (propertyHit ? 1 : 0);
+      const fullyVerified = verifiedUnits >= expectedUnits && unmatched.length === 0;
+      await admin
+        .from("properties")
+        .update({
+          ru_listings_verified_at: fullyVerified ? new Date().toISOString() : null,
+          ru_listings_verified_owner: subAccountLabel,
+          ru_listings_verified_units: verifiedUnits,
+          ru_listings_expected_units: expectedUnits,
+          ru_listings_unmatched: unmatched,
+        })
+        .eq("id", targetPropertyId)
+        .then(() => {}, (e: unknown) => console.warn("[ru-cert-portal] listing verification write failed", e));
+
+
       return json({
         success: true,
         ru_owner_id: ownerId,
@@ -3635,6 +3682,9 @@ Deno.serve(async (req) => {
         unmatched,
         remote_count: remote.length,
         auth_mode: listed.auth_mode ?? null,
+        listings_verified: fullyVerified,
+        listings_verified_units: verifiedUnits,
+        listings_expected_units: expectedUnits,
       });
     }
 
@@ -3943,6 +3993,46 @@ Deno.serve(async (req) => {
      *    property and its units, readiness snapshot removed. Existing listings on the
      *    channel side are not deleted; archive them there if they are no longer wanted.
      */
+    /**
+     * ── ensure_live_notifications: (re)subscribe this property's distribution account ──
+     * The wizard calls this automatically after key verification; this action is the
+     * manual repair path when a subscription drifted or RU dropped it.
+     */
+    if (action === "ensure_live_notifications") {
+      const targetPropertyId: string = typeof body.property_id === "string" ? body.property_id : "";
+      const suppliedOwnerId = String(body.ru_owner_id ?? "").trim();
+      let ownerId = suppliedOwnerId;
+      let label = suppliedOwnerId ? `OwnerID ${suppliedOwnerId}` : "sub-account";
+
+      if (!ownerId) {
+        if (!targetPropertyId) {
+          return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or ru_owner_id is required" } }, 400);
+        }
+        const { data: prop } = await admin
+          .from("properties")
+          .select("id, owner_email")
+          .eq("id", targetPropertyId)
+          .maybeSingle();
+        if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+        const portfolioId = await resolvePortfolioId(admin, targetPropertyId);
+        const { account } = await findOwnerAccount(admin, targetPropertyId, prop.owner_email ?? null, portfolioId);
+        ownerId = String(account?.ru_owner_id ?? "").trim();
+        label = `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId || "—"})`;
+      }
+      if (!/^\d+$/.test(ownerId)) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_OWNER_NOT_BOUND",
+            message: "No distribution sub-account is bound for this property, so live notifications cannot be registered.",
+          },
+        }, 422);
+      }
+
+      const outcome = await ensureLiveNotificationsForOwner(admin, ownerId, label);
+      return json({ success: true, account_label: label, ...outcome });
+    }
+
     if (action === "unbind_property_account") {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) {
@@ -3969,7 +4059,16 @@ Deno.serve(async (req) => {
 
       const { error: propErr } = await admin
         .from("properties")
-        .update({ rentalsunited_property_id: null, ru_push_enabled: false })
+        .update({
+          rentalsunited_property_id: null,
+          ru_push_enabled: false,
+          // Verification describes listings that no longer exist for this property.
+          ru_listings_verified_at: null,
+          ru_listings_verified_owner: null,
+          ru_listings_verified_units: null,
+          ru_listings_expected_units: null,
+          ru_listings_unmatched: [],
+        })
         .eq("id", propertyId);
       if (propErr) return json({ success: false, error: { code: "SAVE_FAILED", message: propErr.message } }, 500);
 
@@ -4286,9 +4385,39 @@ Deno.serve(async (req) => {
         // Idempotent: treat it as done only when RU actually confirmed it.
         // `force: true` re-submits (e.g. the RU portal profile is still blank).
         const companyState = await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
-        if (body.force !== true && companyState.satisfied) {
+        /**
+         * Save-time resend. Company details are authored on the property, so an edit
+         * saved after the last accepted push makes the channel's copy stale. Callers
+         * that fire on save pass `resend_if_changed` and we re-push only in that case,
+         * which keeps ordinary wizard polling on the cheap idempotent path.
+         */
+        let staleAfterEdit = false;
+        if (body.resend_if_changed === true && companyState.satisfied) {
+          const filledAt = account.company_filled_at ? Date.parse(String(account.company_filled_at)) : 0;
+          const memberIds: string[] = [];
+          if (portfolioId) {
+            const { data: members } = await admin
+              .from("property_portfolio_members")
+              .select("property_id")
+              .eq("portfolio_id", portfolioId);
+            for (const m of (members ?? []) as { property_id: string }[]) memberIds.push(m.property_id);
+          }
+          if (propertyId && !memberIds.includes(propertyId)) memberIds.push(propertyId);
+          if (memberIds.length > 0 && filledAt > 0) {
+            const { data: touched } = await admin
+              .from("properties")
+              .select("updated_at")
+              .in("id", memberIds)
+              .order("updated_at", { ascending: false })
+              .limit(1);
+            const newest = (touched ?? [])[0]?.updated_at ? Date.parse(String((touched ?? [])[0].updated_at)) : 0;
+            staleAfterEdit = newest > filledAt;
+          }
+        }
+        if (body.force !== true && !staleAfterEdit && companyState.satisfied) {
           return { sent: true, skipped: true as const };
         }
+
 
         // Password sources, in order: this call, an admin-supplied password
         // (adopted accounts), or the encrypted copy stored at creation time.

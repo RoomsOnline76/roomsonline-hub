@@ -42,7 +42,7 @@ export function companySyncEligible(signals: PushReportSignals): boolean {
   return pushReportedOn(signals) && !!signals.companyFilledAt;
 }
 
-export type UnboundDependentStep = "publish" | "currency" | "signoff" | "entitlement" | "connect";
+export type UnboundDependentStep = "publish" | "verify listings" | "currency" | "signoff" | "entitlement" | "connect";
 
 export function unboundDependentDetail(step: UnboundDependentStep, leftover = false): string {
   switch (step) {
@@ -50,6 +50,8 @@ export function unboundDependentDetail(step: UnboundDependentStep, leftover = fa
       return leftover
         ? "Listing IDs are leftover from a previous bind. Push is not valid until the owner key & secret are configured."
         : "Property is unbound — configure the push owner and the key & secret before a push can succeed.";
+    case "verify listings":
+      return "Listings cannot be read back while the property is unbound.";
     case "currency":
       return "Location & currency cannot be verified while the property is unbound.";
     case "signoff":

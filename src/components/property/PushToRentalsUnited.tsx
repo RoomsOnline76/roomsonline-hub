@@ -158,6 +158,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
   const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
+  /**
+   * Listing verification = the channel was asked for its own listings after the push
+   * and every expected unit came back. Until then the push is unconfirmed.
+   */
+  const [verification, setVerification] = useState<{
+    verifiedAt: string | null;
+    owner: string | null;
+    verifiedUnits: number | null;
+    expectedUnits: number | null;
+    unmatched: string[];
+  } | null>(null);
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
@@ -200,12 +211,20 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     // Load property RU IDs and owner email
     supabase
       .from("properties")
-      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email, ru_push_enabled, external_system, is_rol_property")
+      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email, ru_push_enabled, external_system, is_rol_property, ru_listings_verified_at, ru_listings_verified_owner, ru_listings_verified_units, ru_listings_expected_units, ru_listings_unmatched")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
         setRuPropertyId(data?.rentalsunited_property_id ?? null);
         setBuildingId(data?.rentalsunited_building_id ?? null);
+        const row = data as Record<string, unknown> | null;
+        setVerification({
+          verifiedAt: (row?.ru_listings_verified_at as string | null) ?? null,
+          owner: (row?.ru_listings_verified_owner as string | null) ?? null,
+          verifiedUnits: (row?.ru_listings_verified_units as number | null) ?? null,
+          expectedUnits: (row?.ru_listings_expected_units as number | null) ?? null,
+          unmatched: Array.isArray(row?.ru_listings_unmatched) ? (row?.ru_listings_unmatched as string[]) : [],
+        });
         // Auto-managed when the property runs on ROLOS PMS and RU push is enabled
         const isRolos = (data as any)?.external_system === 'rolos' || (data as any)?.is_rol_property === true;
         setAutoManaged(!!(isRolos && (data as any)?.ru_push_enabled !== false));
@@ -309,13 +328,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   /** Re-read the stored RU links so the panel reflects what the fetch just wrote. */
   const reloadStoredRuIds = async () => {
     const [{ data: prop }, { data: rows }] = await Promise.all([
-      supabase.from("properties").select("rentalsunited_property_id").eq("id", propertyId).maybeSingle(),
+      supabase
+        .from("properties")
+        .select("rentalsunited_property_id, ru_listings_verified_at, ru_listings_verified_owner, ru_listings_verified_units, ru_listings_expected_units, ru_listings_unmatched")
+        .eq("id", propertyId)
+        .maybeSingle(),
       supabase
         .from("hostfully_room_types")
         .select("id, name, rentalsunited_property_id, is_active")
         .eq("property_id", propertyId),
     ]);
     setRuPropertyId(prop?.rentalsunited_property_id ?? null);
+    const vrow = prop as Record<string, unknown> | null;
+    setVerification({
+      verifiedAt: (vrow?.ru_listings_verified_at as string | null) ?? null,
+      owner: (vrow?.ru_listings_verified_owner as string | null) ?? null,
+      verifiedUnits: (vrow?.ru_listings_verified_units as number | null) ?? null,
+      expectedUnits: (vrow?.ru_listings_expected_units as number | null) ?? null,
+      unmatched: Array.isArray(vrow?.ru_listings_unmatched) ? (vrow?.ru_listings_unmatched as string[]) : [],
+    });
     const active = (rows ?? []).filter((r) => r.is_active !== false);
     setUnits((prev) =>
       prev.map((u) => {
@@ -613,6 +644,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
               </Badge>
             )}
+            {verification?.verifiedAt ? (
+              <Badge
+                variant="outline"
+                className="h-5 gap-1 border-emerald-500/60 text-[10px] text-emerald-600"
+                title={`Listings read back from ${verification.owner ?? "the distribution account"} on ${new Date(verification.verifiedAt).toLocaleString()}`}
+              >
+                <CheckCircle className="h-3 w-3" />
+                Listings verified{verification.expectedUnits ? ` (${verification.verifiedUnits}/${verification.expectedUnits})` : ""}
+              </Badge>
+            ) : ruPropertyId || units.some((u) => u.ru_property_id) ? (
+              <Badge
+                variant="outline"
+                className="h-5 gap-1 border-amber-500/60 text-[10px] text-amber-600"
+                title="Pushed but not confirmed — fetch the Channel Manager IDs to read the listings back"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Awaiting listing verification
+              </Badge>
+            ) : null}
             {identityGate.gated && (
               <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-500/60 text-amber-600">
                 <AlertTriangle className="h-3 w-3" />
@@ -696,6 +746,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
           </div>
         </div>
+        {verification && verification.unmatched.length > 0 && (
+          <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-[11px] text-amber-700">
+            <span className="font-medium">Not found on the channel:</span>{" "}
+            {verification.unmatched.join(", ")} — re-push, then fetch the Channel Manager IDs again to confirm.
+          </div>
+        )}
         <div className="mt-2 border-t pt-2">
           <ChannelContentSyncStatus propertyId={propertyId} />
           {published && (

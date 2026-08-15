@@ -207,7 +207,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const [property, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
+          .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id, ru_listings_verified_at, ru_listings_verified_units, ru_listings_expected_units")
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
@@ -622,6 +622,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
             ? "Listing published"
             : "Not published yet",
     });
+
+    /**
+     * Publishing is only confirmed once the channel's own listing set has been read
+     * back and every expected listing was found. A push nobody verified is a claim,
+     * not a fact.
+     */
+    const listingsVerifiedAt = String((prop as Record<string, unknown>).ru_listings_verified_at ?? "").trim();
+    const listingsVerifiedUnits = Number((prop as Record<string, unknown>).ru_listings_verified_units ?? 0);
+    const listingsExpectedUnits = Number((prop as Record<string, unknown>).ru_listings_expected_units ?? 0);
+    put("listings_verified", "Listings confirmed on the channel", listingOk && !!listingsVerifiedAt, {
+      waiting: !bound,
+      detail: !bound
+        ? unboundDependentDetail("verify listings")
+        : !listingOk
+          ? "Publish the listing first."
+          : listingsVerifiedAt
+            ? `${listingsExpectedUnits ? `${listingsVerifiedUnits}/${listingsExpectedUnits} listing(s) ` : ""}read back ${new Date(listingsVerifiedAt).toLocaleDateString()}`
+            : "Pushed but not read back — fetch the Channel Manager IDs to confirm.",
+    });
+
+
 
     // The content quality check is advisory: it is ordered on the channel side and
     // only returns a verdict once the channel subscription is live. Gate/plumbing
