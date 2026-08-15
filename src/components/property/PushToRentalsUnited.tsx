@@ -211,12 +211,20 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     // Load property RU IDs and owner email
     supabase
       .from("properties")
-      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email, ru_push_enabled, external_system, is_rol_property")
+      .select("rentalsunited_property_id, rentalsunited_building_id, owner_email, ru_push_enabled, external_system, is_rol_property, ru_listings_verified_at, ru_listings_verified_owner, ru_listings_verified_units, ru_listings_expected_units, ru_listings_unmatched")
       .eq("id", propertyId)
       .single()
       .then(({ data }) => {
         setRuPropertyId(data?.rentalsunited_property_id ?? null);
         setBuildingId(data?.rentalsunited_building_id ?? null);
+        const row = data as Record<string, unknown> | null;
+        setVerification({
+          verifiedAt: (row?.ru_listings_verified_at as string | null) ?? null,
+          owner: (row?.ru_listings_verified_owner as string | null) ?? null,
+          verifiedUnits: (row?.ru_listings_verified_units as number | null) ?? null,
+          expectedUnits: (row?.ru_listings_expected_units as number | null) ?? null,
+          unmatched: Array.isArray(row?.ru_listings_unmatched) ? (row?.ru_listings_unmatched as string[]) : [],
+        });
         // Auto-managed when the property runs on ROLOS PMS and RU push is enabled
         const isRolos = (data as any)?.external_system === 'rolos' || (data as any)?.is_rol_property === true;
         setAutoManaged(!!(isRolos && (data as any)?.ru_push_enabled !== false));
