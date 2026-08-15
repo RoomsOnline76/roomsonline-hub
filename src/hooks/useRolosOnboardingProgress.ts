@@ -660,10 +660,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [macros]);
 
-  const refresh = useCallback(async () => {
-    readiness.refresh();
-    await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
-  }, [propertyId, queryClient, readiness]);
+  /**
+   * A trading property stays trading. Once a channel is connected the wizard must
+   * not reopen because a later check regressed — the regression is surfaced as a
+   * banner instead.
+   */
+  const channelsLive = channelsConnected > 0;
+  const readyRegressed = channelsLive && !overall.readyToConnect;
+
+  const refresh = useCallback(
+    async (opts?: { probeAri?: boolean }) => {
+      readiness.refresh();
+      if (opts?.probeAri) setProbeAri(true);
+      await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+    },
+    [propertyId, queryClient, readiness],
+  );
+
 
   const writeChannelReadiness = useCallback(
     async (patch: Record<string, unknown>) => {
