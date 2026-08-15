@@ -440,6 +440,7 @@ export function PortfolioRuAccountsTab() {
         access_key: string;
         key_label: string | null;
         verified_at: string | null;
+        shared_with_other_account?: boolean;
       }[];
     },
     staleTime: 60_000,
