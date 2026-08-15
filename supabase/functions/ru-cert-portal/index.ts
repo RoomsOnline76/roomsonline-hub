@@ -1244,20 +1244,26 @@ Deno.serve(async (req) => {
         const scopedOwnerId = ownerAccount?.ru_owner_id ? Number(ownerAccount.ru_owner_id) : null;
         const scope = scopedOwnerId && scopedOwnerId > 0 ? { owner_id: scopedOwnerId } : {};
         const unitProbes = await Promise.all(ruIds.map(async (ruId) => {
+          const cacheKey = `${ruId}|${scopedOwnerId ?? "master"}|${from}`;
+          const cached = ariProbeCache.get(cacheKey);
+          if (cached && Date.now() - cached.at < ARI_PROBE_TTL_MS) return cached.probe;
+          // Each pull passes the shared one-call-per-minute channel gate, which can sleep for
+          // seconds. A slow or throttled account must never hold the readiness panel open:
+          // the probe is time-boxed and a timeout is reported as "verification pending".
           const [avbRes, priceRes] = await Promise.all([
-            admin.functions.invoke("rentalsunited-api", {
+            withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
               body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
-            }),
-            admin.functions.invoke("rentalsunited-api", {
+            })),
+            withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
               body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
-            }),
+            })),
           ]);
           const avbXml: string = avbRes.data?.raw_xml ?? "";
           const priceXml: string = priceRes.data?.raw_xml ?? "";
           const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
           const bookableWindow = findRuBookableWindow(avbXml, priceXml);
-          return {
+          const probe = {
             ru_property_id: ruId,
             unit_name: nameFor(ruId),
             open_days: openDays,
@@ -1267,7 +1273,10 @@ Deno.serve(async (req) => {
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
             bookable_window: bookableWindow as RuBookableWindow,
           };
+          ariProbeCache.set(cacheKey, { at: Date.now(), probe });
+          return probe;
         }));
+
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
         const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
         const pricingReady = livePricesVerified || localCoverage?.complete === true;
