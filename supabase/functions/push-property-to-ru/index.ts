@@ -3608,15 +3608,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // A live push makes any earlier listing verification stale: the listings must be
-    // pulled back and confirmed again before the wizard treats them as verified.
-    if (!dry_run) {
-      await supabase
-        .from('properties')
-        .update({ ru_listings_verified_at: null })
-        .eq('id', property_id)
-        .then(() => {}, (e: unknown) => console.warn('[push-property-to-ru] could not reset listing verification', e));
-    }
+    /**
+     * The listing verification is NOT cleared here. Blanking it up-front meant every
+     * resumable chunk of a multi-unit push wiped a good verification and, because the
+     * read-back only runs on the final chunk, the property was left reading "pushed but
+     * never confirmed". The read-back that follows the push is the only writer: it stamps a
+     * fresh confirmation or clears it when the channel really does not hold the listings.
+     */
+
 
     // Persist resolved geo+currency for re-use & audit (skip on dry runs).
     if (!dry_run) {
