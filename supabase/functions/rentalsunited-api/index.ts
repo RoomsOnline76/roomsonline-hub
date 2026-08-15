@@ -2485,7 +2485,13 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
 
       const properties = extractPropertyIds(response);
-      return jsonResponse({ success: true, properties, count: properties.length });
+      return jsonResponse({
+        success: true,
+        properties,
+        count: properties.length,
+        owner_id: ownerId,
+        auth_mode: childAuthMode(childAuth),
+      });
     }
 
     // ── get_property ──

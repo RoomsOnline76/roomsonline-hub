@@ -3303,17 +3303,26 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
+      const subAccountLabel = `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`;
       const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
         body: { action: "list_properties", owner_id: Number(ownerId) },
       });
       if (listErr || listed?.success !== true) {
+        // Pass the channel's own reason through verbatim — a missing sub-account key pair must
+        // never be reported as "the sub-account was empty".
+        const code = typeof listed?.error?.code === "string" ? listed.error.code : "RU_LIST_FAILED";
+        const detail = listed?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
         return json({
           success: false,
+          ru_owner_id: ownerId,
+          ru_owner_label: subAccountLabel,
           error: {
-            code: "RU_LIST_FAILED",
-            message: listed?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list",
+            code,
+            message: code === "RU_CHILD_AUTH_REQUIRED"
+              ? `API keys are required for ${subAccountLabel} before its listings can be pulled. ${detail}`
+              : `${detail} (sub-account ${subAccountLabel})`,
           },
-        }, 502);
+        }, 422);
       }
 
       const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
@@ -3378,6 +3387,7 @@ Deno.serve(async (req) => {
         matched,
         unmatched,
         remote_count: remote.length,
+        auth_mode: listed.auth_mode ?? null,
       });
     }
 
