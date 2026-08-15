@@ -831,9 +831,16 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [d?.roadmap, propertyId, refresh],
   );
 
+  const lockedSignoffItems = signoff.lockedItems ?? [];
+
   /** Tick / untick a single step-10 verification item. */
   const recordSignoffCheck = useCallback(
     async (itemKey: string, checked: boolean, actorLabel?: string | null) => {
+      if (checked && lockedSignoffItems.includes(itemKey)) {
+        throw new Error(
+          "Company details have not been pushed to the Channel Manager with the verified keys yet — run \"Push company details\" first.",
+        );
+      }
       const checks = { ...(signoff.checks ?? {}) };
       if (checked) {
         checks[itemKey] = { checked: true, by: actorLabel ?? null, at: new Date().toISOString() };
@@ -848,7 +855,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         signed_off_at: allTicked ? new Date().toISOString() : null,
       });
     },
-    [signoff.checks, writeChannelReadiness],
+    [lockedSignoffItems, signoff.checks, writeChannelReadiness],
   );
 
   /** Tick or clear every verification item at once. */
@@ -858,9 +865,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const checks: Record<string, SignoffCheckRecord> = {};
       if (signedOff) {
         for (const item of ROLOS_SIGNOFF_CHECKLIST) {
+          // Locked items still need their channel evidence — "Confirm all" cannot forge them.
+          if (lockedSignoffItems.includes(item.key)) continue;
           checks[item.key] = { checked: true, by: actorLabel ?? null, at };
         }
       }
+      const complete = ROLOS_SIGNOFF_CHECKLIST.every((i) => checks[i.key]?.checked === true);
+      signedOff = signedOff && complete;
       await writeChannelReadiness({
         checks,
         signed_off: signedOff,
