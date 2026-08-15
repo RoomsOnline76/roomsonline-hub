@@ -127,6 +127,10 @@ const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
 
+/** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
+const PHASE_STATUS_TTL_MS = 90_000;
+const phaseStatusCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
+
 /**
  * The in-memory cache above dies with the function instance, so a cold start (or a
  * throttled pull) used to erase a verdict the owner had already earned and flip the
