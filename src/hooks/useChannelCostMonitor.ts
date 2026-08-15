@@ -13,7 +13,7 @@ import {
 } from "@/lib/channelBillingForecast";
 import { pushReportedOn } from "@/lib/channelDistributionGate";
 
-export type ChannelSyncState = "live" | "paused" | "archived";
+export type ChannelSyncState = "live" | "paused" | "archived" | "pending";
 
 export interface ChannelUnitRow {
   id: string;
