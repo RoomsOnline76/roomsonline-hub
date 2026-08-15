@@ -279,6 +279,50 @@ export async function aiFetch(
   } catch {
     body = {};
   }
+
+  // Streaming callers (TOBI chat surfaces) need the raw SSE body passed through,
+  // so buffering it into JSON is not an option — retry the stream on the reserve.
+  if (body.stream === true) {
+    const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    const streamPost = (url: string, key: string, payload: Record<string, unknown>) =>
+      fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: init?.signal,
+      });
+
+    if (gatewayKey) {
+      try {
+        const primary = await streamPost(AI_GATEWAY_URL, gatewayKey, body);
+        if (primary.ok) return primary;
+        const detail = await primary.text().catch(() => "");
+        const { code, error } = describeAiFailure(primary.status, detail);
+        console.error(`[${label}] streaming gateway ${primary.status} ${code}`, detail.slice(0, 300));
+        if (xaiKey && FALLBACK_WORTHY.includes(code)) {
+          const model = XAI_EQUIVALENT[String(body.model ?? "")] ?? "grok-4-fast";
+          const reserve = await streamPost(XAI_CHAT_URL, xaiKey, { ...body, model });
+          if (reserve.ok) return reserve;
+        }
+        return new Response(JSON.stringify({ error: { code, message: error } }), {
+          status: primary.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        console.error(`[${label}] streaming gateway transport error`, err);
+      }
+    }
+    if (xaiKey) {
+      const model = XAI_EQUIVALENT[String(body.model ?? "")] ?? "grok-4-fast";
+      return await streamPost(XAI_CHAT_URL, xaiKey, { ...body, model });
+    }
+    return new Response(JSON.stringify({ error: { code: "MISSING_KEY", message: "TOBI is not configured." } }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const outcome = await aiChat(body, { signal: init?.signal, label });
   if (outcome.ok) {
     return new Response(JSON.stringify(outcome.data ?? {}), {
