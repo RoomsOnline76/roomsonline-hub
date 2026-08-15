@@ -135,6 +135,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     recordSignoff,
     recordSignoffCheck,
     listingPull,
+    subAccountEmail,
+
     recordListingPull,
     refresh,
     isLoading,
