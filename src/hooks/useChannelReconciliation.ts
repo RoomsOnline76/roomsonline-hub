@@ -115,6 +115,13 @@ export interface ChannelReconciliation {
   archived_count: number;
   /** live + archived; must equal what the accounts hold. */
   account_listing_total: number;
+  /** Every listing across every sub-account, bound or not. */
+  all_account_listing_total?: number;
+  foreign_listings: ReconForeignListing[];
+  foreign_listing_count?: number;
+  /** Set when the channel sub-account roster itself could not be read. */
+  roster_error?: string | null;
+
   archived_orphans: ReconArchived[];
   archived_matched: ReconArchivedMatched[];
   conflicts: ReconConflict[];
