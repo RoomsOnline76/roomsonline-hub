@@ -60,8 +60,10 @@ async function detectFeaturesFromImages(imageUrls: string[], apiKey: string): Pr
           // photo threw "Unterminated string in JSON" and the scout saw no visual evidence.
           max_tokens: 1200,
           response_format: { type: "json_object" },
-
+          messages: [
+            {
               role: "system",
+
               content:
                 'You analyse accommodation photos and list amenities, facilities and features you can clearly see. ' +
                 'Reply with JSON only: {"features":[{"feature":"swimming pool","confidence":0.9}]}. ' +
