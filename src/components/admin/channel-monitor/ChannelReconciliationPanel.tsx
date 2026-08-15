@@ -415,52 +415,30 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                   onClick={() => setShowArchived((v) => !v)}
                 >
                   <span>
-                    Archived on the channel — {result.archived_orphans.length} listing
+                    Removed in the channel portal — {result.archived_orphans.length} listing
                     {result.archived_orphans.length === 1 ? "" : "s"}, not billable
                   </span>
                   <ChevronDown className={`h-4 w-4 transition-transform ${showArchived ? "rotate-180" : ""}`} />
                 </button>
                 <p className="text-xs text-muted-foreground">
-                  The channel keeps archived listings in its data feed and only hides them in its own portal. They
-                  carry no cost and are not part of a cleanup — delete them only if you want the feed tidy.
+                  Deleting a listing in the channel portal does not remove it from the channel's data feed — it stays
+                  in the account flagged archived and unsellable. These are already in their terminal removed state:
+                  they carry no cost, need no cleanup, and there is nothing further to delete.
                 </p>
-                {showArchived && archivedCleanable.length > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={running || cleaning}
-                    onClick={() => void handleDeleteArchived()}
-                  >
-                    <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                    Delete archived ({archivedCleanable.length})
-                  </Button>
-                )}
 
                 {showArchived && (
                   <ul className="divide-y rounded-md border">
                     {result.archived_orphans.map((a) => (
                       <li key={a.listing_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                         <span className="min-w-0 truncate">
-                          {a.name} <span className="text-muted-foreground">#{a.listing_id} · archived</span>
-                          {(refused[a.listing_id] || failures[a.listing_id]) && (
-                            <span className="block text-xs text-destructive">
-                              {refused[a.listing_id] || failures[a.listing_id]}
-                            </span>
-                          )}
+                          {a.name} <span className="text-muted-foreground">#{a.listing_id}</span>
                         </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busyId === a.listing_id || cleaning}
-                          onClick={() => void handlePurge(a)}
-                        >
-                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                          Delete from channel
-                        </Button>
+                        <span className="shrink-0 text-xs text-muted-foreground">removed · archived in feed</span>
                       </li>
                     ))}
                   </ul>
                 )}
+
               </section>
             )}
 
