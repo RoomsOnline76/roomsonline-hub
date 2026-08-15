@@ -30,8 +30,11 @@ import {
 import {
   buildStageProgress,
   editorSectionForMacro,
+  macroKeyForSection,
+  EDITOR_SECTIONS,
   type ChannelOnboardingStageKey,
 } from "@/config/channelOnboardingStages";
+
 import { ROLOS_SIGNOFF_CHECKLIST } from "@/config/rolosOnboardingMacros";
 import { CHECK_TO_FIELD_KEYS, PROPERTY_FIELD_REQUIREMENTS } from "@/config/propertyFieldRequirements";
 import { resolveMcqRequirement } from "@/lib/mcqRequirements";
@@ -123,6 +126,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     macros,
     overall,
     channelsConnected,
+    channelsLive,
+    readyRegressed,
     publishedOk,
     unpublishedUnits,
     signoff,
@@ -149,22 +154,29 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const requestedMacro = searchParams.get("step");
   const requestedSection = searchParams.get("section");
 
-  const [activeMacroKey, setActiveMacroKey] = useState<string | null>(null);
+  const [activeMacroKey, setActiveMacroKey] = useState<string | null>(requestedMacro);
   const [editorSection, setEditorSection] = useState(requestedSection || "general");
   const [liveExpanded, setLiveExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [pushErrors, setPushErrors] = useState<string[]>([]);
 
+  /**
+   * One owner of "current step". The user's pick is honoured while that step
+   * still has work; once it completes the wizard advances by itself (and keeps
+   * the URL in step) instead of stranding the user on a finished step.
+   */
   useEffect(() => {
-    if (requestedMacro) {
-      setActiveMacroKey(requestedMacro);
-      return;
-    }
+    if (macros.length === 0) return;
     setActiveMacroKey((prev) => {
       if (prev && macros.some((m) => m.macro.key === prev && !m.complete)) return prev;
-      return firstOpenStage?.currentMacro?.macro.key ?? firstOpenStage?.macros[0]?.macro.key ?? null;
+      const next =
+        firstOpenStage?.currentMacro?.macro.key ??
+        firstOpenStage?.macros[0]?.macro.key ??
+        macros[macros.length - 1]?.macro.key ??
+        null;
+      return next ?? prev;
     });
-  }, [firstOpenStage, macros, requestedMacro]);
+  }, [firstOpenStage, macros]);
 
   const activeMacro = macros.find((m) => m.macro.key === activeMacroKey) ?? null;
   const activeStageKey: ChannelOnboardingStageKey =
@@ -172,7 +184,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     firstOpenStage?.def.key ??
     "ready";
 
-  const channelsLive = channelsConnected > 0 && overall.readyToConnect;
   const compactLive = variant === "pms" && channelsLive && !liveExpanded;
 
   const selectMacro = useCallback(
@@ -187,7 +198,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           next.set("section", nextSection);
           if (focus) next.set("focus", focus);
           else next.delete("focus");
-          next.set("rq", String(Date.now()));
           return next;
         },
         { replace: true },
@@ -198,11 +208,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
   const goToField = useCallback(
     (section: string, focus?: string, unit?: string) => {
-      const owner =
-        macros.find((m) => m.macro.section === section && !m.complete) ??
-        macros.find((m) => m.macro.section === section) ??
-        activeMacro;
-      selectMacro(owner?.macro.key ?? activeMacroKey ?? "identity", section, focus);
+      const ownerKey =
+        macros.find((m) => m.macro.section === section && !m.complete)?.macro.key ??
+        macroKeyForSection(section) ??
+        activeMacroKey ??
+        "identity";
+      selectMacro(ownerKey, section, focus);
       window.setTimeout(() => {
         if (unit) {
           focusUnitCard(unit);
@@ -212,8 +223,9 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         if (focus) focusRequirementField(focus);
       }, 400);
     },
-    [activeMacro, activeMacroKey, macros, selectMacro],
+    [activeMacroKey, macros, selectMacro],
   );
+
 
   const pushOwner = useCallback(async () => {
     setBusy("ensure_owner");
@@ -316,42 +328,69 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const nextAction = useMemo(() => {
     const open = stages.find((s) => !s.complete);
     const macro = open?.currentMacro ?? activeMacro;
-    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined };
-    if (macro.locked) {
-      return { label: "Finish the previous step first", disabled: true, run: () => undefined };
-    }
+    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined, reason: undefined as string | undefined };
+    const reason = macro.actionBlockedReason;
+    // Steps whose blocker is a mandatory field / check still route to the fix;
+    // only the distribution actions themselves wait on a prerequisite.
+    const gatedAction = !!reason;
     if (macro.macro.key === "push_owner" && isPlatformUser) {
-      return { label: "Create distribution identity", disabled: busy === "ensure_owner", run: () => void pushOwner() };
+      return {
+        label: "Create distribution identity",
+        disabled: gatedAction || busy === "ensure_owner",
+        run: () => void pushOwner(),
+        reason,
+      };
     }
     if (macro.macro.key === "publish") {
-      return { label: "Publish listing", disabled: busy === "publish", run: () => void publishListing() };
+      return {
+        label: isPlatformUser ? "Publish listing" : "Review publish step",
+        disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
+        run: () => (isPlatformUser ? void publishListing() : selectMacro("publish")),
+        reason,
+      };
     }
     if (macro.macro.key === "entitlement") {
       if (!isPlatformUser) {
         return {
-          label: "Ask your account manager to enable Channel Manager",
+          label: "Waiting on ROL to enable Channel Manager",
           disabled: true,
           run: () => undefined,
+          reason: "Your account manager switches this on — nothing for you to do here.",
         };
       }
-      return { label: "Enable Channel Manager", disabled: busy === "entitlement", run: () => void enableChannelManager() };
+      return {
+        label: "Enable Channel Manager",
+        disabled: gatedAction || busy === "entitlement",
+        run: () => void enableChannelManager(),
+        reason,
+      };
     }
     if (macro.macro.key === "connect") {
       return {
         label: "Connect a channel below",
-        disabled: !overall.readyToConnect,
+        disabled: gatedAction,
         run: () => selectMacro("connect"),
+        reason,
+      };
+    }
+    if (macro.macro.key === "signoff" && !isPlatformUser) {
+      return {
+        label: "Waiting on ROL sign-off",
+        disabled: true,
+        run: () => undefined,
+        reason: "A ROL admin confirms the live sub-account.",
       };
     }
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
     // Never point the primary action at a check the resolver could not judge —
     // there is no field behind it, so the button would go nowhere.
     const firstCheck =
-      macro.stateChecks.find((c) => !c.ok && !c.unknown && !!resolveCheckTarget(c.key)) ??
-      macro.stateChecks.find((c) => !c.ok && !c.unknown);
+      macro.stateChecks.find((c) => !c.ok && !c.unknown && !c.waiting && !!resolveCheckTarget(c.key)) ??
+      macro.stateChecks.find((c) => !c.ok && !c.unknown && !c.waiting);
     return {
-      label: firstField ? `Fix: ${firstField.label}` : firstCheck ? `Fix: ${firstCheck.label}` : "Continue",
+      label: firstField ? `Fix: ${firstField.label}` : firstCheck ? `Fix: ${firstCheck.label}` : "Open step",
       disabled: false,
+      reason,
       run: () => {
         if (firstField) {
           goToField(firstField.section, firstField.paintable ? firstField.key : undefined);
@@ -371,12 +410,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     enableChannelManager,
     goToField,
     isPlatformUser,
-    overall.readyToConnect,
     publishListing,
     pushOwner,
     selectMacro,
     stages,
   ]);
+
 
   if (isLoading) {
     return (
@@ -465,11 +504,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               type="button"
               size="icon"
               variant="ghost"
-              onClick={() => void refresh()}
+              onClick={() => void refresh({ probeAri: true })}
               aria-label="Refresh readiness"
+              title="Re-check readiness, including the live channel calendar"
             >
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+
             <Button type="button" onClick={nextAction.run} disabled={nextAction.disabled || !!busy}>
               {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
               {nextAction.label}
@@ -509,12 +550,20 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         </div>
       </header>
 
+      {readyRegressed && (
+
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+          This party is live on {channelsConnected} channel{channelsConnected === 1 ? "" : "s"}, but a readiness
+          check has regressed. Distribution keeps running — review the flagged steps below when convenient.
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav className="space-y-4" aria-label="Go-live stages">
           {stages.map((stage) => (
-            <div key={stage.def.key} className={stage.locked ? "opacity-60" : undefined}>
+            <div key={stage.def.key}>
               <div className="mb-1 flex items-center gap-2">
-                <StatusDot complete={stage.complete} locked={stage.locked} />
+                <StatusDot complete={stage.complete} locked={false} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{stage.def.title}</p>
                   <p className="text-[11px] leading-snug text-muted-foreground">{stage.def.goal}</p>
@@ -530,13 +579,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
                       <li key={m.macro.key}>
                         <button
                           type="button"
-                          disabled={m.locked}
                           onClick={() => selectMacro(m.macro.key)}
+                          title={m.actionBlockedReason}
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs ${
                             active ? "bg-primary/10 font-medium text-foreground" : "text-muted-foreground hover:bg-muted"
                           }`}
                         >
-                          <StatusDot complete={m.complete} locked={m.locked} />
+                          <StatusDot complete={m.complete} locked={false} />
                           <span className="min-w-0 flex-1 truncate">{m.macro.title}</span>
                         </button>
                       </li>
@@ -559,11 +608,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
                 </div>
                 <Badge variant={activeMacro.complete ? "secondary" : "outline"}>{activeMacro.score}%</Badge>
               </div>
-              {activeMacro.locked && (
+              {activeMacro.actionBlockedReason && (
                 <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px] text-muted-foreground">
-                  Complete the previous step first — this step is gated.
+                  {activeMacro.actionBlockedReason} You can still review and prepare this step.
                 </p>
               )}
+
               <BlockerList
                 progress={activeMacro}
                 units={unitScope}
@@ -625,7 +675,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             </div>
           )}
 
-          {activeStageKey === "ready" && (
+          {/*
+            The embedded editor follows the section, not the stage: a "Fix" from a
+            later step (e.g. rate plans or contacts) must still land on an editable
+            surface instead of an empty pane.
+          */}
+          {EDITOR_SECTIONS.has(editorSection) &&
+            (activeStageKey === "ready" || (activeMacro?.fieldItems.some((i) => !i.satisfied) ?? false)) && (
             <div className="overflow-hidden rounded-lg border bg-background">
               {editorSection === "contacts" ? (
                 <PropertyContactDetails propertyId={propertyId} />
@@ -640,6 +696,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               )}
             </div>
           )}
+
 
           {activeStageKey === "published" && (
             <PublishedPane
@@ -731,15 +788,21 @@ function BlockerList({
 }) {
   const outstanding = progress.fieldItems.filter((i) => !i.satisfied);
   const checks = progress.stateChecks;
-  if (outstanding.length === 0 && checks.every((c) => c.ok)) return null;
+  /**
+   * Actionable = something the user can actually correct. Checks that are merely
+   * waiting on an earlier step, or that the resolver could not judge, are shown
+   * separately and without a Fix button — presenting them as blockers is what made
+   * the wizard feel wrong ("none of these are true").
+   */
+  const actionable = checks.filter((c) => !c.ok && !c.unknown && !c.waiting);
+  const pending = checks.filter((c) => !c.ok && (c.unknown || c.waiting));
+  if (outstanding.length === 0 && actionable.length === 0 && pending.length === 0) return null;
 
   return (
     <div className="mt-3 space-y-2">
-      {checks
-        .filter((c) => !c.ok)
-        .map((c) => (
-          <CheckRows key={c.key} check={c} units={units} onGoToField={onGoToField} />
-        ))}
+      {actionable.map((c) => (
+        <CheckRows key={c.key} check={c} units={units} onGoToField={onGoToField} />
+      ))}
       {outstanding.slice(0, 8).map((item) => (
         <button
           key={item.key}
@@ -753,9 +816,23 @@ function BlockerList({
           </span>
         </button>
       ))}
+      {pending.length > 0 && (
+        <div className="rounded-md border border-dashed px-2 py-1.5">
+          <p className="text-[11px] font-medium text-muted-foreground">Waiting on the channel — nothing to fix here</p>
+          <ul className="mt-1 space-y-0.5">
+            {pending.map((c) => (
+              <li key={c.key} className="text-[11px] text-muted-foreground">
+                {c.label}
+                {c.waiting ? " · waiting on an earlier step" : " · not yet resolvable"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function CheckRows({
   check,

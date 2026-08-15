@@ -171,7 +171,11 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     title: "Push property & full ARI publish",
     goal: "The property is live on the distribution layer with a stable identity.",
     section: "integrations",
-    tasks: [{ kind: "state", key: "listing_ids" }],
+    tasks: [
+      { kind: "state", key: "listing_ids" },
+      { kind: "state", key: "quality_check", optional: true },
+    ],
+
 
     notes: [
       "Push stays disabled below 100% mandatory readiness. Re-push updates the stored listing IDs — it never duplicates.",

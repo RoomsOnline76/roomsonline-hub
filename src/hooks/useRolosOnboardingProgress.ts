@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
@@ -37,8 +37,14 @@ export interface DistributionCheck {
   key: DistributionCheckKey;
   label: string;
   ok: boolean;
-  /** Unknown = not yet resolvable (upstream unreachable / earlier gate not passed). */
+  /** Unknown = not yet resolvable (upstream unreachable). Advisory, never blocks. */
   unknown?: boolean;
+  /**
+   * Waiting = the check cannot be judged until an earlier distribution action
+   * happens (the property is not bound yet). It still holds its step open, but
+   * there is no field to fix, so the UI must not offer one.
+   */
+  waiting?: boolean;
   detail?: string;
   hint?: string;
   /**
@@ -47,6 +53,7 @@ export interface DistributionCheck {
    */
   failures?: DistributionFailure[];
 }
+
 
 
 export interface MacroProgress {
@@ -59,10 +66,16 @@ export interface MacroProgress {
   /** Mandatory-only completion, 0-100. */
   score: number;
   complete: boolean;
-  /** Hard gate: every earlier macro must be complete. */
+  /**
+   * Soft gate. Every step stays viewable; `locked` only means the step's own
+   * action cannot run yet (see `actionBlockedReason`).
+   */
   locked: boolean;
+  /** Plain-English reason the step's action cannot run yet. */
+  actionBlockedReason?: string;
   outstandingLabels: string[];
 }
+
 
 interface RuGroup {
   group: string;
@@ -122,18 +135,27 @@ async function invokeCert<T>(
   }
 }
 
+const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
+
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
   const readiness = usePropertyReadiness(propertyId);
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
+  /**
+   * Live channel probes are expensive and rate limited. They run on an explicit
+   * refresh only — a probe on every mount made the wizard flip green steps to
+   * grey whenever the channel throttled us.
+   */
+  const [probeAri, setProbeAri] = useState(false);
+  /** Last successful ARI verdict, reused when a later probe comes back empty. */
+  const ariCache = useRef<{ propertyId: string; groups: RuGroup[]; at: number } | null>(null);
 
   const distribution = useQuery({
-    queryKey: ["rolos-onboarding-distribution", propertyId],
+    queryKey: ["rolos-onboarding-distribution", propertyId, probeAri],
     enabled: !!propertyId,
-    // Channel readiness must be re-derived every time the property editor mounts:
-    // a mandatory field deleted in a previous visit has to re-block the wizard.
-    staleTime: 0,
-    refetchOnMount: "always",
+    // Field truth is cheap and re-derived on mount; the channel snapshot is held
+    // briefly so tab navigation does not re-run the whole derivation.
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const id = propertyId as string;
@@ -144,10 +166,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
-        // ARI (availability + pricing coverage) is only scored when explicitly probed.
-        // Without this flag the wizard never receives the "Availability 365d" /
-        // "Pricing 365d" groups, so steps 5.2/5.3 stayed outstanding forever.
-        invokeCert<PhaseStatusPayload>("phase_status", id, { probe_ari: true }),
+        invokeCert<PhaseStatusPayload>("phase_status", id, probeAri ? { probe_ari: true } : {}),
+
         invokeCert<IdentityPayload>("property_ru_identity", id),
         supabase
           .from("ru_currency_state")
@@ -202,7 +222,20 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         if (signed(legacyContract)) return legacyContract;
         return ownerContract ?? legacyContract ?? null;
       })();
-      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail };
+      // Keep the last good availability / pricing verdict instead of dropping the
+      // groups when a probe is skipped or throttled — losing them silently
+      // un-completed steps the owner had already finished.
+      const groups = (phase?.readiness?.groups ?? []) as RuGroup[];
+      const freshAri = groups.filter((g) => ARI_GROUPS.includes(String(g.group ?? "")));
+      let ariAge: number | null = null;
+      if (freshAri.length > 0) {
+        ariCache.current = { propertyId: id, groups: freshAri, at: Date.now() };
+      } else if (ariCache.current?.propertyId === id && phase?.readiness) {
+        phase.readiness.groups = [...groups, ...ariCache.current.groups];
+        ariAge = ariCache.current.at;
+      }
+      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail, ariAge };
+
     },
   });
 
@@ -384,6 +417,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     const listingIdsPresent = activeUnits.length > 0 ? unitsWithIds === activeUnits.length : propertyListingId;
     const listingOk = bound && listingIdsPresent;
     put("listing_ids", "Listing published & IDs stored", listingOk, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("publish", listingIdsPresent)
         : activeUnits.length > 0
@@ -420,6 +454,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         cur.ru_reported_currency_iso === cur.published_currency_iso);
     const currencyOk = bound && currencyRecorded;
     put("currency_verified", "Published currency verified", currencyOk, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("currency")
         : cur?.published_currency_iso
@@ -432,6 +467,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       (i) => signoff.checks[i.key]?.checked === true,
     ).length;
     put("manual_signoff", "Manual verification checklist", bound && signoff.signed_off, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("signoff")
         : signoff.signed_off
@@ -445,6 +481,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     // Macro 11 — channels
     const entitlementOn = billing?.channel_manager_enabled === true;
     put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("entitlement")
         : entitlementOn
@@ -455,6 +492,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       ["connected", "active", "live"].includes(String(c.status ?? "").toLowerCase()),
     ).length;
     put("channels_connected", "At least one channel connected", bound && connected > 0, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("connect")
         : connected > 0
@@ -468,7 +506,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const macros: MacroProgress[] = useMemo(() => {
     const items = readiness.items;
     const result: MacroProgress[] = [];
-    let previousComplete = true;
+    const completeByKey = new Map<string, boolean>();
+    const ok = (key: DistributionCheckKey) => stateChecks.get(key)?.ok === true;
 
     for (const macro of ROLOS_ONBOARDING_MACROS) {
       const sections = macro.tasks.flatMap((t) => (t.kind === "fields" ? t.sections : []));
@@ -499,6 +538,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const mandatoryDone = mandatoryTotal - mandatoryOutstanding - stateOutstanding;
       const score = mandatoryTotal === 0 ? 100 : Math.round((mandatoryDone / mandatoryTotal) * 100);
       const complete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+      completeByKey.set(macro.key, complete);
+
+      /**
+       * Only real prerequisites gate an action — not "the step above is not
+       * finished". Reading, revisiting and fixing anything stays possible.
+       */
+      const readyToSell = ["identity", "location", "rooms", "media", "commercial"].every(
+        (k) => completeByKey.get(k) !== false,
+      );
+      const actionBlockedReason = (() => {
+        switch (macro.key) {
+          case "keys":
+            return ok("sub_owner_id") ? undefined : "Create the distribution identity first (step 6).";
+          case "publish":
+            if (!ok("api_keys_stored")) return "Capture the sub-account key & secret first (step 7).";
+            if (!readyToSell) return "Finish Ready to sell — the push needs complete content, rooms, photos and rates.";
+            return undefined;
+          case "currency":
+            return ok("listing_ids") ? undefined : "Publish the listing first — currency is verified against the live listing.";
+          case "signoff":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "entitlement":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "connect":
+            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 11).";
+            if (!ok("listing_ids")) return "Publish the listing first (step 8).";
+            return undefined;
+          default:
+            return undefined;
+        }
+      })();
 
       result.push({
         macro,
@@ -508,18 +578,18 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         stateChecks: checks,
         score,
         complete,
-        locked: !previousComplete,
+        locked: !!actionBlockedReason,
+        actionBlockedReason,
         outstandingLabels: [
           ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
           ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
         ],
       });
-
-      previousComplete = previousComplete && complete;
     }
 
     return result;
   }, [readiness.items, stateChecks]);
+
 
   /**
    * Live channel connections for this property. Used to retire the onboarding
@@ -590,10 +660,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [macros]);
 
-  const refresh = useCallback(async () => {
-    readiness.refresh();
-    await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
-  }, [propertyId, queryClient, readiness]);
+  /**
+   * A trading property stays trading. Once a channel is connected the wizard must
+   * not reopen because a later check regressed — the regression is surfaced as a
+   * banner instead.
+   */
+  const channelsLive = channelsConnected > 0;
+  const readyRegressed = channelsLive && !overall.readyToConnect;
+
+  const refresh = useCallback(
+    async (opts?: { probeAri?: boolean }) => {
+      readiness.refresh();
+      if (opts?.probeAri) setProbeAri(true);
+      await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+    },
+    [propertyId, queryClient, readiness],
+  );
+
 
   const writeChannelReadiness = useCallback(
     async (patch: Record<string, unknown>) => {
@@ -662,10 +745,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     currentMacro,
     overall,
     channelsConnected,
+    channelsLive,
+    readyRegressed,
+    ariProbedAt: d?.ariAge ?? null,
+    ariProbeRequested: probeAri,
     publishedOk,
     unpublishedUnits,
     blockingMacros,
     gateSignature,
+
 
     signoff,
     recordSignoff,
