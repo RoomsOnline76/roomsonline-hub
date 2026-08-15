@@ -22,21 +22,33 @@ export interface ChannelReadiness {
  * property editor and the certification console can never disagree.
  */
 export function useChannelReadiness(propertyId: string | null | undefined) {
-  const query = useQuery({
-    queryKey: ["channel-readiness", propertyId],
+  const fetchReadiness = async (probeAri: boolean): Promise<RuReadinessReport | null> => {
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      body: { action: "property_readiness", property_id: propertyId, probe_ari: probeAri },
+    });
+    if (error) throw error;
+    if (!data?.success) throw new Error(data?.error?.message ?? "Readiness check failed");
+    return (data.property ?? null) as RuReadinessReport | null;
+  };
+
+  // Local-first: the ROL'OS-scored report paints immediately, then the live channel
+  // read-back refines it in the background instead of holding the panel open.
+  const local = useQuery({
+    queryKey: ["channel-readiness", propertyId, "local"],
     enabled: !!propertyId,
     staleTime: 60_000,
-    queryFn: async (): Promise<RuReadinessReport | null> => {
-      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "property_readiness", property_id: propertyId },
-      });
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error?.message ?? "Readiness check failed");
-      return (data.property ?? null) as RuReadinessReport | null;
-    },
+    queryFn: () => fetchReadiness(false),
   });
 
-  const report = query.data ?? null;
+  const query = useQuery({
+    queryKey: ["channel-readiness", propertyId, "live"],
+    enabled: !!propertyId && !local.isLoading,
+    staleTime: 180_000,
+    queryFn: () => fetchReadiness(true),
+  });
+
+  const report = query.data ?? local.data ?? null;
+
   const checks = report?.checks ?? [];
   const mandatory = checks.filter((c) => c.mandatory);
   const failing = mandatory.filter((c) => !c.passed);
