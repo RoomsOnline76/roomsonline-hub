@@ -12,6 +12,7 @@
 
 /** Keys resolved by `useRolosOnboardingProgress().state`. */
 export type DistributionCheckKey =
+  | "contract_signed"
   | "timezone_format"
   | "location_id"
   | "google_place_id"
