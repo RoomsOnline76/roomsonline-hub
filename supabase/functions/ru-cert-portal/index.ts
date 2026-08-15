@@ -3944,7 +3944,20 @@ Deno.serve(async (req) => {
       if (!propertyId) return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
       if (body.probe_ari !== true) {
         const hit = phaseStatusCache.get(propertyId);
-        if (hit && Date.now() - hit.at < PHASE_STATUS_TTL_MS) return json({ ...hit.payload, cached: true });
+        if (hit && Date.now() - hit.at < PHASE_STATUS_TTL_MS) return json({ ...hit.payload, cached: "memory" });
+        // Edge isolates are short-lived, so the in-memory hit above misses often. The
+        // persisted copy keeps re-opening the wizard instant across cold starts.
+        try {
+          const { data: stored } = await admin
+            .from("ru_readiness_snapshots")
+            .select("phase_payload, phase_payload_at")
+            .eq("property_id", propertyId)
+            .maybeSingle();
+          const at = stored?.phase_payload_at ? Date.parse(stored.phase_payload_at) : 0;
+          if (stored?.phase_payload && Date.now() - at < PHASE_STATUS_TTL_MS) {
+            return json({ ...(stored.phase_payload as Record<string, unknown>), cached: "stored" });
+          }
+        } catch (_e) { /* cache miss is never fatal */ }
       } else {
         phaseStatusCache.delete(propertyId);
       }
