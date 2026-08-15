@@ -489,43 +489,26 @@ export default function AdminOnboarding() {
         }
       });
 
-      // Exclude test/demo properties by name
+      // Exclude test/demo/sandbox properties (explicit flags win over naming)
       const testPattern = /\b(test|demo|staging|dummy|sandbox)\b/i;
-      const realProperties = (propData || []).filter((prop) => !testPattern.test(prop.name));
+      const realProperties = (propData || []).filter(
+        (prop) =>
+          !testPattern.test(prop.name) &&
+          (prop as { is_sandbox?: boolean | null }).is_sandbox !== true &&
+          (prop as { is_test_property?: boolean | null }).is_test_property !== true,
+      );
 
       const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
       const rolosIds = realProperties
         .filter((prop) => rolosSystems.has(String(prop.external_system ?? "").toLowerCase()))
         .map((prop) => prop.id);
+      // Live channel probes never block the first paint: the queue renders from
+      // local state, then each probe refines its own row as it lands.
       const ruByProperty = new Map<string, ReturnType<typeof ruMandatoryCheckSummary>>();
-      // Probe in small batches: a burst of live channel probes gets rate limited and
-      // the queue then paints false "RU checks failing" cards.
-      const probeQueue = [...rolosIds];
-      const runProbe = async (propertyId: string) => {
-        try {
-          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
-          });
-          if (error || data?.success !== true) return;
-          const listed = !!data?.readiness?.ru_property_id;
-          ruByProperty.set(
-            propertyId,
-            ruMandatoryCheckSummary(data.readiness ?? null, {
-              // Listing exists but the scorer fell back to the local calendar:
-              // the live availability verdict is unavailable, not failing.
-              liveProbeDegraded: listed && data?.availability_source !== "channel",
-            }),
-          );
-        } catch {
-          // Leave unknown — channelQueueProgress will not claim Ready.
-        }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
-          for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
-        }),
-      );
+      const channelInputsById = new Map<string, Parameters<typeof channelQueueProgress>[0]>();
+
+
 
 
       const enrichedProperties: PropertyOnboardingRow[] = realProperties.map((prop) => {
