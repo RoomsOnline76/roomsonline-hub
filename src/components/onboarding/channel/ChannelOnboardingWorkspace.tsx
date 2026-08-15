@@ -675,7 +675,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             </div>
           )}
 
-          {activeStageKey === "ready" && (
+          {/*
+            The embedded editor follows the section, not the stage: a "Fix" from a
+            later step (e.g. rate plans or contacts) must still land on an editable
+            surface instead of an empty pane.
+          */}
+          {EDITOR_SECTIONS.has(editorSection) &&
+            (activeStageKey === "ready" || (activeMacro?.fieldItems.some((i) => !i.satisfied) ?? false)) && (
             <div className="overflow-hidden rounded-lg border bg-background">
               {editorSection === "contacts" ? (
                 <PropertyContactDetails propertyId={propertyId} />
@@ -690,6 +696,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               )}
             </div>
           )}
+
 
           {activeStageKey === "published" && (
             <PublishedPane
