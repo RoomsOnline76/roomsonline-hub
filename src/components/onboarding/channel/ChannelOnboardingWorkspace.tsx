@@ -426,9 +426,29 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not read the listings back");
     } finally {
+      setReadBackPending(false);
       setBusy(null);
     }
   }, [propertyId, refresh]);
+
+  /**
+   * A deferred channel read-back must have a terminal state. Give the channel a
+   * short settling window, retry once automatically, then reveal the manual
+   * retry if that call is rate-limited or cannot confirm the listing.
+   */
+  useEffect(() => {
+    if (!readBackPending) return;
+    if (listingsVerified) {
+      setReadBackPending(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void verifyListings();
+    }, 15_000);
+
+    return () => window.clearTimeout(timer);
+  }, [listingsVerified, readBackPending, verifyListings]);
 
 
   const toggleWebsite = useCallback(
