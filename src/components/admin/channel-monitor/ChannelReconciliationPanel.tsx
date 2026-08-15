@@ -168,7 +168,6 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
   const handleCleanupAll = useCallback(() => runCleanup("actionable"), [runCleanup]);
   const handleRemoveDuplicates = useCallback(() => runCleanup("duplicates"), [runCleanup]);
-  const handleRemoveDuplicates = useCallback(() => runCleanup("duplicates"), [runCleanup]);
 
 
 
