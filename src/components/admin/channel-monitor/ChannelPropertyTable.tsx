@@ -44,6 +44,7 @@ export function ChannelPropertyTable({
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const portfolios = useMemo(
