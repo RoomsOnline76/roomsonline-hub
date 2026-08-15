@@ -4434,10 +4434,13 @@ Deno.serve(async (req) => {
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
+        // The read-back follows the push automatically once the whole sequence is done.
+        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
             ...(chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(listingVerification ? { listing_verification: listingVerification } : {}),
             multi_unit: true,
             standalone_units: true,
             property_id,
