@@ -6,6 +6,7 @@
 // be archived (or re-activated) at Rentals United and flagged locally so the
 // ROL'OS Channel Manager screen can lock itself and billing stops counting it.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -119,13 +120,13 @@ async function distributionPushAllowed(
     .maybeSingle();
   const { data: acc } = await admin
     .from("ru_owner_accounts")
-    .select("ru_api_access_key, company_details_sent")
+    .select("id, ru_api_access_key, company_details_sent, company_filled_at")
     .eq("ru_owner_id", ruOwnerId)
     .maybeSingle();
   if (!cred?.access_key && !acc?.ru_api_access_key) {
     return { ok: false, reason: "Sub-account key & secret are not configured — Channel wizard gates are not passed." };
   }
-  if (acc && acc.company_details_sent !== true) {
+  if (acc && !(await ruCompanyDetailsSatisfied(admin, ruOwnerId, acc)).satisfied) {
     return { ok: false, reason: "Company details have not been sent to Rentals United — push cannot be enabled." };
   }
   return { ok: true };
