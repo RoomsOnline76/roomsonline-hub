@@ -1135,12 +1135,13 @@ export function PortfolioRuAccountsTab() {
                             className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
                             disabled={!activeAccessKey || removingKeys === acc.id}
                             onClick={() =>
-                              removeApiKeys(
-                                acc.id,
-                                acc.ru_owner_id,
-                                acc.ru_login_email || acc.owner_email,
-                              )
+                              setRemoveKeysFor({
+                                id: acc.id,
+                                ownerId: acc.ru_owner_id,
+                                label: acc.ru_login_email || acc.owner_email,
+                              })
                             }
+
                             title="Clear the stored key pair so a correct one can be captured"
                           >
                             {removingKeys === acc.id
