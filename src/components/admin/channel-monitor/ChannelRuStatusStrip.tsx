@@ -87,6 +87,11 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
     void load();
   }, [load]);
 
+  // Storing / verifying / rebinding keys happens on the Accounts tab; without this the
+  // banner would keep reporting the state it read when the page first mounted.
+  useEffect(() => onRuAccountsChanged(() => void load()), [load]);
+
+
   // Sub-user keys are normally stored in the credentials table keyed by OwnerID; only
   // older accounts carry them inline, so both sources count towards readiness.
   const keys = useMemo(() => {
