@@ -32,8 +32,9 @@ export const BED_TYPES = [
   { value: "double", label: "Double" },
   { value: "twin", label: "Twin" },
   { value: "single", label: "Single" },
-  { value: "sofa-bed", label: "Sofa Bed (sleeps 1)" },
-  { value: "double-sofa-bed", label: "Sleeper Couch / Double Sofa Bed (sleeps 2)" },
+  { value: "sofa-bed", label: "Sofa Bed" },
+  { value: "double-sofa-bed", label: "Sleeper Couch / Double Sofa Bed" },
+
   { value: "bunk", label: "Bunk Bed" },
 ] as const;
 
