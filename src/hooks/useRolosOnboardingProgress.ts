@@ -978,8 +978,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     recordListingPull,
 
     refresh,
+    // The channel scorecard is deliberately excluded from isLoading so the wizard paints
+    // local truth first; its arrival is signalled through isFetching instead.
     isLoading: readiness.isLoading || distribution.isLoading,
-    isFetching: readiness.isFetching || distribution.isFetching,
+    isFetching: readiness.isFetching || distribution.isFetching || phaseQuery.isFetching,
+    distributionLoading: phaseQuery.isLoading,
     propertyName: String((d?.property as Record<string, unknown> | null)?.name ?? ""),
     ownerEmail: String((d?.property as Record<string, unknown> | null)?.owner_email ?? ""),
     websiteLive: (d?.property as Record<string, unknown> | null)?.show_on_website === true,
