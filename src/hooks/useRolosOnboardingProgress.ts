@@ -162,7 +162,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const [property, phase, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
+          .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
@@ -328,9 +328,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       extra?: Partial<DistributionCheck>,
     ) => map.set(key, { key, label, ok, ...extra });
 
-    const groupCheck = (key: DistributionCheckKey, label: string, name: string) => {
+    /**
+     * When the live publish probe is unavailable we no longer report the check as
+     * "still open" — the wizard judges it locally from the ROL'OS record it already
+     * has, so authored content is shown as satisfied instead of a dead-end blocker.
+     */
+    const groupCheck = (
+      key: DistributionCheckKey,
+      label: string,
+      name: string,
+      fallback?: () => { ok: boolean; detail: string },
+    ) => {
       const g = group(name);
       if (!g) {
+        const local = fallback?.();
+        if (local) {
+          put(key, label, local.ok, {
+            detail: `${local.detail} (checked in ROL'OS — live publish check unavailable)`,
+            unknown: !local.ok,
+          });
+          return;
+        }
         put(key, label, false, { unknown: true, detail: "Not yet resolvable — publish checks unavailable." });
         return;
       }
@@ -381,10 +399,34 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       detail: tz || "Not set",
       hint: "Identity & Location → Timezone",
     });
-    groupCheck("content_quality", "Description & content depth", "Content");
+    groupCheck("content_quality", "Description & content depth", "Content", () => {
+      const nm = String(prop.name ?? "").trim();
+      const desc = String(prop.description ?? "").trim();
+      const sleeps = Number(prop.max_guests ?? 0);
+      const missing: string[] = [];
+      if (nm.length < 3) missing.push("name");
+      if (desc.length < 100) missing.push(desc ? `description (${desc.length}/100 characters)` : "description");
+      if (!(sleeps >= 1)) missing.push("max guests");
+      return {
+        ok: missing.length === 0,
+        detail: missing.length === 0 ? `Name, description (${desc.length} characters) and occupancy authored` : `Outstanding: ${missing.join(", ")}`,
+      };
+    });
 
     // Macro 2 — location
-    groupCheck("address_geo", "Address, postal code & coordinates", "Address & geo");
+    groupCheck("address_geo", "Address, postal code & coordinates", "Address & geo", () => {
+      const missing: string[] = [];
+      for (const [f, lbl] of [["address", "street address"], ["city", "city"], ["country", "country"], ["postal_code", "postal code"]] as const) {
+        if (!String((prop as Record<string, unknown>)[f] ?? "").trim()) missing.push(lbl);
+      }
+      const lat = Number(prop.latitude ?? NaN);
+      const lng = Number(prop.longitude ?? NaN);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) missing.push("coordinates");
+      return {
+        ok: missing.length === 0,
+        detail: missing.length === 0 ? "Address, postal code and coordinates captured" : `Outstanding: ${missing.join(", ")}`,
+      };
+    });
     put("location_id", "Distribution Location ID resolved", !!String(prop.ru_location_id ?? "").trim(), {
       detail: String(prop.ru_location_id ?? "") || "Not resolved",
       hint: "Identity & Location → Location register",
