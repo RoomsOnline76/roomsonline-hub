@@ -3613,8 +3613,22 @@ Deno.serve(async (req) => {
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
-        readinessUnknown = true;
+        // A live ARI probe can fail for reasons that have nothing to do with the
+        // property's content (unresolved sub-account, channel rate limit, transport
+        // error). Re-score locally so the content / rooms / photos / policy groups
+        // still reach the wizard instead of every check reading "not yet resolvable".
+        if (probeAri) {
+          try {
+            readiness = await scoreProperty(prop as any, { probe_ari: false }) as any;
+            gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
+          } catch (_e2) {
+            readinessUnknown = true;
+          }
+        } else {
+          readinessUnknown = true;
+        }
       }
+
 
       const gate = await evaluatePhases(admin, prop as any, { readinessGaps: gaps, readinessUnknown });
       const { data: mcq } = await admin
