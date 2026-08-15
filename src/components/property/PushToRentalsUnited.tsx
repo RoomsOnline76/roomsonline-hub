@@ -644,6 +644,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 {ruOwnerLabel ?? `OwnerID ${ruOwnerAccount?.ru_owner_id}`}
               </Badge>
             )}
+            {verification?.verifiedAt ? (
+              <Badge
+                variant="outline"
+                className="h-5 gap-1 border-emerald-500/60 text-[10px] text-emerald-600"
+                title={`Listings read back from ${verification.owner ?? "the distribution account"} on ${new Date(verification.verifiedAt).toLocaleString()}`}
+              >
+                <CheckCircle className="h-3 w-3" />
+                Listings verified{verification.expectedUnits ? ` (${verification.verifiedUnits}/${verification.expectedUnits})` : ""}
+              </Badge>
+            ) : ruPropertyId || units.some((u) => u.ru_property_id) ? (
+              <Badge
+                variant="outline"
+                className="h-5 gap-1 border-amber-500/60 text-[10px] text-amber-600"
+                title="Pushed but not confirmed — fetch the Channel Manager IDs to read the listings back"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Awaiting listing verification
+              </Badge>
+            ) : null}
             {identityGate.gated && (
               <Badge variant="outline" className="text-[10px] h-5 gap-1 border-amber-500/60 text-amber-600">
                 <AlertTriangle className="h-3 w-3" />
