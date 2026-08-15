@@ -3370,6 +3370,7 @@ Deno.serve(async (req) => {
         }, 422);
       }
       const company = await provisionCompanyAfterKeyVerification();
+      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
