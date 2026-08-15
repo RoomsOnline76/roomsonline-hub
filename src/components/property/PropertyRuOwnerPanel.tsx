@@ -26,6 +26,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
+import { useAuth } from "@/hooks/useAuth";
+
 
 const RU_SECURITY_SETTINGS_URL = "https://new.rentalsunited.com/My/SecuritySettings";
 
