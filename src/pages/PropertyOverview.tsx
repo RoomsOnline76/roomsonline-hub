@@ -113,6 +113,7 @@ const PropertyOverview = () => {
               .order("version", { ascending: false })
           : Promise.resolve({ data: [] as any[] }),
       ]);
+      const profilesByEmail = new Map((profilesData || []).map((p: any) => [p.email, p]));
 
 
       // Group contracts by owner_email (get latest version for each)
