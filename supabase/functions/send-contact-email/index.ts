@@ -155,8 +155,10 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Verify reCAPTCHA token if provided
-    if (recaptchaToken) {
+    // Verify reCAPTCHA token if provided. Local dev and Lovable preview hosts send
+    // a sentinel token — the site key is not valid for those domains, so there is
+    // nothing Google could verify. The honeypot still guards those submissions.
+    if (recaptchaToken && recaptchaToken !== "dev-bypass-token") {
       const { success, score } = await verifyRecaptcha(recaptchaToken);
       
       if (!success || score < 0.5) {
@@ -169,8 +171,9 @@ const handler = async (req: Request): Promise<Response> => {
       
       console.log(`reCAPTCHA verification passed: score=${score}`);
     } else {
-      console.log("No reCAPTCHA token provided, proceeding without verification");
+      console.log("No verifiable reCAPTCHA token provided, proceeding without verification");
     }
+
 
     // Validate required fields
     if (!name || !email || !message) {
