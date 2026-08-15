@@ -2678,6 +2678,8 @@ Deno.serve(async (req) => {
                 // Allow a small clock skew between the two writes.
                 return filled >= verified - 60_000;
               })(),
+              /** Timestamp the sub-account's own key pair was accepted (the push prerequisite). */
+              keys_verified_at: keys?.verified_at ?? null,
             }
           : null,
         keys,
