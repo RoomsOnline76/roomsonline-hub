@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useChannelReconciliation, type ReconOrphan, type ReconStale } from "@/hooks/useChannelReconciliation";
+import { useChannelReconciliationRuns } from "@/hooks/useChannelReconciliationRuns";
 
 interface Props {
   /** Listings ROL'OS currently bills for, so a channel/billing gap is visible. */
@@ -26,6 +27,7 @@ interface Props {
 export function ChannelReconciliationPanel({ billableListings, onChanged }: Props) {
   const { result, running, error, reconcile, purgeListing, clearStale, cleanupAll, cleanup, failures, refused } =
     useChannelReconciliation();
+  const { latest: latestRun } = useChannelReconciliationRuns();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
