@@ -11,11 +11,20 @@ import { BUILD_SEQ, BUILD_TIME as VITE_BUILD_TIME } from "virtual:app-build-info
 /**
  * Internal sequential build number — never displayed.
  *
- * Supplied by the `virtual:app-build-info` module from `vite.config.ts`, so it advances with every build instead
- * of being a constant someone has to remember to bump. The literal is only a fallback for
- * environments without the define (unit tests, plain `tsx` scripts).
+ * The raw git commit count, resolved the same way TOROFlow does it: the `VITE_COMMIT_COUNT` env
+ * channel first, then the `virtual:app-build-info` module from `vite.config.ts`. No anchor offset is
+ * applied — an anchor subtraction collapses to 0 in shallow-clone build environments, which is what
+ * pinned the badge at `v1.0·69`.
  */
-export const SEQUENTIAL_BUILD = Number.isFinite(BUILD_SEQ) ? BUILD_SEQ : 961;
+function resolveSequentialBuild(): number {
+  const fromEnv = Number(import.meta.env?.VITE_COMMIT_COUNT);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  if (Number.isFinite(BUILD_SEQ) && BUILD_SEQ > 0) return BUILD_SEQ;
+  return 0;
+}
+
+export const SEQUENTIAL_BUILD = resolveSequentialBuild();
+
 
 /** ISO timestamp of the running build, for tooltips and diagnostics. */
 export const BUILD_TIME = VITE_BUILD_TIME;
