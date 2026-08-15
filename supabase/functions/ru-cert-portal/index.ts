@@ -3754,42 +3754,86 @@ Deno.serve(async (req) => {
       let ownerEmail: string | null = body.owner_email ?? null;
       let ownerName: string = body.owner_name ?? "";
 
+      // Internal ROL staff logins must never become a channel sub-user login: the distribution
+      // account belongs to the PROPERTY owner, not to whoever is signed in / linked as admin.
+      const INTERNAL_LOGIN_PREFIXES = ["dev@", "admin@", "connect@", "info@", "support@", "hello@", "accounts@"];
+      const isInternalLogin = (email: string | null | undefined) => {
+        const e = String(email ?? "").trim().toLowerCase();
+        if (!e) return true;
+        return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
+      };
+
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
+
+      // 1) The property's own owner email is the authority.
+      if (!ownerEmail && propertyId) {
+        const { data: pr } = await admin
+          .from("properties")
+          .select("owner_email, owner_name, name")
+          .eq("id", propertyId)
+          .maybeSingle();
+        const candidate = (pr as any)?.owner_email ?? null;
+        if (candidate && !isInternalLogin(candidate)) {
+          ownerEmail = candidate;
+          ownerName = ownerName || ((pr as any)?.owner_name ?? pr?.name ?? "Property Owner");
+        }
+      }
+
+      let portfolioRow: { id: string; name: string | null; owner_id: string | null; owner_email: string | null } | null = null;
       if (portfolioId) {
         const { data: pf } = await admin
           .from("property_portfolios")
           .select("id, name, owner_id, owner_email")
           .eq("id", portfolioId)
           .maybeSingle();
-        // Explicit portfolio owner email wins over the linked profile: admins set it on the
-        // portfolio edit form (usually copied from one of the member properties' owners).
-        if (!ownerEmail && (pf as any)?.owner_email) {
-          ownerEmail = (pf as any).owner_email as string;
-          ownerName = ownerName || (pf?.name ?? "Portfolio Owner");
+        portfolioRow = (pf as any) ?? null;
+        // 2) Explicit portfolio owner email (admins copy it from a member property's owner).
+        if (!ownerEmail && portfolioRow?.owner_email && !isInternalLogin(portfolioRow.owner_email)) {
+          ownerEmail = portfolioRow.owner_email;
+          ownerName = ownerName || (portfolioRow.name ?? "Portfolio Owner");
         }
-        if (!ownerEmail && pf?.owner_id) {
-          const { data: prof } = await admin
-            .from("profiles")
-            .select("email, full_name")
-            .eq("id", pf.owner_id)
-            .maybeSingle();
-          ownerEmail = prof?.email ?? null;
-          ownerName = ownerName || (prof?.full_name ?? pf?.name ?? "Portfolio Owner");
-        }
-        ownerName = ownerName || (pf?.name ?? "Portfolio Owner");
+        ownerName = ownerName || (portfolioRow?.name ?? "Portfolio Owner");
       }
-      if (!ownerEmail && propertyId) {
-        const { data: pr } = await admin
+
+      // 3) Any other member property in the portfolio that carries a real owner email.
+      if (!ownerEmail && portfolioId) {
+        const { data: siblings } = await admin
           .from("properties")
-          .select("owner_email, name")
-          .eq("id", propertyId)
+          .select("owner_email, owner_name, name, portfolio_id")
+          .eq("portfolio_id", portfolioId);
+        for (const s of (siblings ?? []) as any[]) {
+          if (s?.owner_email && !isInternalLogin(s.owner_email)) {
+            ownerEmail = s.owner_email;
+            ownerName = ownerName || (s.owner_name ?? s.name ?? "Property Owner");
+            break;
+          }
+        }
+      }
+
+      // 4) Last resort: the linked portfolio profile (only when it is not an internal login).
+      if (!ownerEmail && portfolioRow?.owner_id) {
+        const { data: prof } = await admin
+          .from("profiles")
+          .select("email, full_name")
+          .eq("id", portfolioRow.owner_id)
           .maybeSingle();
-        ownerEmail = pr?.owner_email ?? null;
-        ownerName = ownerName || (pr?.name ?? "Property Owner");
+        if (prof?.email && !isInternalLogin(prof.email)) {
+          ownerEmail = prof.email;
+          ownerName = ownerName || (prof.full_name ?? portfolioRow.name ?? "Portfolio Owner");
+        }
       }
+
       if (!ownerEmail) {
-        return json({ success: false, error: { code: "NO_OWNER_EMAIL", message: "No owner email on the portfolio or property — set one before creating the RU sub-user." } }, 422);
+        return json({
+          success: false,
+          error: {
+            code: "NO_OWNER_EMAIL",
+            message:
+              "No usable property-owner email found. The distribution account must be created with the property owner's own email address (internal ROL logins such as dev@ or connect@ cannot be used). Set the owner email on the property first.",
+          },
+        }, 422);
       }
+
 
       const contactNameParts = String(ownerName).trim().split(/\s+/);
       const contactFirstName = contactNameParts[0] || "Property";
