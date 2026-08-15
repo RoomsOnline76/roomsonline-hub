@@ -173,9 +173,12 @@ export async function evaluatePhases(
   // judging the account against it nulled the OwnerID and every push failed with
   // RU_OWNER_UNRESOLVED. Authority = any real owner email attached to the portfolio's
   // properties (or this property), plus a non-internal portfolio owner profile.
-  const INTERNAL_PREFIXES = ["dev@", "admin@", "support@", "noreply@", "no-reply@"];
+  // Only the shared platform login is never authority (RU already holds it globally).
+  // Other ROL mailboxes (connect@, rooms@, info@…) are legitimate owner/testing logins.
+  const INTERNAL_PREFIXES = ["dev@", "noreply@", "no-reply@"];
   const isInternal = (email: string) =>
     INTERNAL_PREFIXES.some((p) => email.trim().toLowerCase().startsWith(p));
+
 
   const authorityEmails = new Set<string>();
   const addAuthority = (email?: string | null) => {
