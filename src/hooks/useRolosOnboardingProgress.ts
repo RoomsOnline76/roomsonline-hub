@@ -97,7 +97,16 @@ interface PhaseStatusPayload {
 
 interface IdentityPayload {
   property?: { is_rolos?: boolean; ru_property_id?: string | null };
-  account?: { ru_owner_id?: string | null; owner_email?: string | null; ru_login_email?: string | null } | null;
+  account?: {
+    ru_owner_id?: string | null;
+    owner_email?: string | null;
+    ru_login_email?: string | null;
+    company_details_sent?: boolean | null;
+    company_details_status?: string | null;
+    company_filled_at?: string | null;
+    /** Push_FillCompanyDetails_RQ actually ran with the verified key pair. */
+    company_details_pushed?: boolean | null;
+  } | null;
   keys?: { verified_at?: string | null; access_key_last4?: string | null } | null;
   keys_captured?: boolean;
   push_gated?: boolean;
