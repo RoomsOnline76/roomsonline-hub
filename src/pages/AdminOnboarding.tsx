@@ -802,8 +802,8 @@ export default function AdminOnboarding() {
   // Stats calculated from properties with actual onboarding activity
   const onboardingActiveRows = useMemo(() => {
     const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
-    const source = isItTestAdminEmail(actorEmail)
-      ? filterToItTestProperties(propertyRows)
+    const source = scopedPropertyIds.length
+      ? propertyRows.filter((r) => scopedPropertyIds.includes(r.id))
       : propertyRows;
     return source.filter((r) => {
       if (r.isRolos) return true;
