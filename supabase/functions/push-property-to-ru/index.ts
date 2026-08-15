@@ -4482,7 +4482,10 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
-            ...(chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            // A resumable chunk is not an error — only real rejections/interruptions are.
+            ...(!chunkSuccess && chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(chunkSuccess && remainingUnitIds.length > 0 ? { chunk_note: chunkErrorMessage } : {}),
+
             ...(listingVerification ? { listing_verification: listingVerification } : {}),
             multi_unit: true,
             standalone_units: true,
