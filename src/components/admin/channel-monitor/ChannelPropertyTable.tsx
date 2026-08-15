@@ -165,7 +165,48 @@ export function ChannelPropertyTable({
               </TableRow>
             )}
 
-            {filtered.map((row) => {
+            {groups.map((group) => {
+              const groupOpen = !collapsed.has(group.name);
+              return (
+              <Fragment key={`group-${group.name}`}>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableCell className="pr-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => toggleGroup(group.name)}
+                      aria-label={groupOpen ? `Collapse ${group.name}` : `Expand ${group.name}`}
+                    >
+                      {groupOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    </Button>
+                  </TableCell>
+                  <TableCell colSpan={3}>
+                    <span className="text-xs font-semibold uppercase tracking-wide">{group.name}</span>
+                    <span className="ml-2 text-[10px] text-muted-foreground">
+                      {group.rows.length} propert{group.rows.length === 1 ? "y" : "ies"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">{group.listings}</TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">
+                    {group.duplicates > 0 ? (
+                      <span className="text-destructive">{group.duplicates}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">
+                    {formatEur(group.monthlyCostEur)}
+                    {fx && (
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        {formatZar(group.monthlyCostEur * fx.eurToZar)}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell colSpan={2} />
+                </TableRow>
+
+                {groupOpen && group.rows.map((row) => {
               const open = expanded === row.id;
               const busy = busyPropertyId === row.id;
               return (
