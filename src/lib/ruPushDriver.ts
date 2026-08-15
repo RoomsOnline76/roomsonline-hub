@@ -1,4 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
+import { extractFunctionError } from "@/lib/functionError";
+
+/**
+ * `push-property-to-ru` answers gate failures with HTTP 422 and a structured body
+ * (`{ success: false, error: { code, message }, blockers, gaps }`). supabase-js turns any
+ * non-2xx into a FunctionsHttpError with `data === null`, which is why the UI used to show the
+ * opaque "Edge Function returned a non-2xx status code" instead of the real reason. This reads
+ * the response body back off the error so the caller keeps the structured result.
+ */
+async function readErrorBody(error: unknown): Promise<RuPushResult | null> {
+  const response = (error as { context?: Response } | null)?.context;
+  if (!response || typeof response.text !== "function") return null;
+  try {
+    const raw = await response.clone().text();
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RuPushResult;
+    if (parsed && typeof parsed === "object") return { ...parsed, success: parsed.success === true };
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 
 /**
  * Resumable driver for `push-property-to-ru`.
@@ -64,9 +87,19 @@ export async function pushPropertyToRu(propertyId: string, options: RuPushOption
         ...(batchId ? { batch_id: batchId } : {}),
       },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      const body = await readErrorBody(error);
+      if (body) {
+        // A gate/validation refusal — return the structured reasons instead of a generic throw.
+        return mergedUnits.length > 0
+          ? { ...body, units: [...mergedUnits, ...(body.units ?? [])], remaining_unit_ids: [] }
+          : body;
+      }
+      throw new Error(await extractFunctionError(error, error.message || "Push failed"));
+    }
 
     const result = (data ?? {}) as RuPushResult;
+
     last = result;
     batchId = (result.batch_id as string | undefined) ?? batchId;
 
