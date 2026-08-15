@@ -266,14 +266,16 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         unitsByProperty.set(u.property_id as string, list);
       }
 
-      // Only properties with a channel footprint belong on this page.
+      // Properties with a channel footprint — plus properties that have push
+      // switched on yet nothing upstream, so a failed first push stays visible
+      // instead of silently vanishing from the monitor.
       const relevant = allProps.filter((p) => {
         const units = unitsByProperty.get(p.id) || [];
-        return (
+        const hasFootprint =
           !!p.rentalsunited_property_id ||
           !!p.ru_archived ||
-          units.some((u) => !!u.rentalsunited_property_id)
-        );
+          units.some((u) => !!u.rentalsunited_property_id);
+        return hasFootprint || (p.ru_push_enabled === true && p.is_active !== false);
       });
 
       // Map each property to its RU owner/sub-user credentials. Prefer a direct
