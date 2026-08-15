@@ -290,6 +290,30 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     }
   }, [propertyId, recordListingPull, refresh, user?.email]);
 
+  /**
+   * Push_FillCompanyDetails_RQ. The sub-account's company profile must be sent with
+   * its own verified keys before the verification checklist can be completed.
+   */
+  const pushCompanyDetails = useCallback(async () => {
+    setBusy("company_details");
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "ensure_company_details", property_id: propertyId, force: true },
+      });
+      if (error || data?.success !== true) {
+        toast.error(data?.error?.message ?? error?.message ?? "Could not send the company details");
+        return;
+      }
+      toast.success("Company details sent to the Channel Manager");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the company details");
+    } finally {
+      setBusy(null);
+    }
+  }, [propertyId, refresh]);
+
+
   const publishListing = useCallback(async () => {
     setBusy("publish");
     setPushErrors([]);
@@ -792,9 +816,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               onEnable={enableChannelManager}
+              onPushCompanyDetails={pushCompanyDetails}
               onSignoffItem={(key, next) => {
                 recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
-                  toast.error(`Could not save that tick: ${e instanceof Error ? e.message : String(e)}`),
+                  toast.error(e instanceof Error ? e.message : String(e)),
                 );
               }}
               onSignoffAll={(next) => {
@@ -979,6 +1004,7 @@ function PublishedPane({
   onEnable,
   onSignoffItem,
   onSignoffAll,
+  onPushCompanyDetails,
 }: {
   propertyId: string;
   macroKey: string;
@@ -998,6 +1024,7 @@ function PublishedPane({
   onEnable: () => void;
   onSignoffItem: (key: string, next: boolean) => void;
   onSignoffAll: (next: boolean) => void;
+  onPushCompanyDetails: () => void;
 }) {
   return (
     <div className="space-y-4">
@@ -1116,16 +1143,23 @@ function PublishedPane({
           </p>
           {ROLOS_SIGNOFF_CHECKLIST.map((item) => {
             const record = signoff.checks?.[item.key];
+            const itemLocked = (signoff.lockedItems ?? []).includes(item.key);
             return (
               <label key={item.key} className="flex items-start gap-2 text-sm">
                 <Checkbox
                   className="mt-0.5"
                   checked={record?.checked === true}
-                  disabled={locked || !isPlatformUser}
+                  disabled={locked || !isPlatformUser || itemLocked}
                   onCheckedChange={(v) => onSignoffItem(item.key, v === true)}
                 />
                 <span>
                   {item.label}
+                  {itemLocked && (
+                    <span className="block text-[11px] text-amber-600">
+                      Company details have not been pushed to the Channel Manager with the verified keys yet — send
+                      them below before ticking this.
+                    </span>
+                  )}
                   {record?.checked && record.by && (
                     <span className="block text-[11px] text-muted-foreground">
                       {record.by}
@@ -1136,10 +1170,26 @@ function PublishedPane({
               </label>
             );
           })}
+          {isPlatformUser && (signoff.lockedItems ?? []).includes("company_details") && (
+            <Button size="sm" disabled={locked || busy === "company_details"} onClick={onPushCompanyDetails}>
+              {busy === "company_details" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+              Push company details
+            </Button>
+          )}
           {isPlatformUser && (
-            <Button variant="outline" size="sm" disabled={locked} onClick={() => onSignoffAll(!signoff.signed_off)}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={locked || (!signoff.signed_off && (signoff.lockedItems ?? []).length > 0)}
+              onClick={() => onSignoffAll(!signoff.signed_off)}
+            >
               {signoff.signed_off ? "Clear sign-off" : "Confirm all items"}
             </Button>
+          )}
+          {signoff.companyDetailsPushed && signoff.companyDetailsAt && (
+            <p className="text-[11px] text-muted-foreground">
+              Company details sent {new Date(signoff.companyDetailsAt).toLocaleString()}.
+            </p>
           )}
         </div>
       )}

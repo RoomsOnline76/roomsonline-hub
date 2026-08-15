@@ -2657,6 +2657,27 @@ Deno.serve(async (req) => {
               ru_login_email: (account as any).ru_login_email ?? null,
               ru_login_url: (account as any).ru_login_url ?? null,
               company_details_sent: !!(account as any).company_details_sent,
+              company_details_status: (account as any).company_details_status ?? null,
+              company_filled_at: (account as any).company_filled_at ?? null,
+              /**
+               * True only when Push_FillCompanyDetails_RQ actually ran (status "sent")
+               * AND it ran at or after the sub-account's key pair was verified. A flag
+               * inferred from verified credentials, or a push made before the verified
+               * keys existed, is not accepted as evidence — RU keeps the profile
+               * incomplete in that case, so sign-off must stay open.
+               */
+              company_details_pushed: (() => {
+                const status = String((account as any).company_details_status ?? "").toLowerCase();
+                if (!["sent", "already_set"].includes(status)) return false;
+                const filled = (account as any).company_filled_at
+                  ? new Date((account as any).company_filled_at).getTime()
+                  : 0;
+                if (!filled) return false;
+                const verified = keys?.verified_at ? new Date(keys.verified_at).getTime() : 0;
+                if (!verified) return false;
+                // Allow a small clock skew between the two writes.
+                return filled >= verified - 60_000;
+              })(),
             }
           : null,
         keys,

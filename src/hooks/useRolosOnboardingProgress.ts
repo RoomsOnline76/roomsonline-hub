@@ -97,7 +97,16 @@ interface PhaseStatusPayload {
 
 interface IdentityPayload {
   property?: { is_rolos?: boolean; ru_property_id?: string | null };
-  account?: { ru_owner_id?: string | null; owner_email?: string | null; ru_login_email?: string | null } | null;
+  account?: {
+    ru_owner_id?: string | null;
+    owner_email?: string | null;
+    ru_login_email?: string | null;
+    company_details_sent?: boolean | null;
+    company_details_status?: string | null;
+    company_filled_at?: string | null;
+    /** Push_FillCompanyDetails_RQ actually ran with the verified key pair. */
+    company_details_pushed?: boolean | null;
+  } | null;
   keys?: { verified_at?: string | null; access_key_last4?: string | null } | null;
   keys_captured?: boolean;
   push_gated?: boolean;
@@ -117,6 +126,11 @@ export interface RolosOnboardingSignoff {
   note?: string | null;
   /** Per-item manual verification ticks (step 10). */
   checks: Record<string, SignoffCheckRecord>;
+  /** Push_FillCompanyDetails_RQ has run with the verified key pair. */
+  companyDetailsPushed?: boolean;
+  companyDetailsAt?: string | null;
+  /** Checklist items that cannot be ticked yet, and why (channel evidence missing). */
+  lockedItems?: string[];
 }
 
 
@@ -277,10 +291,20 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [propertyId, queryClient]);
 
+  /**
+   * Company details are only "correct" once Push_FillCompanyDetails_RQ has run
+   * with the verified sub-account key pair. Until then the checklist item stays
+   * locked — a flag inferred from verified credentials is not a push.
+   */
+  const companyDetailsPushed = d?.identity?.account?.company_details_pushed === true;
+
   const signoff: RolosOnboardingSignoff = useMemo(() => {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
     const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
-    const checks = (cr.checks ?? {}) as Record<string, SignoffCheckRecord>;
+    const stored = (cr.checks ?? {}) as Record<string, SignoffCheckRecord>;
+    const checks = { ...stored };
+    // A previously stored tick cannot stand in for a push that has not happened.
+    if (!companyDetailsPushed) delete checks.company_details;
     // The step is signed off only when every checklist item is ticked.
     const allTicked = ROLOS_SIGNOFF_CHECKLIST.every((item) => checks[item.key]?.checked === true);
     const lastTick = ROLOS_SIGNOFF_CHECKLIST.map((i) => checks[i.key])
@@ -292,8 +316,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       signed_off_at: (cr.signed_off_at as string) ?? lastTick?.at ?? null,
       note: (cr.note as string) ?? null,
       checks,
+      companyDetailsPushed,
+      companyDetailsAt: d?.identity?.account?.company_filled_at ?? null,
+      lockedItems: companyDetailsPushed ? [] : ["company_details"],
     };
-  }, [d?.roadmap]);
+  }, [companyDetailsPushed, d?.identity?.account?.company_filled_at, d?.roadmap]);
 
   /**
    * Step 9 — "Pull listings (if any)". Outcome of the last discovery run against the
@@ -804,9 +831,16 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [d?.roadmap, propertyId, refresh],
   );
 
+  const lockedSignoffItems = signoff.lockedItems ?? [];
+
   /** Tick / untick a single step-10 verification item. */
   const recordSignoffCheck = useCallback(
     async (itemKey: string, checked: boolean, actorLabel?: string | null) => {
+      if (checked && lockedSignoffItems.includes(itemKey)) {
+        throw new Error(
+          "Company details have not been pushed to the Channel Manager with the verified keys yet — run \"Push company details\" first.",
+        );
+      }
       const checks = { ...(signoff.checks ?? {}) };
       if (checked) {
         checks[itemKey] = { checked: true, by: actorLabel ?? null, at: new Date().toISOString() };
@@ -821,7 +855,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         signed_off_at: allTicked ? new Date().toISOString() : null,
       });
     },
-    [signoff.checks, writeChannelReadiness],
+    [lockedSignoffItems, signoff.checks, writeChannelReadiness],
   );
 
   /** Tick or clear every verification item at once. */
@@ -831,9 +865,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const checks: Record<string, SignoffCheckRecord> = {};
       if (signedOff) {
         for (const item of ROLOS_SIGNOFF_CHECKLIST) {
+          // Locked items still need their channel evidence — "Confirm all" cannot forge them.
+          if (lockedSignoffItems.includes(item.key)) continue;
           checks[item.key] = { checked: true, by: actorLabel ?? null, at };
         }
       }
+      const complete = ROLOS_SIGNOFF_CHECKLIST.every((i) => checks[i.key]?.checked === true);
+      signedOff = signedOff && complete;
       await writeChannelReadiness({
         checks,
         signed_off: signedOff,
@@ -842,7 +880,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         note: note ?? null,
       });
     },
-    [writeChannelReadiness],
+    [lockedSignoffItems, writeChannelReadiness],
   );
 
   /** Record the outcome of a "Pull listings" run (step 9). */
