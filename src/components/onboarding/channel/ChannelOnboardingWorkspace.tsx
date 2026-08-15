@@ -551,11 +551,19 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+      {readyRegressed && (
+        <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
+          This party is live on {channelsConnected} channel{channelsConnected === 1 ? "" : "s"}, but a readiness
+          check has regressed. Distribution keeps running — review the flagged steps below when convenient.
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav className="space-y-4" aria-label="Go-live stages">
           {stages.map((stage) => (
-            <div key={stage.def.key} className={stage.locked ? "opacity-60" : undefined}>
+            <div key={stage.def.key}>
               <div className="mb-1 flex items-center gap-2">
-                <StatusDot complete={stage.complete} locked={stage.locked} />
+                <StatusDot complete={stage.complete} locked={false} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{stage.def.title}</p>
                   <p className="text-[11px] leading-snug text-muted-foreground">{stage.def.goal}</p>
@@ -571,13 +579,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
                       <li key={m.macro.key}>
                         <button
                           type="button"
-                          disabled={m.locked}
                           onClick={() => selectMacro(m.macro.key)}
+                          title={m.actionBlockedReason}
                           className={`flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-xs ${
                             active ? "bg-primary/10 font-medium text-foreground" : "text-muted-foreground hover:bg-muted"
                           }`}
                         >
-                          <StatusDot complete={m.complete} locked={m.locked} />
+                          <StatusDot complete={m.complete} locked={false} />
                           <span className="min-w-0 flex-1 truncate">{m.macro.title}</span>
                         </button>
                       </li>
@@ -600,11 +608,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
                 </div>
                 <Badge variant={activeMacro.complete ? "secondary" : "outline"}>{activeMacro.score}%</Badge>
               </div>
-              {activeMacro.locked && (
+              {activeMacro.actionBlockedReason && (
                 <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-[11px] text-muted-foreground">
-                  Complete the previous step first — this step is gated.
+                  {activeMacro.actionBlockedReason} You can still review and prepare this step.
                 </p>
               )}
+
               <BlockerList
                 progress={activeMacro}
                 units={unitScope}
