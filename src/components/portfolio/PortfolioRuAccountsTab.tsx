@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Link as RouterLink } from "react-router-dom";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
+import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
+
 import {
   Dialog,
   DialogContent,
@@ -98,7 +100,9 @@ export function PortfolioRuAccountsTab() {
 
   const refreshAccounts = useCallback(async () => {
     await queryClient.refetchQueries({ queryKey: ["ru-owner-accounts"] });
+    notifyRuAccountsChanged();
   }, [queryClient]);
+
 
   const verifyCredentials = useCallback(async (accountId: string) => {
     setVerifying(accountId);
@@ -449,7 +453,9 @@ export function PortfolioRuAccountsTab() {
 
   const refreshStoredKeys = useCallback(async () => {
     await queryClient.refetchQueries({ queryKey: ["ru-stored-api-keys"] });
+    notifyRuAccountsChanged();
   }, [queryClient]);
+
 
   const openKeys = useCallback(async (acc: RuAccount) => {
     setKeysFor({ id: acc.id, email: acc.ru_login_email || acc.owner_email, ownerId: acc.ru_owner_id });

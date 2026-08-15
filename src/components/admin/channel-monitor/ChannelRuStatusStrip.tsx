@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { onRuAccountsChanged } from "@/lib/ruAccountsSignal";
+
 import type { ChannelCostMonitorData } from "@/hooks/useChannelCostMonitor";
 
 type TabKey = "cost" | "accounts" | "cert";
@@ -86,6 +88,11 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Storing / verifying / rebinding keys happens on the Accounts tab; without this the
+  // banner would keep reporting the state it read when the page first mounted.
+  useEffect(() => onRuAccountsChanged(() => void load()), [load]);
+
 
   // Sub-user keys are normally stored in the credentials table keyed by OwnerID; only
   // older accounts carry them inline, so both sources count towards readiness.
