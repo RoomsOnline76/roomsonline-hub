@@ -286,10 +286,20 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [propertyId, queryClient]);
 
+  /**
+   * Company details are only "correct" once Push_FillCompanyDetails_RQ has run
+   * with the verified sub-account key pair. Until then the checklist item stays
+   * locked — a flag inferred from verified credentials is not a push.
+   */
+  const companyDetailsPushed = d?.identity?.account?.company_details_pushed === true;
+
   const signoff: RolosOnboardingSignoff = useMemo(() => {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
     const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
-    const checks = (cr.checks ?? {}) as Record<string, SignoffCheckRecord>;
+    const stored = (cr.checks ?? {}) as Record<string, SignoffCheckRecord>;
+    const checks = { ...stored };
+    // A previously stored tick cannot stand in for a push that has not happened.
+    if (!companyDetailsPushed) delete checks.company_details;
     // The step is signed off only when every checklist item is ticked.
     const allTicked = ROLOS_SIGNOFF_CHECKLIST.every((item) => checks[item.key]?.checked === true);
     const lastTick = ROLOS_SIGNOFF_CHECKLIST.map((i) => checks[i.key])
@@ -301,8 +311,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       signed_off_at: (cr.signed_off_at as string) ?? lastTick?.at ?? null,
       note: (cr.note as string) ?? null,
       checks,
+      companyDetailsPushed,
+      companyDetailsAt: d?.identity?.account?.company_filled_at ?? null,
+      lockedItems: companyDetailsPushed ? [] : ["company_details"],
     };
-  }, [d?.roadmap]);
+  }, [companyDetailsPushed, d?.identity?.account?.company_filled_at, d?.roadmap]);
 
   /**
    * Step 9 — "Pull listings (if any)". Outcome of the last discovery run against the
