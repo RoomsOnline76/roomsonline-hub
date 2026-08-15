@@ -475,6 +475,18 @@ export async function createRateResolver(
     };
   };
 
+  const unlinkedUnits = () =>
+    units
+      .filter((unit) => {
+        const link = unit.linked_rolos_id ? String(unit.linked_rolos_id) : "";
+        if (!link) return true;
+        if (ratePlans[link] || rackRates[link] || (relationalSeasonRates[link]?.length ?? 0) > 0) return false;
+        if (Number(unitDailyRates[unit.id]) > 0) return false;
+        const keys = seasonRateKeys[unit.id] ?? [];
+        return !keys.some((key) => seasonRates[key]);
+      })
+      .map((unit) => ({ id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id ?? null }));
+
   return {
     seasons,
     rackRates,
@@ -482,13 +494,16 @@ export async function createRateResolver(
     unitDailyRates,
     closedDates,
     units,
+    ratePlans,
     pricingInputs,
     resolveDays,
     coverage,
+    unlinkedUnits,
   };
 
 
 }
+
 
 export interface PriceWindowNormalisation {
   days: DayRate[];
