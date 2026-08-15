@@ -223,7 +223,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .select("id, property_id, property_name, direction, unit_count, listing_count, actor_email, created_at")
           .order("created_at", { ascending: false })
           .limit(100),
-        resolveEurToZar(),
+        // FX resolves in the background: an external rate lookup must never hold up the page.
+        Promise.resolve(null as FxRate | null),
         supabase
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
