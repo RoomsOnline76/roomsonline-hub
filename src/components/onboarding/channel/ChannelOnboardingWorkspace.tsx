@@ -898,7 +898,13 @@ function PublishedPane({
       )}
 
       {macroKey === "signoff" && (
-        <div className="space-y-3 rounded-lg border p-4">
+        <div
+          className={`space-y-3 rounded-lg p-4 transition-colors ${
+            signoff.signed_off
+              ? "border border-border"
+              : "border-2 border-foreground/80 bg-foreground/5"
+          }`}
+        >
           <p className="text-sm font-medium">Sub-account verification</p>
           <p className="text-xs text-muted-foreground">
             Tick each item as you confirm it. The step completes only when every item is ticked.
