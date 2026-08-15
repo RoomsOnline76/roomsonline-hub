@@ -632,9 +632,54 @@ export default function AdminOnboarding() {
       });
 
       setPropertyRows(itTestPin ? filterToItTestProperties(enrichedProperties) : enrichedProperties);
+      setLoading(false);
+
+      // Background refinement: probe live channel readiness per ROL'OS property and
+      // patch just that row. Small concurrency keeps the channel rate limiter happy.
+      const probeQueue = [...rolosIds];
+      const runProbe = async (propertyId: string) => {
+        try {
+          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
+          });
+          if (error || data?.success !== true) return;
+          const listed = !!data?.readiness?.ru_property_id;
+          const summary = ruMandatoryCheckSummary(data.readiness ?? null, {
+            // Listing exists but the scorer fell back to the local calendar:
+            // the live availability verdict is unavailable, not failing.
+            liveProbeDegraded: listed && data?.availability_source !== "channel",
+          });
+          const inputs = channelInputsById.get(propertyId);
+          if (!inputs) return;
+          const channel = channelQueueProgress({
+            ...inputs,
+            ruMandatoryPass: summary.known ? summary.pass : null,
+            ruMandatoryPercent: summary.known ? summary.percent : null,
+          });
+          setPropertyRows((prev) =>
+            prev.map((row) =>
+              row.id === propertyId
+                ? {
+                    ...row,
+                    channelStage: channel.stage,
+                    channelPercent: channel.percent,
+                    channelLabel: channel.label,
+                    channelHint: channel.hint,
+                  }
+                : row,
+            ),
+          );
+        } catch {
+          // Leave unknown — the local verdict stands.
+        }
+      };
+      void Promise.all(
+        Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
+          for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
+        }),
+      );
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
-    } finally {
       setLoading(false);
     }
   };
