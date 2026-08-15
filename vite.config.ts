@@ -5,26 +5,26 @@ import { execSync } from "child_process";
 import { componentTagger } from "lovable-tagger";
 
 /**
- * Build sequence — advances once per prompt/build, never on the clock.
+ * Build sequence — the raw git commit count (same scheme as TOROFlow).
  *
- * Every prompt that changes the project produces exactly one commit, so the commit count is
- * the natural "builds so far" counter. It is anchored to a known display value so the badge
- * continues from where the previous (hour-based) scheme left off, and the displayed number is
- * then the modulo-69 of this sequence (see `src/lib/appVersion.ts`).
+ * Every prompt that changes the project produces exactly one commit, so the commit count is the
+ * natural "builds so far" counter. It is used raw: no anchor offset, because an anchor subtraction
+ * collapses to 0 in shallow-clone build environments and freezes the badge.
  */
-const ANCHOR_COMMITS = 13519; // commit count at the anchor below
-const ANCHOR_SEQ = 962; // sequential build displayed at that commit count
-const commitCount = (() => {
+function commitCount(): number {
   try {
     const out = execSync("git rev-list --count HEAD", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-    const n = Number.parseInt(out.trim(), 10);
-    return Number.isFinite(n) && n > 0 ? n : null;
+    return Number.parseInt(out.trim(), 10) || 0;
   } catch {
-    return null;
+    return 0;
   }
-})();
-const buildSeq = commitCount === null ? ANCHOR_SEQ : ANCHOR_SEQ + (commitCount - ANCHOR_COMMITS);
+}
 
+const buildSeq = commitCount();
+
+// Also expose it through the standard VITE_* env channel, which survives environments where the
+// virtual module or a bare `define` is not honoured.
+process.env.VITE_COMMIT_COUNT = String(buildSeq);
 
 /**
  * Serve the build stamp as a virtual module rather than a `define`: `define` is not applied to
@@ -44,6 +44,7 @@ const buildInfoPlugin = () => {
     },
   };
 };
+
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
