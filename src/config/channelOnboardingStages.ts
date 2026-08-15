@@ -85,8 +85,17 @@ export const EDITOR_SECTIONS = new Set([
   "images",
   "rates",
   "rate-plans",
+  // Policy and commercial add-on surfaces belong to step 5. Without them a
+  // "Fix" on a policy or payment-method blocker resolved to a section the
+  // embedded editor refused to render, leaving the step with no way in.
+  "policies",
+  "charges",
+  "specials",
+  "packages",
+  "addons",
   "integrations",
 ]);
+
 
 /** Section the in-page editor should open for a ready-to-sell macro. */
 export function editorSectionForMacro(macroKey: string): string {
@@ -94,6 +103,42 @@ export function editorSectionForMacro(macroKey: string): string {
   const macro = ROLOS_ONBOARDING_MACROS.find((m) => m.key === macroKey);
   return macro?.section ?? "general";
 }
+
+/**
+ * Every editable surface a step covers, in the order an owner should work
+ * through them. The wizard renders these as switcher tabs so a step like
+ * "Policies, rates & pricing coverage" can reach the policies panel directly
+ * instead of depending on a blocker existing to link there.
+ */
+export function editorSectionsForMacro(macroKey: string): Array<{ section: string; label: string }> {
+  switch (macroKey) {
+    case "identity":
+      return [
+        { section: "general", label: "Identity" },
+        { section: "contacts", label: "Contacts" },
+      ];
+    case "rooms":
+      return [
+        { section: "rooms", label: "Rooms & units" },
+        { section: "info-facilities", label: "Facilities" },
+      ];
+    case "media":
+      return [{ section: "images", label: "Media" }];
+    case "commercial":
+      return [
+        { section: "rates", label: "Calendar & seasons" },
+        { section: "rate-plans", label: "Rate plans" },
+        { section: "policies", label: "Policies" },
+        { section: "charges", label: "Charges" },
+        { section: "specials", label: "Specials" },
+        { section: "packages", label: "Packages" },
+        { section: "addons", label: "Add-ons" },
+      ];
+    default:
+      return [];
+  }
+}
+
 
 /**
  * Which macro owns a given editor section. Sections that are not a macro's
@@ -110,7 +155,13 @@ export function macroKeyForSection(section: string): string | null {
     images: "media",
     rates: "commercial",
     "rate-plans": "commercial",
+    policies: "commercial",
+    charges: "commercial",
+    specials: "commercial",
+    packages: "commercial",
+    addons: "commercial",
     integrations: "publish",
+
   };
   if (explicit[section]) return explicit[section];
   const byTask = ROLOS_ONBOARDING_MACROS.find((m) =>
