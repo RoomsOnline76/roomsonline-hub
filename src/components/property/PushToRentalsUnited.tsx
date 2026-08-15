@@ -174,6 +174,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
    */
   const gate = usePropertyReadiness(propertyId);
   const gateBlocked = !gate.hasData || gate.passed !== true;
+  const navigate = useNavigate();
+  /**
+   * Published = the listing exists on the distribution layer for every pushed
+   * entity. In that state updates flow automatically, so the manual push is an
+   * opt-in re-push rather than the primary action.
+   */
+  const published =
+    !gateBlocked &&
+    readiness?.blocked !== true &&
+    (isMultiUnit ? units.length > 0 && units.every((u) => !!u.ru_property_id) : !!ruPropertyId);
+
   const gateReason = !gate.hasData
     ? gate.isLoading || gate.isFetching
       ? "Checking channel readiness…"
