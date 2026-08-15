@@ -156,21 +156,22 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
    * authenticates, so this only counts once the sub-account's keys are verified —
    * it therefore runs automatically straight after a successful key save/verify.
    */
-  const pushCompanyDetails = useCallback(async (silent = false) => {
+  const pushCompanyDetails = useCallback(async () => {
     setPushingCompany(true);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "ensure_company_details", property_id: propertyId },
+        body: { action: "ensure_company_details", property_id: propertyId, force: true },
       });
       if (error) throw new Error(await extractFunctionError(error));
-      if (!data?.success) throw new Error(data?.error?.message ?? "Could not send the company details");
-      toast.success("Company details sent to the Channel Manager");
+      if (!data?.success || data?.company_details_pushed !== true) {
+        throw new Error(data?.error?.message ?? data?.company_details_warning ?? "The Channel Manager did not confirm the company-details push");
+      }
+      toast.success("Company details accepted by the Channel Manager");
       notifyRuAccountsChanged();
       await load();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not send the company details";
-      if (silent) toast.warning(`Company details still pending: ${message}`);
-      else toast.error(message);
+      toast.error(message);
     } finally {
       setPushingCompany(false);
     }
@@ -189,19 +190,22 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           access_key: accessKey.trim(),
           secret_key: secretKey.trim(),
           key_label: keyLabel.trim() || null,
+          property_id: propertyId,
         },
       });
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Could not save the API keys");
-      toast.success("API keys saved and verified — Channel Manager push/pull is now unlocked for this owner");
+      if (data?.company_details_pushed !== true) {
+        toast.warning(`API keys verified, but company details are still pending: ${data?.company_details_warning ?? "no acceptance received"}`);
+      } else {
+        toast.success("API keys verified and company details accepted by the Channel Manager");
+      }
       notifyRuAccountsChanged();
       setAccessKey("");
       setSecretKey("");
       setEditingKeys(false);
 
       await load();
-      // Keys are verified on save — submit the company profile immediately.
-      await pushCompanyDetails(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save the API keys");
     } finally {
@@ -218,14 +222,18 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           action: "verify_api_keys",
           account_id: identity.account.id,
           ru_owner_id: identity.account.ru_owner_id,
+          property_id: propertyId,
         },
       });
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Verification failed");
-      toast.success("The Channel Manager accepted the distribution account keys");
+      if (data?.company_details_pushed !== true) {
+        toast.warning(`Keys verified, but company details are still pending: ${data?.company_details_warning ?? "no acceptance received"}`);
+      } else {
+        toast.success("Keys verified and company details accepted by the Channel Manager");
+      }
       notifyRuAccountsChanged();
       await load();
-      await pushCompanyDetails(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Verification failed");
     } finally {
@@ -315,14 +323,14 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               <div className="font-medium capitalize">{account?.scope ?? "—"}</div>
             </div>
             <div>
-              <span className="text-muted-foreground">Company details sent</span>
+              <span className="text-muted-foreground">Company details</span>
               {account?.company_details_pushed ? (
                 <div className="font-medium">
-                  Sent{" "}
+                  Accepted{" "}
                   {account.company_filled_at
                     ? new Date(account.company_filled_at).toLocaleDateString()
                     : ""}{" "}
-                  with verified keys
+                  by the Channel Manager with verified keys
                 </div>
               ) : (
                 <div className="space-y-1">

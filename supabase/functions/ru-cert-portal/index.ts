@@ -15,6 +15,7 @@ import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, cu
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
+import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { resumePendingRuDeltas } from "../_shared/ruPendingDeltas.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
@@ -681,6 +682,59 @@ Deno.serve(async (req) => {
     const action: string = body.action ?? "";
     logActionName = action;
     logPropertyId = typeof body.property_id === "string" ? body.property_id : null;
+
+    /**
+     * Complete key verification and company provisioning as one server-owned workflow.
+     * Re-entering through the public function keeps company payload construction in its
+     * single canonical path while preserving this user's authorization and audit trail.
+     */
+    const provisionCompanyAfterKeyVerification = async (): Promise<{
+      pushed: boolean;
+      pushedAt: string | null;
+      warning: string | null;
+    }> => {
+      const propertyId = typeof body.property_id === "string" ? body.property_id : "";
+      if (!propertyId) {
+        return {
+          pushed: false,
+          pushedAt: null,
+          warning: "Keys were verified, but property_id was missing so company details could not be provisioned.",
+        };
+      }
+      const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ru-cert-portal`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const authorization = req.headers.get("Authorization");
+      const apiKey = req.headers.get("apikey");
+      if (authorization) headers.Authorization = authorization;
+      if (apiKey) headers.apikey = apiKey;
+      try {
+        const response = await fetch(functionUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ action: "ensure_company_details", property_id: propertyId, force: true }),
+        });
+        const result = await response.json().catch(() => ({}));
+        const account = result?.account ?? null;
+        const pushed = response.ok
+          && result?.success === true
+          && result?.company_details_sent === true
+          && ["sent", "already_set"].includes(String(account?.company_details_status ?? "").toLowerCase())
+          && Boolean(account?.company_filled_at);
+        return {
+          pushed,
+          pushedAt: pushed ? account.company_filled_at : null,
+          warning: pushed
+            ? null
+            : String(result?.error?.message ?? result?.company_details_warning ?? "The Channel Manager did not confirm the company-details push."),
+        };
+      } catch (error) {
+        return {
+          pushed: false,
+          pushedAt: null,
+          warning: error instanceof Error ? error.message : "Company-details provisioning failed.",
+        };
+      }
+    };
 
 
     // Property-scoped users (ROLOS owners / staff) may read status/readiness
@@ -3016,13 +3070,14 @@ Deno.serve(async (req) => {
       }
 
       // Keys live per RU OwnerID, so saving a second sub-user never wipes the first.
+      const verifiedAt = new Date().toISOString();
       const { error: credErr } = await admin.from("ru_api_credentials").upsert({
         ru_owner_id: ownerId,
         login_email: loginEmail,
         access_key: accessKey,
         secret_enc: enc,
         key_label: keyLabel,
-        verified_at: new Date().toISOString(),
+        verified_at: verifiedAt,
       }, { onConflict: "ru_owner_id" });
       if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
 
@@ -3032,7 +3087,10 @@ Deno.serve(async (req) => {
           ru_api_access_key: accessKey,
           ru_api_secret_enc: enc,
           ru_api_key_label: keyLabel,
-          ru_api_keys_verified_at: new Date().toISOString(),
+          ru_api_keys_verified_at: verifiedAt,
+          company_details_sent: false,
+          company_details_status: "credentials_verified",
+          company_filled_at: null,
         };
         const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
         if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
@@ -3051,7 +3109,16 @@ Deno.serve(async (req) => {
         change_summary: `Stored and verified Rentals United sub-user API keys for ${loginEmail ?? "unknown"} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return json({ success: true, verified: true, ru_owner_id: ownerId, login_email: loginEmail });
+      const company = await provisionCompanyAfterKeyVerification();
+      return json({
+        success: true,
+        verified: true,
+        ru_owner_id: ownerId,
+        login_email: loginEmail,
+        company_details_pushed: company.pushed,
+        company_details_pushed_at: company.pushedAt,
+        company_details_warning: company.warning,
+      });
     }
 
 
@@ -3131,12 +3198,15 @@ Deno.serve(async (req) => {
           },
         }, 422);
       }
+      const company = await provisionCompanyAfterKeyVerification();
       return json({
         success: true,
         verified: true,
-        access_key: accessKey,
         login_email: loginEmail,
         ru_owner_id: ownerId,
+        company_details_pushed: company.pushed,
+        company_details_pushed_at: company.pushedAt,
+        company_details_warning: company.warning,
       });
     }
 
@@ -3955,7 +4025,8 @@ Deno.serve(async (req) => {
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         // Idempotent: treat it as done only when RU actually confirmed it.
         // `force: true` re-submits (e.g. the RU portal profile is still blank).
-        if (body.force !== true && account.company_details_sent === true && account.company_filled_at) {
+        const companyState = await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
+        if (body.force !== true && companyState.satisfied) {
           return { sent: true, skipped: true as const };
         }
 
@@ -4482,6 +4553,7 @@ Deno.serve(async (req) => {
           success: true,
           created: false,
           company_details_sent: companyResult.sent,
+          company_details_pushed: companyResult.sent,
           company_details_manual_required: needsPassword,
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
@@ -4678,6 +4750,7 @@ Deno.serve(async (req) => {
         created: !adopted,
         adopted,
         company_details_sent: companyResult.sent,
+        company_details_pushed: companyResult.sent,
         company_details_manual_required: needsPassword,
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
