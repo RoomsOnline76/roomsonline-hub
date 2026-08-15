@@ -880,7 +880,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         note: note ?? null,
       });
     },
-    [writeChannelReadiness],
+    [lockedSignoffItems, writeChannelReadiness],
   );
 
   /** Record the outcome of a "Pull listings" run (step 9). */
