@@ -519,7 +519,7 @@ export default function AdminOnboarding() {
         const channelManagerEnabled = billingByProperty.get(prop.id) === true;
         const units = unitsByProperty.get(prop.id) ?? { active: 0, published: 0 };
         const ruChecks = ruByProperty.get(prop.id);
-        const channel = channelQueueProgress({
+        const channelInputs = {
           isRolos,
           channelsConnected,
           propertyListingId: prop.rentalsunited_property_id ?? null,
@@ -528,7 +528,9 @@ export default function AdminOnboarding() {
           hasDistributionIdentity: channelManagerEnabled || !!prop.ru_push_enabled,
           ruMandatoryPass: ruChecks?.known ? ruChecks.pass : null,
           ruMandatoryPercent: ruChecks?.known ? ruChecks.percent : null,
-        });
+        };
+        channelInputsById.set(prop.id, channelInputs);
+        const channel = channelQueueProgress(channelInputs);
         
         const propertyData: PropertyData = {
           id: prop.id,
