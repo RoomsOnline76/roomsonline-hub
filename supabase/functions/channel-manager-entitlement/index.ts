@@ -369,9 +369,10 @@ Deno.serve(async (req) => {
     if (raw.scope === "reconcile") {
       const { data: accounts, error: accErr } = await admin
         .from("ru_owner_accounts")
-        .select("id, ru_owner_id, ru_user_id, owner_email, portfolio_id, property_id")
+        .select("id, ru_owner_id, ru_user_id, owner_email, ru_login_email, ru_api_access_key, portfolio_id, property_id")
         .not("ru_owner_id", "is", null);
       if (accErr) return bad(accErr.message, 500);
+
 
       const [{ data: props }, { data: units }] = await Promise.all([
         admin.from("properties").select("id, name, is_active, rentalsunited_property_id"),
