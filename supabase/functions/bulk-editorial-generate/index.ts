@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,7 +76,7 @@ Generate content for these 5 fields:
 IMPORTANT: Each response should be 1-2 sentences only. Be specific to THIS property, not generic.`;
 
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,

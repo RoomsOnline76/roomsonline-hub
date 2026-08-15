@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,7 +138,7 @@ Return ONLY valid JSON with these 5 keys. No markdown formatting, no code blocks
 WEBSITE CONTENT:
 ${content.substring(0, 8000)}`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,

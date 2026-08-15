@@ -1,5 +1,5 @@
 import { z } from "npm:zod@3.23.8";
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,7 +114,7 @@ ${dashboardData.propertyBreakdown?.slice(0, 5).map((p: any) =>
 
     userPrompt += `\n\nUser Question: ${prompt}\n\nProvide a concise analytical insight addressing the user's question. Use markdown formatting.`;
 
-    const response = await fetch(AI_GATEWAY_URL, {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${XAI_API_KEY}`,

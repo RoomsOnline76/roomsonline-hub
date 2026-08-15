@@ -1,4 +1,4 @@
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -106,7 +106,7 @@ ${JSON.stringify(propertySummaries, null, 2)}
 Find the best matching properties (1-5) and explain why the top match is perfect for this guest.`;
 
     // Call Lovable AI with tool calling for structured output
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiResponse = await aiFetch(AI_GATEWAY_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${LOVABLE_API_KEY}`,

@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,7 +121,7 @@ async function generateDiningWithXAI(
   try {
     console.log(`Calling xAI Grok for ${diningTier} dining recommendation...`);
     
-    const response = await fetch(AI_GATEWAY_URL, {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${xaiApiKey}`,
@@ -254,7 +254,7 @@ Include actual place names when possible.${coordinateInfo}`;
   try {
     console.log("Calling Lovable AI for general experiences...");
     
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,
@@ -366,7 +366,7 @@ async function generateDiningWithLovableAI(
   try {
     console.log("Falling back to Lovable AI for dining recommendation...");
     
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,

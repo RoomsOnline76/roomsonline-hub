@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS, AI_GATEWAY_URL, describeAiFailure } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, describeAiFailure, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +51,7 @@ async function detectFeaturesFromImages(imageUrls: string[], apiKey: string): Pr
 
   for (const imageUrl of imageUrls.slice(0, 6)) {
     try {
-      const resp = await fetch(AI_GATEWAY_URL, {
+      const resp = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -225,7 +225,7 @@ Respond with JSON only, shape:
  "units":[{"unit_id":"<uuid>","unit_name":"...","amenities":[{"id":123,"name":"...","confidence":"high","evidence":"record","reason":"..."}]}],
  "summary":"one sentence"}`;
 
-    const aiResp = await fetch(AI_GATEWAY_URL, {
+    const aiResp = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${xaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({

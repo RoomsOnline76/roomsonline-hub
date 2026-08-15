@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -506,7 +506,7 @@ Extract Google rating and review count from the above.`;
 
 Extract: contact details, location, description, check-in/out times, star rating, property type, facilities, activities offered, and image URLs.${extraSources ? ` Also extract ${extraSources}.` : ''}`;
 
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lovableApiKey}`,

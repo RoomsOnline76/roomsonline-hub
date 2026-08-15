@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { createSuccessResponse, createErrorResponse } from '../_shared/adapter-contract.ts';
 import { resolveExperienceConfig, callPmsAdapterWithLiveCheck } from '../_shared/experience-helpers.ts';
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
       try {
         const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
         if (LOVABLE_API_KEY) {
-          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          const aiResponse = await aiFetch(AI_GATEWAY_URL, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -338,7 +338,7 @@ Deno.serve(async (req) => {
           if (LOVABLE_API_KEY) {
             const userPrompt = `Write a ${triggerEvent.replace(/_/g, ' ')} email in a ${tone} tone.${customPrompt ? ` Additional instructions: ${customPrompt}` : ''} Return a subject line and HTML body.`;
 
-            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const aiResponse = await aiFetch(AI_GATEWAY_URL, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -472,7 +472,7 @@ Deno.serve(async (req) => {
           try {
             const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
             if (LOVABLE_API_KEY && propSummaries.length > 0) {
-              const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              const aiResponse = await aiFetch(AI_GATEWAY_URL, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -583,7 +583,7 @@ Deno.serve(async (req) => {
               slug: p.slug, name: p.name, city: p.city, description: p.description?.substring(0, 150),
             }));
 
-            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const aiResponse = await aiFetch(AI_GATEWAY_URL, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${LOVABLE_API_KEY}`,
@@ -683,7 +683,7 @@ Deno.serve(async (req) => {
         try {
           const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
           if (LOVABLE_API_KEY) {
-            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            const aiResponse = await aiFetch(AI_GATEWAY_URL, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${LOVABLE_API_KEY}`,

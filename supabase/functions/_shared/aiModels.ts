@@ -131,20 +131,122 @@ export function describeAiFailure(status: number, detail: string): { code: AiFai
   return { code: "AI_ERROR", error: detail?.slice(0, 300) || "TOBI request failed." };
 }
 
+// ---------------------------------------------------------------------------
+// xAI (Grok) standby transport
+// ---------------------------------------------------------------------------
+// The Lovable AI Gateway remains TOBI's primary brain. xAI is a standby only:
+// when the gateway is spend-capped, out of credits, rate limited or down, TOBI
+// keeps working instead of failing in the owner's face. Never surface either
+// vendor name in UI copy — this is all "TOBI".
+
+export const XAI_CHAT_URL = "https://api.x.ai/v1/chat/completions";
+
+/** Gateway model id -> nearest Grok equivalent for the standby run. */
+const XAI_EQUIVALENT: Record<string, string> = {
+  [AI_TIER.extract]: "grok-3-mini",
+  [AI_TIER.chat]: "grok-4-fast",
+  [AI_TIER.prose]: "grok-4-fast",
+  [AI_TIER.vision]: "grok-4",
+};
+
+const FALLBACK_WORTHY: AiFailureCode[] = ["SPEND_LIMIT_REACHED", "CREDITS_EXHAUSTED", "RATE_LIMITED", "AI_ERROR"];
+
+export interface AiChatOutcome {
+  ok: boolean;
+  status: number;
+  /** "gateway" or "xai" — which brain actually answered. */
+  provider: "gateway" | "xai";
+  data?: Record<string, unknown>;
+  code?: AiFailureCode;
+  error?: string;
+}
+
+/**
+ * POST an OpenAI-shaped chat body to the gateway, standing by on xAI when the
+ * gateway refuses. `body.model` must be a gateway model id from AI_MODELS.
+ */
+export async function aiChat(
+  body: Record<string, unknown>,
+  options: { signal?: AbortSignal; label?: string; preferFallback?: boolean } = {},
+): Promise<AiChatOutcome> {
+  const label = options.label ?? "tobi";
+  const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
+  const xaiKey = Deno.env.get("XAI_API_KEY");
+
+  const post = async (url: string, key: string, payload: Record<string, unknown>) =>
+    await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: options.signal,
+    });
+
+  const runFallback = async (reason: string): Promise<AiChatOutcome> => {
+    if (!xaiKey) {
+      const { code, error } = describeAiFailure(503, reason);
+      return { ok: false, status: 503, provider: "gateway", code, error };
+    }
+    const gatewayModel = String(body.model ?? "");
+    const model = XAI_EQUIVALENT[gatewayModel] ?? "grok-4-fast";
+    console.log(`[${label}] standing by on TOBI reserve (${model}) after: ${reason.slice(0, 160)}`);
+    try {
+      const resp = await post(XAI_CHAT_URL, xaiKey, { ...body, model });
+      if (!resp.ok) {
+        const detail = await resp.text().catch(() => "");
+        console.error(`[${label}] reserve brain failed`, resp.status, detail.slice(0, 300));
+        return {
+          ok: false,
+          status: resp.status,
+          provider: "xai",
+          code: "AI_ERROR",
+          error: "TOBI is temporarily unavailable. Please try again shortly.",
+        };
+      }
+      return { ok: true, status: 200, provider: "xai", data: await resp.json() };
+    } catch (err) {
+      return {
+        ok: false,
+        status: 502,
+        provider: "xai",
+        code: "AI_ERROR",
+        error: err instanceof Error ? err.message : "TOBI request failed",
+      };
+    }
+  };
+
+  if (!gatewayKey) return await runFallback("LOVABLE_API_KEY missing");
+  if (options.preferFallback) return await runFallback("fallback explicitly requested");
+
+  let response: Response;
+  try {
+    response = await post(AI_GATEWAY_URL, gatewayKey, body);
+  } catch (err) {
+    return await runFallback(err instanceof Error ? err.message : "network error");
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    const { code, error } = describeAiFailure(response.status, detail);
+    console.error(`[${label}] gateway ${response.status} ${code}`, detail.slice(0, 300));
+    if (FALLBACK_WORTHY.includes(code)) {
+      const viaReserve = await runFallback(`gateway ${response.status} ${code}`);
+      if (viaReserve.ok) return viaReserve;
+      return { ok: false, status: response.status, provider: "gateway", code, error };
+    }
+    return { ok: false, status: response.status, provider: "gateway", code, error };
+  }
+
+  return { ok: true, status: 200, provider: "gateway", data: await response.json() };
+}
 
 /**
  * Single entry point for gateway chat calls. Centralises auth, model selection
- * and the 402/429 handling that used to be duplicated in every function.
+ * and the 402/429/403 handling that used to be duplicated in every function,
+ * with automatic standby on the reserve brain.
  */
 export async function callLovableAi(options: AiCallOptions): Promise<AiCallResult> {
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) {
-    return { ok: false, content: null, status: 500, code: "MISSING_KEY", error: "AI is not configured." };
-  }
-
-  const model = modelForTask(options.task);
   const body: Record<string, unknown> = {
-    model,
+    model: modelForTask(options.task),
     messages: options.messages,
   };
   if (options.temperature !== undefined) body.temperature = options.temperature;
@@ -152,36 +254,84 @@ export async function callLovableAi(options: AiCallOptions): Promise<AiCallResul
   if (options.responseFormat) body.response_format = options.responseFormat;
   if (options.tools) body.tools = options.tools;
 
-  let response: Response;
-  try {
-    response = await fetch(AI_GATEWAY_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: options.signal,
-    });
-  } catch (err) {
-    return {
-      ok: false,
-      content: null,
-      status: 502,
-      code: "AI_ERROR",
-      error: err instanceof Error ? err.message : "AI request failed",
-    };
+  const outcome = await aiChat(body, { signal: options.signal, label: `ai:${options.task}` });
+  if (!outcome.ok) {
+    return { ok: false, content: null, status: outcome.status, code: outcome.code, error: outcome.error };
   }
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    console.error(`[ai:${options.task}] ${model} -> ${response.status}`, detail.slice(0, 500));
-    const { code, error } = describeAiFailure(response.status, detail);
-    return { ok: false, content: null, status: response.status, code, error };
-  }
-
-
-  const result = await response.json();
+  const result = outcome.data as Record<string, any>;
   const content = result?.choices?.[0]?.message?.content ?? null;
   return { ok: true, content, status: 200, raw: result };
+}
+
+/**
+ * Drop-in replacement for `fetch(AI_GATEWAY_URL, init)` that stands by on the
+ * reserve brain. Returns a normal Response with the usual OpenAI chat shape, so
+ * existing call sites keep working unchanged (`resp.ok`, `resp.json()`).
+ */
+export async function aiFetch(
+  _url: string,
+  init: { body?: string; signal?: AbortSignal; headers?: Record<string, string> } & Record<string, unknown>,
+  label = "tobi",
+): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = JSON.parse(String(init?.body ?? "{}"));
+  } catch {
+    body = {};
+  }
+
+  // Streaming callers (TOBI chat surfaces) need the raw SSE body passed through,
+  // so buffering it into JSON is not an option — retry the stream on the reserve.
+  if (body.stream === true) {
+    const gatewayKey = Deno.env.get("LOVABLE_API_KEY");
+    const xaiKey = Deno.env.get("XAI_API_KEY");
+    const streamPost = (url: string, key: string, payload: Record<string, unknown>) =>
+      fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: init?.signal,
+      });
+
+    if (gatewayKey) {
+      try {
+        const primary = await streamPost(AI_GATEWAY_URL, gatewayKey, body);
+        if (primary.ok) return primary;
+        const detail = await primary.text().catch(() => "");
+        const { code, error } = describeAiFailure(primary.status, detail);
+        console.error(`[${label}] streaming gateway ${primary.status} ${code}`, detail.slice(0, 300));
+        if (xaiKey && FALLBACK_WORTHY.includes(code)) {
+          const model = XAI_EQUIVALENT[String(body.model ?? "")] ?? "grok-4-fast";
+          const reserve = await streamPost(XAI_CHAT_URL, xaiKey, { ...body, model });
+          if (reserve.ok) return reserve;
+        }
+        return new Response(JSON.stringify({ error: { code, message: error } }), {
+          status: primary.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      } catch (err) {
+        console.error(`[${label}] streaming gateway transport error`, err);
+      }
+    }
+    if (xaiKey) {
+      const model = XAI_EQUIVALENT[String(body.model ?? "")] ?? "grok-4-fast";
+      return await streamPost(XAI_CHAT_URL, xaiKey, { ...body, model });
+    }
+    return new Response(JSON.stringify({ error: { code: "MISSING_KEY", message: "TOBI is not configured." } }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const outcome = await aiChat(body, { signal: init?.signal, label });
+  if (outcome.ok) {
+    return new Response(JSON.stringify(outcome.data ?? {}), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return new Response(JSON.stringify({ error: { code: outcome.code, message: outcome.error } }), {
+    status: outcome.status || 502,
+    headers: { "Content-Type": "application/json" },
+  });
 }

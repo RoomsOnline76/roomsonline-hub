@@ -1,4 +1,4 @@
-import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,7 +32,7 @@ Requirements:
 - Meta title: 50-60 characters, compelling and includes main keyword
 - Meta description: 150-160 characters, summarizes content and encourages clicks`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${LOVABLE_API_KEY}`,
@@ -117,7 +117,7 @@ RULES
 - Cover: the feel of the place, the accommodation itself, the facilities guests actually use, and the location.
 - Return ONLY the description text.`;
 
-      const descRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const descRes = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -168,7 +168,7 @@ RULES
 - Cover: the space itself, the sleeping arrangement, the in-room facilities and amenities, and who it suits.
 - Return ONLY the description text.`;
 
-      const roomRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const roomRes = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -225,7 +225,7 @@ RULES
 - Only use facts given above. Never invent gate codes, key-safe codes, lockbox numbers, unit numbers, road names or distances. Where a specific detail is unknown, tell the guest it will be sent with their confirmation or to contact the property.
 - Return ONLY the arrival instructions text.`;
 
-      const arrRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const arrRes = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -301,7 +301,7 @@ RULES
 - Prefer facts given. If little is provided, write from the property name, type and location only.
 - Return ONLY the text.`;
 
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -416,7 +416,7 @@ ${!existingContent?.who_its_not_for ? "5. who_its_not_for: Who should consider o
     console.log("Generating editorial content for:", name);
     console.log("Fields to generate:", Object.entries(existingContent || {}).filter(([_, v]) => !v).map(([k]) => k));
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
