@@ -7,3 +7,8 @@ declare module "virtual:app-build-info" {
   /** ISO timestamp of the running build. */
   export const BUILD_TIME: string;
 }
+
+interface ImportMetaEnv {
+  /** Raw git commit count injected by vite.config.ts — internal build sequence, never displayed raw. */
+  readonly VITE_COMMIT_COUNT?: string;
+}
