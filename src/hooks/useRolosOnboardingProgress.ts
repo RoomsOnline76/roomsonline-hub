@@ -639,7 +639,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           ? "Publish the listing first."
           : listingsVerifiedAt
             ? `${listingsExpectedUnits ? `${listingsVerifiedUnits}/${listingsExpectedUnits} listing(s) ` : ""}read back ${new Date(listingsVerifiedAt).toLocaleDateString()}`
-            : "Pushed but not read back — fetch the Channel Manager IDs to confirm.",
+            : "Pushed, but the automatic read-back did not confirm the listings — retry it with \"Fetch Channel Manager IDs\" in this step.",
     });
 
 
