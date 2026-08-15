@@ -116,12 +116,21 @@ export interface RateResolver {
   closedDates: Record<string, Set<string>>;
   /** Active units of the property, as loaded from hostfully_room_types. */
   units: UnitRateContext[];
+  /** Active rate plan per linked_rolos_id — a unit missing here can never be priced. */
+  ratePlans: Record<string, PricingRatePlan>;
   /** The exact snapshot handed to the pure calculation layer (debug / parity use). */
   pricingInputs?: PricingInputs;
 
   resolveDays: (unit: UnitRateContext, from: string, to: string) => DayRate[];
   coverage: (days: DayRate[]) => RateCoverage;
+  /**
+   * Units whose `linked_rolos_id` resolves to no rate plan, rack rate or daily rate at all —
+   * usually a ROL'OS room type that was replaced, leaving the unit link dangling. Reported
+   * separately so "no rates for 365 days" is never shown for what is really a broken link.
+   */
+  unlinkedUnits: () => { id: string; name: string; linked_rolos_id: string | null }[];
 }
+
 
 
 export function addDays(dateStr: string, days: number): string {
