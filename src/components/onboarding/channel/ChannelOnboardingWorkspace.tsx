@@ -335,10 +335,26 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         });
       } else {
         const pushed = (data.units ?? []).filter((u) => u.success).length;
+        // The push now reads its own listings back, so the toast can report the confirmed
+        // state instead of leaving the checklist on "pushed but not read back".
+        const verification = (data as { listing_verification?: { verified?: boolean; verified_units?: number; expected_units?: number; error?: string } })
+          .listing_verification;
+        const confirmed = verification?.verified === true;
         toast.success(
           pushed > 0
             ? `Published ${pushed} unit(s) to the Channel Manager`
             : "Listing published to the Channel Manager",
+          {
+            description: confirmed
+              ? `Listings read back and confirmed${
+                verification?.expected_units
+                  ? ` (${verification.verified_units}/${verification.expected_units})`
+                  : ""
+              }.`
+              : verification
+                ? `Read-back did not confirm the listings${verification.error ? ` — ${verification.error}` : ""}. Use "Fetch Channel Manager IDs" to retry.`
+                : undefined,
+          },
         );
         await refresh();
       }
@@ -350,6 +366,31 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       setBusy(null);
     }
   }, [propertyId, refresh]);
+
+  /**
+   * Manual retry for the read-back only — the push chains this itself, so this is the
+   * escape hatch for when that read-back failed (rate limit, channel hiccup).
+   */
+  const verifyListings = useCallback(async () => {
+    setBusy("verify_listings");
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "resolve_ru_property_ids", property_id: propertyId },
+      });
+      if (error || data?.success !== true) {
+        toast.error(data?.error?.message ?? error?.message ?? "Could not read the listings back");
+        return;
+      }
+      const matched = Array.isArray(data.matched) ? data.matched.length : 0;
+      toast.success(`${matched} listing(s) confirmed on the channel`);
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not read the listings back");
+    } finally {
+      setBusy(null);
+    }
+  }, [propertyId, refresh]);
+
 
   const toggleWebsite = useCallback(
     async (next: boolean) => {
