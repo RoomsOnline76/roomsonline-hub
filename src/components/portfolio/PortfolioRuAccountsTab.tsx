@@ -98,7 +98,9 @@ export function PortfolioRuAccountsTab() {
 
   const refreshAccounts = useCallback(async () => {
     await queryClient.refetchQueries({ queryKey: ["ru-owner-accounts"] });
+    notifyRuAccountsChanged();
   }, [queryClient]);
+
 
   const verifyCredentials = useCallback(async (accountId: string) => {
     setVerifying(accountId);
