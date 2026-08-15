@@ -4501,7 +4501,7 @@ Deno.serve(async (req) => {
         });
 
         // The read-back follows the push automatically once the whole sequence is done.
-        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
+        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
@@ -4826,7 +4826,7 @@ Deno.serve(async (req) => {
         error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
         details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
       });
-      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id) : null;
+      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
@@ -5028,7 +5028,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
+    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
     return new Response(
       JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
