@@ -186,6 +186,8 @@ export function PortfolioRuAccountsTab() {
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [removingKeys, setRemovingKeys] = useState<string | null>(null);
   const [removeKeysFor, setRemoveKeysFor] = useState<{ id: string; ownerId: string | null; label: string } | null>(null);
+  const [closeAsk, setCloseAsk] = useState(false);
+  const [archiveAsk, setArchiveAsk] = useState<{ ownerId: string; email: string } | null>(null);
 
 
 
@@ -1489,7 +1491,7 @@ export function PortfolioRuAccountsTab() {
                     variant="destructive"
                     className="h-7 text-xs"
                     disabled={closing || binding === "unbind"}
-                    onClick={closeRuAccount}
+                    onClick={() => setCloseAsk(true)}
                   >
                     {closing ? (
                       <Loader2 className="h-3 w-3 animate-spin mr-1" />
