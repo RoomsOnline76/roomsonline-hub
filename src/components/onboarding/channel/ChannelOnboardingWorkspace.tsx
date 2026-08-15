@@ -32,6 +32,7 @@ import {
   editorSectionForMacro,
   macroKeyForSection,
   EDITOR_SECTIONS,
+  editorSectionsForMacro,
   type ChannelOnboardingStageKey,
 } from "@/config/channelOnboardingStages";
 
@@ -680,8 +681,29 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             later step (e.g. rate plans or contacts) must still land on an editable
             surface instead of an empty pane.
           */}
+          {activeMacro && editorSectionsForMacro(activeMacro.macro.key).length > 1 && (
+            <div className="flex flex-wrap gap-1.5 rounded-lg border bg-card p-2">
+              {editorSectionsForMacro(activeMacro.macro.key).map((tab) => (
+                <Button
+                  key={tab.section}
+                  type="button"
+                  size="sm"
+                  variant={editorSection === tab.section ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => goToField(tab.section)}
+                >
+                  {tab.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {EDITOR_SECTIONS.has(editorSection) &&
-            (activeStageKey === "ready" || (activeMacro?.fieldItems.some((i) => !i.satisfied) ?? false)) && (
+            (activeStageKey === "ready" ||
+              (activeMacro?.fieldItems.some((i) => !i.satisfied) ?? false) ||
+              (activeMacro
+                ? editorSectionsForMacro(activeMacro.macro.key).some((t) => t.section === editorSection)
+                : false)) && (
             <div className="overflow-hidden rounded-lg border bg-background">
               {editorSection === "contacts" ? (
                 <PropertyContactDetails propertyId={propertyId} />
