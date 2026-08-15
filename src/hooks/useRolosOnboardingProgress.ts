@@ -66,10 +66,16 @@ export interface MacroProgress {
   /** Mandatory-only completion, 0-100. */
   score: number;
   complete: boolean;
-  /** Hard gate: every earlier macro must be complete. */
+  /**
+   * Soft gate. Every step stays viewable; `locked` only means the step's own
+   * action cannot run yet (see `actionBlockedReason`).
+   */
   locked: boolean;
+  /** Plain-English reason the step's action cannot run yet. */
+  actionBlockedReason?: string;
   outstandingLabels: string[];
 }
+
 
 interface RuGroup {
   group: string;
