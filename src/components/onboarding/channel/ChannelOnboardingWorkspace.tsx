@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Circle,
   Loader2,
   Lock,
@@ -10,7 +11,9 @@ import {
   Rocket,
   UploadCloud,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
