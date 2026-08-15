@@ -209,7 +209,20 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         if (signed(legacyContract)) return legacyContract;
         return ownerContract ?? legacyContract ?? null;
       })();
-      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail };
+      // Keep the last good availability / pricing verdict instead of dropping the
+      // groups when a probe is skipped or throttled — losing them silently
+      // un-completed steps the owner had already finished.
+      const groups = (phase?.readiness?.groups ?? []) as RuGroup[];
+      const freshAri = groups.filter((g) => ARI_GROUPS.includes(String(g.group ?? "")));
+      let ariAge: number | null = null;
+      if (freshAri.length > 0) {
+        ariCache.current = { propertyId: id, groups: freshAri, at: Date.now() };
+      } else if (ariCache.current?.propertyId === id && phase?.readiness) {
+        phase.readiness.groups = [...groups, ...ariCache.current.groups];
+        ariAge = ariCache.current.at;
+      }
+      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail, ariAge };
+
     },
   });
 
