@@ -827,6 +827,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     recordSignoff,
     recordSignoffCheck,
 
+    listingPull,
+    recordListingPull,
+
     refresh,
     isLoading: readiness.isLoading || distribution.isLoading,
     isFetching: readiness.isFetching || distribution.isFetching,
