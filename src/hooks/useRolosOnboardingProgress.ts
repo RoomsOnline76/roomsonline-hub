@@ -37,8 +37,14 @@ export interface DistributionCheck {
   key: DistributionCheckKey;
   label: string;
   ok: boolean;
-  /** Unknown = not yet resolvable (upstream unreachable / earlier gate not passed). */
+  /** Unknown = not yet resolvable (upstream unreachable). Advisory, never blocks. */
   unknown?: boolean;
+  /**
+   * Waiting = the check cannot be judged until an earlier distribution action
+   * happens (the property is not bound yet). It still holds its step open, but
+   * there is no field to fix, so the UI must not offer one.
+   */
+  waiting?: boolean;
   detail?: string;
   hint?: string;
   /**
@@ -47,6 +53,7 @@ export interface DistributionCheck {
    */
   failures?: DistributionFailure[];
 }
+
 
 
 export interface MacroProgress {
