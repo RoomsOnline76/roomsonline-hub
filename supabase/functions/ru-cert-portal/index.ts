@@ -4019,7 +4019,16 @@ Deno.serve(async (req) => {
 
       const { error: propErr } = await admin
         .from("properties")
-        .update({ rentalsunited_property_id: null, ru_push_enabled: false })
+        .update({
+          rentalsunited_property_id: null,
+          ru_push_enabled: false,
+          // Verification describes listings that no longer exist for this property.
+          ru_listings_verified_at: null,
+          ru_listings_verified_owner: null,
+          ru_listings_verified_units: null,
+          ru_listings_expected_units: null,
+          ru_listings_unmatched: [],
+        })
         .eq("id", propertyId);
       if (propErr) return json({ success: false, error: { code: "SAVE_FAILED", message: propErr.message } }, 500);
 
