@@ -355,7 +355,17 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           keysCaptured: creds.keysCaptured,
           companyDetailsSent: creds.companyDetailsSent,
         });
-        const state: ChannelSyncState = archived ? "archived" : pushOn ? "live" : "paused";
+        // Nothing upstream at all: not a live listing, not archived — the first
+        // push either never ran or failed.
+        const neverPushed =
+          !archived && !p.rentalsunited_property_id && withListing.length === 0;
+        const state: ChannelSyncState = archived
+          ? "archived"
+          : neverPushed
+            ? "pending"
+            : pushOn
+              ? "live"
+              : "paused";
         const toRow = (u: UnitRecord): ChannelUnitRow => ({
           id: u.id,
           name: u.name || "Unit",
