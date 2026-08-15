@@ -141,6 +141,32 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     }
   }, [propertyId, isRolos]);
 
+  /** Detach only this property from the shared distribution account. */
+  const unbindProperty = useCallback(async () => {
+    setUnbinding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "unbind_property_account", property_id: propertyId },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not unbind this property");
+      const units = Array.isArray(data?.cleared_unit_listings) ? data.cleared_unit_listings.length : 0;
+      toast.success(
+        units
+          ? `Property unbound — listing IDs cleared for the property and ${units} unit(s)`
+          : "Property unbound from the distribution account",
+      );
+      notifyRuAccountsChanged();
+      setConfirmUnbind(false);
+      setExpanded(true);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not unbind this property");
+    } finally {
+      setUnbinding(false);
+    }
+  }, [load, propertyId]);
+
   useEffect(() => {
     void load();
   }, [load]);
