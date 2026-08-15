@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
