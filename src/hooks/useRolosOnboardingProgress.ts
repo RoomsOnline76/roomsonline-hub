@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
@@ -172,7 +172,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .eq("property_id", id)
           .then((r) => r.data ?? []),
       ]);
-      return { property, phase, identity, currency, channels, roadmap, units };
+      // Owner agreement state. Signing happens outside the wizard (contract portal),
+      // so the wizard resolves it live instead of assuming a stale snapshot.
+      const ownerEmail = String((property?.owner_email as string | undefined) ?? "").trim();
+      const [ownerContract, legacyContract] = await Promise.all([
+        ownerEmail
+          ? supabase
+              .from("owner_contracts")
+              .select("status, signed_at, created_at")
+              .ilike("owner_email", ownerEmail)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+              .then((r) => r.data)
+          : Promise.resolve(null),
+        supabase
+          .from("property_contracts")
+          .select("status, signed_at, created_at")
+          .eq("property_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .then((r) => r.data),
+      ]);
+      const contract = (() => {
+        const signed = (c: { status?: string | null } | null) =>
+          ["signed", "overridden"].includes(String(c?.status ?? "").toLowerCase());
+        if (signed(ownerContract)) return ownerContract;
+        if (signed(legacyContract)) return legacyContract;
+        return ownerContract ?? legacyContract ?? null;
+      })();
+      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail };
     },
   });
 
@@ -182,6 +212,32 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     const sys = String((d?.property as any)?.external_system ?? "").toLowerCase();
     return ROLOS_PMS_VALUES.has(sys);
   }, [d?.property]);
+
+  /**
+   * The owner signs the agreement in a separate surface (contract portal / email link),
+   * so the wizard listens for contract writes and re-derives itself the moment one lands.
+   * Without this the step only flipped after a hard reload.
+   */
+  useEffect(() => {
+    if (!propertyId) return;
+    const bump = () => {
+      void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+      void queryClient.invalidateQueries({ queryKey: ["property-readiness", propertyId] });
+      void queryClient.invalidateQueries({ queryKey: ["owner-contract"] });
+    };
+    const channel = supabase
+      .channel(`rolos-onboarding-contract-${propertyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "owner_contracts" }, bump)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "property_contracts", filter: `property_id=eq.${propertyId}` },
+        bump,
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [propertyId, queryClient]);
 
   const signoff: RolosOnboardingSignoff = useMemo(() => {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
@@ -246,6 +302,18 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
 
     // Macro 1 — identity
+    const contract = (d?.contract ?? null) as { status?: string | null; signed_at?: string | null } | null;
+    const contractStatus = String(contract?.status ?? "").toLowerCase();
+    const contractOk = contractStatus === "signed" || contractStatus === "overridden";
+    put("contract_signed", "Owner agreement signed", contractOk, {
+      detail: contractOk
+        ? `Signed${contract?.signed_at ? ` ${new Date(contract.signed_at).toLocaleDateString()}` : ""}`
+        : contractStatus
+          ? `Agreement ${contractStatus} — awaiting signature`
+          : "No agreement on record",
+      hint: "General → Contract & agreement",
+    });
+
     const tz = String(prop.timezone ?? "").trim();
     // ROL'OS stores canonical IANA zones (for example Africa/Johannesburg),
     // while some imported properties use a fixed UTC offset. Both are valid

@@ -12,6 +12,7 @@
 
 /** Keys resolved by `useRolosOnboardingProgress().state`. */
 export type DistributionCheckKey =
+  | "contract_signed"
   | "timezone_format"
   | "location_id"
   | "google_place_id"
@@ -76,6 +77,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     goal: "The property exists in ROL'OS with a complete, legally valid identity.",
     section: "general",
     tasks: [
+      { kind: "state", key: "contract_signed" },
       { kind: "fields", sections: ["general", "contacts"], label: "Identity, company & contact fields" },
       { kind: "state", key: "timezone_format" },
       { kind: "state", key: "content_quality" },
