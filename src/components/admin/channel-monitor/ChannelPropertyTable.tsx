@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useRef, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Archive, RotateCcw, Search, Play, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -44,7 +44,7 @@ export function ChannelPropertyTable({
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const portfolios = useMemo(
@@ -86,6 +86,16 @@ export function ChannelPropertyTable({
         return a.name.localeCompare(b.name);
       });
   }, [filtered]);
+
+  // Portfolios collapse by default: seed the collapsed set with every group
+  // name once, the first time groups are computed, so the table renders compact.
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (!didInit.current && groups.length > 0) {
+      didInit.current = true;
+      setCollapsed(new Set(groups.map((g) => g.name)));
+    }
+  }, [groups]);
 
   const toggleGroup = (name: string) =>
     setCollapsed((prev) => {
