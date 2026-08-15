@@ -51,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addDays, isBefore } from "date-fns";
@@ -366,14 +367,14 @@ export default function AdminOnboarding() {
       const ids = (propData || []).map((p) => p.id);
       const emails = [...new Set((propData || []).map((p) => p.owner_email).filter(Boolean))] as string[];
 
-      const [{ data: connectionData }, { data: billingData }, { data: contractData }, { data: unitData }, { data: ratePlanData }, contactResult] =
+      const [{ data: connectionData }, billingByProperty, { data: contractData }, { data: unitData }, { data: ratePlanData }, contactResult] =
         await Promise.all([
         ids.length
           ? supabase.from("rolos_channel_connections").select("property_id, status").in("property_id", ids)
           : Promise.resolve({ data: [] as { property_id: string; status: string }[] }),
-        ids.length
-          ? supabase.from("property_billing_configs").select("property_id, channel_manager_enabled").in("property_id", ids)
-          : Promise.resolve({ data: [] as { property_id: string; channel_manager_enabled: boolean | null }[] }),
+        // Portfolio-first: a member property is billed from its portfolio config,
+        // so the per-property row alone would under-report the entitlement.
+        fetchChannelManagerEntitlements(ids),
         emails.length
           ? supabase
               .from("owner_contracts")
@@ -447,9 +448,6 @@ export default function AdminOnboarding() {
           connectedByProperty.set(c.property_id, (connectedByProperty.get(c.property_id) ?? 0) + 1);
         }
       });
-      const billingByProperty = new Map(
-        (billingData ?? []).map((b) => [b.property_id, b.channel_manager_enabled === true]),
-      );
       const unitsByProperty = new Map<string, { active: number; published: number }>();
       const roomsByProperty = new Map<string, NonNullable<typeof unitData>>();
       (unitData ?? []).forEach((u) => {
@@ -501,7 +499,12 @@ export default function AdminOnboarding() {
       const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
       const rolosIds = realProperties
-        .filter((prop) => rolosSystems.has(String(prop.external_system ?? "").toLowerCase()))
+        .filter(
+          (prop) =>
+            rolosSystems.has(String(prop.external_system ?? "").toLowerCase()) &&
+            // No entitlement, no wizard — and no reason to spend a channel probe.
+            billingByProperty.get(prop.id) === true,
+        )
         .map((prop) => prop.id);
       // Live channel probes never block the first paint: the queue renders from
       // local state, then each probe refines its own row as it lands.
@@ -1019,7 +1022,10 @@ export default function AdminOnboarding() {
             ) : (
               filteredProperties.map((row) => {
                 const status = getOnboardingStatus(row);
-                const nextLabel = row.isRolos
+                // The Channels wizard only exists once the Channel Manager is
+                // enabled and billed for the property (or its portfolio).
+                const channelWizardAvailable = row.isRolos && row.channelManagerEnabled;
+                const nextLabel = channelWizardAvailable
                   ? row.channelStage === "live"
                     ? row.show_on_website
                       ? "Finished"
@@ -1034,13 +1040,23 @@ export default function AdminOnboarding() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/admin/onboarding/${row.id}`)}
+                    onClick={() =>
+                      navigate(
+                        channelWizardAvailable
+                          ? `/admin/onboarding/${row.id}`
+                          : `/admin/properties/${row.id}?section=onboarding`,
+                      )
+                    }
                   >
                     <TableCell>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/onboarding/${row.id}`);
+                          navigate(
+                            channelWizardAvailable
+                              ? `/admin/onboarding/${row.id}`
+                              : `/admin/properties/${row.id}?section=onboarding`,
+                          );
                         }}
                         className="font-medium hover:text-primary hover:underline text-left"
                       >
@@ -1091,6 +1107,21 @@ export default function AdminOnboarding() {
                     <TableCell>
                       {row.channelStage === "na" ? (
                         <span className="text-xs text-muted-foreground">Not ROL'OS</span>
+                      ) : !row.channelManagerEnabled ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground">Channel Manager not enabled</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="font-medium">Distribution is a billable add-on</p>
+                              <p>
+                                Switch the Channel Manager on in this property's Billing Config — the Channels wizard
+                                opens after that.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <TooltipProvider>
                           <Tooltip>
@@ -1144,17 +1175,19 @@ export default function AdminOnboarding() {
                         >
                           Website wizard
                         </Button>
-                        <Button
-                          size="sm"
-                          variant={row.isRolos && row.channelStage !== "live" ? "default" : "outline"}
-                          className="h-7 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/admin/onboarding/${row.id}`);
-                          }}
-                        >
-                          {nextLabel}
-                        </Button>
+                        {channelWizardAvailable && (
+                          <Button
+                            size="sm"
+                            variant={row.channelStage !== "live" ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/onboarding/${row.id}`);
+                            }}
+                          >
+                            {nextLabel}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -1169,10 +1202,12 @@ export default function AdminOnboarding() {
                             <Building2 className="h-4 w-4 mr-2" />
                             Open website listing wizard
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Open channel wizard
-                          </DropdownMenuItem>
+                          {channelWizardAvailable && (
+                            <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Open channel wizard
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           {/* Issue/Resend token based on status */}
                           {status === "not_started" && !row.isNightsBridge ? (
