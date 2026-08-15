@@ -387,6 +387,9 @@ export function ChannelPropertyTable({
                 </Fragment>
               );
             })}
+              </Fragment>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent>
