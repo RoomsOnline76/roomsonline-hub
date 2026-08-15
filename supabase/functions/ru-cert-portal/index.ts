@@ -777,7 +777,20 @@ Deno.serve(async (req) => {
     const INTERNAL_SERVICE_ACTIONS = ["resolve_ru_property_ids"];
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const isInternalService = !!serviceKey && bearer === serviceKey && INTERNAL_SERVICE_ACTIONS.includes(action);
+    /** A service-role JWT is also accepted, so a rotated key does not break system read-backs. */
+    const bearerIsServiceRole = (() => {
+      try {
+        const part = bearer.split(".")[1];
+        if (!part) return false;
+        const claims = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+        return claims?.role === "service_role";
+      } catch {
+        return false;
+      }
+    })();
+    const isInternalService = INTERNAL_SERVICE_ACTIONS.includes(action) &&
+      ((!!serviceKey && bearer === serviceKey) || bearerIsServiceRole);
+
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
