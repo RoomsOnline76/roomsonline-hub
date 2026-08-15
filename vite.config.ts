@@ -109,4 +109,6 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
-}));
+  },
+  };
+});
