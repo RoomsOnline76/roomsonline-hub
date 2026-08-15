@@ -677,7 +677,7 @@ export default function AdminOnboarding() {
         };
       });
 
-      setPropertyRows(itTestPin ? filterToItTestProperties(enrichedProperties) : enrichedProperties);
+      setPropertyRows(enrichedProperties);
       setLoading(false);
 
       // Background refinement: probe live channel readiness per ROL'OS property and
