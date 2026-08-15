@@ -373,13 +373,17 @@ export function PortfolioRuAccountsTab() {
       ownerId: string,
       email: string,
       creds?: { access_key?: string; secret_key?: string },
+      confirmed?: boolean,
     ) => {
       const hasCreds = Boolean(creds?.access_key && creds?.secret_key);
-      if (!hasCreds && !window.confirm(
-        `Archive OwnerID ${ownerId} (${email}) on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ. Properties are archived and channel connections removed.`,
-      )) return;
+      if (!hasCreds && !confirmed) {
+        setArchiveAsk({ ownerId, email });
+        return;
+      }
+      setArchiveAsk(null);
 
       setArchiving(ownerId);
+
       try {
         const { data, error } = await supabase.functions.invoke("ru-close-user", {
           body: {
