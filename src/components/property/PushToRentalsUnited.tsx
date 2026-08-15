@@ -158,6 +158,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [unitResults, setUnitResults] = useState<UnitPushResult[]>([]);
   const [buildingDiagnostics, setBuildingDiagnostics] = useState<Diagnostics | null>(null);
+  /**
+   * Listing verification = the channel was asked for its own listings after the push
+   * and every expected unit came back. Until then the push is unconfirmed.
+   */
+  const [verification, setVerification] = useState<{
+    verifiedAt: string | null;
+    owner: string | null;
+    verifiedUnits: number | null;
+    expectedUnits: number | null;
+    unmatched: string[];
+  } | null>(null);
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
