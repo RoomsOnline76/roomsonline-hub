@@ -4553,12 +4553,25 @@ Deno.serve(async (req) => {
       // Resolve an RU LocationId for a free-text name (used for CountryId).
       const locationIdByName = async (name: string): Promise<number | null> => {
         if (!name) return null;
+        // Live lookup first, but RU rate-limits repeated Pull_GetLocationByName_RQ calls
+        // with the same parameters, so never let a throttled answer fail the push.
         const { data } = await admin.functions.invoke("rentalsunited-api", {
           body: { action: "get_location_by_name", location_name: name },
         });
         const id = Number((data as any)?.location_id ?? (data as any)?.locations?.[0]?.id);
-        return Number.isFinite(id) && id > 1 ? id : null;
+        if (Number.isFinite(id) && id > 1) return id;
+
+        // Fallback: the cached RU location register.
+        const { data: loc } = await admin
+          .from("ru_locations")
+          .select("id")
+          .ilike("name", name)
+          .limit(1)
+          .maybeSingle();
+        const cached = Number((loc as { id?: number } | null)?.id);
+        return Number.isFinite(cached) && cached > 1 ? cached : null;
       };
+
 
       // Phase 1 is only complete once company details have been filled on RU.
       // NOTE: Push_FillCompanyDetails_RQ has no UserAccountId — RU applies the details to
