@@ -1099,6 +1099,7 @@ function PublishedPane({
   onPushOwner,
   onPublish,
   listingsVerified,
+  readBackPending,
   onVerifyListings,
   onEnable,
   onSignoffItem,
@@ -1121,6 +1122,7 @@ function PublishedPane({
   onPushOwner: () => void;
   onPublish: () => void;
   listingsVerified: boolean;
+  readBackPending: boolean;
   onVerifyListings: () => void;
   onEnable: () => void;
   onSignoffItem: (key: string, next: boolean) => void;
