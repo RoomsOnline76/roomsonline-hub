@@ -1773,6 +1773,42 @@ export function PortfolioRuAccountsTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!removeKeysFor} onOpenChange={(o) => !o && setRemoveKeysFor(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-destructive" />
+              Remove stored API keys
+            </DialogTitle>
+            <DialogDescription>
+              {removeKeysFor
+                ? `Clear the stored Channel Manager API key pair${removeKeysFor.ownerId ? ` for OwnerID ${removeKeysFor.ownerId}` : ""} (${removeKeysFor.label}). Nothing changes on the channel — the pair is cleared here so a correct pair can be captured again.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setRemoveKeysFor(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!removingKeys}
+              onClick={() => removeKeysFor && removeApiKeys(removeKeysFor.id, removeKeysFor.ownerId)}
+            >
+              {removingKeys ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="h-3 w-3 mr-1" />
+              )}
+              Remove keys
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
+
     </div>
   );
 }
