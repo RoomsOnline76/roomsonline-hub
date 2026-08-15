@@ -173,6 +173,19 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
           {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
           Re-check
         </Button>
+        {status.lnm.state !== "ok" && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 gap-1 px-2 text-[11px]"
+            onClick={() => void subscribeNow()}
+            disabled={subscribing || loading}
+            title="Register reservation and content notifications for this property's distribution account"
+          >
+            {subscribing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Radio className="h-3 w-3" />}
+            {subscribing ? "Subscribing…" : "Subscribe now"}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
