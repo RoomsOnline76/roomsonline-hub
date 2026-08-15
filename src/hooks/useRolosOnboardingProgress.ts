@@ -172,7 +172,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .eq("property_id", id)
           .then((r) => r.data ?? []),
       ]);
-      return { property, phase, identity, currency, channels, roadmap, units };
+      // Owner agreement state. Signing happens outside the wizard (contract portal),
+      // so the wizard resolves it live instead of assuming a stale snapshot.
+      const ownerEmail = String((property?.owner_email as string | undefined) ?? "").trim();
+      const [ownerContract, legacyContract] = await Promise.all([
+        ownerEmail
+          ? supabase
+              .from("owner_contracts")
+              .select("status, signed_at, created_at")
+              .ilike("owner_email", ownerEmail)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+              .then((r) => r.data)
+          : Promise.resolve(null),
+        supabase
+          .from("property_contracts")
+          .select("status, signed_at, created_at")
+          .eq("property_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+          .then((r) => r.data),
+      ]);
+      const contract = (() => {
+        const signed = (c: { status?: string | null } | null) =>
+          ["signed", "overridden"].includes(String(c?.status ?? "").toLowerCase());
+        if (signed(ownerContract)) return ownerContract;
+        if (signed(legacyContract)) return legacyContract;
+        return ownerContract ?? legacyContract ?? null;
+      })();
+      return { property, phase, identity, currency, channels, roadmap, units, contract, ownerEmail };
     },
   });
 
