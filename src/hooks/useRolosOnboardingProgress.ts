@@ -594,20 +594,25 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         switch (macro.key) {
           case "keys":
             return ok("sub_owner_id") ? undefined : "Create the distribution identity first (step 6).";
+          case "signoff":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "pull_listings":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "publish":
             if (!ok("api_keys_stored")) return "Capture the sub-account key & secret first (step 7).";
+            if (!ok("manual_signoff")) return "Verify the sub-account first (step 8).";
+            if (!ok("listings_pulled")) return "Pull existing listings first (step 9) so the push cannot duplicate.";
             if (!readyToSell) return "Finish Ready to sell — the push needs complete content, rooms, photos and rates.";
             return undefined;
           case "currency":
             return ok("listing_ids") ? undefined : "Publish the listing first — currency is verified against the live listing.";
-          case "signoff":
-            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "entitlement":
             return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "connect":
-            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 11).";
-            if (!ok("listing_ids")) return "Publish the listing first (step 8).";
+            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 12).";
+            if (!ok("listing_ids")) return "Publish the listing first (step 10).";
             return undefined;
+
           default:
             return undefined;
         }
