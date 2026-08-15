@@ -71,7 +71,7 @@ export async function resolveRuOwnerScopes(
     lastSeen.set(owner, new Date(r.created_at).getTime());
   }
 
-  const children: RuOwnerScope[] = [];
+  let children: RuOwnerScope[] = [];
   const skipped: string[] = [];
   for (const a of (accounts ?? []) as {
     ru_owner_id: string;
