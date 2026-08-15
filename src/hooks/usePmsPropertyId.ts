@@ -60,8 +60,7 @@ export function usePmsPropertyId() {
           .order("name");
         query = applyAdminScope(query, "id", scopedPropertyIds);
         const { data } = await query;
-        const rows = (data || []) as RolProperty[];
-        return isItTestAdminEmail(user.email) ? filterToItTestProperties(rows) : rows;
+        return (data || []) as RolProperty[];
       }
 
       // Check both primary ownership and linked ownership
