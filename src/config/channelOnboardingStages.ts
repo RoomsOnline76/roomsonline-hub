@@ -85,8 +85,17 @@ export const EDITOR_SECTIONS = new Set([
   "images",
   "rates",
   "rate-plans",
+  // Policy and commercial add-on surfaces belong to step 5. Without them a
+  // "Fix" on a policy or payment-method blocker resolved to a section the
+  // embedded editor refused to render, leaving the step with no way in.
+  "policies",
+  "charges",
+  "specials",
+  "packages",
+  "addons",
   "integrations",
 ]);
+
 
 /** Section the in-page editor should open for a ready-to-sell macro. */
 export function editorSectionForMacro(macroKey: string): string {
