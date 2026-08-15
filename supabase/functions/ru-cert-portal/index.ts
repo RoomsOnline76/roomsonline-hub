@@ -3682,6 +3682,9 @@ Deno.serve(async (req) => {
         unmatched,
         remote_count: remote.length,
         auth_mode: listed.auth_mode ?? null,
+        listings_verified: fullyVerified,
+        listings_verified_units: verifiedUnits,
+        listings_expected_units: expectedUnits,
       });
     }
 
