@@ -499,7 +499,12 @@ export default function AdminOnboarding() {
       const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
       const rolosIds = realProperties
-        .filter((prop) => rolosSystems.has(String(prop.external_system ?? "").toLowerCase()))
+        .filter(
+          (prop) =>
+            rolosSystems.has(String(prop.external_system ?? "").toLowerCase()) &&
+            // No entitlement, no wizard — and no reason to spend a channel probe.
+            billingByProperty.get(prop.id) === true,
+        )
         .map((prop) => prop.id);
       // Live channel probes never block the first paint: the queue renders from
       // local state, then each probe refines its own row as it lands.
