@@ -30,6 +30,7 @@ export type DistributionCheckKey =
   | "manual_signoff"
   | "listings_pulled"
   | "listing_ids"
+  | "listings_verified"
   | "quality_check"
   | "currency_verified"
   | "channel_entitlement"
@@ -207,6 +208,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     section: "integrations",
     tasks: [
       { kind: "state", key: "listing_ids" },
+      { kind: "state", key: "listings_verified" },
       { kind: "state", key: "quality_check", optional: true },
     ],
 
