@@ -578,20 +578,43 @@ Deno.serve(async (req) => {
       const PER_ACCOUNT_MS = 15_000;
 
       for (const ownerId of ownerIds) {
+        const acct = boundByOwner.get(ownerId);
+        const bound = Boolean(acct);
+        const hasKeys = Boolean(acct?.access_key) || credByOwner.has(ownerId);
+        const rosterEntry = roster.get(ownerId);
+        const loginEmail = acct?.login_email || rosterEntry?.portal_email || credByOwner.get(ownerId) || null;
+        const base = {
+          owner_id: ownerId,
+          owner_email: loginEmail,
+          login_email: loginEmail,
+          contact_email: acct?.owner_email ?? null,
+          owner_label: accountLabel(ownerId),
+          bound,
+          has_keys: hasKeys,
+          is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
+        };
 
-        const account = (accounts || []).find(
-          (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
-        ) as { owner_email: string | null } | undefined;
         if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
           accountResults.push({
-            owner_id: ownerId,
-            owner_email: account?.owner_email ?? null,
+            ...base,
             listing_count: 0,
             error: "Not read — reconciliation time budget reached, run again to finish this account",
-            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
           });
           continue;
         }
+
+        // Sub-account inventory can only be read as that sub-account. Without its
+        // key pair the account is reported as unread rather than silently skipped.
+        if (!hasKeys) {
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            error:
+              "No keys — this sub-account's AccessKey + SecretKey are not stored, so its listings could not be read",
+          });
+          continue;
+        }
+
         const { data: listRes, error: listErr } = await Promise.race([
           admin.functions.invoke("rentalsunited-api", {
             body: {
@@ -617,31 +640,58 @@ Deno.serve(async (req) => {
             listErr?.message ||
             (typeof res.error === "string" ? res.error : res.error?.message) ||
             "Channel account could not be read";
-          accountResults.push({
-            owner_id: ownerId,
-            owner_email: account?.owner_email ?? null,
-            listing_count: 0,
-            error: message,
-            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
-          });
+          accountResults.push({ ...base, listing_count: 0, error: message });
           continue;
         }
 
         const listings = res.properties || [];
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
-          owner_id: ownerId,
-          owner_email: account?.owner_email ?? null,
+          ...base,
           listing_count: liveListings.length,
+          archived_count: listings.length - liveListings.length,
           total_listing_count: listings.length,
           error: null,
-          is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         });
 
         for (const l of listings) {
           const id = String(l.id);
           const locals = localByListing.get(id) || [];
           const name = l.name || locals[0]?.label || "Unnamed listing";
+          seenAnywhere.add(id);
+
+          // Listings on an account ROL'OS has not bound belong to someone else's
+          // sub-account: reported, never classified as our orphans or duplicates.
+          if (!bound) {
+            if (locals.length === 0) {
+              foreignListings.push({
+                listing_id: id,
+                name,
+                owner_id: ownerId,
+                owner_label: base.owner_label,
+                is_archived: l.is_archived === true,
+                local_label: null,
+                kind: null,
+                record_id: null,
+                property_id: null,
+              });
+            } else {
+              for (const local of locals) {
+                foreignListings.push({
+                  listing_id: id,
+                  name,
+                  owner_id: ownerId,
+                  owner_label: base.owner_label,
+                  is_archived: l.is_archived === true,
+                  local_label: local.label,
+                  kind: local.kind,
+                  record_id: local.recordId,
+                  property_id: local.propertyId,
+                });
+              }
+            }
+            continue;
+          }
 
           // Archived listings stay in the channel property feed forever (they are
           // only hidden in the channel portal) and never sell or bill. They are
@@ -688,6 +738,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
 
 
       /**
