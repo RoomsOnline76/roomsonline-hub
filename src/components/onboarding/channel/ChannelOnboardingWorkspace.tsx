@@ -1153,7 +1153,8 @@ function PublishedPane({
         <div className="space-y-3 rounded-lg border p-4">
           <p className="text-sm font-medium">Publish listing & rates</p>
           <p className="text-xs text-muted-foreground">
-            Pushes the property, units, availability and prices. Re-publish updates stored listing IDs — it never duplicates.
+            Pushes the property, units, availability and prices, then reads the listings back to confirm them.
+            Re-publish updates stored listing IDs — it never duplicates.
           </p>
           {publishedOk ? (
             <p className="text-sm text-emerald-600">
@@ -1170,6 +1171,26 @@ function PublishedPane({
                 <li key={e}>{e}</li>
               ))}
             </ul>
+          )}
+          {isPlatformUser && publishedOk && !listingsVerified && (
+            <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Pushed, but the listings were not read back — the confirmation call did not complete.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onVerifyListings}
+                disabled={locked || busy === "verify_listings"}
+              >
+                {busy === "verify_listings" ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-4 w-4" />
+                )}
+                Fetch Channel Manager IDs
+              </Button>
+            </div>
           )}
           {isPlatformUser && !publishedOk && (
             <Button onClick={onPublish} disabled={locked || busy === "publish"}>
