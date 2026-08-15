@@ -25,7 +25,9 @@ interface Body {
     /** Archive one listing id upstream (orphans that no local record points at). */
     | "purge_listing"
     /** Clear a local listing id the channel account no longer returns. */
-    | "clear_local_listing";
+    | "clear_local_listing"
+    /** Point a local record at a listing id verified live on the account. */
+    | "repoint_local_listing";
   entity_id: string;
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
