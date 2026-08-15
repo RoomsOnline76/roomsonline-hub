@@ -86,6 +86,65 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+interface ListingVerification {
+  verified: boolean;
+  verified_units?: number;
+  expected_units?: number;
+  unmatched?: string[];
+  owner?: string | null;
+  error?: string;
+}
+
+/**
+ * Reading the listings back is part of publishing, not a separate chore: a push whose
+ * listings were never pulled back is a claim, not a fact. This runs the same resolver the
+ * console offers manually (`resolve_ru_property_ids`) straight after a successful live push,
+ * so the wizard lands on "confirmed" or on an explicit reason — never on a silent
+ * "pushed but not read back" with nothing to click.
+ *
+ * Best-effort: a failed read-back leaves the property unverified but never fails the push.
+ */
+async function verifyListingsAfterPush(
+  supabase: ReturnType<typeof createClient>,
+  propertyId: string,
+): Promise<ListingVerification> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ru-cert-portal', {
+      body: { action: 'resolve_ru_property_ids', property_id: propertyId },
+    });
+    if (error || (data as { success?: boolean } | null)?.success !== true) {
+      const message = (data as { error?: { message?: string } } | null)?.error?.message
+        ?? error?.message
+        ?? 'The channel did not return its listing set';
+      console.warn(`[push-property-to-ru] listing read-back failed for ${propertyId}: ${message}`);
+      return { verified: false, error: message };
+    }
+    const payload = data as {
+      matched?: { scope?: string }[];
+      unmatched?: string[];
+      ru_owner_label?: string;
+      listings_verified?: boolean;
+    };
+    const { data: row } = await supabase
+      .from('properties')
+      .select('ru_listings_verified_at, ru_listings_verified_units, ru_listings_expected_units, ru_listings_verified_owner')
+      .eq('id', propertyId)
+      .maybeSingle();
+    const r = row as Record<string, unknown> | null;
+    return {
+      verified: !!String(r?.ru_listings_verified_at ?? '').trim(),
+      verified_units: Number(r?.ru_listings_verified_units ?? 0),
+      expected_units: Number(r?.ru_listings_expected_units ?? 0),
+      unmatched: Array.isArray(payload.unmatched) ? payload.unmatched : [],
+      owner: (r?.ru_listings_verified_owner as string | null) ?? payload.ru_owner_label ?? null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Listing read-back failed';
+    console.warn(`[push-property-to-ru] listing read-back threw for ${propertyId}: ${message}`);
+    return { verified: false, error: message };
+  }
+}
+
 // ── RU Type Mapping ──────────────────────────────────────────
 
 const PROPERTY_TYPE_MAP: Record<string, number> = {
@@ -4375,10 +4434,13 @@ Deno.serve(async (req) => {
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
+        // The read-back follows the push automatically once the whole sequence is done.
+        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
             ...(chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(listingVerification ? { listing_verification: listingVerification } : {}),
             multi_unit: true,
             standalone_units: true,
             property_id,
@@ -4695,11 +4757,13 @@ Deno.serve(async (req) => {
         error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
         details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
       });
+      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id) : null;
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
           // mark phase 3 complete on a building-only push.
           success: allUnitsPushed,
+          ...(buildingListingVerification ? { listing_verification: buildingListingVerification } : {}),
           ...(allUnitsPushed ? {} : {
             error: {
               code: 'RU_INVENTORY_INCOMPLETE',
@@ -4895,8 +4959,9 @@ Deno.serve(async (req) => {
     }
 
 
+    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
     return new Response(
-      JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
+      JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

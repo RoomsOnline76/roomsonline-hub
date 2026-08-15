@@ -456,6 +456,20 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
     }
   };
 
+  /** Summarises the read-back the push now performs for itself. */
+  const describeListingVerification = (data: Record<string, unknown>): string | undefined => {
+    const v = data.listing_verification as
+      | { verified?: boolean; verified_units?: number; expected_units?: number; error?: string }
+      | undefined;
+    if (!v) return undefined;
+    if (v.verified) {
+      return `Listings read back and confirmed${
+        v.expected_units ? ` (${v.verified_units}/${v.expected_units})` : ""
+      }.`;
+    }
+    return `Read-back did not confirm the listings${v.error ? ` — ${v.error}` : ""}. Use "Fetch Channel Manager IDs" to retry.`;
+  };
+
   const pushToRU = async () => {
     // Fail closed on the registry gate — never rely on the button's disabled state alone.
     if (gateBlocked) {
@@ -517,11 +531,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         if (data.building_id) setBuildingId(String(data.building_id));
         setBuildingDiagnostics((data.building_diagnostics as any) || null);
         const successCount = (data.units || []).filter((u) => u.success).length;
-        toast.success(`${successCount}/${(data.units || []).length} units published to the Channel Manager`);
+        toast.success(`${successCount}/${(data.units || []).length} units published to the Channel Manager`, {
+          description: describeListingVerification(data),
+        });
       } else {
         setRuPropertyId(data.rentalsunited_property_id as string);
-        toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`);
+        toast.success(`Property pushed to Rentals United (ID: ${data.rentalsunited_property_id})`, {
+          description: describeListingVerification(data),
+        });
       }
+      // The push reads its own listings back — pick up the stored confirmation.
+      await reloadStoredRuIds();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       setError({ code: "EXCEPTION", message });
@@ -669,21 +689,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
                 Sub-account keys required
               </Badge>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={resolveRuIds}
-              disabled={resolvingIds || loading || dryRunning || identityGate.gated}
-              title={
-                identityGate.gated
-                  ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
-                  : "Read the Channel Manager listing IDs for this property's distribution account and store them here"
-              }
-            >
-              {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              {resolvingIds ? "Fetching..." : "Fetch Channel Manager IDs"}
-            </Button>
+            {/* The push confirms its own listings, so this is only offered when that read-back
+                did not land (or left names unmatched). */}
+            {(!verification?.verifiedAt || (verification?.unmatched?.length ?? 0) > 0) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={resolveRuIds}
+                disabled={resolvingIds || loading || dryRunning || identityGate.gated}
+                title={
+                  identityGate.gated
+                    ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
+                    : "Retry the listing read-back for this property's distribution account"
+                }
+              >
+                {resolvingIds ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                {resolvingIds ? "Fetching..." : "Fetch Channel Manager IDs"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => void runDryRun()} disabled={dryRunning || loading}>
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
