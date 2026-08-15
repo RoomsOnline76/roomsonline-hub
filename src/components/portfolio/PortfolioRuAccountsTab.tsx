@@ -186,6 +186,8 @@ export function PortfolioRuAccountsTab() {
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [removingKeys, setRemovingKeys] = useState<string | null>(null);
   const [removeKeysFor, setRemoveKeysFor] = useState<{ id: string; ownerId: string | null; label: string } | null>(null);
+  const [closeAsk, setCloseAsk] = useState(false);
+  const [archiveAsk, setArchiveAsk] = useState<{ ownerId: string; email: string } | null>(null);
 
 
 
@@ -339,12 +341,9 @@ export function PortfolioRuAccountsTab() {
       toast.error("No OwnerID bound — nothing to archive on Rentals United");
       return;
     }
-    const label = `${acc.ru_owner_id} (${acc.ru_login_email || acc.owner_email})`;
-    if (!window.confirm(
-      `Archive OwnerID ${label} on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ (child auth). Local bind will be cleared.`,
-    )) return;
-
+    setCloseAsk(false);
     setClosing(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("ru-close-user", {
         body: { account_id: bindFor.id },
@@ -376,13 +375,17 @@ export function PortfolioRuAccountsTab() {
       ownerId: string,
       email: string,
       creds?: { access_key?: string; secret_key?: string },
+      confirmed?: boolean,
     ) => {
       const hasCreds = Boolean(creds?.access_key && creds?.secret_key);
-      if (!hasCreds && !window.confirm(
-        `Archive OwnerID ${ownerId} (${email}) on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ. Properties are archived and channel connections removed.`,
-      )) return;
+      if (!hasCreds && !confirmed) {
+        setArchiveAsk({ ownerId, email });
+        return;
+      }
+      setArchiveAsk(null);
 
       setArchiving(ownerId);
+
       try {
         const { data, error } = await supabase.functions.invoke("ru-close-user", {
           body: {
@@ -1488,7 +1491,7 @@ export function PortfolioRuAccountsTab() {
                     variant="destructive"
                     className="h-7 text-xs"
                     disabled={closing || binding === "unbind"}
-                    onClick={closeRuAccount}
+                    onClick={() => setCloseAsk(true)}
                   >
                     {closing ? (
                       <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -1772,6 +1775,69 @@ export function PortfolioRuAccountsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={closeAsk} onOpenChange={(o) => !o && setCloseAsk(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-destructive" />
+              Close distribution sub-account
+            </DialogTitle>
+            <DialogDescription>
+              This closes the sub-account on the channel and clears the local bind. Properties under it are
+              archived and channel connections removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setCloseAsk(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="destructive" disabled={closing} onClick={closeRuAccount}>
+              {closing ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Close / Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!archiveAsk} onOpenChange={(o) => !o && setArchiveAsk(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-destructive" />
+              Archive sub-account
+            </DialogTitle>
+            <DialogDescription>
+              {archiveAsk
+                ? `Archive OwnerID ${archiveAsk.ownerId} (${archiveAsk.email}) on the channel? Properties are archived and channel connections removed.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setArchiveAsk(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!archiving}
+              onClick={() => archiveAsk && archiveCandidate(archiveAsk.ownerId, archiveAsk.email, undefined, true)}
+            >
+              {archiving ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={!!removeKeysFor} onOpenChange={(o) => !o && setRemoveKeysFor(null)}>
         <DialogContent className="sm:max-w-md">
