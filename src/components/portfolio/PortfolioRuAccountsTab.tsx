@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RuLastSentPanel } from "./RuLastSentPanel";
+import { PortfolioChannelPushPanel } from "./PortfolioChannelPushPanel";
+
 import { companySyncEligible, pushReportedOn } from "@/lib/channelDistributionGate";
 import { resetBillingForScope } from "@/lib/ownerBillingReset";
 import { Badge } from "@/components/ui/badge";
