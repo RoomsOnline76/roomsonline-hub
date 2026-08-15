@@ -140,6 +140,7 @@ const PropertyOverview = () => {
       return propertiesWithExtras;
     },
     enabled: !authLoading && !!user,
+    staleTime: 60_000,
   });
 
   // Fetch PMS tracker status to check if integrations are enabled
