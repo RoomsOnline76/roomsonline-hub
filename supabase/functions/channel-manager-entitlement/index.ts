@@ -627,12 +627,58 @@ Deno.serve(async (req) => {
         }
       }
 
+      // A record whose id is archived upstream usually has a live twin under the
+      // same unit name — that is the listing it should point at.
+      const liveByName = new Map<string, string[]>();
+      for (const row of liveRows) {
+        const key = `${row.owner_id}::${row.name.trim().toLowerCase()}`;
+        const bucket = liveByName.get(key);
+        if (bucket) bucket.push(row.listing_id);
+        else liveByName.set(key, [row.listing_id]);
+      }
+      for (const row of archivedMatched) {
+        const unitName = row.local_label.split("—").pop()?.trim() || row.name;
+        const candidates =
+          liveByName.get(`${row.owner_id}::${row.name.trim().toLowerCase()}`) ||
+          liveByName.get(`${row.owner_id}::${unitName.toLowerCase()}`) ||
+          [];
+        // Newest live copy: the one the most recent push created.
+        row.live_alternative_id = candidates.length
+          ? [...candidates].sort((a, b) => Number(b) - Number(a))[0]
+          : null;
+      }
+
+      // One listing id claimed by more than one local record — a mis-wired id.
+      const conflicts: Array<{
+        listing_id: string;
+        records: Array<{
+          kind: "property" | "unit";
+          record_id: string;
+          property_id: string;
+          label: string;
+          local_active: boolean;
+        }>;
+      }> = [];
+      for (const [listingId, locals] of localByListing.entries()) {
+        if (locals.length < 2) continue;
+        conflicts.push({
+          listing_id: listingId,
+          records: locals.map((l) => ({
+            kind: l.kind,
+            record_id: l.recordId,
+            property_id: l.propertyId,
+            label: l.label,
+            local_active: l.isActive,
+          })),
+        });
+      }
+
       // Local ids the account no longer returns — only trustworthy when at least
       // one account read succeeded, otherwise everything would look stale.
       const anyRead = accountResults.some((a) => a.error === null);
       const stale = anyRead
-        ? Array.from(localByListing.values())
-            .filter((l) => !seenOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
+        ? Array.from(localRecords.values())
+            .filter((l) => !liveOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
             .map((l) => ({
               listing_id: l.listingId,
               label: l.label,
@@ -643,23 +689,30 @@ Deno.serve(async (req) => {
             }))
         : [];
 
+      const accountTotal = accountResults.reduce(
+        (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
+        0,
+      );
 
       return new Response(
         JSON.stringify({
           success: true,
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
-          // Live listings only — archived ones are reported separately.
-          channel_listing_count: seenOnChannel.size,
+          // Mutually exclusive: live + archived always equals the account total.
+          channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
+          account_listing_total: accountTotal,
           archived_orphans: archivedOrphans,
+          archived_matched: archivedMatched,
+          conflicts,
           matched,
           orphans,
           duplicates,
-
           stale,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+
       );
     }
 
