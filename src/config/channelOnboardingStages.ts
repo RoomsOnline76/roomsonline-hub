@@ -76,9 +76,47 @@ export function channelOnboardingPath(propertyId: string, variant: "admin" | "pm
     : `/admin/onboarding/${propertyId}`;
 }
 
+/** Editor sections the embedded property form can render. */
+export const EDITOR_SECTIONS = new Set([
+  "general",
+  "contacts",
+  "rooms",
+  "info-facilities",
+  "images",
+  "rates",
+  "rate-plans",
+  "integrations",
+]);
+
 /** Section the in-page editor should open for a ready-to-sell macro. */
 export function editorSectionForMacro(macroKey: string): string {
   if (macroKey === "commercial") return "rate-plans";
   const macro = ROLOS_ONBOARDING_MACROS.find((m) => m.key === macroKey);
   return macro?.section ?? "general";
 }
+
+/**
+ * Which macro owns a given editor section. Sections that are not a macro's
+ * headline section (contacts, info-facilities, rate-plans) still belong to a
+ * step through its field tasks — without this map a "Fix" click resolved to
+ * nothing and appeared broken.
+ */
+export function macroKeyForSection(section: string): string | null {
+  const explicit: Record<string, string> = {
+    contacts: "identity",
+    general: "identity",
+    "info-facilities": "rooms",
+    rooms: "rooms",
+    images: "media",
+    rates: "commercial",
+    "rate-plans": "commercial",
+    integrations: "publish",
+  };
+  if (explicit[section]) return explicit[section];
+  const byTask = ROLOS_ONBOARDING_MACROS.find((m) =>
+    m.tasks.some((t) => t.kind === "fields" && t.sections.includes(section)),
+  );
+  if (byTask) return byTask.key;
+  return ROLOS_ONBOARDING_MACROS.find((m) => m.section === section)?.key ?? null;
+}
+
