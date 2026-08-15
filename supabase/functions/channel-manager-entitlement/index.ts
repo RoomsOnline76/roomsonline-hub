@@ -441,18 +441,44 @@ Deno.serve(async (req) => {
       // Every live listing, kept so same-name copies on one account can be grouped afterwards.
       const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
 
+      // The channel rate-limits repeated pulls, so a large account list can
+      // outrun the function wall clock and the caller only ever sees a 502.
+      // Each read is bounded, and once the overall budget is spent the rest of
+      // the accounts are reported as "not read" instead of killing the request.
+      const startedAt = Date.now();
+      const TOTAL_BUDGET_MS = 45_000;
+      const PER_ACCOUNT_MS = 15_000;
+
       for (const ownerId of ownerIds) {
 
         const account = (accounts || []).find(
           (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
         ) as { owner_email: string | null } | undefined;
-        const { data: listRes, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "list_properties",
-            owner_id: Number(ownerId),
-            ...logCtx(traceId, "channel-reconcile:pull_listings"),
-          },
-        });
+        if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
+          accountResults.push({
+            owner_id: ownerId,
+            owner_email: account?.owner_email ?? null,
+            listing_count: 0,
+            error: "Not read — reconciliation time budget reached, run again to finish this account",
+            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
+          });
+          continue;
+        }
+        const { data: listRes, error: listErr } = await Promise.race([
+          admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "list_properties",
+              owner_id: Number(ownerId),
+              ...logCtx(traceId, "channel-reconcile:pull_listings"),
+            },
+          }),
+          new Promise<{ data: null; error: { message: string } }>((resolve) =>
+            setTimeout(
+              () => resolve({ data: null, error: { message: "Channel account read timed out — try again shortly" } }),
+              PER_ACCOUNT_MS,
+            ),
+          ),
+        ]) as { data: unknown; error: { message: string } | null };
         const res = (listRes || {}) as {
           success?: boolean;
           error?: { message?: string } | string;
