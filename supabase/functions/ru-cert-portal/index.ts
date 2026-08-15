@@ -127,6 +127,78 @@ const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
 
+/**
+ * The in-memory cache above dies with the function instance, so a cold start (or a
+ * throttled pull) used to erase a verdict the owner had already earned and flip the
+ * wizard back to "not ready". The last SUCCESSFUL live verdict is therefore persisted
+ * per property and reused whenever a probe is skipped, throttled or times out.
+ */
+export interface AriSnapshot {
+  availability_ok: boolean;
+  prices_ok: boolean;
+  units?: any[];
+  worst_window?: any;
+  probed_at: string;
+  ru_owner_id?: number | null;
+}
+
+async function loadAriSnapshot(admin: any, propertyId: string): Promise<AriSnapshot | null> {
+  try {
+    const { data } = await admin
+      .from("ru_readiness_snapshots")
+      .select("groups, probed_at, ru_owner_id")
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    if (!data) return null;
+    const g = (data.groups ?? {}) as Record<string, unknown>;
+    if (typeof g.availability_ok !== "boolean" || typeof g.prices_ok !== "boolean") return null;
+    return {
+      availability_ok: g.availability_ok as boolean,
+      prices_ok: g.prices_ok as boolean,
+      units: (g.units as any[]) ?? [],
+      worst_window: g.worst_window ?? null,
+      probed_at: String(data.probed_at ?? new Date().toISOString()),
+      ru_owner_id: data.ru_owner_id ?? null,
+    };
+  } catch (_e) {
+    return null;
+  }
+}
+
+async function saveAriSnapshot(
+  admin: any,
+  propertyId: string,
+  snapshot: Omit<AriSnapshot, "probed_at">,
+): Promise<void> {
+  try {
+    await admin.from("ru_readiness_snapshots").upsert({
+      property_id: propertyId,
+      ru_owner_id: snapshot.ru_owner_id ?? null,
+      groups: {
+        availability_ok: snapshot.availability_ok,
+        prices_ok: snapshot.prices_ok,
+        units: snapshot.units ?? [],
+        worst_window: snapshot.worst_window ?? null,
+      },
+      probed_at: new Date().toISOString(),
+    }, { onConflict: "property_id" });
+  } catch (e) {
+    console.warn("[ru-cert-portal] readiness snapshot save failed:", e);
+  }
+}
+
+/** Human label for a stored verdict, e.g. "verified 2 h ago on the channel". */
+function snapshotAge(probedAt: string): string {
+  const ms = Date.now() - Date.parse(probedAt);
+  if (!Number.isFinite(ms) || ms < 0) return "previously verified on the channel";
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `verified on the channel ${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `verified on the channel ${hours} h ago`;
+  return `verified on the channel ${Math.round(hours / 24)} day(s) ago`;
+}
+
+
 /** Time-box one channel pull; a timeout reads as "no answer" (verification pending). */
 function withProbeTimeout<T extends { data?: any; error?: any }>(
   call: Promise<T>,
