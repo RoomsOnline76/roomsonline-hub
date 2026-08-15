@@ -10,6 +10,7 @@ import {
   type MacroDef,
 } from "@/config/rolosOnboardingMacros";
 import { isDistributionBound, unboundDependentDetail } from "@/lib/channelDistributionGate";
+import { onRuAccountsChanged } from "@/lib/ruAccountsSignal";
 
 
 /**
@@ -267,7 +268,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         bump,
       )
       .subscribe();
+    // Keys are captured in the owner panel, which lives outside this hook's data. Without this
+    // listener step 7 kept reading "No key pair captured" until a hard reload.
+    const offAccounts = onRuAccountsChanged(bump);
     return () => {
+      offAccounts();
       void supabase.removeChannel(channel);
     };
   }, [propertyId, queryClient]);
