@@ -126,6 +126,11 @@ export interface RolosOnboardingSignoff {
   note?: string | null;
   /** Per-item manual verification ticks (step 10). */
   checks: Record<string, SignoffCheckRecord>;
+  /** Push_FillCompanyDetails_RQ has run with the verified key pair. */
+  companyDetailsPushed?: boolean;
+  companyDetailsAt?: string | null;
+  /** Checklist items that cannot be ticked yet, and why (channel evidence missing). */
+  lockedItems?: string[];
 }
 
 
