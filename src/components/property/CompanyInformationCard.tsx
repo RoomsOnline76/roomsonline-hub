@@ -704,7 +704,7 @@ export function CompanyInformationCard({
                     <div key={String(f.key)} className="flex flex-col gap-1">
                       <Label className="text-xs">{f.label}</Label>
                       <Select
-                        value={resolved ? String(resolved) : ""}
+                        value={resolved !== undefined ? String(resolved) : ""}
                         onValueChange={(v) => setField(f.key, v, true)}
                       >
                         <SelectTrigger className="h-7 text-xs">

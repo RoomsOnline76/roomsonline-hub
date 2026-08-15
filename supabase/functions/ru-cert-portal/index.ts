@@ -4795,16 +4795,16 @@ Deno.serve(async (req) => {
           const raw = c[key];
           if (isRangeId(ranges, raw)) return;
           const n = Number(raw);
-          if (Number.isFinite(n) && n > 0) {
+          if (Number.isFinite(n) && n >= 0) {
             const mapped = rangeIdForCount(ranges, n);
-            if (mapped) {
+            if (mapped !== undefined) {
               c[key] = mapped;
               return;
             }
           }
           if (fallbackCount && fallbackCount > 0) {
             const mapped = rangeIdForCount(ranges, fallbackCount);
-            if (mapped) c[key] = mapped;
+            if (mapped !== undefined) c[key] = mapped;
             return;
           }
           delete c[key];
