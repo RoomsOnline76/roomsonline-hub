@@ -391,9 +391,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         body: { action: "resolve_ru_property_ids", property_id: propertyId },
       });
       if (error || data?.success !== true) {
-        toast.error(data?.error?.message ?? error?.message ?? "Could not read the listings back");
+        const reason = error
+          ? await extractFunctionError(error, "Could not read the listings back")
+          : data?.error?.message ?? "Could not read the listings back";
+        toast.error(reason);
         return;
       }
+
       const matched = Array.isArray(data.matched) ? data.matched.length : 0;
       toast.success(`${matched} listing(s) confirmed on the channel`);
       await refresh();
