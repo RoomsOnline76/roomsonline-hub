@@ -656,8 +656,16 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               onPushOwner={pushOwner}
               onPublish={publishListing}
               onEnable={enableChannelManager}
-              onSignoffItem={(key, next) => void recordSignoffCheck(key, next, user?.email ?? null)}
-              onSignoffAll={(next) => void recordSignoff(next, user?.email ?? null)}
+              onSignoffItem={(key, next) => {
+                recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
+                  toast.error(`Could not save that tick: ${e instanceof Error ? e.message : String(e)}`),
+                );
+              }}
+              onSignoffAll={(next) => {
+                recordSignoff(next, user?.email ?? null).catch((e) =>
+                  toast.error(`Could not save the sign-off: ${e instanceof Error ? e.message : String(e)}`),
+                );
+              }}
             />
           )}
 
