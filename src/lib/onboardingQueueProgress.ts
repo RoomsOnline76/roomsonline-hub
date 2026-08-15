@@ -198,9 +198,11 @@ export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueue
 
   if (published && checksKnown && !checksPass) {
     const raw = signals.ruMandatoryPercent;
+    // Cap just under the "ready to connect" mark so a failing card can never read
+    // higher than the wizard's own ready score.
     const percent =
       typeof raw === "number" && Number.isFinite(raw)
-        ? Math.max(0, Math.min(85, Math.round(raw)))
+        ? Math.max(0, Math.min(90, Math.round(raw)))
         : 60;
     return {
       percent,
@@ -209,6 +211,7 @@ export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueue
       hint: "Listing IDs exist, but mandatory RU onboarding tests are not all passing. This is not ready to connect.",
     };
   }
+
 
   if (published && !checksKnown) {
     return {
