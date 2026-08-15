@@ -4340,14 +4340,16 @@ Deno.serve(async (req) => {
       let ownerEmail: string | null = body.owner_email ?? null;
       let ownerName: string = body.owner_name ?? "";
 
-      // Internal ROL staff logins must never become a channel sub-user login: the distribution
-      // account belongs to the PROPERTY owner, not to whoever is signed in / linked as admin.
-      const INTERNAL_LOGIN_PREFIXES = ["dev@", "admin@", "connect@", "info@", "support@", "hello@", "accounts@"];
+      // Only the shared platform login (dev@) can never become a channel sub-user login —
+      // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
+      // info@ …) are valid owner / testing logins and are accepted.
+      const INTERNAL_LOGIN_PREFIXES = ["dev@", "noreply@", "no-reply@"];
       const isInternalLogin = (email: string | null | undefined) => {
         const e = String(email ?? "").trim().toLowerCase();
         if (!e) return true;
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
+
 
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
 
@@ -4445,7 +4447,7 @@ Deno.serve(async (req) => {
           error: {
             code: "NO_OWNER_EMAIL",
             message:
-              "No usable property-owner email found. The distribution account must be created with the property owner's own email address (internal ROL logins such as dev@ or connect@ cannot be used). Set the owner email on the property first.",
+              "No usable owner email found for the distribution account. Set an owner email on the property (the shared dev@ platform login cannot be used).",
           },
         }, 422);
       }

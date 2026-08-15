@@ -173,9 +173,12 @@ export async function evaluatePhases(
   // judging the account against it nulled the OwnerID and every push failed with
   // RU_OWNER_UNRESOLVED. Authority = any real owner email attached to the portfolio's
   // properties (or this property), plus a non-internal portfolio owner profile.
-  const INTERNAL_PREFIXES = ["dev@", "admin@", "support@", "noreply@", "no-reply@"];
+  // Only the shared platform login is never authority (RU already holds it globally).
+  // Other ROL mailboxes (connect@, rooms@, info@…) are legitimate owner/testing logins.
+  const INTERNAL_PREFIXES = ["dev@", "noreply@", "no-reply@"];
   const isInternal = (email: string) =>
     INTERNAL_PREFIXES.some((p) => email.trim().toLowerCase().startsWith(p));
+
 
   const authorityEmails = new Set<string>();
   const addAuthority = (email?: string | null) => {
@@ -212,13 +215,16 @@ export async function evaluatePhases(
     }
   }
 
-  const expectedEmail: string | null = authorityEmails.size > 0 ? [...authorityEmails][0] : null;
   const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
-  const emailMismatch =
-    Boolean(account?.ru_owner_id) &&
-    Boolean(storedEmail) &&
-    authorityEmails.size > 0 &&
-    !authorityEmails.has(storedEmail);
+  // A sub-account that already exists at the channel is its own authority: the login was
+  // registered there and cannot be re-pointed, and internal ROL addresses (connect@, rooms@…)
+  // are legitimate owner/testing logins. So a live sub-user is never "stale" — only a
+  // property with no sub-user at all still needs the owner email to create one.
+  if (account?.ru_owner_id && storedEmail) authorityEmails.add(storedEmail);
+  const expectedEmail: string | null = authorityEmails.size > 0 ? [...authorityEmails][0] : null;
+  const emailMismatch = false;
+
+
 
 
 
