@@ -13,6 +13,8 @@
 // USD-converted rates at a live rate + safety margin, and record that decision so the
 // owner-facing Channel Manager notice and the inbound reservation handler can use it.
 
+import { readInvokeErrorBody } from './ruInvokeBody.ts';
+
 export const FX_MARGIN_PCT = 3;
 export const FALLBACK_ISO = 'USD';
 
@@ -33,7 +35,7 @@ export type CurrencyDecision = {
   fx_rate: number | null;
   margin_pct: number;
   effective_rate: number | null;
-  flip_outcome: 'not_needed' | 'already_set' | 'flipped' | 'failed' | 'unknown_location';
+  flip_outcome: 'not_needed' | 'already_set' | 'flipped' | 'failed' | 'unknown_location' | 'deferred';
   reason: string;
   blocked?: boolean;
   block_reason?: string;
@@ -369,8 +371,19 @@ export async function decideRuCurrency(
         body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...childAuth },
       });
       if (error || !data?.success) {
-        flip = 'failed';
-        flipMessage = error?.message || data?.error?.message || 'Push_ChangeCurrency was refused';
+        // Our own sliding-window rate gate answers an identical repeat call with 429 /
+        // RU_RATE_DEFERRED. That is *not* RU refusing ZAR — treating it as a refusal used to
+        // tip the property into the USD conversion fallback on nothing but a repeat click.
+        const errBody = error ? await readInvokeErrorBody(error) : null;
+        const errCode = String((errBody as any)?.error?.code ?? (data as any)?.error?.code ?? '');
+        const errText = String(error?.message ?? (data as any)?.error?.message ?? '');
+        if (errCode === 'RU_RATE_DEFERRED' || /RU_RATE_DEFERRED|rate limit/i.test(errText)) {
+          flip = 'deferred';
+          flipMessage = ((errBody as any)?.error?.message as string) || errText || 'Channel rate limit — flip deferred';
+        } else {
+          flip = 'failed';
+          flipMessage = errText || 'Push_ChangeCurrency was refused';
+        }
       } else {
         flip = data.already_set ? 'already_set' : 'flipped';
         // Record as an ASSUMPTION scoped to this account (source: 'flip'), pending read-back.
@@ -393,6 +406,21 @@ export async function decideRuCurrency(
     }
   }
 
+
+  if (flip === 'deferred') {
+    // Inconclusive: keep publishing in the authored currency and let the next run confirm.
+    const d = decide({
+      location_iso: locationIso,
+      published_iso: authored,
+      conversion_in_force: false,
+      fx_rate: null,
+      effective_rate: null,
+      flip_outcome: 'deferred',
+      reason: `Currency flip for location ${opts.locationId} was deferred by the channel rate limit${flipMessage ? ` (${flipMessage})` : ''}. ${authored} is retained; the flip will be retried.`,
+    });
+    await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+    return d;
+  }
 
   if (flip === 'flipped' || flip === 'already_set') {
     const d = decide({
