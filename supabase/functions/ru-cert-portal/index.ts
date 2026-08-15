@@ -3993,6 +3993,46 @@ Deno.serve(async (req) => {
      *    property and its units, readiness snapshot removed. Existing listings on the
      *    channel side are not deleted; archive them there if they are no longer wanted.
      */
+    /**
+     * ── ensure_live_notifications: (re)subscribe this property's distribution account ──
+     * The wizard calls this automatically after key verification; this action is the
+     * manual repair path when a subscription drifted or RU dropped it.
+     */
+    if (action === "ensure_live_notifications") {
+      const targetPropertyId: string = typeof body.property_id === "string" ? body.property_id : "";
+      const suppliedOwnerId = String(body.ru_owner_id ?? "").trim();
+      let ownerId = suppliedOwnerId;
+      let label = suppliedOwnerId ? `OwnerID ${suppliedOwnerId}` : "sub-account";
+
+      if (!ownerId) {
+        if (!targetPropertyId) {
+          return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id or ru_owner_id is required" } }, 400);
+        }
+        const { data: prop } = await admin
+          .from("properties")
+          .select("id, owner_email")
+          .eq("id", targetPropertyId)
+          .maybeSingle();
+        if (!prop) return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+        const portfolioId = await resolvePortfolioId(admin, targetPropertyId);
+        const { account } = await findOwnerAccount(admin, targetPropertyId, prop.owner_email ?? null, portfolioId);
+        ownerId = String(account?.ru_owner_id ?? "").trim();
+        label = `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId || "—"})`;
+      }
+      if (!/^\d+$/.test(ownerId)) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_OWNER_NOT_BOUND",
+            message: "No distribution sub-account is bound for this property, so live notifications cannot be registered.",
+          },
+        }, 422);
+      }
+
+      const outcome = await ensureLiveNotificationsForOwner(admin, ownerId, label);
+      return json({ success: true, account_label: label, ...outcome });
+    }
+
     if (action === "unbind_property_account") {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) {
