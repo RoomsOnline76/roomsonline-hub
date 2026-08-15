@@ -95,6 +95,24 @@ function json(body: unknown, status = 200): Response {
 const jsonResponse = json;
 
 /**
+ * `functions.invoke` discards the response body on a non-2xx status, which hides the callee's
+ * real error code (e.g. RU_RATE_DEFERRED / RU_CHILD_AUTH_REQUIRED). Recover it from the
+ * FunctionsHttpError context so the reason can be surfaced verbatim.
+ */
+// deno-lint-ignore no-explicit-any
+async function readInvokeErrorBody(err: any): Promise<any | null> {
+  const res = err?.context;
+  if (!res || typeof res.text !== "function") return null;
+  try {
+    return JSON.parse(await res.text());
+  } catch {
+    return null;
+  }
+}
+
+
+
+/**
  * Console actions that actually touch a Rentals United endpoint. Every one of these is
  * written to `ru_sync_runs` so the Coverage tab can evidence real usage — without this,
  * work done from the RU console (buildings pull, company push, currency flip, ARI push …)
