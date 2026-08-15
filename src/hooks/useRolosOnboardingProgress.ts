@@ -122,18 +122,27 @@ async function invokeCert<T>(
   }
 }
 
+const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
+
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
   const readiness = usePropertyReadiness(propertyId);
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
+  /**
+   * Live channel probes are expensive and rate limited. They run on an explicit
+   * refresh only — a probe on every mount made the wizard flip green steps to
+   * grey whenever the channel throttled us.
+   */
+  const [probeAri, setProbeAri] = useState(false);
+  /** Last successful ARI verdict, reused when a later probe comes back empty. */
+  const ariCache = useRef<{ propertyId: string; groups: RuGroup[]; at: number } | null>(null);
 
   const distribution = useQuery({
-    queryKey: ["rolos-onboarding-distribution", propertyId],
+    queryKey: ["rolos-onboarding-distribution", propertyId, probeAri],
     enabled: !!propertyId,
-    // Channel readiness must be re-derived every time the property editor mounts:
-    // a mandatory field deleted in a previous visit has to re-block the wizard.
-    staleTime: 0,
-    refetchOnMount: "always",
+    // Field truth is cheap and re-derived on mount; the channel snapshot is held
+    // briefly so tab navigation does not re-run the whole derivation.
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const id = propertyId as string;
@@ -144,10 +153,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
-        // ARI (availability + pricing coverage) is only scored when explicitly probed.
-        // Without this flag the wizard never receives the "Availability 365d" /
-        // "Pricing 365d" groups, so steps 5.2/5.3 stayed outstanding forever.
-        invokeCert<PhaseStatusPayload>("phase_status", id, { probe_ari: true }),
+        invokeCert<PhaseStatusPayload>("phase_status", id, probeAri ? { probe_ari: true } : {}),
+
         invokeCert<IdentityPayload>("property_ru_identity", id),
         supabase
           .from("ru_currency_state")
