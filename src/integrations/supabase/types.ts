@@ -5244,6 +5244,11 @@ export type Database = {
           ru_archived: boolean
           ru_archived_at: string | null
           ru_image_tags: Json
+          ru_listings_expected_units: number | null
+          ru_listings_unmatched: Json
+          ru_listings_verified_at: string | null
+          ru_listings_verified_owner: string | null
+          ru_listings_verified_units: number | null
           ru_location_id: number | null
           ru_push_enabled: boolean
           separate_kitchen: boolean
@@ -5353,6 +5358,11 @@ export type Database = {
           ru_archived?: boolean
           ru_archived_at?: string | null
           ru_image_tags?: Json
+          ru_listings_expected_units?: number | null
+          ru_listings_unmatched?: Json
+          ru_listings_verified_at?: string | null
+          ru_listings_verified_owner?: string | null
+          ru_listings_verified_units?: number | null
           ru_location_id?: number | null
           ru_push_enabled?: boolean
           separate_kitchen?: boolean
@@ -5462,6 +5472,11 @@ export type Database = {
           ru_archived?: boolean
           ru_archived_at?: string | null
           ru_image_tags?: Json
+          ru_listings_expected_units?: number | null
+          ru_listings_unmatched?: Json
+          ru_listings_verified_at?: string | null
+          ru_listings_verified_owner?: string | null
+          ru_listings_verified_units?: number | null
           ru_location_id?: number | null
           ru_push_enabled?: boolean
           separate_kitchen?: boolean
