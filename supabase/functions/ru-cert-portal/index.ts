@@ -1447,7 +1447,10 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
         const localAvailabilityReady = localWindow.ok && localWindow.open_days > 0;
-        const availabilityReady = hasAvailability || (
+        // A throttled or timed-out read-back must never erase a verdict already earned.
+        const snapshotHeldAvailability = !liveAvailabilityResponded && ariSnapshot?.availability_ok === true;
+        const snapshotHeldPrices = !livePricesVerified && ariSnapshot?.prices_ok === true;
+        const availabilityReady = hasAvailability || snapshotHeldAvailability || (
           !liveAvailabilityResponded && !!latestSuccessfulPush && localAvailabilityReady
         );
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
@@ -1467,11 +1470,25 @@ Deno.serve(async (req) => {
         if (worstWindow && liveAvailabilityResponded) {
           // Worst unit wins — and the check carries that unit's name so the wizard opens it.
           extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
+        } else if (!liveAvailabilityResponded && ariSnapshot?.worst_window) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
           );
         }
+
+        // Persist only genuine live successes — never a throttled or empty answer.
+        if (hasAvailability || livePricesVerified) {
+          await saveAriSnapshot(admin, p.id, {
+            availability_ok: hasAvailability || ariSnapshot?.availability_ok === true,
+            prices_ok: livePricesVerified || ariSnapshot?.prices_ok === true,
+            units: unitProbes,
+            worst_window: worstWindow ?? ariSnapshot?.worst_window ?? null,
+            ru_owner_id: scopedOwnerId,
+          });
+        }
+
 
 
         extraChecks.push({
