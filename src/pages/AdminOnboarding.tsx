@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   applyAdminScope,
@@ -241,6 +242,40 @@ const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
   return "in_progress";
 };
 
+/**
+ * Header counter that doubles as the queue filter. The number and the rows
+ * below always describe the same set, so the card is the filter control.
+ */
+const CounterCard = ({
+  label,
+  caption,
+  value,
+  tone,
+  active,
+  onClick,
+}: {
+  label: string;
+  caption: string;
+  value: number;
+  tone?: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    aria-pressed={active}
+    onClick={onClick}
+    className={cn(
+      "rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/40",
+      active ? "border-primary ring-2 ring-primary" : "border-border",
+    )}
+  >
+    <p className="text-sm font-medium text-muted-foreground">{label}</p>
+    <p className={cn("mt-1 text-2xl font-bold", tone)}>{value}</p>
+    <p className="mt-1 text-xs leading-snug text-muted-foreground">{caption}</p>
+  </button>
+);
+
 // Status Badge Component
 const StatusBadge = ({ status, isNightsBridge }: { status: OnboardingStatus; isNightsBridge?: boolean }) => {
   const badge = (() => {
@@ -312,6 +347,7 @@ export default function AdminOnboarding() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<QueueFilter>("all");
+  const queueRef = useRef<HTMLDivElement | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
 
   // Send modal state
