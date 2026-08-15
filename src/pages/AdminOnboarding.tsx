@@ -732,9 +732,7 @@ export default function AdminOnboarding() {
 
   // Filtered properties based on search, status filter, and show completed toggle
   const filteredProperties = useMemo(() => {
-    let result = isItTestAdminEmail(actorEmail)
-      ? filterToItTestProperties(propertyRows)
-      : propertyRows;
+    let result = propertyRows;
     if (scopedPropertyIds.length) {
       result = result.filter((r) => scopedPropertyIds.includes(r.id));
     }
