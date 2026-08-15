@@ -267,7 +267,16 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       const matched = Array.isArray(data.matched) ? data.matched.length : 0;
       const unmatched = Array.isArray(data.unmatched) ? data.unmatched.length : 0;
       const remoteCount = Number(data.remote_count ?? 0);
-      await recordListingPull({ matched, unmatched, remoteCount }, user?.email ?? null);
+      await recordListingPull(
+        {
+          matched,
+          unmatched,
+          remoteCount,
+          account: typeof data.ru_owner_label === "string" ? data.ru_owner_label : null,
+          authMode: typeof data.auth_mode === "string" ? data.auth_mode : null,
+        },
+        user?.email ?? null,
+      );
       toast.success(
         remoteCount === 0
           ? "Sub-account is empty — nothing to adopt"
@@ -1019,9 +1028,14 @@ function PublishedPane({
                     listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
                   }.`}
               <span className="block text-[11px] text-muted-foreground">
-                Pulled {new Date(listingPull.at).toLocaleString()}
-                {listingPull.by ? ` · ${listingPull.by}` : ""}
+                Pulled as {listingPull.account ?? "the linked sub-account"}
+                {listingPull.authMode === "parent_access_key" ? " (master credentials)" : ""}
+                {" · "}
+                {new Date(listingPull.at).toLocaleString()}
               </span>
+              {listingPull.by ? (
+                <span className="block text-[11px] text-muted-foreground">Checked by {listingPull.by}</span>
+              ) : null}
             </p>
           ) : (
             <p className="text-sm text-muted-foreground">Not pulled yet.</p>
@@ -1098,7 +1112,7 @@ function PublishedPane({
             item as you confirm it. The step completes only when every item is ticked.
           </p>
           <p className="text-[11px] text-muted-foreground">
-            The name and date under a tick record who confirmed it, not the sub-account login.
+            The name and date under a tick record who confirmed it (the ROL'OS operator), not the sub-account login.
           </p>
           {ROLOS_SIGNOFF_CHECKLIST.map((item) => {
             const record = signoff.checks?.[item.key];
