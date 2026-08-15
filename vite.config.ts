@@ -55,7 +55,7 @@ function resolveBuildSeq(isProductionBuild: boolean): number {
  * Serve the build stamp as a virtual module rather than a `define`: `define` is not applied to
  * bare identifiers in the dev transform, so the preview would keep showing the fallback.
  */
-const buildInfoPlugin = () => {
+const buildInfoPlugin = (buildSeq: number) => {
   const id = "virtual:app-build-info";
   const resolved = "\0" + id;
   return {
@@ -72,12 +72,18 @@ const buildInfoPlugin = () => {
 
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const buildSeq = resolveBuildSeq(mode === "production");
+  // Also expose it through the standard VITE_* env channel, which survives environments where the
+  // virtual module or a bare `define` is not honoured.
+  process.env.VITE_COMMIT_COUNT = String(buildSeq);
+
+  return {
   server: {
     host: "::",
     port: 8080,
   },
-  plugins: [react(), buildInfoPlugin(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), buildInfoPlugin(buildSeq), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
