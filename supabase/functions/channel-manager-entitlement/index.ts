@@ -427,20 +427,99 @@ Deno.serve(async (req) => {
         });
       }
 
-      const ownerIds = Array.from(
-        new Set((accounts || []).map((a: { ru_owner_id: string | null }) => String(a.ru_owner_id))),
-      );
+      // The master/parent account may never hold listings in a white-label
+      // integration, so flag it explicitly rather than assume it is clean.
+      const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
+
+      type BoundAcct = {
+        owner_email: string | null;
+        login_email: string | null;
+        access_key: string | null;
+      };
+      const boundByOwner = new Map<string, BoundAcct>();
+      for (const a of (accounts || []) as Array<Record<string, unknown>>) {
+        boundByOwner.set(String(a.ru_owner_id), {
+          owner_email: (a.owner_email as string) ?? null,
+          login_email: (a.ru_login_email as string) ?? null,
+          access_key: (a.ru_api_access_key as string) ?? null,
+        });
+      }
+
+      // Keys can live on the per-OwnerID credential store as well as the bound row.
+      const { data: credRows } = await admin
+        .from("ru_api_credentials")
+        .select("ru_owner_id, login_email, access_key")
+        .not("access_key", "is", null);
+      const credByOwner = new Map<string, string | null>();
+      for (const c of (credRows || []) as Array<Record<string, unknown>>) {
+        if (c.ru_owner_id) credByOwner.set(String(c.ru_owner_id), (c.login_email as string) ?? null);
+      }
+
+      // Roster straight from the channel: accounts ROL'OS never bound still hold
+      // listings (and still bill), so reading only our own table under-reports.
+      type RosterEntry = { owner_id: string; portal_email: string | null; portal_name: string | null };
+      const roster = new Map<string, RosterEntry>();
+      let rosterError: string | null = null;
+      {
+        const { data: usersRes, error: usersErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_users", ...logCtx(traceId, "channel-reconcile:list_sub_accounts") },
+        });
+        const ures = (usersRes || {}) as {
+          success?: boolean;
+          error?: { message?: string } | string;
+          users?: Array<{ owner_id?: string; email?: string; first_name?: string; last_name?: string }>;
+        };
+        if (usersErr || ures.success === false) {
+          rosterError =
+            usersErr?.message ||
+            (typeof ures.error === "string" ? ures.error : ures.error?.message) ||
+            "The channel sub-account roster could not be read — only accounts known to ROL'OS were reconciled";
+        } else {
+          for (const u of ures.users || []) {
+            const oid = String(u.owner_id || "").trim();
+            if (!oid) continue;
+            const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+            roster.set(oid, { owner_id: oid, portal_email: u.email || null, portal_name: name || null });
+          }
+        }
+      }
+      for (const ownerId of boundByOwner.keys()) {
+        if (!roster.has(ownerId)) {
+          const acct = boundByOwner.get(ownerId)!;
+          roster.set(ownerId, {
+            owner_id: ownerId,
+            portal_email: acct.login_email || acct.owner_email,
+            portal_name: null,
+          });
+        }
+      }
+      const ownerIds = Array.from(roster.keys());
+
+      // One canonical way to name a sub-account everywhere it is reported.
+      const accountLabel = (ownerId: string) => {
+        const r = roster.get(ownerId);
+        const acct = boundByOwner.get(ownerId);
+        const login = acct?.login_email || r?.portal_email || credByOwner.get(ownerId) || null;
+        const contact = acct?.owner_email || null;
+        const base = `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
+        return contact && contact !== login ? `${base} (contact ${contact})` : base;
+      };
+
       const accountResults: Array<{
         owner_id: string;
         owner_email: string | null;
+        login_email: string | null;
+        contact_email: string | null;
+        owner_label: string;
+        bound: boolean;
+        has_keys: boolean;
         listing_count: number;
+        archived_count?: number;
         total_listing_count?: number;
         error: string | null;
         is_master: boolean;
       }> = [];
-      // The master/parent account may never hold listings in a white-label
-      // integration, so flag it explicitly rather than assume it is clean.
-      const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
+
       // Every listing is classified exactly once, so the buckets always add up
       // to the account totals instead of counting an archived-but-linked
       // listing as live as well as archived.
