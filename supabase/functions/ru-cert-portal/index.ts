@@ -4385,9 +4385,39 @@ Deno.serve(async (req) => {
         // Idempotent: treat it as done only when RU actually confirmed it.
         // `force: true` re-submits (e.g. the RU portal profile is still blank).
         const companyState = await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
-        if (body.force !== true && companyState.satisfied) {
+        /**
+         * Save-time resend. Company details are authored on the property, so an edit
+         * saved after the last accepted push makes the channel's copy stale. Callers
+         * that fire on save pass `resend_if_changed` and we re-push only in that case,
+         * which keeps ordinary wizard polling on the cheap idempotent path.
+         */
+        let staleAfterEdit = false;
+        if (body.resend_if_changed === true && companyState.satisfied) {
+          const filledAt = account.company_filled_at ? Date.parse(String(account.company_filled_at)) : 0;
+          const memberIds: string[] = [];
+          if (portfolioId) {
+            const { data: members } = await admin
+              .from("property_portfolio_members")
+              .select("property_id")
+              .eq("portfolio_id", portfolioId);
+            for (const m of (members ?? []) as { property_id: string }[]) memberIds.push(m.property_id);
+          }
+          if (propertyId && !memberIds.includes(propertyId)) memberIds.push(propertyId);
+          if (memberIds.length > 0 && filledAt > 0) {
+            const { data: touched } = await admin
+              .from("properties")
+              .select("updated_at")
+              .in("id", memberIds)
+              .order("updated_at", { ascending: false })
+              .limit(1);
+            const newest = (touched ?? [])[0]?.updated_at ? Date.parse(String((touched ?? [])[0].updated_at)) : 0;
+            staleAfterEdit = newest > filledAt;
+          }
+        }
+        if (body.force !== true && !staleAfterEdit && companyState.satisfied) {
           return { sent: true, skipped: true as const };
         }
+
 
         // Password sources, in order: this call, an admin-supplied password
         // (adopted accounts), or the encrypted copy stored at creation time.
