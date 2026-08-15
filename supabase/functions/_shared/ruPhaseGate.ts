@@ -168,32 +168,58 @@ export async function evaluatePhases(
   // readiness dry run fail with RU_OWNER_UNRESOLVED — surfacing in the wizard as
   // a wall of untrue content/photo/pricing blockers. When the portfolio carries no
   // owner profile we simply cannot judge, so we do not.
-  let expectedEmail: string | null = null;
-  if (scope === "portfolio" || portfolio_id) {
-    if (portfolio_id) {
-      const { data: pf } = await admin
-        .from("property_portfolios")
-        .select("owner_id")
-        .eq("id", portfolio_id)
+  // The sub-user is registered under the *owner's* email. A portfolio can be created
+  // by an internal ROL user (dev@/admin@), so that profile email is never authority —
+  // judging the account against it nulled the OwnerID and every push failed with
+  // RU_OWNER_UNRESOLVED. Authority = any real owner email attached to the portfolio's
+  // properties (or this property), plus a non-internal portfolio owner profile.
+  const INTERNAL_PREFIXES = ["dev@", "admin@", "support@", "noreply@", "no-reply@"];
+  const isInternal = (email: string) =>
+    INTERNAL_PREFIXES.some((p) => email.trim().toLowerCase().startsWith(p));
+
+  const authorityEmails = new Set<string>();
+  const addAuthority = (email?: string | null) => {
+    const e = (email ?? "").trim().toLowerCase();
+    if (e && !isInternal(e)) authorityEmails.add(e);
+  };
+
+  addAuthority(property.owner_email ?? null);
+
+  if (portfolio_id) {
+    const { data: pf } = await admin
+      .from("property_portfolios")
+      .select("owner_id")
+      .eq("id", portfolio_id)
+      .maybeSingle();
+    if (pf?.owner_id) {
+      const { data: prof } = await admin
+        .from("profiles")
+        .select("email")
+        .eq("id", pf.owner_id)
         .maybeSingle();
-      if (pf?.owner_id) {
-        const { data: prof } = await admin
-          .from("profiles")
-          .select("email")
-          .eq("id", pf.owner_id)
-          .maybeSingle();
-        if (prof?.email) expectedEmail = prof.email;
-      }
+      addAuthority(prof?.email ?? null);
     }
-  } else {
-    expectedEmail = property.owner_email ?? null;
+    // Owner emails of every property in the portfolio — a portfolio-scoped sub-user
+    // is legitimately registered under any one of them.
+    const { data: members } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", portfolio_id);
+    const ids = (members ?? []).map((m: { property_id: string }) => m.property_id).filter(Boolean);
+    if (ids.length > 0) {
+      const { data: props } = await admin.from("properties").select("owner_email").in("id", ids);
+      for (const p of props ?? []) addAuthority((p as { owner_email?: string | null }).owner_email);
+    }
   }
+
+  const expectedEmail: string | null = authorityEmails.size > 0 ? [...authorityEmails][0] : null;
   const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
   const emailMismatch =
     Boolean(account?.ru_owner_id) &&
     Boolean(storedEmail) &&
-    Boolean(expectedEmail) &&
-    storedEmail !== expectedEmail!.trim().toLowerCase();
+    authorityEmails.size > 0 &&
+    !authorityEmails.has(storedEmail);
+
 
 
   // ── Phase 1 ──
