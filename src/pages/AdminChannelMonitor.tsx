@@ -245,10 +245,19 @@ export default function AdminChannelMonitor() {
           title="Channel Monitor"
           subtitle="One console for distribution spend, sub-accounts and certification: everything needed to onboard and stay compliant."
           actions={
-            <Button variant="outline" size="sm" onClick={() => void data.refresh()} disabled={data.loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                notifyRuAccountsChanged();
+                void data.refresh();
+              }}
+              disabled={data.loading}
+            >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${data.loading ? "animate-spin" : ""}`} />
               Refresh
             </Button>
+
           }
         />
 
