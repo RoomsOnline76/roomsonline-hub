@@ -156,6 +156,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     [soleUnitName, unitNames],
   );
 
+  /** Read-back state drives whether the manual fetch is offered at all. */
+  const listingsVerified = useMemo(
+    () => progress.stateChecks.find((c) => c.key === "listings_verified")?.ok === true,
+    [progress.stateChecks],
+  );
+
   const stages = useMemo(() => buildStageProgress(macros), [macros]);
   const firstOpenStage = stages.find((s) => !s.complete) ?? stages[stages.length - 1];
 
