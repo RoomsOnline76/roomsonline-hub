@@ -161,6 +161,8 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
+  const [rePushOpen, setRePushOpen] = useState(false);
+
   const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
   /** Sub-account identity gate: no OwnerID or no API keys → every RU call is blocked. */
   const [identityGate, setIdentityGate] = useState<{ gated: boolean; reason: string | null }>({
