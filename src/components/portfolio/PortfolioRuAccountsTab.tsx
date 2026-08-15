@@ -545,11 +545,10 @@ export function PortfolioRuAccountsTab() {
   }, [refreshAccounts, refreshStoredKeys]);
 
   /** Manual reset: drop the stored key pair locally so a fresh one can be captured. */
-  const removeApiKeys = useCallback(async (accountId: string, ownerId?: string | null, label?: string) => {
-    if (!window.confirm(
-      `Remove the stored Rentals United API keys${ownerId ? ` for OwnerID ${ownerId}` : ""}${label ? ` (${label})` : ""}?\n\nNothing changes on Rentals United — the pair is cleared here so a correct pair can be captured again.`,
-    )) return;
+  const removeApiKeys = useCallback(async (accountId: string, ownerId?: string | null) => {
+    setRemoveKeysFor(null);
     setRemovingKeys(accountId);
+
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "delete_api_keys", account_id: accountId, ru_owner_id: ownerId ?? undefined },
