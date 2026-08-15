@@ -190,7 +190,7 @@ const BED_AMENITY_MAP: Record<string, number> = {
 export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; normalized: string } {
   const label = String(rawLabel ?? '')
     .toLowerCase()
-    .replace(/[_]+/g, ' ')
+    .replace(/[_-]+/g, ' ')
     .replace(/\b\d+\s*[x×]\s*/g, ' ')      // "2 x queen" → "queen"
     .replace(/\bbeds?\b/g, ' ')
     .replace(/[^a-z0-9/¾ -]+/g, ' ')
