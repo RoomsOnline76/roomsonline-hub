@@ -314,6 +314,8 @@ Deno.serve(async (req) => {
     const isServiceCall = SERVICE_KEY.length > 0 && jwt === SERVICE_KEY;
 
     let actorEmailResolved: string | null = "system@cron";
+    // Audit rows need the actor id outside this block; a service call has none.
+    let actorUserId: string | null = null;
     if (!isServiceCall) {
       const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
       if (userErr || !userData?.user) return bad("Invalid session", 401);
@@ -327,6 +329,7 @@ Deno.serve(async (req) => {
       );
       if (!allowed) return bad("Insufficient permissions", 403);
       actorEmailResolved = userData.user.email ?? null;
+      actorUserId = userData.user.id;
     }
 
 
@@ -679,7 +682,7 @@ Deno.serve(async (req) => {
         unit_count: 0,
         listing_count: outcome === "refused" ? 0 : 1,
         reason: raw.reason ?? "Listing removed during channel reconciliation",
-        actor_user_id: userData.user.id,
+        actor_user_id: actorUserId,
         actor_email: actorEmail,
         ru_status: outcome === "refused" ? "ru_failed" : "updated",
         detail,
@@ -791,7 +794,7 @@ Deno.serve(async (req) => {
         unit_count: dupes.length,
         listing_count: purged,
         reason: raw.reason ?? "Duplicate listing purge from channel cost monitor",
-        actor_user_id: userData.user.id,
+        actor_user_id: actorUserId,
         actor_email: actorEmail,
         ru_status: failed > 0 ? "ru_failed" : "updated",
         detail: results.map((r) => `${r.name}#${r.listing_id}:${r.status}`).join(", ").slice(0, 900),
@@ -921,7 +924,7 @@ Deno.serve(async (req) => {
         unit_count: 1,
         listing_count: unit.rentalsunited_property_id ? 1 : 0,
         reason: raw.reason ?? null,
-        actor_user_id: userData.user.id,
+        actor_user_id: actorUserId,
         actor_email: actorEmail,
         ru_status: unitStatus,
         detail: unitDetail ?? null,
@@ -1147,7 +1150,7 @@ Deno.serve(async (req) => {
         unit_count: unitsChanged,
         listing_count: listingCount || (p.rentalsunited_property_id ? 1 : 0),
         reason: raw.reason ?? null,
-        actor_user_id: userData.user.id,
+        actor_user_id: actorUserId,
         actor_email: actorEmail,
         ru_status: status,
         detail: detail ?? null,
