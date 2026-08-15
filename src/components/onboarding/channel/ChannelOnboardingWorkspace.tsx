@@ -30,8 +30,11 @@ import {
 import {
   buildStageProgress,
   editorSectionForMacro,
+  macroKeyForSection,
+  EDITOR_SECTIONS,
   type ChannelOnboardingStageKey,
 } from "@/config/channelOnboardingStages";
+
 import { ROLOS_SIGNOFF_CHECKLIST } from "@/config/rolosOnboardingMacros";
 import { CHECK_TO_FIELD_KEYS, PROPERTY_FIELD_REQUIREMENTS } from "@/config/propertyFieldRequirements";
 import { resolveMcqRequirement } from "@/lib/mcqRequirements";
