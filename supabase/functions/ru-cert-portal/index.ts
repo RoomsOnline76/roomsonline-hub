@@ -3938,6 +3938,12 @@ Deno.serve(async (req) => {
     if (action === "phase_status") {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      if (body.probe_ari !== true) {
+        const hit = phaseStatusCache.get(propertyId);
+        if (hit && Date.now() - hit.at < PHASE_STATUS_TTL_MS) return json({ ...hit.payload, cached: true });
+      } else {
+        phaseStatusCache.delete(propertyId);
+      }
       const { data: prop } = await admin
         .from("properties")
         .select("id, name, owner_email, external_system, rentalsunited_property_id, rentalsunited_building_id")
