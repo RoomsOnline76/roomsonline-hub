@@ -3797,18 +3797,26 @@ Deno.serve(async (req) => {
 
       // 3) Any other member property in the portfolio that carries a real owner email.
       if (!ownerEmail && portfolioId) {
-        const { data: siblings } = await admin
-          .from("properties")
-          .select("owner_email, owner_name, name, portfolio_id")
+        const { data: members } = await admin
+          .from("property_portfolio_members")
+          .select("property_id")
           .eq("portfolio_id", portfolioId);
-        for (const s of (siblings ?? []) as any[]) {
-          if (s?.owner_email && !isInternalLogin(s.owner_email)) {
-            ownerEmail = s.owner_email;
-            ownerName = ownerName || (s.owner_name ?? s.name ?? "Property Owner");
-            break;
+        const ids = ((members ?? []) as any[]).map((m) => m.property_id).filter(Boolean);
+        if (ids.length) {
+          const { data: siblings } = await admin
+            .from("properties")
+            .select("owner_email, owner_name, name")
+            .in("id", ids);
+          for (const s of (siblings ?? []) as any[]) {
+            if (s?.owner_email && !isInternalLogin(s.owner_email)) {
+              ownerEmail = s.owner_email;
+              ownerName = ownerName || (s.owner_name ?? s.name ?? "Property Owner");
+              break;
+            }
           }
         }
       }
+
 
       // 4) Last resort: the linked portfolio profile (only when it is not an internal login).
       if (!ownerEmail && portfolioRow?.owner_id) {
