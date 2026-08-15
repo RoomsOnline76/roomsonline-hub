@@ -354,9 +354,10 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
         {linked && (
           <div className="grid gap-2 sm:grid-cols-2 text-xs">
             <div>
-              <span className="text-muted-foreground">Sub-account login</span>
-              <div className="font-medium break-all">{account?.ru_login_email ?? account?.owner_email ?? "—"}</div>
+              <span className="text-muted-foreground">Sub-account</span>
+              <div className="font-medium break-all">{account ? ruAccountLabel(account) : "—"}</div>
             </div>
+
             <div>
               <span className="text-muted-foreground">Scope</span>
               <div className="font-medium capitalize">{account?.scope ?? "—"}</div>
