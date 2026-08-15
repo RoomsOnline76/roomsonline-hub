@@ -1376,6 +1376,11 @@ Deno.serve(async (req) => {
         ids.length === 1 ? nameFor(ids[0]) : (ids.length === 0 ? soleUnitName ?? undefined : undefined);
       const singleRuId = Number(p.rentalsunited_property_id ?? data?.ru_property_id ?? 0);
       if (ruIds.length === 0 && singleRuId > 0) ruIds.push(singleRuId);
+      // Last known good live verdict — used when a probe is skipped, throttled or times out
+      // so an earned verification never regresses to "not ready".
+      const ariSnapshot = ruIds.length > 0 ? await loadAriSnapshot(admin, p.id) : null;
+
+
 
 
       // Phase 2 must mean the SAME thing everywhere: when the live channel calendar is not
