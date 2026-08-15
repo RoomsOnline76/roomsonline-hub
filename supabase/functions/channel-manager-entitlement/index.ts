@@ -884,7 +884,7 @@ Deno.serve(async (req) => {
       await admin.from("ru_archive_events").insert({
         property_id: raw.record_kind === "property" ? raw.entity_id : null,
         property_name: `Listing re-point (#${listingId})`,
-        direction: "updated",
+        direction: "reactivated",
         unit_count: raw.record_kind === "property" ? 0 : 1,
         listing_count: 1,
         reason: raw.reason ?? "Local listing id re-pointed during channel reconciliation",
