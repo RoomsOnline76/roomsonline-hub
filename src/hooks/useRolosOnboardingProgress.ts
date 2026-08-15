@@ -623,6 +623,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
             : "Not published yet",
     });
 
+    /**
+     * Publishing is only confirmed once the channel's own listing set has been read
+     * back and every expected listing was found. A push nobody verified is a claim,
+     * not a fact.
+     */
+    const verifiedAt = String((prop as Record<string, unknown>).ru_listings_verified_at ?? "").trim();
+    const verifiedUnits = Number((prop as Record<string, unknown>).ru_listings_verified_units ?? 0);
+    const expectedUnits = Number((prop as Record<string, unknown>).ru_listings_expected_units ?? 0);
+    put("listings_verified", "Listings confirmed on the channel", listingOk && !!verifiedAt, {
+      waiting: !bound,
+      detail: !bound
+        ? unboundDependentDetail("verify listings")
+        : !listingOk
+          ? "Publish the listing first."
+          : verifiedAt
+            ? `${expectedUnits ? `${verifiedUnits}/${expectedUnits} listing(s) ` : ""}read back ${new Date(verifiedAt).toLocaleDateString()}`
+            : "Pushed but not read back — fetch the Channel Manager IDs to confirm.",
+    });
+
+
+
     // The content quality check is advisory: it is ordered on the channel side and
     // only returns a verdict once the channel subscription is live. Gate/plumbing
     // rejections (property not found, invalid channel, subscription missing) are not
