@@ -117,6 +117,29 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
   "list_lnm_change_types",
 ]);
 
+/**
+ * Live channel ARI read-backs are expensive (one call per method per sliding minute) and the
+ * answer barely moves between two opens of the same panel. Cached per unit for a short window
+ * so re-opening go-live status is instant instead of re-pulling every unit's calendar.
+ */
+const ARI_PROBE_TTL_MS = 180_000;
+const ARI_PROBE_TIMEOUT_MS = 12_000;
+const ariProbeCache = new Map<string, { at: number; probe: any }>();
+
+/** Time-box one channel pull; a timeout reads as "no answer" (verification pending). */
+function withProbeTimeout<T extends { data?: any; error?: any }>(
+  call: Promise<T>,
+  ms = ARI_PROBE_TIMEOUT_MS,
+): Promise<{ data?: any; error?: { message: string } | null }> {
+  return Promise.race([
+    call.catch((e) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
+    new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: "Channel read-back timed out — verification pending" } }), ms)
+    ),
+  ]) as Promise<{ data?: any; error?: { message: string } | null }>;
+}
+
+
 async function logPortalAction(
   admin: ReturnType<typeof createClient>,
   action: string,
