@@ -1500,22 +1500,28 @@ Deno.serve(async (req) => {
           unit: availabilityReady ? undefined : singleFailingUnit(failedAvailabilityIds),
           ...(hasAvailability
             ? { detail: `Verified on ${unitProbes.length} RU unit(s)` }
-            : availabilityReady
-              ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
-              : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
+            : snapshotHeldAvailability
+              ? { detail: `${snapshotAge(ariSnapshot!.probed_at)} — the latest read-back did not answer, so the stored verification stands` }
+              : availabilityReady
+                ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
+                : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
         extraChecks.push({
           key: "ari_prices",
           group: "Pricing 365d",
-          label: livePricesVerified ? "Rates verified on RU for the next 365 days" : "Local rates ready to push for the next 365 days",
+          label: livePricesVerified || snapshotHeldPrices
+            ? "Rates verified on RU for the next 365 days"
+            : "Local rates ready to push for the next 365 days",
           mandatory: true,
           passed: pricingReady,
           unit: pricingReady ? undefined : singleFailingUnit(failedPriceIds),
           ...(pricingReady
             ? { detail: livePricesVerified
               ? `Verified on ${unitProbes.length} RU unit(s)${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}`
-              : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${describeUnits(failedPriceIds)}` }
+              : snapshotHeldPrices
+                ? `${snapshotAge(ariSnapshot!.probed_at)} — the latest read-back did not answer, so the stored verification stands`
+                : `Ready to push from ROLOS (${localCoverage?.summary ?? "complete local coverage"}); RU verification pending for ${describeUnits(failedPriceIds)}` }
             : { detail: `${describeUnits(failedPriceIds)}: prices missing or non-positive${localCoverage ? ` — local rates: ${localCoverage.summary}` : ""}` }),
           fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
         });
@@ -1531,7 +1537,10 @@ Deno.serve(async (req) => {
           prices_ok: pricingReady,
           live_prices_verified: livePricesVerified,
           rate_coverage: localCoverage,
+          snapshot_at: ariSnapshot?.probed_at ?? null,
+          snapshot_held: snapshotHeldAvailability || snapshotHeldPrices,
         };
+
       } else {
         // Pre-publish: there is no RU property ID yet, so live ARI simply cannot exist.
         // The wizard must not block on a verification that only becomes possible AFTER
