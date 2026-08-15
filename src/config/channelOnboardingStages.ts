@@ -119,7 +119,13 @@ export function macroKeyForSection(section: string): string | null {
     images: "media",
     rates: "commercial",
     "rate-plans": "commercial",
+    policies: "commercial",
+    charges: "commercial",
+    specials: "commercial",
+    packages: "commercial",
+    addons: "commercial",
     integrations: "publish",
+
   };
   if (explicit[section]) return explicit[section];
   const byTask = ROLOS_ONBOARDING_MACROS.find((m) =>
