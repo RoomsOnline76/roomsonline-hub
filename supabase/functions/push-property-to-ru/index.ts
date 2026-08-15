@@ -104,21 +104,56 @@ interface ListingVerification {
  *
  * Best-effort: a failed read-back leaves the property unverified but never fails the push.
  */
+/**
+ * `functions.invoke` collapses a non-2xx into "Edge Function returned a non-2xx status code"
+ * and discards the JSON body, which hides the channel's real reason (rate limit, missing
+ * sub-account keys). Recover it from the FunctionsHttpError context.
+ */
+// deno-lint-ignore no-explicit-any
+async function readInvokeErrorBody(err: any): Promise<any | null> {
+  const res = err?.context;
+  if (!res || typeof res.text !== 'function') return null;
+  try {
+    return JSON.parse(await res.text());
+  } catch {
+    return null;
+  }
+}
+
 async function verifyListingsAfterPush(
   supabase: ReturnType<typeof createClient>,
   propertyId: string,
 ): Promise<ListingVerification> {
   try {
-    const { data, error } = await supabase.functions.invoke('ru-cert-portal', {
-      body: { action: 'resolve_ru_property_ids', property_id: propertyId },
-    });
-    if (error || (data as { success?: boolean } | null)?.success !== true) {
-      const message = (data as { error?: { message?: string } } | null)?.error?.message
-        ?? error?.message
-        ?? 'The channel did not return its listing set';
+    let attempt = 0;
+    // deno-lint-ignore no-explicit-any
+    let data: any = null;
+    // deno-lint-ignore no-explicit-any
+    let body: any = null;
+    while (attempt < 2) {
+      attempt++;
+      const res = await supabase.functions.invoke('ru-cert-portal', {
+        body: { action: 'resolve_ru_property_ids', property_id: propertyId },
+      });
+      data = res.data;
+      body = res.data ?? (await readInvokeErrorBody(res.error));
+      if (!res.error && body?.success === true) break;
+
+      const code = typeof body?.error?.code === 'string' ? body.error.code : null;
+      const retryMs = Number(body?.retry_after_ms ?? body?.error?.retry_after_ms ?? 0);
+      // The push itself just consumed the channel's sliding window — one paced retry turns
+      // "not read back" into a real confirmation instead of a manual chore.
+      if (code === 'RU_RATE_DEFERRED' && attempt < 2 && retryMs > 0 && retryMs <= 20000) {
+        console.log(`[push-property-to-ru] read-back rate limited — retrying in ${retryMs}ms`);
+        await new Promise((r) => setTimeout(r, retryMs + 500));
+        continue;
+      }
+      const message = body?.error?.message ?? res.error?.message ?? 'The channel did not return its listing set';
       console.warn(`[push-property-to-ru] listing read-back failed for ${propertyId}: ${message}`);
       return { verified: false, error: message };
     }
+    data = body;
+
     const payload = data as {
       matched?: { scope?: string }[];
       unmatched?: string[];
