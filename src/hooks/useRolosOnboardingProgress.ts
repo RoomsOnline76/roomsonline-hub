@@ -213,6 +213,32 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     return ROLOS_PMS_VALUES.has(sys);
   }, [d?.property]);
 
+  /**
+   * The owner signs the agreement in a separate surface (contract portal / email link),
+   * so the wizard listens for contract writes and re-derives itself the moment one lands.
+   * Without this the step only flipped after a hard reload.
+   */
+  useEffect(() => {
+    if (!propertyId) return;
+    const bump = () => {
+      void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+      void queryClient.invalidateQueries({ queryKey: ["property-readiness", propertyId] });
+      void queryClient.invalidateQueries({ queryKey: ["owner-contract"] });
+    };
+    const channel = supabase
+      .channel(`rolos-onboarding-contract-${propertyId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "owner_contracts" }, bump)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "property_contracts", filter: `property_id=eq.${propertyId}` },
+        bump,
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [propertyId, queryClient]);
+
   const signoff: RolosOnboardingSignoff = useMemo(() => {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
     const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
