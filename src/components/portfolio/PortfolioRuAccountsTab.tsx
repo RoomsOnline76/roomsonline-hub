@@ -185,6 +185,8 @@ export function PortfolioRuAccountsTab() {
   const [verifyingKeys, setVerifyingKeys] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [removingKeys, setRemovingKeys] = useState<string | null>(null);
+  const [removeKeysFor, setRemoveKeysFor] = useState<{ id: string; ownerId: string | null; label: string } | null>(null);
+
 
 
 
