@@ -13,6 +13,8 @@
  * The DB canonical value is `roomsonline`; `rolos` variants exist in UI copy and
  * older payloads, so every check accepts the whole alias set.
  */
+
+import { ruCompanyDetailsSatisfied } from "./ruCompanyDetails.ts";
 export const ROLOS_PMS_ALIASES = ["roomsonline", "rolos", "rol_os", "rolos_pms"];
 
 export type PhaseKey = "p1_subuser" | "p2_readiness" | "p3_push" | "p4_verify";
