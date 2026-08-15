@@ -199,7 +199,12 @@ export function useChannelReconciliation() {
         account_listing_total:
           payload.account_listing_total ||
           (payload.channel_listing_count || 0) + (payload.archived_count || 0),
+        all_account_listing_total: payload.all_account_listing_total,
+        foreign_listings: payload.foreign_listings || [],
+        foreign_listing_count: payload.foreign_listing_count ?? (payload.foreign_listings || []).length,
+        roster_error: payload.roster_error ?? null,
         archived_orphans: payload.archived_orphans || [],
+
         archived_matched: payload.archived_matched || [],
         conflicts: payload.conflicts || [],
         matched: payload.matched || [],
