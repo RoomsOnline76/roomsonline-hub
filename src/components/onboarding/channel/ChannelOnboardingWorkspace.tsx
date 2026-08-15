@@ -295,6 +295,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           unmatched,
           remoteCount,
           account: typeof data.ru_owner_label === "string" ? data.ru_owner_label : null,
+          ownerId: data.ru_owner_id != null ? String(data.ru_owner_id) : null,
           authMode: typeof data.auth_mode === "string" ? data.auth_mode : null,
         },
         user?.email ?? null,
