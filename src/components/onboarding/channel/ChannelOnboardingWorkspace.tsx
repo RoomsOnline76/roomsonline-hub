@@ -1004,6 +1004,7 @@ function PublishedPane({
   onEnable,
   onSignoffItem,
   onSignoffAll,
+  onPushCompanyDetails,
 }: {
   propertyId: string;
   macroKey: string;
@@ -1023,6 +1024,7 @@ function PublishedPane({
   onEnable: () => void;
   onSignoffItem: (key: string, next: boolean) => void;
   onSignoffAll: (next: boolean) => void;
+  onPushCompanyDetails: () => void;
 }) {
   return (
     <div className="space-y-4">
