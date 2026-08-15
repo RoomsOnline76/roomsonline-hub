@@ -404,6 +404,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     const listingIdsPresent = activeUnits.length > 0 ? unitsWithIds === activeUnits.length : propertyListingId;
     const listingOk = bound && listingIdsPresent;
     put("listing_ids", "Listing published & IDs stored", listingOk, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("publish", listingIdsPresent)
         : activeUnits.length > 0
@@ -440,6 +441,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         cur.ru_reported_currency_iso === cur.published_currency_iso);
     const currencyOk = bound && currencyRecorded;
     put("currency_verified", "Published currency verified", currencyOk, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("currency")
         : cur?.published_currency_iso
@@ -452,6 +454,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       (i) => signoff.checks[i.key]?.checked === true,
     ).length;
     put("manual_signoff", "Manual verification checklist", bound && signoff.signed_off, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("signoff")
         : signoff.signed_off
@@ -465,6 +468,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     // Macro 11 — channels
     const entitlementOn = billing?.channel_manager_enabled === true;
     put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("entitlement")
         : entitlementOn
@@ -475,6 +479,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       ["connected", "active", "live"].includes(String(c.status ?? "").toLowerCase()),
     ).length;
     put("channels_connected", "At least one channel connected", bound && connected > 0, {
+      waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("connect")
         : connected > 0
