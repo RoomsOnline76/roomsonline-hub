@@ -501,6 +501,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     goToField,
     isPlatformUser,
     publishListing,
+    publishedOk,
+
     pullListings,
     pushOwner,
     selectMacro,
