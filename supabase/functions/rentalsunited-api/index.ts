@@ -1804,6 +1804,9 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'subscribe_notifications',
   'put_lnm_subscriptions',
   'list_lnm_subscriptions',
+  // Pulling a sub-user's listings on master credentials returns OUR master inventory,
+  // which reads as "the sub-account was empty" in the onboarding wizard.
+  'list_properties',
 
 ]);
 
