@@ -207,7 +207,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const [property, identity, currency, channels, roadmap, units] = await Promise.all([
         supabase
           .from("properties")
-          .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id")
+          .select("id, name, description, max_guests, address, city, country, postal_code, latitude, longitude, owner_email, show_on_website, external_system, timezone, ru_location_id, amenities, rentalsunited_property_id, ru_listings_verified_at, ru_listings_verified_units, ru_listings_expected_units")
           .eq("id", id)
           .maybeSingle()
           .then((r) => (r.data ?? null) as Record<string, unknown> | null),
