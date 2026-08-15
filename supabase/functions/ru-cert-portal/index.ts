@@ -4027,7 +4027,7 @@ Deno.serve(async (req) => {
         }
       }
 
-      return json({
+      const payload = {
         success: true,
         gate,
         readiness,
@@ -4036,7 +4036,11 @@ Deno.serve(async (req) => {
         availability_source: probeAri ? "channel" : "local",
         last_mcq: mcq ?? null,
         sales_channel: salesChannel,
-      });
+      };
+      // Re-opening the wizard (or switching tabs) must not re-derive the whole scorecard.
+      if (!probeAri && !readinessUnknown) phaseStatusCache.set(propertyId, { at: Date.now(), payload });
+      return json(payload);
+
     }
 
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
