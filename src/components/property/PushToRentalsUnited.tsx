@@ -621,42 +621,61 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={pushToRU}
-              disabled={
-                loading ||
-                dryRunning ||
-                identityGate.gated ||
-                gateBlocked ||
-                readiness?.blocked === true ||
-                (validation !== null && !isReady)
-              }
-              title={
-                identityGate.gated
-                  ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
-                  : gateBlocked
-                    ? gateReason ?? "Complete the channel readiness checklist below before syncing"
-                    : readiness?.blocked
-                      ? "Complete the channel readiness checklist below before syncing"
-                      : undefined
-              }
-            >
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading
-                ? "Pushing..."
-                : identityGate.gated
-                  ? "Keys required"
-                  : !gate.hasData && (gate.isLoading || gate.isFetching)
-                    ? "Checking readiness…"
-                    : gateBlocked || readiness?.blocked
-                      ? "Sync blocked"
-                      : isMultiUnit
-                        ? "Push Building + Units"
-                        : "Publish to Channel Manager"}
+            {published ? (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="h-6 gap-1 text-[10px]">
+                  <CheckCircle className="h-3 w-3" />
+                  Published — Channel Manager enabled
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => navigate(`/pms/channels?property=${propertyId}`)}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Connect channels
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={pushToRU}
+                disabled={
+                  loading ||
+                  dryRunning ||
+                  identityGate.gated ||
+                  gateBlocked ||
+                  readiness?.blocked === true ||
+                  (validation !== null && !isReady)
+                }
+                title={
+                  identityGate.gated
+                    ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
+                    : gateBlocked
+                      ? gateReason ?? "Complete the channel readiness checklist below before syncing"
+                      : readiness?.blocked
+                        ? "Complete the channel readiness checklist below before syncing"
+                        : undefined
+                }
+              >
+                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                {loading
+                  ? "Pushing..."
+                  : identityGate.gated
+                    ? "Keys required"
+                    : !gate.hasData && (gate.isLoading || gate.isFetching)
+                      ? "Checking readiness…"
+                      : gateBlocked || readiness?.blocked
+                        ? "Sync blocked"
+                        : isMultiUnit
+                          ? "Push Building + Units"
+                          : "Publish to Channel Manager"}
+              </Button>
+            )}
 
-            </Button>
+
 
           </div>
         </div>
