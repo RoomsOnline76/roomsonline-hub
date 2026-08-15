@@ -117,6 +117,29 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
   "list_lnm_change_types",
 ]);
 
+/**
+ * Live channel ARI read-backs are expensive (one call per method per sliding minute) and the
+ * answer barely moves between two opens of the same panel. Cached per unit for a short window
+ * so re-opening go-live status is instant instead of re-pulling every unit's calendar.
+ */
+const ARI_PROBE_TTL_MS = 180_000;
+const ARI_PROBE_TIMEOUT_MS = 12_000;
+const ariProbeCache = new Map<string, { at: number; probe: any }>();
+
+/** Time-box one channel pull; a timeout reads as "no answer" (verification pending). */
+function withProbeTimeout<T extends { data?: any; error?: any }>(
+  call: Promise<T>,
+  ms = ARI_PROBE_TIMEOUT_MS,
+): Promise<{ data?: any; error?: { message: string } | null }> {
+  return Promise.race([
+    call.catch((e) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } })),
+    new Promise<{ data: null; error: { message: string } }>((resolve) =>
+      setTimeout(() => resolve({ data: null, error: { message: "Channel read-back timed out — verification pending" } }), ms)
+    ),
+  ]) as Promise<{ data?: any; error?: { message: string } | null }>;
+}
+
+
 async function logPortalAction(
   admin: ReturnType<typeof createClient>,
   action: string,
@@ -1150,6 +1173,7 @@ Deno.serve(async (req) => {
       // ── Local rate coverage (calendar first, rack rate fallback) ──
       // Reports what ROLOS would push, independently of what RU currently holds.
       let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number; complete: boolean; unit_count: number } | null = null;
+      let unlinkedUnits: { id: string; name: string; linked_rolos_id: string | null }[] = [];
       const mappedUnitRows = (data?.units ?? []).filter(
         (unit: { ru_property_id?: string | null }) => Number(unit.ru_property_id) > 0,
       );
@@ -1164,6 +1188,8 @@ Deno.serve(async (req) => {
         const targets = mappedIds.size > 0
           ? resolver.units.filter((unit) => mappedIds.has(unit.id))
           : resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
+        const targetIds = new Set(targets.map((unit) => unit.id));
+        unlinkedUnits = resolver.unlinkedUnits().filter((unit) => targetIds.has(unit.id));
         let calendar = 0, rack = 0, priced = 0;
         let overrideDays = 0, planSeasonDays = 0, relationalDays = 0;
         for (const u of targets) {
@@ -1193,6 +1219,7 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn("[scoreProperty] rate coverage probe failed:", e);
       }
+
 
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
@@ -1240,20 +1267,26 @@ Deno.serve(async (req) => {
         const scopedOwnerId = ownerAccount?.ru_owner_id ? Number(ownerAccount.ru_owner_id) : null;
         const scope = scopedOwnerId && scopedOwnerId > 0 ? { owner_id: scopedOwnerId } : {};
         const unitProbes = await Promise.all(ruIds.map(async (ruId) => {
+          const cacheKey = `${ruId}|${scopedOwnerId ?? "master"}|${from}`;
+          const cached = ariProbeCache.get(cacheKey);
+          if (cached && Date.now() - cached.at < ARI_PROBE_TTL_MS) return cached.probe;
+          // Each pull passes the shared one-call-per-minute channel gate, which can sleep for
+          // seconds. A slow or throttled account must never hold the readiness panel open:
+          // the probe is time-boxed and a timeout is reported as "verification pending".
           const [avbRes, priceRes] = await Promise.all([
-            admin.functions.invoke("rentalsunited-api", {
+            withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
               body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
-            }),
-            admin.functions.invoke("rentalsunited-api", {
+            })),
+            withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
               body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
-            }),
+            })),
           ]);
           const avbXml: string = avbRes.data?.raw_xml ?? "";
           const priceXml: string = priceRes.data?.raw_xml ?? "";
           const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
           const bookableWindow = findRuBookableWindow(avbXml, priceXml);
-          return {
+          const probe = {
             ru_property_id: ruId,
             unit_name: nameFor(ruId),
             open_days: openDays,
@@ -1263,7 +1296,10 @@ Deno.serve(async (req) => {
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
             bookable_window: bookableWindow as RuBookableWindow,
           };
+          ariProbeCache.set(cacheKey, { at: Date.now(), probe });
+          return probe;
         }));
+
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
         const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
         const pricingReady = livePricesVerified || localCoverage?.complete === true;
@@ -1380,18 +1416,35 @@ Deno.serve(async (req) => {
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
 
+      // A unit whose ROL'OS room-type link is dangling (the room type was replaced) resolves
+      // to no plan, no rack rate and no daily rate. Reporting that as "rates missing for 365
+      // days" sent owners to author rates that already exist — name the real fault instead.
+      if (unlinkedUnits.length > 0) {
+        extraChecks.push({
+          key: "unit_rate_plan_link",
+          group: "Pricing 365d",
+          label: "Every unit is linked to a rate plan",
+          mandatory: true,
+          passed: false,
+          unit: unlinkedUnits.length === 1 ? unlinkedUnits[0].name : undefined,
+          detail: `${unlinkedUnits.map((u) => u.name).join(", ")}: not linked to any active rate plan — the unit's ROL'OS room type link is missing or stale, so no season or rack rate can be found.`,
+          fix_hint: "ROL'OS → Rate Plans → link the unit to a plan (Calendar seasons then keep the rack fallback)",
+        });
+      }
+
       // Currency verification is a wizard gate too — the Currency panel is no longer the
       // only place it is visible, so a property cannot clear onboarding unverified.
       {
         const { data: currencyState } = await admin
           .from("ru_currency_state")
-          .select("published_currency_iso, ru_reported_currency_iso, verified_at")
+          .select("published_currency_iso, ru_reported_currency_iso, verified_at, flip_outcome, location_currency_iso")
           .eq("property_id", p.id)
           .maybeSingle();
         extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
           published: !(ari as { pending_publish?: boolean } | null)?.pending_publish,
         }));
       }
+
 
       const summary = summarizeReadiness(units, extraChecks);
 
