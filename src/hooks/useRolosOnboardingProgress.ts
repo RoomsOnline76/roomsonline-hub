@@ -276,6 +276,18 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
 
     // Macro 1 — identity
+    const contract = (d?.contract ?? null) as { status?: string | null; signed_at?: string | null } | null;
+    const contractStatus = String(contract?.status ?? "").toLowerCase();
+    const contractOk = contractStatus === "signed" || contractStatus === "overridden";
+    put("contract_signed", "Owner agreement signed", contractOk, {
+      detail: contractOk
+        ? `Signed${contract?.signed_at ? ` ${new Date(contract.signed_at).toLocaleDateString()}` : ""}`
+        : contractStatus
+          ? `Agreement ${contractStatus} — awaiting signature`
+          : "No agreement on record",
+      hint: "General → Contract & agreement",
+    });
+
     const tz = String(prop.timezone ?? "").trim();
     // ROL'OS stores canonical IANA zones (for example Africa/Johannesburg),
     // while some imported properties use a fixed UTC offset. Both are valid
