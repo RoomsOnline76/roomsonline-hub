@@ -13,7 +13,7 @@ import {
 } from "@/lib/channelBillingForecast";
 import { pushReportedOn } from "@/lib/channelDistributionGate";
 
-export type ChannelSyncState = "live" | "paused" | "archived";
+export type ChannelSyncState = "live" | "paused" | "archived" | "pending";
 
 export interface ChannelUnitRow {
   id: string;
@@ -44,6 +44,8 @@ export interface ChannelPropertyRow {
   monthlyCostEur: number;
   /** Counts in dashboards/metrics: staff-flagged trading and not sandbox. */
   isTrading: boolean;
+  /** Push is switched on but nothing was ever created at the channel manager. */
+  neverPushed: boolean;
   /** RU owner account id (OwnerID) linked to this property. */
   ownerId: string | null;
   /** RU sub-user account id (UserID) linked to this property. */
@@ -264,14 +266,16 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         unitsByProperty.set(u.property_id as string, list);
       }
 
-      // Only properties with a channel footprint belong on this page.
+      // Properties with a channel footprint — plus properties that have push
+      // switched on yet nothing upstream, so a failed first push stays visible
+      // instead of silently vanishing from the monitor.
       const relevant = allProps.filter((p) => {
         const units = unitsByProperty.get(p.id) || [];
-        return (
+        const hasFootprint =
           !!p.rentalsunited_property_id ||
           !!p.ru_archived ||
-          units.some((u) => !!u.rentalsunited_property_id)
-        );
+          units.some((u) => !!u.rentalsunited_property_id);
+        return hasFootprint || (p.ru_push_enabled === true && p.is_active !== false);
       });
 
       // Map each property to its RU owner/sub-user credentials. Prefer a direct
@@ -351,7 +355,17 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           keysCaptured: creds.keysCaptured,
           companyDetailsSent: creds.companyDetailsSent,
         });
-        const state: ChannelSyncState = archived ? "archived" : pushOn ? "live" : "paused";
+        // Nothing upstream at all: not a live listing, not archived — the first
+        // push either never ran or failed.
+        const neverPushed =
+          !archived && !p.rentalsunited_property_id && withListing.length === 0;
+        const state: ChannelSyncState = archived
+          ? "archived"
+          : neverPushed
+            ? "pending"
+            : pushOn
+              ? "live"
+              : "paused";
         const toRow = (u: UnitRecord): ChannelUnitRow => ({
           id: u.id,
           name: u.name || "Unit",
@@ -373,6 +387,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
           isTrading: p.is_trading === true,
+          neverPushed,
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
         } satisfies ChannelPropertyRow;

@@ -25,7 +25,9 @@ interface Body {
     /** Archive one listing id upstream (orphans that no local record points at). */
     | "purge_listing"
     /** Clear a local listing id the channel account no longer returns. */
-    | "clear_local_listing";
+    | "clear_local_listing"
+    /** Point a local record at a listing id verified live on the account. */
+    | "repoint_local_listing";
   entity_id: string;
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
@@ -43,6 +45,8 @@ interface Body {
 
   /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
   record_kind?: "property" | "unit";
+  /** repoint_local_listing: the listing id to attach once verified live. */
+  listing_id?: string;
 }
 
 
@@ -382,11 +386,25 @@ Deno.serve(async (req) => {
         label: string;
         isActive: boolean;
       };
-      const localByListing = new Map<string, Local>();
+      // Indexed by kind + record id: one listing id can be claimed by several
+      // local records (a wrong copy/paste of a unit id onto a property, for
+      // example). A single id-keyed map silently dropped all but one of them.
+      const localRecords = new Map<string, Local>();
+      const localByListing = new Map<string, Local[]>();
+      const indexLocal = (l: Local) => {
+        localRecords.set(`${l.kind}:${l.recordId}`, l);
+        const bucket = localByListing.get(l.listingId);
+        if (bucket) bucket.push(l);
+        else localByListing.set(l.listingId, [l]);
+      };
+      const propertyNames = new Map<string, string>();
+      for (const p of (props || []) as Array<Record<string, unknown>>) {
+        propertyNames.set(p.id as string, ((p.name as string) || "Untitled property"));
+      }
       for (const p of (props || []) as Array<Record<string, unknown>>) {
         const lid = p.rentalsunited_property_id as string | null;
         if (!lid) continue;
-        localByListing.set(String(lid), {
+        indexLocal({
           listingId: String(lid),
           kind: "property",
           recordId: p.id as string,
@@ -395,14 +413,10 @@ Deno.serve(async (req) => {
           isActive: p.is_active !== false,
         });
       }
-      const propertyNames = new Map<string, string>();
-      for (const p of (props || []) as Array<Record<string, unknown>>) {
-        propertyNames.set(p.id as string, ((p.name as string) || "Untitled property"));
-      }
       for (const u of (units || []) as Array<Record<string, unknown>>) {
         const lid = u.rentalsunited_property_id as string | null;
         if (!lid) continue;
-        localByListing.set(String(lid), {
+        indexLocal({
           listingId: String(lid),
           kind: "unit",
           recordId: u.id as string,
@@ -419,13 +433,17 @@ Deno.serve(async (req) => {
         owner_id: string;
         owner_email: string | null;
         listing_count: number;
+        total_listing_count?: number;
         error: string | null;
         is_master: boolean;
       }> = [];
       // The master/parent account may never hold listings in a white-label
       // integration, so flag it explicitly rather than assume it is clean.
       const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
-      const seenOnChannel = new Set<string>();
+      // Every listing is classified exactly once, so the buckets always add up
+      // to the account totals instead of counting an archived-but-linked
+      // listing as live as well as archived.
+      const liveOnChannel = new Set<string>();
       const archivedOnChannel = new Set<string>();
       const orphans: Array<{ listing_id: string; name: string; owner_id: string; is_archived: boolean }> = [];
       const archivedOrphans: Array<{ listing_id: string; name: string; owner_id: string }> = [];
@@ -438,8 +456,22 @@ Deno.serve(async (req) => {
         local_active: boolean;
         kind: "property" | "unit";
       }> = [];
+      // Local ids that point at a listing the channel has already archived: the
+      // record looks connected but nothing it points at can sell.
+      const archivedMatched: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        local_label: string;
+        kind: "property" | "unit";
+        record_id: string;
+        property_id: string;
+        local_active: boolean;
+        live_alternative_id: string | null;
+      }> = [];
       // Every live listing, kept so same-name copies on one account can be grouped afterwards.
       const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
+
 
       // The channel rate-limits repeated pulls, so a large account list can
       // outrun the function wall clock and the caller only ever sees a 502.
@@ -505,46 +537,62 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
           owner_email: account?.owner_email ?? null,
           listing_count: liveListings.length,
+          total_listing_count: listings.length,
           error: null,
           is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         });
 
         for (const l of listings) {
           const id = String(l.id);
-          const local = localByListing.get(id);
+          const locals = localByListing.get(id) || [];
+          const name = l.name || locals[0]?.label || "Unnamed listing";
+
           // Archived listings stay in the channel property feed forever (they are
-          // only hidden in the channel portal) and never bill, so they are counted
-          // and listed apart from anything actionable.
+          // only hidden in the channel portal) and never sell or bill. They are
+          // classified here and never counted as live as well.
           if (l.is_archived === true) {
             archivedOnChannel.add(id);
-            if (!local) {
-              archivedOrphans.push({ listing_id: id, name: l.name || "Unnamed listing", owner_id: ownerId });
+            if (locals.length === 0) {
+              archivedOrphans.push({ listing_id: id, name, owner_id: ownerId });
               continue;
             }
-          }
-          seenOnChannel.add(id);
-          liveRows.push({ listing_id: id, name: l.name || local?.label || "Unnamed listing", owner_id: ownerId, matched: !!local });
-          if (!local) {
-            orphans.push({
-              listing_id: id,
-              name: l.name || "Unnamed listing",
-              owner_id: ownerId,
-              is_archived: false,
-            });
+            for (const local of locals) {
+              archivedMatched.push({
+                listing_id: id,
+                name,
+                owner_id: ownerId,
+                local_label: local.label,
+                kind: local.kind,
+                record_id: local.recordId,
+                property_id: local.propertyId,
+                local_active: local.isActive,
+                live_alternative_id: null,
+              });
+            }
             continue;
           }
 
-          matched.push({
-            listing_id: id,
-            name: l.name || local.label,
-            owner_id: ownerId,
-            is_archived: l.is_archived === true,
-            local_label: local.label,
-            local_active: local.isActive,
-            kind: local.kind,
-          });
+          liveOnChannel.add(id);
+          liveRows.push({ listing_id: id, name, owner_id: ownerId, matched: locals.length > 0 });
+          if (locals.length === 0) {
+            orphans.push({ listing_id: id, name, owner_id: ownerId, is_archived: false });
+            continue;
+          }
+
+          for (const local of locals) {
+            matched.push({
+              listing_id: id,
+              name,
+              owner_id: ownerId,
+              is_archived: false,
+              local_label: local.label,
+              local_active: local.isActive,
+              kind: local.kind,
+            });
+          }
         }
       }
+
 
       /**
        * Same-name copies on one account. Repeated creates put several listings on the account for
@@ -583,12 +631,58 @@ Deno.serve(async (req) => {
         }
       }
 
+      // A record whose id is archived upstream usually has a live twin under the
+      // same unit name — that is the listing it should point at.
+      const liveByName = new Map<string, string[]>();
+      for (const row of liveRows) {
+        const key = `${row.owner_id}::${row.name.trim().toLowerCase()}`;
+        const bucket = liveByName.get(key);
+        if (bucket) bucket.push(row.listing_id);
+        else liveByName.set(key, [row.listing_id]);
+      }
+      for (const row of archivedMatched) {
+        const unitName = row.local_label.split("—").pop()?.trim() || row.name;
+        const candidates =
+          liveByName.get(`${row.owner_id}::${row.name.trim().toLowerCase()}`) ||
+          liveByName.get(`${row.owner_id}::${unitName.toLowerCase()}`) ||
+          [];
+        // Newest live copy: the one the most recent push created.
+        row.live_alternative_id = candidates.length
+          ? [...candidates].sort((a, b) => Number(b) - Number(a))[0]
+          : null;
+      }
+
+      // One listing id claimed by more than one local record — a mis-wired id.
+      const conflicts: Array<{
+        listing_id: string;
+        records: Array<{
+          kind: "property" | "unit";
+          record_id: string;
+          property_id: string;
+          label: string;
+          local_active: boolean;
+        }>;
+      }> = [];
+      for (const [listingId, locals] of localByListing.entries()) {
+        if (locals.length < 2) continue;
+        conflicts.push({
+          listing_id: listingId,
+          records: locals.map((l) => ({
+            kind: l.kind,
+            record_id: l.recordId,
+            property_id: l.propertyId,
+            label: l.label,
+            local_active: l.isActive,
+          })),
+        });
+      }
+
       // Local ids the account no longer returns — only trustworthy when at least
       // one account read succeeded, otherwise everything would look stale.
       const anyRead = accountResults.some((a) => a.error === null);
       const stale = anyRead
-        ? Array.from(localByListing.values())
-            .filter((l) => !seenOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
+        ? Array.from(localRecords.values())
+            .filter((l) => !liveOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
             .map((l) => ({
               listing_id: l.listingId,
               label: l.label,
@@ -599,23 +693,30 @@ Deno.serve(async (req) => {
             }))
         : [];
 
+      const accountTotal = accountResults.reduce(
+        (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
+        0,
+      );
 
       return new Response(
         JSON.stringify({
           success: true,
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
-          // Live listings only — archived ones are reported separately.
-          channel_listing_count: seenOnChannel.size,
+          // Mutually exclusive: live + archived always equals the account total.
+          channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
+          account_listing_total: accountTotal,
           archived_orphans: archivedOrphans,
+          archived_matched: archivedMatched,
+          conflicts,
           matched,
           orphans,
           duplicates,
-
           stale,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+
       );
     }
 
@@ -741,6 +842,64 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── Re-point a local record at a listing that is live on the account ──
+    //    Used when a record still holds an id the channel has archived. The
+    //    replacement id is verified live upstream before anything is written,
+    //    so a mistake in the reconcile report can never wire in a dead id.
+    if (raw.scope === "repoint_local_listing") {
+      const listingId = String(raw.listing_id ?? "").trim();
+      if (!listingId) return bad("listing_id is required", 400);
+      const table = raw.record_kind === "property" ? "properties" : "hostfully_room_types";
+      const ownerId = raw.owner_id ? String(raw.owner_id) : null;
+
+      const presence = await verifyListingPresence(admin, {
+        listingId,
+        ownerId,
+        ctx: logCtx(traceId, "channel-repoint:verify"),
+      });
+      if (presence.error) return bad(presence.error, 502);
+      if (!presence.present) return bad(`Listing ${listingId} is not held by the channel account`, 409);
+      if (presence.archived) return bad(`Listing ${listingId} is archived on the channel account`, 409);
+
+      // Release the id from anything else holding it, so a re-point can never
+      // create a second collision.
+      await admin
+        .from("properties")
+        .update({ rentalsunited_property_id: null })
+        .eq("rentalsunited_property_id", listingId)
+        .neq("id", raw.entity_id);
+      await admin
+        .from("hostfully_room_types")
+        .update({ rentalsunited_property_id: null })
+        .eq("rentalsunited_property_id", listingId)
+        .neq("id", raw.entity_id);
+
+      const { error: setErr } = await admin
+        .from(table)
+        .update({ rentalsunited_property_id: listingId })
+        .eq("id", raw.entity_id);
+      if (setErr) return bad(setErr.message, 500);
+
+      await admin.from("ru_archive_events").insert({
+        property_id: raw.record_kind === "property" ? raw.entity_id : null,
+        property_name: `Listing re-point (#${listingId})`,
+        direction: "reactivated",
+        unit_count: raw.record_kind === "property" ? 0 : 1,
+        listing_count: 1,
+        reason: raw.reason ?? "Local listing id re-pointed during channel reconciliation",
+        actor_user_id: actorUserId,
+        actor_email: actorEmail,
+        ru_status: "updated",
+        detail: `${raw.record_kind ?? "unit"} ${raw.entity_id} now points at live listing ${listingId}`,
+      });
+
+      return new Response(JSON.stringify({ success: true, listing_id: listingId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
 
 
 

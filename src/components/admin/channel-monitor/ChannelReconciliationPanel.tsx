@@ -14,7 +14,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useChannelReconciliation, type ReconOrphan, type ReconStale } from "@/hooks/useChannelReconciliation";
+import {
+  useChannelReconciliation,
+  type ReconArchivedMatched,
+  type ReconOrphan,
+  type ReconStale,
+} from "@/hooks/useChannelReconciliation";
 import { useChannelReconciliationRuns } from "@/hooks/useChannelReconciliationRuns";
 
 interface Props {
@@ -25,8 +30,20 @@ interface Props {
 }
 
 export function ChannelReconciliationPanel({ billableListings, onChanged }: Props) {
-  const { result, running, error, reconcile, purgeListing, clearStale, cleanupAll, cleanup, failures, refused } =
-    useChannelReconciliation();
+  const {
+    result,
+    running,
+    error,
+    reconcile,
+    purgeListing,
+    clearStale,
+    repointListing,
+    clearConflict,
+    cleanupAll,
+    cleanup,
+    failures,
+    refused,
+  } = useChannelReconciliation();
   const { latest: latestRun } = useChannelReconciliationRuns();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -94,6 +111,44 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
       }
     },
     [clearStale, onChanged],
+  );
+
+  const handleRepoint = useCallback(
+    async (row: ReconArchivedMatched) => {
+      if (!row.live_alternative_id) return;
+      setBusyId(row.record_id);
+      try {
+        await repointListing({
+          record_id: row.record_id,
+          kind: row.kind,
+          owner_id: row.owner_id,
+          listing_id: row.live_alternative_id,
+        });
+        toast.success(`${row.local_label} now points at live listing #${row.live_alternative_id}`);
+        await onChanged();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not re-point the listing id");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [repointListing, onChanged],
+  );
+
+  const handleClearConflict = useCallback(
+    async (listingId: string, record: { record_id: string; kind: "property" | "unit"; label: string }) => {
+      setBusyId(record.record_id);
+      try {
+        await clearConflict({ listing_id: listingId, record_id: record.record_id, kind: record.kind });
+        toast.success(`Cleared listing #${listingId} from ${record.label}`);
+        await onChanged();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Could not clear the local id");
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [clearConflict, onChanged],
   );
 
   const runCleanup = useCallback(
@@ -217,11 +272,25 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 tone={result.duplicates.length ? "warn" : undefined}
               />
               <Stat label="Archived — not billable" value={result.archived_count} />
+              <Stat
+                label="Linked to an archived listing"
+                value={result.archived_matched.length}
+                tone={result.archived_matched.length ? "warn" : undefined}
+              />
+              <Stat
+                label="Conflicting local ids"
+                value={result.conflicts.length}
+                tone={result.conflicts.length ? "warn" : undefined}
+              />
 
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span>Reconciled {new Date(result.reconciled_at).toLocaleString()}</span>
+              <span>
+                {result.account_listing_total} listing{result.account_listing_total === 1 ? "" : "s"} held in total
+                ({result.channel_listing_count} live + {result.archived_count} archived)
+              </span>
               <span>{result.stale.length} stale local id{result.stale.length === 1 ? "" : "s"}</span>
               {gap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
@@ -309,6 +378,103 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                     ))}
                   </ul>
                 )}
+              </section>
+            )}
+
+            {result.archived_matched.length > 0 && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-medium">
+                  Local ids pointing at archived listings — {result.archived_matched.length}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  These records look connected, but the listing they point at is archived on the channel and cannot
+                  sell. Where a re-push created a live copy of the same unit, re-point the record at it.
+                </p>
+                <ul className="divide-y rounded-md border">
+                  {result.archived_matched.map((a) => (
+                    <li
+                      key={`${a.kind}:${a.record_id}:${a.listing_id}`}
+                      className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0 truncate">
+                        {a.local_label}{" "}
+                        <span className="text-muted-foreground">
+                          #{a.listing_id} · archived
+                          {a.live_alternative_id ? ` · live copy #${a.live_alternative_id}` : " · no live copy found"}
+                        </span>
+                      </span>
+                      {a.live_alternative_id ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId === a.record_id || cleaning}
+                          onClick={() => void handleRepoint(a)}
+                        >
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                          Re-point to the live listing
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={busyId === a.record_id || cleaning}
+                          onClick={() =>
+                            void handleClearConflict(a.listing_id, {
+                              record_id: a.record_id,
+                              kind: a.kind,
+                              label: a.local_label,
+                            })
+                          }
+                        >
+                          <Eraser className="mr-1.5 h-3.5 w-3.5" />
+                          Clear the id
+                        </Button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {result.conflicts.length > 0 && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-medium">
+                  Conflicting local ids — {result.conflicts.length} listing
+                  {result.conflicts.length === 1 ? "" : "s"} claimed by more than one record
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  One channel listing cannot belong to several properties or units. Clear the id from every record
+                  except the one that really owns it, then push that record again if it needs its own listing.
+                </p>
+                <ul className="divide-y rounded-md border">
+                  {result.conflicts.map((c) => (
+                    <li key={c.listing_id} className="space-y-2 px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">Listing #{c.listing_id}</span>
+                      <ul className="space-y-1">
+                        {c.records.map((r) => (
+                          <li key={`${r.kind}:${r.record_id}`} className="flex items-center justify-between gap-3">
+                            <span className="min-w-0 truncate">
+                              {r.label}{" "}
+                              <span className="text-muted-foreground">
+                                {r.kind}
+                                {r.local_active ? "" : " · inactive"}
+                              </span>
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={busyId === r.record_id || cleaning}
+                              onClick={() => void handleClearConflict(c.listing_id, r)}
+                            >
+                              <Eraser className="mr-1.5 h-3.5 w-3.5" />
+                              Clear this id
+                            </Button>
+                          </li>
+                        ))}
+                      </ul>
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 

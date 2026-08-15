@@ -6,6 +6,8 @@ export interface ReconAccount {
   owner_email: string | null;
   /** Live (non-archived) listings the account holds. */
   listing_count: number;
+  /** Every listing the account holds, live and archived. */
+  total_listing_count?: number;
   error: string | null;
   /** True when this is the master/parent account, which may never hold listings. */
   is_master?: boolean;
@@ -45,6 +47,32 @@ export interface ReconDuplicate {
 }
 
 
+/** A local id that points at a listing the channel has already archived. */
+export interface ReconArchivedMatched {
+  listing_id: string;
+  name: string;
+  owner_id: string;
+  local_label: string;
+  kind: "property" | "unit";
+  record_id: string;
+  property_id: string;
+  local_active: boolean;
+  /** The live same-name listing this record should point at, when one exists. */
+  live_alternative_id: string | null;
+}
+
+/** One listing id claimed by more than one local record. */
+export interface ReconConflict {
+  listing_id: string;
+  records: Array<{
+    kind: "property" | "unit";
+    record_id: string;
+    property_id: string;
+    label: string;
+    local_active: boolean;
+  }>;
+}
+
 export interface ReconStale {
   listing_id: string;
   label: string;
@@ -60,7 +88,11 @@ export interface ChannelReconciliation {
   /** Live listings only — archived ones never bill and are reported apart. */
   channel_listing_count: number;
   archived_count: number;
+  /** live + archived; must equal what the accounts hold. */
+  account_listing_total: number;
   archived_orphans: ReconArchived[];
+  archived_matched: ReconArchivedMatched[];
+  conflicts: ReconConflict[];
   matched: ReconMatched[];
   orphans: ReconOrphan[];
   duplicates: ReconDuplicate[];
@@ -132,7 +164,12 @@ export function useChannelReconciliation() {
         accounts: payload.accounts || [],
         channel_listing_count: payload.channel_listing_count || 0,
         archived_count: payload.archived_count || 0,
+        account_listing_total:
+          payload.account_listing_total ||
+          (payload.channel_listing_count || 0) + (payload.archived_count || 0),
         archived_orphans: payload.archived_orphans || [],
+        archived_matched: payload.archived_matched || [],
+        conflicts: payload.conflicts || [],
         matched: payload.matched || [],
         orphans: payload.orphans || [],
         duplicates: payload.duplicates || [],
@@ -217,6 +254,66 @@ export function useChannelReconciliation() {
     (orphan: ReconOrphan) => purgeListing(orphan),
     [purgeListing],
   );
+
+  /** Points a local record at a listing verified live on the account. */
+  const repointListing = useCallback(async (row: {
+    record_id: string;
+    kind: "property" | "unit";
+    owner_id: string;
+    listing_id: string;
+  }) => {
+    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+      body: {
+        scope: "repoint_local_listing",
+        entity_id: row.record_id,
+        record_kind: row.kind,
+        owner_id: row.owner_id,
+        listing_id: row.listing_id,
+        reason: "Local listing id re-pointed during channel reconciliation",
+      },
+    });
+    if (fnError) throw new Error((await readFunctionError(fnError)) || fnError.message);
+    const payload = (data || {}) as { success?: boolean; error?: string };
+    if (payload.success === false) throw new Error(payload.error || "Could not re-point the listing id");
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            archived_matched: prev.archived_matched.filter((a) => a.record_id !== row.record_id),
+            conflicts: prev.conflicts.filter((c) => c.listing_id !== row.listing_id),
+          }
+        : prev,
+    );
+  }, []);
+
+  /** Releases a mis-wired id from one of the records claiming it. */
+  const clearConflict = useCallback(async (row: {
+    listing_id: string;
+    record_id: string;
+    kind: "property" | "unit";
+  }) => {
+    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+      body: { scope: "clear_local_listing", entity_id: row.record_id, record_kind: row.kind },
+    });
+    if (fnError) throw fnError;
+    const payload = (data || {}) as { success?: boolean; error?: string };
+    if (payload.success === false) throw new Error(payload.error || "Could not clear the local id");
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            conflicts: prev.conflicts
+              .map((c) =>
+                c.listing_id === row.listing_id
+                  ? { ...c, records: c.records.filter((r) => r.record_id !== row.record_id) }
+                  : c,
+              )
+              .filter((c) => c.records.length > 1),
+            archived_matched: prev.archived_matched.filter((a) => a.record_id !== row.record_id),
+          }
+        : prev,
+    );
+  }, []);
 
   const clearStale = useCallback(async (row: ReconStale) => {
     const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
@@ -309,6 +406,8 @@ export function useChannelReconciliation() {
     purgeListing,
     purgeOrphan,
     clearStale,
+    repointListing,
+    clearConflict,
     cleanupAll,
     cleanup,
     failures,

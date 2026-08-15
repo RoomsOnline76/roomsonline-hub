@@ -26,6 +26,7 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   live: "Live",
   paused: "Paused",
   archived: "Archived",
+  pending: "Never pushed",
 };
 
 const UNASSIGNED = "Unassigned";
@@ -132,6 +133,7 @@ export function ChannelPropertyTable({
               <SelectItem value="all">All states</SelectItem>
               <SelectItem value="live">Live</SelectItem>
               <SelectItem value="paused">Paused</SelectItem>
+              <SelectItem value="pending">Never pushed</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
