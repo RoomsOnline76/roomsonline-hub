@@ -176,26 +176,10 @@ export async function callLovableAi(options: AiCallOptions): Promise<AiCallResul
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     console.error(`[ai:${options.task}] ${model} -> ${response.status}`, detail.slice(0, 500));
-    if (response.status === 429) {
-      return {
-        ok: false,
-        content: null,
-        status: 429,
-        code: "RATE_LIMITED",
-        error: "TOBI is handling a lot of requests right now. Please try again shortly.",
-      };
-    }
-    if (response.status === 402) {
-      return {
-        ok: false,
-        content: null,
-        status: 402,
-        code: "CREDITS_EXHAUSTED",
-        error: "AI credits are exhausted. Please top up to continue using TOBI.",
-      };
-    }
-    return { ok: false, content: null, status: response.status, code: "AI_ERROR", error: detail || "AI request failed" };
+    const { code, error } = describeAiFailure(response.status, detail);
+    return { ok: false, content: null, status: response.status, code, error };
   }
+
 
   const result = await response.json();
   const content = result?.choices?.[0]?.message?.content ?? null;
