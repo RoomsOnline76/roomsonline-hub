@@ -56,9 +56,11 @@ async function detectFeaturesFromImages(imageUrls: string[], apiKey: string): Pr
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: AI_MODELS.image_validation,
-          max_tokens: 500,
-          messages: [
-            {
+          // 500 tokens truncated the JSON mid-string on multi-feature photos, so every
+          // photo threw "Unterminated string in JSON" and the scout saw no visual evidence.
+          max_tokens: 1200,
+          response_format: { type: "json_object" },
+
               role: "system",
               content:
                 'You analyse accommodation photos and list amenities, facilities and features you can clearly see. ' +
