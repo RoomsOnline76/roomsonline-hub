@@ -134,6 +134,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     signoff,
     recordSignoff,
     recordSignoffCheck,
+    listingPull,
+    recordListingPull,
     refresh,
     isLoading,
     isFetching,
@@ -245,6 +247,38 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     }
   }, [propertyId, refresh]);
 
+  /**
+   * Step 9 — pull whatever already exists under the sub-account and adopt those
+   * listing IDs so the later push updates instead of duplicating. An empty
+   * sub-account is a valid pass.
+   */
+  const pullListings = useCallback(async () => {
+    setBusy("pull_listings");
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "resolve_ru_property_ids", property_id: propertyId },
+      });
+      if (error || data?.success !== true) {
+        toast.error(data?.error?.message ?? error?.message ?? "Could not list the sub-account's listings");
+        return;
+      }
+      const matched = Array.isArray(data.matched) ? data.matched.length : 0;
+      const unmatched = Array.isArray(data.unmatched) ? data.unmatched.length : 0;
+      const remoteCount = Number(data.remote_count ?? 0);
+      await recordListingPull({ matched, unmatched, remoteCount }, user?.email ?? null);
+      toast.success(
+        remoteCount === 0
+          ? "Sub-account is empty — nothing to adopt"
+          : `${matched} listing(s) adopted${unmatched > 0 ? `, ${unmatched} unmatched` : ""}`,
+      );
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not pull listings");
+    } finally {
+      setBusy(null);
+    }
+  }, [propertyId, recordListingPull, refresh, user?.email]);
+
   const publishListing = useCallback(async () => {
     setBusy("publish");
     setPushErrors([]);
@@ -342,6 +376,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         reason,
       };
     }
+    if (macro.macro.key === "pull_listings" && isPlatformUser) {
+      return {
+        label: "Pull listings",
+        disabled: gatedAction || busy === "pull_listings",
+        run: () => void pullListings(),
+        reason,
+      };
+    }
     if (macro.macro.key === "publish") {
       return {
         label: isPlatformUser ? "Publish listing" : "Review publish step",
@@ -412,6 +454,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     goToField,
     isPlatformUser,
     publishListing,
+    pullListings,
     pushOwner,
     selectMacro,
     stages,
@@ -728,6 +771,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               locked={!!activeMacro?.locked}
               busy={busy}
               signoff={signoff}
+              listingPull={listingPull}
+              onPullListings={pullListings}
               pushErrors={pushErrors}
               unpublishedUnits={unpublishedUnits}
               publishedOk={publishedOk}
@@ -910,6 +955,8 @@ function PublishedPane({
   locked,
   busy,
   signoff,
+  listingPull,
+  onPullListings,
   pushErrors,
   unpublishedUnits,
   publishedOk,
@@ -926,6 +973,8 @@ function PublishedPane({
   locked: boolean;
   busy: string | null;
   signoff: ReturnType<typeof useRolosOnboardingProgress>["signoff"];
+  listingPull: ReturnType<typeof useRolosOnboardingProgress>["listingPull"];
+  onPullListings: () => void;
   pushErrors: string[];
   unpublishedUnits: number;
   publishedOk: boolean;
@@ -946,6 +995,39 @@ function PublishedPane({
               {busy === "ensure_owner" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
               Create or link distribution identity
             </Button>
+          )}
+        </div>
+      )}
+
+      {macroKey === "pull_listings" && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <p className="text-sm font-medium">Pull listings (if any)</p>
+          <p className="text-xs text-muted-foreground">
+            Lists everything already present under the sub-account and links matches to this property and its
+            units by name, so the push updates an existing listing instead of creating a duplicate.
+          </p>
+          {listingPull ? (
+            <p className="text-sm text-emerald-600">
+              {listingPull.remoteCount === 0
+                ? "Sub-account was empty — nothing to adopt."
+                : `${listingPull.matched} listing(s) adopted of ${listingPull.remoteCount}${
+                    listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
+                  }.`}
+              <span className="block text-[11px] text-muted-foreground">
+                Pulled {new Date(listingPull.at).toLocaleString()}
+                {listingPull.by ? ` · ${listingPull.by}` : ""}
+              </span>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Not pulled yet.</p>
+          )}
+          {isPlatformUser ? (
+            <Button variant={listingPull ? "outline" : "default"} onClick={onPullListings} disabled={locked || busy === "pull_listings"}>
+              {busy === "pull_listings" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
+              {listingPull ? "Pull again" : "Pull listings now"}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">An admin runs this check before the listing is published.</p>
           )}
         </div>
       )}
