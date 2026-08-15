@@ -386,6 +386,9 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setProperties(priced);
       setEvents((eventsRes.data || []) as ArchiveEventRow[]);
       setFx(fxRate);
+      void resolveEurToZar().then((rate) => {
+        if (rate) setFx(rate);
+      });
       const defaultsRows = (defaultsRes?.data || []) as Array<{ channel_manager_per_unit_fee: number | null }>;
       const perUnit = defaultsRows.find((r) => (r.channel_manager_per_unit_fee ?? 0) > 0)?.channel_manager_per_unit_fee;
       setRolPerListingZar(perUnit != null ? Number(perUnit) : null);
