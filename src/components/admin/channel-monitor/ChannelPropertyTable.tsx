@@ -47,14 +47,40 @@ export function ChannelPropertyTable({
   // Portfolios start collapsed by default; user expands the ones they want to inspect.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
-  // Collapse all portfolio groups on first load (and whenever the set of group
-  // names changes). Portfolios collapse by default per product request.
-  const groupNames = useMemo(() => groups.map((g) => g.name), [groups]);
-  useMemo(() => {
-    setCollapsed(new Set(groupNames));
-    return null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupNames.join("|")]);
+  // Portfolios collapse by default: seed the collapsed set with every group
+  // name once groups are computed. Uses a ref to avoid re-collapsing after the
+  // user manually expands a group on subsequent renders.
+  const groups = useMemo(() => {
+    const map = new Map<string, ChannelPropertyRow[]>();
+    for (const r of filtered) {
+      const key = r.portfolioName || UNASSIGNED;
+      const list = map.get(key);
+      if (list) list.push(r);
+      else map.set(key, [r]);
+    }
+    return Array.from(map.entries())
+      .map(([name, groupRows]) => ({
+        name,
+        rows: [...groupRows].sort((a, b) => a.name.localeCompare(b.name)),
+        listings: groupRows.reduce((sum, r) => sum + r.listings, 0),
+        duplicates: groupRows.reduce((sum, r) => sum + r.duplicateListings, 0),
+        monthlyCostEur: groupRows.reduce((sum, r) => sum + r.monthlyCostEur, 0),
+      }))
+      .sort((a, b) => {
+        if (a.name === UNASSIGNED) return 1;
+        if (b.name === UNASSIGNED) return -1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [filtered]);
+
+  // One-shot: collapse all groups the first time they appear.
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (!didInit.current && groups.length > 0) {
+      didInit.current = true;
+      setCollapsed(new Set(groups.map((g) => g.name)));
+    }
+  }, [groups]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const portfolios = useMemo(
