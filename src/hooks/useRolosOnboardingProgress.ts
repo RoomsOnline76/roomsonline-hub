@@ -745,10 +745,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     currentMacro,
     overall,
     channelsConnected,
+    channelsLive,
+    readyRegressed,
+    ariProbedAt: d?.ariAge ?? null,
+    ariProbeRequested: probeAri,
     publishedOk,
     unpublishedUnits,
     blockingMacros,
     gateSignature,
+
 
     signoff,
     recordSignoff,
