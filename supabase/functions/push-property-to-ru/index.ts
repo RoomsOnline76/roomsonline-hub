@@ -4757,11 +4757,13 @@ Deno.serve(async (req) => {
         error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
         details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
       });
+      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id) : null;
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
           // mark phase 3 complete on a building-only push.
           success: allUnitsPushed,
+          ...(buildingListingVerification ? { listing_verification: buildingListingVerification } : {}),
           ...(allUnitsPushed ? {} : {
             error: {
               code: 'RU_INVENTORY_INCOMPLETE',
