@@ -185,6 +185,8 @@ export function PortfolioRuAccountsTab() {
   const [verifyingKeys, setVerifyingKeys] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
   const [removingKeys, setRemovingKeys] = useState<string | null>(null);
+  const [removeKeysFor, setRemoveKeysFor] = useState<{ id: string; ownerId: string | null; label: string } | null>(null);
+
 
 
 
@@ -545,11 +547,10 @@ export function PortfolioRuAccountsTab() {
   }, [refreshAccounts, refreshStoredKeys]);
 
   /** Manual reset: drop the stored key pair locally so a fresh one can be captured. */
-  const removeApiKeys = useCallback(async (accountId: string, ownerId?: string | null, label?: string) => {
-    if (!window.confirm(
-      `Remove the stored Rentals United API keys${ownerId ? ` for OwnerID ${ownerId}` : ""}${label ? ` (${label})` : ""}?\n\nNothing changes on Rentals United — the pair is cleared here so a correct pair can be captured again.`,
-    )) return;
+  const removeApiKeys = useCallback(async (accountId: string, ownerId?: string | null) => {
+    setRemoveKeysFor(null);
     setRemovingKeys(accountId);
+
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "delete_api_keys", account_id: accountId, ru_owner_id: ownerId ?? undefined },
@@ -1134,12 +1135,13 @@ export function PortfolioRuAccountsTab() {
                             className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
                             disabled={!activeAccessKey || removingKeys === acc.id}
                             onClick={() =>
-                              removeApiKeys(
-                                acc.id,
-                                acc.ru_owner_id,
-                                acc.ru_login_email || acc.owner_email,
-                              )
+                              setRemoveKeysFor({
+                                id: acc.id,
+                                ownerId: acc.ru_owner_id,
+                                label: acc.ru_login_email || acc.owner_email,
+                              })
                             }
+
                             title="Clear the stored key pair so a correct one can be captured"
                           >
                             {removingKeys === acc.id
@@ -1770,6 +1772,42 @@ export function PortfolioRuAccountsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!removeKeysFor} onOpenChange={(o) => !o && setRemoveKeysFor(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4 text-destructive" />
+              Remove stored API keys
+            </DialogTitle>
+            <DialogDescription>
+              {removeKeysFor
+                ? `Clear the stored Channel Manager API key pair${removeKeysFor.ownerId ? ` for OwnerID ${removeKeysFor.ownerId}` : ""} (${removeKeysFor.label}). Nothing changes on the channel — the pair is cleared here so a correct pair can be captured again.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setRemoveKeysFor(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!removingKeys}
+              onClick={() => removeKeysFor && removeApiKeys(removeKeysFor.id, removeKeysFor.ownerId)}
+            >
+              {removingKeys ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="h-3 w-3 mr-1" />
+              )}
+              Remove keys
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
 
     </div>
   );
