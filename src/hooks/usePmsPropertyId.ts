@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { applyAdminScope, filterToItTestProperties, isItTestAdminEmail } from "@/lib/adminScope";
+import { applyAdminScope } from "@/lib/adminScope";
 
 export interface RolProperty {
   id: string;
