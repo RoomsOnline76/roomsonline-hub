@@ -245,12 +245,14 @@ Respond with JSON only, shape:
 
     if (!aiResp.ok) {
       const text = await aiResp.text();
-      console.error("xAI error", aiResp.status, text);
+      console.error("[tobi] amenity scout gateway error", aiResp.status, text.slice(0, 500));
+      const { code, error } = describeAiFailure(aiResp.status, text);
       return json(
-        { success: false, error: `TOBI request failed (${aiResp.status})`, detail: text.slice(0, 500) },
-        aiResp.status === 429 ? 429 : 502,
+        { success: false, code, error, detail: text.slice(0, 300) },
+        aiResp.status === 429 || aiResp.status === 402 || aiResp.status === 403 ? aiResp.status : 502,
       );
     }
+
 
     const aiJson = await aiResp.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
