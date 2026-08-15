@@ -51,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addDays, isBefore } from "date-fns";
