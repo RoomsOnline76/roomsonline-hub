@@ -533,46 +533,62 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
           owner_email: account?.owner_email ?? null,
           listing_count: liveListings.length,
+          total_listing_count: listings.length,
           error: null,
           is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         });
 
         for (const l of listings) {
           const id = String(l.id);
-          const local = localByListing.get(id);
+          const locals = localByListing.get(id) || [];
+          const name = l.name || locals[0]?.label || "Unnamed listing";
+
           // Archived listings stay in the channel property feed forever (they are
-          // only hidden in the channel portal) and never bill, so they are counted
-          // and listed apart from anything actionable.
+          // only hidden in the channel portal) and never sell or bill. They are
+          // classified here and never counted as live as well.
           if (l.is_archived === true) {
             archivedOnChannel.add(id);
-            if (!local) {
-              archivedOrphans.push({ listing_id: id, name: l.name || "Unnamed listing", owner_id: ownerId });
+            if (locals.length === 0) {
+              archivedOrphans.push({ listing_id: id, name, owner_id: ownerId });
               continue;
             }
-          }
-          seenOnChannel.add(id);
-          liveRows.push({ listing_id: id, name: l.name || local?.label || "Unnamed listing", owner_id: ownerId, matched: !!local });
-          if (!local) {
-            orphans.push({
-              listing_id: id,
-              name: l.name || "Unnamed listing",
-              owner_id: ownerId,
-              is_archived: false,
-            });
+            for (const local of locals) {
+              archivedMatched.push({
+                listing_id: id,
+                name,
+                owner_id: ownerId,
+                local_label: local.label,
+                kind: local.kind,
+                record_id: local.recordId,
+                property_id: local.propertyId,
+                local_active: local.isActive,
+                live_alternative_id: null,
+              });
+            }
             continue;
           }
 
-          matched.push({
-            listing_id: id,
-            name: l.name || local.label,
-            owner_id: ownerId,
-            is_archived: l.is_archived === true,
-            local_label: local.label,
-            local_active: local.isActive,
-            kind: local.kind,
-          });
+          liveOnChannel.add(id);
+          liveRows.push({ listing_id: id, name, owner_id: ownerId, matched: locals.length > 0 });
+          if (locals.length === 0) {
+            orphans.push({ listing_id: id, name, owner_id: ownerId, is_archived: false });
+            continue;
+          }
+
+          for (const local of locals) {
+            matched.push({
+              listing_id: id,
+              name,
+              owner_id: ownerId,
+              is_archived: false,
+              local_label: local.label,
+              local_active: local.isActive,
+              kind: local.kind,
+            });
+          }
         }
       }
+
 
       /**
        * Same-name copies on one account. Repeated creates put several listings on the account for
