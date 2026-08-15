@@ -360,22 +360,33 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           unmatched?: number;
           remote_count?: number;
           account?: string | null;
+          owner_id?: string | null;
           auth_mode?: string | null;
         }
       | null;
-    return lp && lp.at
-      ? {
-          at: String(lp.at),
-          by: lp.by ?? null,
-          matched: Number(lp.matched ?? 0),
-          unmatched: Number(lp.unmatched ?? 0),
-          remoteCount: Number(lp.remote_count ?? 0),
-          /** The distribution sub-account the pull actually authenticated as. */
-          account: lp.account ?? null,
-          authMode: lp.auth_mode ?? null,
-        }
-      : null;
-  }, [d?.roadmap]);
+    if (!lp || !lp.at) return null;
+    const boundOwnerId = String(d?.identity?.account?.ru_owner_id ?? "").trim();
+    const pulledOwnerId = String(lp.owner_id ?? "").trim();
+    return {
+      at: String(lp.at),
+      by: lp.by ?? null,
+      matched: Number(lp.matched ?? 0),
+      unmatched: Number(lp.unmatched ?? 0),
+      remoteCount: Number(lp.remote_count ?? 0),
+      /** The distribution sub-account the pull actually authenticated as. */
+      account: lp.account ?? null,
+      ownerId: pulledOwnerId || null,
+      authMode: lp.auth_mode ?? null,
+      /**
+       * A pull recorded against a different OwnerID than the one now bound is
+       * evidence about another account — it must not keep the step green, or the
+       * card reports listings from an account this property no longer uses.
+       */
+      stale: !!boundOwnerId && !!pulledOwnerId && boundOwnerId !== pulledOwnerId,
+      boundOwnerId: boundOwnerId || null,
+    };
+  }, [d?.identity?.account?.ru_owner_id, d?.roadmap]);
+
 
 
 
