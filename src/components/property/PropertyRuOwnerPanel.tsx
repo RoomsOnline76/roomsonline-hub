@@ -562,8 +562,28 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
 
             </div>
 
-            <Separator />
-            <RuWhiteLabelTokenFields propertyId={propertyId} readOnly={readOnly} />
+            {!readOnly && isAdmin && (
+              <>
+                <Separator />
+                <div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1.5 px-1 text-xs text-muted-foreground"
+                    onClick={() => setShowWlTokens((v) => !v)}
+                  >
+                    {showWlTokens ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    Advanced · White Label tokens (optional)
+                  </Button>
+                  {showWlTokens && (
+                    <div className="mt-2">
+                      <RuWhiteLabelTokenFields propertyId={propertyId} readOnly={readOnly} />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
           </>
         )}
 
