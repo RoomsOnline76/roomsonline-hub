@@ -4061,7 +4061,18 @@ Deno.serve(async (req) => {
         sales_channel: salesChannel,
       };
       // Re-opening the wizard (or switching tabs) must not re-derive the whole scorecard.
-      if (!probeAri && !readinessUnknown) phaseStatusCache.set(propertyId, { at: Date.now(), payload });
+      if (!readinessUnknown) {
+        phaseStatusCache.set(propertyId, { at: Date.now(), payload });
+        try {
+          await admin.from("ru_readiness_snapshots").upsert({
+            property_id: propertyId,
+            phase_payload: payload,
+            phase_payload_at: new Date().toISOString(),
+          }, { onConflict: "property_id" });
+        } catch (e) {
+          console.warn("[ru-cert-portal] phase payload cache write failed:", e);
+        }
+      }
       return json(payload);
 
     }
