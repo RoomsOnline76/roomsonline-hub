@@ -714,7 +714,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               />
               <div className="mt-3">
                 <OnboardingTobiPanel
-                  defaultOpen
                   context={{
                     wizard: "channel",
                     propertyId,
