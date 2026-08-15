@@ -44,6 +44,8 @@ export interface ChannelPropertyRow {
   monthlyCostEur: number;
   /** Counts in dashboards/metrics: staff-flagged trading and not sandbox. */
   isTrading: boolean;
+  /** Push is switched on but nothing was ever created at the channel manager. */
+  neverPushed: boolean;
   /** RU owner account id (OwnerID) linked to this property. */
   ownerId: string | null;
   /** RU sub-user account id (UserID) linked to this property. */
