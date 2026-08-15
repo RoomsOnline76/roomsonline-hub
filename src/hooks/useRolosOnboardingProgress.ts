@@ -432,9 +432,28 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           : "Not verified",
     });
 
-    // Macro 8 — publish. Leftover listing IDs from a previous bind do not count
+    // Macro 8 — sub-account verification runs before the push (see macro registry);
+    // its check is defined below with the other manual state.
+
+    // Macro 9 — pull existing listings under the sub-account before publishing.
+    const pullDone = !!listingPull;
+    put("listings_pulled", "Existing listings pulled & adopted", bound && pullDone, {
+      waiting: !bound,
+      detail: !bound
+        ? unboundDependentDetail("publish")
+        : listingPull
+          ? listingPull.remoteCount === 0
+            ? "Nothing to adopt — sub-account is empty"
+            : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
+                listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
+              }`
+          : "Not pulled yet",
+    });
+
+    // Macro 10 — publish. Leftover listing IDs from a previous bind do not count
     // while the property is unbound (no owner key & secret).
     const units = (d?.units ?? []) as { name?: string | null; is_active: boolean | null; rentalsunited_property_id: string | null }[];
+
     const activeUnits = units.filter((u) => u.is_active !== false);
     const unitsWithIds = activeUnits.filter((u) => !!String(u.rentalsunited_property_id ?? "").trim()).length;
     const propertyListingId = !!String(prop.rentalsunited_property_id ?? "").trim();
