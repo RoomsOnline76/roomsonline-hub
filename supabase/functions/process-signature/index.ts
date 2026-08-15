@@ -475,28 +475,56 @@ Deno.serve(async (req) => {
 </html>`;
 
       const signeeAddr = (signee_email || "").trim().toLowerCase();
+      const ownerAddr = String(contract.owner_email ?? "").trim().toLowerCase();
+      const auditBlock = `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`;
 
-      // Send to signee
-      await resend.emails.send({
-        from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-        to: signee_email,
-        subject: `Contract Signed - ${propertiesText}`,
-        html: emailHtml,
-      });
+      // One mailbox must never receive the same signature twice. Internal signers
+      // (roomsonline.co.za addresses, including aliases that land in the team inbox)
+      // get a single combined message instead of a signee copy plus a team copy.
+      const internalDomains = ["roomsonline.co.za"];
+      const isInternalSigner = internalDomains.some(
+        (dom) => signeeAddr.endsWith(`@${dom}`) || ownerAddr.endsWith(`@${dom}`),
+      );
 
-      // Single internal notification (deduped, and never a duplicate to the signee)
-      const internalRecipients = ["carike@roomsonline.co.za", "sleepinafrica@roomsonline.co.za"]
-        .filter((addr, i, arr) => arr.indexOf(addr) === i && addr !== signeeAddr);
+      const teamRecipients = ["carike@roomsonline.co.za", "sleepinafrica@roomsonline.co.za"]
+        .filter((addr, i, arr) => arr.indexOf(addr) === i && addr !== signeeAddr && addr !== ownerAddr);
 
-      if (internalRecipients.length > 0) {
+      if (isInternalSigner) {
         await resend.emails.send({
           from: "RoomsOnline <hello@notify.roomsonline.co.za>",
-          to: internalRecipients,
+          to: [signeeAddr, ...teamRecipients].filter(Boolean),
           subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
-          html: emailHtml.replace("Dear " + signee_name, "Dear Team") +
-            `<p style="color: #666; font-size: 12px;">Signed by: ${signee_name} (${signee_email}) from IP: ${clientIp}</p>${isNewOwner ? `<p style="color: #666; font-size: 12px;">New property created: ${createdPropertyName}</p>` : ''}`,
+          html: emailHtml + auditBlock,
         });
+      } else {
+        await resend.emails.send({
+          from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+          to: signee_email,
+          subject: `Contract Signed - ${propertiesText}`,
+          html: emailHtml,
+        });
+
+        if (teamRecipients.length > 0) {
+          await resend.emails.send({
+            from: "RoomsOnline <hello@notify.roomsonline.co.za>",
+            to: teamRecipients,
+            subject: `[Contract Signed] ${propertiesText} - ${signee_name}${isNewOwner ? ' (NEW OWNER)' : ''}`,
+            html: emailHtml.replace("Dear " + signee_name, "Dear Team") + auditBlock,
+          });
+        }
       }
+
+      // Idempotency marker: a replayed signature or retried invoke must not re-send.
+      await supabase
+        .from(tableName)
+        .update({
+          metadata: {
+            ...((contract.metadata ?? {}) as Record<string, unknown>),
+            signed_notification_sent_at: new Date().toISOString(),
+          } as never,
+        })
+        .eq("id", contract_id);
+
 
 
       // For new owners, also send password reset email so they can set up their account
