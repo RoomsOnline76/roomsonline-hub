@@ -1541,6 +1541,46 @@ Deno.serve(async (req) => {
           snapshot_held: snapshotHeldAvailability || snapshotHeldPrices,
         };
 
+      } else if (ruIds.length > 0 && ariSnapshot) {
+        // Published, probing intentionally skipped for a fast paint: serve the stored verdict
+        // instead of re-pulling every unit's calendar on page load.
+        const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
+        if (ariSnapshot.worst_window) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+        } else {
+          extraChecks.push(
+            ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
+          );
+        }
+        extraChecks.push({
+          key: "ari_availability", group: "Availability 365d",
+          label: "Availability pushed for the next 365 days",
+          mandatory: true,
+          passed: ariSnapshot.availability_ok || (localWindow.ok && localWindow.open_days > 0),
+          detail: ariSnapshot.availability_ok
+            ? snapshotAge(ariSnapshot.probed_at)
+            : `${localWindow.open_days} open day(s) in the local calendar — refresh to re-verify on the channel`,
+          fix_hint: "Rate Manager → Calendar / availability",
+        });
+        extraChecks.push({
+          key: "ari_prices", group: "Pricing 365d",
+          label: ariSnapshot.prices_ok ? "Rates verified on RU for the next 365 days" : "Local rates ready for the next 365 days",
+          mandatory: true,
+          passed: ariSnapshot.prices_ok || localPricingReady,
+          detail: ariSnapshot.prices_ok
+            ? snapshotAge(ariSnapshot.probed_at)
+            : `Local rates ready${localCoverage ? ` — ${localCoverage.summary}` : ""}; refresh to re-verify on the channel`,
+          fix_hint: "Calendar seasons & rates (first), then Rate Manager → Rates rack rate",
+        });
+        ari = {
+          ru_property_ids: ruIds,
+          rate_coverage: localCoverage,
+          availability_ok: ariSnapshot.availability_ok,
+          prices_ok: ariSnapshot.prices_ok || localPricingReady,
+          units: ariSnapshot.units ?? [],
+          from_snapshot: true,
+          snapshot_at: ariSnapshot.probed_at,
+        };
       } else {
         // Pre-publish: there is no RU property ID yet, so live ARI simply cannot exist.
         // The wizard must not block on a verification that only becomes possible AFTER
@@ -1572,6 +1612,7 @@ Deno.serve(async (req) => {
         });
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
+
 
       // A unit whose ROL'OS room-type link is dangling (the room type was replaced) resolves
       // to no plan, no rack rate and no daily rate. Reporting that as "rates missing for 365
