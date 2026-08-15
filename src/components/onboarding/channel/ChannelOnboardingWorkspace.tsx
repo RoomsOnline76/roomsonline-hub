@@ -788,15 +788,21 @@ function BlockerList({
 }) {
   const outstanding = progress.fieldItems.filter((i) => !i.satisfied);
   const checks = progress.stateChecks;
-  if (outstanding.length === 0 && checks.every((c) => c.ok)) return null;
+  /**
+   * Actionable = something the user can actually correct. Checks that are merely
+   * waiting on an earlier step, or that the resolver could not judge, are shown
+   * separately and without a Fix button — presenting them as blockers is what made
+   * the wizard feel wrong ("none of these are true").
+   */
+  const actionable = checks.filter((c) => !c.ok && !c.unknown && !c.waiting);
+  const pending = checks.filter((c) => !c.ok && (c.unknown || c.waiting));
+  if (outstanding.length === 0 && actionable.length === 0 && pending.length === 0) return null;
 
   return (
     <div className="mt-3 space-y-2">
-      {checks
-        .filter((c) => !c.ok)
-        .map((c) => (
-          <CheckRows key={c.key} check={c} units={units} onGoToField={onGoToField} />
-        ))}
+      {actionable.map((c) => (
+        <CheckRows key={c.key} check={c} units={units} onGoToField={onGoToField} />
+      ))}
       {outstanding.slice(0, 8).map((item) => (
         <button
           key={item.key}
@@ -810,9 +816,23 @@ function BlockerList({
           </span>
         </button>
       ))}
+      {pending.length > 0 && (
+        <div className="rounded-md border border-dashed px-2 py-1.5">
+          <p className="text-[11px] font-medium text-muted-foreground">Waiting on the channel — nothing to fix here</p>
+          <ul className="mt-1 space-y-0.5">
+            {pending.map((c) => (
+              <li key={c.key} className="text-[11px] text-muted-foreground">
+                {c.label}
+                {c.waiting ? " · waiting on an earlier step" : " · not yet resolvable"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
+
 
 function CheckRows({
   check,
