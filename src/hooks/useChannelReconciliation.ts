@@ -3,15 +3,40 @@ import { supabase } from "@/integrations/supabase/client";
 
 export interface ReconAccount {
   owner_id: string;
+  /** Portal login for the sub-account — the address used to sign in at the channel. */
   owner_email: string | null;
+  login_email?: string | null;
+  /** Contact address stored against the account, when it differs from the login. */
+  contact_email?: string | null;
+  /** Canonical one-line label: login · OwnerID (contact …). */
+  owner_label?: string;
+  /** True when ROL'OS has this sub-account bound to a portfolio/property. */
+  bound?: boolean;
+  /** True when an AccessKey + SecretKey are stored, so the account can be read. */
+  has_keys?: boolean;
   /** Live (non-archived) listings the account holds. */
   listing_count: number;
+  archived_count?: number;
   /** Every listing the account holds, live and archived. */
   total_listing_count?: number;
   error: string | null;
   /** True when this is the master/parent account, which may never hold listings. */
   is_master?: boolean;
 }
+
+/** A listing held by a sub-account ROL'OS has not bound — reported, never deleted. */
+export interface ReconForeignListing {
+  listing_id: string;
+  name: string;
+  owner_id: string;
+  owner_label: string;
+  is_archived: boolean;
+  local_label: string | null;
+  kind: "property" | "unit" | null;
+  record_id: string | null;
+  property_id: string | null;
+}
+
 
 export interface ReconArchived {
   listing_id: string;
