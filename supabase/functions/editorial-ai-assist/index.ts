@@ -1,4 +1,4 @@
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,8 +68,12 @@ Requirements:
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("AI gateway error:", response.status, errorText);
-        throw new Error(`AI gateway error: ${response.status}`);
+        console.error("[tobi] meta gateway error", response.status, errorText.slice(0, 400));
+        const { code, error } = describeAiFailure(response.status, errorText);
+        return new Response(JSON.stringify({ code, error }), {
+          status: [429, 402, 403].includes(response.status) ? response.status : 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const aiResponse = await response.json();
@@ -124,20 +128,12 @@ RULES
       });
 
       if (!descRes.ok) {
-        if (descRes.status === 429) {
-          return new Response(JSON.stringify({ error: "TOBI is busy right now — please try again shortly." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (descRes.status === 402) {
-          return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        const detail = await descRes.text();
-        console.error("property description AI error:", descRes.status, detail.slice(0, 400));
-        return new Response(JSON.stringify({ error: "TOBI could not write the description." }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        const detail = await descRes.text().catch(() => "");
+        console.error("[tobi] property description gateway error", descRes.status, detail.slice(0, 400));
+        const { code, error } = describeAiFailure(descRes.status, detail);
+        return new Response(JSON.stringify({ code, error }), {
+          status: [429, 402, 403].includes(descRes.status) ? descRes.status : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -317,8 +313,9 @@ RULES
       if (!res.ok) {
         const detail = await res.text();
         console.error("TOBI listing copy error:", res.status, detail.slice(0, 400));
-        return new Response(JSON.stringify({ error: "TOBI could not write that copy." }), {
-          status: res.status === 429 || res.status === 402 ? res.status : 500,
+        const { code, error } = describeAiFailure(res.status, detail);
+        return new Response(JSON.stringify({ code, error }), {
+          status: [429, 402, 403].includes(res.status) ? res.status : 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -471,21 +468,13 @@ ${!existingContent?.who_its_not_for ? "5. who_its_not_for: Who should consider o
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "TOBI is temporarily unavailable — credits exhausted." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      const errorText = await response.text().catch(() => "");
+      console.error("[tobi] editorial gateway error", response.status, errorText.slice(0, 400));
+      const { code, error } = describeAiFailure(response.status, errorText);
+      return new Response(JSON.stringify({ code, error }), {
+        status: [429, 402, 403].includes(response.status) ? response.status : 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const aiResponse = await response.json();
