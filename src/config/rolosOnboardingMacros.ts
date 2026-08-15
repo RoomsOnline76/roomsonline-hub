@@ -26,12 +26,14 @@ export type DistributionCheckKey =
   | "sub_owner_id"
   | "api_keys_stored"
   | "api_keys_verified"
+  | "manual_signoff"
+  | "listings_pulled"
   | "listing_ids"
   | "quality_check"
   | "currency_verified"
-  | "manual_signoff"
   | "channel_entitlement"
   | "channels_connected";
+
 
 export interface MacroStateTask {
   kind: "state";
