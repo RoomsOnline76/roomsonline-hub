@@ -330,7 +330,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const actorEmail = userData.user.email ?? null;
+    const actorEmail = actorEmailResolved;
 
     // One trace per request: the caller may pass its own so a whole "clean up
     // all" run reads as a single chain in the exchange log.
