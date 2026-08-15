@@ -212,20 +212,15 @@ export async function evaluatePhases(
     }
   }
 
-  const expectedEmail: string | null = authorityEmails.size > 0 ? [...authorityEmails][0] : null;
   const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
   // A sub-account that already exists at the channel is its own authority: the login was
-  // registered there and cannot be re-pointed. Only a *different* real owner email that is
-  // itself usable as a channel login makes the stored login stale.
-  const emailMismatch =
-    Boolean(account?.ru_owner_id) &&
-    Boolean(storedEmail) &&
-    authorityEmails.size > 0 &&
-    !authorityEmails.has(storedEmail) &&
-    // internal ROL addresses (connect@/info@/rooms@…) are legitimate testing/owner logins,
-    // so their presence on the property never invalidates a live sub-account.
-    ![...authorityEmails].some((e) => !isInternal(e) && e !== storedEmail) === false &&
-    true;
+  // registered there and cannot be re-pointed, and internal ROL addresses (connect@, rooms@…)
+  // are legitimate owner/testing logins. So a live sub-user is never "stale" — only a
+  // property with no sub-user at all still needs the owner email to create one.
+  if (account?.ru_owner_id && storedEmail) authorityEmails.add(storedEmail);
+  const expectedEmail: string | null = authorityEmails.size > 0 ? [...authorityEmails][0] : null;
+  const emailMismatch = false;
+
 
 
 
