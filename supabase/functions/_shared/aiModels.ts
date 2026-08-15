@@ -262,5 +262,3 @@ export async function callLovableAi(options: AiCallOptions): Promise<AiCallResul
   const content = result?.choices?.[0]?.message?.content ?? null;
   return { ok: true, content, status: 200, raw: result };
 }
-
-}
