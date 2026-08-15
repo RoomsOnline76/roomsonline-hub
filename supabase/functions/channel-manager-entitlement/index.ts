@@ -551,6 +551,22 @@ Deno.serve(async (req) => {
       }> = [];
       // Every live listing, kept so same-name copies on one account can be grouped afterwards.
       const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
+      // Listings held by a sub-account ROL'OS has not bound. These are NOT orphans
+      // to delete — they belong to another account and are only reported.
+      const foreignListings: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        owner_label: string;
+        is_archived: boolean;
+        local_label: string | null;
+        kind: "property" | "unit" | null;
+        record_id: string | null;
+        property_id: string | null;
+      }> = [];
+      // Anything seen on any account (bound or not) — a local id pointing here is not stale.
+      const seenAnywhere = new Set<string>();
+
 
 
       // The channel rate-limits repeated pulls, so a large account list can
