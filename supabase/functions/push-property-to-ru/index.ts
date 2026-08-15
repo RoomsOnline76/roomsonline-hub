@@ -86,6 +86,65 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+interface ListingVerification {
+  verified: boolean;
+  verified_units?: number;
+  expected_units?: number;
+  unmatched?: string[];
+  owner?: string | null;
+  error?: string;
+}
+
+/**
+ * Reading the listings back is part of publishing, not a separate chore: a push whose
+ * listings were never pulled back is a claim, not a fact. This runs the same resolver the
+ * console offers manually (`resolve_ru_property_ids`) straight after a successful live push,
+ * so the wizard lands on "confirmed" or on an explicit reason — never on a silent
+ * "pushed but not read back" with nothing to click.
+ *
+ * Best-effort: a failed read-back leaves the property unverified but never fails the push.
+ */
+async function verifyListingsAfterPush(
+  supabase: ReturnType<typeof createClient>,
+  propertyId: string,
+): Promise<ListingVerification> {
+  try {
+    const { data, error } = await supabase.functions.invoke('ru-cert-portal', {
+      body: { action: 'resolve_ru_property_ids', property_id: propertyId },
+    });
+    if (error || (data as { success?: boolean } | null)?.success !== true) {
+      const message = (data as { error?: { message?: string } } | null)?.error?.message
+        ?? error?.message
+        ?? 'The channel did not return its listing set';
+      console.warn(`[push-property-to-ru] listing read-back failed for ${propertyId}: ${message}`);
+      return { verified: false, error: message };
+    }
+    const payload = data as {
+      matched?: { scope?: string }[];
+      unmatched?: string[];
+      ru_owner_label?: string;
+      listings_verified?: boolean;
+    };
+    const { data: row } = await supabase
+      .from('properties')
+      .select('ru_listings_verified_at, ru_listings_verified_units, ru_listings_expected_units, ru_listings_verified_owner')
+      .eq('id', propertyId)
+      .maybeSingle();
+    const r = row as Record<string, unknown> | null;
+    return {
+      verified: !!String(r?.ru_listings_verified_at ?? '').trim(),
+      verified_units: Number(r?.ru_listings_verified_units ?? 0),
+      expected_units: Number(r?.ru_listings_expected_units ?? 0),
+      unmatched: Array.isArray(payload.unmatched) ? payload.unmatched : [],
+      owner: (r?.ru_listings_verified_owner as string | null) ?? payload.ru_owner_label ?? null,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Listing read-back failed';
+    console.warn(`[push-property-to-ru] listing read-back threw for ${propertyId}: ${message}`);
+    return { verified: false, error: message };
+  }
+}
+
 // ── RU Type Mapping ──────────────────────────────────────────
 
 const PROPERTY_TYPE_MAP: Record<string, number> = {
