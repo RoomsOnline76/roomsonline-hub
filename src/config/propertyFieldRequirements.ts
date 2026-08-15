@@ -1149,5 +1149,17 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   max_stay_set: ["max_stay_set"],
   object_type_authored: ["room_channel_type"],
   changeover_authored: ["changeover_rules"],
+  // Wizard state-check ids (see src/hooks/useRolosOnboardingProgress.ts). Without
+  // these the "Fix: …" button had nowhere to send the user.
+  content_quality: ["description", "name", "property_type"],
+  address_geo: ["address", "postal_code", "geo", "city", "country"],
+  rooms_beds: ["room_beds", "room_bedroom_composition", "rooms"],
+  photos: ["images", "hero_image"],
+  policies_payments: ["master_policy", "payment_methods"],
+  timezone_format: ["timezone"],
+  location_id: ["ru_location_id"],
+  google_place_id: ["google_place_id"],
+  contract_signed: ["owner_email"],
 };
+
 
