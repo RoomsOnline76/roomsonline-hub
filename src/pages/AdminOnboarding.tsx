@@ -366,14 +366,14 @@ export default function AdminOnboarding() {
       const ids = (propData || []).map((p) => p.id);
       const emails = [...new Set((propData || []).map((p) => p.owner_email).filter(Boolean))] as string[];
 
-      const [{ data: connectionData }, { data: billingData }, { data: contractData }, { data: unitData }, { data: ratePlanData }, contactResult] =
+      const [{ data: connectionData }, billingByProperty, { data: contractData }, { data: unitData }, { data: ratePlanData }, contactResult] =
         await Promise.all([
         ids.length
           ? supabase.from("rolos_channel_connections").select("property_id, status").in("property_id", ids)
           : Promise.resolve({ data: [] as { property_id: string; status: string }[] }),
-        ids.length
-          ? supabase.from("property_billing_configs").select("property_id, channel_manager_enabled").in("property_id", ids)
-          : Promise.resolve({ data: [] as { property_id: string; channel_manager_enabled: boolean | null }[] }),
+        // Portfolio-first: a member property is billed from its portfolio config,
+        // so the per-property row alone would under-report the entitlement.
+        fetchChannelManagerEntitlements(ids),
         emails.length
           ? supabase
               .from("owner_contracts")
@@ -447,9 +447,6 @@ export default function AdminOnboarding() {
           connectedByProperty.set(c.property_id, (connectedByProperty.get(c.property_id) ?? 0) + 1);
         }
       });
-      const billingByProperty = new Map(
-        (billingData ?? []).map((b) => [b.property_id, b.channel_manager_enabled === true]),
-      );
       const unitsByProperty = new Map<string, { active: number; published: number }>();
       const roomsByProperty = new Map<string, NonNullable<typeof unitData>>();
       (unitData ?? []).forEach((u) => {
