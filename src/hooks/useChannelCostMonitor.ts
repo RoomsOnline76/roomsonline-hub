@@ -387,6 +387,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           lastPushAt: lastPush.get(p.id) ?? null,
           monthlyCostEur: 0,
           isTrading: p.is_trading === true,
+          neverPushed,
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
         } satisfies ChannelPropertyRow;
