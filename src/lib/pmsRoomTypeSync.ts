@@ -240,6 +240,54 @@ export async function syncRolosRoomTypesFromOverview(propertyId: string) {
     }
   }
 
+  await repairUnitRoomTypeLinks(propertyId);
+
   return { inserted: inserts.length, updated: updates.length, reactivated, retired };
 }
+
+/**
+ * Re-point units whose `linked_rolos_id` no longer resolves to a live room type.
+ *
+ * Replacing a room type used to orphan the unit link, and since every rate tier
+ * (calendar season, plan season, rack) is keyed off that link, the unit silently
+ * priced nothing — reported downstream as "no rates for the next 365 days".
+ */
+export async function repairUnitRoomTypeLinks(propertyId: string): Promise<number> {
+  try {
+    const [{ data: units }, { data: roomTypes }] = await Promise.all([
+      supabase
+        .from("hostfully_room_types")
+        .select("id, name, linked_rolos_id")
+        .eq("property_id", propertyId)
+        .eq("is_active", true),
+      supabase
+        .from("rolos_room_types")
+        .select("id, name")
+        .eq("property_id", propertyId)
+        .eq("is_active", true),
+    ]);
+
+    const liveIds = new Set((roomTypes ?? []).map((r) => r.id));
+    const byName = new Map(
+      (roomTypes ?? []).map((r) => [normalizeRoomTypeName(String(r.name ?? "")), r.id]),
+    );
+
+    let repaired = 0;
+    for (const unit of (units ?? []) as Array<{ id: string; name: string | null; linked_rolos_id: string | null }>) {
+      if (unit.linked_rolos_id && liveIds.has(unit.linked_rolos_id)) continue;
+      const target = byName.get(normalizeRoomTypeName(String(unit.name ?? "")));
+      if (!target || target === unit.linked_rolos_id) continue;
+      const { error } = await supabase
+        .from("hostfully_room_types")
+        .update({ linked_rolos_id: target })
+        .eq("id", unit.id);
+      if (!error) repaired++;
+    }
+    return repaired;
+  } catch (e) {
+    console.warn("[pmsRoomTypeSync] unit link repair failed:", e);
+    return 0;
+  }
+}
+
 
