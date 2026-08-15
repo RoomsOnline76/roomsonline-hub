@@ -87,6 +87,16 @@ export function ChannelPropertyTable({
       });
   }, [filtered]);
 
+  // Portfolios collapse by default: seed the collapsed set with every group
+  // name once, the first time groups are computed, so the table renders compact.
+  const didInit = useRef(false);
+  useEffect(() => {
+    if (!didInit.current && groups.length > 0) {
+      didInit.current = true;
+      setCollapsed(new Set(groups.map((g) => g.name)));
+    }
+  }, [groups]);
+
   const toggleGroup = (name: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev);
