@@ -600,19 +600,22 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     );
 
     // Macro 8 — pull existing listings under the sub-account before verification.
-    const pullDone = !!listingPull;
+    const pullDone = !!listingPull && !listingPull.stale;
     put("listings_pulled", "Existing listings pulled & adopted", bound && pullDone, {
       waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("publish")
-        : listingPull
-          ? listingPull.remoteCount === 0
-            ? "Nothing to adopt — sub-account is empty"
-            : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
-                listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
-              }`
-          : "Not pulled yet",
+        : !listingPull
+          ? "Not pulled yet"
+          : listingPull.stale
+            ? `Last pull ran against OwnerID ${listingPull.ownerId} — re-pull against OwnerID ${listingPull.boundOwnerId}`
+            : listingPull.remoteCount === 0
+              ? "Nothing to adopt — sub-account is empty"
+              : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
+                  listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
+                }`,
     });
+
 
     // Macro 10 — publish. Leftover listing IDs from a previous bind do not count
     // while the property is unbound (no owner key & secret).
