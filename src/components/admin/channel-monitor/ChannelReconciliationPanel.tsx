@@ -282,6 +282,12 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 value={result.conflicts.length}
                 tone={result.conflicts.length ? "warn" : undefined}
               />
+              <Stat
+                label="On other sub-accounts"
+                value={result.foreign_listings.length}
+                tone={result.foreign_listings.length ? "warn" : undefined}
+              />
+
 
             </div>
 
