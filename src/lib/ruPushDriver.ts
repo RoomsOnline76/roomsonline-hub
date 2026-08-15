@@ -87,9 +87,19 @@ export async function pushPropertyToRu(propertyId: string, options: RuPushOption
         ...(batchId ? { batch_id: batchId } : {}),
       },
     });
-    if (error) throw new Error(error.message);
+    if (error) {
+      const body = await readErrorBody(error);
+      if (body) {
+        // A gate/validation refusal — return the structured reasons instead of a generic throw.
+        return mergedUnits.length > 0
+          ? { ...body, units: [...mergedUnits, ...(body.units ?? [])], remaining_unit_ids: [] }
+          : body;
+      }
+      throw new Error(await extractFunctionError(error, error.message || "Push failed"));
+    }
 
     const result = (data ?? {}) as RuPushResult;
+
     last = result;
     batchId = (result.batch_id as string | undefined) ?? batchId;
 
