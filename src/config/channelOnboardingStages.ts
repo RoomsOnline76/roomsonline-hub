@@ -105,6 +105,42 @@ export function editorSectionForMacro(macroKey: string): string {
 }
 
 /**
+ * Every editable surface a step covers, in the order an owner should work
+ * through them. The wizard renders these as switcher tabs so a step like
+ * "Policies, rates & pricing coverage" can reach the policies panel directly
+ * instead of depending on a blocker existing to link there.
+ */
+export function editorSectionsForMacro(macroKey: string): Array<{ section: string; label: string }> {
+  switch (macroKey) {
+    case "identity":
+      return [
+        { section: "general", label: "Identity" },
+        { section: "contacts", label: "Contacts" },
+      ];
+    case "rooms":
+      return [
+        { section: "rooms", label: "Rooms & units" },
+        { section: "info-facilities", label: "Facilities" },
+      ];
+    case "media":
+      return [{ section: "images", label: "Media" }];
+    case "commercial":
+      return [
+        { section: "rates", label: "Calendar & seasons" },
+        { section: "rate-plans", label: "Rate plans" },
+        { section: "policies", label: "Policies" },
+        { section: "charges", label: "Charges" },
+        { section: "specials", label: "Specials" },
+        { section: "packages", label: "Packages" },
+        { section: "addons", label: "Add-ons" },
+      ];
+    default:
+      return [];
+  }
+}
+
+
+/**
  * Which macro owns a given editor section. Sections that are not a macro's
  * headline section (contacts, info-facilities, rate-plans) still belong to a
  * step through its field tasks — without this map a "Fix" click resolved to
