@@ -170,11 +170,38 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
       <CardContent className="space-y-4">
         {error && <p className="text-sm text-destructive">{error}</p>}
 
+        <p className="text-xs text-muted-foreground">
+          {latestRun ? (
+            <>
+              Automatic nightly check ran {new Date(latestRun.ran_at).toLocaleString()} —{" "}
+              {latestRun.run_error ? (
+                <span className="text-destructive">failed: {latestRun.run_error}</span>
+              ) : latestRun.has_disparity ? (
+                <span className="text-destructive">
+                  {latestRun.orphan_count} orphan, {latestRun.duplicate_count} duplicate,{" "}
+                  {latestRun.stale_count} stale
+                  {latestRun.error_account_count > 0 && `, ${latestRun.error_account_count} unverified account`}
+                  {latestRun.alert_sent
+                    ? " · warning emailed to ops"
+                    : latestRun.alert_error
+                      ? ` · alert email failed (${latestRun.alert_error})`
+                      : ""}
+                </span>
+              ) : (
+                <span>clean, no alert needed</span>
+              )}
+            </>
+          ) : (
+            "The automatic nightly check has not recorded a run yet."
+          )}
+        </p>
+
         {!result && !running && !error && (
           <p className="text-sm text-muted-foreground">
             Not reconciled yet in this session — run it to confirm the channel account matches these counts.
           </p>
         )}
+
 
         {result && (
           <>
