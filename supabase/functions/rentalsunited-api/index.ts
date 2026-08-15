@@ -3803,7 +3803,40 @@ Deno.serve(async (req) => {
           },
         }, 422);
       }
-      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${parseInt(String(locationId), 10)}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
+      // RU allows one call per method with the same parameters per sliding minute, so a repeated
+      // flip (diagnostics re-run, delta push, cert suite) hits our own rate gate and surfaces as a
+      // 429 with no stored response — indistinguishable from "RU rejected ZAR". The flip is
+      // idempotent, so if an identical flip already succeeded recently, answer from that instead
+      // of spending a call.
+      const locId = parseInt(String(locationId), 10);
+      try {
+        const { data: recent } = await getLogClient()
+          .from('ru_api_log')
+          .select('created_at, status_id, response_id')
+          .eq('action', 'Push_ChangeCurrency_RQ')
+          .eq('success', true)
+          .ilike('request_xml', `%<Location>${locId}</Location><Currency>${currencyIso}</Currency>%`)
+          .gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (recent) {
+          return jsonResponse({
+            success: true,
+            auth_mode: authMode,
+            already_set: true,
+            skipped: 'recent_identical_success',
+            location_id: locId,
+            currency_iso: currencyIso,
+            last_confirmed_at: recent.created_at,
+            note: `Location ${locId} was already confirmed on ${currencyIso} at ${recent.created_at} (RU status ${recent.status_id ?? 'ok'}); the identical call was skipped to respect the channel's one-call-per-minute window.`,
+          });
+        }
+      } catch (_e) {
+        // Log lookup is an optimisation only — fall through to the live call.
+      }
+
+      const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${locId}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
 
       const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(scopedCreds, xml);
@@ -3817,7 +3850,7 @@ Deno.serve(async (req) => {
         success: true,
         auth_mode: authMode,
         already_set: status.id === '339',
-        location_id: parseInt(String(locationId), 10),
+        location_id: locId,
         currency_iso: currencyIso,
         raw_xml: response,
       });
