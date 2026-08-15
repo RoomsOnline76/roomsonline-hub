@@ -290,6 +290,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     if (!propertyId) return;
     const bump = () => {
       void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+      void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-phase", propertyId] });
       void queryClient.invalidateQueries({ queryKey: ["property-readiness", propertyId] });
       void queryClient.invalidateQueries({ queryKey: ["owner-contract"] });
     };
