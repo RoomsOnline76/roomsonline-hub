@@ -36,7 +36,7 @@ export async function ruCompanyDetailsSatisfied(
 
   const { data: cred } = await admin
     .from("ru_api_credentials")
-    .select("access_key, verified_at")
+    .select("access_key, secret_enc, verified_at")
     .eq("ru_owner_id", ownerId)
     .maybeSingle();
   if (!cred?.access_key || !cred?.verified_at) return { satisfied: false, via: "none" };
@@ -49,6 +49,10 @@ export async function ruCompanyDetailsSatisfied(
           company_details_sent: true,
           company_filled_at: cred.verified_at,
           company_details_status: "credentials_verified",
+          // Legacy readers (status strips, cost monitor) read the mirrored key.
+          ru_api_access_key: cred.access_key,
+          ru_api_secret_enc: cred.secret_enc ?? null,
+          ru_api_keys_verified_at: cred.verified_at,
         })
         .eq("id", account.id);
     } catch (e) {
