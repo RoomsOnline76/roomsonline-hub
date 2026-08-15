@@ -56,9 +56,11 @@ export function RuWhiteLabelTokenFields({
     <div className="space-y-2">
       <p className="text-xs font-medium text-foreground">White Label Channel Manager tokens</p>
       <p className="text-xs text-muted-foreground">
-        Paste the sub-user token pair from the Channel Manager to activate the embedded Channel Manager on the
-        ROL'OS Channels page. Leave blank if the tokens are minted from the stored portal login.
+        Optional — not required to onboard or publish. Only paste a sub-user token pair here if the embedded
+        Channel Manager on the ROL'OS Channels page will not load; normally the tokens are minted automatically
+        from the stored portal login.
       </p>
+
       <div className="grid gap-2 sm:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="ru_wl_token" className="text-xs">Access token</Label>
