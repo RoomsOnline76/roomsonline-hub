@@ -521,14 +521,14 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     const companyPushedAt = d?.identity?.account?.company_filled_at ?? null;
     put(
       "company_details",
-      "Company details sent to the Channel Manager",
+      "Company details accepted by the Channel Manager",
       d?.identity?.account?.company_details_pushed === true,
       {
         waiting: !keysCaptured || !verifiedAt,
         detail: !keysCaptured || !verifiedAt
           ? "Capture and verify the key pair first"
           : d?.identity?.account?.company_details_pushed === true
-            ? `Sent ${companyPushedAt ? new Date(companyPushedAt).toLocaleDateString() : ""}`.trim()
+            ? `Accepted ${companyPushedAt ? new Date(companyPushedAt).toLocaleDateString() : ""}`.trim()
             : companyPushedAt
               ? "A push exists but predates key verification — re-send"
               : "Not sent",
