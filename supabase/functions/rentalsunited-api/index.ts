@@ -2284,6 +2284,63 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── verify_child_key_owner ──
+    // Read-only ownership probe: confirm a supplied AccessKey/SecretKey pair really belongs to
+    // the OwnerID it is about to be stored against. Validity alone is not enough — one
+    // sub-user's keys can be pasted onto another sub-user's row, after which every
+    // "sub-account scoped" call silently reads/writes the wrong RU account.
+    if (action === 'verify_child_key_owner') {
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth || childAuth.mode !== 'keys') {
+        return errorResponse('MISSING_PARAM', 'auth_access_key + auth_secret_key are required');
+      }
+      const targetOwnerId = parseInt(String(body.owner_id ?? '').trim(), 10);
+      if (!Number.isFinite(targetOwnerId) || targetOwnerId <= 0) {
+        return errorResponse('MISSING_PARAM', 'owner_id (RU OwnerID) is required');
+      }
+      const keyCreds = effectiveCreds(creds, childAuth);
+
+      // 1) Can these keys read that OwnerID's inventory? RU answers "not the owner" otherwise.
+      const ownerXml = buildListPropertiesXml(keyCreds, targetOwnerId);
+      const ownerResponse = await callRentalsUnited(creds, ownerXml);
+      const ownerStatus = handleRUStatus(ownerResponse);
+
+      // 2) Best effort: which account do these keys actually authenticate as? A master pair can
+      //    read any OwnerID, so a positive read alone must not be treated as ownership.
+      let identifiedOwnerIds: string[] = [];
+      let identifiedEmails: string[] = [];
+      try {
+        const usersResponse = await callRentalsUnited(creds, buildListUsersXml(keyCreds));
+        if (handleRUStatus(usersResponse).ok) {
+          const users = extractUsers(usersResponse);
+          identifiedOwnerIds = users.map((u) => String(u.owner_id)).filter(Boolean);
+          identifiedEmails = users.map((u) => u.email).filter(Boolean);
+        }
+      } catch (_e) {
+        // identification is advisory only
+      }
+
+      const seesOtherAccountsOnly =
+        identifiedOwnerIds.length > 0 && !identifiedOwnerIds.includes(String(targetOwnerId));
+      const owns = ownerStatus.ok && !seesOtherAccountsOnly;
+
+      return jsonResponse({
+        success: true,
+        owns,
+        auth_mode: childAuthMode(childAuth),
+        owner_id: targetOwnerId,
+        ru_status_id: ownerStatus.status.id ?? null,
+        ru_status_message: ownerStatus.status.message ?? null,
+        identified_owner_ids: identifiedOwnerIds,
+        identified_emails: identifiedEmails,
+        reason: owns
+          ? null
+          : seesOtherAccountsOnly
+            ? 'KEYS_BELONG_TO_ANOTHER_ACCOUNT'
+            : 'OWNER_READ_REJECTED',
+      });
+    }
+
     // ── create_child_api_key: Push_CreateApiKey_RQ (authenticated AS the sub-user) ──
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
