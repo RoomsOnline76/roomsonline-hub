@@ -971,56 +971,81 @@ export default function AdminOnboarding() {
         }
       />
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 xl:gap-6 mb-6">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Not Started</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-muted-foreground">{stats.notStarted}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">In Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-amber-600">{stats.inProgress}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Expired</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-destructive">{stats.expired}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Completed</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-primary">{stats.completed}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Live</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-emerald-600">{stats.live}</p>
-          </CardContent>
-        </Card>
+      {/* Counters — clicking one filters the queue below */}
+      <div className="space-y-3 mb-6">
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Progress</p>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:gap-6">
+            <CounterCard
+              label="Active queue"
+              caption="Properties with onboarding under way"
+              value={stats.total}
+              active={statusFilter === "all"}
+              onClick={() => applyFilter("all")}
+            />
+            <CounterCard
+              label="Invite not sent"
+              caption="No owner invite issued yet"
+              value={stats.notStarted}
+              tone="text-muted-foreground"
+              active={statusFilter === "not_started"}
+              onClick={() => applyFilter("not_started")}
+            />
+            <CounterCard
+              label="Owner in progress"
+              caption="Invite open, owner still filling in"
+              value={stats.inProgress}
+              tone="text-amber-600"
+              active={statusFilter === "in_progress"}
+              onClick={() => applyFilter("in_progress")}
+            />
+            <CounterCard
+              label="Invite expired"
+              caption="Link lapsed — extend or resend"
+              value={stats.expired}
+              tone="text-destructive"
+              active={statusFilter === "token_expired"}
+              onClick={() => applyFilter("token_expired")}
+            />
+          </div>
+        </div>
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Distribution</p>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:gap-6">
+            <CounterCard
+              label="Website live"
+              caption="Published on the public site"
+              value={stats.websiteLive}
+              tone="text-emerald-600"
+              active={statusFilter === "website_live"}
+              onClick={() => applyFilter("website_live")}
+            />
+            <CounterCard
+              label="Channels live"
+              caption="Selling through the Channel Manager"
+              value={stats.channelsLive}
+              tone="text-emerald-600"
+              active={statusFilter === "channels_live"}
+              onClick={() => applyFilter("channels_live")}
+            />
+            <CounterCard
+              label="Awaiting channel"
+              caption="Listed and verified, no channel connected"
+              value={stats.channelsAwaiting}
+              tone="text-primary"
+              active={statusFilter === "channels_awaiting"}
+              onClick={() => applyFilter("channels_awaiting")}
+            />
+            <CounterCard
+              label="Channel Manager off"
+              caption="Add-on not enabled — no channel wizard"
+              value={stats.channelManagerOff}
+              tone="text-muted-foreground"
+              active={statusFilter === "channel_manager_off"}
+              onClick={() => applyFilter("channel_manager_off")}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -1035,22 +1060,13 @@ export default function AdminOnboarding() {
           />
         </div>
         <div className="flex flex-wrap gap-2 items-center">
-          {statusFilters.map((filter) => (
-            <Button
-              key={filter.key}
-              variant={statusFilter === filter.key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter(filter.key)}
-            >
-              {filter.label}
+          {statusFilter !== "all" && (
+            <Button variant="outline" size="sm" onClick={() => setStatusFilter("all")}>
+              Clear filter
             </Button>
-          ))}
-          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-            <Switch
-              id="show-completed"
-              checked={showCompleted}
-              onCheckedChange={setShowCompleted}
-            />
+          )}
+          <div className="flex items-center gap-2">
+            <Switch id="show-completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
             <Label htmlFor="show-completed" className="text-sm text-muted-foreground whitespace-nowrap">
               Show finished properties
             </Label>
@@ -1059,7 +1075,7 @@ export default function AdminOnboarding() {
       </div>
 
       {/* Table */}
-      <div className="border border-border rounded-lg">
+      <div ref={queueRef} className="border border-border rounded-lg scroll-mt-4">
         <Table>
           <TableHeader>
             <TableRow>
