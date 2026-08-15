@@ -210,7 +210,21 @@ const calculateFieldCompletion = (prop: PropertyData): number => {
   return Math.round((filledWeight / totalWeight) * 100);
 };
 
-type StatusFilter = "all" | OnboardingStatus;
+type QueueFilter =
+  | "all"
+  | OnboardingStatus
+  | "website_live"
+  | "channels_live"
+  | "channels_awaiting"
+  | "channel_manager_off";
+
+/** Filters that include properties the queue hides until "show finished" is on. */
+const FINISHED_INCLUSIVE_FILTERS: QueueFilter[] = [
+  "live",
+  "completed",
+  "website_live",
+  "channels_live",
+];
 
 // Helper function to derive onboarding status
 const getOnboardingStatus = (row: PropertyOnboardingRow): OnboardingStatus => {
@@ -297,7 +311,7 @@ export default function AdminOnboarding() {
   const [propertyRows, setPropertyRows] = useState<PropertyOnboardingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<QueueFilter>("all");
   const [showCompleted, setShowCompleted] = useState(false);
 
   // Send modal state
@@ -718,7 +732,15 @@ export default function AdminOnboarding() {
     }
 
     // Status filter
-    if (statusFilter !== "all") {
+    if (statusFilter === "website_live") {
+      result = result.filter((r) => r.show_on_website);
+    } else if (statusFilter === "channels_live") {
+      result = result.filter((r) => r.channelStage === "live");
+    } else if (statusFilter === "channels_awaiting") {
+      result = result.filter((r) => r.channelStage === "connect");
+    } else if (statusFilter === "channel_manager_off") {
+      result = result.filter((r) => r.isRolos && !r.channelManagerEnabled);
+    } else if (statusFilter !== "all") {
       result = result.filter((r) => getOnboardingStatus(r) === statusFilter);
     }
 
@@ -774,7 +796,19 @@ export default function AdminOnboarding() {
     completed: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "completed").length,
     live: onboardingActiveRows.filter((r) => getOnboardingStatus(r) === "live").length,
     nightsBridge: onboardingActiveRows.filter((r) => r.isNightsBridge).length,
+    websiteLive: onboardingActiveRows.filter((r) => r.show_on_website).length,
+    channelsLive: onboardingActiveRows.filter((r) => r.channelStage === "live").length,
+    channelsAwaiting: onboardingActiveRows.filter((r) => r.channelStage === "connect").length,
+    channelManagerOff: onboardingActiveRows.filter((r) => r.isRolos && !r.channelManagerEnabled).length,
   }), [onboardingActiveRows]);
+
+  // Cards are the filter: clicking one narrows the queue, clicking it again clears.
+  const applyFilter = (key: QueueFilter) => {
+    const next = statusFilter === key ? "all" : key;
+    setStatusFilter(next);
+    if (next !== "all" && FINISHED_INCLUSIVE_FILTERS.includes(next)) setShowCompleted(true);
+    queueRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const handleSendOnboarding = async () => {
     if (!selectedPropertyId || !sendEmail) {
