@@ -423,6 +423,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       };
     }
     if (macro.macro.key === "publish") {
+      if (publishedOk) {
+        return {
+          label: "Published — review step",
+          disabled: false,
+          run: () => selectMacro("publish"),
+          reason,
+        };
+      }
       return {
         label: isPlatformUser ? "Publish listing" : "Review publish step",
         disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
@@ -430,6 +438,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         reason,
       };
     }
+
     if (macro.macro.key === "entitlement") {
       if (!isPlatformUser) {
         return {
