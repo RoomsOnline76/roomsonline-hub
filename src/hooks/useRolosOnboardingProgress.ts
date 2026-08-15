@@ -290,6 +290,30 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [d?.roadmap]);
 
+  /**
+   * Step 9 — "Pull listings (if any)". Outcome of the last discovery run against the
+   * sub-account, persisted alongside the sign-off in the roadmap row so the step
+   * stays green across sessions (an empty sub-account is a valid pass).
+   */
+  const listingPull = useMemo(() => {
+    const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
+    const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
+    const lp = (cr.listing_pull ?? null) as
+      | { at?: string; by?: string | null; matched?: number; unmatched?: number; remote_count?: number }
+      | null;
+    return lp && lp.at
+      ? {
+          at: String(lp.at),
+          by: lp.by ?? null,
+          matched: Number(lp.matched ?? 0),
+          unmatched: Number(lp.unmatched ?? 0),
+          remoteCount: Number(lp.remote_count ?? 0),
+        }
+      : null;
+  }, [d?.roadmap]);
+
+
+
 
   const stateChecks = useMemo(() => {
     const map = new Map<DistributionCheckKey, DistributionCheck>();
