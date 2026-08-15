@@ -212,7 +212,10 @@ export async function evaluatePhases(
       `The owner email changed to ${expectedEmail} — the existing Rentals United sub-user (${storedEmail}) is stale. Re-run "Create sub-user" to register the new email.`,
     );
   }
-  if (!emailMismatch && account && !account.company_filled_at && account.company_details_sent !== true) {
+  const companyDetails = account
+    ? await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account)
+    : { satisfied: false, via: "none" as const };
+  if (!emailMismatch && account && !companyDetails.satisfied) {
     p1Blockers.push("Company details have not been submitted to Rentals United (Push_FillCompanyDetails_RQ) \u2014 run \"Complete company details\".");
   }
 

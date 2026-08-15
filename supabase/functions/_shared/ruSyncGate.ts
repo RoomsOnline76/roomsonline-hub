@@ -7,6 +7,8 @@
  * and a live listing.
  */
 
+import { ruCompanyDetailsSatisfied } from "./ruCompanyDetails.ts";
+
 export const RU_WIZARD_SYNC_CODE = "WIZARD_SYNC_NOT_READY";
 
 export interface RuSyncGateResult {
@@ -56,7 +58,7 @@ export async function evaluateRuOperationalSync(
 
   let accQuery = admin
     .from("ru_owner_accounts")
-    .select("ru_owner_id, ru_api_access_key, company_details_sent")
+    .select("id, ru_owner_id, ru_api_access_key, company_details_sent, company_filled_at")
     .not("ru_owner_id", "is", null)
     .limit(1);
   accQuery = mem?.portfolio_id
@@ -67,7 +69,8 @@ export async function evaluateRuOperationalSync(
   if (!acc?.ru_owner_id) {
     return deny(RU_WIZARD_SYNC_CODE, "Property is unbound — Channel wizard gates have not passed.");
   }
-  if (acc.company_details_sent !== true) {
+  const company = await ruCompanyDetailsSatisfied(admin, acc.ru_owner_id, acc);
+  if (!company.satisfied) {
     return deny(
       RU_WIZARD_SYNC_CODE,
       "Company details have not been sent — Channel wizard is incomplete.",
@@ -95,11 +98,12 @@ export async function ownerIdsWithOperationalSync(
 ): Promise<Set<string>> {
   const { data: accounts } = await admin
     .from("ru_owner_accounts")
-    .select("ru_owner_id, portfolio_id, property_id, company_details_sent")
+    .select("id, ru_owner_id, portfolio_id, property_id, company_details_sent, company_filled_at")
     .not("ru_owner_id", "is", null);
   const ready = new Set<string>();
   for (const acc of accounts ?? []) {
-    if (acc.company_details_sent !== true || !acc.ru_owner_id) continue;
+    if (!acc.ru_owner_id) continue;
+    if (!(await ruCompanyDetailsSatisfied(admin, acc.ru_owner_id, acc)).satisfied) continue;
     let ids: string[] = [];
     if (acc.portfolio_id) {
       const { data: members } = await admin
