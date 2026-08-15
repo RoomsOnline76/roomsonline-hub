@@ -4835,10 +4835,17 @@ Deno.serve(async (req) => {
 
         if (!companyName) return { sent: false, error: "No company/portfolio name to submit" };
 
-        const countryId = await locationIdByName(country || "South Africa");
+        // Last resort: the country id RU already accepted for this account.
+        const previousCountryId = Number(
+          (account.company_payload as Record<string, unknown> | null)?.country_id ?? NaN,
+        );
+        const countryId =
+          (await locationIdByName(country || "South Africa")) ??
+          (Number.isFinite(previousCountryId) && previousCountryId > 1 ? previousCountryId : null);
         if (!countryId) {
           return { sent: false, error: `Could not resolve a Rentals United CountryId for "${country || "South Africa"}"` };
         }
+
 
         const company = {
           first_name: contactFirstName,
