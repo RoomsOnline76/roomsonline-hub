@@ -824,12 +824,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Local ids the account no longer returns — only trustworthy when at least
-      // one account read succeeded, otherwise everything would look stale.
+      // Local ids no account returns — only trustworthy when at least one account
+      // read succeeded, otherwise everything would look stale. A listing found on
+      // an unbound sub-account counts as seen, so it is reported as foreign, not stale.
       const anyRead = accountResults.some((a) => a.error === null);
       const stale = anyRead
         ? Array.from(localRecords.values())
-            .filter((l) => !liveOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
+            .filter((l) => !seenAnywhere.has(l.listingId))
             .map((l) => ({
               listing_id: l.listingId,
               label: l.label,
@@ -844,20 +845,28 @@ Deno.serve(async (req) => {
         (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
         0,
       );
+      const boundAccountTotal = accountResults
+        .filter((a) => a.bound)
+        .reduce((sum, a) => sum + (a.total_listing_count ?? a.listing_count), 0);
 
       return new Response(
         JSON.stringify({
           success: true,
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
-          // Mutually exclusive: live + archived always equals the account total.
+          roster_error: rosterError,
+          // Mutually exclusive: live + archived always equals the bound-account total.
           channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
-          account_listing_total: accountTotal,
+          account_listing_total: boundAccountTotal,
+          all_account_listing_total: accountTotal,
+          foreign_listings: foreignListings,
+          foreign_listing_count: foreignListings.length,
           archived_orphans: archivedOrphans,
           archived_matched: archivedMatched,
           conflicts,
           matched,
+
           orphans,
           duplicates,
           stale,
