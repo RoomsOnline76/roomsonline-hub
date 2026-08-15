@@ -26,6 +26,7 @@ export type DistributionCheckKey =
   | "sub_owner_id"
   | "api_keys_stored"
   | "api_keys_verified"
+  | "company_details"
   | "manual_signoff"
   | "listings_pulled"
   | "listing_ids"
@@ -162,9 +163,11 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "state", key: "api_keys_stored" },
       { kind: "state", key: "api_keys_verified" },
+      { kind: "state", key: "company_details" },
     ],
     notes: [
       "Sign in to the owner portal with the sub-account login, create the API key and secret, then capture them in the ROL'OS owner panel.",
+      "Saving the pair verifies it and then submits the company profile automatically — the profile only sticks when it is sent with the sub-account's own verified credentials.",
     ],
   },
   {
