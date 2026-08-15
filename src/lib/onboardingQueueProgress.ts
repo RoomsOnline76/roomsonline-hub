@@ -52,20 +52,35 @@ export interface RuReadinessSignals {
   checks_total?: number;
   checks_passed?: number;
   score?: number;
-  groups?: { total: number; passed: number; failed?: { mandatory?: boolean }[] }[];
+  groups?: { group?: string; total: number; passed: number; failed?: { mandatory?: boolean }[] }[];
 }
 
-/** Collapse a phase_status / property_readiness payload into a pass + percent. */
+/** Groups that can only be judged against the live channel calendar. */
+const LIVE_PROBE_GROUPS = /365d|availability|pricing/i;
+
+/**
+ * Collapse a phase_status / property_readiness payload into a pass + percent.
+ *
+ * `liveProbeDegraded` = the scorer could not read the live channel calendar and
+ * fell back to the local one. In that case a failure that lives only in the
+ * live-probe groups is *not* a verdict — reporting it as "RU checks failing"
+ * contradicts the wizard, which treats unresolvable checks as advisory.
+ */
 export function ruMandatoryCheckSummary(
   readiness: RuReadinessSignals | null | undefined,
+  opts?: { liveProbeDegraded?: boolean },
 ): { known: boolean; pass: boolean; percent: number } {
   if (!readiness) return { known: false, pass: false, percent: 0 };
 
+  const groups = readiness.groups ?? [];
   const gaps = Array.isArray(readiness.blocking_gaps) ? readiness.blocking_gaps : [];
-  const groupMandatoryFail = (readiness.groups ?? []).some((g) =>
-    (g.failed ?? []).some((f) => f.mandatory !== false),
-  );
-  const blocked = readiness.blocked === true || gaps.length > 0 || groupMandatoryFail;
+  const failingGroups = groups.filter((g) => (g.failed ?? []).some((f) => f.mandatory !== false));
+  const groupMandatoryFail = failingGroups.length > 0;
+  // When groups are reported they are the authority: `blocked` / `blocking_gaps`
+  // can also carry advisory or unresolvable items.
+  const blocked = groups.length > 0
+    ? groupMandatoryFail
+    : readiness.blocked === true || gaps.length > 0;
 
   let percent = 0;
   if (
@@ -76,9 +91,9 @@ export function ruMandatoryCheckSummary(
     percent = Math.round((readiness.mandatory_passed / readiness.mandatory_total) * 100);
   } else if (typeof readiness.score === "number") {
     percent = Math.max(0, Math.min(100, Math.round(readiness.score)));
-  } else if ((readiness.groups ?? []).length > 0) {
-    const total = (readiness.groups ?? []).reduce((sum, g) => sum + (g.total || 0), 0);
-    const passed = (readiness.groups ?? []).reduce((sum, g) => sum + (g.passed || 0), 0);
+  } else if (groups.length > 0) {
+    const total = groups.reduce((sum, g) => sum + (g.total || 0), 0);
+    const passed = groups.reduce((sum, g) => sum + (g.passed || 0), 0);
     percent = total > 0 ? Math.round((passed / total) * 100) : 0;
   } else if (
     typeof readiness.checks_total === "number" &&
@@ -88,8 +103,20 @@ export function ruMandatoryCheckSummary(
     percent = Math.round((readiness.checks_passed / readiness.checks_total) * 100);
   }
 
+  if (
+    blocked &&
+    opts?.liveProbeDegraded &&
+    failingGroups.length > 0 &&
+    failingGroups.every((g) => LIVE_PROBE_GROUPS.test(String(g.group ?? "")))
+  ) {
+    // Nothing about the property's own content is failing — the live verdict is
+    // simply unavailable right now.
+    return { known: false, pass: false, percent };
+  }
+
   return { known: true, pass: !blocked, percent };
 }
+
 
 /** Website bar uses the listing wizard only — never diluted by ROL Spec. */
 export function websiteQueueProgress(
