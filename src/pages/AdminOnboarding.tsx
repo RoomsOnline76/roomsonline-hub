@@ -740,7 +740,11 @@ export default function AdminOnboarding() {
       });
     }
 
-    return result;
+    // ROL'OS properties lead the queue — they are the ones we can take live.
+    return [...result].sort((a, b) => {
+      if (a.isRolos !== b.isRolos) return a.isRolos ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
   }, [actorEmail, propertyRows, scopedPropertyIds, showCompleted, statusFilter, searchQuery]);
 
   // Stats calculated from properties with actual onboarding activity
