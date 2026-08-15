@@ -142,10 +142,15 @@ async function verifyListingsAfterPush(
     let data: any = null;
     // deno-lint-ignore no-explicit-any
     let body: any = null;
-    const invokeOptions = (() => {
-      const header = String(callerAuthHeader ?? '').trim();
-      return header ? { headers: { Authorization: header } } : {};
-    })();
+    /**
+     * The read-back is a system call: invoking with the function's own service-role client
+     * (no forwarded user header) keeps it working for crons and background pushes alike.
+     * Forwarding the caller's header made the call fail with "Invalid session" whenever the
+     * push ran without a user JWT.
+     */
+    void callerAuthHeader;
+    const invokeOptions = {};
+
     while (attempt < 2) {
       attempt++;
       const res = await supabase.functions.invoke('ru-cert-portal', {
