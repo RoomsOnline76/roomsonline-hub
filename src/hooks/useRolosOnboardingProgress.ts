@@ -787,7 +787,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [writeChannelReadiness],
   );
 
+  /** Record the outcome of a "Pull listings" run (step 9). */
+  const recordListingPull = useCallback(
+    async (
+      outcome: { matched: number; unmatched: number; remoteCount: number },
+      actorLabel?: string | null,
+    ) => {
+      await writeChannelReadiness({
+        listing_pull: {
+          at: new Date().toISOString(),
+          by: actorLabel ?? null,
+          matched: outcome.matched,
+          unmatched: outcome.unmatched,
+          remote_count: outcome.remoteCount,
+        },
+      });
+    },
+    [writeChannelReadiness],
+  );
+
   return {
+
     isRolosPms,
     macros,
     currentMacro,
