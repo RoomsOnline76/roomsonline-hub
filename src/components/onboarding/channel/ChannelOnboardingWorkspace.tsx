@@ -1206,7 +1206,15 @@ function PublishedPane({
               ))}
             </ul>
           )}
-          {isPlatformUser && publishedOk && !listingsVerified && (
+          {isPlatformUser && publishedOk && !listingsVerified && readBackPending && (
+            <div className="rounded-md border border-border bg-muted/40 p-2">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Published — confirming the listings with the channel. This finishes on its own.
+              </p>
+            </div>
+          )}
+          {isPlatformUser && publishedOk && !listingsVerified && !readBackPending && (
             <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Pushed, but the listings were not read back — the confirmation call did not complete.
@@ -1226,6 +1234,7 @@ function PublishedPane({
               </Button>
             </div>
           )}
+
           {isPlatformUser && !publishedOk && (
             <Button onClick={onPublish} disabled={locked || busy === "publish"}>
               {busy === "publish" ? (
