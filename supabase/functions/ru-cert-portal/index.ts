@@ -1433,7 +1433,7 @@ Deno.serve(async (req) => {
 
         const hasAvailability = unitProbes.every((probe) => probe.availability_ok);
         const livePricesVerified = unitProbes.every((probe) => probe.prices_ok);
-        const pricingReady = livePricesVerified || localCoverage?.complete === true;
+        const pricingReady = livePricesVerified || ariSnapshot?.prices_ok === true || localCoverage?.complete === true;
         const liveAvailabilityResponded = unitProbes.every((probe) =>
           probe.availability_error == null && probe.open_days > 0
         );
