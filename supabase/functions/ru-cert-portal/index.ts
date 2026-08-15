@@ -3649,23 +3649,31 @@ Deno.serve(async (req) => {
       const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
         body: { action: "list_properties", owner_id: Number(ownerId) },
       });
-      if (listErr || listed?.success !== true) {
+      // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
+      const listedBody = listed ?? (await readInvokeErrorBody(listErr));
+      if (listErr || listedBody?.success !== true) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
         // never be reported as "the sub-account was empty".
-        const code = typeof listed?.error?.code === "string" ? listed.error.code : "RU_LIST_FAILED";
-        const detail = listed?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const code = typeof listedBody?.error?.code === "string" ? listedBody.error.code : "RU_LIST_FAILED";
+        const detail = listedBody?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
         return json({
           success: false,
           ru_owner_id: ownerId,
           ru_owner_label: subAccountLabel,
+          retry_after_ms: retryMs > 0 ? retryMs : undefined,
           error: {
             code,
             message: code === "RU_CHILD_AUTH_REQUIRED"
               ? `API keys are required for ${subAccountLabel} before its listings can be pulled. ${detail}`
-              : `${detail} (sub-account ${subAccountLabel})`,
+              : code === "RU_RATE_DEFERRED"
+                ? `Channel rate limit — retry in ${Math.ceil((retryMs || 60000) / 1000)}s (sub-account ${subAccountLabel}).`
+                : `${detail} (sub-account ${subAccountLabel})`,
           },
         }, 422);
       }
+      const listed2 = listedBody;
+
 
       const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
       const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
