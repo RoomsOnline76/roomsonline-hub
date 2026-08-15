@@ -816,9 +816,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               onEnable={enableChannelManager}
+              onPushCompanyDetails={pushCompanyDetails}
               onSignoffItem={(key, next) => {
                 recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
-                  toast.error(`Could not save that tick: ${e instanceof Error ? e.message : String(e)}`),
+                  toast.error(e instanceof Error ? e.message : String(e)),
                 );
               }}
               onSignoffAll={(next) => {
