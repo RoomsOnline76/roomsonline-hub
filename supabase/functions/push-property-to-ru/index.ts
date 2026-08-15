@@ -174,6 +174,8 @@ const BED_AMENITY_MAP: Record<string, number> = {
   'king-twin': RU_BED.king,
   'sofa-bed': RU_BED.sofaBed,
   sofa: RU_BED.sofaBed,
+  'double-sofa-bed': RU_BED.doubleSofaBed,
+  'sleeper-couch': RU_BED.doubleSofaBed,
   bunk: RU_BED.bunk,
 };
 
@@ -188,7 +190,7 @@ const BED_AMENITY_MAP: Record<string, number> = {
 export function resolveBedAmenityId(rawLabel: unknown): { id: number | null; normalized: string } {
   const label = String(rawLabel ?? '')
     .toLowerCase()
-    .replace(/[_]+/g, ' ')
+    .replace(/[_-]+/g, ' ')
     .replace(/\b\d+\s*[x×]\s*/g, ' ')      // "2 x queen" → "queen"
     .replace(/\bbeds?\b/g, ' ')
     .replace(/[^a-z0-9/¾ -]+/g, ' ')

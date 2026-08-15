@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
@@ -230,7 +231,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           .then((r) => r.data),
         supabase
           .from("hostfully_room_types")
-          .select("id, name, is_active, rentalsunited_property_id")
+          .select("id, name, is_active, rentalsunited_property_id, max_guests, bed_configuration")
           .eq("property_id", id)
           .then((r) => r.data ?? []),
       ]);
@@ -504,7 +505,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
     // Macros 3-5 — inventory, media, commercial
-    groupCheck("rooms_beds", "Room composition, beds & occupancy", "Rooms & beds");
+    // Bed coverage uses the same sleeping-place table as the channel push, so a
+    // shortfall (for example a single sofa bed counted as one place) surfaces here
+    // instead of only failing certification in Phase 2.
+    groupCheck("rooms_beds", "Room composition, beds & occupancy", "Rooms & beds", () => {
+      const rows = ((d?.units ?? []) as {
+        name?: string | null;
+        is_active?: boolean | null;
+        max_guests?: number | null;
+        bed_configuration?: unknown;
+      }[]).filter((u) => u.is_active !== false);
+      const short = rows
+        .map((u) => ({
+          name: String(u.name ?? "Unit"),
+          guests: Number(u.max_guests ?? 0),
+          capacity: calculateBedCapacity(u.bed_configuration as never),
+        }))
+        .filter((u) => u.guests > 0 && u.capacity < u.guests);
+      if (rows.length === 0) {
+        const guests = Number(prop.max_guests ?? 0);
+        return { ok: guests >= 1, detail: guests >= 1 ? `Sleeps ${guests}` : "Max guests not set" };
+      }
+      return {
+        ok: short.length === 0,
+        detail:
+          short.length === 0
+            ? `${rows.length} unit(s) — beds cover max guests`
+            : `Beds short of max guests: ${short
+                .map((u) => `${u.name} (sleeps ${u.capacity} of ${u.guests})`)
+                .join(", ")}`,
+      };
+    });
     groupCheck("photos", "Photo count, size, main image & tags", "Photos");
     groupCheck("policies_payments", "Policies & payment methods", "Policies & payments");
     groupCheck("pricing_365", "Pricing coverage — rolling 365 days", "Pricing 365d");
