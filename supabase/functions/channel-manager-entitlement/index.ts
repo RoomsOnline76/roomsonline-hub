@@ -369,9 +369,10 @@ Deno.serve(async (req) => {
     if (raw.scope === "reconcile") {
       const { data: accounts, error: accErr } = await admin
         .from("ru_owner_accounts")
-        .select("id, ru_owner_id, ru_user_id, owner_email, portfolio_id, property_id")
+        .select("id, ru_owner_id, ru_user_id, owner_email, ru_login_email, ru_api_access_key, portfolio_id, property_id")
         .not("ru_owner_id", "is", null);
       if (accErr) return bad(accErr.message, 500);
+
 
       const [{ data: props }, { data: units }] = await Promise.all([
         admin.from("properties").select("id, name, is_active, rentalsunited_property_id"),
@@ -426,20 +427,99 @@ Deno.serve(async (req) => {
         });
       }
 
-      const ownerIds = Array.from(
-        new Set((accounts || []).map((a: { ru_owner_id: string | null }) => String(a.ru_owner_id))),
-      );
+      // The master/parent account may never hold listings in a white-label
+      // integration, so flag it explicitly rather than assume it is clean.
+      const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
+
+      type BoundAcct = {
+        owner_email: string | null;
+        login_email: string | null;
+        access_key: string | null;
+      };
+      const boundByOwner = new Map<string, BoundAcct>();
+      for (const a of (accounts || []) as Array<Record<string, unknown>>) {
+        boundByOwner.set(String(a.ru_owner_id), {
+          owner_email: (a.owner_email as string) ?? null,
+          login_email: (a.ru_login_email as string) ?? null,
+          access_key: (a.ru_api_access_key as string) ?? null,
+        });
+      }
+
+      // Keys can live on the per-OwnerID credential store as well as the bound row.
+      const { data: credRows } = await admin
+        .from("ru_api_credentials")
+        .select("ru_owner_id, login_email, access_key")
+        .not("access_key", "is", null);
+      const credByOwner = new Map<string, string | null>();
+      for (const c of (credRows || []) as Array<Record<string, unknown>>) {
+        if (c.ru_owner_id) credByOwner.set(String(c.ru_owner_id), (c.login_email as string) ?? null);
+      }
+
+      // Roster straight from the channel: accounts ROL'OS never bound still hold
+      // listings (and still bill), so reading only our own table under-reports.
+      type RosterEntry = { owner_id: string; portal_email: string | null; portal_name: string | null };
+      const roster = new Map<string, RosterEntry>();
+      let rosterError: string | null = null;
+      {
+        const { data: usersRes, error: usersErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_users", ...logCtx(traceId, "channel-reconcile:list_sub_accounts") },
+        });
+        const ures = (usersRes || {}) as {
+          success?: boolean;
+          error?: { message?: string } | string;
+          users?: Array<{ owner_id?: string; email?: string; first_name?: string; last_name?: string }>;
+        };
+        if (usersErr || ures.success === false) {
+          rosterError =
+            usersErr?.message ||
+            (typeof ures.error === "string" ? ures.error : ures.error?.message) ||
+            "The channel sub-account roster could not be read — only accounts known to ROL'OS were reconciled";
+        } else {
+          for (const u of ures.users || []) {
+            const oid = String(u.owner_id || "").trim();
+            if (!oid) continue;
+            const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
+            roster.set(oid, { owner_id: oid, portal_email: u.email || null, portal_name: name || null });
+          }
+        }
+      }
+      for (const ownerId of boundByOwner.keys()) {
+        if (!roster.has(ownerId)) {
+          const acct = boundByOwner.get(ownerId)!;
+          roster.set(ownerId, {
+            owner_id: ownerId,
+            portal_email: acct.login_email || acct.owner_email,
+            portal_name: null,
+          });
+        }
+      }
+      const ownerIds = Array.from(roster.keys());
+
+      // One canonical way to name a sub-account everywhere it is reported.
+      const accountLabel = (ownerId: string) => {
+        const r = roster.get(ownerId);
+        const acct = boundByOwner.get(ownerId);
+        const login = acct?.login_email || r?.portal_email || credByOwner.get(ownerId) || null;
+        const contact = acct?.owner_email || null;
+        const base = `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
+        return contact && contact !== login ? `${base} (contact ${contact})` : base;
+      };
+
       const accountResults: Array<{
         owner_id: string;
         owner_email: string | null;
+        login_email: string | null;
+        contact_email: string | null;
+        owner_label: string;
+        bound: boolean;
+        has_keys: boolean;
         listing_count: number;
+        archived_count?: number;
         total_listing_count?: number;
         error: string | null;
         is_master: boolean;
       }> = [];
-      // The master/parent account may never hold listings in a white-label
-      // integration, so flag it explicitly rather than assume it is clean.
-      const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
+
       // Every listing is classified exactly once, so the buckets always add up
       // to the account totals instead of counting an archived-but-linked
       // listing as live as well as archived.
@@ -471,6 +551,22 @@ Deno.serve(async (req) => {
       }> = [];
       // Every live listing, kept so same-name copies on one account can be grouped afterwards.
       const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
+      // Listings held by a sub-account ROL'OS has not bound. These are NOT orphans
+      // to delete — they belong to another account and are only reported.
+      const foreignListings: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        owner_label: string;
+        is_archived: boolean;
+        local_label: string | null;
+        kind: "property" | "unit" | null;
+        record_id: string | null;
+        property_id: string | null;
+      }> = [];
+      // Anything seen on any account (bound or not) — a local id pointing here is not stale.
+      const seenAnywhere = new Set<string>();
+
 
 
       // The channel rate-limits repeated pulls, so a large account list can
@@ -482,20 +578,43 @@ Deno.serve(async (req) => {
       const PER_ACCOUNT_MS = 15_000;
 
       for (const ownerId of ownerIds) {
+        const acct = boundByOwner.get(ownerId);
+        const bound = Boolean(acct);
+        const hasKeys = Boolean(acct?.access_key) || credByOwner.has(ownerId);
+        const rosterEntry = roster.get(ownerId);
+        const loginEmail = acct?.login_email || rosterEntry?.portal_email || credByOwner.get(ownerId) || null;
+        const base = {
+          owner_id: ownerId,
+          owner_email: loginEmail,
+          login_email: loginEmail,
+          contact_email: acct?.owner_email ?? null,
+          owner_label: accountLabel(ownerId),
+          bound,
+          has_keys: hasKeys,
+          is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
+        };
 
-        const account = (accounts || []).find(
-          (a: { ru_owner_id: string | null }) => String(a.ru_owner_id) === ownerId,
-        ) as { owner_email: string | null } | undefined;
         if (Date.now() - startedAt > TOTAL_BUDGET_MS) {
           accountResults.push({
-            owner_id: ownerId,
-            owner_email: account?.owner_email ?? null,
+            ...base,
             listing_count: 0,
             error: "Not read — reconciliation time budget reached, run again to finish this account",
-            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
           });
           continue;
         }
+
+        // Sub-account inventory can only be read as that sub-account. Without its
+        // key pair the account is reported as unread rather than silently skipped.
+        if (!hasKeys) {
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            error:
+              "No keys — this sub-account's AccessKey + SecretKey are not stored, so its listings could not be read",
+          });
+          continue;
+        }
+
         const { data: listRes, error: listErr } = await Promise.race([
           admin.functions.invoke("rentalsunited-api", {
             body: {
@@ -521,31 +640,58 @@ Deno.serve(async (req) => {
             listErr?.message ||
             (typeof res.error === "string" ? res.error : res.error?.message) ||
             "Channel account could not be read";
-          accountResults.push({
-            owner_id: ownerId,
-            owner_email: account?.owner_email ?? null,
-            listing_count: 0,
-            error: message,
-            is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
-          });
+          accountResults.push({ ...base, listing_count: 0, error: message });
           continue;
         }
 
         const listings = res.properties || [];
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
-          owner_id: ownerId,
-          owner_email: account?.owner_email ?? null,
+          ...base,
           listing_count: liveListings.length,
+          archived_count: listings.length - liveListings.length,
           total_listing_count: listings.length,
           error: null,
-          is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         });
 
         for (const l of listings) {
           const id = String(l.id);
           const locals = localByListing.get(id) || [];
           const name = l.name || locals[0]?.label || "Unnamed listing";
+          seenAnywhere.add(id);
+
+          // Listings on an account ROL'OS has not bound belong to someone else's
+          // sub-account: reported, never classified as our orphans or duplicates.
+          if (!bound) {
+            if (locals.length === 0) {
+              foreignListings.push({
+                listing_id: id,
+                name,
+                owner_id: ownerId,
+                owner_label: base.owner_label,
+                is_archived: l.is_archived === true,
+                local_label: null,
+                kind: null,
+                record_id: null,
+                property_id: null,
+              });
+            } else {
+              for (const local of locals) {
+                foreignListings.push({
+                  listing_id: id,
+                  name,
+                  owner_id: ownerId,
+                  owner_label: base.owner_label,
+                  is_archived: l.is_archived === true,
+                  local_label: local.label,
+                  kind: local.kind,
+                  record_id: local.recordId,
+                  property_id: local.propertyId,
+                });
+              }
+            }
+            continue;
+          }
 
           // Archived listings stay in the channel property feed forever (they are
           // only hidden in the channel portal) and never sell or bill. They are
@@ -592,6 +738,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
 
 
       /**
@@ -677,12 +824,13 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Local ids the account no longer returns — only trustworthy when at least
-      // one account read succeeded, otherwise everything would look stale.
+      // Local ids no account returns — only trustworthy when at least one account
+      // read succeeded, otherwise everything would look stale. A listing found on
+      // an unbound sub-account counts as seen, so it is reported as foreign, not stale.
       const anyRead = accountResults.some((a) => a.error === null);
       const stale = anyRead
         ? Array.from(localRecords.values())
-            .filter((l) => !liveOnChannel.has(l.listingId) && !archivedOnChannel.has(l.listingId))
+            .filter((l) => !seenAnywhere.has(l.listingId))
             .map((l) => ({
               listing_id: l.listingId,
               label: l.label,
@@ -697,20 +845,28 @@ Deno.serve(async (req) => {
         (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
         0,
       );
+      const boundAccountTotal = accountResults
+        .filter((a) => a.bound)
+        .reduce((sum, a) => sum + (a.total_listing_count ?? a.listing_count), 0);
 
       return new Response(
         JSON.stringify({
           success: true,
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
-          // Mutually exclusive: live + archived always equals the account total.
+          roster_error: rosterError,
+          // Mutually exclusive: live + archived always equals the bound-account total.
           channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
-          account_listing_total: accountTotal,
+          account_listing_total: boundAccountTotal,
+          all_account_listing_total: accountTotal,
+          foreign_listings: foreignListings,
+          foreign_listing_count: foreignListings.length,
           archived_orphans: archivedOrphans,
           archived_matched: archivedMatched,
           conflicts,
           matched,
+
           orphans,
           duplicates,
           stale,
