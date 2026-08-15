@@ -746,6 +746,12 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
           </div>
         </div>
+        {verification && verification.unmatched.length > 0 && (
+          <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-[11px] text-amber-700">
+            <span className="font-medium">Not found on the channel:</span>{" "}
+            {verification.unmatched.join(", ")} — re-push, then fetch the Channel Manager IDs again to confirm.
+          </div>
+        )}
         <div className="mt-2 border-t pt-2">
           <ChannelContentSyncStatus propertyId={propertyId} />
           {published && (
