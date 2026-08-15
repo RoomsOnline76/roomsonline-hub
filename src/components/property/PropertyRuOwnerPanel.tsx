@@ -91,10 +91,14 @@ interface PropertyRuOwnerPanelProps {
  * push/pull for this property is gated.
  */
 export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }: PropertyRuOwnerPanelProps) {
+  const { isAdmin } = useAuth();
   const isRolos = useMemo(
     () => ["roomsonline", "rolos", "rol_os", "rolos_pms"].includes((pmsSystem ?? "").trim().toLowerCase()),
     [pmsSystem],
   );
+
+  const [showWlTokens, setShowWlTokens] = useState(false);
+
 
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
