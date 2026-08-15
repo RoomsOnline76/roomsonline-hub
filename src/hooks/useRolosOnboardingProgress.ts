@@ -842,7 +842,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     async (opts?: { probeAri?: boolean }) => {
       readiness.refresh();
       if (opts?.probeAri) setProbeAri(true);
-      await queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] }),
+        queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-phase", propertyId] }),
+      ]);
     },
     [propertyId, queryClient, readiness],
   );
