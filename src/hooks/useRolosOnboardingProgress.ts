@@ -96,7 +96,7 @@ interface PhaseStatusPayload {
 
 interface IdentityPayload {
   property?: { is_rolos?: boolean; ru_property_id?: string | null };
-  account?: { ru_owner_id?: string | null } | null;
+  account?: { ru_owner_id?: string | null; owner_email?: string | null; ru_login_email?: string | null } | null;
   keys?: { verified_at?: string | null; access_key_last4?: string | null } | null;
   keys_captured?: boolean;
   push_gated?: boolean;
@@ -857,6 +857,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     channelsConnected,
     channelsLive,
     readyRegressed,
+    /** Login email of the distribution sub-account being verified. */
+    subAccountEmail:
+      (d?.identity?.account?.ru_login_email ?? d?.identity?.account?.owner_email ?? null) || null,
     ariProbedAt: d?.ariAge ?? null,
     ariProbeRequested: probeAri,
     publishedOk,

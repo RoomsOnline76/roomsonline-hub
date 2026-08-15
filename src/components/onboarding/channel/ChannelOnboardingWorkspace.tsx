@@ -135,6 +135,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     recordSignoff,
     recordSignoffCheck,
     listingPull,
+    subAccountEmail,
+
     recordListingPull,
     refresh,
     isLoading,
@@ -778,6 +780,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               publishedOk={publishedOk}
               entitlementOn={billing.config?.channel_manager_enabled === true}
               onPushOwner={pushOwner}
+              subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               onEnable={enableChannelManager}
               onSignoffItem={(key, next) => {
@@ -956,6 +959,7 @@ function PublishedPane({
   busy,
   signoff,
   listingPull,
+  subAccountEmail,
   onPullListings,
   pushErrors,
   unpublishedUnits,
@@ -974,6 +978,7 @@ function PublishedPane({
   busy: string | null;
   signoff: ReturnType<typeof useRolosOnboardingProgress>["signoff"];
   listingPull: ReturnType<typeof useRolosOnboardingProgress>["listingPull"];
+  subAccountEmail: string | null;
   onPullListings: () => void;
   pushErrors: string[];
   unpublishedUnits: number;
@@ -1088,7 +1093,12 @@ function PublishedPane({
         >
           <p className="text-sm font-medium">Sub-account verification</p>
           <p className="text-xs text-muted-foreground">
-            Tick each item as you confirm it. The step completes only when every item is ticked.
+            Verifying the distribution sub-account{" "}
+            <span className="font-medium text-foreground">{subAccountEmail ?? "— not linked yet"}</span>. Tick each
+            item as you confirm it. The step completes only when every item is ticked.
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            The name and date under a tick record who confirmed it, not the sub-account login.
           </p>
           {ROLOS_SIGNOFF_CHECKLIST.map((item) => {
             const record = signoff.checks?.[item.key];
