@@ -41,3 +41,13 @@ identity, sub-account creation readiness checks, and `push_gated`/`gate_reason`.
 `ensure_owner_account`. All ROL'OS sub-accounts are created with the shared operator password
 `SLPafrica247*` (constant `RU_SUB_USER_PASSWORD`) so an admin can sign in as the sub-user to mint the
 first key pair. `PushToRentalsUnited` disables Fetch IDs / Push while `push_gated` is true.
+
+Ownership is enforced on save: a valid pair is not proof of ownership. `save_api_keys` calls
+`rentalsunited-api` action `verify_child_key_owner` (reads that OwnerID's listings under the pair and
+identifies the authenticating account) and rejects cross-account pairs (`RU_CHILD_KEYS_WRONG_ACCOUNT`)
+or a pair already stored for another OwnerID (`RU_CHILD_KEYS_DUPLICATE`). One AccessKey must never sit
+on two OwnerIDs — `list_stored_api_keys` returns `shared_with_other_account` and the RU accounts panel
+flags it. `list_properties` is child-auth strict: with no stored pair it returns
+`RU_CHILD_AUTH_REQUIRED` instead of reading the master account (a master read looks like "the
+sub-account was empty"). The wizard's pull card shows the account the pull authenticated as, separate
+from the operator who clicked.

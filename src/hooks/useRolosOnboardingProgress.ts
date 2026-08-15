@@ -299,7 +299,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
     const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
     const lp = (cr.listing_pull ?? null) as
-      | { at?: string; by?: string | null; matched?: number; unmatched?: number; remote_count?: number }
+      | {
+          at?: string;
+          by?: string | null;
+          matched?: number;
+          unmatched?: number;
+          remote_count?: number;
+          account?: string | null;
+          auth_mode?: string | null;
+        }
       | null;
     return lp && lp.at
       ? {
@@ -308,6 +316,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           matched: Number(lp.matched ?? 0),
           unmatched: Number(lp.unmatched ?? 0),
           remoteCount: Number(lp.remote_count ?? 0),
+          /** The distribution sub-account the pull actually authenticated as. */
+          account: lp.account ?? null,
+          authMode: lp.auth_mode ?? null,
         }
       : null;
   }, [d?.roadmap]);
@@ -832,7 +843,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   /** Record the outcome of a "Pull listings" run (step 9). */
   const recordListingPull = useCallback(
     async (
-      outcome: { matched: number; unmatched: number; remoteCount: number },
+      outcome: {
+        matched: number;
+        unmatched: number;
+        remoteCount: number;
+        account?: string | null;
+        authMode?: string | null;
+      },
       actorLabel?: string | null,
     ) => {
       await writeChannelReadiness({
@@ -842,6 +859,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           matched: outcome.matched,
           unmatched: outcome.unmatched,
           remote_count: outcome.remoteCount,
+          account: outcome.account ?? null,
+          auth_mode: outcome.authMode ?? null,
         },
       });
     },
