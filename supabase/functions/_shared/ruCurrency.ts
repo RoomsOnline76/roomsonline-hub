@@ -354,7 +354,7 @@ export async function decideRuCurrency(
       effective_rate: null,
       flip_outcome: 'already_set',
       ru_reported_iso: verifiedIso,
-      verified_at: scoped?.verified_at ?? null,
+      verified_at: scoped?.verified_at ?? new Date().toISOString(),
       reason: `Rentals United confirmed location ${opts.locationId} holds ${authored} for account ${ownerScope}.`,
     });
     await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
