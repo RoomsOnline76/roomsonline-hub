@@ -1927,7 +1927,7 @@ function buildFillCompanyDetailsXml(
     if (val === undefined || val === null || !Number.isFinite(Number(val))) return '';
     const n = Number(val);
     const id = isRangeId(ranges, n) ? n : rangeIdForCount(ranges, n);
-    return id ? `<${tag}>${id}</${tag}>` : '';
+    return id !== undefined ? `<${tag}>${id}</${tag}>` : '';
   };
 
   // LegalRepresentativeInfo is optional, but RU's XSD fixes the element order:
