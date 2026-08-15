@@ -1384,18 +1384,35 @@ Deno.serve(async (req) => {
         ari = { rate_coverage: localCoverage, pending_publish: true, local_window: localWindow };
       }
 
+      // A unit whose ROL'OS room-type link is dangling (the room type was replaced) resolves
+      // to no plan, no rack rate and no daily rate. Reporting that as "rates missing for 365
+      // days" sent owners to author rates that already exist — name the real fault instead.
+      if (unlinkedUnits.length > 0) {
+        extraChecks.push({
+          key: "unit_rate_plan_link",
+          group: "Pricing 365d",
+          label: "Every unit is linked to a rate plan",
+          mandatory: true,
+          passed: false,
+          unit: unlinkedUnits.length === 1 ? unlinkedUnits[0].name : undefined,
+          detail: `${unlinkedUnits.map((u) => u.name).join(", ")}: not linked to any active rate plan — the unit's ROL'OS room type link is missing or stale, so no season or rack rate can be found.`,
+          fix_hint: "ROL'OS → Rate Plans → link the unit to a plan (Calendar seasons then keep the rack fallback)",
+        });
+      }
+
       // Currency verification is a wizard gate too — the Currency panel is no longer the
       // only place it is visible, so a property cannot clear onboarding unverified.
       {
         const { data: currencyState } = await admin
           .from("ru_currency_state")
-          .select("published_currency_iso, ru_reported_currency_iso, verified_at")
+          .select("published_currency_iso, ru_reported_currency_iso, verified_at, flip_outcome, location_currency_iso")
           .eq("property_id", p.id)
           .maybeSingle();
         extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
           published: !(ari as { pending_publish?: boolean } | null)?.pending_publish,
         }));
       }
+
 
       const summary = summarizeReadiness(units, extraChecks);
 
