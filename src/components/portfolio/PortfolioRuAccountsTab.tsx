@@ -1776,6 +1776,69 @@ export function PortfolioRuAccountsTab() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={closeAsk} onOpenChange={(o) => !o && setCloseAsk(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-destructive" />
+              Close distribution sub-account
+            </DialogTitle>
+            <DialogDescription>
+              This closes the sub-account on the channel and clears the local bind. Properties under it are
+              archived and channel connections removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setCloseAsk(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="destructive" disabled={closing} onClick={closeRuAccount}>
+              {closing ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Close / Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!archiveAsk} onOpenChange={(o) => !o && setArchiveAsk(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-destructive" />
+              Archive sub-account
+            </DialogTitle>
+            <DialogDescription>
+              {archiveAsk
+                ? `Archive OwnerID ${archiveAsk.ownerId} (${archiveAsk.email}) on the channel? Properties are archived and channel connections removed.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setArchiveAsk(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={!!archiving}
+              onClick={() => archiveAsk && archiveCandidate(archiveAsk.ownerId, archiveAsk.email, undefined, true)}
+            >
+              {archiving ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <Archive className="h-3 w-3 mr-1" />
+              )}
+              Archive
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
       <Dialog open={!!removeKeysFor} onOpenChange={(o) => !o && setRemoveKeysFor(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
