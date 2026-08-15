@@ -798,6 +798,9 @@ Deno.serve(async (req) => {
 
     let user: { id: string; email?: string | null } = { id: "00000000-0000-0000-0000-000000000000", email: "system@rolos.internal" };
     let allowed = isInternalService;
+    // Hoisted: audit trails further down (unbind, key actions, pushes) read `roles`
+    // for the actor role, so it must exist for service/cron calls too.
+    let roles: { role: string }[] = [];
 
     if (!isInternalService) {
       const { data: userData } = await userClient.auth.getUser();
@@ -805,9 +808,11 @@ Deno.serve(async (req) => {
       if (!authed) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid session" } }, 401);
       user = { id: authed.id, email: authed.email ?? null };
 
-      const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", authed.id);
-      allowed = (roles ?? []).some((r: { role: string }) => ["admin", "dev", "fearless_leader"].includes(r.role));
+      const { data: roleRows } = await admin.from("user_roles").select("role").eq("user_id", authed.id);
+      roles = (roleRows ?? []) as { role: string }[];
+      allowed = roles.some((r) => ["admin", "dev", "fearless_leader"].includes(r.role));
     }
+
 
 
 
