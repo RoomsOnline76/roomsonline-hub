@@ -20,6 +20,7 @@ import {
   RefreshCw,
   ShieldCheck,
   UserPlus,
+  Unlink,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
