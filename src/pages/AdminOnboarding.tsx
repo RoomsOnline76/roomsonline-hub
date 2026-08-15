@@ -1,12 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
-import {
-  applyAdminScope,
-  filterToItTestProperties,
-  isItTestAdminEmail,
-  IT_TEST_PROPERTY_IDS,
-} from "@/lib/adminScope";
+import { applyAdminScope } from "@/lib/adminScope";
 import {
   channelQueueProgress,
   ruMandatoryCheckSummary,
@@ -375,10 +370,8 @@ export default function AdminOnboarding() {
     try {
       setLoading(true);
 
-      const itTestPin = isItTestAdminEmail(actorEmail);
-      const pinIds = itTestPin
-        ? [...IT_TEST_PROPERTY_IDS]
-        : scopedPropertyIds;
+      // Scope comes from `scoped_admin_properties` only — no hardcoded pins.
+      const pinIds = scopedPropertyIds;
 
       // Load only ACTIVE properties (non-deleted, is_active = true)
       const propQuery = supabase
@@ -684,7 +677,7 @@ export default function AdminOnboarding() {
         };
       });
 
-      setPropertyRows(itTestPin ? filterToItTestProperties(enrichedProperties) : enrichedProperties);
+      setPropertyRows(enrichedProperties);
       setLoading(false);
 
       // Background refinement: probe live channel readiness per ROL'OS property and
@@ -739,9 +732,7 @@ export default function AdminOnboarding() {
 
   // Filtered properties based on search, status filter, and show completed toggle
   const filteredProperties = useMemo(() => {
-    let result = isItTestAdminEmail(actorEmail)
-      ? filterToItTestProperties(propertyRows)
-      : propertyRows;
+    let result = propertyRows;
     if (scopedPropertyIds.length) {
       result = result.filter((r) => scopedPropertyIds.includes(r.id));
     }
@@ -811,8 +802,8 @@ export default function AdminOnboarding() {
   // Stats calculated from properties with actual onboarding activity
   const onboardingActiveRows = useMemo(() => {
     const activeStatuses = ["onboarding_active", "review_pending", "activation_ready", "live"];
-    const source = isItTestAdminEmail(actorEmail)
-      ? filterToItTestProperties(propertyRows)
+    const source = scopedPropertyIds.length
+      ? propertyRows.filter((r) => scopedPropertyIds.includes(r.id))
       : propertyRows;
     return source.filter((r) => {
       if (r.isRolos) return true;

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { InsightPanelTrigger } from "@/components/InsightPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { applyAdminScope, filterToItTestProperties, isItTestAdminEmail } from "@/lib/adminScope";
+import { applyAdminScope } from "@/lib/adminScope";
 import { SalesRepDashboard } from "@/components/dashboard/SalesRepDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -131,8 +131,7 @@ const Dashboard = () => {
       }
       query = applyAdminScope(query, "id", scopedPropertyIds);
       const { data } = await query;
-      const rows = data || [];
-      return isItTestAdminEmail(profile?.email ?? user?.email) ? filterToItTestProperties(rows) : rows;
+      return data || [];
     },
     enabled: !!user && (isAdmin || !!profile?.email),
   });

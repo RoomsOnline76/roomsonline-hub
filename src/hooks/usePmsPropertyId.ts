@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { applyAdminScope, filterToItTestProperties, isItTestAdminEmail } from "@/lib/adminScope";
+import { applyAdminScope } from "@/lib/adminScope";
 
 export interface RolProperty {
   id: string;
@@ -60,8 +60,7 @@ export function usePmsPropertyId() {
           .order("name");
         query = applyAdminScope(query, "id", scopedPropertyIds);
         const { data } = await query;
-        const rows = (data || []) as RolProperty[];
-        return isItTestAdminEmail(user.email) ? filterToItTestProperties(rows) : rows;
+        return (data || []) as RolProperty[];
       }
 
       // Check both primary ownership and linked ownership
@@ -129,7 +128,7 @@ export function usePmsPropertyId() {
 
   // Fetch portfolio memberships for the selected property
   const { data: portfolioContext, isLoading: portfolioLoading, error: portfolioError } = useQuery({
-    queryKey: ["pms-property-portfolio-context", propertyId, user?.id],
+    queryKey: ["pms-property-portfolio-context", propertyId, user?.id, scopedPropertyIds.join(",")],
     queryFn: async () => {
       if (!propertyId) return null;
 
@@ -160,12 +159,16 @@ export function usePmsPropertyId() {
       const memberIds = new Set<string>();
       (allMembers as any[] || []).forEach((m: any) => memberIds.add(m.property_id));
 
-      const { data: memberProps } = await supabase
+      // A scoped admin must not see portfolio siblings it cannot read: narrow the
+      // sibling list to the scope so the portfolio toggle matches actual access.
+      let memberQuery = supabase
         .from("properties")
         .select("id, name, slug, brand_primary_color")
         .in("id", Array.from(memberIds))
         .eq("is_active", true)
         .order("name");
+      memberQuery = applyAdminScope(memberQuery, "id", scopedPropertyIds);
+      const { data: memberProps } = await memberQuery;
 
       return {
         portfolioIds,
