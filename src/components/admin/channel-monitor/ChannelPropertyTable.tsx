@@ -28,6 +28,9 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   archived: "Archived",
 };
 
+const UNASSIGNED = "Unassigned";
+
+
 export function ChannelPropertyTable({
   rows,
   fx,
@@ -41,6 +44,7 @@ export function ChannelPropertyTable({
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const portfolios = useMemo(
@@ -59,6 +63,37 @@ export function ChannelPropertyTable({
       return true;
     });
   }, [rows, search, stateFilter, portfolioFilter]);
+
+  const groups = useMemo(() => {
+    const map = new Map<string, ChannelPropertyRow[]>();
+    for (const r of filtered) {
+      const key = r.portfolioName || UNASSIGNED;
+      const list = map.get(key);
+      if (list) list.push(r);
+      else map.set(key, [r]);
+    }
+    return Array.from(map.entries())
+      .map(([name, groupRows]) => ({
+        name,
+        rows: [...groupRows].sort((a, b) => a.name.localeCompare(b.name)),
+        listings: groupRows.reduce((sum, r) => sum + r.listings, 0),
+        duplicates: groupRows.reduce((sum, r) => sum + r.duplicateListings, 0),
+        monthlyCostEur: groupRows.reduce((sum, r) => sum + r.monthlyCostEur, 0),
+      }))
+      .sort((a, b) => {
+        if (a.name === UNASSIGNED) return 1;
+        if (b.name === UNASSIGNED) return -1;
+        return a.name.localeCompare(b.name);
+      });
+  }, [filtered]);
+
+  const toggleGroup = (name: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
 
   return (
     <Card>
@@ -130,7 +165,48 @@ export function ChannelPropertyTable({
               </TableRow>
             )}
 
-            {filtered.map((row) => {
+            {groups.map((group) => {
+              const groupOpen = !collapsed.has(group.name);
+              return (
+              <Fragment key={`group-${group.name}`}>
+                <TableRow className="bg-muted/60 hover:bg-muted/60">
+                  <TableCell className="pr-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => toggleGroup(group.name)}
+                      aria-label={groupOpen ? `Collapse ${group.name}` : `Expand ${group.name}`}
+                    >
+                      {groupOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                    </Button>
+                  </TableCell>
+                  <TableCell colSpan={3}>
+                    <span className="text-xs font-semibold uppercase tracking-wide">{group.name}</span>
+                    <span className="ml-2 text-[10px] text-muted-foreground">
+                      {group.rows.length} propert{group.rows.length === 1 ? "y" : "ies"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">{group.listings}</TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">
+                    {group.duplicates > 0 ? (
+                      <span className="text-destructive">{group.duplicates}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right text-xs font-medium tabular-nums">
+                    {formatEur(group.monthlyCostEur)}
+                    {fx && (
+                      <span className="block text-[10px] font-normal text-muted-foreground">
+                        {formatZar(group.monthlyCostEur * fx.eurToZar)}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell colSpan={2} />
+                </TableRow>
+
+                {groupOpen && group.rows.map((row) => {
               const open = expanded === row.id;
               const busy = busyPropertyId === row.id;
               return (
@@ -309,6 +385,9 @@ export function ChannelPropertyTable({
                     </TableRow>
                   )}
                 </Fragment>
+              );
+            })}
+              </Fragment>
               );
             })}
           </TableBody>
