@@ -1127,6 +1127,25 @@ export function PortfolioRuAccountsTab() {
                               : <RotateCcw className="h-3 w-3" />}
                             <span className="ml-1.5">New key via API</span>
                           </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
+                            disabled={!activeAccessKey || removingKeys === acc.id}
+                            onClick={() =>
+                              removeApiKeys(
+                                acc.id,
+                                acc.ru_owner_id,
+                                acc.ru_login_email || acc.owner_email,
+                              )
+                            }
+                            title="Clear the stored key pair so a correct one can be captured"
+                          >
+                            {removingKeys === acc.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Trash2 className="h-3 w-3" />}
+                            <span className="ml-1.5">Remove keys</span>
+                          </Button>
                         </div>
                       </div>
                       {activeAccessKey ? (
