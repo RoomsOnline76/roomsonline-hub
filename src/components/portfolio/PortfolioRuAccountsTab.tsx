@@ -1106,6 +1106,13 @@ export function PortfolioRuAccountsTab() {
                       {activeAccessKey ? (
                         <div className="space-y-1 text-xs">
                           <p className="font-mono break-all">{activeAccessKey}</p>
+                          {ownerKey?.shared_with_other_account ? (
+                            <p className="text-[10px] font-medium text-destructive">
+                              This AccessKey is also stored against another sub-account. One of the two is
+                              wrong — every scoped call for it authenticates as the other RU account. Replace it
+                              with a pair generated while signed in as this sub-user.
+                            </p>
+                          ) : null}
                           <p className="text-[10px] text-muted-foreground">
                             {activeLabel ? `Label "${activeLabel}". ` : ""}
                             {activeVerified
