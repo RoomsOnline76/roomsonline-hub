@@ -997,6 +997,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         unmatched: number;
         remoteCount: number;
         account?: string | null;
+        ownerId?: string | null;
         authMode?: string | null;
       },
       actorLabel?: string | null,
@@ -1009,9 +1010,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           unmatched: outcome.unmatched,
           remote_count: outcome.remoteCount,
           account: outcome.account ?? null,
+          owner_id: outcome.ownerId ?? null,
           auth_mode: outcome.authMode ?? null,
         },
       });
+
     },
     [writeChannelReadiness],
   );
