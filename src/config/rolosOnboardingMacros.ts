@@ -129,7 +129,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     goal: "Commercial terms are complete and priced for a full year.",
     section: "rates",
     tasks: [
-      { kind: "fields", sections: ["rates"], label: "Rates & policy fields" },
+      { kind: "fields", sections: ["rates", "policies"], label: "Rates & policy fields" },
       { kind: "state", key: "policies_payments" },
       { kind: "state", key: "pricing_365" },
       { kind: "state", key: "availability_365" },
