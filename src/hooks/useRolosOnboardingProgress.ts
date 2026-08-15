@@ -489,7 +489,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const mandatoryStateChecks = mandatoryStates
         .map((t) => stateChecks.get(t.key))
         .filter((c): c is DistributionCheck => !!c);
-      const stateOutstanding = mandatoryStateChecks.filter((c) => !c.ok).length;
+      // A check the resolver could not judge ("Not yet resolvable") is advisory:
+      // there is no field for the owner to correct, so it must never hold the
+      // wizard open and strand the user on a dead-end Fix button.
+      const stateOutstanding = mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).length;
 
       const mandatoryTotal =
         fieldItems.filter((i) => i.tier === "mandatory").length + mandatoryStateChecks.length;
@@ -508,7 +511,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         locked: !previousComplete,
         outstandingLabels: [
           ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
-          ...mandatoryStateChecks.filter((c) => !c.ok).map((c) => c.label),
+          ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
         ],
       });
 

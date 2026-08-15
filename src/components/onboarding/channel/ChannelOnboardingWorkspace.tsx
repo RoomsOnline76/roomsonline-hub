@@ -344,7 +344,11 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       };
     }
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
-    const firstCheck = macro.stateChecks.find((c) => !c.ok);
+    // Never point the primary action at a check the resolver could not judge —
+    // there is no field behind it, so the button would go nowhere.
+    const firstCheck =
+      macro.stateChecks.find((c) => !c.ok && !c.unknown && !!resolveCheckTarget(c.key)) ??
+      macro.stateChecks.find((c) => !c.ok && !c.unknown);
     return {
       label: firstField ? `Fix: ${firstField.label}` : firstCheck ? `Fix: ${firstCheck.label}` : "Continue",
       disabled: false,
