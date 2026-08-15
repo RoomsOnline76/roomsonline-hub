@@ -4446,10 +4446,12 @@ Deno.serve(async (req) => {
 
         const hardFailures = unitResults.filter((u: any) => !u.success && !u.transport_failure);
         const chunkErrorCode = chunkSuccess
-          ? null
+          ? (remainingUnitIds.length > 0 ? 'RU_PUSH_RESUMABLE' : null)
           : hardFailures.length > 0 ? 'RU_INVENTORY_INCOMPLETE' : 'RU_PUSH_INTERRUPTED';
         const chunkErrorMessage = chunkSuccess
-          ? null
+          ? (remainingUnitIds.length > 0
+            ? `Chunk complete — ${unitResults.length} unit(s) pushed and verified, ${remainingUnitIds.length} unit(s) still queued in this sequence.`
+            : null)
           : hardFailures.length > 0
             ? `Rentals United rejected ${hardFailures.length} unit(s): ${hardFailures.map((u: any) => `${u.name} — ${u.error}`).join('; ')}`
             : 'The run ran out of time before every unit was pushed — retry the outstanding units.';
@@ -4458,23 +4460,32 @@ Deno.serve(async (req) => {
           batch_id: sequenceBatchId,
           property_id,
           action: 'inventory_push',
-          success: inventorySuccess,
+          // A clean chunk is a success even when the sequence continues: logging it as a
+          // failure made a healthy availability/price push read as "channel push failed".
+          success: chunkSuccess,
           error_code: chunkErrorCode,
           error_message: chunkErrorMessage,
           details: {
             ru_owner_id: ruOwnerId,
             owner_scope: phaseGate.owner_scope,
             verified: inventoryVerified,
+            chunk_verified: chunkVerified,
+            sequence_complete: remainingUnitIds.length === 0,
+            resumable: remainingUnitIds.length > 0,
             units: unitResults,
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
+
         // The read-back follows the push automatically once the whole sequence is done.
         const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
-            ...(chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            // A resumable chunk is not an error — only real rejections/interruptions are.
+            ...(!chunkSuccess && chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(chunkSuccess && remainingUnitIds.length > 0 ? { chunk_note: chunkErrorMessage } : {}),
+
             ...(listingVerification ? { listing_verification: listingVerification } : {}),
             multi_unit: true,
             standalone_units: true,

@@ -1534,22 +1534,28 @@ Deno.serve(async (req) => {
 
 
 
+        // A probe that never answered (throttled / timed out) must be reported as PENDING,
+        // never as "no open availability day" — that read as a false push failure.
+        const probeSilent = unitProbes.some((probe) => probe.availability_error != null);
         extraChecks.push({
           key: "ari_availability",
           group: "Availability 365d",
           label: "Availability pushed for the next 365 days",
           mandatory: true,
-          passed: availabilityReady,
+          passed: availabilityReady || (probeSilent && !!latestSuccessfulPush && localAvailabilityReady),
           unit: availabilityReady ? undefined : singleFailingUnit(failedAvailabilityIds),
           ...(hasAvailability
             ? { detail: `Verified on ${unitProbes.length} RU unit(s)` }
             : snapshotHeldAvailability
               ? { detail: `${snapshotAge(ariSnapshot!.probed_at)} — the latest read-back did not answer, so the stored verification stands` }
-              : availabilityReady
-                ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
-                : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
+              : probeSilent
+                ? { detail: `The channel did not answer the read-back for ${describeUnits(failedAvailabilityIds)} (rate limit or timeout); the last inventory push succeeded, so verification is pending — refresh to re-read` }
+                : availabilityReady
+                  ? { detail: `Local 365-day payload is ready and the latest inventory push succeeded; live channel verification is pending for ${describeUnits(failedAvailabilityIds)}` }
+                  : { detail: `${describeUnits(failedAvailabilityIds)}: no open availability day in the next 365 days` }),
           fix_hint: "Rate Manager → Calendar / availability",
         });
+
         extraChecks.push({
           key: "ari_prices",
           group: "Pricing 365d",
