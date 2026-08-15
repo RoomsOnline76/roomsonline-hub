@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Link as RouterLink } from "react-router-dom";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
+import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
+
 import {
   Dialog,
   DialogContent,
