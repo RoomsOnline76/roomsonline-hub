@@ -909,7 +909,9 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               listingsVerified={listingsVerified}
+              readBackPending={readBackPending && !listingsVerified}
               onVerifyListings={verifyListings}
+
               onEnable={enableChannelManager}
               onPushCompanyDetails={pushCompanyDetails}
               onSignoffItem={(key, next) => {
