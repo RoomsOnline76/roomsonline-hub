@@ -899,7 +899,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-phase", propertyId] }),
       ]);
     },
-    [propertyId, queryClient, readiness],
+    [propertyId, queryClient],
   );
 
 
