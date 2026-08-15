@@ -295,6 +295,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           unmatched,
           remoteCount,
           account: typeof data.ru_owner_label === "string" ? data.ru_owner_label : null,
+          ownerId: data.ru_owner_id != null ? String(data.ru_owner_id) : null,
           authMode: typeof data.auth_mode === "string" ? data.auth_mode : null,
         },
         user?.email ?? null,
@@ -1172,7 +1173,15 @@ function PublishedPane({
             Lists everything already present under the sub-account and links matches to this property and its
             units by name, so the push updates an existing listing instead of creating a duplicate.
           </p>
-          {listingPull ? (
+          {listingPull?.stale ? (
+            <p className="text-sm text-amber-600">
+              This record is from OwnerID {listingPull.ownerId}, but the property is now bound to OwnerID{" "}
+              {listingPull.boundOwnerId}. Pull again so the listings come from the bound account.
+              <span className="block text-[11px] text-muted-foreground">
+                Previous pull: {listingPull.account ?? "unknown account"} · {new Date(listingPull.at).toLocaleString()}
+              </span>
+            </p>
+          ) : listingPull ? (
             <p className="text-sm text-emerald-600">
               {listingPull.remoteCount === 0
                 ? "Sub-account was empty — nothing to adopt."
@@ -1192,6 +1201,7 @@ function PublishedPane({
           ) : (
             <p className="text-sm text-muted-foreground">Not pulled yet.</p>
           )}
+
           {isPlatformUser ? (
             <Button variant={listingPull ? "outline" : "default"} onClick={onPullListings} disabled={locked || busy === "pull_listings"}>
               {busy === "pull_listings" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}

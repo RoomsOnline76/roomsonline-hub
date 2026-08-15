@@ -360,22 +360,33 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           unmatched?: number;
           remote_count?: number;
           account?: string | null;
+          owner_id?: string | null;
           auth_mode?: string | null;
         }
       | null;
-    return lp && lp.at
-      ? {
-          at: String(lp.at),
-          by: lp.by ?? null,
-          matched: Number(lp.matched ?? 0),
-          unmatched: Number(lp.unmatched ?? 0),
-          remoteCount: Number(lp.remote_count ?? 0),
-          /** The distribution sub-account the pull actually authenticated as. */
-          account: lp.account ?? null,
-          authMode: lp.auth_mode ?? null,
-        }
-      : null;
-  }, [d?.roadmap]);
+    if (!lp || !lp.at) return null;
+    const boundOwnerId = String(d?.identity?.account?.ru_owner_id ?? "").trim();
+    const pulledOwnerId = String(lp.owner_id ?? "").trim();
+    return {
+      at: String(lp.at),
+      by: lp.by ?? null,
+      matched: Number(lp.matched ?? 0),
+      unmatched: Number(lp.unmatched ?? 0),
+      remoteCount: Number(lp.remote_count ?? 0),
+      /** The distribution sub-account the pull actually authenticated as. */
+      account: lp.account ?? null,
+      ownerId: pulledOwnerId || null,
+      authMode: lp.auth_mode ?? null,
+      /**
+       * A pull recorded against a different OwnerID than the one now bound is
+       * evidence about another account — it must not keep the step green, or the
+       * card reports listings from an account this property no longer uses.
+       */
+      stale: !!boundOwnerId && !!pulledOwnerId && boundOwnerId !== pulledOwnerId,
+      boundOwnerId: boundOwnerId || null,
+    };
+  }, [d?.identity?.account?.ru_owner_id, d?.roadmap]);
+
 
 
 
@@ -589,19 +600,22 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     );
 
     // Macro 8 — pull existing listings under the sub-account before verification.
-    const pullDone = !!listingPull;
+    const pullDone = !!listingPull && !listingPull.stale;
     put("listings_pulled", "Existing listings pulled & adopted", bound && pullDone, {
       waiting: !bound,
       detail: !bound
         ? unboundDependentDetail("publish")
-        : listingPull
-          ? listingPull.remoteCount === 0
-            ? "Nothing to adopt — sub-account is empty"
-            : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
-                listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
-              }`
-          : "Not pulled yet",
+        : !listingPull
+          ? "Not pulled yet"
+          : listingPull.stale
+            ? `Last pull ran against OwnerID ${listingPull.ownerId} — re-pull against OwnerID ${listingPull.boundOwnerId}`
+            : listingPull.remoteCount === 0
+              ? "Nothing to adopt — sub-account is empty"
+              : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
+                  listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
+                }`,
     });
+
 
     // Macro 10 — publish. Leftover listing IDs from a previous bind do not count
     // while the property is unbound (no owner key & secret).
@@ -983,6 +997,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         unmatched: number;
         remoteCount: number;
         account?: string | null;
+        ownerId?: string | null;
         authMode?: string | null;
       },
       actorLabel?: string | null,
@@ -995,9 +1010,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           unmatched: outcome.unmatched,
           remote_count: outcome.remoteCount,
           account: outcome.account ?? null,
+          owner_id: outcome.ownerId ?? null,
           auth_mode: outcome.authMode ?? null,
         },
       });
+
     },
     [writeChannelReadiness],
   );
