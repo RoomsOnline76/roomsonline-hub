@@ -4447,7 +4447,7 @@ Deno.serve(async (req) => {
           error: {
             code: "NO_OWNER_EMAIL",
             message:
-              "No usable property-owner email found. The distribution account must be created with the property owner's own email address (internal ROL logins such as dev@ or connect@ cannot be used). Set the owner email on the property first.",
+              "No usable owner email found for the distribution account. Set an owner email on the property (the shared dev@ platform login cannot be used).",
           },
         }, 422);
       }
