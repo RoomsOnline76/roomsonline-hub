@@ -20,6 +20,7 @@ import {
   RefreshCw,
   ShieldCheck,
   UserPlus,
+  Unlink,
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -114,6 +115,12 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const [editingKeys, setEditingKeys] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [pushingCompany, setPushingCompany] = useState(false);
+  const [confirmUnbind, setConfirmUnbind] = useState(false);
+  const [unbinding, setUnbinding] = useState(false);
+
+
+
+
 
 
 
@@ -133,6 +140,32 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       setLoading(false);
     }
   }, [propertyId, isRolos]);
+
+  /** Detach only this property from the shared distribution account. */
+  const unbindProperty = useCallback(async () => {
+    setUnbinding(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "unbind_property_account", property_id: propertyId },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not unbind this property");
+      const units = Array.isArray(data?.cleared_unit_listings) ? data.cleared_unit_listings.length : 0;
+      toast.success(
+        units
+          ? `Property unbound — listing IDs cleared for the property and ${units} unit(s)`
+          : "Property unbound from the distribution account",
+      );
+      notifyRuAccountsChanged();
+      setConfirmUnbind(false);
+      setExpanded(true);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not unbind this property");
+    } finally {
+      setUnbinding(false);
+    }
+  }, [load, propertyId]);
 
   useEffect(() => {
     void load();
@@ -571,6 +604,48 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
             {!readOnly && isAdmin && (
               <>
                 <Separator />
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold flex items-center gap-1.5">
+                    <Unlink className="h-3.5 w-3.5 text-destructive" />
+                    Unbind this property
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Detaches only <span className="font-medium text-foreground">{identity?.property.name}</span> from
+                    OwnerID {account?.ru_owner_id}: push is switched off and the stored listing IDs for the property and
+                    its units are cleared. The distribution account and portfolio siblings stay bound, and listings
+                    already created on the channel are not deleted — archive them there if they are no longer wanted.
+                  </p>
+                  {confirmUnbind ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs">Unbind this property from the distribution account?</span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="gap-1.5"
+                        disabled={unbinding}
+                        onClick={() => void unbindProperty()}
+                      >
+                        {unbinding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Unlink className="h-3.5 w-3.5" />}
+                        Confirm unbind
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={unbinding} onClick={() => setConfirmUnbind(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1.5 text-xs text-destructive"
+                      onClick={() => setConfirmUnbind(true)}
+                    >
+                      <Unlink className="h-3.5 w-3.5" />
+                      Unbind property from account
+                    </Button>
+                  )}
+                </div>
+
+                <Separator />
                 <div>
                   <Button
                     variant="ghost"
@@ -589,6 +664,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                 </div>
               </>
             )}
+
 
           </>
         )}

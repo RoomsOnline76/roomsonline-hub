@@ -3936,6 +3936,78 @@ Deno.serve(async (req) => {
       return json({ success: true, reset: mode, accounts: ids });
     }
 
+    /**
+     * ── unbind_property_account: detach ONE property from the shared distribution
+     *    account. The account itself (and its siblings) stay bound — only this
+     *    property's channel linkage is cleared: push off, listing ids dropped on the
+     *    property and its units, readiness snapshot removed. Existing listings on the
+     *    channel side are not deleted; archive them there if they are no longer wanted.
+     */
+    if (action === "unbind_property_account") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id, ru_push_enabled")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      const { data: units } = await admin
+        .from("hostfully_room_types")
+        .select("id, rentalsunited_property_id")
+        .eq("property_id", propertyId)
+        .not("rentalsunited_property_id", "is", null);
+      const clearedUnitIds = (units ?? [])
+        .map((u: { rentalsunited_property_id: string | null }) => u.rentalsunited_property_id)
+        .filter(Boolean);
+
+      const { error: propErr } = await admin
+        .from("properties")
+        .update({ rentalsunited_property_id: null, ru_push_enabled: false })
+        .eq("id", propertyId);
+      if (propErr) return json({ success: false, error: { code: "SAVE_FAILED", message: propErr.message } }, 500);
+
+      if ((units ?? []).length) {
+        const { error: unitErr } = await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("property_id", propertyId);
+        if (unitErr) console.warn("[ru-cert-portal] unbind could not clear unit listing ids", unitErr.message);
+      }
+
+      await admin.from("ru_readiness_snapshots").delete().eq("property_id", propertyId)
+        .then(() => {}, (e) => console.warn("[ru-cert-portal] unbind snapshot delete failed", e));
+      phaseStatusCache.delete(propertyId);
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "properties",
+        record_id: propertyId,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Unbound ${prop.name} from its distribution account (cleared listing ${prop.rentalsunited_property_id ?? "—"}${clearedUnitIds.length ? ` and ${clearedUnitIds.length} unit listing(s)` : ""}; push disabled)`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({
+        success: true,
+        property_id: propertyId,
+        cleared_property_listing: prop.rentalsunited_property_id ?? null,
+        cleared_unit_listings: clearedUnitIds,
+      });
+    }
+
+
+
 
 
     // ── phase_status: 4-phase onboarding gate for one property ──
