@@ -14356,6 +14356,8 @@ export type Database = {
         Row: {
           created_at: string
           groups: Json
+          phase_payload: Json | null
+          phase_payload_at: string | null
           probed_at: string
           property_id: string
           ru_owner_id: number | null
@@ -14364,6 +14366,8 @@ export type Database = {
         Insert: {
           created_at?: string
           groups?: Json
+          phase_payload?: Json | null
+          phase_payload_at?: string | null
           probed_at?: string
           property_id: string
           ru_owner_id?: number | null
@@ -14372,6 +14376,8 @@ export type Database = {
         Update: {
           created_at?: string
           groups?: Json
+          phase_payload?: Json | null
+          phase_payload_at?: string | null
           probed_at?: string
           property_id?: string
           ru_owner_id?: number | null
