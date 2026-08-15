@@ -38,6 +38,7 @@ import {
   Mail,
   RotateCcw,
   ShieldCheck,
+  Trash2,
   Unlink,
   User2,
 } from "lucide-react";
