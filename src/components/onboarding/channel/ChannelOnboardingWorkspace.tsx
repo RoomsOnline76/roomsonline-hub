@@ -550,8 +550,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         </div>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
       {readyRegressed && (
+
         <div className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-foreground">
           This party is live on {channelsConnected} channel{channelsConnected === 1 ? "" : "s"}, but a readiness
           check has regressed. Distribution keeps running — review the flagged steps below when convenient.
