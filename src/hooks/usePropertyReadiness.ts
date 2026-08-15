@@ -368,9 +368,9 @@ export function usePropertyReadiness(
   }, [items]);
 
   const refresh = useCallback(() => {
-    void query.refetch();
-    if (channelChecks) void channelQuery.refetch();
-  }, [channelChecks, channelQuery, query]);
+    query.refetch();
+    if (channelChecks) channelQuery.refetch();
+  }, [channelChecks]);
 
   return {
     subject,
