@@ -328,13 +328,25 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   /** Re-read the stored RU links so the panel reflects what the fetch just wrote. */
   const reloadStoredRuIds = async () => {
     const [{ data: prop }, { data: rows }] = await Promise.all([
-      supabase.from("properties").select("rentalsunited_property_id").eq("id", propertyId).maybeSingle(),
+      supabase
+        .from("properties")
+        .select("rentalsunited_property_id, ru_listings_verified_at, ru_listings_verified_owner, ru_listings_verified_units, ru_listings_expected_units, ru_listings_unmatched")
+        .eq("id", propertyId)
+        .maybeSingle(),
       supabase
         .from("hostfully_room_types")
         .select("id, name, rentalsunited_property_id, is_active")
         .eq("property_id", propertyId),
     ]);
     setRuPropertyId(prop?.rentalsunited_property_id ?? null);
+    const vrow = prop as Record<string, unknown> | null;
+    setVerification({
+      verifiedAt: (vrow?.ru_listings_verified_at as string | null) ?? null,
+      owner: (vrow?.ru_listings_verified_owner as string | null) ?? null,
+      verifiedUnits: (vrow?.ru_listings_verified_units as number | null) ?? null,
+      expectedUnits: (vrow?.ru_listings_expected_units as number | null) ?? null,
+      unmatched: Array.isArray(vrow?.ru_listings_unmatched) ? (vrow?.ru_listings_unmatched as string[]) : [],
+    });
     const active = (rows ?? []).filter((r) => r.is_active !== false);
     setUnits((prev) =>
       prev.map((u) => {
