@@ -328,42 +328,69 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const nextAction = useMemo(() => {
     const open = stages.find((s) => !s.complete);
     const macro = open?.currentMacro ?? activeMacro;
-    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined };
-    if (macro.locked) {
-      return { label: "Finish the previous step first", disabled: true, run: () => undefined };
-    }
+    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined, reason: undefined as string | undefined };
+    const reason = macro.actionBlockedReason;
+    // Steps whose blocker is a mandatory field / check still route to the fix;
+    // only the distribution actions themselves wait on a prerequisite.
+    const gatedAction = !!reason;
     if (macro.macro.key === "push_owner" && isPlatformUser) {
-      return { label: "Create distribution identity", disabled: busy === "ensure_owner", run: () => void pushOwner() };
+      return {
+        label: "Create distribution identity",
+        disabled: gatedAction || busy === "ensure_owner",
+        run: () => void pushOwner(),
+        reason,
+      };
     }
     if (macro.macro.key === "publish") {
-      return { label: "Publish listing", disabled: busy === "publish", run: () => void publishListing() };
+      return {
+        label: isPlatformUser ? "Publish listing" : "Review publish step",
+        disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
+        run: () => (isPlatformUser ? void publishListing() : selectMacro("publish")),
+        reason,
+      };
     }
     if (macro.macro.key === "entitlement") {
       if (!isPlatformUser) {
         return {
-          label: "Ask your account manager to enable Channel Manager",
+          label: "Waiting on ROL to enable Channel Manager",
           disabled: true,
           run: () => undefined,
+          reason: "Your account manager switches this on — nothing for you to do here.",
         };
       }
-      return { label: "Enable Channel Manager", disabled: busy === "entitlement", run: () => void enableChannelManager() };
+      return {
+        label: "Enable Channel Manager",
+        disabled: gatedAction || busy === "entitlement",
+        run: () => void enableChannelManager(),
+        reason,
+      };
     }
     if (macro.macro.key === "connect") {
       return {
         label: "Connect a channel below",
-        disabled: !overall.readyToConnect,
+        disabled: gatedAction,
         run: () => selectMacro("connect"),
+        reason,
+      };
+    }
+    if (macro.macro.key === "signoff" && !isPlatformUser) {
+      return {
+        label: "Waiting on ROL sign-off",
+        disabled: true,
+        run: () => undefined,
+        reason: "A ROL admin confirms the live sub-account.",
       };
     }
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
     // Never point the primary action at a check the resolver could not judge —
     // there is no field behind it, so the button would go nowhere.
     const firstCheck =
-      macro.stateChecks.find((c) => !c.ok && !c.unknown && !!resolveCheckTarget(c.key)) ??
-      macro.stateChecks.find((c) => !c.ok && !c.unknown);
+      macro.stateChecks.find((c) => !c.ok && !c.unknown && !c.waiting && !!resolveCheckTarget(c.key)) ??
+      macro.stateChecks.find((c) => !c.ok && !c.unknown && !c.waiting);
     return {
-      label: firstField ? `Fix: ${firstField.label}` : firstCheck ? `Fix: ${firstCheck.label}` : "Continue",
+      label: firstField ? `Fix: ${firstField.label}` : firstCheck ? `Fix: ${firstCheck.label}` : "Open step",
       disabled: false,
+      reason,
       run: () => {
         if (firstField) {
           goToField(firstField.section, firstField.paintable ? firstField.key : undefined);
@@ -383,12 +410,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     enableChannelManager,
     goToField,
     isPlatformUser,
-    overall.readyToConnect,
     publishListing,
     pushOwner,
     selectMacro,
     stages,
   ]);
+
 
   if (isLoading) {
     return (
