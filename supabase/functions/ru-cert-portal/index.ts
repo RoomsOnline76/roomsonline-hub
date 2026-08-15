@@ -3672,7 +3672,6 @@ Deno.serve(async (req) => {
           },
         }, 422);
       }
-      const listed2 = listedBody;
 
 
       const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
