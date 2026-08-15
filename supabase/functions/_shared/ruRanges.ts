@@ -39,12 +39,13 @@ export const RU_EMPLOYEE_RANGES: RuRange[] = [
 ];
 
 export const RU_YEARS_RANGES: RuRange[] = [
-  { id: 1, label: "Less than 1 year", min: 0, max: 0 },
-  { id: 2, label: "1 - 2 years", min: 1, max: 2 },
-  { id: 3, label: "3 - 5 years", min: 3, max: 5 },
-  { id: 4, label: "6 - 10 years", min: 6, max: 10 },
-  { id: 5, label: "11 - 20 years", min: 11, max: 20 },
-  { id: 6, label: "More than 20 years", min: 21, max: null },
+  // RU only accepts option IDs 0 - 4 for YearsInBusiness (verified against
+  // Push_FillCompanyDetails_RQ status 306: "Valid values are 0 - 4").
+  { id: 0, label: "Less than 1 year", min: 0, max: 0 },
+  { id: 1, label: "1 - 2 years", min: 1, max: 2 },
+  { id: 2, label: "3 - 5 years", min: 3, max: 5 },
+  { id: 3, label: "6 - 10 years", min: 6, max: 10 },
+  { id: 4, label: "More than 10 years", min: 11, max: null },
 ];
 
 /** Maps a real-world count onto the RU range option that contains it. */
