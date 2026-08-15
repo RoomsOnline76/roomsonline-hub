@@ -38,6 +38,7 @@ import {
   Mail,
   RotateCcw,
   ShieldCheck,
+  Trash2,
   Unlink,
   User2,
 } from "lucide-react";
@@ -183,6 +184,7 @@ export function PortfolioRuAccountsTab() {
   const [savingKeys, setSavingKeys] = useState(false);
   const [verifyingKeys, setVerifyingKeys] = useState<string | null>(null);
   const [creatingKey, setCreatingKey] = useState<string | null>(null);
+  const [removingKeys, setRemovingKeys] = useState<string | null>(null);
 
 
 
@@ -539,6 +541,30 @@ export function PortfolioRuAccountsTab() {
       await Promise.all([refreshAccounts(), refreshStoredKeys()]);
     } finally {
       setVerifyingKeys(null);
+    }
+  }, [refreshAccounts, refreshStoredKeys]);
+
+  /** Manual reset: drop the stored key pair locally so a fresh one can be captured. */
+  const removeApiKeys = useCallback(async (accountId: string, ownerId?: string | null, label?: string) => {
+    if (!window.confirm(
+      `Remove the stored Rentals United API keys${ownerId ? ` for OwnerID ${ownerId}` : ""}${label ? ` (${label})` : ""}?\n\nNothing changes on Rentals United — the pair is cleared here so a correct pair can be captured again.`,
+    )) return;
+    setRemovingKeys(accountId);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "delete_api_keys", account_id: accountId, ru_owner_id: ownerId ?? undefined },
+      });
+      if (error || !data?.success) {
+        toast.error(
+          data?.error?.message ||
+            (error ? await extractFunctionError(error, "Could not remove the API keys") : "Could not remove the API keys"),
+        );
+        return;
+      }
+      toast.success("Stored API keys removed — capture a new pair when ready");
+      await Promise.all([refreshAccounts(), refreshStoredKeys()]);
+    } finally {
+      setRemovingKeys(null);
     }
   }, [refreshAccounts, refreshStoredKeys]);
 
@@ -1101,6 +1127,25 @@ export function PortfolioRuAccountsTab() {
                               ? <Loader2 className="h-3 w-3 animate-spin" />
                               : <RotateCcw className="h-3 w-3" />}
                             <span className="ml-1.5">New key via API</span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs text-destructive border-destructive/40 hover:bg-destructive/10"
+                            disabled={!activeAccessKey || removingKeys === acc.id}
+                            onClick={() =>
+                              removeApiKeys(
+                                acc.id,
+                                acc.ru_owner_id,
+                                acc.ru_login_email || acc.owner_email,
+                              )
+                            }
+                            title="Clear the stored key pair so a correct one can be captured"
+                          >
+                            {removingKeys === acc.id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <Trash2 className="h-3 w-3" />}
+                            <span className="ml-1.5">Remove keys</span>
                           </Button>
                         </div>
                       </div>

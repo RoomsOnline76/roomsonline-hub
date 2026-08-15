@@ -3293,7 +3293,78 @@ Deno.serve(async (req) => {
     }
 
 
-    // ── verify_api_keys: re-test the stored sub-user API key pair against RU ──
+    /**
+     * ── delete_api_keys: manual reset/removal of a sub-user's stored RU API key pair ──
+     * Clears the encrypted pair held per RU OwnerID and the mirrored fields on the local
+     * account row. Nothing is changed on Rentals United — the pair can be re-captured or a
+     * fresh one generated. Used when keys were saved against the wrong sub-account.
+     */
+    if (action === "delete_api_keys") {
+      const accountId: string = body.account_id ?? "";
+      const suppliedOwnerId: string = String(body.ru_owner_id ?? "").trim();
+      if (!accountId && !suppliedOwnerId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id or ru_owner_id is required" } }, 400);
+      }
+
+      let account: Record<string, any> | null = null;
+      if (accountId) {
+        const { data } = await admin
+          .from("ru_owner_accounts")
+          .select("id, owner_email, ru_login_email, ru_owner_id")
+          .eq("id", accountId)
+          .maybeSingle();
+        if (!data) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
+        account = data as Record<string, any>;
+      }
+
+      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
+      let removedCredential = false;
+      if (ownerId) {
+        const { error: delErr } = await admin
+          .from("ru_api_credentials")
+          .delete()
+          .eq("ru_owner_id", ownerId);
+        if (delErr) return json({ success: false, error: { code: "DELETE_FAILED", message: delErr.message } }, 500);
+        removedCredential = true;
+      }
+
+      if (account?.id) {
+        const { error: upErr } = await admin
+          .from("ru_owner_accounts")
+          .update({
+            ru_api_access_key: null,
+            ru_api_secret_enc: null,
+            ru_api_key_label: null,
+            ru_api_keys_verified_at: null,
+            company_details_sent: false,
+            company_details_status: "credentials_cleared",
+            company_filled_at: null,
+          })
+          .eq("id", account.id);
+        if (upErr) return json({ success: false, error: { code: "DELETE_FAILED", message: upErr.message } }, 500);
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_api_credentials",
+        record_id: account?.id ?? null,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Removed stored Rentals United sub-user API keys${ownerId ? ` for OwnerID ${ownerId}` : ""}${account?.owner_email ? ` (${account.ru_login_email ?? account.owner_email})` : ""}`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({
+        success: true,
+        removed_credential: removedCredential,
+        ru_owner_id: ownerId || null,
+      });
+    }
+
+
     if (action === "verify_api_keys") {
       const accountId: string = body.account_id ?? "";
       const suppliedOwnerId: string = String(body.ru_owner_id ?? "").trim();
