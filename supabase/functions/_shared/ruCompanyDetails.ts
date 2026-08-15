@@ -1,23 +1,33 @@
 /**
  * Company-details satisfaction for a Rentals United sub-account.
  *
- * `ru_owner_accounts.company_details_sent` only becomes true when WE run
- * Push_FillCompanyDetails_RQ. That path is parked whenever RU user management is
- * off, and a rebind resets the flag — so a sub-account that RU itself already
- * carries a complete company profile for (proven by working, verified API keys
- * issued under that OwnerID) was permanently unable to enable push.
+ * RU applies Push_FillCompanyDetails_RQ to whichever account authenticates the
+ * call — there is no <OwnerID> selector — so the profile only lands on the
+ * sub-account once it has its own verified key pair / sub-user login. A push
+ * recorded BEFORE the sub-account's credentials were verified therefore proves
+ * nothing about the sub-account, and verified credentials on their own are not
+ * evidence of a push at all.
  *
- * Verified per-owner API credentials are therefore accepted as equivalent
- * evidence, and the durable account row is backfilled so every other reader
- * (wizard, entitlement, sync gate, cert pack) agrees.
+ * The rule: `company_details_status` must be a real push outcome ("sent" or
+ * "already_set") AND `company_filled_at` must be at or after the sub-account's
+ * key verification timestamp.
  */
 
 export interface RuCompanyDetailsState {
   satisfied: boolean;
-  via: "flag" | "verified_keys" | "none";
+  /** `pushed` = verified push on record. `stale` = a push exists but predates key verification. */
+  via: "pushed" | "stale" | "none";
+  pushedAt: string | null;
+  keysVerifiedAt: string | null;
 }
 
 type Db = { from: (table: string) => any };
+
+/** Push outcomes that mean RU actually accepted the company profile. */
+const PUSHED_STATUSES = ["sent", "already_set"];
+
+/** Small tolerance for the two writes landing out of order. */
+const SKEW_MS = 60_000;
 
 export async function ruCompanyDetailsSatisfied(
   admin: Db,
@@ -26,41 +36,43 @@ export async function ruCompanyDetailsSatisfied(
     id?: string | null;
     company_details_sent?: boolean | null;
     company_filled_at?: string | null;
+    company_details_status?: string | null;
   } | null,
 ): Promise<RuCompanyDetailsState> {
-  if (account?.company_details_sent === true || account?.company_filled_at) {
-    return { satisfied: true, via: "flag" };
-  }
   const ownerId = String(ruOwnerId ?? "").trim();
-  if (!ownerId) return { satisfied: false, via: "none" };
+  let status = account?.company_details_status;
+  let filledAt = account?.company_filled_at;
 
-  const { data: cred } = await admin
-    .from("ru_api_credentials")
-    .select("access_key, secret_enc, verified_at")
-    .eq("ru_owner_id", ownerId)
-    .maybeSingle();
-  if (!cred?.access_key || !cred?.verified_at) return { satisfied: false, via: "none" };
-
-  if (account?.id) {
-    try {
-      await admin
-        .from("ru_owner_accounts")
-        .update({
-          company_details_sent: true,
-          company_filled_at: cred.verified_at,
-          company_details_status: "credentials_verified",
-          // Legacy readers (status strips, cost monitor) read the mirrored key.
-          ru_api_access_key: cred.access_key,
-          ru_api_secret_enc: cred.secret_enc ?? null,
-          ru_api_keys_verified_at: cred.verified_at,
-        })
-        .eq("id", account.id);
-    } catch (e) {
-      console.warn(
-        "[ruCompanyDetails] backfill failed",
-        e instanceof Error ? e.message : e,
-      );
-    }
+  // Callers that only selected the legacy flag still get a correct answer.
+  if (status === undefined && (account?.id || ownerId)) {
+    const q = admin.from("ru_owner_accounts").select("company_details_status, company_filled_at");
+    const { data: row } = await (account?.id ? q.eq("id", account.id) : q.eq("ru_owner_id", ownerId))
+      .maybeSingle();
+    status = row?.company_details_status ?? null;
+    filledAt = filledAt ?? row?.company_filled_at ?? null;
   }
-  return { satisfied: true, via: "verified_keys" };
+
+  const pushed = PUSHED_STATUSES.includes(String(status ?? "").toLowerCase());
+  const filled = filledAt ? new Date(filledAt).getTime() : 0;
+
+  let verifiedAt: string | null = null;
+  if (ownerId) {
+    const { data: cred } = await admin
+      .from("ru_api_credentials")
+      .select("verified_at")
+      .eq("ru_owner_id", ownerId)
+      .maybeSingle();
+    verifiedAt = cred?.verified_at ?? null;
+  }
+
+  if (!pushed || !filled) {
+    return { satisfied: false, via: "none", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
+  }
+
+  const verified = verifiedAt ? new Date(verifiedAt).getTime() : 0;
+  // No verified credentials yet → the push cannot have reached the sub-account.
+  if (!verified || filled < verified - SKEW_MS) {
+    return { satisfied: false, via: "stale", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
+  }
+  return { satisfied: true, via: "pushed", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
 }

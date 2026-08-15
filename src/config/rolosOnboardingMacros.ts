@@ -26,6 +26,7 @@ export type DistributionCheckKey =
   | "sub_owner_id"
   | "api_keys_stored"
   | "api_keys_verified"
+  | "company_details"
   | "manual_signoff"
   | "listings_pulled"
   | "listing_ids"
@@ -162,29 +163,16 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "state", key: "api_keys_stored" },
       { kind: "state", key: "api_keys_verified" },
+      { kind: "state", key: "company_details" },
     ],
     notes: [
       "Sign in to the owner portal with the sub-account login, create the API key and secret, then capture them in the ROL'OS owner panel.",
+      "Saving the pair verifies it and then submits the company profile automatically — the profile only sticks when it is sent with the sub-account's own verified credentials.",
     ],
-  },
-  {
-    key: "signoff",
-    order: 8,
-    title: "Sub-account verification",
-    goal: "A human confirms the live sub-account is correct before anything is published.",
-    manual: true,
-    adminOnly: true,
-    action: "signoff",
-    tasks: [{ kind: "state", key: "manual_signoff" }],
-    notes: [
-      "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
-      "This happens before the push so a wrong owner, company profile or currency is caught before a listing exists.",
-    ],
-
   },
   {
     key: "pull_listings",
-    order: 9,
+    order: 8,
     title: "Pull listings (if any)",
     goal: "Any listing already present under the sub-account is adopted, so the push never duplicates.",
     section: "integrations",
@@ -195,6 +183,21 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
       "Lists everything under the sub-account and links matches to this property and its units by name.",
       "An empty sub-account is normal — the step passes as “nothing to adopt” and the push creates the listing.",
     ],
+  },
+  {
+    key: "signoff",
+    order: 9,
+    title: "Sub-account verification",
+    goal: "A human confirms the live sub-account is correct before anything is published.",
+    manual: true,
+    adminOnly: true,
+    action: "signoff",
+    tasks: [{ kind: "state", key: "manual_signoff" }],
+    notes: [
+      "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
+      "This happens after the listing pull and before the push, so a wrong owner, company profile or currency is caught before anything is published.",
+    ],
+
   },
   {
     key: "publish",

@@ -54,6 +54,11 @@ export interface RuOwnerIdentity {
     ru_login_email: string | null;
     ru_login_url: string | null;
     company_details_sent: boolean;
+    company_details_status: string | null;
+    company_filled_at: string | null;
+    /** Only true when the profile was pushed with the sub-account's own verified keys. */
+    company_details_pushed: boolean;
+    keys_verified_at: string | null;
   } | null;
   keys: {
     access_key_last4: string | null;
@@ -102,6 +107,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
   const [keyLabel, setKeyLabel] = useState("ROL'OS");
   const [editingKeys, setEditingKeys] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [pushingCompany, setPushingCompany] = useState(false);
 
 
 
@@ -145,6 +151,31 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     }
   };
 
+  /**
+   * Push_FillCompanyDetails_RQ. RU applies the profile to whichever account
+   * authenticates, so this only counts once the sub-account's keys are verified —
+   * it therefore runs automatically straight after a successful key save/verify.
+   */
+  const pushCompanyDetails = useCallback(async (silent = false) => {
+    setPushingCompany(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "ensure_company_details", property_id: propertyId },
+      });
+      if (error) throw new Error(await extractFunctionError(error));
+      if (!data?.success) throw new Error(data?.error?.message ?? "Could not send the company details");
+      toast.success("Company details sent to the Channel Manager");
+      notifyRuAccountsChanged();
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send the company details";
+      if (silent) toast.warning(`Company details still pending: ${message}`);
+      else toast.error(message);
+    } finally {
+      setPushingCompany(false);
+    }
+  }, [load, propertyId]);
+
   const saveKeys = async () => {
     if (!identity?.account?.ru_owner_id) return;
     setSavingKeys(true);
@@ -169,6 +200,8 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       setEditingKeys(false);
 
       await load();
+      // Keys are verified on save — submit the company profile immediately.
+      await pushCompanyDetails(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save the API keys");
     } finally {
@@ -192,6 +225,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       toast.success("The Channel Manager accepted the distribution account keys");
       notifyRuAccountsChanged();
       await load();
+      await pushCompanyDetails(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Verification failed");
     } finally {
@@ -282,7 +316,35 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
             </div>
             <div>
               <span className="text-muted-foreground">Company details sent</span>
-              <div className="font-medium">{account?.company_details_sent ? "Yes" : "Not yet"}</div>
+              {account?.company_details_pushed ? (
+                <div className="font-medium">
+                  Sent{" "}
+                  {account.company_filled_at
+                    ? new Date(account.company_filled_at).toLocaleDateString()
+                    : ""}{" "}
+                  with verified keys
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <div className="font-medium text-amber-600">
+                    {account?.company_filled_at
+                      ? `Needs re-send — the ${new Date(account.company_filled_at).toLocaleDateString()} push predates key verification`
+                      : "Not sent"}
+                  </div>
+                  {!readOnly && identity?.keys_captured && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 gap-1.5 text-xs"
+                      disabled={pushingCompany}
+                      onClick={() => void pushCompanyDetails()}
+                    >
+                      {pushingCompany && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Send company details
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <span className="text-muted-foreground">Channel Manager PropertyID for this property</span>

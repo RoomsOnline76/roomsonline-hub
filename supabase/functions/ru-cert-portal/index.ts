@@ -2678,6 +2678,8 @@ Deno.serve(async (req) => {
                 // Allow a small clock skew between the two writes.
                 return filled >= verified - 60_000;
               })(),
+              /** Timestamp the sub-account's own key pair was accepted (the push prerequisite). */
+              keys_verified_at: keys?.verified_at ?? null,
             }
           : null,
         keys,
@@ -2879,11 +2881,8 @@ Deno.serve(async (req) => {
         },
       });
       const accepted = !verifyError && verified?.success === true && verified?.verified === true;
-      if (!account.company_details_sent) {
-        await admin.from("ru_owner_accounts").update({
-          company_details_status: accepted ? "credentials_verified" : "credentials_failed",
-        }).eq("id", account.id);
-      }
+      // A verified login is a PREREQUISITE for Push_FillCompanyDetails_RQ, never evidence
+      // that the company profile was sent — the status column stays untouched here.
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
@@ -3035,7 +3034,6 @@ Deno.serve(async (req) => {
           ru_api_key_label: keyLabel,
           ru_api_keys_verified_at: new Date().toISOString(),
         };
-        if (!account.company_details_sent) update.company_details_status = "credentials_verified";
         const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
         if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
       }
@@ -3258,7 +3256,6 @@ Deno.serve(async (req) => {
           ru_api_key_label: keyLabel,
           ru_api_keys_verified_at: new Date().toISOString(),
         };
-        if (!account.company_details_sent) update.company_details_status = "credentials_verified";
         const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
         if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
       }

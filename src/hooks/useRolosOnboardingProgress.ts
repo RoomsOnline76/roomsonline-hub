@@ -516,11 +516,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           ? `Verified ${new Date(verifiedAt).toLocaleDateString()}`
           : "Not verified",
     });
+    // The company profile is submitted with the sub-account's own verified credentials —
+    // a push recorded before verification never reached the sub-account.
+    const companyPushedAt = d?.identity?.account?.company_filled_at ?? null;
+    put(
+      "company_details",
+      "Company details sent to the Channel Manager",
+      d?.identity?.account?.company_details_pushed === true,
+      {
+        waiting: !keysCaptured || !verifiedAt,
+        detail: !keysCaptured || !verifiedAt
+          ? "Capture and verify the key pair first"
+          : d?.identity?.account?.company_details_pushed === true
+            ? `Sent ${companyPushedAt ? new Date(companyPushedAt).toLocaleDateString() : ""}`.trim()
+            : companyPushedAt
+              ? "A push exists but predates key verification — re-send"
+              : "Not sent",
+        hint: "Integrations → ROL'OS owner panel",
+      },
+    );
 
-    // Macro 8 — sub-account verification runs before the push (see macro registry);
-    // its check is defined below with the other manual state.
-
-    // Macro 9 — pull existing listings under the sub-account before publishing.
+    // Macro 8 — pull existing listings under the sub-account before verification.
     const pullDone = !!listingPull;
     put("listings_pulled", "Existing listings pulled & adopted", bound && pullDone, {
       waiting: !bound,
