@@ -62,10 +62,6 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result, erroredOwners],
   );
   const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
-  const archivedCleanable = useMemo(
-    () => (result?.archived_orphans || []).filter((a) => !erroredOwners.has(a.owner_id)),
-    [result, erroredOwners],
-  );
   // Surplus same-name copies of one unit. They bill like any other listing, so they are called
   // out separately from orphans — the keeper of each group is never in this list.
   const duplicateCleanable = useMemo(
