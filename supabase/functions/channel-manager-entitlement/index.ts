@@ -382,11 +382,25 @@ Deno.serve(async (req) => {
         label: string;
         isActive: boolean;
       };
-      const localByListing = new Map<string, Local>();
+      // Indexed by kind + record id: one listing id can be claimed by several
+      // local records (a wrong copy/paste of a unit id onto a property, for
+      // example). A single id-keyed map silently dropped all but one of them.
+      const localRecords = new Map<string, Local>();
+      const localByListing = new Map<string, Local[]>();
+      const indexLocal = (l: Local) => {
+        localRecords.set(`${l.kind}:${l.recordId}`, l);
+        const bucket = localByListing.get(l.listingId);
+        if (bucket) bucket.push(l);
+        else localByListing.set(l.listingId, [l]);
+      };
+      const propertyNames = new Map<string, string>();
+      for (const p of (props || []) as Array<Record<string, unknown>>) {
+        propertyNames.set(p.id as string, ((p.name as string) || "Untitled property"));
+      }
       for (const p of (props || []) as Array<Record<string, unknown>>) {
         const lid = p.rentalsunited_property_id as string | null;
         if (!lid) continue;
-        localByListing.set(String(lid), {
+        indexLocal({
           listingId: String(lid),
           kind: "property",
           recordId: p.id as string,
@@ -395,14 +409,10 @@ Deno.serve(async (req) => {
           isActive: p.is_active !== false,
         });
       }
-      const propertyNames = new Map<string, string>();
-      for (const p of (props || []) as Array<Record<string, unknown>>) {
-        propertyNames.set(p.id as string, ((p.name as string) || "Untitled property"));
-      }
       for (const u of (units || []) as Array<Record<string, unknown>>) {
         const lid = u.rentalsunited_property_id as string | null;
         if (!lid) continue;
-        localByListing.set(String(lid), {
+        indexLocal({
           listingId: String(lid),
           kind: "unit",
           recordId: u.id as string,
@@ -419,13 +429,17 @@ Deno.serve(async (req) => {
         owner_id: string;
         owner_email: string | null;
         listing_count: number;
+        total_listing_count?: number;
         error: string | null;
         is_master: boolean;
       }> = [];
       // The master/parent account may never hold listings in a white-label
       // integration, so flag it explicitly rather than assume it is clean.
       const masterOwnerId = (Deno.env.get("RU_OWNER_ID") || "").trim();
-      const seenOnChannel = new Set<string>();
+      // Every listing is classified exactly once, so the buckets always add up
+      // to the account totals instead of counting an archived-but-linked
+      // listing as live as well as archived.
+      const liveOnChannel = new Set<string>();
       const archivedOnChannel = new Set<string>();
       const orphans: Array<{ listing_id: string; name: string; owner_id: string; is_archived: boolean }> = [];
       const archivedOrphans: Array<{ listing_id: string; name: string; owner_id: string }> = [];
@@ -438,8 +452,22 @@ Deno.serve(async (req) => {
         local_active: boolean;
         kind: "property" | "unit";
       }> = [];
+      // Local ids that point at a listing the channel has already archived: the
+      // record looks connected but nothing it points at can sell.
+      const archivedMatched: Array<{
+        listing_id: string;
+        name: string;
+        owner_id: string;
+        local_label: string;
+        kind: "property" | "unit";
+        record_id: string;
+        property_id: string;
+        local_active: boolean;
+        live_alternative_id: string | null;
+      }> = [];
       // Every live listing, kept so same-name copies on one account can be grouped afterwards.
       const liveRows: Array<{ listing_id: string; name: string; owner_id: string; matched: boolean }> = [];
+
 
       // The channel rate-limits repeated pulls, so a large account list can
       // outrun the function wall clock and the caller only ever sees a 502.
