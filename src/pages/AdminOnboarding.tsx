@@ -949,14 +949,7 @@ export default function AdminOnboarding() {
     }
   };
 
-  const statusFilters: { key: StatusFilter; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "not_started", label: "Not Started" },
-    { key: "in_progress", label: "In Progress" },
-    { key: "token_expired", label: "Expired" },
-    { key: "completed", label: "Completed" },
-    { key: "live", label: "Live" },
-  ];
+
 
   return (
     <AppLayout>
