@@ -370,10 +370,8 @@ export default function AdminOnboarding() {
     try {
       setLoading(true);
 
-      const itTestPin = isItTestAdminEmail(actorEmail);
-      const pinIds = itTestPin
-        ? [...IT_TEST_PROPERTY_IDS]
-        : scopedPropertyIds;
+      // Scope comes from `scoped_admin_properties` only — no hardcoded pins.
+      const pinIds = scopedPropertyIds;
 
       // Load only ACTIVE properties (non-deleted, is_active = true)
       const propQuery = supabase
