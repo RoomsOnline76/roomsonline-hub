@@ -28,6 +28,9 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   archived: "Archived",
 };
 
+const UNASSIGNED = "Unassigned";
+
+
 export function ChannelPropertyTable({
   rows,
   fx,
