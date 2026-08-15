@@ -3960,6 +3960,13 @@ export default function PropertyForm({
         // costs and when it is sellable — the static delta deliberately excludes ARI, so fire
         // the rates & availability delta too.
         void queueChannelRatesSync(savedPropertyId, "property_save_seasons");
+        // Company information is authored here but lives on the distribution account —
+        // re-push it when this save is newer than the last accepted company push.
+        void supabase.functions
+          .invoke("ru-cert-portal", {
+            body: { action: "ensure_company_details", property_id: savedPropertyId, resend_if_changed: true },
+          })
+          .catch(() => {/* advisory: the wizard's company step reports the real state */});
       }
 
       // Stay on current page after save - don't navigate away for edits
