@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { useChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 import { Building2, Edit, Trash2, Home, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown, Upload, Image, Star, Eye, EyeOff, FileCheck, FileX, FileWarning, Send, Mail, Loader2, FlaskConical, Sparkles, ShieldCheck, ShieldX } from "lucide-react";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
@@ -487,6 +488,12 @@ const PropertyOverview = () => {
     }
   };
 
+  // The Channels wizard shortcut only shows when the Channel Manager add-on is
+  // enabled for the property (or its portfolio) in billing.
+  const { map: channelEntitlements } = useChannelManagerEntitlements(
+    useMemo(() => activeProperties.map((p) => p.id), [activeProperties]),
+  );
+
   const deletedProperties = allProperties?.filter(p => !p.is_active) || [];
 
   const handleDeleteProperty = async (id: string) => {
@@ -800,7 +807,7 @@ const PropertyOverview = () => {
                             </Button>
                             {["roomsonline", "rolos", "rol_os", "rolos_pms"].includes(
                               String(property.external_system ?? "").toLowerCase(),
-                            ) && (
+                            ) && channelEntitlements.get(property.id) === true && (
                               <Button
                                 variant="ghost"
                                 size="icon"
