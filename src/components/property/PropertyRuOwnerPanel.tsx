@@ -25,6 +25,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
+import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 
 const RU_SECURITY_SETTINGS_URL = "https://new.rentalsunited.com/My/SecuritySettings";
 
@@ -134,6 +135,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Distribution account creation failed");
       toast.success("Distribution account linked to this owner");
+      notifyRuAccountsChanged();
       setConfirmCreate(false);
       await load();
     } catch (err) {
@@ -160,7 +162,8 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       });
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Could not save the API keys");
-      toast.success("API keys saved — Channel Manager push/pull is now unlocked for this owner");
+      toast.success("API keys saved and verified — Channel Manager push/pull is now unlocked for this owner");
+      notifyRuAccountsChanged();
       setAccessKey("");
       setSecretKey("");
       setEditingKeys(false);
@@ -187,6 +190,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
       if (error) throw new Error(await extractFunctionError(error));
       if (!data?.success) throw new Error(data?.error?.message ?? "Verification failed");
       toast.success("The Channel Manager accepted the distribution account keys");
+      notifyRuAccountsChanged();
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Verification failed");
