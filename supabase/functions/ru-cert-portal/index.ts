@@ -3422,7 +3422,10 @@ Deno.serve(async (req) => {
       // Rebinding to a different OwnerID: credentials, API keys and verification state
       // belonged to the previous sub-user — never carry them over.
       const previousOwnerId = String(account.ru_owner_id ?? "").trim();
-      if (previousOwnerId !== ruOwnerId) {
+      // Only a *rebind* invalidates credentials. A first bind must never wipe keys
+      // and company state that were captured before the OwnerID was recorded —
+      // that is what silently made push un-enablable after a clean wizard run.
+      if (previousOwnerId && previousOwnerId !== ruOwnerId) {
         update.ru_api_access_key = null;
         update.ru_api_secret_enc = null;
         update.ru_api_key_label = null;
