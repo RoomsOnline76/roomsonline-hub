@@ -763,20 +763,53 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Missing Authorization header" } }, 401);
 
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData } = await userClient.auth.getUser();
-    const user = userData?.user;
-    if (!user) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid session" } }, 401);
-
-    const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", user.id);
-    const allowed = (roles ?? []).some((r: { role: string }) => ["admin", "dev", "fearless_leader"].includes(r.role));
-
     const body = await req.json().catch(() => ({}));
     const action: string = body.action ?? "";
     logActionName = action;
     logPropertyId = typeof body.property_id === "string" ? body.property_id : null;
+
+    /**
+     * Internal system calls: a background push (`push-property-to-ru`) or a cron has no user
+     * session, so it authenticates with the service-role key. Without this narrow bypass the
+     * post-push listing read-back always came back "Invalid session" and a clean publish read
+     * as a failure. Only the read-only resolver is reachable this way.
+     */
+    const INTERNAL_SERVICE_ACTIONS = ["resolve_ru_property_ids"];
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+    /** A service-role JWT is also accepted, so a rotated key does not break system read-backs. */
+    const bearerIsServiceRole = (() => {
+      try {
+        const part = bearer.split(".")[1];
+        if (!part) return false;
+        const claims = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+        return claims?.role === "service_role";
+      } catch {
+        return false;
+      }
+    })();
+    const isInternalService = INTERNAL_SERVICE_ACTIONS.includes(action) &&
+      ((!!serviceKey && bearer === serviceKey) || bearerIsServiceRole);
+
+
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    let user: { id: string; email?: string | null } = { id: "00000000-0000-0000-0000-000000000000", email: "system@rolos.internal" };
+    let allowed = isInternalService;
+
+    if (!isInternalService) {
+      const { data: userData } = await userClient.auth.getUser();
+      const authed = userData?.user;
+      if (!authed) return json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid session" } }, 401);
+      user = { id: authed.id, email: authed.email ?? null };
+
+      const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", authed.id);
+      allowed = (roles ?? []).some((r: { role: string }) => ["admin", "dev", "fearless_leader"].includes(r.role));
+    }
+
+
 
     /**
      * Complete key verification and company provisioning as one server-owned workflow.
@@ -3775,19 +3808,48 @@ Deno.serve(async (req) => {
         .then(() => {}, (e: unknown) => console.warn("[ru-cert-portal] listing verification write failed", e));
 
 
+      /**
+       * Per-listing evidence: "pushed but not visible in the portal" is almost always a
+       * listing sitting under a different sub-account login, so name the account that
+       * actually holds each listing rather than reporting a bare miss.
+       */
+      const listingStatus = [
+        ...activeUnits.map((u) => {
+          const hit = matched.find((m) => m.scope === "unit" && m.name === String(u.name ?? ""));
+          return {
+            scope: "unit" as const,
+            name: String(u.name ?? u.id),
+            ru_property_id: hit?.ru_property_id ?? null,
+            status: hit ? ("live_in_account" as const) : ("not_in_account" as const),
+            owner_label: subAccountLabel,
+          };
+        }),
+        ...(activeUnits.length === 0
+          ? [{
+            scope: "property" as const,
+            name: String(prop.name ?? targetPropertyId),
+            ru_property_id: propertyHit?.id ?? null,
+            status: propertyHit ? ("live_in_account" as const) : ("not_in_account" as const),
+            owner_label: subAccountLabel,
+          }]
+          : []),
+      ];
+
       return json({
         success: true,
         ru_owner_id: ownerId,
-        ru_owner_label: `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`,
+        ru_owner_label: subAccountLabel,
         rentalsunited_property_id: propertyHit?.id ?? prop.rentalsunited_property_id ?? null,
         matched,
         unmatched,
+        listing_status: listingStatus,
         remote_count: remote.length,
         auth_mode: listed.auth_mode ?? null,
         listings_verified: fullyVerified,
         listings_verified_units: verifiedUnits,
         listings_expected_units: expectedUnits,
       });
+
     }
 
 

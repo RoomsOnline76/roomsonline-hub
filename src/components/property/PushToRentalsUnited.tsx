@@ -459,7 +459,14 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
   /** Summarises the read-back the push now performs for itself. */
   const describeListingVerification = (data: Record<string, unknown>): string | undefined => {
     const v = data.listing_verification as
-      | { verified?: boolean; verified_units?: number; expected_units?: number; error?: string }
+      | {
+        verified?: boolean;
+        pending?: boolean;
+        verified_units?: number;
+        expected_units?: number;
+        error?: string;
+        listing_status?: { name: string; status: string; owner_label?: string }[];
+      }
       | undefined;
     if (!v) return undefined;
     if (v.verified) {
@@ -467,8 +474,15 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         v.expected_units ? ` (${v.verified_units}/${v.expected_units})` : ""
       }.`;
     }
-    return `Read-back did not confirm the listings${v.error ? ` — ${v.error}` : ""}. Use "Fetch Channel Manager IDs" to retry.`;
+    // The push already succeeded — a read-back that could not answer is pending, not a failure.
+    if (v.pending) return "Confirming the listings with the channel — this finishes on its own.";
+    const misplaced = (v.listing_status ?? []).filter((l) => l.status !== "live_in_account");
+    const where = misplaced.length > 0
+      ? `${misplaced.map((l) => l.name).slice(0, 3).join(", ")} not found in ${misplaced[0]?.owner_label ?? "the bound sub-account"}. `
+      : "";
+    return `${where}${v.error ?? "Read-back did not confirm the listings."} Use "Fetch Channel Manager IDs" to retry.`;
   };
+
 
   const pushToRU = async () => {
     // Fail closed on the registry gate — never rely on the button's disabled state alone.

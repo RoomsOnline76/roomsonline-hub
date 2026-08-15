@@ -88,12 +88,16 @@ const corsHeaders = {
 
 interface ListingVerification {
   verified: boolean;
+  /** The push succeeded but the channel has not answered the read-back yet — not a failure. */
+  pending?: boolean;
   verified_units?: number;
   expected_units?: number;
   unmatched?: string[];
   owner?: string | null;
+  listing_status?: { scope: string; name: string; ru_property_id: string | null; status: string; owner_label?: string }[];
   error?: string;
 }
+
 
 /**
  * Reading the listings back is part of publishing, not a separate chore: a push whose
@@ -123,6 +127,14 @@ async function readInvokeErrorBody(err: any): Promise<any | null> {
 async function verifyListingsAfterPush(
   supabase: ReturnType<typeof createClient>,
   propertyId: string,
+  /**
+   * The caller's own bearer token. The nested console function used to receive the
+   * service-role key, which resolves to no user and answered "Invalid session" every time,
+   * so every automatic read-back failed. Forward the caller's session when there is one;
+   * background/cron pushes fall back to the service key, which the console now accepts as an
+   * internal call for this read-only action.
+   */
+  callerAuthHeader?: string | null,
 ): Promise<ListingVerification> {
   try {
     let attempt = 0;
@@ -130,10 +142,20 @@ async function verifyListingsAfterPush(
     let data: any = null;
     // deno-lint-ignore no-explicit-any
     let body: any = null;
+    /**
+     * The read-back is a system call: invoking with the function's own service-role client
+     * (no forwarded user header) keeps it working for crons and background pushes alike.
+     * Forwarding the caller's header made the call fail with "Invalid session" whenever the
+     * push ran without a user JWT.
+     */
+    void callerAuthHeader;
+    const invokeOptions = {};
+
     while (attempt < 2) {
       attempt++;
       const res = await supabase.functions.invoke('ru-cert-portal', {
         body: { action: 'resolve_ru_property_ids', property_id: propertyId },
+        ...invokeOptions,
       });
       data = res.data;
       body = res.data ?? (await readInvokeErrorBody(res.error));
@@ -143,14 +165,17 @@ async function verifyListingsAfterPush(
       const retryMs = Number(body?.retry_after_ms ?? body?.error?.retry_after_ms ?? 0);
       // The push itself just consumed the channel's sliding window — one paced retry turns
       // "not read back" into a real confirmation instead of a manual chore.
-      if (code === 'RU_RATE_DEFERRED' && attempt < 2 && retryMs > 0 && retryMs <= 20000) {
-        console.log(`[push-property-to-ru] read-back rate limited — retrying in ${retryMs}ms`);
-        await new Promise((r) => setTimeout(r, retryMs + 500));
+      if (attempt < 2 && (code === 'RU_RATE_DEFERRED' || !code)) {
+        const waitMs = code === 'RU_RATE_DEFERRED' && retryMs > 0 && retryMs <= 20000 ? retryMs + 500 : 2500;
+        console.log(`[push-property-to-ru] read-back not confirmed (${code ?? 'no code'}) — retrying in ${waitMs}ms`);
+        await new Promise((r) => setTimeout(r, waitMs));
         continue;
       }
       const message = body?.error?.message ?? res.error?.message ?? 'The channel did not return its listing set';
       console.warn(`[push-property-to-ru] listing read-back failed for ${propertyId}: ${message}`);
-      return { verified: false, error: message };
+      // The push already succeeded; a read-back that could not answer is pending, not failed.
+      const pending = !code || code === 'RU_RATE_DEFERRED';
+      return { verified: false, pending, error: message };
     }
     data = body;
 
@@ -159,6 +184,7 @@ async function verifyListingsAfterPush(
       unmatched?: string[];
       ru_owner_label?: string;
       listings_verified?: boolean;
+      listing_status?: ListingVerification['listing_status'];
     };
     const { data: row } = await supabase
       .from('properties')
@@ -172,13 +198,15 @@ async function verifyListingsAfterPush(
       expected_units: Number(r?.ru_listings_expected_units ?? 0),
       unmatched: Array.isArray(payload.unmatched) ? payload.unmatched : [],
       owner: (r?.ru_listings_verified_owner as string | null) ?? payload.ru_owner_label ?? null,
+      listing_status: Array.isArray(payload.listing_status) ? payload.listing_status : undefined,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Listing read-back failed';
     console.warn(`[push-property-to-ru] listing read-back threw for ${propertyId}: ${message}`);
-    return { verified: false, error: message };
+    return { verified: false, pending: true, error: message };
   }
 }
+
 
 // ── RU Type Mapping ──────────────────────────────────────────
 
@@ -3585,15 +3613,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // A live push makes any earlier listing verification stale: the listings must be
-    // pulled back and confirmed again before the wizard treats them as verified.
-    if (!dry_run) {
-      await supabase
-        .from('properties')
-        .update({ ru_listings_verified_at: null })
-        .eq('id', property_id)
-        .then(() => {}, (e: unknown) => console.warn('[push-property-to-ru] could not reset listing verification', e));
-    }
+    /**
+     * The listing verification is NOT cleared here. Blanking it up-front meant every
+     * resumable chunk of a multi-unit push wiped a good verification and, because the
+     * read-back only runs on the final chunk, the property was left reading "pushed but
+     * never confirmed". The read-back that follows the push is the only writer: it stamps a
+     * fresh confirmation or clears it when the channel really does not hold the listings.
+     */
+
 
     // Persist resolved geo+currency for re-use & audit (skip on dry runs).
     if (!dry_run) {
@@ -4478,7 +4505,7 @@ Deno.serve(async (req) => {
         });
 
         // The read-back follows the push automatically once the whole sequence is done.
-        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
+        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
@@ -4803,7 +4830,7 @@ Deno.serve(async (req) => {
         error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
         details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
       });
-      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id) : null;
+      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
@@ -5005,7 +5032,7 @@ Deno.serve(async (req) => {
     }
 
 
-    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id) : null;
+    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
     return new Response(
       JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

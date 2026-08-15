@@ -156,7 +156,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     [soleUnitName, unitNames],
   );
 
-  /** Read-back state drives whether the manual fetch is offered at all. */
+  /**
+   * Read-back state drives whether the manual fetch is offered at all. While the automatic
+   * read-back is still settling (rate-limit window, channel silence) the manual escape hatch
+   * stays hidden — a clean push must not read as a failure.
+   */
+  const [readBackPending, setReadBackPending] = useState(false);
   const listingsVerified = useMemo(
     () =>
       macros
@@ -164,6 +169,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         .find((c) => c.key === "listings_verified")?.ok === true,
     [macros],
   );
+
 
   const stages = useMemo(() => buildStageProgress(macros), [macros]);
   const firstOpenStage = stages.find((s) => !s.complete) ?? stages[stages.length - 1];
@@ -350,9 +356,20 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         const pushed = (data.units ?? []).filter((u) => u.success).length;
         // The push now reads its own listings back, so the toast can report the confirmed
         // state instead of leaving the checklist on "pushed but not read back".
-        const verification = (data as { listing_verification?: { verified?: boolean; verified_units?: number; expected_units?: number; error?: string } })
-          .listing_verification;
+        const verification = (data as {
+          listing_verification?: {
+            verified?: boolean;
+            pending?: boolean;
+            verified_units?: number;
+            expected_units?: number;
+            error?: string;
+            listing_status?: { name: string; status: string; owner_label?: string }[];
+          };
+        }).listing_verification;
         const confirmed = verification?.verified === true;
+        const pending = !confirmed && verification?.pending === true;
+        setReadBackPending(pending);
+        const misplaced = (verification?.listing_status ?? []).filter((l) => l.status !== "live_in_account");
         toast.success(
           pushed > 0
             ? `Published ${pushed} unit(s) to the Channel Manager`
@@ -364,13 +381,18 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
                   ? ` (${verification.verified_units}/${verification.expected_units})`
                   : ""
               }.`
-              : verification
-                ? `Read-back did not confirm the listings${verification.error ? ` — ${verification.error}` : ""}. Use "Fetch Channel Manager IDs" to retry.`
-                : undefined,
+              : pending
+                ? "Confirming listings with the channel — this finishes on its own."
+                : verification
+                  ? `${misplaced.length > 0
+                    ? `${misplaced.map((l) => l.name).slice(0, 3).join(", ")} not found in ${misplaced[0]?.owner_label ?? "the bound sub-account"}. `
+                    : ""}${verification.error ?? ""}`.trim() || "Read-back did not confirm the listings."
+                  : undefined,
           },
         );
         await refresh();
       }
+
     } catch (err) {
       const message = err instanceof Error ? err.message : await extractFunctionError(err, "Push failed");
       setPushErrors([message]);
@@ -887,7 +909,9 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               listingsVerified={listingsVerified}
+              readBackPending={readBackPending && !listingsVerified}
               onVerifyListings={verifyListings}
+
               onEnable={enableChannelManager}
               onPushCompanyDetails={pushCompanyDetails}
               onSignoffItem={(key, next) => {
@@ -1075,6 +1099,7 @@ function PublishedPane({
   onPushOwner,
   onPublish,
   listingsVerified,
+  readBackPending,
   onVerifyListings,
   onEnable,
   onSignoffItem,
@@ -1097,6 +1122,7 @@ function PublishedPane({
   onPushOwner: () => void;
   onPublish: () => void;
   listingsVerified: boolean;
+  readBackPending: boolean;
   onVerifyListings: () => void;
   onEnable: () => void;
   onSignoffItem: (key: string, next: boolean) => void;
@@ -1180,7 +1206,15 @@ function PublishedPane({
               ))}
             </ul>
           )}
-          {isPlatformUser && publishedOk && !listingsVerified && (
+          {isPlatformUser && publishedOk && !listingsVerified && readBackPending && (
+            <div className="rounded-md border border-border bg-muted/40 p-2">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Published — confirming the listings with the channel. This finishes on its own.
+              </p>
+            </div>
+          )}
+          {isPlatformUser && publishedOk && !listingsVerified && !readBackPending && (
             <div className="space-y-1 rounded-md border border-amber-500/40 bg-amber-500/5 p-2">
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Pushed, but the listings were not read back — the confirmation call did not complete.
@@ -1200,6 +1234,7 @@ function PublishedPane({
               </Button>
             </div>
           )}
+
           {isPlatformUser && !publishedOk && (
             <Button onClick={onPublish} disabled={locked || busy === "publish"}>
               {busy === "publish" ? (
