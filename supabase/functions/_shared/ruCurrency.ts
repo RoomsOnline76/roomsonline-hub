@@ -423,6 +423,14 @@ export async function decideRuCurrency(
   }
 
   if (flip === 'flipped' || flip === 'already_set') {
+    // "Already set" is Rentals United answering, on THIS account, that the location holds the
+    // authored currency (status 339). That answer IS a read-back — recording it as an
+    // assumption left the property permanently "currency unverified" and blocked onboarding
+    // for every listing whose currency was correct from the start.
+    const readBack = flip === 'already_set';
+    if (readBack) {
+      await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, authored, 'ru_readback');
+    }
     const d = decide({
       location_iso: authored,
       published_iso: authored,
@@ -430,14 +438,16 @@ export async function decideRuCurrency(
       fx_rate: null,
       effective_rate: null,
       flip_outcome: flip,
+      ...(readBack ? { ru_reported_iso: authored, verified_at: new Date().toISOString() } : {}),
       reason:
         flip === 'flipped'
           ? `Rentals United location ${opts.locationId} was switched to ${authored}; rates publish in ${authored}.`
-          : `Rentals United location ${opts.locationId} already holds ${authored}.`,
+          : `Rentals United confirmed location ${opts.locationId} already holds ${authored} for account ${ownerScope}.`,
     });
     await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
     return d;
   }
+
 
   // ZAR cannot be held for this location → USD fallback with live rate + margin.
   const fx = await getFxRate(supabase, authored, FALLBACK_ISO);
