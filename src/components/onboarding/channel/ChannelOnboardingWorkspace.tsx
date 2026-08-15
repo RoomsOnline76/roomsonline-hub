@@ -156,7 +156,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     [soleUnitName, unitNames],
   );
 
-  /** Read-back state drives whether the manual fetch is offered at all. */
+  /**
+   * Read-back state drives whether the manual fetch is offered at all. While the automatic
+   * read-back is still settling (rate-limit window, channel silence) the manual escape hatch
+   * stays hidden — a clean push must not read as a failure.
+   */
+  const [readBackPending, setReadBackPending] = useState(false);
   const listingsVerified = useMemo(
     () =>
       macros
@@ -164,6 +169,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         .find((c) => c.key === "listings_verified")?.ok === true,
     [macros],
   );
+
 
   const stages = useMemo(() => buildStageProgress(macros), [macros]);
   const firstOpenStage = stages.find((s) => !s.complete) ?? stages[stages.length - 1];
