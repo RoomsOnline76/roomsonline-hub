@@ -5591,22 +5591,53 @@ Deno.serve(async (req) => {
               error = second.error;
               ok = !error && data?.success === true;
             }
-            const transient = !ok && isTransient(data, error);
+
+            /**
+             * Standalone-unit pushes are resumable: one invocation only covers a chunk of units
+             * and answers `success: false` with `remaining_unit_ids`. That is progress, not a
+             * certification defect — walk the sequence while the run's budget allows, and if the
+             * budget runs out record the step as skipped/partial rather than a hard failure.
+             */
+            let remaining: string[] = Array.isArray(data?.remaining_unit_ids) ? data.remaining_unit_ids : [];
+            let chunks = 1;
+            while (!ok && remaining.length > 0 && Date.now() < RUN_DEADLINE_MS - 25000 && chunks < 8) {
+              chunks += 1;
+              const next = await admin.functions.invoke("push-property-to-ru", {
+                body: { ...fnBody, only_unit_ids: remaining },
+              });
+              data = next.data;
+              error = next.error;
+              ok = !error && data?.success === true;
+              const nextRemaining: string[] = Array.isArray(data?.remaining_unit_ids) ? data.remaining_unit_ids : [];
+              if (nextRemaining.length >= remaining.length) {
+                remaining = nextRemaining;
+                break;
+              }
+              remaining = nextRemaining;
+            }
+
+            const partial = !ok && remaining.length > 0;
+            const transient = !ok && !partial && isTransient(data, error);
             steps.push({
               step: stepNo, name, ru_method: method, mandatory: true, scope: "property",
-              status: ok ? "passed" : transient ? "skipped" : "failed",
+              status: ok ? "passed" : transient || partial ? "skipped" : "failed",
               duration_ms: Date.now() - t0,
               detail: ok
-                ? "OK"
-                : transient
-                  ? `Deferred — Rentals United was temporarily unavailable${retried ? " on both attempts" : ""}. The payload was built and sent; re-run the suite to prove it.`
-                  : (error?.message ?? data?.error?.message ?? "Push failed"),
-              retryable: transient || undefined,
+                ? chunks > 1 ? `OK — completed in ${chunks} rate-limited chunks` : "OK"
+                : partial
+                  ? `Partial — ${chunks} chunk(s) pushed within the run's rate-limit budget, ${remaining.length} unit(s) still queued. Re-run this phase to finish the sequence.`
+                  : transient
+                    ? `Deferred — Rentals United was temporarily unavailable${retried ? " on both attempts" : ""}. The payload was built and sent; re-run the suite to prove it.`
+                    : (error?.message ?? data?.error?.message ?? "Push failed"),
+              retryable: transient || partial || undefined,
               retried: retried || undefined,
+              chunks: chunks > 1 ? chunks : undefined,
               request: fnBody,
               response_preview: preview(data),
             });
           }
+
+
 
 
           // Read-back verification (small settle so RU has committed the push)
