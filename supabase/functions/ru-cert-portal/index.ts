@@ -3279,6 +3279,8 @@ Deno.serve(async (req) => {
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       const company = await provisionCompanyAfterKeyVerification();
+      // Verified keys mean this account can be monitored — subscribe it now.
+      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
