@@ -44,7 +44,17 @@ export function ChannelPropertyTable({
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"all" | ChannelSyncState>("all");
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  // Portfolios start collapsed by default; user expands the ones they want to inspect.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  // Collapse all portfolio groups on first load (and whenever the set of group
+  // names changes). Portfolios collapse by default per product request.
+  const groupNames = useMemo(() => groups.map((g) => g.name), [groups]);
+  useMemo(() => {
+    setCollapsed(new Set(groupNames));
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupNames.join("|")]);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const portfolios = useMemo(
