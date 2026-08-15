@@ -1,12 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
-import {
-  applyAdminScope,
-  filterToItTestProperties,
-  isItTestAdminEmail,
-  IT_TEST_PROPERTY_IDS,
-} from "@/lib/adminScope";
+import { applyAdminScope } from "@/lib/adminScope";
 import {
   channelQueueProgress,
   ruMandatoryCheckSummary,
