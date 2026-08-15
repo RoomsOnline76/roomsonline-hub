@@ -4417,7 +4417,29 @@ Deno.serve(async (req) => {
         }
       }
 
+      // 5) An already-provisioned distribution account wins over the internal-login guard:
+      // the sub-user exists at the channel with that login, so re-submitting company details
+      // must reuse it instead of failing.
       if (!ownerEmail) {
+        let q = admin
+          .from("ru_owner_accounts")
+          .select("owner_email, owner_name, ru_owner_id, property_id, portfolio_id")
+          .not("owner_email", "is", null);
+        q = portfolioId && propertyId
+          ? q.or(`portfolio_id.eq.${portfolioId},property_id.eq.${propertyId}`)
+          : portfolioId
+            ? q.eq("portfolio_id", portfolioId)
+            : q.eq("property_id", propertyId!);
+        const { data: existing } = await q.limit(5);
+        const row = ((existing ?? []) as any[]).find((r) => r?.owner_email);
+        if (row) {
+          ownerEmail = row.owner_email;
+          ownerName = ownerName || row.owner_name || portfolioRow?.name || "Property Owner";
+        }
+      }
+
+      if (!ownerEmail) {
+
         return json({
           success: false,
           error: {
