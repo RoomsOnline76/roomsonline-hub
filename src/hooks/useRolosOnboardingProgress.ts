@@ -290,6 +290,30 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     };
   }, [d?.roadmap]);
 
+  /**
+   * Step 9 — "Pull listings (if any)". Outcome of the last discovery run against the
+   * sub-account, persisted alongside the sign-off in the roadmap row so the step
+   * stays green across sessions (an empty sub-account is a valid pass).
+   */
+  const listingPull = useMemo(() => {
+    const raw = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
+    const cr = (raw.channel_readiness ?? {}) as Record<string, unknown>;
+    const lp = (cr.listing_pull ?? null) as
+      | { at?: string; by?: string | null; matched?: number; unmatched?: number; remote_count?: number }
+      | null;
+    return lp && lp.at
+      ? {
+          at: String(lp.at),
+          by: lp.by ?? null,
+          matched: Number(lp.matched ?? 0),
+          unmatched: Number(lp.unmatched ?? 0),
+          remoteCount: Number(lp.remote_count ?? 0),
+        }
+      : null;
+  }, [d?.roadmap]);
+
+
+
 
   const stateChecks = useMemo(() => {
     const map = new Map<DistributionCheckKey, DistributionCheck>();
@@ -408,9 +432,28 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           : "Not verified",
     });
 
-    // Macro 8 — publish. Leftover listing IDs from a previous bind do not count
+    // Macro 8 — sub-account verification runs before the push (see macro registry);
+    // its check is defined below with the other manual state.
+
+    // Macro 9 — pull existing listings under the sub-account before publishing.
+    const pullDone = !!listingPull;
+    put("listings_pulled", "Existing listings pulled & adopted", bound && pullDone, {
+      waiting: !bound,
+      detail: !bound
+        ? unboundDependentDetail("publish")
+        : listingPull
+          ? listingPull.remoteCount === 0
+            ? "Nothing to adopt — sub-account is empty"
+            : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
+                listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
+              }`
+          : "Not pulled yet",
+    });
+
+    // Macro 10 — publish. Leftover listing IDs from a previous bind do not count
     // while the property is unbound (no owner key & secret).
     const units = (d?.units ?? []) as { name?: string | null; is_active: boolean | null; rentalsunited_property_id: string | null }[];
+
     const activeUnits = units.filter((u) => u.is_active !== false);
     const unitsWithIds = activeUnits.filter((u) => !!String(u.rentalsunited_property_id ?? "").trim()).length;
     const propertyListingId = !!String(prop.rentalsunited_property_id ?? "").trim();
@@ -445,7 +488,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
 
-    // Macro 9 — currency
+    // Macro 11 — currency
     const cur = (d?.currency ?? null) as Record<string, string | null> | null;
     const currencyRecorded =
       !!cur?.verified_at &&
@@ -462,7 +505,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           : "No currency state recorded",
     });
 
-    // Macro 10 — manual sign-off
+    // Macro 8 — manual sub-account verification (ticked before the push)
     const tickedCount = ROLOS_SIGNOFF_CHECKLIST.filter(
       (i) => signoff.checks[i.key]?.checked === true,
     ).length;
@@ -478,7 +521,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
 
-    // Macro 11 — channels
+    // Macros 12-13 — entitlement & channels
     const entitlementOn = billing?.channel_manager_enabled === true;
     put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
       waiting: !bound,
@@ -501,7 +544,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     });
 
     return map;
-  }, [billing?.channel_manager_enabled, d, signoff]);
+  }, [billing?.channel_manager_enabled, d, listingPull, signoff]);
 
   const macros: MacroProgress[] = useMemo(() => {
     const items = readiness.items;
@@ -551,20 +594,25 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         switch (macro.key) {
           case "keys":
             return ok("sub_owner_id") ? undefined : "Create the distribution identity first (step 6).";
+          case "signoff":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "pull_listings":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "publish":
             if (!ok("api_keys_stored")) return "Capture the sub-account key & secret first (step 7).";
+            if (!ok("manual_signoff")) return "Verify the sub-account first (step 8).";
+            if (!ok("listings_pulled")) return "Pull existing listings first (step 9) so the push cannot duplicate.";
             if (!readyToSell) return "Finish Ready to sell — the push needs complete content, rooms, photos and rates.";
             return undefined;
           case "currency":
             return ok("listing_ids") ? undefined : "Publish the listing first — currency is verified against the live listing.";
-          case "signoff":
-            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "entitlement":
             return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "connect":
-            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 11).";
-            if (!ok("listing_ids")) return "Publish the listing first (step 8).";
+            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 12).";
+            if (!ok("listing_ids")) return "Publish the listing first (step 10).";
             return undefined;
+
           default:
             return undefined;
         }
@@ -739,7 +787,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [writeChannelReadiness],
   );
 
+  /** Record the outcome of a "Pull listings" run (step 9). */
+  const recordListingPull = useCallback(
+    async (
+      outcome: { matched: number; unmatched: number; remoteCount: number },
+      actorLabel?: string | null,
+    ) => {
+      await writeChannelReadiness({
+        listing_pull: {
+          at: new Date().toISOString(),
+          by: actorLabel ?? null,
+          matched: outcome.matched,
+          unmatched: outcome.unmatched,
+          remote_count: outcome.remoteCount,
+        },
+      });
+    },
+    [writeChannelReadiness],
+  );
+
   return {
+
     isRolosPms,
     macros,
     currentMacro,
@@ -758,6 +826,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     signoff,
     recordSignoff,
     recordSignoffCheck,
+
+    listingPull,
+    recordListingPull,
 
     refresh,
     isLoading: readiness.isLoading || distribution.isLoading,

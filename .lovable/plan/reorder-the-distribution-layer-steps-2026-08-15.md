@@ -9,7 +9,7 @@ The distribution half of the Channels wizard currently runs: push owner → keys
 7.  Create key & secret for the sub-account
 8.  Sub-account verification            (human check on the live sub-account)
 9.  Pull listings (if any)              (NEW - adopt existing listing ids)
-10. Push property & full ARI publish
+10. Push property & full ARI publish (Cuurently giving  Edge Function Error)
 11. Location & currency verification
 12. Enable Channel Manager
 13. Connect channels

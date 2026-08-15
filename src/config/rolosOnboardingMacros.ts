@@ -26,12 +26,14 @@ export type DistributionCheckKey =
   | "sub_owner_id"
   | "api_keys_stored"
   | "api_keys_verified"
+  | "manual_signoff"
+  | "listings_pulled"
   | "listing_ids"
   | "quality_check"
   | "currency_verified"
-  | "manual_signoff"
   | "channel_entitlement"
   | "channels_connected";
+
 
 export interface MacroStateTask {
   kind: "state";
@@ -51,7 +53,7 @@ export interface MacroFieldTask {
 
 export type MacroTask = MacroStateTask | MacroFieldTask;
 
-export type MacroActionKind = "ensure_owner" | "signoff" | "open_channels" | "none";
+export type MacroActionKind = "ensure_owner" | "signoff" | "pull_listings" | "open_channels" | "none";
 
 export interface MacroDef {
   key: string;
@@ -166,8 +168,37 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     ],
   },
   {
-    key: "publish",
+    key: "signoff",
     order: 8,
+    title: "Sub-account verification",
+    goal: "A human confirms the live sub-account is correct before anything is published.",
+    manual: true,
+    adminOnly: true,
+    action: "signoff",
+    tasks: [{ kind: "state", key: "manual_signoff" }],
+    notes: [
+      "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
+      "This happens before the push so a wrong owner, company profile or currency is caught before a listing exists.",
+    ],
+
+  },
+  {
+    key: "pull_listings",
+    order: 9,
+    title: "Pull listings (if any)",
+    goal: "Any listing already present under the sub-account is adopted, so the push never duplicates.",
+    section: "integrations",
+    action: "pull_listings",
+    adminOnly: true,
+    tasks: [{ kind: "state", key: "listings_pulled" }],
+    notes: [
+      "Lists everything under the sub-account and links matches to this property and its units by name.",
+      "An empty sub-account is normal — the step passes as “nothing to adopt” and the push creates the listing.",
+    ],
+  },
+  {
+    key: "publish",
+    order: 10,
     title: "Push property & full ARI publish",
     goal: "The property is live on the distribution layer with a stable identity.",
     section: "integrations",
@@ -180,35 +211,21 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     notes: [
       "Push stays disabled below 100% mandatory readiness. Re-push updates the stored listing IDs — it never duplicates.",
       "Availability and pricing publish for the full rolling 365-day horizon and are read back to verify.",
-      "The content quality check runs later (step 11) — it can only be assessed once a channel subscription exists.",
+      "The content quality check runs later — it can only be assessed once a channel subscription exists.",
     ],
 
   },
   {
     key: "currency",
-    order: 9,
+    order: 11,
     title: "Location & currency verification",
     goal: "The published location and currency agree on both sides.",
     section: "integrations",
     tasks: [{ kind: "state", key: "currency_verified" }],
   },
   {
-    key: "signoff",
-    order: 10,
-    title: "Sub-account verification",
-    goal: "A human confirms the live sub-account looks correct.",
-    manual: true,
-    adminOnly: true,
-    action: "signoff",
-    tasks: [{ kind: "state", key: "manual_signoff" }],
-    notes: [
-      "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
-    ],
-
-  },
-  {
     key: "entitlement",
-    order: 11,
+    order: 12,
     title: "Enable Channel Manager",
     goal: "Channel Manager is on the billing profile so channels can connect.",
     section: "admin",
@@ -220,7 +237,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "connect",
-    order: 12,
+    order: 13,
     title: "Connect channels",
     goal: "The owner activates the sales channels they want to trade on.",
     action: "open_channels",
@@ -231,13 +248,15 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
 ];
 
+
 export function getMacro(key: string): MacroDef | undefined {
   return ROLOS_ONBOARDING_MACROS.find((m) => m.key === key);
 }
 
 /**
- * Step 10 manual verification checklist. Each item is ticked individually by an
- * admin / owner / developer; the macro only completes once all are ticked.
+ * Step 8 sub-account verification checklist — ticked before anything is published.
+ * Each item is ticked individually by an admin / owner / developer; the macro only
+ * completes once all are ticked.
  */
 export interface SignoffChecklistItem {
   key: string;
@@ -245,9 +264,10 @@ export interface SignoffChecklistItem {
 }
 
 export const ROLOS_SIGNOFF_CHECKLIST: SignoffChecklistItem[] = [
+  { key: "login_works", label: "Sub-account login signs in successfully" },
   { key: "owner_details", label: "Owner details are correct" },
   { key: "company_details", label: "Company details are correct" },
-  { key: "properties_present", label: "Property / properties are present" },
-  { key: "calendar_currency", label: "Calendar resolves in the correct currency" },
-  { key: "no_content_warnings", label: "No outstanding content-quality warnings" },
+  { key: "account_currency", label: "Account currency & locale are correct" },
+  { key: "no_stray_listings", label: "No unexpected pre-existing listings on the sub-account" },
 ];
+
