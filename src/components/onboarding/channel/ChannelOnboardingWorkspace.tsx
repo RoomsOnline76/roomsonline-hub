@@ -869,6 +869,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               onPushOwner={pushOwner}
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
+              listingsVerified={listingsVerified}
+              onVerifyListings={verifyListings}
               onEnable={enableChannelManager}
               onPushCompanyDetails={pushCompanyDetails}
               onSignoffItem={(key, next) => {
@@ -1055,6 +1057,8 @@ function PublishedPane({
   entitlementOn,
   onPushOwner,
   onPublish,
+  listingsVerified,
+  onVerifyListings,
   onEnable,
   onSignoffItem,
   onSignoffAll,
@@ -1075,6 +1079,8 @@ function PublishedPane({
   entitlementOn: boolean;
   onPushOwner: () => void;
   onPublish: () => void;
+  listingsVerified: boolean;
+  onVerifyListings: () => void;
   onEnable: () => void;
   onSignoffItem: (key: string, next: boolean) => void;
   onSignoffAll: (next: boolean) => void;
