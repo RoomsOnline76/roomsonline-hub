@@ -1022,7 +1022,10 @@ export default function AdminOnboarding() {
             ) : (
               filteredProperties.map((row) => {
                 const status = getOnboardingStatus(row);
-                const nextLabel = row.isRolos
+                // The Channels wizard only exists once the Channel Manager is
+                // enabled and billed for the property (or its portfolio).
+                const channelWizardAvailable = row.isRolos && row.channelManagerEnabled;
+                const nextLabel = channelWizardAvailable
                   ? row.channelStage === "live"
                     ? row.show_on_website
                       ? "Finished"
@@ -1037,13 +1040,23 @@ export default function AdminOnboarding() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/admin/onboarding/${row.id}`)}
+                    onClick={() =>
+                      navigate(
+                        channelWizardAvailable
+                          ? `/admin/onboarding/${row.id}`
+                          : `/admin/properties/${row.id}?section=onboarding`,
+                      )
+                    }
                   >
                     <TableCell>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/admin/onboarding/${row.id}`);
+                          navigate(
+                            channelWizardAvailable
+                              ? `/admin/onboarding/${row.id}`
+                              : `/admin/properties/${row.id}?section=onboarding`,
+                          );
                         }}
                         className="font-medium hover:text-primary hover:underline text-left"
                       >
@@ -1094,6 +1107,21 @@ export default function AdminOnboarding() {
                     <TableCell>
                       {row.channelStage === "na" ? (
                         <span className="text-xs text-muted-foreground">Not ROL'OS</span>
+                      ) : !row.channelManagerEnabled ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground">Channel Manager not enabled</span>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              <p className="font-medium">Distribution is a billable add-on</p>
+                              <p>
+                                Switch the Channel Manager on in this property's Billing Config — the Channels wizard
+                                opens after that.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       ) : (
                         <TooltipProvider>
                           <Tooltip>
@@ -1147,17 +1175,19 @@ export default function AdminOnboarding() {
                         >
                           Website wizard
                         </Button>
-                        <Button
-                          size="sm"
-                          variant={row.isRolos && row.channelStage !== "live" ? "default" : "outline"}
-                          className="h-7 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/admin/onboarding/${row.id}`);
-                          }}
-                        >
-                          {nextLabel}
-                        </Button>
+                        {channelWizardAvailable && (
+                          <Button
+                            size="sm"
+                            variant={row.channelStage !== "live" ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/onboarding/${row.id}`);
+                            }}
+                          >
+                            {nextLabel}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
@@ -1172,10 +1202,12 @@ export default function AdminOnboarding() {
                             <Building2 className="h-4 w-4 mr-2" />
                             Open website listing wizard
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
-                            <Sparkles className="h-4 w-4 mr-2" />
-                            Open channel wizard
-                          </DropdownMenuItem>
+                          {channelWizardAvailable && (
+                            <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
+                              <Sparkles className="h-4 w-4 mr-2" />
+                              Open channel wizard
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           {/* Issue/Resend token based on status */}
                           {status === "not_started" && !row.isNightsBridge ? (
