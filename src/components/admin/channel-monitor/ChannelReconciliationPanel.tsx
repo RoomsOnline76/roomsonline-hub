@@ -305,17 +305,94 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               )}
             </div>
 
-            {result.accounts.some((a) => a.error) && (
-              <div className="space-y-1 rounded-md border border-destructive/40 p-3 text-sm">
-                {result.accounts
-                  .filter((a) => a.error)
-                  .map((a) => (
-                    <p key={a.owner_id} className="text-destructive">
-                      Account {a.owner_email || a.owner_id}: {a.error}
-                    </p>
-                  ))}
-              </div>
+            {result.roster_error && (
+              <p className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">
+                {result.roster_error}
+              </p>
             )}
+
+            {/* Which sub-account every number came from. Always visible: a report that
+                names no account cannot be checked against the channel portal. */}
+            <section className="space-y-2">
+              <h4 className="text-sm font-medium">Sub-accounts read</h4>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Sub-account</th>
+                      <th className="px-3 py-2 text-right font-medium">Live</th>
+                      <th className="px-3 py-2 text-right font-medium">Archived</th>
+                      <th className="px-3 py-2 text-left font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {result.accounts.map((a) => (
+                      <tr key={a.owner_id}>
+                        <td className="px-3 py-2">
+                          <span className="block">{a.owner_label || a.owner_email || `OwnerID ${a.owner_id}`}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {a.is_master ? "Master account" : a.bound ? "Bound in ROL'OS" : "Not bound in ROL'OS"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{a.error ? "—" : a.listing_count}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          {a.error ? "—" : (a.archived_count ?? 0)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {a.error ? (
+                            <span className="text-destructive">{a.error}</span>
+                          ) : (
+                            <span className="text-muted-foreground">Read</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {result.accounts.some((a) => !a.has_keys) && (
+                <p className="text-xs text-muted-foreground">
+                  Accounts without stored keys cannot be read. Capture their AccessKey and SecretKey in the
+                  Channels wizard (Distribution account) to include them in this report.
+                </p>
+              )}
+            </section>
+
+            {result.foreign_listings.length > 0 && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-medium">
+                  On another sub-account — {result.foreign_listings.length} listing
+                  {result.foreign_listings.length === 1 ? "" : "s"}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  These listings sit on sub-accounts ROL'OS has not bound. They are reported only — nothing here is
+                  archived or deleted. Clean them up in the channel portal, or bind the account first.
+                </p>
+                <ul className="divide-y rounded-md border">
+                  {result.foreign_listings.map((f) => (
+                    <li
+                      key={`${f.owner_id}:${f.listing_id}:${f.record_id ?? "none"}`}
+                      className="px-3 py-2 text-sm"
+                    >
+                      <span className="block truncate">
+                        {f.name}{" "}
+                        <span className="text-muted-foreground">
+                          #{f.listing_id}
+                          {f.is_archived ? " · archived" : ""}
+                        </span>
+                      </span>
+                      <span className="block text-xs text-muted-foreground">{f.owner_label}</span>
+                      {f.local_label && (
+                        <span className="block text-xs text-destructive">
+                          A ROL'OS record points here: {f.local_label}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
 
             {result.accounts.some((a) => a.is_master) && (
               <p className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">
