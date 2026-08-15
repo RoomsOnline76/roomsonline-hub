@@ -506,7 +506,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const macros: MacroProgress[] = useMemo(() => {
     const items = readiness.items;
     const result: MacroProgress[] = [];
-    let previousComplete = true;
+    const completeByKey = new Map<string, boolean>();
+    const ok = (key: DistributionCheckKey) => stateChecks.get(key)?.ok === true;
 
     for (const macro of ROLOS_ONBOARDING_MACROS) {
       const sections = macro.tasks.flatMap((t) => (t.kind === "fields" ? t.sections : []));
@@ -537,6 +538,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       const mandatoryDone = mandatoryTotal - mandatoryOutstanding - stateOutstanding;
       const score = mandatoryTotal === 0 ? 100 : Math.round((mandatoryDone / mandatoryTotal) * 100);
       const complete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+      completeByKey.set(macro.key, complete);
+
+      /**
+       * Only real prerequisites gate an action — not "the step above is not
+       * finished". Reading, revisiting and fixing anything stays possible.
+       */
+      const readyToSell = ["identity", "location", "rooms", "media", "commercial"].every(
+        (k) => completeByKey.get(k) !== false,
+      );
+      const actionBlockedReason = (() => {
+        switch (macro.key) {
+          case "keys":
+            return ok("sub_owner_id") ? undefined : "Create the distribution identity first (step 6).";
+          case "publish":
+            if (!ok("api_keys_stored")) return "Capture the sub-account key & secret first (step 7).";
+            if (!readyToSell) return "Finish Ready to sell — the push needs complete content, rooms, photos and rates.";
+            return undefined;
+          case "currency":
+            return ok("listing_ids") ? undefined : "Publish the listing first — currency is verified against the live listing.";
+          case "signoff":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "entitlement":
+            return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
+          case "connect":
+            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 11).";
+            if (!ok("listing_ids")) return "Publish the listing first (step 8).";
+            return undefined;
+          default:
+            return undefined;
+        }
+      })();
 
       result.push({
         macro,
@@ -546,18 +578,18 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         stateChecks: checks,
         score,
         complete,
-        locked: !previousComplete,
+        locked: !!actionBlockedReason,
+        actionBlockedReason,
         outstandingLabels: [
           ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
           ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
         ],
       });
-
-      previousComplete = previousComplete && complete;
     }
 
     return result;
   }, [readiness.items, stateChecks]);
+
 
   /**
    * Live channel connections for this property. Used to retire the onboarding
