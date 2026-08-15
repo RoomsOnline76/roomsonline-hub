@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -265,7 +265,7 @@ ${allReviewTexts.slice(0, 8).join('\n')}
 
 ${property.description ? `Property description: ${property.description.substring(0, 300)}` : ''}`;
 
-            const xaiResp = await fetch(AI_GATEWAY_URL, {
+            const xaiResp = await aiFetch(AI_GATEWAY_URL, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

@@ -1,4 +1,4 @@
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -99,7 +99,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const response = await fetch(AI_GATEWAY_URL, {
+    const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${XAI_API_KEY}`,

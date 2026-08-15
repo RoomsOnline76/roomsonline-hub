@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { findDiningExperience } from "../_shared/delight-engine.ts";
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, aiFetch } from "../_shared/aiModels.ts";
 
 // ============================================================================
 // AI BOOKING CONCIERGE — Intelligent Sales Agent
@@ -672,7 +672,7 @@ ${suggestions.length > 0 ? `I found ${suggestions.length} available options.` : 
 
   try {
     if (XAI_API_KEY) {
-      const resp = await fetch(AI_GATEWAY_URL, {
+      const resp = await aiFetch(AI_GATEWAY_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${XAI_API_KEY}`,
@@ -978,7 +978,7 @@ RULES:
     
     try {
       if (XAI_API_KEY) {
-        const resp = await fetch(AI_GATEWAY_URL, {
+        const resp = await aiFetch(AI_GATEWAY_URL, {
           method: "POST",
           headers: { Authorization: `Bearer ${XAI_API_KEY}`, "Content-Type": "application/json" },
           body: JSON.stringify({ model: AI_MODELS.booking_concierge, messages: aiMessages, max_tokens: 250 }),
