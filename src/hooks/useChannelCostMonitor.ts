@@ -223,7 +223,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           .select("id, property_id, property_name, direction, unit_count, listing_count, actor_email, created_at")
           .order("created_at", { ascending: false })
           .limit(100),
-        resolveEurToZar(),
+        // FX resolves in the background: an external rate lookup must never hold up the page.
+        Promise.resolve(null as FxRate | null),
         supabase
           .from("billing_global_defaults")
           .select("channel_manager_per_unit_fee, sort_order")
@@ -385,6 +386,9 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       setProperties(priced);
       setEvents((eventsRes.data || []) as ArchiveEventRow[]);
       setFx(fxRate);
+      void resolveEurToZar().then((rate) => {
+        if (rate) setFx(rate);
+      });
       const defaultsRows = (defaultsRes?.data || []) as Array<{ channel_manager_per_unit_fee: number | null }>;
       const perUnit = defaultsRows.find((r) => (r.channel_manager_per_unit_fee ?? 0) > 0)?.channel_manager_per_unit_fee;
       setRolPerListingZar(perUnit != null ? Number(perUnit) : null);

@@ -336,6 +336,7 @@ export default function AdminOnboarding() {
           id, name, owner_email, owner_name, listing_status, show_on_website, is_active,
           external_system, rentalsunited_property_id, ru_push_enabled, ru_location_id,
           amenities, description, short_description, listing_intent,
+          is_sandbox, is_test_property,
           property_type, property_url, latitude, longitude,
           address, city, country, price_per_night, bedrooms, bathrooms, 
           images, hero_video_url,
@@ -488,43 +489,26 @@ export default function AdminOnboarding() {
         }
       });
 
-      // Exclude test/demo properties by name
+      // Exclude test/demo/sandbox properties (explicit flags win over naming)
       const testPattern = /\b(test|demo|staging|dummy|sandbox)\b/i;
-      const realProperties = (propData || []).filter((prop) => !testPattern.test(prop.name));
+      const realProperties = (propData || []).filter(
+        (prop) =>
+          !testPattern.test(prop.name) &&
+          (prop as { is_sandbox?: boolean | null }).is_sandbox !== true &&
+          (prop as { is_test_property?: boolean | null }).is_test_property !== true,
+      );
 
       const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
       const rolosIds = realProperties
         .filter((prop) => rolosSystems.has(String(prop.external_system ?? "").toLowerCase()))
         .map((prop) => prop.id);
+      // Live channel probes never block the first paint: the queue renders from
+      // local state, then each probe refines its own row as it lands.
       const ruByProperty = new Map<string, ReturnType<typeof ruMandatoryCheckSummary>>();
-      // Probe in small batches: a burst of live channel probes gets rate limited and
-      // the queue then paints false "RU checks failing" cards.
-      const probeQueue = [...rolosIds];
-      const runProbe = async (propertyId: string) => {
-        try {
-          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
-          });
-          if (error || data?.success !== true) return;
-          const listed = !!data?.readiness?.ru_property_id;
-          ruByProperty.set(
-            propertyId,
-            ruMandatoryCheckSummary(data.readiness ?? null, {
-              // Listing exists but the scorer fell back to the local calendar:
-              // the live availability verdict is unavailable, not failing.
-              liveProbeDegraded: listed && data?.availability_source !== "channel",
-            }),
-          );
-        } catch {
-          // Leave unknown — channelQueueProgress will not claim Ready.
-        }
-      };
-      await Promise.all(
-        Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
-          for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
-        }),
-      );
+      const channelInputsById = new Map<string, Parameters<typeof channelQueueProgress>[0]>();
+
+
 
 
       const enrichedProperties: PropertyOnboardingRow[] = realProperties.map((prop) => {
@@ -535,7 +519,7 @@ export default function AdminOnboarding() {
         const channelManagerEnabled = billingByProperty.get(prop.id) === true;
         const units = unitsByProperty.get(prop.id) ?? { active: 0, published: 0 };
         const ruChecks = ruByProperty.get(prop.id);
-        const channel = channelQueueProgress({
+        const channelInputs = {
           isRolos,
           channelsConnected,
           propertyListingId: prop.rentalsunited_property_id ?? null,
@@ -544,7 +528,9 @@ export default function AdminOnboarding() {
           hasDistributionIdentity: channelManagerEnabled || !!prop.ru_push_enabled,
           ruMandatoryPass: ruChecks?.known ? ruChecks.pass : null,
           ruMandatoryPercent: ruChecks?.known ? ruChecks.percent : null,
-        });
+        };
+        channelInputsById.set(prop.id, channelInputs);
+        const channel = channelQueueProgress(channelInputs);
         
         const propertyData: PropertyData = {
           id: prop.id,
@@ -646,9 +632,54 @@ export default function AdminOnboarding() {
       });
 
       setPropertyRows(itTestPin ? filterToItTestProperties(enrichedProperties) : enrichedProperties);
+      setLoading(false);
+
+      // Background refinement: probe live channel readiness per ROL'OS property and
+      // patch just that row. Small concurrency keeps the channel rate limiter happy.
+      const probeQueue = [...rolosIds];
+      const runProbe = async (propertyId: string) => {
+        try {
+          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
+          });
+          if (error || data?.success !== true) return;
+          const listed = !!data?.readiness?.ru_property_id;
+          const summary = ruMandatoryCheckSummary(data.readiness ?? null, {
+            // Listing exists but the scorer fell back to the local calendar:
+            // the live availability verdict is unavailable, not failing.
+            liveProbeDegraded: listed && data?.availability_source !== "channel",
+          });
+          const inputs = channelInputsById.get(propertyId);
+          if (!inputs) return;
+          const channel = channelQueueProgress({
+            ...inputs,
+            ruMandatoryPass: summary.known ? summary.pass : null,
+            ruMandatoryPercent: summary.known ? summary.percent : null,
+          });
+          setPropertyRows((prev) =>
+            prev.map((row) =>
+              row.id === propertyId
+                ? {
+                    ...row,
+                    channelStage: channel.stage,
+                    channelPercent: channel.percent,
+                    channelLabel: channel.label,
+                    channelHint: channel.hint,
+                  }
+                : row,
+            ),
+          );
+        } catch {
+          // Leave unknown — the local verdict stands.
+        }
+      };
+      void Promise.all(
+        Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
+          for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
+        }),
+      );
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
-    } finally {
       setLoading(false);
     }
   };
@@ -709,7 +740,11 @@ export default function AdminOnboarding() {
       });
     }
 
-    return result;
+    // ROL'OS properties lead the queue — they are the ones we can take live.
+    return [...result].sort((a, b) => {
+      if (a.isRolos !== b.isRolos) return a.isRolos ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
   }, [actorEmail, propertyRows, scopedPropertyIds, showCompleted, statusFilter, searchQuery]);
 
   // Stats calculated from properties with actual onboarding activity

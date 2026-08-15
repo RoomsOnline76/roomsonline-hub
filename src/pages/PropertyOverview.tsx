@@ -100,26 +100,21 @@ const PropertyOverview = () => {
           .filter(Boolean)
       )] as string[];
 
-      // Batch fetch: all profiles in one query
-      const { data: profilesData } = ownerEmails.length > 0
-        ? await supabase
-            .from("profiles")
-            .select("*")
-            .in("email", ownerEmails)
-        : { data: [] };
+      // Profiles and contracts are independent — fetch them together.
+      const [{ data: profilesData }, { data: ownerContractsData }] = await Promise.all([
+        ownerEmails.length > 0
+          ? supabase.from("profiles").select("*").in("email", ownerEmails)
+          : Promise.resolve({ data: [] as any[] }),
+        ownerEmails.length > 0
+          ? supabase
+              .from("owner_contracts")
+              .select("owner_email, status, version, signed_at, override_at, pdf_url")
+              .in("owner_email", ownerEmails)
+              .order("version", { ascending: false })
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const profilesByEmail = new Map((profilesData || []).map((p: any) => [p.email, p]));
 
-      const profilesByEmail = new Map(
-        (profilesData || []).map(p => [p.email, p])
-      );
-
-      // Fetch owner contract status for all unique owner emails
-      const { data: ownerContractsData } = ownerEmails.length > 0
-        ? await supabase
-            .from("owner_contracts")
-            .select("owner_email, status, version, signed_at, override_at, pdf_url")
-            .in("owner_email", ownerEmails)
-            .order("version", { ascending: false })
-        : { data: [] };
 
       // Group contracts by owner_email (get latest version for each)
       const contractsByOwnerEmail = new Map<string, { status: string; signed_at?: string; override_at?: string; pdf_url?: string }>();
@@ -145,6 +140,7 @@ const PropertyOverview = () => {
       return propertiesWithExtras;
     },
     enabled: !authLoading && !!user,
+    staleTime: 60_000,
   });
 
   // Fetch PMS tracker status to check if integrations are enabled
