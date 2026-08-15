@@ -3491,6 +3491,16 @@ Deno.serve(async (req) => {
       );
     }
 
+    // A live push makes any earlier listing verification stale: the listings must be
+    // pulled back and confirmed again before the wizard treats them as verified.
+    if (!dry_run) {
+      await supabase
+        .from('properties')
+        .update({ ru_listings_verified_at: null })
+        .eq('id', property_id)
+        .then(() => {}, (e: unknown) => console.warn('[push-property-to-ru] could not reset listing verification', e));
+    }
+
     // Persist resolved geo+currency for re-use & audit (skip on dry runs).
     if (!dry_run) {
       await persistRuPropertyMapping(supabase, property_id, {
