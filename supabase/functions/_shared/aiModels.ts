@@ -262,3 +262,32 @@ export async function callLovableAi(options: AiCallOptions): Promise<AiCallResul
   const content = result?.choices?.[0]?.message?.content ?? null;
   return { ok: true, content, status: 200, raw: result };
 }
+
+/**
+ * Drop-in replacement for `fetch(AI_GATEWAY_URL, init)` that stands by on the
+ * reserve brain. Returns a normal Response with the usual OpenAI chat shape, so
+ * existing call sites keep working unchanged (`resp.ok`, `resp.json()`).
+ */
+export async function aiFetch(
+  _url: string,
+  init: { body?: string; signal?: AbortSignal; headers?: Record<string, string> } & Record<string, unknown>,
+  label = "tobi",
+): Promise<Response> {
+  let body: Record<string, unknown> = {};
+  try {
+    body = JSON.parse(String(init?.body ?? "{}"));
+  } catch {
+    body = {};
+  }
+  const outcome = await aiChat(body, { signal: init?.signal, label });
+  if (outcome.ok) {
+    return new Response(JSON.stringify(outcome.data ?? {}), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return new Response(JSON.stringify({ error: { code: outcome.code, message: outcome.error } }), {
+    status: outcome.status || 502,
+    headers: { "Content-Type": "application/json" },
+  });
+}
