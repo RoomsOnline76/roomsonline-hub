@@ -88,12 +88,16 @@ const corsHeaders = {
 
 interface ListingVerification {
   verified: boolean;
+  /** The push succeeded but the channel has not answered the read-back yet — not a failure. */
+  pending?: boolean;
   verified_units?: number;
   expected_units?: number;
   unmatched?: string[];
   owner?: string | null;
+  listing_status?: { scope: string; name: string; ru_property_id: string | null; status: string; owner_label?: string }[];
   error?: string;
 }
+
 
 /**
  * Reading the listings back is part of publishing, not a separate chore: a push whose
