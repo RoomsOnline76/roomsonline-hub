@@ -159,12 +159,16 @@ export function usePmsPropertyId() {
       const memberIds = new Set<string>();
       (allMembers as any[] || []).forEach((m: any) => memberIds.add(m.property_id));
 
-      const { data: memberProps } = await supabase
+      // A scoped admin must not see portfolio siblings it cannot read: narrow the
+      // sibling list to the scope so the portfolio toggle matches actual access.
+      let memberQuery = supabase
         .from("properties")
         .select("id, name, slug, brand_primary_color")
         .in("id", Array.from(memberIds))
         .eq("is_active", true)
         .order("name");
+      memberQuery = applyAdminScope(memberQuery, "id", scopedPropertyIds);
+      const { data: memberProps } = await memberQuery;
 
       return {
         portfolioIds,
