@@ -158,21 +158,33 @@ export async function evaluatePhases(
 
   // Resolve the email the sub-user *should* be registered under, so a changed
   // owner email invalidates the existing RU identity instead of silently keeping it.
-  let expectedEmail: string | null = property.owner_email ?? null;
-  if (portfolio_id) {
-    const { data: pf } = await admin
-      .from("property_portfolios")
-      .select("owner_id")
-      .eq("id", portfolio_id)
-      .maybeSingle();
-    if (pf?.owner_id) {
-      const { data: prof } = await admin
-        .from("profiles")
-        .select("email")
-        .eq("id", pf.owner_id)
+  //
+  // Scope matters: a portfolio-scoped sub-user is registered once for the whole
+  // portfolio, so an individual property's owner_email is NOT authoritative for it.
+  // Judging a portfolio account against a property email produced a phantom
+  // "stale sub-user" mismatch, which nulled the OwnerID and made every push and
+  // readiness dry run fail with RU_OWNER_UNRESOLVED — surfacing in the wizard as
+  // a wall of untrue content/photo/pricing blockers. When the portfolio carries no
+  // owner profile we simply cannot judge, so we do not.
+  let expectedEmail: string | null = null;
+  if (scope === "portfolio" || portfolio_id) {
+    if (portfolio_id) {
+      const { data: pf } = await admin
+        .from("property_portfolios")
+        .select("owner_id")
+        .eq("id", portfolio_id)
         .maybeSingle();
-      if (prof?.email) expectedEmail = prof.email;
+      if (pf?.owner_id) {
+        const { data: prof } = await admin
+          .from("profiles")
+          .select("email")
+          .eq("id", pf.owner_id)
+          .maybeSingle();
+        if (prof?.email) expectedEmail = prof.email;
+      }
     }
+  } else {
+    expectedEmail = property.owner_email ?? null;
   }
   const storedEmail = (account?.ru_login_email ?? account?.owner_email ?? "").trim().toLowerCase();
   const emailMismatch =
@@ -180,6 +192,7 @@ export async function evaluatePhases(
     Boolean(storedEmail) &&
     Boolean(expectedEmail) &&
     storedEmail !== expectedEmail!.trim().toLowerCase();
+
 
   // ── Phase 1 ──
   const p1Blockers: string[] = [];
