@@ -843,6 +843,64 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Re-point a local record at a listing that is live on the account ──
+    //    Used when a record still holds an id the channel has archived. The
+    //    replacement id is verified live upstream before anything is written,
+    //    so a mistake in the reconcile report can never wire in a dead id.
+    if (raw.scope === "repoint_local_listing") {
+      const listingId = String(raw.listing_id ?? "").trim();
+      if (!listingId) return bad("listing_id is required", 400);
+      const table = raw.record_kind === "property" ? "properties" : "hostfully_room_types";
+      const ownerId = raw.owner_id ? String(raw.owner_id) : null;
+
+      const presence = await verifyListingPresence(admin, {
+        listingId,
+        ownerId,
+        ctx: logCtx(traceId, "channel-repoint:verify"),
+      });
+      if (presence.error) return bad(presence.error, 502);
+      if (!presence.present) return bad(`Listing ${listingId} is not held by the channel account`, 409);
+      if (presence.archived) return bad(`Listing ${listingId} is archived on the channel account`, 409);
+
+      // Release the id from anything else holding it, so a re-point can never
+      // create a second collision.
+      await admin
+        .from("properties")
+        .update({ rentalsunited_property_id: null })
+        .eq("rentalsunited_property_id", listingId)
+        .neq("id", raw.entity_id);
+      await admin
+        .from("hostfully_room_types")
+        .update({ rentalsunited_property_id: null })
+        .eq("rentalsunited_property_id", listingId)
+        .neq("id", raw.entity_id);
+
+      const { error: setErr } = await admin
+        .from(table)
+        .update({ rentalsunited_property_id: listingId })
+        .eq("id", raw.entity_id);
+      if (setErr) return bad(setErr.message, 500);
+
+      await admin.from("ru_archive_events").insert({
+        property_id: raw.record_kind === "property" ? raw.entity_id : null,
+        property_name: `Listing re-point (#${listingId})`,
+        direction: "updated",
+        unit_count: raw.record_kind === "property" ? 0 : 1,
+        listing_count: 1,
+        reason: raw.reason ?? "Local listing id re-pointed during channel reconciliation",
+        actor_user_id: actorUserId,
+        actor_email: actorEmail,
+        ru_status: "updated",
+        detail: `${raw.record_kind ?? "unit"} ${raw.entity_id} now points at live listing ${listingId}`,
+      });
+
+      return new Response(JSON.stringify({ success: true, listing_id: listingId }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+
+
 
 
     // ── Purge duplicate listings: deactivated unit records that still hold a
