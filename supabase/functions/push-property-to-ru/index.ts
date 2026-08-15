@@ -174,6 +174,8 @@ const BED_AMENITY_MAP: Record<string, number> = {
   'king-twin': RU_BED.king,
   'sofa-bed': RU_BED.sofaBed,
   sofa: RU_BED.sofaBed,
+  'double-sofa-bed': RU_BED.doubleSofaBed,
+  'sleeper-couch': RU_BED.doubleSofaBed,
   bunk: RU_BED.bunk,
 };
 

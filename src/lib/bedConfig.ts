@@ -32,7 +32,8 @@ export const BED_TYPES = [
   { value: "double", label: "Double" },
   { value: "twin", label: "Twin" },
   { value: "single", label: "Single" },
-  { value: "sofa-bed", label: "Sofa Bed" },
+  { value: "sofa-bed", label: "Sofa Bed (sleeps 1)" },
+  { value: "double-sofa-bed", label: "Sleeper Couch / Double Sofa Bed (sleeps 2)" },
   { value: "bunk", label: "Bunk Bed" },
 ] as const;
 
@@ -43,6 +44,7 @@ export const bedTypeLabels: Record<string, string> = {
   twin: "Twin",
   single: "Single",
   "sofa-bed": "Sofa Bed",
+  "double-sofa-bed": "Sleeper Couch",
   bunk: "Bunk Bed",
   // Legacy mappings
   "king-twin": "King / Twin",
@@ -51,6 +53,11 @@ export const bedTypeLabels: Record<string, string> = {
 /**
  * How many people each bed of a given type sleeps.
  * `count` on a BedEntry is the NUMBER OF BEDS, never the number of people.
+ *
+ * These values MUST mirror the channel's sleeping-place table
+ * (`RU_BED_SLEEPS` in push-property-to-ru): a single sofa bed counts as one
+ * sleeping place, only a sleeper couch / double sofa bed counts as two.
+ * Diverging here makes the wizard report 100% coverage while certification blocks.
  */
 export const bedTypeSleeps: Record<string, number> = {
   king: 2,
@@ -58,11 +65,13 @@ export const bedTypeSleeps: Record<string, number> = {
   double: 2,
   twin: 1,
   single: 1,
-  "sofa-bed": 2,
+  "sofa-bed": 1,
+  "double-sofa-bed": 2,
   bunk: 2,
   // Legacy mappings
   "king-twin": 2,
 };
+
 
 export function sleepsPerBed(type: string): number {
   return bedTypeSleeps[type] ?? 1;
