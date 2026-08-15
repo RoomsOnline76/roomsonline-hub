@@ -122,6 +122,28 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
     setDupRunning(false);
   }, [propertyId, load]);
 
+  /**
+   * Manual repair path. Subscription is registered automatically the moment the
+   * sub-account's keys verify, so this is only needed when RU dropped or drifted it.
+   */
+  const subscribeNow = useCallback(async () => {
+    setSubscribing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "ensure_live_notifications", property_id: propertyId },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.success !== true) throw new Error(data?.error?.message ?? "Live notifications could not be registered");
+      if (data.warning) toast.warning("Subscribed with a warning", { description: String(data.warning) });
+      else toast.success("Live notifications registered and verified");
+      await load();
+    } catch (e) {
+      toast.error("Could not register live notifications", { description: e instanceof Error ? e.message : String(e) });
+    }
+    setSubscribing(false);
+  }, [propertyId, load]);
+
+
   const lnmTone = useMemo(() => LNM_TONE[status?.lnm.state ?? "unmonitored"], [status]);
   const mcq = useMemo(() => mcqTone(status?.mcq?.status), [status]);
 
