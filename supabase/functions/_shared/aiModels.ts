@@ -90,15 +90,47 @@ export interface AiCallOptions {
   signal?: AbortSignal;
 }
 
+export type AiFailureCode =
+  | "MISSING_KEY"
+  | "RATE_LIMITED"
+  | "CREDITS_EXHAUSTED"
+  | "SPEND_LIMIT_REACHED"
+  | "AI_ERROR";
+
 export interface AiCallResult {
   ok: boolean;
   content: string | null;
   status: number;
   /** Stable error code the UI can map to a friendly TOBI message. */
-  code?: "MISSING_KEY" | "RATE_LIMITED" | "CREDITS_EXHAUSTED" | "AI_ERROR";
+  code?: AiFailureCode;
   error?: string;
   raw?: unknown;
 }
+
+/**
+ * Map a gateway non-2xx into the message a property owner should actually read.
+ * 403 `credit_limit_reached` is a workspace SPEND CAP, not an outage and not an
+ * exhausted balance — every TOBI feature dies at once and the only fix is raising
+ * the cap, so say that instead of "TOBI request failed (403)".
+ */
+export function describeAiFailure(status: number, detail: string): { code: AiFailureCode; error: string } {
+  const body = (detail || "").toLowerCase();
+  if (status === 429) {
+    return { code: "RATE_LIMITED", error: "TOBI is busy right now. Please try again in a moment." };
+  }
+  if (status === 402) {
+    return { code: "CREDITS_EXHAUSTED", error: "AI credits are exhausted. Please top up to continue using TOBI." };
+  }
+  if (status === 403 && (body.includes("credit_limit_reached") || body.includes("credit limit"))) {
+    return {
+      code: "SPEND_LIMIT_REACHED",
+      error:
+        "TOBI is paused: the workspace monthly AI spend limit has been reached. Raise the limit to resume TOBI features.",
+    };
+  }
+  return { code: "AI_ERROR", error: detail?.slice(0, 300) || "TOBI request failed." };
+}
+
 
 /**
  * Single entry point for gateway chat calls. Centralises auth, model selection
@@ -144,26 +176,10 @@ export async function callLovableAi(options: AiCallOptions): Promise<AiCallResul
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     console.error(`[ai:${options.task}] ${model} -> ${response.status}`, detail.slice(0, 500));
-    if (response.status === 429) {
-      return {
-        ok: false,
-        content: null,
-        status: 429,
-        code: "RATE_LIMITED",
-        error: "TOBI is handling a lot of requests right now. Please try again shortly.",
-      };
-    }
-    if (response.status === 402) {
-      return {
-        ok: false,
-        content: null,
-        status: 402,
-        code: "CREDITS_EXHAUSTED",
-        error: "AI credits are exhausted. Please top up to continue using TOBI.",
-      };
-    }
-    return { ok: false, content: null, status: response.status, code: "AI_ERROR", error: detail || "AI request failed" };
+    const { code, error } = describeAiFailure(response.status, detail);
+    return { ok: false, content: null, status: response.status, code, error };
   }
+
 
   const result = await response.json();
   const content = result?.choices?.[0]?.message?.content ?? null;

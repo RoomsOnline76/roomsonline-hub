@@ -1,4 +1,4 @@
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,17 +115,22 @@ Respond ONLY with valid JSON, no markdown.`;
     });
 
     if (!aiResponse.ok) {
-      // Fallback to regex-based parsing
+      const detail = await aiResponse.text().catch(() => "");
+      const { code, error } = describeAiFailure(aiResponse.status, detail);
+      console.error("[tobi] room parser gateway error", aiResponse.status, detail.slice(0, 300));
+      // Fallback to regex-based parsing, but name the real reason TOBI stood down.
       const fallbackResult = parseWithRegex(description);
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           roomType: fallbackResult,
           method: "fallback",
-          message: "AI unavailable, used regex parsing"
+          code,
+          message: error,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     const aiData = await aiResponse.json();
     let responseText = aiData.choices?.[0]?.message?.content || "";

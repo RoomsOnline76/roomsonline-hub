@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS } from "../_shared/aiModels.ts";
+import { AI_MODELS, describeAiFailure } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -152,12 +152,18 @@ ${content.substring(0, 8000)}`;
     });
 
     if (!aiResponse.ok) {
-      console.error("AI extraction failed:", aiResponse.status);
+      const detail = await aiResponse.text().catch(() => "");
+      console.error("[tobi] enrichment gateway error", aiResponse.status, detail.slice(0, 400));
+      const { code, error } = describeAiFailure(aiResponse.status, detail);
       return new Response(
-        JSON.stringify({ success: false, error: "TOBI extraction failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, code, error }),
+        {
+          status: [429, 402, 403].includes(aiResponse.status) ? aiResponse.status : 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
+
 
     const aiData = await aiResponse.json();
     const aiText = aiData.choices?.[0]?.message?.content || aiData.content || "";

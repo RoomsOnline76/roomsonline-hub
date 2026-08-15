@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { AI_MODELS, AI_GATEWAY_URL } from "../_shared/aiModels.ts";
+import { AI_MODELS, AI_GATEWAY_URL, describeAiFailure } from "../_shared/aiModels.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,10 +56,14 @@ async function detectFeaturesFromImages(imageUrls: string[], apiKey: string): Pr
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           model: AI_MODELS.image_validation,
-          max_tokens: 500,
+          // 500 tokens truncated the JSON mid-string on multi-feature photos, so every
+          // photo threw "Unterminated string in JSON" and the scout saw no visual evidence.
+          max_tokens: 1200,
+          response_format: { type: "json_object" },
           messages: [
             {
               role: "system",
+
               content:
                 'You analyse accommodation photos and list amenities, facilities and features you can clearly see. ' +
                 'Reply with JSON only: {"features":[{"feature":"swimming pool","confidence":0.9}]}. ' +
@@ -241,12 +245,14 @@ Respond with JSON only, shape:
 
     if (!aiResp.ok) {
       const text = await aiResp.text();
-      console.error("xAI error", aiResp.status, text);
+      console.error("[tobi] amenity scout gateway error", aiResp.status, text.slice(0, 500));
+      const { code, error } = describeAiFailure(aiResp.status, text);
       return json(
-        { success: false, error: `TOBI request failed (${aiResp.status})`, detail: text.slice(0, 500) },
-        aiResp.status === 429 ? 429 : 502,
+        { success: false, code, error, detail: text.slice(0, 300) },
+        aiResp.status === 429 || aiResp.status === 402 || aiResp.status === 403 ? aiResp.status : 502,
       );
     }
+
 
     const aiJson = await aiResp.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
