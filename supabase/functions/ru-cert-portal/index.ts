@@ -3650,6 +3650,29 @@ Deno.serve(async (req) => {
         unmatched.push(String(prop.name ?? targetPropertyId));
       }
 
+      /**
+       * Persist the read-back result. This is the property's listing-verification
+       * record: a push whose listings were never pulled back stays unverified, and a
+       * pull that leaves units unmatched is recorded as such rather than "verified".
+       */
+      const expectedUnits = activeUnits.length || 1;
+      const verifiedUnits = activeUnits.length
+        ? matched.filter((m) => m.scope === "unit").length
+        : (propertyHit ? 1 : 0);
+      const fullyVerified = verifiedUnits >= expectedUnits && unmatched.length === 0;
+      await admin
+        .from("properties")
+        .update({
+          ru_listings_verified_at: fullyVerified ? new Date().toISOString() : null,
+          ru_listings_verified_owner: subAccountLabel,
+          ru_listings_verified_units: verifiedUnits,
+          ru_listings_expected_units: expectedUnits,
+          ru_listings_unmatched: unmatched,
+        })
+        .eq("id", targetPropertyId)
+        .then(() => {}, (e: unknown) => console.warn("[ru-cert-portal] listing verification write failed", e));
+
+
       return json({
         success: true,
         ru_owner_id: ownerId,
