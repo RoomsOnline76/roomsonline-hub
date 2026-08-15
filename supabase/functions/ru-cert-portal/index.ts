@@ -3202,7 +3202,6 @@ Deno.serve(async (req) => {
       return json({
         success: true,
         verified: true,
-        access_key: accessKey,
         login_email: loginEmail,
         ru_owner_id: ownerId,
         company_details_pushed: company.pushed,

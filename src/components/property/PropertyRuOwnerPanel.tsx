@@ -323,14 +323,14 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               <div className="font-medium capitalize">{account?.scope ?? "—"}</div>
             </div>
             <div>
-              <span className="text-muted-foreground">Company details sent</span>
+              <span className="text-muted-foreground">Company details</span>
               {account?.company_details_pushed ? (
                 <div className="font-medium">
-                   Accepted{" "}
+                  Accepted{" "}
                   {account.company_filled_at
                     ? new Date(account.company_filled_at).toLocaleDateString()
                     : ""}{" "}
-                   by the Channel Manager with verified keys
+                  by the Channel Manager with verified keys
                 </div>
               ) : (
                 <div className="space-y-1">
