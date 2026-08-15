@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
   Circle,
   Loader2,
   Lock,
@@ -10,7 +11,9 @@ import {
   Rocket,
   UploadCloud,
 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
@@ -420,6 +423,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       };
     }
     if (macro.macro.key === "publish") {
+      if (publishedOk) {
+        return {
+          label: "Published — review step",
+          disabled: false,
+          run: () => selectMacro("publish"),
+          reason,
+        };
+      }
       return {
         label: isPlatformUser ? "Publish listing" : "Review publish step",
         disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
@@ -427,6 +438,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         reason,
       };
     }
+
     if (macro.macro.key === "entitlement") {
       if (!isPlatformUser) {
         return {
@@ -489,6 +501,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     goToField,
     isPlatformUser,
     publishListing,
+    publishedOk,
+
     pullListings,
     pushOwner,
     selectMacro,
@@ -1026,7 +1040,9 @@ function PublishedPane({
   onSignoffAll: (next: boolean) => void;
   onPushCompanyDetails: () => void;
 }) {
+  const [rePushOpen, setRePushOpen] = useState(false);
   return (
+
     <div className="space-y-4">
       {(macroKey === "push_owner" || macroKey === "keys") && (
         <div className="space-y-3">
@@ -1085,7 +1101,9 @@ function PublishedPane({
             Pushes the property, units, availability and prices. Re-publish updates stored listing IDs — it never duplicates.
           </p>
           {publishedOk ? (
-            <p className="text-sm text-emerald-600">Listing IDs are stored.</p>
+            <p className="text-sm text-emerald-600">
+              Published — the Channel Manager is enabled and awaiting a channel connection.
+            </p>
           ) : (
             <p className="text-sm text-muted-foreground">
               {unpublishedUnits > 0 ? `${unpublishedUnits} unit(s) still need a listing ID.` : "Not published yet."}
@@ -1098,19 +1116,46 @@ function PublishedPane({
               ))}
             </ul>
           )}
-          {isPlatformUser && (
+          {isPlatformUser && !publishedOk && (
             <Button onClick={onPublish} disabled={locked || busy === "publish"}>
               {busy === "publish" ? (
                 <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               ) : (
                 <UploadCloud className="mr-1.5 h-4 w-4" />
               )}
-              {publishedOk ? "Re-publish" : "Publish now"}
+              Publish now
             </Button>
+          )}
+          {isPlatformUser && publishedOk && (
+            <Collapsible open={rePushOpen} onOpenChange={setRePushOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-[11px] text-muted-foreground">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${rePushOpen ? "rotate-180" : ""}`} />
+                  Manual re-push (not needed)
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onPublish}
+                  disabled={locked || busy === "publish"}
+                  title="Force a full re-push — updates stored listing IDs, never duplicates"
+                >
+                  {busy === "publish" ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <UploadCloud className="mr-1.5 h-4 w-4" />
+                  )}
+                  Force re-publish
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
           )}
           {!isPlatformUser && (
             <p className="text-xs text-muted-foreground">An admin publishes the listing once Ready to sell is green.</p>
           )}
+
         </div>
       )}
 

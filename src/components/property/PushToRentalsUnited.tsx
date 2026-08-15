@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -157,6 +161,8 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
 
   const [ruOwnerAccount, setRuOwnerAccount] = useState<RuOwnerAccount | null>(null);
   const [autoManaged, setAutoManaged] = useState(false);
+  const [rePushOpen, setRePushOpen] = useState(false);
+
   const [ruOwnerLabel, setRuOwnerLabel] = useState<string | null>(null);
   /** Sub-account identity gate: no OwnerID or no API keys → every RU call is blocked. */
   const [identityGate, setIdentityGate] = useState<{ gated: boolean; reason: string | null }>({
@@ -170,6 +176,17 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
    */
   const gate = usePropertyReadiness(propertyId);
   const gateBlocked = !gate.hasData || gate.passed !== true;
+  const navigate = useNavigate();
+  /**
+   * Published = the listing exists on the distribution layer for every pushed
+   * entity. In that state updates flow automatically, so the manual push is an
+   * opt-in re-push rather than the primary action.
+   */
+  const published =
+    !gateBlocked &&
+    readiness?.blocked !== true &&
+    (isMultiUnit ? units.length > 0 && units.every((u) => !!u.ru_property_id) : !!ruPropertyId);
+
   const gateReason = !gate.hasData
     ? gate.isLoading || gate.isFetching
       ? "Checking channel readiness…"
@@ -621,47 +638,90 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
               {dryRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
               {dryRunning ? "Checking..." : "Validate"}
             </Button>
-            <Button
-              size="sm"
-              className="h-7 text-xs gap-1"
-              onClick={pushToRU}
-              disabled={
-                loading ||
-                dryRunning ||
-                identityGate.gated ||
-                gateBlocked ||
-                readiness?.blocked === true ||
-                (validation !== null && !isReady)
-              }
-              title={
-                identityGate.gated
-                  ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
-                  : gateBlocked
-                    ? gateReason ?? "Complete the channel readiness checklist below before syncing"
-                    : readiness?.blocked
-                      ? "Complete the channel readiness checklist below before syncing"
-                      : undefined
-              }
-            >
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-              {loading
-                ? "Pushing..."
-                : identityGate.gated
-                  ? "Keys required"
-                  : !gate.hasData && (gate.isLoading || gate.isFetching)
-                    ? "Checking readiness…"
-                    : gateBlocked || readiness?.blocked
-                      ? "Sync blocked"
-                      : isMultiUnit
-                        ? "Push Building + Units"
-                        : "Publish to Channel Manager"}
+            {published ? (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="h-6 gap-1 text-[10px]">
+                  <CheckCircle className="h-3 w-3" />
+                  Published — Channel Manager enabled
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => navigate(`/pms/channels?property=${propertyId}`)}
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Connect channels
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                className="h-7 text-xs gap-1"
+                onClick={pushToRU}
+                disabled={
+                  loading ||
+                  dryRunning ||
+                  identityGate.gated ||
+                  gateBlocked ||
+                  readiness?.blocked === true ||
+                  (validation !== null && !isReady)
+                }
+                title={
+                  identityGate.gated
+                    ? identityGate.reason ?? "Link the distribution account and capture its API keys on the Identity tab first"
+                    : gateBlocked
+                      ? gateReason ?? "Complete the channel readiness checklist below before syncing"
+                      : readiness?.blocked
+                        ? "Complete the channel readiness checklist below before syncing"
+                        : undefined
+                }
+              >
+                {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                {loading
+                  ? "Pushing..."
+                  : identityGate.gated
+                    ? "Keys required"
+                    : !gate.hasData && (gate.isLoading || gate.isFetching)
+                      ? "Checking readiness…"
+                      : gateBlocked || readiness?.blocked
+                        ? "Sync blocked"
+                        : isMultiUnit
+                          ? "Push Building + Units"
+                          : "Publish to Channel Manager"}
+              </Button>
+            )}
 
-            </Button>
+
 
           </div>
         </div>
         <div className="mt-2 border-t pt-2">
           <ChannelContentSyncStatus propertyId={propertyId} />
+          {published && (
+            <Collapsible open={rePushOpen} onOpenChange={setRePushOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-6 gap-1 px-1 text-[11px] text-muted-foreground">
+                  <ChevronDown className={`h-3 w-3 transition-transform ${rePushOpen ? "rotate-180" : ""}`} />
+                  Manual re-push (not needed)
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={pushToRU}
+                  disabled={loading || dryRunning || identityGate.gated}
+                  title="Force a full re-push of this listing and its inventory to the Channel Manager"
+                >
+                  {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                  {loading ? "Pushing…" : isMultiUnit ? "Force re-push building + units" : "Force re-push listing"}
+                </Button>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
         </div>
       </CardHeader>
 
