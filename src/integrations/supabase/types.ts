@@ -1411,6 +1411,63 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_reconciliation_runs: {
+        Row: {
+          alert_error: string | null
+          alert_recipients: string[]
+          alert_sent: boolean
+          channel_listing_count: number
+          created_at: string
+          duplicate_count: number
+          error_account_count: number
+          findings: Json
+          has_disparity: boolean
+          id: string
+          local_billable_listings: number
+          orphan_count: number
+          ran_at: string
+          run_error: string | null
+          stale_count: number
+          trigger: string
+        }
+        Insert: {
+          alert_error?: string | null
+          alert_recipients?: string[]
+          alert_sent?: boolean
+          channel_listing_count?: number
+          created_at?: string
+          duplicate_count?: number
+          error_account_count?: number
+          findings?: Json
+          has_disparity?: boolean
+          id?: string
+          local_billable_listings?: number
+          orphan_count?: number
+          ran_at?: string
+          run_error?: string | null
+          stale_count?: number
+          trigger?: string
+        }
+        Update: {
+          alert_error?: string | null
+          alert_recipients?: string[]
+          alert_sent?: boolean
+          channel_listing_count?: number
+          created_at?: string
+          duplicate_count?: number
+          error_account_count?: number
+          findings?: Json
+          has_disparity?: boolean
+          id?: string
+          local_billable_listings?: number
+          orphan_count?: number
+          ran_at?: string
+          run_error?: string | null
+          stale_count?: number
+          trigger?: string
+        }
+        Relationships: []
+      }
       charge_presets: {
         Row: {
           category: string

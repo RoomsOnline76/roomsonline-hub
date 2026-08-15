@@ -235,3 +235,9 @@ schedule = "0 4 * * *"
 [functions.cron-prune-ru-api-log]
 verify_jwt = false
 schedule = "30 3 * * *"
+
+# Nightly channel-manager reconciliation; emails ops when the channel and
+# ROL'OS disagree (orphan / duplicate listings, stale local ids).
+[functions.cron-channel-reconcile]
+verify_jwt = false
+schedule = "10 3 * * *"

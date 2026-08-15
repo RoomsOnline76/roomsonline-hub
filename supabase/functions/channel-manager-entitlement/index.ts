@@ -308,19 +308,29 @@ Deno.serve(async (req) => {
 
     // ── Auth: staff only ──────────────────────────────────────────────
     const jwt = authHeader.replace(/^Bearer\s+/i, "");
-    const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
-    if (userErr || !userData?.user) return bad("Invalid session", 401);
 
-    const { data: roles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userData.user.id);
-    const allowed = (roles || []).some((r: { role: string }) =>
-      ["admin", "dev", "fearless_leader"].includes(r.role)
-    );
-    if (!allowed) return bad("Insufficient permissions", 403);
+    // Trusted internal caller: our own scheduled jobs present the service role
+    // key, which is not a user JWT. Anything else must resolve to a staff user.
+    const isServiceCall = SERVICE_KEY.length > 0 && jwt === SERVICE_KEY;
 
-    const actorEmail = userData.user.email ?? null;
+    let actorEmailResolved: string | null = "system@cron";
+    if (!isServiceCall) {
+      const { data: userData, error: userErr } = await admin.auth.getUser(jwt);
+      if (userErr || !userData?.user) return bad("Invalid session", 401);
+
+      const { data: roles } = await admin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userData.user.id);
+      const allowed = (roles || []).some((r: { role: string }) =>
+        ["admin", "dev", "fearless_leader"].includes(r.role)
+      );
+      if (!allowed) return bad("Insufficient permissions", 403);
+      actorEmailResolved = userData.user.email ?? null;
+    }
+
+
+    const actorEmail = actorEmailResolved;
 
     // One trace per request: the caller may pass its own so a whole "clean up
     // all" run reads as a single chain in the exchange log.
