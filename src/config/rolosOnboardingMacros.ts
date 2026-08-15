@@ -254,8 +254,9 @@ export function getMacro(key: string): MacroDef | undefined {
 }
 
 /**
- * Step 10 manual verification checklist. Each item is ticked individually by an
- * admin / owner / developer; the macro only completes once all are ticked.
+ * Step 8 sub-account verification checklist — ticked before anything is published.
+ * Each item is ticked individually by an admin / owner / developer; the macro only
+ * completes once all are ticked.
  */
 export interface SignoffChecklistItem {
   key: string;
@@ -263,9 +264,10 @@ export interface SignoffChecklistItem {
 }
 
 export const ROLOS_SIGNOFF_CHECKLIST: SignoffChecklistItem[] = [
+  { key: "login_works", label: "Sub-account login signs in successfully" },
   { key: "owner_details", label: "Owner details are correct" },
   { key: "company_details", label: "Company details are correct" },
-  { key: "properties_present", label: "Property / properties are present" },
-  { key: "calendar_currency", label: "Calendar resolves in the correct currency" },
-  { key: "no_content_warnings", label: "No outstanding content-quality warnings" },
+  { key: "account_currency", label: "Account currency & locale are correct" },
+  { key: "no_stray_listings", label: "No unexpected pre-existing listings on the sub-account" },
 ];
+
