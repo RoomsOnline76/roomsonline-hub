@@ -23,19 +23,19 @@ export const CHANNEL_ONBOARDING_STAGES: ChannelOnboardingStageDef[] = [
   {
     key: "ready",
     title: "Ready to sell",
-    goal: "Identity, place, rooms, photos and prices are complete enough to sell.",
+    goal: "Goal: complete identity, place, rooms, photos and prices so the property can sell.",
     macroKeys: ["identity", "location", "rooms", "media", "commercial"],
   },
   {
     key: "published",
     title: "Published",
-    goal: "The listing exists on the distribution layer and is signed off.",
+    goal: "Goal: get the listing onto the distribution layer and signed off.",
     macroKeys: ["push_owner", "keys", "signoff", "pull_listings", "publish", "currency", "entitlement"],
   },
   {
     key: "live",
     title: "Channels live",
-    goal: "At least one sales channel is connected and trading.",
+    goal: "Goal: connect at least one sales channel and start trading.",
     macroKeys: ["connect"],
   },
 ];
