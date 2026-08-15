@@ -45,6 +45,8 @@ interface Body {
 
   /** clear_local_listing: "property" | "unit" record kind holding the stale id. */
   record_kind?: "property" | "unit";
+  /** repoint_local_listing: the listing id to attach once verified live. */
+  listing_id?: string;
 }
 
 
