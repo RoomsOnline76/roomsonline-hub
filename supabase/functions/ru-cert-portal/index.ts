@@ -1150,6 +1150,7 @@ Deno.serve(async (req) => {
       // ── Local rate coverage (calendar first, rack rate fallback) ──
       // Reports what ROLOS would push, independently of what RU currently holds.
       let localCoverage: { summary: string; calendar_days: number; rack_days: number; unpriced_days: number; complete: boolean; unit_count: number } | null = null;
+      let unlinkedUnits: { id: string; name: string; linked_rolos_id: string | null }[] = [];
       const mappedUnitRows = (data?.units ?? []).filter(
         (unit: { ru_property_id?: string | null }) => Number(unit.ru_property_id) > 0,
       );
@@ -1164,6 +1165,8 @@ Deno.serve(async (req) => {
         const targets = mappedIds.size > 0
           ? resolver.units.filter((unit) => mappedIds.has(unit.id))
           : resolver.units.length > 0 ? resolver.units : [{ id: p.id, name: p.name }];
+        const targetIds = new Set(targets.map((unit) => unit.id));
+        unlinkedUnits = resolver.unlinkedUnits().filter((unit) => targetIds.has(unit.id));
         let calendar = 0, rack = 0, priced = 0;
         let overrideDays = 0, planSeasonDays = 0, relationalDays = 0;
         for (const u of targets) {
@@ -1193,6 +1196,7 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.warn("[scoreProperty] rate coverage probe failed:", e);
       }
+
 
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
