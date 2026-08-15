@@ -77,6 +77,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
   const [expanded, setExpanded] = useState(false);
   const [dupRunning, setDupRunning] = useState(false);
   const [dupResult, setDupResult] = useState<Record<string, unknown> | null>(null);
+  const [subscribing, setSubscribing] = useState(false);
 
   const load = useCallback(async () => {
     if (!propertyId) return;
