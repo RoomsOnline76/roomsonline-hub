@@ -504,11 +504,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               type="button"
               size="icon"
               variant="ghost"
-              onClick={() => void refresh()}
+              onClick={() => void refresh({ probeAri: true })}
               aria-label="Refresh readiness"
+              title="Re-check readiness, including the live channel calendar"
             >
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+
             <Button type="button" onClick={nextAction.run} disabled={nextAction.disabled || !!busy}>
               {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
               {nextAction.label}
