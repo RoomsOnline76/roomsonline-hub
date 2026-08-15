@@ -2943,6 +2943,53 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
+      // Ownership check: a VALID pair is not necessarily THIS sub-user's pair. Without this,
+      // one sub-user's keys can be pasted onto another OwnerID, after which every
+      // sub-account-scoped call silently authenticates as the wrong RU account.
+      const { data: owned, error: ownedError } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "verify_child_key_owner",
+          auth_access_key: accessKey,
+          auth_secret_key: secretKey,
+          owner_id: ownerId,
+        },
+      });
+      if (ownedError || owned?.success !== true || owned?.owns !== true) {
+        const otherEmails: string[] = Array.isArray(owned?.identified_emails) ? owned.identified_emails : [];
+        const otherOwners: string[] = Array.isArray(owned?.identified_owner_ids) ? owned.identified_owner_ids : [];
+        const belongsTo = otherEmails[0] ?? otherOwners[0] ?? null;
+        return json({
+          success: false,
+          verified: false,
+          error: {
+            code: "RU_CHILD_KEYS_WRONG_ACCOUNT",
+            message: belongsTo
+              ? `This key pair belongs to ${belongsTo}, not to ${loginEmail ?? `OwnerID ${ownerId}`}. Sign in at Rentals United AS ${loginEmail ?? `OwnerID ${ownerId}`} and generate a key pair there.`
+              : `Rentals United will not let this key pair read OwnerID ${ownerId}. Generate the pair while signed in as ${loginEmail ?? "this sub-user"} (Security settings, scope XmlApi).`,
+          },
+          ru_status_id: owned?.ru_status_id ?? null,
+          ru_status_message: owned?.ru_status_message ?? null,
+        }, 422);
+      }
+
+      // Guard against the same pair sitting on two OwnerIDs (the exact cross-save above).
+      const { data: clashRows } = await admin
+        .from("ru_api_credentials")
+        .select("ru_owner_id, login_email")
+        .eq("access_key", accessKey)
+        .neq("ru_owner_id", ownerId);
+      if (clashRows && clashRows.length > 0) {
+        const clash = clashRows[0] as { ru_owner_id: string; login_email: string | null };
+        return json({
+          success: false,
+          verified: false,
+          error: {
+            code: "RU_CHILD_KEYS_DUPLICATE",
+            message: `This AccessKey is already stored for ${clash.login_email ?? `OwnerID ${clash.ru_owner_id}`}. Each sub-account needs its own key pair.`,
+          },
+        }, 422);
+      }
+
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: secretKey });
       if (encErr || !enc) {
         return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the secret key" } }, 500);
