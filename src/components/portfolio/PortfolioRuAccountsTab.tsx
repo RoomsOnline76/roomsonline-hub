@@ -339,12 +339,9 @@ export function PortfolioRuAccountsTab() {
       toast.error("No OwnerID bound — nothing to archive on Rentals United");
       return;
     }
-    const label = `${acc.ru_owner_id} (${acc.ru_login_email || acc.owner_email})`;
-    if (!window.confirm(
-      `Archive OwnerID ${label} on Rentals United?\n\nThis closes the sub-user via Push_ArchiveUser_RQ (child auth). Local bind will be cleared.`,
-    )) return;
-
+    setCloseAsk(false);
     setClosing(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("ru-close-user", {
         body: { account_id: bindFor.id },
