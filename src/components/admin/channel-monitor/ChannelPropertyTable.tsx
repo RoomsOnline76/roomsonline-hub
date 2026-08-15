@@ -26,6 +26,7 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   live: "Live",
   paused: "Paused",
   archived: "Archived",
+  pending: "Never pushed",
 };
 
 const UNASSIGNED = "Unassigned";
