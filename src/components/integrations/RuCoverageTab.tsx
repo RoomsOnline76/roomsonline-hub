@@ -85,6 +85,13 @@ const ROLOS_LABEL: Record<CoverageRow["rolos_status"], string> = {
   blocked: "Integrated · blocked upstream",
   never_used: "Integrated · not yet used",
 };
+const SOURCE_LABEL: Record<CoverageRow["source"], string> = {
+  cert_run: "certification run",
+  sync_log: "live sync log",
+  api_log: "live channel call log",
+  cache: "populated register",
+  none: "no evidence",
+};
 
 
 const fmt = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
