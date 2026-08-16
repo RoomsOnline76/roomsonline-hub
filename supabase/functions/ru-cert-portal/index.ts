@@ -1212,14 +1212,31 @@ Deno.serve(async (req) => {
         let rolosStatus: "success" | "failed" | "never_used" | "blocked" = "never_used";
         let rolosLastAt: string | null = null;
         let rolosDetail: string | null = null;
+        let rolosSuccessAt: string | null = null;
+        let rolosFailureDetail: string | null = null;
         for (const act of e.sync_actions) {
+          const ok = latestSuccessByAction.get(act);
+          if (ok && (!rolosSuccessAt || new Date(ok.created_at).getTime() > new Date(rolosSuccessAt).getTime())) {
+            rolosSuccessAt = ok.created_at;
+          }
           const row = latestSyncByAction.get(act);
           if (!row) continue;
           if (rolosLastAt && new Date(row.created_at).getTime() <= new Date(rolosLastAt).getTime()) continue;
           rolosLastAt = row.created_at;
           rolosStatus = row.success ? "success" : "failed";
           rolosDetail = row.success ? `ROL'OS action "${act}" succeeded.` : (row.error_message ?? `ROL'OS action "${act}" failed.`);
+          if (!row.success) rolosFailureDetail = rolosDetail;
         }
+        // Latest SUCCESS wins here too: a newer failed attempt (usually a retired test
+        // sub-account) downgrades freshness, never the verdict, once the ROL'OS surface
+        // has been proven to work.
+        let rolosLastAttemptFailed = false;
+        if (rolosStatus === "failed" && rolosSuccessAt) {
+          rolosStatus = "success";
+          rolosLastAttemptFailed = true;
+          rolosDetail = `Verified from ROL'OS on ${new Date(rolosSuccessAt).toISOString().slice(0, 10)}; the most recent attempt failed: ${rolosFailureDetail ?? "unknown error"}`;
+        }
+
         // Newest evidence wins: a real ROL'OS run (push prices, pull reservations, RLNM
         // subscribe, …) both proves the endpoint works AND resets its freshness clock, even
         // when an older certification run already passed.
@@ -1272,7 +1289,15 @@ Deno.serve(async (req) => {
           status = "passed";
           detail = `Previously verified against the channel (${new Date(apiSuccessAt).toISOString().slice(0, 10)}); the most recent attempt failed.`;
         }
-        const lastAttemptFailed = status === "passed" && (apiAttemptFailed && ts(apiAttemptAt) > ts(apiSuccessAt));
+        if (status === "failed" && rolosSuccessAt) {
+          // The ROL'OS surface has succeeded before — a later failure is a freshness issue.
+          status = "passed";
+          detail = detail ?? `Verified from ROL'OS on ${new Date(rolosSuccessAt).toISOString().slice(0, 10)}; the most recent attempt failed.`;
+          rolosLastAttemptFailed = true;
+        }
+        const lastAttemptFailed = status === "passed"
+          && ((apiAttemptFailed && ts(apiAttemptAt) > ts(apiSuccessAt)) || rolosLastAttemptFailed);
+
 
         // Populated dictionary cache = durable proof the pull succeeded.
         const cache = e.cache_evidence ? cacheEvidence.get(e.cache_evidence.table) : undefined;
@@ -1358,7 +1383,7 @@ Deno.serve(async (req) => {
           last_success_at: apiSuccessAt,
           last_attempt_at: apiAttemptAt,
           last_attempt_failed: lastAttemptFailed,
-          last_attempt_error: lastAttemptFailed ? apiError : null,
+          last_attempt_error: lastAttemptFailed ? (apiError ?? rolosFailureDetail) : null,
           rolos_surface: e.rolos_surface,
           rolos_stream: e.rolos_stream,
           rolos_wired: e.rolos_wired,
