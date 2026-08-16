@@ -90,12 +90,17 @@ export async function invokeRuWithRetry(
         message = detail.message;
         errorCode = detail.errorCode ?? (detail.httpStatus ? `HTTP_${detail.httpStatus}` : null);
         httpStatus = detail.httpStatus;
+      } else if (data?.queued === true) {
+        // Accepted into the shared background call queue — the work will run on the drainer's
+        // cadence. That is a successful hand-off, not a failure to retry.
+        return { data, ok: true, attempts: attempt, httpStatus: 202, errorCode: null, message: null };
       } else if (data?.success !== true) {
         message = data?.error?.message || 'Unknown error';
         errorCode = data?.error?.code ?? null;
       } else {
         return { data, ok: true, attempts: attempt, httpStatus: 200, errorCode: null, message: null };
       }
+
     } catch (e) {
       message = e instanceof Error ? e.message : String(e);
     }

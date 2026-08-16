@@ -178,6 +178,8 @@ interface RuWlMetrics {
   rate_deferrals: number;
   /** Owner-configuration gaps (no distribution account, no owner email, listing unmapped). */
   setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+  /** Background call queue: work parked by the rate gate and replayed by the drainer. */
+  call_queue: { waiting: number; oldest_waiting_minutes: number | null; drained_24h: number; gave_up: number };
 }
 
 interface RunLike {
@@ -377,6 +379,11 @@ function generateEmailHtml(
       ${ruWl.rate_deferrals > 0 ? `
       <p style="margin:6px 0 0;font-size:11px;color:#6b6b78;">
         ${ruWl.rate_deferrals} call(s) were held back by the channel's one-per-minute rate gate and retried — no data was lost.
+      </p>` : ''}
+      ${(ruWl.call_queue.waiting > 0 || ruWl.call_queue.drained_24h > 0 || ruWl.call_queue.gave_up > 0) ? `
+      <p style="margin:6px 0 0;font-size:11px;color:#6b6b78;">
+        Background call queue: ${ruWl.call_queue.waiting} waiting${ruWl.call_queue.oldest_waiting_minutes !== null ? ` (oldest ${ruWl.call_queue.oldest_waiting_minutes} min)` : ''},
+        ${ruWl.call_queue.drained_24h} completed in 24h${ruWl.call_queue.gave_up > 0 ? `, ${ruWl.call_queue.gave_up} gave up after all retries` : ''}. Queued work is pending, not failed.
       </p>` : ''}
       ${ruWl.setup_gaps.length > 0 ? `
       <div style="margin-top:10px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;">
@@ -974,6 +981,18 @@ Deno.serve(async (req) => {
           }
         : null;
 
+      // Background call queue — parked work is pending, not failed.
+      const { data: queueRows } = await supabase
+        .from('ru_call_queue')
+        .select('status, created_at, completed_at')
+        .gte('created_at', new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString());
+      const queued = queueRows ?? [];
+      const waitingRows = queued.filter((q: any) => q.status === 'pending' || q.status === 'claimed');
+      const oldestWaiting = waitingRows.reduce<number | null>((acc: number | null, q: any) => {
+        const mins = Math.floor((now.getTime() - new Date(q.created_at).getTime()) / 60000);
+        return acc === null || mins > acc ? mins : acc;
+      }, null);
+
       ruWl = {
         window_hours: 24,
         total: totalRuns,
@@ -995,7 +1014,18 @@ Deno.serve(async (req) => {
         cert,
         live_properties: ownerCount ?? 0,
         setup_gaps: setupGaps,
+        call_queue: {
+          waiting: waitingRows.length,
+          oldest_waiting_minutes: oldestWaiting,
+          drained_24h: queued.filter(
+            (q: any) =>
+              q.status === 'done' && q.completed_at && new Date(q.completed_at).getTime() > now.getTime() - 86_400_000,
+          ).length,
+          gave_up: queued.filter((q: any) => q.status === 'failed').length,
+        },
       };
+
+
 
 
     } catch (ruError) {
