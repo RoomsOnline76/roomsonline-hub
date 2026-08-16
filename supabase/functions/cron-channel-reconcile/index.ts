@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
             { ...result, orphans, duplicates, stale },
             localBillable,
             errored,
+            monitored,
           ),
         });
         if (sendError) throw new Error(sendError.message || 'Resend rejected the message');
