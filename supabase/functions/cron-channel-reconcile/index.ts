@@ -22,6 +22,10 @@ interface ReconAccount {
   listing_count: number;
   error: string | null;
   is_master?: boolean;
+  bound?: boolean;
+  has_keys?: boolean;
+  /** Bound to a ROL'OS property/portfolio and holding keys — the only accounts we alert on. */
+  monitored?: boolean;
 }
 interface ReconListing {
   listing_id: string;
