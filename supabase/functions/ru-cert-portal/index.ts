@@ -527,6 +527,10 @@ const RU_ENDPOINT_REGISTRY: {
   sync_actions: string[];
   /** Extra RU method names a certification step may have recorded for this endpoint. */
   cert_methods?: string[];
+  /** Raw XML method names as logged in `ru_api_log.action` (any sub-account success counts). */
+  api_methods?: string[];
+  /** Cache table built by this dictionary pull — row count + freshness is usage evidence. */
+  cache_evidence?: { table: string; label: string };
   max_age_hours?: number;
   /**
    * Endpoint RU cannot answer for this sandbox/white-label account (reachable, but no
