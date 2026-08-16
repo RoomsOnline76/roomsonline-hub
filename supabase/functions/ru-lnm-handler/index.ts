@@ -144,88 +144,93 @@ Deno.serve(async (req) => {
 
       /**
        * ARI + static change notifications carry no values — they are a signal to re-read.
-       * Acknowledging them without acting leaves ROL'OS out of sync until the next cron,
-       * so each type triggers an immediate corrective read-back (or a static delta check),
-       * logged as `lnm_repull` so the live-notification area shows real usage.
+       *
+       * Pulling inline, per notification, made a burst of notifications fire two channel reads
+       * each; the channel only allows one call per method+parameters per sliding minute, so the
+       * shared rate gate deferred thousands of them and every deferral looked like a failure.
+       * We now COALESCE: the change is queued per property (date windows unioned) and one
+       * debounced read-back per property covers every notification received in the window.
+       * `cron-ru-lnm-repull` drains the queue and logs the actual `lnm_repull` runs.
        */
       const ARI_TYPES = new Set(['PropertyAvailability', 'PropertyPrice', 'PropertyMinStay', 'PropertyChangeover']);
       if ((ARI_TYPES.has(changeType) || changeType === 'PropertyStaticDetails') && ruPropertyId) {
-        const startedAt = Date.now();
-        let ok = false;
-        let repullError: string | null = null;
-        const repulled: string[] = [];
-        try {
-          if (changeType === 'PropertyStaticDetails') {
-            // Static change at RU: re-assert our content so the channel matches the PMS.
-            if (!propertyUuid) throw new Error('Unmapped RU property — cannot re-push static content');
-            const { data, error } = await admin.functions.invoke('push-property-to-ru', {
-              body: { property_id: propertyUuid, action: 'static_only', trigger: 'lnm_static_change' },
+        const isStatic = changeType === 'PropertyStaticDetails';
+
+        if (isStatic && !propertyUuid) {
+          /**
+           * The channel notified about a listing ROL'OS has no mapping for (retired / test
+           * listings). That is not a failure — nothing to re-push. Record it once per property
+           * so the health report stops counting it as a broken pipeline.
+           */
+          const { data: alreadySeen } = await admin
+            .from('ru_sync_runs')
+            .select('id')
+            .eq('action', 'lnm_unmapped_listing')
+            .eq('ru_property_id', ruPropertyId)
+            .gte('created_at', new Date(Date.now() - 7 * 86400000).toISOString())
+            .limit(1)
+            .maybeSingle();
+          if (!alreadySeen) {
+            await admin.from('ru_sync_runs').insert({
+              batch_id: crypto.randomUUID(),
+              action: 'lnm_unmapped_listing',
+              success: true,
+              error_message: null,
+              elapsed_ms: 0,
+              property_id: null,
+              ru_property_id: ruPropertyId,
+              details: {
+                scope: 'lnm_skipped_not_applicable',
+                reason: 'Channel listing is not mapped to a ROL\'OS property — nothing to re-push',
+                change_type: changeType,
+                change_id: changeId,
+              },
             });
-            if (error) throw error;
-
-            ok = data?.success !== false;
-            repulled.push('Push_PutProperty_RQ (differential)');
-          } else {
-            const from = new Date();
-            const to = new Date(from.getTime() + 365 * 86400000);
-            const iso = (d: Date) => d.toISOString().slice(0, 10);
-            /**
-             * RU's LNM payload dates arrive in mixed shapes (`2026-08-12T00:00:00`,
-             * `8/12/2026 12:00:00 AM`, sometimes empty). Pull_ListPropertyAvailabilityCalendar_RQ
-             * only accepts `YYYY-MM-DD`; anything else returns
-             * "String was not recognized as a valid DateTime". Coerce to a bare day.
-             */
-            const toDay = (raw: unknown, fallback: string): string => {
-              const s = String(raw ?? '').trim();
-              if (!s) return fallback;
-              const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-              if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-              const parsed = new Date(s);
-              return Number.isNaN(parsed.getTime()) ? fallback : iso(parsed);
-            };
-            const dateFrom = toDay(payload.DateFrom ?? payload.date_from, iso(from));
-            const dateTo = toDay(payload.DateTo ?? payload.date_to, iso(to));
-            for (const apiAction of ['get_availability', 'get_prices'] as const) {
-              const { data, error } = await admin.functions.invoke('rentalsunited-api', {
-                body: {
-                  action: apiAction,
-                  ru_property_id: Number(ruPropertyId),
-                  date_from: dateFrom,
-                  date_to: dateTo,
-                  // The notification's Publisher is the RU sub-user (OwnerID) that owns the
-                  // property. Without it the pull runs on master creds and RU answers
-                  // "Property does not exist".
-                  ...(publisher ? { owner_id: publisher } : {}),
-                },
-              });
-              if (error) throw error;
-              if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
-              repulled.push(apiAction === 'get_availability'
-                ? 'Pull_ListPropertyAvailabilityCalendar_RQ'
-                : 'Pull_ListPropertyPrices_RQ');
-            }
-            ok = true;
           }
-        } catch (err) {
-          repullError = err instanceof Error ? err.message : String(err);
-        }
+        } else {
+          const iso = (d: Date) => d.toISOString().slice(0, 10);
+          /**
+           * RU's LNM payload dates arrive in mixed shapes (`2026-08-12T00:00:00`,
+           * `8/12/2026 12:00:00 AM`, sometimes empty). The availability pull only accepts
+           * `YYYY-MM-DD`; anything else returns "String was not recognized as a valid DateTime".
+           */
+          const toDay = (raw: unknown, fallback: string): string => {
+            const s = String(raw ?? '').trim();
+            if (!s) return fallback;
+            const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+            const parsed = new Date(s);
+            return Number.isNaN(parsed.getTime()) ? fallback : iso(parsed);
+          };
+          const from = new Date();
+          const to = new Date(from.getTime() + 365 * 86400000);
 
-        await admin.from('ru_sync_runs').insert({
-          batch_id: crypto.randomUUID(),
-          action: 'lnm_repull',
-          success: ok,
-          error_message: repullError,
-          elapsed_ms: Date.now() - startedAt,
-          property_id: propertyUuid,
-          ru_property_id: ruPropertyId,
-          details: {
-            scope: 'lnm_corrective_repull',
-            change_id: changeId,
-            change_type: changeType,
-            ru_methods: repulled,
-          },
-        });
+          const { error: queueError } = await admin.rpc('ru_queue_lnm_repull', {
+            _ru_property_id: ruPropertyId,
+            _kind: isStatic ? 'static' : 'ari',
+            _ru_owner_id: publisher,
+            _property_id: propertyUuid,
+            _date_from: isStatic ? null : toDay(payload.DateFrom ?? payload.date_from, iso(from)),
+            _date_to: isStatic ? null : toDay(payload.DateTo ?? payload.date_to, iso(to)),
+            _change_type: changeType,
+            _change_id: changeId,
+          });
+          if (queueError) {
+            console.error('[ru-lnm-handler] queueing repull failed', queueError.message);
+            await admin.from('ru_sync_runs').insert({
+              batch_id: crypto.randomUUID(),
+              action: 'lnm_repull',
+              success: false,
+              error_message: `Could not queue corrective read-back: ${queueError.message}`,
+              elapsed_ms: 0,
+              property_id: propertyUuid,
+              ru_property_id: ruPropertyId,
+              details: { scope: 'lnm_queue', change_type: changeType, change_id: changeId },
+            });
+          }
+        }
       }
+
 
     } catch (err) {
       console.error('[ru-lnm-handler] log failed', err);
