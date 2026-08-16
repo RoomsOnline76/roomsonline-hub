@@ -28,7 +28,14 @@ interface CoverageRow {
   next_due_at?: string | null;
   detail: string | null;
   last_run_at: string | null;
-  source: "cert_run" | "sync_log" | "none";
+  source: "cert_run" | "sync_log" | "api_log" | "cache" | "none";
+  accounts_used?: number;
+  api_calls?: number;
+  api_successes?: number;
+  last_success_at?: string | null;
+  last_attempt_at?: string | null;
+  last_attempt_failed?: boolean;
+  last_attempt_error?: string | null;
   rolos_surface: string;
   rolos_stream: string;
   rolos_wired: boolean;
