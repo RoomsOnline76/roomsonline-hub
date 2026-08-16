@@ -204,8 +204,15 @@ Deno.serve(async (req) => {
     if (result.success === false) throw new Error(result.error || 'Reconciliation failed');
 
     const accounts = result.accounts || [];
+    // Retired / test sub-accounts (unbound, or bound without keys) are out of scope:
+    // they hold nothing we sell or bill, so they never raise a warning.
+    const isMonitored = (a: ReconAccount) =>
+      a.monitored === true || (a.monitored === undefined && a.bound === true && a.has_keys === true);
+    const monitored = accounts.filter(isMonitored);
+    const unmonitored = accounts.filter((a) => !isMonitored(a));
+
     const erroredOwners = new Set(accounts.filter((a) => a.error).map((a) => String(a.owner_id)));
-    const errored = accounts.filter((a) => !!a.error);
+    const errored = monitored.filter((a) => !!a.error);
 
     const orphans = (result.orphans || []).filter((o) => !erroredOwners.has(String(o.owner_id)));
     const duplicates = (result.duplicates || []).filter((d) => !erroredOwners.has(String(d.owner_id)));
@@ -214,6 +221,7 @@ Deno.serve(async (req) => {
 
     const hasDisparity =
       orphans.length > 0 || duplicates.length > 0 || stale.length > 0 || errored.length > 0;
+
 
     let alertSent = false;
     let alertError: string | null = null;
