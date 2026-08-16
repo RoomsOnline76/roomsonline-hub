@@ -1103,7 +1103,67 @@ Deno.serve(async (req) => {
         addHistoricalSuccess("ensure_company_details", latestOwnerAccount.company_filled_at);
       }
 
+      // Raw XML call log: ANY sub-account that ever succeeded on a method proves the
+      // endpoint works, so successes are aggregated per normalised method name.
+      const { data: apiRows } = await admin
+        .from("ru_api_log")
+        .select("action, parent_action, success, error_message, status_message, created_at, ru_owner_id")
+        .order("created_at", { ascending: false })
+        .limit(8000);
+      type ApiRow = {
+        action: string; parent_action: string | null; success: boolean;
+        error_message: string | null; status_message: string | null;
+        created_at: string; ru_owner_id: string | null;
+      };
+      type ApiEvidence = {
+        last_success_at: string | null;
+        last_attempt_at: string | null;
+        last_attempt_success: boolean;
+        last_error: string | null;
+        accounts: Set<string>;
+        successes: number;
+        attempts: number;
+      };
+      const apiByMethod = new Map<string, ApiEvidence>();
+      const touchApi = (raw: string | null, row: ApiRow) => {
+        const key = normMethod(String(raw ?? ""));
+        if (!key) return;
+        let ev = apiByMethod.get(key);
+        if (!ev) {
+          ev = { last_success_at: null, last_attempt_at: null, last_attempt_success: false, last_error: null, accounts: new Set(), successes: 0, attempts: 0 };
+          apiByMethod.set(key, ev);
+        }
+        ev.attempts += 1;
+        if (!ev.last_attempt_at) {
+          ev.last_attempt_at = row.created_at;
+          ev.last_attempt_success = row.success;
+          ev.last_error = row.success ? null : (row.status_message ?? row.error_message ?? null);
+        }
+        if (row.success) {
+          ev.successes += 1;
+          if (!ev.last_success_at) ev.last_success_at = row.created_at;
+          if (row.ru_owner_id) ev.accounts.add(row.ru_owner_id);
+        }
+      };
+      for (const row of (apiRows ?? []) as ApiRow[]) {
+        touchApi(row.action, row);
+        touchApi(row.parent_action, row);
+      }
+
+      // Dictionary caches: a populated register is durable proof the pull succeeded, even
+      // after the raw XML log rows have aged out.
+      const cacheTables = [...new Set(RU_ENDPOINT_REGISTRY.map((e) => e.cache_evidence?.table).filter(Boolean))] as string[];
+      const cacheEvidence = new Map<string, { rows: number; latest: string | null }>();
+      for (const table of cacheTables) {
+        const { count } = await admin.from(table).select("id", { count: "exact", head: true });
+        let latest: string | null = null;
+        const { data: newest } = await admin.from(table).select("updated_at, created_at").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (newest) latest = (newest as { updated_at?: string; created_at?: string }).updated_at ?? (newest as { created_at?: string }).created_at ?? null;
+        cacheEvidence.set(table, { rows: count ?? 0, latest });
+      }
+
       const now = Date.now();
+
       const rows = RU_ENDPOINT_REGISTRY.map((e) => {
         let cert: { step: StepRow; run_id: string; at: string } | undefined;
         for (const candidate of [e.ru_method, ...(e.cert_methods ?? [])]) {
