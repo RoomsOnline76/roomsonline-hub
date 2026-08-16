@@ -1175,7 +1175,7 @@ Deno.serve(async (req) => {
         let status: "passed" | "failed" | "skipped" | "never_run" = "never_run";
         let detail: string | null = null;
         let lastRunAt: string | null = null;
-        let source: "cert_run" | "sync_log" | "none" = "none";
+        let source: "cert_run" | "sync_log" | "api_log" | "cache" | "none" = "none";
         let runId: string | null = null;
 
         if (cert && cert.step.status !== "skipped") {
