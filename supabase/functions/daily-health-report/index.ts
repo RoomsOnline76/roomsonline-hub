@@ -971,16 +971,18 @@ Deno.serve(async (req) => {
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
-        // Current state = the most recent run of every action succeeded
+        // Current state = the most recent run of every action is not a real pipeline failure
         current_ok: runs.length === 0
           ? null
-          : [...byAction.values()].every(list => list[0]?.success !== false),
+          : [...byAction.values()].every(list => !isPipelineFailure(list[0] ?? {})),
         recovered_actions: actions.filter(a => a.recovered).length,
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
         live_properties: ownerCount ?? 0,
+        setup_gaps: setupGaps,
       };
+
 
     } catch (ruError) {
       console.error('[Daily Health Report] Channel metrics error:', ruError);
