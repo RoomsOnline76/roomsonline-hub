@@ -1289,7 +1289,15 @@ Deno.serve(async (req) => {
           status = "passed";
           detail = `Previously verified against the channel (${new Date(apiSuccessAt).toISOString().slice(0, 10)}); the most recent attempt failed.`;
         }
-        const lastAttemptFailed = status === "passed" && (apiAttemptFailed && ts(apiAttemptAt) > ts(apiSuccessAt));
+        if (status === "failed" && rolosSuccessAt) {
+          // The ROL'OS surface has succeeded before — a later failure is a freshness issue.
+          status = "passed";
+          detail = detail ?? `Verified from ROL'OS on ${new Date(rolosSuccessAt).toISOString().slice(0, 10)}; the most recent attempt failed.`;
+          rolosLastAttemptFailed = true;
+        }
+        const lastAttemptFailed = status === "passed"
+          && ((apiAttemptFailed && ts(apiAttemptAt) > ts(apiSuccessAt)) || rolosLastAttemptFailed);
+
 
         // Populated dictionary cache = durable proof the pull succeeded.
         const cache = e.cache_evidence ? cacheEvidence.get(e.cache_evidence.table) : undefined;
