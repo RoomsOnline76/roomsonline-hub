@@ -367,6 +367,11 @@ export function RuCoverageTab() {
                     <Badge variant="outline" className={`text-[10px] ${RAG_CLASS[r.rag]}`}>
                       RU: {r.status === "blocked" ? "Blocked upstream" : RAG_LABEL[r.rag]}
                     </Badge>
+                    {r.last_attempt_failed && (
+                      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
+                        Last attempt failed
+                      </Badge>
+                    )}
                     {r.excluded_from_score && (
                       <Badge variant="outline" className="text-[10px]">
                         Excluded from score
