@@ -13979,6 +13979,63 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_lnm_repull_queue: {
+        Row: {
+          attempts: number
+          change_types: string[]
+          date_from: string | null
+          date_to: string | null
+          first_seen_at: string
+          id: string
+          kind: string
+          last_change_id: string | null
+          last_error: string | null
+          notifications: number
+          processed_at: string | null
+          property_id: string | null
+          ru_owner_id: string | null
+          ru_property_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          change_types?: string[]
+          date_from?: string | null
+          date_to?: string | null
+          first_seen_at?: string
+          id?: string
+          kind?: string
+          last_change_id?: string | null
+          last_error?: string | null
+          notifications?: number
+          processed_at?: string | null
+          property_id?: string | null
+          ru_owner_id?: string | null
+          ru_property_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          change_types?: string[]
+          date_from?: string | null
+          date_to?: string | null
+          first_seen_at?: string
+          id?: string
+          kind?: string
+          last_change_id?: string | null
+          last_error?: string | null
+          notifications?: number
+          processed_at?: string | null
+          property_id?: string | null
+          ru_owner_id?: string | null
+          ru_property_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_location_currency_scope: {
         Row: {
           currency_iso: string | null
@@ -16252,6 +16309,19 @@ export type Database = {
           granted: boolean
           wait_ms: number
         }[]
+      }
+      ru_queue_lnm_repull: {
+        Args: {
+          _change_id?: string
+          _change_type?: string
+          _date_from?: string
+          _date_to?: string
+          _kind: string
+          _property_id?: string
+          _ru_owner_id?: string
+          _ru_property_id: string
+        }
+        Returns: string
       }
       scoped_admin_can_access_portfolio: {
         Args: { _portfolio_id: string; _user_id: string }
