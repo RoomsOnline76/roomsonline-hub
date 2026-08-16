@@ -875,11 +875,50 @@ Deno.serve(async (req) => {
       // gate held the call back, so it belongs in its own counter rather than the error ladder.
       const isRateDeferral = (r: { error_code?: string | null; error_message?: string | null }) =>
         r.error_code === 'RU_RATE_DEFERRED' ||
-        /rate limited|per 1 minute sliding/i.test(r.error_message ?? '');
+        /rate limited|per 1 minute sliding|deferred by the channel rate window/i.test(r.error_message ?? '');
       const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
 
+      /**
+       * Owner-configuration gaps (no distribution account linked, no owner email, listing not
+       * mapped) are not pipeline defects — nothing is broken, the account setup is incomplete.
+       * They get their own "waiting on owner setup" line so they stop drowning real errors.
+       */
+      const isSetupGap = (r: { error_message?: string | null }) =>
+        /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user/i
+          .test(r.error_message ?? '');
+      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isSetupGap(r));
+      const gapCounts = new Map<string, { count: number; propertyIds: Set<string> }>();
+      for (const r of setupGapRuns) {
+        const reason = (r.error_message || 'Setup incomplete').slice(0, 120);
+        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>() };
+        entry.count += 1;
+        const pid = (r as { property_id?: string | null }).property_id;
+        if (pid) entry.propertyIds.add(pid);
+        gapCounts.set(reason, entry);
+      }
+      const gapPropertyIds = [...new Set(setupGapRuns.map(r => (r as { property_id?: string | null }).property_id).filter(Boolean))] as string[];
+      const gapNames = new Map<string, string>();
+      if (gapPropertyIds.length > 0) {
+        const { data: gapProps } = await supabase
+          .from('properties')
+          .select('id, name')
+          .in('id', gapPropertyIds.slice(0, 50));
+        for (const p of gapProps ?? []) gapNames.set(p.id as string, p.name as string);
+      }
+      const setupGaps = [...gapCounts.entries()]
+        .map(([reason, v]) => ({
+          reason,
+          count: v.count,
+          properties: [...v.propertyIds].map(id => gapNames.get(id) ?? id.slice(0, 8)).slice(0, 6),
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      const isPipelineFailure = (r: { success?: boolean | null; error_code?: string | null; error_message?: string | null }) =>
+        r.success === false && !isRateDeferral(r) && !isSetupGap(r);
+
       const errorCounts = new Map<string, { count: number; sample: string }>();
-      for (const r of runs.filter(x => x.success === false && !isRateDeferral(x))) {
+      for (const r of runs.filter(isPipelineFailure)) {
         const code = r.error_code || 'UNKNOWN';
         const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
         entry.count += 1;
@@ -891,7 +930,8 @@ Deno.serve(async (req) => {
         .slice(0, 4);
 
       const totalRuns = runs.length;
-      const failedRuns = runs.filter(r => r.success === false && !isRateDeferral(r)).length;
+      const failedRuns = runs.filter(isPipelineFailure).length;
+
       const ariRuns = runs.filter(r => (r.action || '').includes('ari') || (r.action || '').includes('availab') || (r.action || '').includes('price'));
       const lastAri = ariRuns[0]?.created_at ?? null;
       const cert = certRuns?.[0]
