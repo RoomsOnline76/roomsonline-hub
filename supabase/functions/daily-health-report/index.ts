@@ -872,7 +872,8 @@ Deno.serve(async (req) => {
 
       const actions: RuWlActionStat[] = [...byAction.entries()]
         .map(([action, list]) => {
-          const failed = list.filter(r => r.success === false).length;
+          // Rate deferrals and owner-setup gaps are not failures — they must not colour an action red.
+          const failed = list.filter(isPipelineFailure).length;
           const latencies = list.filter(r => r.elapsed_ms).map(r => r.elapsed_ms as number);
           return {
             action,
@@ -882,11 +883,12 @@ Deno.serve(async (req) => {
             avg_ms: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0,
             last_run: shortTime(list[0]?.created_at ?? null),
             // list is ordered newest-first: current state = outcome of the most recent run
-            current_ok: list.length > 0 ? list[0].success !== false : null,
-            recovered: failed > 0 && list.length > 0 && list[0].success !== false,
-            last_failure_at: shortTime(list.find(r => r.success === false)?.created_at ?? null),
+            current_ok: list.length > 0 ? !isPipelineFailure(list[0]) : null,
+            recovered: failed > 0 && list.length > 0 && !isPipelineFailure(list[0]),
+            last_failure_at: shortTime(list.find(isPipelineFailure)?.created_at ?? null),
           };
         })
+
         .sort((a, b) => {
           // Priority first (business-critical flows), then failures, then volume
           const pa = RU_PRIORITY_ACTIONS.indexOf(a.action);
