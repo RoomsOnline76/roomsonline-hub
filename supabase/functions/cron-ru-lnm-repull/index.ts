@@ -43,6 +43,15 @@ function isDeferral(message: string | null | undefined): boolean {
   return m.includes(RU_RATE_DEFERRED_CODE) || m.includes('was called with the same parameters');
 }
 
+/**
+ * The channel answers "Property does not exist" for listings that were removed or archived on its
+ * side. Retrying cannot help and it is not a fault of ours, so the queue row is closed as skipped.
+ */
+function isDelisted(message: string | null | undefined): boolean {
+  return /property\s+does\s+not\s+exist|no\s+such\s+property/i.test(String(message ?? ''));
+}
+
+
 /** Pull the readable reason out of a supabase-js invoke error (body hidden on error.context). */
 async function invokeErrorMessage(error: unknown): Promise<string> {
   const body = await readInvokeErrorBody(error);
