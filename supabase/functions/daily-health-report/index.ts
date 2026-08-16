@@ -27,7 +27,10 @@ async function generateAIDigest(
     failing: Array<{ action: string; success_rate: number; failed: number; last_run: string | null }>;
     recovered: Array<{ action: string; last_failure_at: string | null }>;
     top_errors: Array<{ code: string; count: number; sample: string }>;
+    rate_deferrals: number;
+    setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
   } | null,
+
 ): Promise<AIDigest | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
@@ -46,9 +49,12 @@ Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed
 ${channelHealth ? `Channel/distribution pipelines (24h): overall success ${channelHealth.success_rate.toFixed(1)}%
 Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.failing.map(a => `${a.action} (${a.success_rate.toFixed(0)}% success, ${a.failed} failures, last run ${a.last_run || 'unknown'})`).join('; ') : 'None'}
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
-Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}
+Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
+Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
 
-Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect.
+
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes.
 
 Respond with exactly this JSON format:
 {
@@ -170,7 +176,34 @@ interface RuWlMetrics {
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
   rate_deferrals: number;
+  /** Owner-configuration gaps (no distribution account, no owner email, listing unmapped). */
+  setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
 }
+
+interface RunLike {
+  success?: boolean | null;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+/**
+ * The channel allows one call per method+parameters per sliding minute. A deferral means the
+ * shared gate held the call back and it will be retried — never an outage.
+ */
+const isRateDeferral = (r: RunLike): boolean =>
+  r.error_code === 'RU_RATE_DEFERRED' ||
+  /rate limited|per 1 minute sliding|deferred by the channel rate window/i.test(r.error_message ?? '');
+
+/**
+ * Owner-configuration gaps are not pipeline defects — nothing is broken, the account setup is
+ * incomplete — so they are reported separately from real errors.
+ */
+const isSetupGap = (r: RunLike): boolean =>
+  /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user/i
+    .test(r.error_message ?? '');
+
+const isPipelineFailure = (r: RunLike): boolean =>
+  r.success === false && !isRateDeferral(r) && !isSetupGap(r);
 
 const RU_PRIORITY_ACTIONS = [
   'push_reservation',
@@ -180,6 +213,7 @@ const RU_PRIORITY_ACTIONS = [
   'push_prices',
   'push_property',
 ];
+
 
 function hoursSince(iso: string | null): number | null {
   if (!iso) return null;
@@ -344,6 +378,14 @@ function generateEmailHtml(
       <p style="margin:6px 0 0;font-size:11px;color:#6b6b78;">
         ${ruWl.rate_deferrals} call(s) were held back by the channel's one-per-minute rate gate and retried — no data was lost.
       </p>` : ''}
+      ${ruWl.setup_gaps.length > 0 ? `
+      <div style="margin-top:10px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;">
+        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup (not a fault)</strong>
+        <ul style="margin:6px 0 0 0;padding-left:18px;color:#78350f;font-size:12px;">
+          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
       ${ruWl.top_errors.length > 0 ? `
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#b91c1c;">Top failures (24h)</strong>${ruWl.recovered_actions > 0 ? `<span style="font-size:11px;color:#9ca3af;"> · ${ruWl.recovered_actions} action(s) have since recovered — see the “Now” column</span>` : ''}
@@ -844,7 +886,8 @@ Deno.serve(async (req) => {
 
       const actions: RuWlActionStat[] = [...byAction.entries()]
         .map(([action, list]) => {
-          const failed = list.filter(r => r.success === false).length;
+          // Rate deferrals and owner-setup gaps are not failures — they must not colour an action red.
+          const failed = list.filter(isPipelineFailure).length;
           const latencies = list.filter(r => r.elapsed_ms).map(r => r.elapsed_ms as number);
           return {
             action,
@@ -854,11 +897,12 @@ Deno.serve(async (req) => {
             avg_ms: latencies.length > 0 ? Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length) : 0,
             last_run: shortTime(list[0]?.created_at ?? null),
             // list is ordered newest-first: current state = outcome of the most recent run
-            current_ok: list.length > 0 ? list[0].success !== false : null,
-            recovered: failed > 0 && list.length > 0 && list[0].success !== false,
-            last_failure_at: shortTime(list.find(r => r.success === false)?.created_at ?? null),
+            current_ok: list.length > 0 ? !isPipelineFailure(list[0]) : null,
+            recovered: failed > 0 && list.length > 0 && !isPipelineFailure(list[0]),
+            last_failure_at: shortTime(list.find(isPipelineFailure)?.created_at ?? null),
           };
         })
+
         .sort((a, b) => {
           // Priority first (business-critical flows), then failures, then volume
           const pa = RU_PRIORITY_ACTIONS.indexOf(a.action);
@@ -871,15 +915,41 @@ Deno.serve(async (req) => {
         })
         .slice(0, 8);
 
-      // The channel allows one call per method per sliding minute. A deferral means the shared
-      // gate held the call back, so it belongs in its own counter rather than the error ladder.
-      const isRateDeferral = (r: { error_code?: string | null; error_message?: string | null }) =>
-        r.error_code === 'RU_RATE_DEFERRED' ||
-        /rate limited|per 1 minute sliding/i.test(r.error_message ?? '');
       const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
+      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isSetupGap(r));
+
+      const gapCounts = new Map<string, { count: number; propertyIds: Set<string> }>();
+      for (const r of setupGapRuns) {
+        const reason = (r.error_message || 'Setup incomplete').slice(0, 120);
+        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>() };
+        entry.count += 1;
+        const pid = (r as { property_id?: string | null }).property_id;
+        if (pid) entry.propertyIds.add(pid);
+        gapCounts.set(reason, entry);
+      }
+      const gapPropertyIds = [...new Set(setupGapRuns.map(r => (r as { property_id?: string | null }).property_id).filter(Boolean))] as string[];
+      const gapNames = new Map<string, string>();
+      if (gapPropertyIds.length > 0) {
+        const { data: gapProps } = await supabase
+          .from('properties')
+          .select('id, name')
+          .in('id', gapPropertyIds.slice(0, 50));
+        for (const p of gapProps ?? []) gapNames.set(p.id as string, p.name as string);
+      }
+      const setupGaps = [...gapCounts.entries()]
+        .map(([reason, v]) => ({
+          reason,
+          count: v.count,
+          properties: [...v.propertyIds].map(id => gapNames.get(id) ?? id.slice(0, 8)).slice(0, 6),
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+
+
 
       const errorCounts = new Map<string, { count: number; sample: string }>();
-      for (const r of runs.filter(x => x.success === false && !isRateDeferral(x))) {
+      for (const r of runs.filter(isPipelineFailure)) {
         const code = r.error_code || 'UNKNOWN';
         const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
         entry.count += 1;
@@ -891,7 +961,8 @@ Deno.serve(async (req) => {
         .slice(0, 4);
 
       const totalRuns = runs.length;
-      const failedRuns = runs.filter(r => r.success === false && !isRateDeferral(r)).length;
+      const failedRuns = runs.filter(isPipelineFailure).length;
+
       const ariRuns = runs.filter(r => (r.action || '').includes('ari') || (r.action || '').includes('availab') || (r.action || '').includes('price'));
       const lastAri = ariRuns[0]?.created_at ?? null;
       const cert = certRuns?.[0]
@@ -914,16 +985,18 @@ Deno.serve(async (req) => {
         reservations_24h: (ruNotifs || []).length,
         reservations_unprocessed: (ruNotifs || []).filter(n => n.processed === false).length,
         last_reservation_at: shortTime((ruNotifs || [])[0]?.created_at ?? null),
-        // Current state = the most recent run of every action succeeded
+        // Current state = the most recent run of every action is not a real pipeline failure
         current_ok: runs.length === 0
           ? null
-          : [...byAction.values()].every(list => list[0]?.success !== false),
+          : [...byAction.values()].every(list => !isPipelineFailure(list[0] ?? {})),
         recovered_actions: actions.filter(a => a.recovered).length,
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
         live_properties: ownerCount ?? 0,
+        setup_gaps: setupGaps,
       };
+
 
     } catch (ruError) {
       console.error('[Daily Health Report] Channel metrics error:', ruError);
@@ -946,6 +1019,9 @@ Deno.serve(async (req) => {
               .filter(a => a.recovered)
               .map(a => ({ action: a.action, last_failure_at: a.last_failure_at })),
             top_errors: ruWl.top_errors,
+            rate_deferrals: ruWl.rate_deferrals,
+            setup_gaps: ruWl.setup_gaps,
+
           }
         : null,
     );
