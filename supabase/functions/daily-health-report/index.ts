@@ -372,6 +372,14 @@ function generateEmailHtml(
       <p style="margin:6px 0 0;font-size:11px;color:#6b6b78;">
         ${ruWl.rate_deferrals} call(s) were held back by the channel's one-per-minute rate gate and retried — no data was lost.
       </p>` : ''}
+      ${ruWl.setup_gaps.length > 0 ? `
+      <div style="margin-top:10px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;">
+        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup (not a fault)</strong>
+        <ul style="margin:6px 0 0 0;padding-left:18px;color:#78350f;font-size:12px;">
+          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
       ${ruWl.top_errors.length > 0 ? `
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#b91c1c;">Top failures (24h)</strong>${ruWl.recovered_actions > 0 ? `<span style="font-size:11px;color:#9ca3af;"> · ${ruWl.recovered_actions} action(s) have since recovered — see the “Now” column</span>` : ''}
