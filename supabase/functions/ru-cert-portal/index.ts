@@ -1383,7 +1383,7 @@ Deno.serve(async (req) => {
           last_success_at: apiSuccessAt,
           last_attempt_at: apiAttemptAt,
           last_attempt_failed: lastAttemptFailed,
-          last_attempt_error: lastAttemptFailed ? apiError : null,
+          last_attempt_error: lastAttemptFailed ? (apiError ?? rolosFailureDetail) : null,
           rolos_surface: e.rolos_surface,
           rolos_stream: e.rolos_stream,
           rolos_wired: e.rolos_wired,
