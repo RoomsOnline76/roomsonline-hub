@@ -1105,16 +1105,33 @@ Deno.serve(async (req) => {
 
       // Raw XML call log: ANY sub-account that ever succeeded on a method proves the
       // endpoint works, so successes are aggregated per normalised method name.
-      const { data: apiRows } = await admin
-        .from("ru_api_log")
-        .select("action, parent_action, success, error_message, status_message, created_at, ru_owner_id")
-        .order("created_at", { ascending: false })
-        .limit(8000);
+      // ARI methods run tens of thousands of times a day and would otherwise crowd every
+      // other method out of the fetch window, so they are probed separately.
+      const HIGH_VOLUME_METHODS = [
+        "Pull_ListPropertyAvailabilityCalendar_RQ",
+        "Pull_ListPropertyPrices_RQ",
+        "Push_PutAvbUnits_RQ",
+        "Push_PutPrices_RQ",
+        "Push_PutProperty_RQ",
+      ];
       type ApiRow = {
         action: string; parent_action: string | null; success: boolean;
         error_message: string | null; status_message: string | null;
         created_at: string; ru_owner_id: string | null;
       };
+      const apiSelect = "action, parent_action, success, error_message, status_message, created_at, ru_owner_id";
+      const [{ data: apiRows }, ...highVolume] = await Promise.all([
+        admin
+          .from("ru_api_log")
+          .select(apiSelect)
+          .not("action", "in", `(${HIGH_VOLUME_METHODS.join(",")})`)
+          .order("created_at", { ascending: false })
+          .limit(8000),
+        ...HIGH_VOLUME_METHODS.flatMap((m) => [
+          admin.from("ru_api_log").select(apiSelect).eq("action", m).eq("success", true).order("created_at", { ascending: false }).limit(1),
+          admin.from("ru_api_log").select(apiSelect).eq("action", m).order("created_at", { ascending: false }).limit(1),
+        ]),
+      ]);
       type ApiEvidence = {
         last_success_at: string | null;
         last_attempt_at: string | null;
@@ -1145,10 +1162,15 @@ Deno.serve(async (req) => {
           if (row.ru_owner_id) ev.accounts.add(row.ru_owner_id);
         }
       };
-      for (const row of (apiRows ?? []) as ApiRow[]) {
+      const allApiRows = [
+        ...((apiRows ?? []) as ApiRow[]),
+        ...highVolume.flatMap((r) => ((r?.data ?? []) as ApiRow[])),
+      ].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      for (const row of allApiRows) {
         touchApi(row.action, row);
         touchApi(row.parent_action, row);
       }
+
 
       // Dictionary caches: a populated register is durable proof the pull succeeded, even
       // after the raw XML log rows have aged out.
