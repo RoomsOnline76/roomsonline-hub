@@ -92,7 +92,12 @@ function section(
     </table>`;
 }
 
-function buildEmail(result: ReconResult, localBillable: number, errored: ReconAccount[]): string {
+function buildEmail(
+  result: ReconResult,
+  localBillable: number,
+  errored: ReconAccount[],
+  monitored: ReconAccount[],
+): string {
   const accounts = result.accounts || [];
   return `<!doctype html><html><body style="margin:0;background:#FBF9F5;padding:24px;">
   <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e8e2d8;border-radius:14px;overflow:hidden;">
@@ -106,6 +111,19 @@ function buildEmail(result: ReconResult, localBillable: number, errored: ReconAc
         The channel manager holds <strong>${result.channel_listing_count}</strong> live listing(s);
         ROL'OS matches <strong>${localBillable}</strong> of them.
       </p>
+
+      ${section(
+        'Accounts monitored',
+        'Only accounts bound to ROL\u2019OS with stored keys are monitored. Retired and test sub-accounts are ignored.',
+        ['Channel account', 'OwnerID', 'Live listings', 'Status'],
+        monitored.map((a) => [
+          a.owner_email || 'Unnamed sub-account',
+          `#${a.owner_id}`,
+          String(a.listing_count ?? 0),
+          a.error ? 'Could not be read' : 'Verified',
+        ]),
+      )}
+
 
       ${section(
         'Orphan listings on the channel',
