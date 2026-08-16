@@ -170,7 +170,34 @@ interface RuWlMetrics {
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
   rate_deferrals: number;
+  /** Owner-configuration gaps (no distribution account, no owner email, listing unmapped). */
+  setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
 }
+
+interface RunLike {
+  success?: boolean | null;
+  error_code?: string | null;
+  error_message?: string | null;
+}
+
+/**
+ * The channel allows one call per method+parameters per sliding minute. A deferral means the
+ * shared gate held the call back and it will be retried — never an outage.
+ */
+const isRateDeferral = (r: RunLike): boolean =>
+  r.error_code === 'RU_RATE_DEFERRED' ||
+  /rate limited|per 1 minute sliding|deferred by the channel rate window/i.test(r.error_message ?? '');
+
+/**
+ * Owner-configuration gaps are not pipeline defects — nothing is broken, the account setup is
+ * incomplete — so they are reported separately from real errors.
+ */
+const isSetupGap = (r: RunLike): boolean =>
+  /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user/i
+    .test(r.error_message ?? '');
+
+const isPipelineFailure = (r: RunLike): boolean =>
+  r.success === false && !isRateDeferral(r) && !isSetupGap(r);
 
 const RU_PRIORITY_ACTIONS = [
   'push_reservation',
@@ -180,6 +207,7 @@ const RU_PRIORITY_ACTIONS = [
   'push_prices',
   'push_property',
 ];
+
 
 function hoursSince(iso: string | null): number | null {
   if (!iso) return null;
