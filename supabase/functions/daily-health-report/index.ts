@@ -1019,6 +1019,9 @@ Deno.serve(async (req) => {
               .filter(a => a.recovered)
               .map(a => ({ action: a.action, last_failure_at: a.last_failure_at })),
             top_errors: ruWl.top_errors,
+            rate_deferrals: ruWl.rate_deferrals,
+            setup_gaps: ruWl.setup_gaps,
+
           }
         : null,
     );
