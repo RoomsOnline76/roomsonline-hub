@@ -22,6 +22,10 @@ interface ReconAccount {
   listing_count: number;
   error: string | null;
   is_master?: boolean;
+  bound?: boolean;
+  has_keys?: boolean;
+  /** Bound to a ROL'OS property/portfolio and holding keys — the only accounts we alert on. */
+  monitored?: boolean;
 }
 interface ReconListing {
   listing_id: string;
@@ -88,7 +92,12 @@ function section(
     </table>`;
 }
 
-function buildEmail(result: ReconResult, localBillable: number, errored: ReconAccount[]): string {
+function buildEmail(
+  result: ReconResult,
+  localBillable: number,
+  errored: ReconAccount[],
+  monitored: ReconAccount[],
+): string {
   const accounts = result.accounts || [];
   return `<!doctype html><html><body style="margin:0;background:#FBF9F5;padding:24px;">
   <div style="max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #e8e2d8;border-radius:14px;overflow:hidden;">
@@ -102,6 +111,19 @@ function buildEmail(result: ReconResult, localBillable: number, errored: ReconAc
         The channel manager holds <strong>${result.channel_listing_count}</strong> live listing(s);
         ROL'OS matches <strong>${localBillable}</strong> of them.
       </p>
+
+      ${section(
+        'Accounts monitored',
+        'Only accounts bound to ROL\u2019OS with stored keys are monitored. Retired and test sub-accounts are ignored.',
+        ['Channel account', 'OwnerID', 'Live listings', 'Status'],
+        monitored.map((a) => [
+          a.owner_email || 'Unnamed sub-account',
+          `#${a.owner_id}`,
+          String(a.listing_count ?? 0),
+          a.error ? 'Could not be read' : 'Verified',
+        ]),
+      )}
+
 
       ${section(
         'Orphan listings on the channel',
@@ -182,8 +204,15 @@ Deno.serve(async (req) => {
     if (result.success === false) throw new Error(result.error || 'Reconciliation failed');
 
     const accounts = result.accounts || [];
+    // Retired / test sub-accounts (unbound, or bound without keys) are out of scope:
+    // they hold nothing we sell or bill, so they never raise a warning.
+    const isMonitored = (a: ReconAccount) =>
+      a.monitored === true || (a.monitored === undefined && a.bound === true && a.has_keys === true);
+    const monitored = accounts.filter(isMonitored);
+    const unmonitored = accounts.filter((a) => !isMonitored(a));
+
     const erroredOwners = new Set(accounts.filter((a) => a.error).map((a) => String(a.owner_id)));
-    const errored = accounts.filter((a) => !!a.error);
+    const errored = monitored.filter((a) => !!a.error);
 
     const orphans = (result.orphans || []).filter((o) => !erroredOwners.has(String(o.owner_id)));
     const duplicates = (result.duplicates || []).filter((d) => !erroredOwners.has(String(d.owner_id)));
@@ -192,6 +221,7 @@ Deno.serve(async (req) => {
 
     const hasDisparity =
       orphans.length > 0 || duplicates.length > 0 || stale.length > 0 || errored.length > 0;
+
 
     let alertSent = false;
     let alertError: string | null = null;
@@ -225,6 +255,7 @@ Deno.serve(async (req) => {
             { ...result, orphans, duplicates, stale },
             localBillable,
             errored,
+            monitored,
           ),
         });
         if (sendError) throw new Error(sendError.message || 'Resend rejected the message');
@@ -244,7 +275,14 @@ Deno.serve(async (req) => {
       stale_count: stale.length,
       error_account_count: errored.length,
       has_disparity: hasDisparity,
-      findings: { orphans, duplicates, stale, errored_accounts: errored },
+      findings: {
+        orphans,
+        duplicates,
+        stale,
+        errored_accounts: errored,
+        monitored_accounts: monitored,
+        unmonitored_accounts: unmonitored,
+      },
       alert_sent: alertSent,
       alert_recipients: recipients,
       alert_error: alertError,
