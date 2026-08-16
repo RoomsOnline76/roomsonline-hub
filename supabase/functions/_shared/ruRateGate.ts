@@ -116,3 +116,72 @@ export async function ruSlotBusyMs(supabase: any, xml: string, ownerId?: string 
   const elapsed = Date.now() - new Date(data.last_called_at).getTime();
   return Math.max(0, RU_RATE_WINDOW_SECONDS * 1000 - elapsed);
 }
+
+/**
+ * Background work queue.
+ *
+ * A deferral used to end the call: the gate refused a slot and the work was simply abandoned
+ * unless its caller happened to retry. Deferrable calls (read-backs, list pulls, scheduled
+ * refreshes) are instead parked here and replayed by `cron-ru-call-queue-drain`, which owns the
+ * only draining cadence so the channel is never asked twice inside its sliding minute.
+ *
+ * The queue row is keyed by the gate's own method key, so a burst of identical requests collapses
+ * into the single waiting row instead of becoming N rejections.
+ */
+export async function enqueueRuCall(
+  supabase: any,
+  args: {
+    methodKey: string;
+    action: string;
+    payload: Record<string, unknown>;
+    ownerId?: string | null;
+    propertyId?: string | null;
+    /** Lower runs first. */
+    priority?: number;
+    delayMs?: number;
+  },
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc('ru_enqueue_call', {
+    _method_key: args.methodKey,
+    _action: args.action,
+    _payload: args.payload,
+    _ru_owner_id: args.ownerId ?? null,
+    _property_id: args.propertyId ?? null,
+    _priority: args.priority ?? 100,
+    _delay_ms: Math.max(0, Math.round(args.delayMs ?? 0)),
+  });
+  if (error) {
+    console.warn(`[ruRateGate] could not queue ${args.action}: ${error.message}`);
+    return null;
+  }
+  return typeof data === 'string' ? data : (data?.id ?? null);
+}
+
+/** Actions safe to run later: reads, verification read-backs and scheduled refreshes. */
+const DEFERRABLE_ACTIONS = new Set([
+  'get_availability',
+  'get_prices',
+  'get_property',
+  'get_building',
+  'get_long_stay_discounts',
+  'get_last_minute_discounts',
+  'list_properties',
+  'list_users',
+  'list_buildings',
+  'list_composition_rooms',
+  'list_lnm_subscriptions',
+  'list_sales_channels',
+  'list_child_api_keys',
+]);
+
+/**
+ * True when the caller explicitly opted in (`deferrable: true`) or the action is a read that
+ * carries no interactive user waiting on it. Booking/push paths are never queued behind reads.
+ */
+export function isDeferrableRuCall(body: Record<string, unknown> | null | undefined): boolean {
+  if (!body) return false;
+  if (body.deferrable === true) return true;
+  if (body.deferrable === false) return false;
+  return DEFERRABLE_ACTIONS.has(String(body.action ?? ''));
+}
+

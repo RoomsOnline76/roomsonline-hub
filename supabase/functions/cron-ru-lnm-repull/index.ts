@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
     const startedAt = Date.now();
     const methods: string[] = [];
     let deferredHere = false;
+    let queuedHere = false;
     let failure: string | null = null;
 
     try {
@@ -132,10 +133,13 @@ Deno.serve(async (req) => {
               // The notification's Publisher is the sub-account that owns the listing; without it
               // the pull runs on master credentials and the channel answers "does not exist".
               ...(row.ru_owner_id ? { owner_id: row.ru_owner_id } : {}),
+              // Park the read-back in the shared call queue rather than losing it to the window.
+              deferrable: true,
             },
           });
           if (error) throw new Error(await invokeErrorMessage(error));
           if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
+          if (data?.queued === true) queuedHere = true;
           methods.push(
             apiAction === 'get_availability'
               ? 'Pull_ListPropertyAvailabilityCalendar_RQ'
@@ -148,6 +152,7 @@ Deno.serve(async (req) => {
       if (isDeferral(message)) deferredHere = true;
       else failure = message;
     }
+
 
     summary.processed++;
 
@@ -215,6 +220,8 @@ Deno.serve(async (req) => {
         date_to: row.date_to,
         ru_methods: methods,
         attempt: row.attempts + 1,
+        // The read-back was accepted into the shared call queue and runs on the drainer's cadence.
+        queued_via_call_queue: queuedHere || undefined,
       },
     });
   }

@@ -22,7 +22,7 @@ import {
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
-import { RU_RATE_DEFERRED_CODE, RuRateDeferredError, reserveRuSlot } from '../_shared/ruRateGate.ts';
+import { RU_RATE_DEFERRED_CODE, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall } from '../_shared/ruRateGate.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
@@ -329,6 +329,13 @@ interface RequestBody {
   channel_name?: string;
   /** Force an auth scope ('master') for account-level reads. */
   auth_scope?: string;
+  /**
+   * Opt in/out of the background call queue when the channel rate window is busy.
+   * Reads default to queueable; booking/push paths stay synchronous unless set explicitly.
+   */
+  deferrable?: boolean;
+  /** Set by the queue drainer so a replayed call is never re-queued. */
+  queued_replay?: boolean;
 }
 
 
@@ -2136,9 +2143,13 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Hoisted so the catch can replay a rate-deferred call into the background queue.
+  let requestBody: RequestBody | null = null;
   try {
     const body: RequestBody = await req.json();
+    requestBody = body;
     const { action, ru_property_id, date_from, date_to, test_mode, metadata } = body;
+
 
     // Bind the durable-log context for this request. `enterWith` scopes it to the current async
     // execution, so concurrent invocations in the same isolate never share context.
@@ -3993,11 +4004,36 @@ Deno.serve(async (req) => {
     // A rate deferral is not a fault: the channel simply owes this method another slot.
     if (error instanceof RuRateDeferredError) {
       console.warn(`[rentalsunited-api] ${RU_RATE_DEFERRED_CODE}: ${error.message}`);
+
+      // Deferrable work is parked in the shared background queue and replayed by the drainer,
+      // so nothing is lost while still honouring the channel's one-per-sliding-minute rule.
+      if (isDeferrableRuCall(requestBody as unknown as Record<string, unknown>)) {
+        const action = String(requestBody?.action ?? 'ru_call');
+        const queueId = await enqueueRuCall(getLogClient(), {
+          methodKey: error.methodKey,
+          action,
+          payload: { ...(requestBody ?? {}), deferrable: false, queued_replay: true },
+          ownerId: requestBody?.owner_id != null ? String(requestBody.owner_id) : null,
+          propertyId: requestBody?.property_id ?? requestBody?.property_uuid ?? null,
+          delayMs: error.waitMs,
+        });
+        if (queueId) {
+          return jsonResponse({
+            success: true,
+            queued: true,
+            queue_id: queueId,
+            action,
+            message: `Channel rate limit reached — "${action}" is queued and will run within a minute.`,
+          }, 202);
+        }
+      }
+
       return jsonResponse({
         success: false,
         error: { code: RU_RATE_DEFERRED_CODE, message: error.message, retry_after_ms: error.waitMs },
       }, 429);
     }
+
     console.error('[rentalsunited-api] Error:', error);
     return jsonResponse({
       success: false,

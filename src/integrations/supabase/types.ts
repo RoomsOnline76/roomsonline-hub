@@ -13619,6 +13619,66 @@ export type Database = {
           },
         ]
       }
+      ru_call_queue: {
+        Row: {
+          action: string
+          attempts: number
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          method_key: string
+          not_before: string
+          payload: Json
+          priority: number
+          property_id: string | null
+          result: Json | null
+          ru_owner_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          attempts?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          method_key: string
+          not_before?: string
+          payload: Json
+          priority?: number
+          property_id?: string | null
+          result?: Json | null
+          ru_owner_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          attempts?: number
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          max_attempts?: number
+          method_key?: string
+          not_before?: string
+          payload?: Json
+          priority?: number
+          property_id?: string | null
+          result?: Json | null
+          ru_owner_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_cert_runs: {
         Row: {
           created_at: string
@@ -16303,12 +16363,52 @@ export type Database = {
         Args: { _property_id: string; _room_type_id: string }
         Returns: number
       }
+      ru_claim_queued_call: {
+        Args: never
+        Returns: {
+          action: string
+          attempts: number
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          max_attempts: number
+          method_key: string
+          not_before: string
+          payload: Json
+          priority: number
+          property_id: string | null
+          result: Json | null
+          ru_owner_id: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ru_call_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       ru_claim_rate_slot: {
         Args: { _action: string; _method_key: string; _window_seconds: number }
         Returns: {
           granted: boolean
           wait_ms: number
         }[]
+      }
+      ru_enqueue_call: {
+        Args: {
+          _action: string
+          _delay_ms?: number
+          _method_key: string
+          _payload: Json
+          _priority?: number
+          _property_id?: string
+          _ru_owner_id?: string
+        }
+        Returns: string
       }
       ru_queue_lnm_repull: {
         Args: {
