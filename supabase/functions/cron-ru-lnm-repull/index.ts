@@ -166,7 +166,24 @@ Deno.serve(async (req) => {
       continue;
     }
 
+    if (failure !== null && isDelisted(failure)) {
+      // Listing no longer exists at the channel — close the row, do not retry, do not alarm.
+      summary.skipped++;
+      await supabase
+        .from('ru_lnm_repull_queue')
+        .update({
+          status: 'skipped',
+          attempts: row.attempts + 1,
+          last_error: failure,
+          processed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', row.id);
+      continue;
+    }
+
     const ok = failure === null;
+
     if (ok) summary.succeeded++;
     else summary.failed++;
 
