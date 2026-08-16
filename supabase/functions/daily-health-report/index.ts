@@ -929,8 +929,8 @@ Deno.serve(async (req) => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-      const isPipelineFailure = (r: { success?: boolean | null; error_code?: string | null; error_message?: string | null }) =>
-        r.success === false && !isRateDeferral(r) && !isSetupGap(r);
+
+
 
       const errorCounts = new Map<string, { count: number; sample: string }>();
       for (const r of runs.filter(isPipelineFailure)) {
