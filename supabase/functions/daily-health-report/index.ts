@@ -49,7 +49,10 @@ Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed
 ${channelHealth ? `Channel/distribution pipelines (24h): overall success ${channelHealth.success_rate.toFixed(1)}%
 Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.failing.map(a => `${a.action} (${a.success_rate.toFixed(0)}% success, ${a.failed} failures, last run ${a.last_run || 'unknown'})`).join('; ') : 'None'}
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
-Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}
+Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
+Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+
 
 Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect.
 
