@@ -27,7 +27,10 @@ async function generateAIDigest(
     failing: Array<{ action: string; success_rate: number; failed: number; last_run: string | null }>;
     recovered: Array<{ action: string; last_failure_at: string | null }>;
     top_errors: Array<{ code: string; count: number; sample: string }>;
+    rate_deferrals: number;
+    setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
   } | null,
+
 ): Promise<AIDigest | null> {
   const apiKey = Deno.env.get('LOVABLE_API_KEY');
   if (!apiKey) {
