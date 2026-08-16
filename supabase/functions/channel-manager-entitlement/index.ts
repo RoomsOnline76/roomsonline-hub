@@ -513,6 +513,12 @@ Deno.serve(async (req) => {
         owner_label: string;
         bound: boolean;
         has_keys: boolean;
+        /**
+         * In scope for monitoring: bound to a ROL'OS property/portfolio AND holding
+         * stored keys. Retired test / archived sub-accounts fail this and must never
+         * raise a reconciliation warning.
+         */
+        monitored: boolean;
         listing_count: number;
         archived_count?: number;
         total_listing_count?: number;
