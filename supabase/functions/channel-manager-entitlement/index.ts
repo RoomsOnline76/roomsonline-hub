@@ -597,6 +597,7 @@ Deno.serve(async (req) => {
           owner_label: accountLabel(ownerId),
           bound,
           has_keys: hasKeys,
+          monitored: bound && hasKeys,
           is_master: masterOwnerId !== "" && masterOwnerId === ownerId,
         };
 
