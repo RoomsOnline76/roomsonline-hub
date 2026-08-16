@@ -1215,12 +1215,68 @@ Deno.serve(async (req) => {
             runId = null;
           }
         }
+
+        // ── Raw XML log: latest SUCCESS wins ──────────────────────────────────────
+        // A success on ANY sub-account is proof the endpoint works. A later failure
+        // (often a retired test account) downgrades freshness, never the verdict.
+        let apiSuccessAt: string | null = null;
+        let apiAttemptAt: string | null = null;
+        let apiAttemptFailed = false;
+        let apiError: string | null = null;
+        let apiAccounts = 0;
+        let apiSuccesses = 0;
+        let apiAttempts = 0;
+        for (const candidate of [e.ru_method, ...(e.cert_methods ?? []), ...(e.api_methods ?? [])]) {
+          const ev = apiByMethod.get(normMethod(candidate));
+          if (!ev) continue;
+          apiAttempts += ev.attempts;
+          apiSuccesses += ev.successes;
+          apiAccounts = Math.max(apiAccounts, ev.accounts.size);
+          if (ts(ev.last_success_at) > ts(apiSuccessAt)) apiSuccessAt = ev.last_success_at;
+          if (ts(ev.last_attempt_at) > ts(apiAttemptAt)) {
+            apiAttemptAt = ev.last_attempt_at;
+            apiAttemptFailed = !ev.last_attempt_success;
+            apiError = ev.last_error;
+          }
+        }
+        if (apiSuccessAt && ts(apiSuccessAt) > ts(lastRunAt)) {
+          status = "passed";
+          detail = `Live channel call succeeded${apiAccounts > 1 ? ` on ${apiAccounts} accounts` : ""} — ${apiSuccesses} of ${apiAttempts} logged calls returned success.`;
+          lastRunAt = apiSuccessAt;
+          source = "api_log";
+          runId = null;
+        } else if (status === "failed" && apiSuccessAt) {
+          // Historical success outranks a newer failed attempt.
+          status = "passed";
+          detail = `Previously verified against the channel (${new Date(apiSuccessAt).toISOString().slice(0, 10)}); the most recent attempt failed.`;
+        }
+        const lastAttemptFailed = status === "passed" && (apiAttemptFailed && ts(apiAttemptAt) > ts(apiSuccessAt));
+
+        // Populated dictionary cache = durable proof the pull succeeded.
+        const cache = e.cache_evidence ? cacheEvidence.get(e.cache_evidence.table) : undefined;
+        if (cache && cache.rows > 0 && (status === "never_run" || status === "failed")) {
+          status = "passed";
+          detail = `${e.cache_evidence!.label} is populated with ${cache.rows.toLocaleString("en-ZA")} rows — the pull has completed successfully.`;
+          if (ts(cache.latest) > ts(lastRunAt)) lastRunAt = cache.latest;
+          source = "cache";
+        }
+
+        if (rolosStatus === "never_used" && status === "passed" && (source === "api_log" || source === "cache")) {
+          rolosStatus = "success";
+          rolosLastAt = lastRunAt;
+          rolosDetail = detail;
+        }
         if (rolosStatus === "never_used" && e.rolos_via_cert && status !== "never_run") {
           rolosStatus = status === "passed" ? "success" : "failed";
           rolosLastAt = lastRunAt;
           rolosDetail = status === "passed"
             ? "Exercised from the ROL'OS admin console / certification run."
             : detail;
+        }
+        if (rolosStatus === "failed" && status === "passed" && ts(rolosLastAt) < ts(lastRunAt)) {
+          rolosStatus = "success";
+          rolosLastAt = lastRunAt;
+          rolosDetail = detail;
         }
 
         if (status === "never_run" && rolosStatus === "failed") {
@@ -1244,10 +1300,11 @@ Deno.serve(async (req) => {
         const excludedFromScore = !!e.informational;
 
         let rag: "green" | "amber" | "red" | "grey" = "grey";
-        if (status === "passed") rag = stale ? "amber" : "green";
+        if (status === "passed") rag = stale || lastAttemptFailed ? "amber" : "green";
         else if (status === "blocked") rag = "amber";
         else if (status === "failed") rag = "red";
         else if (!e.implemented) rag = "grey";
+
 
 
 
