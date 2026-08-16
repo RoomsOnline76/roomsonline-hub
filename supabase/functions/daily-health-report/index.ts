@@ -899,22 +899,9 @@ Deno.serve(async (req) => {
         })
         .slice(0, 8);
 
-      // The channel allows one call per method per sliding minute. A deferral means the shared
-      // gate held the call back, so it belongs in its own counter rather than the error ladder.
-      const isRateDeferral = (r: { error_code?: string | null; error_message?: string | null }) =>
-        r.error_code === 'RU_RATE_DEFERRED' ||
-        /rate limited|per 1 minute sliding|deferred by the channel rate window/i.test(r.error_message ?? '');
       const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
-
-      /**
-       * Owner-configuration gaps (no distribution account linked, no owner email, listing not
-       * mapped) are not pipeline defects — nothing is broken, the account setup is incomplete.
-       * They get their own "waiting on owner setup" line so they stop drowning real errors.
-       */
-      const isSetupGap = (r: { error_message?: string | null }) =>
-        /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user/i
-          .test(r.error_message ?? '');
       const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isSetupGap(r));
+
       const gapCounts = new Map<string, { count: number; propertyIds: Set<string> }>();
       for (const r of setupGapRuns) {
         const reason = (r.error_message || 'Setup incomplete').slice(0, 120);
