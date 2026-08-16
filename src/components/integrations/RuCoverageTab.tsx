@@ -28,7 +28,14 @@ interface CoverageRow {
   next_due_at?: string | null;
   detail: string | null;
   last_run_at: string | null;
-  source: "cert_run" | "sync_log" | "none";
+  source: "cert_run" | "sync_log" | "api_log" | "cache" | "none";
+  accounts_used?: number;
+  api_calls?: number;
+  api_successes?: number;
+  last_success_at?: string | null;
+  last_attempt_at?: string | null;
+  last_attempt_failed?: boolean;
+  last_attempt_error?: string | null;
   rolos_surface: string;
   rolos_stream: string;
   rolos_wired: boolean;
@@ -77,6 +84,13 @@ const ROLOS_LABEL: Record<CoverageRow["rolos_status"], string> = {
   failed: "Integrated · failing",
   blocked: "Integrated · blocked upstream",
   never_used: "Integrated · not yet used",
+};
+const SOURCE_LABEL: Record<CoverageRow["source"], string> = {
+  cert_run: "certification run",
+  sync_log: "live sync log",
+  api_log: "live channel call log",
+  cache: "populated register",
+  none: "no evidence",
 };
 
 
@@ -360,6 +374,11 @@ export function RuCoverageTab() {
                     <Badge variant="outline" className={`text-[10px] ${RAG_CLASS[r.rag]}`}>
                       RU: {r.status === "blocked" ? "Blocked upstream" : RAG_LABEL[r.rag]}
                     </Badge>
+                    {r.last_attempt_failed && (
+                      <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600">
+                        Last attempt failed
+                      </Badge>
+                    )}
                     {r.excluded_from_score && (
                       <Badge variant="outline" className="text-[10px]">
                         Excluded from score
@@ -382,9 +401,18 @@ export function RuCoverageTab() {
                   </div>
                   <div>
                     <div>
-                      Last RU call: {fmt(r.last_run_at)}
-                      {r.source !== "none" && ` (${r.source === "cert_run" ? "certification run" : "live sync log"})`}
+                      Last successful RU call: {fmt(r.last_success_at ?? r.last_run_at)}
+                      {r.source !== "none" && ` (${SOURCE_LABEL[r.source]})`}
                     </div>
+                    {!!r.api_calls && (
+                      <div className="text-[11px]">
+                        {r.api_successes ?? 0} of {r.api_calls} logged channel calls succeeded
+                        {r.accounts_used ? ` across ${r.accounts_used} sub-account${r.accounts_used > 1 ? "s" : ""}` : ""}
+                      </div>
+                    )}
+                    {r.last_attempt_failed && r.last_attempt_error && (
+                      <div className="text-[11px] text-amber-600">Latest attempt: {r.last_attempt_error}</div>
+                    )}
                     <div>Last ROL&apos;OS use: {fmt(r.rolos_last_at)}</div>
                     {r.max_age_hours != null && <div>Refresh window: {r.max_age_hours}h</div>}
                   </div>
