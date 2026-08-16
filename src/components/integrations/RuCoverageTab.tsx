@@ -394,9 +394,18 @@ export function RuCoverageTab() {
                   </div>
                   <div>
                     <div>
-                      Last RU call: {fmt(r.last_run_at)}
-                      {r.source !== "none" && ` (${r.source === "cert_run" ? "certification run" : "live sync log"})`}
+                      Last successful RU call: {fmt(r.last_success_at ?? r.last_run_at)}
+                      {r.source !== "none" && ` (${SOURCE_LABEL[r.source]})`}
                     </div>
+                    {!!r.api_calls && (
+                      <div className="text-[11px]">
+                        {r.api_successes ?? 0} of {r.api_calls} logged channel calls succeeded
+                        {r.accounts_used ? ` across ${r.accounts_used} sub-account${r.accounts_used > 1 ? "s" : ""}` : ""}
+                      </div>
+                    )}
+                    {r.last_attempt_failed && r.last_attempt_error && (
+                      <div className="text-[11px] text-amber-600">Latest attempt: {r.last_attempt_error}</div>
+                    )}
                     <div>Last ROL&apos;OS use: {fmt(r.rolos_last_at)}</div>
                     {r.max_age_hours != null && <div>Refresh window: {r.max_age_hours}h</div>}
                   </div>
