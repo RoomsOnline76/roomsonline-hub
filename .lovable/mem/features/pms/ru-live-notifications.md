@@ -17,3 +17,13 @@ Rules:
 - Silent drift (RU keeps an old UrlBase/change types) is the real failure mode — always read back and diff (`_shared/ruLnm.ts` `diffLnmSubscriptions`).
 - `put_lnm_subscriptions` is in `CERT_MASTER_FORBIDDEN_ACTIONS`: a sub-user step answering on master credentials is a failure.
 - Admin UI: Rentals United → **Live notifications** tab (`RuLnmPanel.tsx`).
+- **Master observes only its own OwnerID.** The channel-manager (master) account holds no inventory; every
+  sub-user registers its own subscription under its own keys. Asking master to observe sub-user OwnerIDs is
+  what RU answers with a bare "Unexpected error, contact IT". With no `RU_MASTER_OWNER_ID` set, master's LNM
+  Put/read-back steps are SKIPPED as not applicable (never logged as failures) — only `PutHandlerUrl` runs.
+- Only accounts with captured API keys (`ru_api_credentials` row, or legacy `ru_owner_accounts.ru_api_access_key`)
+  are monitored. Unprovisioned OwnerIDs are excluded and reported as a setup gap, never a pipeline failure.
+- Drift is judged against the owners RU **accepted** this run (`diffLnmSubscriptions` returns `extra_owners`);
+  stale channel-side owners are informational only. Error codes: `RU_LNM_DRIFT`, `RU_LNM_OWNER_REJECTED`,
+  `RU_LNM_OWNER_UNPROVISIONED`, `RU_LNM_PUT_FAILED`, `RU_LNM_READBACK_FAILED`.
+- A multi-owner Put that fails is retried owner-by-owner so one refused OwnerID cannot unsubscribe the good ones.
