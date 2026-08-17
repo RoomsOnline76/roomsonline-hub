@@ -1176,13 +1176,30 @@ Deno.serve(async (req) => {
       // after the raw XML log rows have aged out.
       const cacheTables = [...new Set(RU_ENDPOINT_REGISTRY.map((e) => e.cache_evidence?.table).filter(Boolean))] as string[];
       const cacheEvidence = new Map<string, { rows: number; latest: string | null }>();
+      // Dictionary caches don't share a timestamp column (ru_amenities has synced_at/created_at,
+      // ru_locations only last_synced_at), so probe candidates and ignore the misses instead of
+      // hardcoding updated_at — that raised "column ... does not exist" on every coverage read.
+      const TIMESTAMP_CANDIDATES = ["updated_at", "synced_at", "last_synced_at", "created_at"];
       for (const table of cacheTables) {
         const { count } = await admin.from(table).select("id", { count: "exact", head: true });
         let latest: string | null = null;
-        const { data: newest } = await admin.from(table).select("updated_at, created_at").order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if (newest) latest = (newest as { updated_at?: string; created_at?: string }).updated_at ?? (newest as { created_at?: string }).created_at ?? null;
+        for (const col of TIMESTAMP_CANDIDATES) {
+          const { data, error } = await admin
+            .from(table)
+            .select(col)
+            .order(col, { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (error) continue;
+          const value = (data as Record<string, unknown> | null)?.[col];
+          if (typeof value === "string") {
+            latest = value;
+            break;
+          }
+        }
         cacheEvidence.set(table, { rows: count ?? 0, latest });
       }
+
 
       const now = Date.now();
 
