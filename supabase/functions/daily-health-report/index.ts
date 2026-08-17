@@ -26,7 +26,7 @@ async function generateAIDigest(
     success_rate: number;
     failing: Array<{ action: string; success_rate: number; failed: number; last_run: string | null }>;
     recovered: Array<{ action: string; last_failure_at: string | null }>;
-    top_errors: Array<{ code: string; count: number; sample: string }>;
+    top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
     rate_deferrals: number;
     setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
   } | null,
@@ -49,7 +49,7 @@ Bookings (24h): ${bookingStats.total} total, ${bookingStats.confirmed} confirmed
 ${channelHealth ? `Channel/distribution pipelines (24h): overall success ${channelHealth.success_rate.toFixed(1)}%
 Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.failing.map(a => `${a.action} (${a.success_rate.toFixed(0)}% success, ${a.failed} failures, last run ${a.last_run || 'unknown'})`).join('; ') : 'None'}
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
-Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.code} ×${e.count} — ${e.sample}`).join('; ') : 'None'}
+Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.action}: ${e.code} ×${e.count}${e.recovered ? ' (recovered)' : ''} — ${e.sample}`).join('; ') : 'None'}
 Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
 Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
 
@@ -164,7 +164,7 @@ interface RuWlMetrics {
   failed: number;
   success_rate: number;
   actions: RuWlActionStat[];
-  top_errors: Array<{ code: string; count: number; sample: string }>;
+  top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
   reservations_24h: number;
   reservations_unprocessed: number;
   last_reservation_at: string | null;
@@ -398,7 +398,7 @@ function generateEmailHtml(
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#b91c1c;">Top failures (24h)</strong>${ruWl.recovered_actions > 0 ? `<span style="font-size:11px;color:#9ca3af;"> · ${ruWl.recovered_actions} action(s) have since recovered — see the “Now” column</span>` : ''}
         <ul style="margin:6px 0 0 0;padding-left:18px;color:#7f1d1d;font-size:12px;">
-          ${ruWl.top_errors.map(e => `<li style="margin-bottom:3px;"><strong>${e.code}</strong> ×${e.count} — ${e.sample}</li>`).join('')}
+          ${ruWl.top_errors.map(e => `<li style="margin-bottom:3px;"><strong>${e.action} · ${e.code}</strong> ×${e.count}${e.recovered ? ' · <span style="color:#9ca3af;">recovered</span>' : ''} — ${e.sample}</li>`).join('')}
         </ul>
       </div>` : ''}
       <p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Cadence: reservations pull &amp; lead lifecycle every 30 min · ARI refresh every 6h · content push weekly · notification (RLNM) refresh daily.</p>
@@ -956,15 +956,23 @@ Deno.serve(async (req) => {
 
 
 
-      const errorCounts = new Map<string, { count: number; sample: string }>();
+      const errorCounts = new Map<string, { action: string; code: string; count: number; sample: string }>();
       for (const r of runs.filter(isPipelineFailure)) {
+        const action = r.action || 'unknown';
         const code = r.error_code || 'UNKNOWN';
-        const entry = errorCounts.get(code) || { count: 0, sample: r.error_message || 'No message' };
+        const key = `${action}\u0000${code}`;
+        const entry = errorCounts.get(key) || { action, code, count: 0, sample: r.error_message || 'No message' };
         entry.count += 1;
-        errorCounts.set(code, entry);
+        errorCounts.set(key, entry);
       }
-      const topErrors = [...errorCounts.entries()]
-        .map(([code, v]) => ({ code, count: v.count, sample: (v.sample || '').slice(0, 140) }))
+      const topErrors = [...errorCounts.values()]
+        .map((v) => ({
+          action: v.action,
+          code: v.code,
+          count: v.count,
+          sample: (v.sample || '').slice(0, 140),
+          recovered: !isPipelineFailure(byAction.get(v.action)?.[0] ?? {}),
+        }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 4);
 

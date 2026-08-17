@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { readInvokeError } from '../_shared/functionInvokeError.ts';
 
 /**
  * Weekly cron job: Push all RU-connected properties to Rentals United.
@@ -113,6 +114,8 @@ Deno.serve(async (req) => {
       property_id: string;
       name: string;
       success: boolean;
+      status: 'complete' | 'resumable' | 'failed';
+      error_code?: string;
       error?: string;
       chunks?: number;
       resume_pending?: number;
@@ -128,11 +131,21 @@ Deno.serve(async (req) => {
 
     // Push sequentially to avoid rate limiting
     for (const prop of properties) {
+      // Do not start another property when the invocation is already near its budget. The
+      // completed property rows remain durable and the next scheduled run can resume safely.
+      if (Date.now() - RUN_STARTED > RUN_BUDGET_MS) {
+        console.log(`[cron-push-all] Run budget reached before ${prop.name} — leaving it for the next run`);
+        break;
+      }
       const startedAt = Date.now();
       let success = false;
+      let status: 'complete' | 'resumable' | 'failed' = 'failed';
+      let errCode: string | null = null;
+      let httpStatus: number | null = null;
       let errMsg: string | null = null;
       let chunks = 0;
       let remainingUnitIds: string[] = [];
+      let sequenceBatchId: string | undefined;
 
       try {
         // Resume loop: keep pushing the next slice while the channel keeps accepting it.
@@ -143,30 +156,37 @@ Deno.serve(async (req) => {
             body: {
               property_id: prop.id,
               ...(remainingUnitIds.length > 0 ? { only_unit_ids: remainingUnitIds } : {}),
+              ...(sequenceBatchId ? { batch_id: sequenceBatchId } : {}),
             },
           });
 
           if (pushErr) {
-            errMsg = pushErr.message || 'Channel push could not be invoked';
+            const failure = await readInvokeError(pushErr, 'Channel push could not be invoked');
+            httpStatus = failure.httpStatus;
+            errCode = failure.errorCode ?? (httpStatus ? `HTTP_${httpStatus}` : 'RU_PUSH_INVOKE_FAILED');
+            errMsg = failure.message;
             console.warn(`[cron-push-all] Failed: ${prop.name} — ${errMsg}`);
             break;
           }
 
-          const status = data?.status ?? (data?.success ? 'complete' : 'failed');
+          const pushStatus = data?.status ?? (data?.success ? 'complete' : 'failed');
+          if (typeof data?.batch_id === 'string' && data.batch_id) sequenceBatchId = data.batch_id;
           const nextRemaining: string[] = Array.isArray(data?.remaining_unit_ids)
             ? data.remaining_unit_ids.filter((v: unknown) => typeof v === 'string')
             : [];
 
-          if (status === 'complete' || data?.success === true) {
+          if (pushStatus === 'complete') {
             success = true;
+            status = 'complete';
             remainingUnitIds = [];
             console.log(`[cron-push-all] OK: ${prop.name} (${chunks} chunk(s))`);
             break;
           }
 
-          if (status === 'resumable' && nextRemaining.length > 0) {
+          if (pushStatus === 'resumable' && nextRemaining.length > 0) {
             // Healthy partial chunk — the units that went out are live at the channel.
             success = true;
+            status = 'resumable';
             remainingUnitIds = nextRemaining;
             console.log(
               `[cron-push-all] ${prop.name}: chunk ${chunks} done, ${nextRemaining.length} unit(s) still queued`,
@@ -185,12 +205,16 @@ Deno.serve(async (req) => {
           }
 
           // Real rejection / interruption — always carries a reason now.
-          errMsg = data?.error?.message || data?.error?.code || 'Channel push failed without a reported reason';
+          status = 'failed';
+          errCode = data?.error?.code || 'RU_PUSH_FAILED';
+          errMsg = data?.error?.message || `Channel push failed (${errCode})`;
           console.warn(`[cron-push-all] Failed: ${prop.name} — ${errMsg}`);
           break;
         }
       } catch (err) {
         errMsg = err instanceof Error ? err.message : 'Channel push threw an unexpected error';
+        errCode = 'RU_PUSH_EXCEPTION';
+        status = 'failed';
         success = false;
       }
 
@@ -198,6 +222,8 @@ Deno.serve(async (req) => {
         property_id: prop.id,
         name: prop.name,
         success,
+        status,
+        error_code: errCode || undefined,
         error: errMsg || undefined,
         chunks,
         ...(remainingUnitIds.length > 0 ? { resume_pending: remainingUnitIds.length } : {}),
@@ -205,16 +231,21 @@ Deno.serve(async (req) => {
 
       // Observability log (non-blocking)
       await supabase.from('ru_sync_runs').insert({
-        batch_id: batchId,
+        batch_id: sequenceBatchId ?? batchId,
         action: 'weekly_content_refresh',
         property_id: prop.id,
         success,
+        error_code: errCode,
         error_message: errMsg,
+        http_status: httpStatus,
         elapsed_ms: Date.now() - startedAt,
         details: {
           rlnm: rlnmStatus,
           manual_scope: scopeIds.length ? scopeIds : undefined,
           chunks,
+          status,
+          run_batch_id: batchId,
+          sequence_batch_id: sequenceBatchId,
           resume_pending: remainingUnitIds.length,
           remaining_unit_ids: remainingUnitIds.length ? remainingUnitIds : undefined,
         },
