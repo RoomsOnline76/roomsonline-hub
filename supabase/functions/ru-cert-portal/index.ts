@@ -5573,7 +5573,13 @@ Deno.serve(async (req) => {
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
       const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
-      const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+      const needsPassword = Boolean(
+        (companyResult as any).deferred
+        || (companyResult as any).authFailed
+        || (companyResult as any).setup_gap
+        || (companyResult as any).needs_api_keys,
+      );
+
       if (!companyResult.sent && !needsPassword) {
         return json({
           success: false,
