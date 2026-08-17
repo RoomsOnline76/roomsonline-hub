@@ -4509,8 +4509,11 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
+            // Three distinct outcomes: the sequence finished, it is healthy but has units
+            // left (resumable — NOT a failure), or RU rejected / the run was cut short.
+            status: chunkSuccess ? (remainingUnitIds.length > 0 ? 'resumable' : 'complete') : 'failed',
             // A resumable chunk is not an error — only real rejections/interruptions are.
-            ...(!chunkSuccess && chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(!chunkSuccess ? { error: { code: chunkErrorCode ?? 'RU_PUSH_INTERRUPTED', message: chunkErrorMessage ?? 'The channel push did not complete and reported no reason.' } } : {}),
             ...(chunkSuccess && remainingUnitIds.length > 0 ? { chunk_note: chunkErrorMessage } : {}),
 
             ...(listingVerification ? { listing_verification: listingVerification } : {}),
