@@ -4509,8 +4509,11 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
+            // Three distinct outcomes: the sequence finished, it is healthy but has units
+            // left (resumable — NOT a failure), or RU rejected / the run was cut short.
+            status: chunkSuccess ? (remainingUnitIds.length > 0 ? 'resumable' : 'complete') : 'failed',
             // A resumable chunk is not an error — only real rejections/interruptions are.
-            ...(!chunkSuccess && chunkErrorCode ? { error: { code: chunkErrorCode, message: chunkErrorMessage } } : {}),
+            ...(!chunkSuccess ? { error: { code: chunkErrorCode ?? 'RU_PUSH_INTERRUPTED', message: chunkErrorMessage ?? 'The channel push did not complete and reported no reason.' } } : {}),
             ...(chunkSuccess && remainingUnitIds.length > 0 ? { chunk_note: chunkErrorMessage } : {}),
 
             ...(listingVerification ? { listing_verification: listingVerification } : {}),
@@ -5034,7 +5037,7 @@ Deno.serve(async (req) => {
 
     const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
     return new Response(
-      JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
+      JSON.stringify({ success: inventorySuccess, status: inventorySuccess ? 'complete' : 'failed', ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

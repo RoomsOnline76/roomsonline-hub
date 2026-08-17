@@ -4928,15 +4928,25 @@ Deno.serve(async (req) => {
 
         const hasChildKeys = Boolean(childAccessKey && childSecretKey);
 
-        if (!password && !hasChildKeys) {
+        /**
+         * Since RU's Nov-2025 rollout a sub-account can only authenticate with its own
+         * API key pair. Retrying under the stored portal password just earns Status -4
+         * ("Incorrect login or password") and lands in the health report as a pipeline
+         * failure, when the truth is that owner setup is incomplete. So keys are a hard
+         * prerequisite: report the setup gap instead of burning a doomed call.
+         */
+        if (!hasChildKeys) {
           return {
             sent: false,
             needs_password: true,
             needs_api_keys: true,
+            setup_gap: true,
             error:
-              "Rentals United requires the sub-user's own API keys (AccessKey + SecretKey) to write company details. Generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.",
+              "Waiting on owner setup: this distribution sub-account has no verified API key pair on file, and Rentals United requires the sub-user's own AccessKey + SecretKey to write company details. Generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.",
           };
         }
+
+
 
 
 
@@ -5362,7 +5372,13 @@ Deno.serve(async (req) => {
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
-        const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+        const needsPassword = Boolean(
+          (companyResult as any).deferred
+          || (companyResult as any).authFailed
+          || (companyResult as any).setup_gap
+          || (companyResult as any).needs_api_keys,
+        );
+
         if (!companyResult.sent && !needsPassword) {
           return json({
             success: false,
@@ -5557,7 +5573,13 @@ Deno.serve(async (req) => {
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
       const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
-      const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+      const needsPassword = Boolean(
+        (companyResult as any).deferred
+        || (companyResult as any).authFailed
+        || (companyResult as any).setup_gap
+        || (companyResult as any).needs_api_keys,
+      );
+
       if (!companyResult.sent && !needsPassword) {
         return json({
           success: false,
