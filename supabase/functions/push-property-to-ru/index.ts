@@ -5037,7 +5037,7 @@ Deno.serve(async (req) => {
 
     const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
     return new Response(
-      JSON.stringify({ success: inventorySuccess, ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
+      JSON.stringify({ success: inventorySuccess, status: inventorySuccess ? 'complete' : 'failed', ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
