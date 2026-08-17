@@ -5372,7 +5372,13 @@ Deno.serve(async (req) => {
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
         const companyResult = await submitCompanyDetails(existing.account as any);
-        const needsPassword = Boolean((companyResult as any).deferred || (companyResult as any).authFailed);
+        const needsPassword = Boolean(
+          (companyResult as any).deferred
+          || (companyResult as any).authFailed
+          || (companyResult as any).setup_gap
+          || (companyResult as any).needs_api_keys,
+        );
+
         if (!companyResult.sent && !needsPassword) {
           return json({
             success: false,
