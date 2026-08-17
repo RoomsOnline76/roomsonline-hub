@@ -131,6 +131,12 @@ Deno.serve(async (req) => {
 
     // Push sequentially to avoid rate limiting
     for (const prop of properties) {
+      // Do not start another property when the invocation is already near its budget. The
+      // completed property rows remain durable and the next scheduled run can resume safely.
+      if (Date.now() - RUN_STARTED > RUN_BUDGET_MS) {
+        console.log(`[cron-push-all] Run budget reached before ${prop.name} — leaving it for the next run`);
+        break;
+      }
       const startedAt = Date.now();
       let success = false;
       let status: 'complete' | 'resumable' | 'failed' = 'failed';
