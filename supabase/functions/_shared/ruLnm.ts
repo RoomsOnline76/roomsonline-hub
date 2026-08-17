@@ -98,23 +98,35 @@ export function parseLnmChangeTypes(xml: string): string[] {
 /**
  * Drift between what we intend to be subscribed to and what RU actually holds.
  * A silent drift is the failure mode that matters: RU simply stops notifying.
+ *
+ * `extra_owners` are owners RU still observes that we no longer intend to (a stale
+ * bind). They are informational only — they cost nothing and must not fail a step.
  */
 export function diffLnmSubscriptions(
   actual: RuLnmSubscriptionState,
   desired: { change_types: string[]; observed_owners: string[]; url_base: string },
-): { in_sync: boolean; missing_change_types: string[]; missing_owners: string[]; url_matches: boolean } {
+): {
+  in_sync: boolean;
+  missing_change_types: string[];
+  missing_owners: string[];
+  extra_owners: string[];
+  url_matches: boolean;
+} {
   const actualTypes = new Set(actual.change_types.map((t) => t.toLowerCase()));
   const actualOwners = new Set(actual.observed_owners.map((o) => String(o).trim()));
+  const desiredOwners = desired.observed_owners.map((o) => String(o).trim()).filter(Boolean);
+  const desiredOwnerSet = new Set(desiredOwners);
   const missing_change_types = desired.change_types.filter((t) => !actualTypes.has(t.toLowerCase()));
-  const missing_owners = desired.observed_owners
-    .map((o) => String(o).trim())
-    .filter((o) => o && !actualOwners.has(o));
+  const missing_owners = desiredOwners.filter((o) => !actualOwners.has(o));
+  const extra_owners = [...actualOwners].filter((o) => o && !desiredOwnerSet.has(o));
   const url_matches =
     !!actual.url_base && actual.url_base.replace(/\/+$/, '') === desired.url_base.replace(/\/+$/, '');
   return {
     in_sync: missing_change_types.length === 0 && missing_owners.length === 0 && url_matches,
     missing_change_types,
     missing_owners,
+    extra_owners,
     url_matches,
   };
 }
+

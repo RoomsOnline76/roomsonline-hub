@@ -201,8 +201,12 @@ const isRateDeferral = (r: RunLike): boolean =>
  * incomplete — so they are reported separately from real errors.
  */
 const isSetupGap = (r: RunLike): boolean =>
-  /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user|waiting on owner setup|own accesskey|api key pair|no verified api key/i
-    .test(r.error_message ?? '');
+  /no rentals united ownerid|no ownerid linked|ownerid linked to this property|usable property-owner email|unmapped ru property|not mapped|invalid session|did not return .*sub-user|waiting on owner setup|own accesskey|api key pair|no verified api key|accesskey\/secretkey captured|no monitored ru ownerid|no monitored ownerid|nothing to verify/i
+    .test(r.error_message ?? '') ||
+  ['RU_LNM_OWNER_UNPROVISIONED', 'RU_LNM_NO_OWNERS'].includes(
+    String((r as { error_code?: string | null }).error_code ?? ''),
+  );
+
 
 
 const isPipelineFailure = (r: RunLike): boolean =>
