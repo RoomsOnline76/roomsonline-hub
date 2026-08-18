@@ -11,7 +11,7 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
