@@ -147,6 +147,41 @@ const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
 
+/** How far back a logged channel answer is still trusted when the live read is rate limited. */
+const RU_LAST_GOOD_XML_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The channel enforces one call per method per sliding minute, so a re-score inside that window
+ * is answered with a queued 202 carrying no calendar. Every real answer is already persisted in
+ * `ru_api_log`, so replay the most recent successful body for this unit instead of scoring the
+ * unit as if the channel had reported no availability and no MinStay.
+ */
+async function loadLastGoodRuXml(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  ruPropertyId: number,
+  action: string,
+): Promise<string | null> {
+  const since = new Date(Date.now() - RU_LAST_GOOD_XML_MAX_AGE_MS).toISOString();
+  const { data, error } = await admin
+    .from("ru_api_log")
+    .select("response_xml")
+    .eq("ru_property_id", String(ruPropertyId))
+    .eq("action", action)
+    .eq("success", true)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[ru-cert-portal] could not replay ${action} for ${ruPropertyId}: ${error.message}`);
+    return null;
+  }
+  const xml = typeof data?.response_xml === "string" ? data.response_xml.trim() : "";
+  return xml.length > 0 ? xml : null;
+}
+
+
 /** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
 const PHASE_STATUS_TTL_MS = 90_000;
 const phaseStatusCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
