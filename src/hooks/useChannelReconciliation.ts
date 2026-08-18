@@ -19,6 +19,10 @@ export interface ReconAccount {
   archived_count?: number;
   /** Every listing the account holds, live and archived. */
   total_listing_count?: number;
+  /** The account really answered with its listing set on this pass. */
+  read?: boolean;
+  /** Not read because the channel rate-limited/queued the pull. */
+  deferred?: boolean;
   error: string | null;
   /** True when this is the master/parent account, which may never hold listings. */
   is_master?: boolean;
@@ -173,6 +177,11 @@ export interface ChannelReconciliation {
   orphans: ReconOrphan[];
   duplicates: ReconDuplicate[];
   stale: ReconStale[];
+  /** Unseen local ids from an incomplete pass — reported, never cleanup targets. */
+  unverified?: ReconStale[];
+  /** Every account that could hold ROL'OS listings answered on this pass. */
+  read_complete?: boolean;
+  unread_owner_ids?: string[];
   footprint?: ReconFootprint[];
   untracked_unit_count?: number;
   inactive_units_holding_listings?: number;
@@ -264,6 +273,9 @@ export function useChannelReconciliation() {
         orphans: payload.orphans || [],
         duplicates: payload.duplicates || [],
         stale: payload.stale || [],
+        unverified: payload.unverified || [],
+        read_complete: payload.read_complete !== false,
+        unread_owner_ids: payload.unread_owner_ids || [],
         // Footprint and owner-scope findings: dropping these here is what made the
         // per-property panel (and the unpublished-unit gap) invisible in the monitor.
         footprint: payload.footprint || [],
@@ -501,7 +513,11 @@ export function useChannelReconciliation() {
     const snapshot = result;
     if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
-    const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
+    // Only accounts that really answered on this pass may be acted on: a deferred or
+    // blank read must never turn into a removal.
+    const erroredOwners = new Set(
+      snapshot.accounts.filter((a) => a.error || a.read === false).map((a) => a.owner_id),
+    );
     const source: Array<{ listing_id: string; owner_id: string; name: string }> =
       scope === "archived" ? snapshot.archived_orphans
       : scope === "duplicates" ? snapshot.duplicates
@@ -511,7 +527,9 @@ export function useChannelReconciliation() {
       .filter((o) => !erroredOwners.has(o.owner_id))
       .filter((o) => (seenListing.has(o.listing_id) ? false : seenListing.add(o.listing_id) && true))
       .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
-    const stale = scope === "actionable" ? snapshot.stale : [];
+    // `stale` is only populated when every account answered; an incomplete pass puts
+    // the unseen ids in `unverified`, which cleanup never touches.
+    const stale = scope === "actionable" && snapshot.read_complete !== false ? snapshot.stale : [];
     const total = listings.length + stale.length;
 
     const failed: CleanupOutcome["failures"] = [];
@@ -553,7 +571,7 @@ export function useChannelReconciliation() {
     }));
     const owners = byOwner.size > 0
       ? Array.from(byOwner.keys())
-      : snapshot.accounts.filter((a) => !a.error).map((a) => a.owner_id);
+      : snapshot.accounts.filter((a) => !a.error && a.read !== false).map((a) => a.owner_id);
     if (staleTargets.length > 0) {
       for (const owner of owners) {
         byOwner.set(owner, [...(byOwner.get(owner) ?? []), ...staleTargets]);

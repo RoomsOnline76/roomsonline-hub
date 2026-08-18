@@ -301,6 +301,15 @@ async function verifyListingPresence(
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
   const { listings, error, deferred } = await pullOwnerListings(admin, args.ownerId, args.ctx);
   if (error) return { present: null, archived: false, error, deferred };
+  // An empty answer is not evidence a listing was removed — treat it as unread so
+  // a local id is never released on the back of a blank read.
+  if (listings.length === 0) {
+    return {
+      present: null,
+      archived: false,
+      error: "The channel account answered with no listings at all — nothing was verified, try again shortly",
+    };
+  }
   const hit = listings.find((l) => String(l.id) === args.listingId);
   // RU never hard-deletes: a removed listing stays in the feed either flagged
   // archived (NLA) or simply switched inactive (Active="false"). Both mean it
@@ -587,6 +596,10 @@ Deno.serve(async (req) => {
         listing_count: number;
         archived_count?: number;
         total_listing_count?: number;
+        /** The account really answered with its listing set on this pass. */
+        read?: boolean;
+        /** Not read because the channel rate-limited/queued the pull. */
+        deferred?: boolean;
         error: string | null;
         is_master: boolean;
       }> = [];
@@ -704,25 +717,55 @@ Deno.serve(async (req) => {
         ]) as { data: unknown; error: { message: string } | null };
         const res = (listRes || {}) as {
           success?: boolean;
+          queued?: boolean;
           error?: { message?: string } | string;
           properties?: Array<{ id: string; name: string; is_active?: boolean; is_archived?: boolean }>;
         };
-        if (listErr || res.success === false) {
+        // A queued/rate-deferred pull answers `{ success: true, queued: true }` with
+        // NO properties array. Reading that as "zero listings" is what made every
+        // local id look stale and offered the real inventory up for cleanup.
+        const queuedRead = res.queued === true || !Array.isArray(res.properties);
+        if (listErr || res.success === false || queuedRead) {
           const message =
             listErr?.message ||
             (typeof res.error === "string" ? res.error : res.error?.message) ||
-            "Channel account could not be read";
-          accountResults.push({ ...base, listing_count: 0, error: message });
+            (queuedRead
+              ? "Not read — the channel rate-limited this pull, run the reconciliation again shortly"
+              : "Channel account could not be read");
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            read: false,
+            deferred: queuedRead && !listErr && res.success !== false,
+            error: message,
+          });
           continue;
         }
 
         const listings = res.properties || [];
+        // Only bound accounts are expected to hold ROL'OS ids; an empty answer
+        // from one of those while local records still point somewhere is not proof.
+        const localIdsHeld = bound ? localRecords.size : 0;
+        if (listings.length === 0 && localIdsHeld > 0) {
+          // The account answered, but empty, while ROL'OS holds ids against it.
+          // That is unverifiable, not proof of removal.
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            read: false,
+            deferred: false,
+            error: `Unverifiable — the account answered empty while ${localIdsHeld} local listing id(s) point at it`,
+          });
+          continue;
+        }
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
           ...base,
           listing_count: liveListings.length,
           archived_count: listings.length - liveListings.length,
           total_listing_count: listings.length,
+          read: true,
+          deferred: false,
           error: null,
         });
 
@@ -914,22 +957,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Local ids no account returns — only trustworthy when at least one account
-      // read succeeded, otherwise everything would look stale. A listing found on
-      // an unbound sub-account counts as seen, so it is reported as foreign, not stale.
-      const anyRead = accountResults.some((a) => a.error === null);
-      const stale = anyRead
-        ? Array.from(localRecords.values())
-            .filter((l) => !seenAnywhere.has(l.listingId))
-            .map((l) => ({
-              listing_id: l.listingId,
-              label: l.label,
-              kind: l.kind,
-              record_id: l.recordId,
-              property_id: l.propertyId,
-              local_active: l.isActive,
-            }))
-        : [];
+      // Local ids no account returns. "Stale" is a deletion verdict, so it may only
+      // be issued when EVERY account that could hold ROL'OS listings actually
+      // answered. If any of them was deferred, timed out, unreadable or answered
+      // empty, the unseen ids are reported as unverified instead — the cleanup path
+      // must never act on a read that did not happen.
+      const unreadAccounts = accountResults.filter((a) => a.error !== null && (a.bound || a.monitored));
+      const allAccountsRead = unreadAccounts.length === 0 && accountResults.some((a) => a.read === true);
+      const unseen = Array.from(localRecords.values())
+        .filter((l) => !seenAnywhere.has(l.listingId))
+        .map((l) => ({
+          listing_id: l.listingId,
+          label: l.label,
+          kind: l.kind,
+          record_id: l.recordId,
+          property_id: l.propertyId,
+          local_active: l.isActive,
+        }));
+      const stale = allAccountsRead ? unseen : [];
+      const unverified = allAccountsRead ? [] : unseen;
 
       const accountTotal = accountResults.reduce(
         (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
@@ -1048,6 +1094,11 @@ Deno.serve(async (req) => {
           orphans,
           duplicates,
           stale,
+          /** Unseen local ids from a pass where some account was not read. Never cleanup targets. */
+          unverified,
+          /** Every account that could hold ROL'OS listings answered on this pass. */
+          read_complete: allAccountsRead,
+          unread_owner_ids: unreadAccounts.map((a) => a.owner_id),
           footprint,
           untracked_unit_count: untrackedUnitCount,
           inactive_units_holding_listings: inactiveHeldCount,
@@ -1316,6 +1367,13 @@ Deno.serve(async (req) => {
       const snapshot = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
       if (snapshot.error) {
         return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
+      }
+      // A blank account read is unverified, not empty. Removing/releasing against it
+      // would delete the account's real inventory, so the batch refuses to run.
+      if (snapshot.listings.length === 0) {
+        return deferred(
+          "The channel account answered with no listings at all — nothing was verified, so no cleanup was run",
+        );
       }
       const heldNow = new Map<string, boolean>(); // listing id → still sellable
       for (const l of snapshot.listings) {
