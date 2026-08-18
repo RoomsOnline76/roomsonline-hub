@@ -4757,6 +4757,9 @@ Deno.serve(async (req) => {
           const extracted = extractRUPropertyId(pushResult.raw_xml);
           if (extracted) unitRuId = extracted;
         }
+        // The adapter may have adopted (and reactivated) an existing listing instead of creating.
+        if (pushResult.ru_property_id) unitRuId = String(pushResult.ru_property_id);
+
 
         if (unitRuId) {
           await supabase.from('hostfully_room_types').update({ rentalsunited_property_id: unitRuId }).eq('id', unit.id);
