@@ -1183,7 +1183,9 @@ Deno.serve(async (req) => {
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
-        live_properties: ownerCount ?? 0,
+        live_properties: livePropertyCount,
+        distribution_accounts: ownerCount ?? 0,
+        blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
         call_queue: {
           waiting: waitingRows.length,
