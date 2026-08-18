@@ -399,12 +399,22 @@ Deno.serve(async (req) => {
       "reconcile",
       "purge_listing",
       "clear_local_listing",
+      "cleanup_batch",
+      "repoint_local_listing",
     ];
     if (!raw || !scopes.includes(raw.scope)) {
       return bad(`scope must be one of: ${scopes.join(", ")}`);
     }
-    if (!raw.entity_id) return bad("entity_id is required");
-    const NO_ENABLED = new Set(["purge_duplicates", "reconcile", "purge_listing", "clear_local_listing"]);
+    if (!raw.entity_id && raw.scope !== "cleanup_batch") return bad("entity_id is required");
+    const NO_ENABLED = new Set([
+      "purge_duplicates",
+      "reconcile",
+      "purge_listing",
+      "clear_local_listing",
+      "cleanup_batch",
+      "repoint_local_listing",
+    ]);
+
     if (!NO_ENABLED.has(raw.scope) && typeof raw.enabled !== "boolean") {
       return bad("enabled is required");
     }
