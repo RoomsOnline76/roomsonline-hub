@@ -19,6 +19,7 @@ import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { resumePendingRuDeltas } from "../_shared/ruPendingDeltas.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
+import { fetchRetiredRuOwnerIds } from "../_shared/ruRetiredAccounts.ts";
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
