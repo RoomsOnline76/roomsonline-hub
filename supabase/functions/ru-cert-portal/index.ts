@@ -3512,7 +3512,7 @@ Deno.serve(async (req) => {
             message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message
               ?? "Rentals United rejected this API key pair. Confirm it belongs to the sub-user and has the XmlApi scope.",
           },
-        }, 422);
+        }, 200);
       }
 
       // Ownership check: a VALID pair is not necessarily THIS sub-user's pair. Without this,
