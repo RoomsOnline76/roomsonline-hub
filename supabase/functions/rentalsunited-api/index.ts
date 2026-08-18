@@ -3508,9 +3508,26 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      const users = extractUsers(response);
-      return jsonResponse({ success: true, users, count: users.length, raw_xml: response });
+      const all = extractUsers(response);
+      // Retired test sub-accounts are filtered here, at the single source every
+      // consumer reads, so none of them can be counted, read or pushed to again.
+      // `include_retired` exists only for the admin screen that reviews retirements.
+      const retired = body.include_retired === true ? new Set<string>() : await fetchRetiredRuOwnerIds();
+      const users = all.filter((u: { owner_id?: string }) => !retired.has(String(u.owner_id ?? '').trim()));
+      const excluded = all.length - users.length;
+      if (excluded > 0) {
+        console.log(`[rentalsunited-api] list_users: excluded ${excluded} retired sub-account(s): ${[...retired].join(', ')}`);
+      }
+      return jsonResponse({
+        success: true,
+        users,
+        count: users.length,
+        retired_owner_ids: [...retired],
+        retired_excluded_count: excluded,
+        raw_xml: response,
+      });
     }
+
 
     // ── fill_company_details ──
     if (action === 'fill_company_details') {
