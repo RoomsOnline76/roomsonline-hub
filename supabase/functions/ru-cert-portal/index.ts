@@ -3940,11 +3940,23 @@ Deno.serve(async (req) => {
       });
       // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
       const listedBody = listed ?? (await readInvokeErrorBody(listErr));
-      if (listErr || listedBody?.success !== true) {
+      /**
+       * A rate-limited read answers 202 { success: true, queued: true } with no property
+       * list. Treating that as "the account is empty" is what wiped listing verification
+       * and reported an empty sub-account, so an unresolved read is a deferral.
+       */
+      const queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
+      if (listErr || listedBody?.success !== true || queuedRead) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
         // never be reported as "the sub-account was empty".
-        const code = typeof listedBody?.error?.code === "string" ? listedBody.error.code : "RU_LIST_FAILED";
-        const detail = listedBody?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const code = typeof listedBody?.error?.code === "string"
+          ? listedBody.error.code
+          : (queuedRead && listedBody?.success === true ? "RU_RATE_DEFERRED" : "RU_LIST_FAILED");
+        const detail = listedBody?.error?.message
+          ?? (queuedRead && listedBody?.success === true
+            ? "The listing read was queued behind the channel rate limit and has not returned yet."
+            : null)
+          ?? listErr?.message ?? "Rentals United did not return a property list";
         const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
         return json({
           success: false,

@@ -231,11 +231,14 @@ async function pullOwnerListings(
     error?: { message?: string } | string;
     properties?: ChannelListing[];
   };
-  if (error || res.success === false) {
+  const queued = (res as { queued?: boolean }).queued === true || !Array.isArray(res.properties);
+  if (error || res.success === false || queued) {
     const message =
       error?.message ||
       (typeof res.error === "string" ? res.error : res.error?.message) ||
-      "Channel account could not be read";
+      (queued
+        ? "Listing read queued behind the channel rate limit — not counted as empty"
+        : "Channel account could not be read");
     return { listings: [], error: message };
   }
   return { listings: res.properties || [], error: null };
