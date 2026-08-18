@@ -1363,6 +1363,27 @@ Deno.serve(async (req) => {
         let listingId = t.listing_id ? String(t.listing_id) : null;
         let recordKind: "property" | "unit" | null = t.record_kind ?? null;
         if (t.type === "stale") {
+          // A stale id may belong to a different sub-account; never judge its
+          // presence against this account's snapshot.
+          const scopeProperty = t.property_id
+            ? String(t.property_id)
+            : recordKind === "property"
+              ? String(t.record_id ?? "")
+              : null;
+          if (scopeProperty) {
+            const staleOwner = await resolveRuOwnerId(admin, scopeProperty);
+            if (staleOwner && staleOwner !== ownerId) {
+              results.push({
+                key,
+                listing_id: t.listing_id ?? null,
+                label,
+                outcome: "skipped",
+                detail: `belongs to channel account ${staleOwner}`,
+              });
+              continue;
+            }
+          }
+
           const table = recordKind === "property" ? "properties" : "hostfully_room_types";
           const { data: record } = await admin
             .from(table)
