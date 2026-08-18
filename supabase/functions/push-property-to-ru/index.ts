@@ -4519,13 +4519,16 @@ Deno.serve(async (req) => {
         }
 
         const hardFailures = unitResults.filter((u: any) => !u.success && !u.transport_failure);
+        const unpublishedNote = unpublishedUnits.length > 0
+          ? ` ${unpublishedUnits.map((u) => u.name).join(', ')} still hold no channel listing.`
+          : '';
         const chunkErrorCode = chunkSuccess
           ? (remainingUnitIds.length > 0 ? 'RU_PUSH_RESUMABLE' : null)
           : hardFailures.length > 0 ? 'RU_INVENTORY_INCOMPLETE' : 'RU_PUSH_INTERRUPTED';
         const chunkErrorMessage = chunkSuccess
           ? (remainingUnitIds.length > 0
-            ? `Chunk complete — ${unitResults.length} unit(s) pushed and verified, ${remainingUnitIds.length} unit(s) still queued in this sequence.`
-            : null)
+            ? `Chunk complete — ${unitResults.length} unit(s) pushed and verified, ${remainingUnitIds.length} unit(s) still queued in this sequence.${unpublishedNote}`
+            : unpublishedNote.trim() || null)
           : hardFailures.length > 0
             ? `Rentals United rejected ${hardFailures.length} unit(s): ${hardFailures.map((u: any) => `${u.name} — ${u.error}`).join('; ')}`
             : 'The run ran out of time before every unit was pushed — retry the outstanding units.';
@@ -4547,6 +4550,7 @@ Deno.serve(async (req) => {
             sequence_complete: remainingUnitIds.length === 0,
             resumable: remainingUnitIds.length > 0,
             units: unitResults,
+            unpublished_units: unpublishedUnits,
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
