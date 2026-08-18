@@ -900,7 +900,7 @@ Deno.serve(async (req) => {
       const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { count: ownerCount }] = await Promise.all([
         supabase
           .from('ru_sync_runs')
-          .select('action, success, error_code, error_message, elapsed_ms, created_at')
+          .select('action, success, error_code, error_message, elapsed_ms, created_at, property_id')
           .gte('created_at', twentyFourHoursAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5000),
