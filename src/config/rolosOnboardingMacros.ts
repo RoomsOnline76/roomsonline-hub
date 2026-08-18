@@ -241,7 +241,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "currency",
-    order: 11,
+    order: 12,
     title: "Location & currency verification",
     goal: "The published location and currency agree on both sides.",
     section: "integrations",
@@ -249,7 +249,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "entitlement",
-    order: 12,
+    order: 13,
     title: "Enable Channel Manager",
     goal: "Channel Manager is on the billing profile so channels can connect.",
     section: "admin",
@@ -261,7 +261,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "connect",
-    order: 13,
+    order: 14,
     title: "Connect channels",
     goal: "The owner activates the sales channels they want to trade on.",
     action: "open_channels",
