@@ -2,7 +2,7 @@
 
 ## What the data shows
 
-For this sub-account (OwnerID 742004, ru-owner@roomsonline.co.za):
+For this sub-account (OwnerID 742004, [ru-owner@roomsonline.co.za](mailto:ru-owner@roomsonline.co.za)):
 
 - API key pair stored and verified today at 18:52
 - `company_details_status` is still `credentials_verified`, `company_filled_at` is empty
@@ -15,14 +15,14 @@ So the owner and keys steps really are done, and the automatic company push that
 6.  Push owner: create the distribution sub-user     (done)
 7.  Create key & secret for the sub-account          (done once stored + verified)
 8.  Company profile on the sub-account               (runs automatically)
-9.  Pull listings (if any)
-10. Sub-account verification
+9. Sub-account verification
+10.  Pull listings (if any)
 11. Push property & full ARI
 ...
 ```
 
 1. **Step 7 completes on keys alone.** Storing and verifying the pair is the whole job of that step. The company-details task moves out of it, so a verified sub-account no longer reads 67%.
-2. **Company details become their own step, and it self-runs.** When the wizard opens (or refreshes) and it sees: owner bound, key pair verified, and the push prerequisites met, it submits the company profile itself, once, without anyone pressing a button. The card shows "Sending company profile…" then "Accepted <time>".
+2. **Company details become their own step, and it self-runs.** When the wizard opens (or refreshes) and it sees: owner bound, key pair verified, and the push prerequisites met, it submits the company profile itself, once, without anyone pressing a button. The card shows "Sending company profile…" then "Accepted &nbsp;".
 3. **The manual button is only a correction tool.** "Send company details" stays, but it is a re-send for when the profile changed or the automatic attempt failed — not the normal path.
 4. **A failed attempt says why.** If the channel rejects or cannot be reached, the status is recorded as failed with the channel's own reason and the card shows that reason plus Retry, instead of falling back to the silent `credentials_verified` state.
 5. **Nothing downstream is falsely blocked.** Pull listings and sub-account verification depend on the key pair, not on the company profile. Only the publish step and the sign-off checklist keep the company-profile requirement, and the sign-off item stays locked until a real push at/after key verification is on record.
