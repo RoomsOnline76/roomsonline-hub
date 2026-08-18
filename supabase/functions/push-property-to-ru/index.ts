@@ -4735,10 +4735,20 @@ Deno.serve(async (req) => {
 
         if (pushErr || !pushResult?.success) {
           const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
-          console.error(`[push-property-to-ru] Unit "${unit.name}" push failed:`, errMsg);
-          unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: errMsg, diagnostics: pushResult?.diagnostics });
+          const adoptionUnverified = pushResult?.error?.code === 'RU_ADOPTION_UNVERIFIED'
+            || /RU_ADOPTION_UNVERIFIED/.test(errMsg);
+          console.error(`[push-property-to-ru] Unit "${unit.name}" push ${adoptionUnverified ? 'deferred' : 'failed'}:`, errMsg);
+          unitResults.push({
+            name: unit.name,
+            room_type_id: unit.id,
+            success: false,
+            ...(adoptionUnverified ? { deferred: true, transport_failure: true } : {}),
+            error: adoptionUnverified ? `Not pushed yet — ${errMsg}` : errMsg,
+            diagnostics: pushResult?.diagnostics,
+          });
           continue;
         }
+
 
         // Extract and save RU property ID for this unit. A stale ID was cleared above,
         // so never fall back to it — the retry create returns the real new ID.
