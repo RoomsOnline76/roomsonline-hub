@@ -4383,6 +4383,23 @@ Deno.serve(async (req) => {
 
           if (pushErr || !pushResult?.success) {
             const errMsg = pushErr?.message || pushResult?.error?.message || 'Unknown error';
+            // The adapter refused to create because it could not prove the listing does not
+            // already exist on the account. That is a deferral, not a content failure — retrying
+            // is safe and is the only way we avoid minting a duplicate generation.
+            const adoptionUnverified = pushResult?.error?.code === 'RU_ADOPTION_UNVERIFIED'
+              || /RU_ADOPTION_UNVERIFIED/.test(errMsg);
+            if (adoptionUnverified) {
+              console.warn(`[push-property-to-ru] Unit "${unit.name}" deferred — ${errMsg}`);
+              unitResults.push({
+                name: unit.name,
+                room_type_id: unit.id,
+                success: false,
+                deferred: true,
+                transport_failure: true,
+                error: `Not pushed yet — ${errMsg}`,
+              });
+              continue;
+            }
             // A failed create may still have registered the listing at the channel. Store the id
             // it handed back so the next run updates that listing instead of creating a duplicate.
             const stranded = Number(pushResult?.diagnostics?.stranded_ru_property_id ?? 0);
@@ -4394,6 +4411,7 @@ Deno.serve(async (req) => {
             unitResults.push({ name: unit.name, room_type_id: unit.id, success: false, error: errMsg, diagnostics: pushResult?.diagnostics });
             continue;
           }
+
 
           let unitRuId = existingUnitRuId > 0 && !staleIdError ? String(existingUnitRuId) : null;
           if (pushResult.raw_xml) {
