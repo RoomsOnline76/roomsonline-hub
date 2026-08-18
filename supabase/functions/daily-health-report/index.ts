@@ -29,6 +29,8 @@ async function generateAIDigest(
     top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
     rate_deferrals: number;
     setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+    blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
+    blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
   } | null,
 
 ): Promise<AIDigest | null> {
@@ -51,10 +53,12 @@ Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
 Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.action}: ${e.code} ×${e.count}${e.recovered ? ' (recovered)' : ''} — ${e.sample}`).join('; ') : 'None'}
 Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
-Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Wizard-gate refusals STILL outstanding (work genuinely needed): ${channelHealth.blocked_outstanding.length > 0 ? channelHealth.blocked_outstanding.map(b => `${b.blocker} ×${b.count}${b.properties.length > 0 ? ` (${b.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Wizard-gate refusals ALREADY CLEARED (do NOT recommend these): ${channelHealth.blocked_cleared.length > 0 ? channelHealth.blocked_cleared.map(b => `${b.blocker}${b.cleared_at ? ` cleared ${b.cleared_at}` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
 
 
-Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes.
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes. Wizard-gate refusals are not pipeline failures: never recommend a step listed as already cleared, and only raise refusals listed as still outstanding.
 
 Respond with exactly this JSON format:
 {
@@ -171,7 +175,18 @@ interface RuWlMetrics {
   ari_last_push_at: string | null;
   ari_stale_hours: number | null;
   cert: { status: string; passed: number; total: number; at: string | null } | null;
+  /** Trading properties with a real channel footprint (building listing or unit listings). */
   live_properties: number;
+  /** Distribution sub-accounts on record — an account is not a property. */
+  distribution_accounts: number;
+  /**
+   * Wizard-gate refusals. `phase_blocked` records are evidence that a push was refused,
+   * never a pipeline outcome, so they are reported here and resolved against current state.
+   */
+  blocked: {
+    outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
+    cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
+  };
   current_ok: boolean | null;
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
@@ -208,6 +223,16 @@ const isSetupGap = (r: RunLike): boolean =>
   );
 
 
+
+/**
+ * Refusal records are audit evidence, not pipelines: `phase_blocked` only ever writes
+ * success = false, so grading it as an action leaves it permanently red even after the
+ * blocker clears. It is reported in its own resolved-against-now block instead.
+ */
+const REFUSAL_ACTIONS = new Set(['phase_blocked']);
+
+const isRefusalRecord = (r: { action?: string | null }): boolean =>
+  REFUSAL_ACTIONS.has(String(r.action ?? ''));
 
 const isPipelineFailure = (r: RunLike): boolean =>
   r.success === false && !isRateDeferral(r) && !isSetupGap(r);
@@ -355,7 +380,8 @@ function generateEmailHtml(
         ${chip('Failed', ruWl.failed, ruWl.failed > 0 ? '#ef4444' : '#22c55e')}
         ${chip('Reservations', ruWl.reservations_24h, '#7c3aed')}
         ${ruWl.reservations_unprocessed > 0 ? chip('Unprocessed', ruWl.reservations_unprocessed, '#ef4444') : ''}
-        ${chip('Live properties', ruWl.live_properties, '#374151')}
+        ${chip('Live properties on channel', ruWl.live_properties, '#374151')}
+        ${chip('Distribution accounts', ruWl.distribution_accounts, '#374151')}
         ${chip('ARI pushed', ruWl.ari_stale_hours === null ? 'never' : `${ruWl.ari_stale_hours.toFixed(1)}h ago`, ruWl.ari_stale_hours === null || ruWl.ari_stale_hours > 8 ? '#ef4444' : '#22c55e')}
         ${ruWl.cert ? chip('Certification', `${ruWl.cert.passed}/${ruWl.cert.total}`, ruWl.cert.passed === ruWl.cert.total ? '#22c55e' : '#eab308') : ''}
       </div>
@@ -395,6 +421,14 @@ function generateEmailHtml(
         <strong style="font-size:12px;color:#92400e;">Waiting on owner setup (not a fault)</strong>
         <ul style="margin:6px 0 0 0;padding-left:18px;color:#78350f;font-size:12px;">
           ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+      ${(ruWl.blocked.outstanding.length > 0 || ruWl.blocked.cleared.length > 0) ? `
+      <div style="margin-top:10px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;">
+        <strong style="font-size:12px;color:#334155;">Pushes refused by the Channel wizard gate (not pipeline errors)</strong>
+        <ul style="margin:6px 0 0 0;padding-left:18px;color:#475569;font-size:12px;">
+          ${ruWl.blocked.outstanding.map(b => `<li style="margin-bottom:3px;"><strong>Outstanding</strong> — ${b.blocker}${b.properties.length > 0 ? ` · ${b.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.blocked.cleared.map(b => `<li style="margin-bottom:3px;color:#16a34a;">Cleared${b.cleared_at ? ` at ${b.cleared_at}` : ''} — ${b.blocker}${b.properties.length > 0 ? ` · ${b.properties.join(', ')}` : ''}</li>`).join('')}
         </ul>
       </div>` : ''}
 
@@ -870,7 +904,7 @@ Deno.serve(async (req) => {
       const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { count: ownerCount }] = await Promise.all([
         supabase
           .from('ru_sync_runs')
-          .select('action, success, error_code, error_message, elapsed_ms, created_at')
+          .select('action, success, error_code, error_message, elapsed_ms, created_at, property_id')
           .gte('created_at', twentyFourHoursAgo.toISOString())
           .order('created_at', { ascending: false })
           .limit(5000),
@@ -888,7 +922,10 @@ Deno.serve(async (req) => {
         supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
       ]);
 
-      const runs = syncRuns || [];
+      const allRuns = syncRuns || [];
+      // Wizard refusals are not calls: they must not pad totals or grade an action.
+      const runs = allRuns.filter(r => !isRefusalRecord(r));
+      const refusalRuns = allRuns.filter(isRefusalRecord);
       const byAction = new Map<string, typeof runs>();
       for (const r of runs) {
         const key = r.action || 'unknown';
@@ -958,6 +995,131 @@ Deno.serve(async (req) => {
         .slice(0, 5);
 
 
+      /**
+       * Wizard refusals resolved against current state. A refusal only matters if its blocker
+       * is STILL true — company details accepted a minute later must read "cleared", never
+       * "now failing", and the AI summary must not ask for work that already happened.
+       */
+      const blockedOutstanding: Array<{ blocker: string; count: number; properties: string[] }> = [];
+      const blockedCleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }> = [];
+
+      if (refusalRuns.length > 0) {
+        const blockedPropertyIds = [...new Set(
+          refusalRuns.map(r => (r as { property_id?: string | null }).property_id).filter(Boolean),
+        )] as string[];
+
+        const [{ data: blockedProps }, { data: memberRows }, { data: ownerAccounts }, { data: creds }] = await Promise.all([
+          blockedPropertyIds.length > 0
+            ? supabase.from('properties').select('id, name').in('id', blockedPropertyIds)
+            : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+          blockedPropertyIds.length > 0
+            ? supabase.from('property_portfolio_members').select('property_id, portfolio_id').in('property_id', blockedPropertyIds)
+            : Promise.resolve({ data: [] as Array<{ property_id: string; portfolio_id: string }> }),
+          supabase
+            .from('ru_owner_accounts')
+            .select('ru_owner_id, portfolio_id, property_id, company_details_status, company_filled_at'),
+          supabase.from('ru_api_credentials').select('ru_owner_id, verified_at'),
+        ]);
+
+        const nameById = new Map<string, string>((blockedProps ?? []).map((p: any) => [p.id, p.name]));
+        const portfolioByProperty = new Map<string, string>((memberRows ?? []).map((m: any) => [m.property_id, m.portfolio_id]));
+        const verifiedByOwner = new Map<string, string | null>((creds ?? []).map((c: any) => [String(c.ru_owner_id), c.verified_at]));
+
+        const accountFor = (propertyId: string | null) => {
+          if (!propertyId) return null;
+          const direct = (ownerAccounts ?? []).find((a: any) => a.property_id === propertyId);
+          if (direct) return direct as any;
+          const portfolioId = portfolioByProperty.get(propertyId);
+          return (ownerAccounts ?? []).find((a: any) => portfolioId && a.portfolio_id === portfolioId) ?? null;
+        };
+
+        /** Returns the clearance timestamp when the blocker no longer holds, else null. */
+        const clearedAt = (propertyId: string | null, blocker: string, refusedAt: string): string | null => {
+          const later = runs.find(
+            r =>
+              (r as { property_id?: string | null }).property_id === propertyId &&
+              r.success === true &&
+              new Date(r.created_at as string).getTime() > new Date(refusedAt).getTime(),
+          );
+          const account = accountFor(propertyId);
+          const verifiedAt = account ? verifiedByOwner.get(String((account as any).ru_owner_id)) ?? null : null;
+
+          if (/company details/i.test(blocker)) {
+            const status = String((account as any)?.company_details_status ?? '').toLowerCase();
+            const filledAt = (account as any)?.company_filled_at as string | null;
+            const ok =
+              ['sent', 'already_set'].includes(status) &&
+              !!filledAt &&
+              !!verifiedAt &&
+              new Date(filledAt).getTime() >= new Date(verifiedAt).getTime() - 60_000;
+            return ok ? filledAt : null;
+          }
+          if (/key ?& ?secret|accesskey|api key/i.test(blocker)) {
+            return verifiedAt;
+          }
+          return (later?.created_at as string) ?? null;
+        };
+
+        const groups = new Map<string, { count: number; properties: Set<string>; clearedAt: (string | null)[] }>();
+        for (const r of refusalRuns) {
+          const pid = (r as { property_id?: string | null }).property_id ?? null;
+          const blockers = String(r.error_message ?? 'Push refused by the Channel wizard gate')
+            .split('; ')
+            .map(b => b.trim())
+            .filter(Boolean);
+          for (const blocker of blockers) {
+            const entry = groups.get(blocker) ?? { count: 0, properties: new Set<string>(), clearedAt: [] };
+            entry.count += 1;
+            if (pid) entry.properties.add(nameById.get(pid) ?? pid.slice(0, 8));
+            entry.clearedAt.push(clearedAt(pid, blocker, r.created_at as string));
+            groups.set(blocker, entry);
+          }
+        }
+
+        for (const [blocker, v] of groups.entries()) {
+          const properties = [...v.properties].slice(0, 6);
+          const allCleared = v.clearedAt.every(Boolean);
+          if (allCleared) {
+            const newest = v.clearedAt
+              .filter(Boolean)
+              .sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime())[0] as string | undefined;
+            blockedCleared.push({ blocker: blocker.slice(0, 160), count: v.count, properties, cleared_at: shortTime(newest ?? null) });
+          } else {
+            blockedOutstanding.push({ blocker: blocker.slice(0, 160), count: v.count, properties });
+          }
+        }
+        blockedOutstanding.sort((a, b) => b.count - a.count);
+        blockedCleared.sort((a, b) => b.count - a.count);
+      }
+
+      /**
+       * "Live properties" means properties actually on the channel — a trading, non-sandbox,
+       * push-enabled property carrying a building listing id or at least one unit listing id.
+       * Counting distribution accounts here made 4 live properties read as 2.
+       */
+      let livePropertyCount = 0;
+      try {
+        const [{ data: footprintProps }, { data: footprintUnits }] = await Promise.all([
+          supabase
+            .from('properties')
+            .select('id, rentalsunited_property_id, is_trading, is_sandbox, ru_push_enabled')
+            .eq('is_trading', true)
+            .eq('ru_push_enabled', true),
+          supabase.from('hostfully_room_types').select('property_id, rentalsunited_property_id'),
+        ]);
+        const unitFootprint = new Set(
+          (footprintUnits ?? [])
+            .filter((u: any) => !!String(u.rentalsunited_property_id ?? '').trim())
+            .map((u: any) => u.property_id as string),
+        );
+        livePropertyCount = (footprintProps ?? []).filter(
+          (p: any) =>
+            p.is_sandbox !== true &&
+            (!!String(p.rentalsunited_property_id ?? '').trim() || unitFootprint.has(p.id)),
+        ).length;
+      } catch (footprintError) {
+        console.error('[Daily Health Report] Live-property footprint error:', footprintError);
+      }
 
 
       const errorCounts = new Map<string, { action: string; code: string; count: number; sample: string }>();
@@ -1025,7 +1187,9 @@ Deno.serve(async (req) => {
         ari_last_push_at: shortTime(lastAri),
         ari_stale_hours: hoursSince(lastAri),
         cert,
-        live_properties: ownerCount ?? 0,
+        live_properties: livePropertyCount,
+        distribution_accounts: ownerCount ?? 0,
+        blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
         call_queue: {
           waiting: waitingRows.length,
@@ -1064,6 +1228,8 @@ Deno.serve(async (req) => {
             top_errors: ruWl.top_errors,
             rate_deferrals: ruWl.rate_deferrals,
             setup_gaps: ruWl.setup_gaps,
+            blocked_outstanding: ruWl.blocked.outstanding,
+            blocked_cleared: ruWl.blocked.cleared,
 
           }
         : null,
