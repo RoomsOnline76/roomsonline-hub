@@ -29,6 +29,8 @@ async function generateAIDigest(
     top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
     rate_deferrals: number;
     setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+    blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
+    blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
   } | null,
 
 ): Promise<AIDigest | null> {
