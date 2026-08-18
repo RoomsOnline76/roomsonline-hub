@@ -296,6 +296,12 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 ({result.channel_listing_count} live + {result.archived_count} archived)
               </span>
               <span>{result.stale.length} stale local id{result.stale.length === 1 ? "" : "s"}</span>
+              <span>
+                Live breakdown: {matchedLiveListings} matched + {result.duplicates.length} duplicate cop
+                {result.duplicates.length === 1 ? "y" : "ies"} + {result.orphans.length} orphan
+                {result.orphans.length === 1 ? "" : "s"} = {liveBucketTotal} of {result.channel_listing_count} live
+              </span>
+
               {gap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
