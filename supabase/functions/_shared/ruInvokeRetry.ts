@@ -21,6 +21,10 @@ const BACKOFF_MS = [1500, 4000];
 /** Longer ladder for the channel's own 1-per-sliding-minute rate limit. */
 const RATE_BACKOFF_MS = [20_000, 45_000, 70_000];
 
+/** Attempt budget for a create refused at the adoption pre-read (nothing was created yet). */
+const ADOPTION_RETRY_ATTEMPTS = 3;
+
+
 /** True when the failure is the channel's sliding-minute rate limit (status -6 / our gate). */
 function isRateLimited(data: any, errorCode: string | null, message: string | null): boolean {
   if (errorCode === 'RU_RATE_DEFERRED') return true;
@@ -61,8 +65,12 @@ export async function invokeRuWithRetry(
   // A transport failure says nothing about whether the channel already registered it, so a blind
   // retry can produce a duplicate — creates get a single attempt unless the caller opts in.
   const isCreate = body.action === 'push_property' && Number(body.ru_property_id ?? 0) === 0;
-  const maxAttempts = isCreate && opts.allowCreateRetry !== true ? 1 : (opts.maxAttempts ?? 3);
+  // `let`: a create refused at the adapter's adoption pre-read (RU_ADOPTION_UNVERIFIED) never
+  // reached the create call — nothing was minted, so that one failure IS safe to retry. The
+  // attempt budget is raised only after such a response is seen.
+  let maxAttempts = isCreate && opts.allowCreateRetry !== true ? 1 : (opts.maxAttempts ?? 3);
   const label = opts.label ?? String(body.action ?? 'ru_call');
+
 
 
   let last: RuInvokeResult = {
@@ -110,13 +118,22 @@ export async function invokeRuWithRetry(
     // The sliding-minute rate limit is retryable even though it carries a business code —
     // waiting out the window is the documented way to comply with it.
     const rateLimited = isRateLimited(data, errorCode, message);
-    const retryable = rateLimited || (errorCode === null && isTransient(httpStatus, message));
+    // The adoption pre-read is the step BEFORE anything can be created: refused there, the create
+    // never ran, so retrying it cannot duplicate a listing (this is what left units unpublished).
+    const adoptionUnverified =
+      errorCode === 'RU_ADOPTION_UNVERIFIED' || /RU_ADOPTION_UNVERIFIED/.test(message || '');
+    if (adoptionUnverified && maxAttempts < ADOPTION_RETRY_ATTEMPTS) {
+      maxAttempts = ADOPTION_RETRY_ATTEMPTS;
+    }
+    const retryable = rateLimited || adoptionUnverified || (errorCode === null && isTransient(httpStatus, message));
     if (!retryable || attempt === maxAttempts) break;
 
-    const suggested = Number(data?.error?.retry_after_ms ?? 0);
-    const wait = rateLimited
+
+    const suggested = Number(data?.error?.retry_after_ms ?? data?.retry_after_ms ?? 0);
+    const wait = rateLimited || adoptionUnverified
       ? Math.max(suggested + 500, RATE_BACKOFF_MS[attempt - 1] ?? RATE_BACKOFF_MS[RATE_BACKOFF_MS.length - 1])
       : (BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
+
     console.warn(
       `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms${rateLimited ? ' [rate limit backoff]' : ''}`,
     );

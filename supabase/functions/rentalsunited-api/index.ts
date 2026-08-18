@@ -22,7 +22,7 @@ import {
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
-import { RU_RATE_DEFERRED_CODE, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall } from '../_shared/ruRateGate.ts';
+import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall } from '../_shared/ruRateGate.ts';
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
 
 /**
@@ -587,6 +587,33 @@ function buildListPropertiesXml(creds: RUCredentials, ownerId: number): string {
 function buildVerifyOwnerAccessXml(creds: RUCredentials, ownerId: number): string {
   return buildListPropertiesXml(creds, ownerId);
 }
+
+/**
+ * Owner listing snapshot, shared across invocations on the same warm worker.
+ *
+ * `Pull_ListOwnerProp_RQ` for one owner is byte-identical for every unit of a property push, so
+ * the sliding-minute gate legitimately refused units 2..N and whole units went unpublished. The
+ * first unit pays for the read; the rest of the push adopts from this snapshot and never touches
+ * the channel again inside the same window.
+ */
+interface OwnerListingRow { id: string; name: string; is_archived: boolean }
+const OWNER_LISTING_SNAPSHOTS = new Map<number, { at: number; listings: OwnerListingRow[] }>();
+const OWNER_LISTING_TTL_MS = RU_RATE_WINDOW_SECONDS * 1000;
+
+function readOwnerListingSnapshot(ownerId: number): OwnerListingRow[] | null {
+  const hit = OWNER_LISTING_SNAPSHOTS.get(ownerId);
+  if (!hit) return null;
+  if (Date.now() - hit.at > OWNER_LISTING_TTL_MS) {
+    OWNER_LISTING_SNAPSHOTS.delete(ownerId);
+    return null;
+  }
+  return hit.listings;
+}
+
+function writeOwnerListingSnapshot(ownerId: number, listings: OwnerListingRow[]): void {
+  OWNER_LISTING_SNAPSHOTS.set(ownerId, { at: Date.now(), listings });
+}
+
 
 /**
  * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
@@ -2673,25 +2700,49 @@ Deno.serve(async (req) => {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, ' ')
             .trim();
-        let listing: { id: string; name: string; is_archived: boolean } | undefined;
-        try {
-          const ownerId = Number(p.owner_id);
-          const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
-          const listStatus = handleRUStatus(listXml);
-          if (!listStatus.ok) {
+        let listing: OwnerListingRow | undefined;
+        const ownerId = Number(p.owner_id);
+        const wanted = normaliseName(p.name as string);
+        const snapshot = readOwnerListingSnapshot(ownerId);
+        if (snapshot) {
+          // Already read inside the channel's sliding window by an earlier unit of this push.
+          listing = snapshot.find((l) => normaliseName(l.name) === wanted);
+        } else {
+          try {
+            const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
+            const listStatus = handleRUStatus(listXml);
+            if (!listStatus.ok) {
+              return errorResponse(
+                'RU_ADOPTION_UNVERIFIED',
+                `Could not read the account's existing listings (${listStatus.status.id}: ${listStatus.status.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+              );
+            }
+            const listings = extractPropertyIds(listXml) as OwnerListingRow[];
+            writeOwnerListingSnapshot(ownerId, listings);
+            listing = listings.find((l) => normaliseName(l.name) === wanted);
+          } catch (e) {
+            // A gate deferral means the read never happened — nothing was created, so the caller
+            // can safely retry. Carry the gate's own wait so it paces instead of guessing.
+            if (e instanceof RuRateDeferredError) {
+              return jsonResponse({
+                success: false,
+                error: {
+                  code: 'RU_ADOPTION_UNVERIFIED',
+                  rate_deferred: true,
+                  rate_deferred_code: RU_RATE_DEFERRED_CODE,
+                  retry_after_ms: e.waitMs,
+                  message: `Could not read the account's existing listings (${e.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+                },
+                retry_after_ms: e.waitMs,
+              }, 429);
+            }
             return errorResponse(
               'RU_ADOPTION_UNVERIFIED',
-              `Could not read the account's existing listings (${listStatus.status.id}: ${listStatus.status.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+              `Could not read the account's existing listings (${e instanceof Error ? e.message : String(e)}) — refusing to create a listing that may already exist. Retry shortly.`,
             );
           }
-          const wanted = normaliseName(p.name as string);
-          listing = extractPropertyIds(listXml).find((l) => normaliseName(l.name) === wanted);
-        } catch (e) {
-          return errorResponse(
-            'RU_ADOPTION_UNVERIFIED',
-            `Could not read the account's existing listings (${e instanceof Error ? e.message : String(e)}) — refusing to create a listing that may already exist. Retry shortly.`,
-          );
         }
+
 
         if (listing) {
           effectiveRuPropertyId = parseInt(listing.id, 10);
@@ -2821,7 +2872,21 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Keep the warm-worker snapshot truthful: a listing just created (or adopted) must be
+      // visible to the next unit of this push, which reads the snapshot instead of the channel.
+      if (returnedPropertyId != null) {
+        const ownerIdNum = Number(p.owner_id);
+        const snap = readOwnerListingSnapshot(ownerIdNum);
+        if (snap) {
+          const idStr = String(returnedPropertyId);
+          const next = snap.filter((l) => String(l.id) !== idStr);
+          next.push({ id: idStr, name: String(p.name ?? ''), is_archived: false });
+          writeOwnerListingSnapshot(ownerIdNum, next);
+        }
+      }
+
       return jsonResponse({
+
         success: true,
         message: distancesSkipped > 0
           ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
