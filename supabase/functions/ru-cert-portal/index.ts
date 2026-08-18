@@ -2076,6 +2076,7 @@ Deno.serve(async (req) => {
         mandatory_total: summary.mandatory_total,
         mandatory_passed: summary.mandatory_passed,
         score: summary.score,
+        unpublished_units: unpublishedUnitNames,
         ari,
       };
     };
