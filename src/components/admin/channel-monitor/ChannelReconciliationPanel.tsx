@@ -332,6 +332,111 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               </p>
             )}
 
+            {/* Single-account rule: ROL'OS listings live on the monitored sub-account only. */}
+            {(result.owner_violations?.length ?? 0) > 0 && (
+              <div className="rounded-md border border-destructive/40 p-3 text-sm text-destructive space-y-1">
+                <p className="font-medium">Listings found outside the monitored account</p>
+                {result.owner_violations!.map((v) => (
+                  <p key={v.owner_id}>
+                    {v.owner_label} holds {v.live_listing_count} live listing
+                    {v.live_listing_count === 1 ? "" : "s"} — archive them, nothing may sell from this account.
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {(result.unverifiable_accounts?.length ?? 0) > 0 && (
+              <div className="rounded-md border border-amber-500/40 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  {result.unverifiable_accounts!.length} account
+                  {result.unverifiable_accounts!.length === 1 ? "" : "s"} could not be read — cannot be proven empty
+                </p>
+                {result.unverifiable_accounts!.map((a) => (
+                  <p key={a.owner_id}>
+                    {a.owner_label} — {a.reason}
+                  </p>
+                ))}
+              </div>
+            )}
+
+            {/* What ROL'OS holds per property, so a unit missing a listing is visible. */}
+            {(result.footprint?.length ?? 0) > 0 && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-medium">
+                  Per-property footprint
+                  {(result.untracked_unit_count ?? 0) > 0 && (
+                    <span className="ml-2 text-xs font-normal text-destructive">
+                      {result.untracked_unit_count} active unit
+                      {result.untracked_unit_count === 1 ? "" : "s"} hold no channel listing
+                    </span>
+                  )}
+                </h4>
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Property</th>
+                        <th className="px-3 py-2 text-right font-medium">Active units</th>
+                        <th className="px-3 py-2 text-right font-medium">With listing</th>
+                        <th className="px-3 py-2 text-right font-medium">Live on channel</th>
+                        <th className="px-3 py-2 text-left font-medium">Gaps</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.footprint!.map((f) => {
+                        const gapUnits = f.units_without_listing;
+                        const parked = f.inactive_units_with_listing;
+                        return (
+                          <tr key={f.property_id} className="border-t align-top">
+                            <td className="px-3 py-2">
+                              {f.property_name}
+                              {f.building_listing_id && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  building {f.building_listing_id}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">{f.active_units}</td>
+                            <td className="px-3 py-2 text-right">{f.units_with_listing}</td>
+                            <td className="px-3 py-2 text-right">
+                              {f.live_on_channel}
+                              {f.archived_on_channel > 0 && (
+                                <span className="ml-1 text-xs text-muted-foreground">
+                                  (+{f.archived_on_channel} archived)
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-xs">
+                              {gapUnits.length === 0 && parked.length === 0 ? (
+                                <span className="text-muted-foreground">none</span>
+                              ) : (
+                                <div className="space-y-1">
+                                  {gapUnits.length > 0 && (
+                                    <p className="text-destructive">
+                                      No listing yet: {gapUnits.map((u) => u.name).join(", ")} — run a push to
+                                      adopt or create.
+                                    </p>
+                                  )}
+                                  {parked.length > 0 && (
+                                    <p className="text-muted-foreground">
+                                      Listing held by an inactive unit:{" "}
+                                      {parked.map((u) => `${u.name} (${u.listing_id})`).join(", ")} — archive
+                                      upstream or reactivate the unit.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+
             {/* Which sub-account every number came from. Always visible: a report that
                 names no account cannot be checked against the channel portal. */}
             <section className="space-y-2">
