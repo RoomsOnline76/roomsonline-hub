@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
+import { useAuth } from "@/hooks/useAuth";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import {
   ROLOS_ONBOARDING_MACROS,
@@ -155,6 +156,7 @@ const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
 
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const readiness = usePropertyReadiness(propertyId);
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
   /**
@@ -1041,14 +1043,14 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const companyAutoReady =
     !!companyAutoOwner && !!d?.identity?.keys_captured && !!d?.identity?.keys?.verified_at;
   useEffect(() => {
-    if (!isPlatformActor) return;
+    if (!isAdmin) return;
     if (!companyAutoReady || companyDetailsPushed) return;
     const last = companyAutoRef.current.get(companyAutoOwner) ?? 0;
     // One attempt per owner per session, retried at most every 5 minutes.
     if (Date.now() - last < 5 * 60_000) return;
     companyAutoRef.current.set(companyAutoOwner, Date.now());
     void sendCompanyDetails(false);
-  }, [companyAutoOwner, companyAutoReady, companyDetailsPushed, isPlatformActor, sendCompanyDetails]);
+  }, [companyAutoOwner, companyAutoReady, companyDetailsPushed, isAdmin, sendCompanyDetails]);
 
   /** Record the outcome of a "Pull listings" run (step 9). */
   const recordListingPull = useCallback(
