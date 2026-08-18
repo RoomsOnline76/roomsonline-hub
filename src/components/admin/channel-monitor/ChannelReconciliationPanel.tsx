@@ -413,11 +413,43 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                               ) : (
                                 <div className="space-y-1">
                                   {gapUnits.length > 0 && (
-                                    <p className="text-destructive">
-                                      No listing yet: {gapUnits.map((u) => u.name).join(", ")} — run a push to
-                                      adopt or create.
-                                    </p>
+                                    <div className="space-y-1">
+                                      <p className="text-destructive">
+                                        No listing yet: {gapUnits.map((u) => u.name).join(", ")} — publish to
+                                        adopt or create.
+                                      </p>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={busyId === `publish:${f.property_id}`}
+                                        onClick={async () => {
+                                          setBusyId(`publish:${f.property_id}`);
+                                          try {
+                                            await publishMissingUnits({
+                                              property_id: f.property_id,
+                                              unit_ids: gapUnits.map((u) => u.record_id),
+                                            });
+                                            toast.success(`Published ${gapUnits.length} unit(s) for ${f.property_name}`);
+                                            onChanged?.();
+                                          } catch (e) {
+                                            toast.error(
+                                              e instanceof Error ? e.message : "Could not publish the missing units",
+                                            );
+                                          } finally {
+                                            setBusyId(null);
+                                          }
+                                        }}
+                                      >
+                                        {busyId === `publish:${f.property_id}` ? (
+                                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <Sparkles className="mr-1 h-3 w-3" />
+                                        )}
+                                        Publish missing units
+                                      </Button>
+                                    </div>
                                   )}
+
                                   {parked.length > 0 && (
                                     <p className="text-muted-foreground">
                                       Listing held by an inactive unit:{" "}
