@@ -355,7 +355,8 @@ function generateEmailHtml(
         ${chip('Failed', ruWl.failed, ruWl.failed > 0 ? '#ef4444' : '#22c55e')}
         ${chip('Reservations', ruWl.reservations_24h, '#7c3aed')}
         ${ruWl.reservations_unprocessed > 0 ? chip('Unprocessed', ruWl.reservations_unprocessed, '#ef4444') : ''}
-        ${chip('Live properties', ruWl.live_properties, '#374151')}
+        ${chip('Live properties on channel', ruWl.live_properties, '#374151')}
+        ${chip('Distribution accounts', ruWl.distribution_accounts, '#374151')}
         ${chip('ARI pushed', ruWl.ari_stale_hours === null ? 'never' : `${ruWl.ari_stale_hours.toFixed(1)}h ago`, ruWl.ari_stale_hours === null || ruWl.ari_stale_hours > 8 ? '#ef4444' : '#22c55e')}
         ${ruWl.cert ? chip('Certification', `${ruWl.cert.passed}/${ruWl.cert.total}`, ruWl.cert.passed === ruWl.cert.total ? '#22c55e' : '#eab308') : ''}
       </div>
