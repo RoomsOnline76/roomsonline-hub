@@ -1734,8 +1734,27 @@ Deno.serve(async (req) => {
               body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
             })),
           ]);
-          const avbXml: string = avbRes.data?.raw_xml ?? "";
-          const priceXml: string = priceRes.data?.raw_xml ?? "";
+          // A rate-limited read comes back as 202 { success: true, queued: true } with no XML.
+          // That is "not read", never "answered with an empty calendar" — reuse the last real
+          // answer the channel gave for this unit instead of inventing a zero-day verdict.
+          let availabilityAnswered = ruReadAnswered(avbRes);
+          let pricesAnswered = ruReadAnswered(priceRes);
+          let avbXml: string = availabilityAnswered ? String(avbRes.data?.raw_xml ?? "") : "";
+          let priceXml: string = pricesAnswered ? String(priceRes.data?.raw_xml ?? "") : "";
+          if (!availabilityAnswered) {
+            const replayed = await loadLastGoodRuXml(admin, ruId, "Pull_ListPropertyAvailabilityCalendar_RQ");
+            if (replayed) {
+              avbXml = replayed;
+              availabilityAnswered = true;
+            }
+          }
+          if (!pricesAnswered) {
+            const replayed = await loadLastGoodRuXml(admin, ruId, "Pull_ListPropertyPrices_RQ");
+            if (replayed) {
+              priceXml = replayed;
+              pricesAnswered = true;
+            }
+          }
           const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
           const bookableWindow = findRuBookableWindow(avbXml, priceXml);
@@ -1744,11 +1763,13 @@ Deno.serve(async (req) => {
             unit_name: nameFor(ruId),
             open_days: openDays,
             price_points: prices.length,
-            availability_responded: !!avbRes.data?.success && avbRes.error == null,
-            prices_responded: !!priceRes.data?.success && priceRes.error == null,
-            availability_ok: !!avbRes.data?.success && openDays > 0,
-            availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
-            prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
+            availability_responded: availabilityAnswered,
+            prices_responded: pricesAnswered,
+            availability_ok: availabilityAnswered && openDays > 0,
+            availability_error: availabilityAnswered
+              ? null
+              : (avbRes.error?.message ?? avbRes.data?.error?.message ?? "Channel read not available (rate limited or queued)"),
+            prices_ok: pricesAnswered && prices.length > 0 && prices.every((price) => price > 0),
             bookable_window: bookableWindow as RuBookableWindow,
           };
           ariProbeCache.set(cacheKey, { at: Date.now(), probe });
