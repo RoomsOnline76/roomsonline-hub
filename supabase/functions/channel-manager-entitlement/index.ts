@@ -734,10 +734,10 @@ Deno.serve(async (req) => {
         }
 
         const listings = res.properties || [];
-        const localIdsForOwner = Array.from(localRecords.values()).filter(
-          (l) => (ownerByListing.get(l.listingId) ?? ownerId) === ownerId,
-        ).length;
-        if (listings.length === 0 && localIdsForOwner > 0) {
+        // Only bound accounts are expected to hold ROL'OS ids; an empty answer
+        // from one of those while local records still point somewhere is not proof.
+        const localIdsHeld = bound ? localRecords.size : 0;
+        if (listings.length === 0 && localIdsHeld > 0) {
           // The account answered, but empty, while ROL'OS holds ids against it.
           // That is unverifiable, not proof of removal.
           accountResults.push({
