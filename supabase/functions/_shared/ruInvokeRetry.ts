@@ -114,8 +114,16 @@ export async function invokeRuWithRetry(
     // The sliding-minute rate limit is retryable even though it carries a business code —
     // waiting out the window is the documented way to comply with it.
     const rateLimited = isRateLimited(data, errorCode, message);
-    const retryable = rateLimited || (errorCode === null && isTransient(httpStatus, message));
+    // The adoption pre-read is the step BEFORE anything can be created: refused there, the create
+    // never ran, so retrying it cannot duplicate a listing (this is what left units unpublished).
+    const adoptionUnverified =
+      errorCode === 'RU_ADOPTION_UNVERIFIED' || /RU_ADOPTION_UNVERIFIED/.test(message || '');
+    if (adoptionUnverified && maxAttempts < ADOPTION_RETRY_ATTEMPTS) {
+      maxAttempts = ADOPTION_RETRY_ATTEMPTS;
+    }
+    const retryable = rateLimited || adoptionUnverified || (errorCode === null && isTransient(httpStatus, message));
     if (!retryable || attempt === maxAttempts) break;
+
 
     const suggested = Number(data?.error?.retry_after_ms ?? 0);
     const wait = rateLimited
