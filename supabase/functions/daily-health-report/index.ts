@@ -220,6 +220,16 @@ const isSetupGap = (r: RunLike): boolean =>
 
 
 
+/**
+ * Refusal records are audit evidence, not pipelines: `phase_blocked` only ever writes
+ * success = false, so grading it as an action leaves it permanently red even after the
+ * blocker clears. It is reported in its own resolved-against-now block instead.
+ */
+const REFUSAL_ACTIONS = new Set(['phase_blocked']);
+
+const isRefusalRecord = (r: { action?: string | null }): boolean =>
+  REFUSAL_ACTIONS.has(String(r.action ?? ''));
+
 const isPipelineFailure = (r: RunLike): boolean =>
   r.success === false && !isRateDeferral(r) && !isSetupGap(r);
 
