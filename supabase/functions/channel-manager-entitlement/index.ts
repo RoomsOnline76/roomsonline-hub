@@ -375,9 +375,10 @@ Deno.serve(async (req) => {
 
 
       const [{ data: props }, { data: units }] = await Promise.all([
-        admin.from("properties").select("id, name, is_active, rentalsunited_property_id"),
+        admin.from("properties").select("id, name, is_active, is_trading, ru_push_enabled, rentalsunited_property_id"),
         admin.from("hostfully_room_types").select("id, name, property_id, is_active, rentalsunited_property_id"),
       ]);
+
 
       type Local = {
         listingId: string;
@@ -874,6 +875,92 @@ Deno.serve(async (req) => {
         .filter((a) => a.bound)
         .reduce((sum, a) => sum + (a.total_listing_count ?? a.listing_count), 0);
 
+      /**
+       * Per-property footprint. Counting only listings the channel returns hides the
+       * other half of the disconnect: an active unit that holds no listing id at all,
+       * or a listing id parked on a unit that is no longer active. Both are reported
+       * so "some units are missing" is visible instead of implied.
+       */
+      const unitsByProperty = new Map<string, Array<Record<string, unknown>>>();
+      for (const u of (units || []) as Array<Record<string, unknown>>) {
+        const pid = String(u.property_id);
+        const bucket = unitsByProperty.get(pid);
+        if (bucket) bucket.push(u);
+        else unitsByProperty.set(pid, [u]);
+      }
+      const footprint: Array<{
+        property_id: string;
+        property_name: string;
+        push_enabled: boolean;
+        building_listing_id: string | null;
+        active_units: number;
+        units_with_listing: number;
+        units_without_listing: Array<{ record_id: string; name: string }>;
+        inactive_units_with_listing: Array<{ record_id: string; name: string; listing_id: string }>;
+        live_on_channel: number;
+        archived_on_channel: number;
+      }> = [];
+      for (const p of (props || []) as Array<Record<string, unknown>>) {
+        const pid = p.id as string;
+        const pUnits = unitsByProperty.get(pid) || [];
+        const buildingId = (p.rentalsunited_property_id as string | null) ?? null;
+        const holdsFootprint =
+          Boolean(buildingId) || pUnits.some((u) => Boolean(u.rentalsunited_property_id)) || p.ru_push_enabled === true;
+        if (!holdsFootprint) continue;
+
+        const activeUnits = pUnits.filter((u) => u.is_active !== false);
+        const ids = [
+          ...(buildingId ? [buildingId] : []),
+          ...pUnits.map((u) => u.rentalsunited_property_id as string | null).filter(Boolean) as string[],
+        ];
+        footprint.push({
+          property_id: pid,
+          property_name: (p.name as string) || "Untitled property",
+          push_enabled: p.ru_push_enabled === true,
+          building_listing_id: buildingId,
+          active_units: activeUnits.length,
+          units_with_listing: activeUnits.filter((u) => Boolean(u.rentalsunited_property_id)).length,
+          units_without_listing: activeUnits
+            .filter((u) => !u.rentalsunited_property_id)
+            .map((u) => ({ record_id: u.id as string, name: (u.name as string) || "Unit" })),
+          inactive_units_with_listing: pUnits
+            .filter((u) => u.is_active === false && Boolean(u.rentalsunited_property_id))
+            .map((u) => ({
+              record_id: u.id as string,
+              name: (u.name as string) || "Unit",
+              listing_id: String(u.rentalsunited_property_id),
+            })),
+          live_on_channel: ids.filter((id) => liveOnChannel.has(id)).length,
+          archived_on_channel: ids.filter((id) => archivedOnChannel.has(id)).length,
+        });
+      }
+      const untrackedUnitCount = footprint.reduce((s, f) => s + f.units_without_listing.length, 0);
+      const inactiveHeldCount = footprint.reduce((s, f) => s + f.inactive_units_with_listing.length, 0);
+
+      /**
+       * Single-account rule. Every ROL'OS listing must live on the monitored
+       * sub-account(s). A live listing anywhere else is a violation, and an account
+       * we cannot read is reported as unverifiable rather than assumed empty.
+       */
+      const allowedOwnerIds = accountResults.filter((a) => a.monitored).map((a) => a.owner_id);
+      const allowedSet = new Set(allowedOwnerIds);
+      const ownerViolations = accountResults
+        .filter((a) => !allowedSet.has(a.owner_id) && a.listing_count > 0)
+        .map((a) => ({
+          owner_id: a.owner_id,
+          owner_label: a.owner_label,
+          live_listing_count: a.listing_count,
+        }));
+      const unverifiableAccounts = accountResults
+        .filter((a) => a.error !== null)
+        .map((a) => ({
+          owner_id: a.owner_id,
+          owner_label: a.owner_label,
+          bound: a.bound,
+          has_keys: a.has_keys,
+          reason: a.error as string,
+        }));
+
       return new Response(
         JSON.stringify({
           success: true,
@@ -895,10 +982,17 @@ Deno.serve(async (req) => {
           orphans,
           duplicates,
           stale,
+          footprint,
+          untracked_unit_count: untrackedUnitCount,
+          inactive_units_holding_listings: inactiveHeldCount,
+          allowed_owner_ids: allowedOwnerIds,
+          owner_violations: ownerViolations,
+          unverifiable_accounts: unverifiableAccounts,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
 
       );
+
     }
 
     // ── Remove a single listing id upstream: verify → delete → verify ─

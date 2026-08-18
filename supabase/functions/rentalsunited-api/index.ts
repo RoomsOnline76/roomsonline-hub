@@ -2652,36 +2652,70 @@ Deno.serve(async (req) => {
 
       /**
        * Duplicate-listing safety. A create (`ru_property_id === 0`) is the only call that can
-       * mint a new listing, so it must be idempotent:
+       * mint a new listing, so it must never run on a guess:
        *   1. Attraction distances are never sent on a create — RU answers status 92 for them on
        *      some accounts, and a failed create may still have registered the listing, which is
        *      how the account collected duplicates. Distances ride along on updates only.
-       *   2. Before composing the XML we ask the owner account whether a listing with this exact
-       *      name already exists. If it does we adopt its id and push an UPDATE instead.
+       *   2. Before composing the XML we read the owner's ENTIRE listing list (archived included)
+       *      and adopt a name match. An archived match is reactivated and updated instead of
+       *      creating a second copy.
+       *   3. If that read fails or is throttled we REFUSE the create (`RU_ADOPTION_UNVERIFIED`).
+       *      Falling through to a blind create is what minted whole new generations of listings.
        */
       let effectiveRuPropertyId = ru_property_id as number;
-      let adoptedExistingListing: { id: number; name: string } | null = null;
+      let adoptedExistingListing: { id: number; name: string; was_archived: boolean } | null = null;
+      let reactivatedListing = false;
       if (effectiveRuPropertyId === 0) {
         p.distances = [];
+        const normaliseName = (v: string) =>
+          String(v ?? '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+        let listing: { id: string; name: string; is_archived: boolean } | undefined;
         try {
           const ownerId = Number(p.owner_id);
           const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
           const listStatus = handleRUStatus(listXml);
-          if (listStatus.ok) {
-            const wanted = String(p.name || '').trim().toLowerCase();
-            const hit = extractPropertyIds(listXml).find(
-              (l) => l.name.trim().toLowerCase() === wanted && !l.is_archived,
+          if (!listStatus.ok) {
+            return errorResponse(
+              'RU_ADOPTION_UNVERIFIED',
+              `Could not read the account's existing listings (${listStatus.status.id}: ${listStatus.status.message}) — refusing to create a listing that may already exist. Retry shortly.`,
             );
-            if (hit) {
-              effectiveRuPropertyId = parseInt(hit.id, 10);
-              adoptedExistingListing = { id: effectiveRuPropertyId, name: hit.name };
-              console.log(`[rentalsunited-api] Adopting existing listing ${hit.id} for "${p.name}" instead of creating a duplicate`);
+          }
+          const wanted = normaliseName(p.name as string);
+          listing = extractPropertyIds(listXml).find((l) => normaliseName(l.name) === wanted);
+        } catch (e) {
+          return errorResponse(
+            'RU_ADOPTION_UNVERIFIED',
+            `Could not read the account's existing listings (${e instanceof Error ? e.message : String(e)}) — refusing to create a listing that may already exist. Retry shortly.`,
+          );
+        }
+
+        if (listing) {
+          effectiveRuPropertyId = parseInt(listing.id, 10);
+          adoptedExistingListing = { id: effectiveRuPropertyId, name: listing.name, was_archived: listing.is_archived === true };
+          console.log(
+            `[rentalsunited-api] Adopting existing listing ${listing.id} for "${p.name}"${listing.is_archived ? ' (archived — reactivating)' : ''} instead of creating a duplicate`,
+          );
+          if (listing.is_archived === true) {
+            try {
+              const statusXml = buildSetPropertyStatusXml(scopedCreds, effectiveRuPropertyId, true, false);
+              const statusResp = await callRentalsUnited(scopedCreds, statusXml);
+              const reactivateStatus = handleRUStatus(statusResp);
+              reactivatedListing = reactivateStatus.ok;
+              if (!reactivateStatus.ok) {
+                console.warn(
+                  `[rentalsunited-api] Reactivation of ${effectiveRuPropertyId} refused (${reactivateStatus.status.id}: ${reactivateStatus.status.message}) — continuing with the content update`,
+                );
+              }
+            } catch (e) {
+              console.warn('[rentalsunited-api] Reactivation call failed:', e instanceof Error ? e.message : String(e));
             }
           }
-        } catch (e) {
-          console.warn('[rentalsunited-api] Duplicate pre-check failed (continuing as create):', e instanceof Error ? e.message : String(e));
         }
       }
+
 
       let xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, p);
       let compactRequestXml = compactXml(xml);
@@ -2794,7 +2828,9 @@ Deno.serve(async (req) => {
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
+        reactivated_listing: reactivatedListing,
         was_create: (ru_property_id as number) === 0 && !adoptedExistingListing,
+
         building_id: p.building_id ?? null,
 
         distances_pushed: distancesSkipped > 0 ? 0 : (Array.isArray(p.distances) ? p.distances.length : 0),
