@@ -254,6 +254,14 @@ export function useChannelReconciliation() {
         orphans: payload.orphans || [],
         duplicates: payload.duplicates || [],
         stale: payload.stale || [],
+        // Footprint and owner-scope findings: dropping these here is what made the
+        // per-property panel (and the unpublished-unit gap) invisible in the monitor.
+        footprint: payload.footprint || [],
+        untracked_unit_count: payload.untracked_unit_count ?? 0,
+        inactive_units_holding_listings: payload.inactive_units_holding_listings ?? 0,
+        allowed_owner_ids: payload.allowed_owner_ids || [],
+        owner_violations: payload.owner_violations || [],
+        unverifiable_accounts: payload.unverifiable_accounts || [],
 
       });
       return true;
