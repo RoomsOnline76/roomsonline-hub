@@ -4572,6 +4572,7 @@ Deno.serve(async (req) => {
             standalone_units: true,
             property_id,
             units: unitResults,
+            unpublished_units: unpublishedUnits,
             batch_id: sequenceBatchId,
             chunked: true,
             chunk_size: chunkSize,
