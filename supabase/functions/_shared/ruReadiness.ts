@@ -596,9 +596,9 @@ export function bookableWindowChecks(
 /**
  * Currency verification (Push_ChangeCurrency_RQ + read-back).
  *
- * A property could previously clear every onboarding phase with an unverified currency,
- * because verification lived only in the Currency panel. RU prices are meaningless in the
- * wrong currency, so the wizard scores it as a mandatory pricing check.
+ * Currency is decided before publication and verified after every active unit has a live
+ * listing. It is deliberately not a Pricing 365d check: authored rate coverage must not
+ * regress while a partial first publish is still creating the listings needed for read-back.
  */
 export function currencyVerificationChecks(
   state: {
@@ -608,7 +608,7 @@ export function currencyVerificationChecks(
     flip_outcome?: string | null;
     location_currency_iso?: string | null;
   } | null,
-  /** Pre-publish there is no RU listing to read back — advisory until the property exists. */
+  /** Until the full listing set exists there is nothing complete to read back. */
   opts: { published?: boolean } = {},
 ): RuCheck[] {
   const published = opts.published !== false;
@@ -623,7 +623,7 @@ export function currencyVerificationChecks(
   return [
     {
       key: "currency_verified",
-      group: "Pricing 365d",
+      group: "Channel publishing",
       label: published
         ? "Listing currency verified on the channel"
         : "Listing currency decided (verified after the first push)",
