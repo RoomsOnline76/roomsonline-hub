@@ -3521,9 +3521,13 @@ Deno.serve(async (req) => {
         const code = (payload as { error?: { code?: string } } | null)?.error?.code ?? null;
         return code === "RU_RATE_DEFERRED" ? code : null;
       };
-      const rawError = ownedError ? await readInvokeError(ownedError) : null;
+      const ownedErrBody = ownedError ? await readInvokeErrorBody(ownedError) : null;
+      const rawError = ownedErrBody
+        ? (ownedErrBody?.error?.message ?? JSON.stringify(ownedErrBody))
+        : (ownedError?.message ?? null);
       const rateDeferred =
         deferralCode(owned) !== null ||
+        deferralCode(ownedErrBody) !== null ||
         (owned as { queued?: boolean } | null)?.queued === true ||
         (rawError?.includes("RU_RATE_DEFERRED") ?? false);
 
