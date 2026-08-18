@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
+import { useAuth } from "@/hooks/useAuth";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import {
   ROLOS_ONBOARDING_MACROS,
@@ -155,6 +156,7 @@ const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
 
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
+  const { isAdmin } = useAuth();
   const readiness = usePropertyReadiness(propertyId);
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
   /**
@@ -782,14 +784,19 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         switch (macro.key) {
           case "keys":
             return ok("sub_owner_id") ? undefined : "Create the distribution identity first (step 6).";
+          case "company_profile":
+            return ok("api_keys_verified")
+              ? undefined
+              : "Capture and verify the sub-account key & secret first (step 7).";
           case "signoff":
             return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "pull_listings":
             return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "publish":
             if (!ok("api_keys_stored")) return "Capture the sub-account key & secret first (step 7).";
-            if (!ok("manual_signoff")) return "Verify the sub-account first (step 8).";
-            if (!ok("listings_pulled")) return "Pull existing listings first (step 9) so the push cannot duplicate.";
+            if (!ok("company_details")) return "Send the company profile to the sub-account first (step 8).";
+            if (!ok("manual_signoff")) return "Verify the sub-account first (step 9).";
+            if (!ok("listings_pulled")) return "Pull existing listings first (step 10) so the push cannot duplicate.";
             if (!readyToSell) return "Finish Ready to sell — the push needs complete content, rooms, photos and rates.";
             return undefined;
           case "currency":
@@ -797,8 +804,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           case "entitlement":
             return ok("api_keys_stored") ? undefined : "Capture the sub-account key & secret first (step 7).";
           case "connect":
-            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 12).";
-            if (!ok("listing_ids")) return "Publish the listing first (step 10).";
+            if (!ok("channel_entitlement")) return "Enable Channel Manager first (step 13).";
+            if (!ok("listing_ids")) return "Publish the listing first (step 11).";
             return undefined;
 
           default:
@@ -989,6 +996,62 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [lockedSignoffItems, writeChannelReadiness],
   );
 
+  /**
+   * Step 8 — company profile. As soon as the sub-account has a verified key pair the
+   * profile is submitted automatically: it is a machine step, not something an operator
+   * should have to remember. `ensure_company_details` is idempotent, and a per-owner
+   * attempt guard (plus cooldown after a failure) keeps repeated wizard opens cheap.
+   */
+  const companyAutoRef = useRef<Map<string, number>>(new Map());
+  const [companyAuto, setCompanyAuto] = useState<{
+    status: "idle" | "sending" | "failed";
+    error: string | null;
+  }>({ status: "idle", error: null });
+
+  const sendCompanyDetails = useCallback(
+    async (force = false): Promise<{ pushed: boolean; error: string | null }> => {
+      setCompanyAuto({ status: "sending", error: null });
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "ensure_company_details", property_id: propertyId, force },
+        });
+        const pushed = !error && data?.success === true && data?.company_details_pushed === true;
+        if (pushed) {
+          setCompanyAuto({ status: "idle", error: null });
+          await refresh();
+          return { pushed: true, error: null };
+        }
+        const reason = String(
+          data?.error?.message
+            ?? data?.company_details_warning
+            ?? error?.message
+            ?? "The Channel Manager did not confirm the company profile.",
+        );
+        setCompanyAuto({ status: "failed", error: reason });
+        await refresh();
+        return { pushed: false, error: reason };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Could not send the company profile.";
+        setCompanyAuto({ status: "failed", error: reason });
+        return { pushed: false, error: reason };
+      }
+    },
+    [propertyId, refresh],
+  );
+
+  const companyAutoOwner = String(d?.identity?.account?.ru_owner_id ?? "").trim();
+  const companyAutoReady =
+    !!companyAutoOwner && !!d?.identity?.keys_captured && !!d?.identity?.keys?.verified_at;
+  useEffect(() => {
+    if (!isAdmin) return;
+    if (!companyAutoReady || companyDetailsPushed) return;
+    const last = companyAutoRef.current.get(companyAutoOwner) ?? 0;
+    // One attempt per owner per session, retried at most every 5 minutes.
+    if (Date.now() - last < 5 * 60_000) return;
+    companyAutoRef.current.set(companyAutoOwner, Date.now());
+    void sendCompanyDetails(false);
+  }, [companyAutoOwner, companyAutoReady, companyDetailsPushed, isAdmin, sendCompanyDetails]);
+
   /** Record the outcome of a "Pull listings" run (step 9). */
   const recordListingPull = useCallback(
     async (
@@ -1045,6 +1108,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
     listingPull,
     recordListingPull,
+
+    /** Step 8 — automatic company-profile push state and its manual re-send. */
+    companyProfile: {
+      pushed: companyDetailsPushed,
+      pushedAt: d?.identity?.account?.company_filled_at ?? null,
+      sending: companyAuto.status === "sending",
+      error: companyAuto.status === "failed" ? companyAuto.error : null,
+    },
+    sendCompanyDetails,
 
     refresh,
     // The channel scorecard is deliberately excluded from isLoading so the wizard paints

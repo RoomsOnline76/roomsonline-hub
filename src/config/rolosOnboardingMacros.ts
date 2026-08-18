@@ -55,7 +55,13 @@ export interface MacroFieldTask {
 
 export type MacroTask = MacroStateTask | MacroFieldTask;
 
-export type MacroActionKind = "ensure_owner" | "signoff" | "pull_listings" | "open_channels" | "none";
+export type MacroActionKind =
+  | "ensure_owner"
+  | "ensure_company_details"
+  | "signoff"
+  | "pull_listings"
+  | "open_channels"
+  | "none";
 
 export interface MacroDef {
   key: string;
@@ -164,25 +170,24 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "state", key: "api_keys_stored" },
       { kind: "state", key: "api_keys_verified" },
-      { kind: "state", key: "company_details" },
     ],
     notes: [
       "Sign in to the owner portal with the sub-account login, create the API key and secret, then capture them in the ROL'OS owner panel.",
-      "Saving the pair verifies it and then submits the company profile automatically — the profile only sticks when it is sent with the sub-account's own verified credentials.",
+      "This step is done the moment the pair is stored and verified — the company profile is sent for you in the next step.",
     ],
   },
   {
-    key: "pull_listings",
+    key: "company_profile",
     order: 8,
-    title: "Pull listings (if any)",
-    goal: "Any listing already present under the sub-account is adopted, so the push never duplicates.",
+    title: "Company profile on the sub-account",
+    goal: "The sub-account carries the owner's company profile, sent with its own verified keys.",
     section: "integrations",
-    action: "pull_listings",
+    action: "ensure_company_details",
     adminOnly: true,
-    tasks: [{ kind: "state", key: "listings_pulled" }],
+    tasks: [{ kind: "state", key: "company_details" }],
     notes: [
-      "Lists everything under the sub-account and links matches to this property and its units by name.",
-      "An empty sub-account is normal — the step passes as “nothing to adopt” and the push creates the listing.",
+      "This runs automatically as soon as the key pair is verified — no button needed.",
+      "The manual send is a correction tool: use it after editing Company Information, or to retry a failed attempt.",
     ],
   },
   {
@@ -196,13 +201,27 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [{ kind: "state", key: "manual_signoff" }],
     notes: [
       "Sign in with the sub-account login, then tick each item below as you confirm it. The step completes only once every item is ticked.",
-      "This happens after the listing pull and before the push, so a wrong owner, company profile or currency is caught before anything is published.",
+      "This happens before the push, so a wrong owner, company profile or currency is caught before anything is published.",
     ],
 
   },
   {
-    key: "publish",
+    key: "pull_listings",
     order: 10,
+    title: "Pull listings (if any)",
+    goal: "Any listing already present under the sub-account is adopted, so the push never duplicates.",
+    section: "integrations",
+    action: "pull_listings",
+    adminOnly: true,
+    tasks: [{ kind: "state", key: "listings_pulled" }],
+    notes: [
+      "Lists everything under the sub-account and links matches to this property and its units by name.",
+      "An empty sub-account is normal — the step passes as “nothing to adopt” and the push creates the listing.",
+    ],
+  },
+  {
+    key: "publish",
+    order: 11,
     title: "Push property & full ARI publish",
     goal: "The property is live on the distribution layer with a stable identity.",
     section: "integrations",
@@ -222,7 +241,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "currency",
-    order: 11,
+    order: 12,
     title: "Location & currency verification",
     goal: "The published location and currency agree on both sides.",
     section: "integrations",
@@ -230,7 +249,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "entitlement",
-    order: 12,
+    order: 13,
     title: "Enable Channel Manager",
     goal: "Channel Manager is on the billing profile so channels can connect.",
     section: "admin",
@@ -242,7 +261,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "connect",
-    order: 13,
+    order: 14,
     title: "Connect channels",
     goal: "The owner activates the sales channels they want to trade on.",
     action: "open_channels",

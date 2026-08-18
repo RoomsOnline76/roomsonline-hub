@@ -139,6 +139,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     recordSignoffCheck,
     listingPull,
     subAccountEmail,
+    companyProfile,
+    sendCompanyDetails,
 
     recordListingPull,
     refresh,
@@ -332,21 +334,13 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const pushCompanyDetails = useCallback(async () => {
     setBusy("company_details");
     try {
-      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "ensure_company_details", property_id: propertyId, force: true },
-      });
-      if (error || data?.success !== true) {
-        toast.error(data?.error?.message ?? error?.message ?? "Could not send the company details");
-        return;
-      }
-      toast.success("Company details sent to the Channel Manager");
-      await refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not send the company details");
+      const { pushed, error } = await sendCompanyDetails(true);
+      if (pushed) toast.success("Company profile sent to the Channel Manager");
+      else toast.error(error ?? "Could not send the company profile");
     } finally {
       setBusy(null);
     }
-  }, [propertyId, refresh]);
+  }, [sendCompanyDetails]);
 
 
   const publishListing = useCallback(async () => {
@@ -527,6 +521,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         reason,
       };
     }
+    if (macro.macro.key === "company_profile" && isPlatformUser) {
+      return {
+        label: companyProfile.sending ? "Sending company profile…" : "Send company profile",
+        disabled: gatedAction || companyProfile.sending || busy === "company_details",
+        run: () => void pushCompanyDetails(),
+        reason,
+      };
+    }
     if (macro.macro.key === "pull_listings" && isPlatformUser) {
       return {
         label: "Pull listings",
@@ -610,9 +612,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   }, [
     activeMacro,
     busy,
+    companyProfile.sending,
     enableChannelManager,
     goToField,
     isPlatformUser,
+    pushCompanyDetails,
+
     publishListing,
     publishedOk,
 
@@ -947,6 +952,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
               onEnable={enableChannelManager}
               onPushCompanyDetails={pushCompanyDetails}
+              companyProfile={companyProfile}
               onSignoffItem={(key, next) => {
                 recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
                   toast.error(e instanceof Error ? e.message : String(e)),
@@ -1138,6 +1144,7 @@ function PublishedPane({
   onSignoffItem,
   onSignoffAll,
   onPushCompanyDetails,
+  companyProfile,
 }: {
   propertyId: string;
   macroKey: string;
@@ -1161,6 +1168,7 @@ function PublishedPane({
   onSignoffItem: (key: string, next: boolean) => void;
   onSignoffAll: (next: boolean) => void;
   onPushCompanyDetails: () => void;
+  companyProfile: ReturnType<typeof useRolosOnboardingProgress>["companyProfile"];
 }) {
   const [rePushOpen, setRePushOpen] = useState(false);
   return (
@@ -1174,6 +1182,46 @@ function PublishedPane({
               {busy === "ensure_owner" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
               Create or link distribution identity
             </Button>
+          )}
+        </div>
+      )}
+
+      {macroKey === "company_profile" && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <p className="text-sm font-medium">Company profile on the sub-account</p>
+          <p className="text-xs text-muted-foreground">
+            Sent automatically with the sub-account's own verified keys as soon as they are captured. The button
+            below is for corrections and retries.
+          </p>
+          {companyProfile.pushed ? (
+            <p className="text-sm text-emerald-600">
+              Accepted by the Channel Manager
+              {companyProfile.pushedAt ? ` · ${new Date(companyProfile.pushedAt).toLocaleString()}` : ""}
+            </p>
+          ) : companyProfile.sending ? (
+            <p className="flex items-center text-sm text-muted-foreground">
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Sending the company profile…
+            </p>
+          ) : companyProfile.error ? (
+            <p className="text-sm text-destructive">{companyProfile.error}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Waiting for a verified key pair — the profile is sent for you the moment the keys verify.
+            </p>
+          )}
+          {isPlatformUser ? (
+            <Button
+              variant={companyProfile.pushed ? "outline" : "default"}
+              onClick={onPushCompanyDetails}
+              disabled={locked || companyProfile.sending || busy === "company_details"}
+            >
+              {busy === "company_details" || companyProfile.sending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : null}
+              {companyProfile.pushed ? "Send again" : "Send company profile now"}
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground">ROL sends this on your behalf.</p>
           )}
         </div>
       )}
