@@ -61,8 +61,12 @@ export async function invokeRuWithRetry(
   // A transport failure says nothing about whether the channel already registered it, so a blind
   // retry can produce a duplicate — creates get a single attempt unless the caller opts in.
   const isCreate = body.action === 'push_property' && Number(body.ru_property_id ?? 0) === 0;
-  const maxAttempts = isCreate && opts.allowCreateRetry !== true ? 1 : (opts.maxAttempts ?? 3);
+  // `let`: a create refused at the adapter's adoption pre-read (RU_ADOPTION_UNVERIFIED) never
+  // reached the create call — nothing was minted, so that one failure IS safe to retry. The
+  // attempt budget is raised only after such a response is seen.
+  let maxAttempts = isCreate && opts.allowCreateRetry !== true ? 1 : (opts.maxAttempts ?? 3);
   const label = opts.label ?? String(body.action ?? 'ru_call');
+
 
 
   let last: RuInvokeResult = {
