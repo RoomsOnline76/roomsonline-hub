@@ -473,8 +473,11 @@ export function PortfolioRuAccountsTab() {
     setKeySecret("");
     setKeyLabel(acc.ru_api_key_label || "ROLOS");
     setKeyOwnerId(acc.ru_owner_id ?? "");
-    // Keys belong to a specific RU sub-user — let the admin pick which one they are for.
+    // Keys are captured for the sub-account this dialog was opened for. Listing other
+    // sub-users here invited saving a pair onto the wrong OwnerID, so only the bound
+    // account is offered; when the row is not bound yet the picker still loads.
     setKeyCandidates([]);
+    if (acc.ru_owner_id) return;
     setKeyCandidatesLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
@@ -516,19 +519,22 @@ export function PortfolioRuAccountsTab() {
         },
       });
       if (error || !data?.success) {
-        toast.error(
+        const message =
           data?.error?.message ||
-            (error ? await extractFunctionError(error, "Could not save the API keys") : "Could not save the API keys"),
-        );
+          (error ? await extractFunctionError(error, "Could not save the API keys") : "Could not save the API keys");
+        // Rate-limited checks are not rejections: nothing was stored and nothing condemned.
+        if (data?.state === "deferred") toast.warning(message);
+        else toast.error(message);
         return;
       }
-      toast.success(`API keys stored for OwnerID ${keyOwnerId.trim()} and verified against Rentals United`);
+      toast.success(`API keys stored for OwnerID ${keyOwnerId.trim()} and verified against the channel`);
       setKeysFor(null);
       await Promise.all([refreshAccounts(), refreshStoredKeys()]);
     } finally {
       setSavingKeys(false);
     }
   }, [keysFor, keyOwnerId, keyCandidates, keyAccess, keySecret, keyLabel, refreshAccounts, refreshStoredKeys]);
+
 
   /** Re-test the stored key pair on RU's XML surface. */
   const verifyApiKeys = useCallback(async (accountId: string, ownerId?: string | null) => {
