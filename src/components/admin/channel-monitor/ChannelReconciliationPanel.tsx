@@ -112,7 +112,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
       setBusyId(row.record_id);
       try {
         await clearStale(row);
-        toast.success("Local listing id cleared");
+        toast.success("Local id released — archived at the channel first");
         await onChanged();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not clear the local id");
