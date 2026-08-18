@@ -143,6 +143,14 @@ export interface ReconStale {
   local_active: boolean;
 }
 
+/** A test sub-account permanently retired: never read, counted, pushed to or alerted on. */
+export interface ReconRetiredAccount {
+  ru_owner_id: string;
+  portal_email: string | null;
+  reason: string | null;
+  retired_at: string | null;
+}
+
 export interface ChannelReconciliation {
   reconciled_at: string;
   accounts: ReconAccount[];
