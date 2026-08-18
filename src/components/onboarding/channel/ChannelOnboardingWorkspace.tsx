@@ -288,23 +288,35 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
       const matched = Array.isArray(data.matched) ? data.matched.length : 0;
       const unmatched = Array.isArray(data.unmatched) ? data.unmatched.length : 0;
+      const conflicts = Array.isArray(data.conflicts) ? data.conflicts : [];
       const remoteCount = Number(data.remote_count ?? 0);
+      const ownerLabel = typeof data.ru_owner_label === "string" ? data.ru_owner_label : null;
       await recordListingPull(
         {
           matched,
           unmatched,
           remoteCount,
-          account: typeof data.ru_owner_label === "string" ? data.ru_owner_label : null,
+          account: ownerLabel,
           ownerId: data.ru_owner_id != null ? String(data.ru_owner_id) : null,
           authMode: typeof data.auth_mode === "string" ? data.auth_mode : null,
         },
         user?.email ?? null,
       );
+      if (conflicts.length > 0) {
+        toast.warning(
+          `${conflicts.length} listing(s) are already claimed by another record: ${conflicts
+            .map((c: { name?: string; ru_property_id?: string; held_by?: string }) =>
+              `${c.name} → #${c.ru_property_id} (${c.held_by})`,
+            )
+            .join(", ")}`,
+        );
+      }
       toast.success(
         remoteCount === 0
-          ? "Sub-account is empty — nothing to adopt"
+          ? `${ownerLabel ?? "The sub-account"} returned no listings — nothing to adopt`
           : `${matched} listing(s) adopted${unmatched > 0 ? `, ${unmatched} unmatched` : ""}`,
       );
+
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not pull listings");
