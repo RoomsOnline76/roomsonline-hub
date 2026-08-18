@@ -3767,7 +3767,7 @@ Deno.serve(async (req) => {
             message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message
               ?? "Rentals United rejected the stored API keys. Regenerate the pair in the RU dashboard and save it here.",
           },
-        }, 422);
+        }, 200);
       }
       const company = await provisionCompanyAfterKeyVerification();
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
