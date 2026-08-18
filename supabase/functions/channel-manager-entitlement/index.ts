@@ -767,6 +767,8 @@ Deno.serve(async (req) => {
         owner_id: string;
         keep_listing_id: string;
         copies: number;
+        /** Does a local record point at this surplus copy (mis-wired) or is it unmatched? */
+        matched: boolean;
       }> = [];
       for (const rows of dupGroups.values()) {
         if (rows.length < 2) continue;
@@ -781,9 +783,25 @@ Deno.serve(async (req) => {
             owner_id: r.owner_id,
             keep_listing_id: keeper.listing_id,
             copies: rows.length,
+            matched: r.matched,
           });
         }
+
       }
+
+
+
+      /**
+       * One listing, one class. A surplus same-name copy that no local record
+       * points at was previously counted as an orphan *and* as a duplicate, so
+       * the tiles added up to more problems than the account holds. Duplicate
+       * wins: it is the actionable description of that listing.
+       */
+      const duplicateIds = new Set(duplicates.map((d) => d.listing_id));
+      for (let i = orphans.length - 1; i >= 0; i--) {
+        if (duplicateIds.has(orphans[i].listing_id)) orphans.splice(i, 1);
+      }
+
 
       // A record whose id is archived upstream usually has a live twin under the
       // same unit name — that is the listing it should point at.
@@ -993,18 +1011,122 @@ Deno.serve(async (req) => {
     }
 
 
-    // ── Clear a stale local listing id (already gone upstream) ────────
+    // ── Release a local listing id — archiving upstream first ─────────
+    //    Never a blind local clear: if the account still holds the listing it is
+    //    archived (verify → archive → verify) before the id is released, so an id
+    //    can never be dropped locally while the listing keeps selling and billing.
     if (raw.scope === "clear_local_listing") {
       const table = raw.record_kind === "property" ? "properties" : "hostfully_room_types";
+      const { data: record } = await admin
+        .from(table)
+        .select("id, rentalsunited_property_id")
+        .eq("id", raw.entity_id)
+        .maybeSingle();
+      const listingId = record?.rentalsunited_property_id
+        ? String(record.rentalsunited_property_id)
+        : null;
+
+      let ownerId = raw.owner_id ? String(raw.owner_id) : null;
+      if (!ownerId && listingId) {
+        const propertyIdForOwner =
+          raw.record_kind === "property" ? String(raw.entity_id) : null;
+        if (propertyIdForOwner) {
+          ownerId = await resolveRuOwnerId(admin, propertyIdForOwner);
+        } else {
+          const { data: unit } = await admin
+            .from("hostfully_room_types")
+            .select("property_id")
+            .eq("id", raw.entity_id)
+            .maybeSingle();
+          if (unit?.property_id) ownerId = await resolveRuOwnerId(admin, String(unit.property_id));
+        }
+        if (!ownerId) {
+          const { data: acct } = await admin
+            .from("ru_owner_accounts")
+            .select("ru_owner_id")
+            .not("ru_owner_id", "is", null)
+            .limit(1)
+            .maybeSingle();
+          ownerId = acct?.ru_owner_id ? String(acct.ru_owner_id) : null;
+        }
+      }
+
+      let outcome: "already_gone" | "archived" | "refused" | "no_listing_id" = "no_listing_id";
+      let detail = "record held no channel listing id";
+
+      if (listingId) {
+        const before = await verifyListingPresence(admin, {
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:verify"),
+        });
+        if (before.error) return bad(before.error, 502);
+
+        if (!before.present) {
+          outcome = "already_gone";
+          detail = `listing ${listingId} is no longer held by the channel account`;
+        } else if (before.archived) {
+          outcome = "archived";
+          detail = `listing ${listingId} was already archived on the channel account`;
+        } else {
+          const propertyIdForRemoval =
+            raw.record_kind === "property" ? String(raw.entity_id) : "";
+          const removal = await removeListingUpstream(admin, {
+            propertyId: propertyIdForRemoval,
+            listingId,
+            ownerId,
+            ctx: logCtx(traceId, "channel-cleanup:delete"),
+          });
+          if (removal.error) return bad(removal.error, 502);
+
+          const after = await verifyListingPresence(admin, {
+            listingId,
+            ownerId,
+            ctx: logCtx(traceId, "channel-cleanup:verify_after"),
+          });
+          if (after.error) return bad(after.error, 502);
+
+          if (after.present && !after.archived) {
+            outcome = "refused";
+            detail = `listing ${listingId} is still live on the channel account after a ${removal.method} request — the local id was kept`;
+          } else {
+            outcome = "archived";
+            detail = `listing ${listingId} confirmed no longer sellable on the channel account (${removal.method})`;
+          }
+        }
+
+        await admin.from("ru_archive_events").insert({
+          property_id: raw.record_kind === "property" ? raw.entity_id : null,
+          property_name: `Listing release (#${listingId})`,
+          direction: "archived",
+          unit_count: raw.record_kind === "property" ? 0 : 1,
+          listing_count: outcome === "refused" ? 0 : 1,
+          reason: raw.reason ?? "Local listing id released during channel reconciliation",
+          actor_user_id: actorUserId,
+          actor_email: actorEmail,
+          ru_status: outcome === "refused" ? "ru_failed" : "updated",
+          detail,
+        });
+
+        if (outcome === "refused") {
+          return new Response(
+            JSON.stringify({ success: false, outcome, listing_id: listingId, trace_id: traceId, detail, error: detail }),
+            { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      }
+
       const { error: clearErr } = await admin
         .from(table)
         .update({ rentalsunited_property_id: null })
         .eq("id", raw.entity_id);
       if (clearErr) return bad(clearErr.message, 500);
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ success: true, outcome, listing_id: listingId, trace_id: traceId, detail }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+
 
     // ── Re-point a local record at a listing that is live on the account ──
     //    Used when a record still holds an id the channel has archived. The

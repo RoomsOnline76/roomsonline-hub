@@ -54,20 +54,34 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  // Only real discrepancies are cleanable: live listings on the account with no
-  // local match, plus stale local ids. Archived listings are already gone from
-  // the portal and carry no cost, so a matched account has nothing to clean up.
-  const cleanableListings = useMemo(
-    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
-    [result, erroredOwners],
-  );
-  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
   // Surplus same-name copies of one unit. They bill like any other listing, so they are called
   // out separately from orphans — the keeper of each group is never in this list.
   const duplicateCleanable = useMemo(
     () => (result?.duplicates || []).filter((d) => !erroredOwners.has(d.owner_id)),
     [result, erroredOwners],
   );
+
+  // Real discrepancies that still bill: live listings with no local match, plus
+  // surplus duplicate copies. Archived listings are already off the portal and
+  // carry no cost, so they are never part of a one-click cleanup.
+  const cleanableListings = useMemo(() => {
+    const orphans = (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id));
+    const seen = new Set(orphans.map((o) => o.listing_id));
+    return [...orphans, ...duplicateCleanable.filter((d) => !seen.has(d.listing_id))];
+  }, [result, erroredOwners, duplicateCleanable]);
+  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
+
+  // Every live listing belongs to exactly one class, so the buckets must add up
+  // to the live count the account returned. Any gap is a classification bug and
+  // is shown rather than hidden.
+  const matchedLiveListings = useMemo(
+    () => new Set((result?.matched || []).map((m) => m.listing_id)).size,
+    [result],
+  );
+  const liveBucketTotal =
+    matchedLiveListings + (result?.duplicates.length || 0) + (result?.orphans.length || 0);
+
+
 
 
 
@@ -98,7 +112,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
       setBusyId(row.record_id);
       try {
         await clearStale(row);
-        toast.success("Local listing id cleared");
+        toast.success("Local id released — archived at the channel first");
         await onChanged();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Could not clear the local id");
@@ -293,6 +307,12 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 ({result.channel_listing_count} live + {result.archived_count} archived)
               </span>
               <span>{result.stale.length} stale local id{result.stale.length === 1 ? "" : "s"}</span>
+              <span>
+                Live breakdown: {matchedLiveListings} matched + {result.duplicates.length} duplicate cop
+                {result.duplicates.length === 1 ? "y" : "ies"} + {result.orphans.length} orphan
+                {result.orphans.length === 1 ? "" : "s"} = {liveBucketTotal} of {result.channel_listing_count} live
+              </span>
+
               {gap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
@@ -658,14 +678,16 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
                 <p>
-                  {cleanableListings.length} live channel listing{cleanableListings.length === 1 ? "" : "s"} with no
-                  local match will be deleted upstream, then re-read to confirm the account no longer returns them.
+                  {cleanableListings.length} billable channel listing{cleanableListings.length === 1 ? "" : "s"} —
+                  live listings with no local match plus surplus duplicate copies — will be archived upstream, then
+                  re-read to confirm the account no longer sells them.
                 </p>
 
                 <p>
-                  {result?.stale.length || 0} stale local id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
-                  cleared — no channel call needed.
+                  {result?.stale.length || 0} local listing id{(result?.stale.length || 0) === 1 ? "" : "s"} will be
+                  released — each is verified at the channel and archived there first, never cleared blind.
                 </p>
+
                 <p>
                   Matched billable listings and archived listings are not touched. Every removal is logged for audit.
                 </p>
