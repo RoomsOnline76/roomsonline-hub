@@ -7,6 +7,7 @@
 // ROL'OS Channel Manager screen can lock itself and billing stops counting it.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
+import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
