@@ -38,7 +38,10 @@ interface Body {
     listing_id?: string | null;
     record_id?: string | null;
     record_kind?: "property" | "unit";
+    /** Property the stale record belongs to, used to scope it to its account. */
+    property_id?: string | null;
     name?: string;
+
   }>;
 
   enabled?: boolean;
