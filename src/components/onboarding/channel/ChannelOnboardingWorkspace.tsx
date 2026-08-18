@@ -612,9 +612,12 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   }, [
     activeMacro,
     busy,
+    companyProfile.sending,
     enableChannelManager,
     goToField,
     isPlatformUser,
+    pushCompanyDetails,
+
     publishListing,
     publishedOk,
 
