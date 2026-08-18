@@ -143,6 +143,14 @@ export interface ReconStale {
   local_active: boolean;
 }
 
+/** A test sub-account permanently retired: never read, counted, pushed to or alerted on. */
+export interface ReconRetiredAccount {
+  ru_owner_id: string;
+  portal_email: string | null;
+  reason: string | null;
+  retired_at: string | null;
+}
+
 export interface ChannelReconciliation {
   reconciled_at: string;
   accounts: ReconAccount[];
@@ -171,6 +179,8 @@ export interface ChannelReconciliation {
   allowed_owner_ids?: string[];
   owner_violations?: ReconOwnerViolation[];
   unverifiable_accounts?: ReconUnverifiableAccount[];
+  /** Retired test sub-accounts — excluded from every count above, shown for audit only. */
+  retired_accounts?: ReconRetiredAccount[];
 
 
 }
@@ -262,6 +272,7 @@ export function useChannelReconciliation() {
         allowed_owner_ids: payload.allowed_owner_ids || [],
         owner_violations: payload.owner_violations || [],
         unverifiable_accounts: payload.unverifiable_accounts || [],
+        retired_accounts: payload.retired_accounts || [],
 
       });
       return true;

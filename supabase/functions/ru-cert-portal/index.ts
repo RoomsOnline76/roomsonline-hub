@@ -19,6 +19,7 @@ import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { resumePendingRuDeltas } from "../_shared/ruPendingDeltas.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
+import { fetchRetiredRuOwnerIds } from "../_shared/ruRetiredAccounts.ts";
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
@@ -4320,6 +4321,19 @@ Deno.serve(async (req) => {
       if (!accountId || !ruOwnerId) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id and ru_owner_id are required" } }, 400);
       }
+      // A retired test sub-account must never be bound again — binding it would put it
+      // straight back into every read, count and push loop.
+      const retiredIds = await fetchRetiredRuOwnerIds();
+      if (retiredIds.has(ruOwnerId)) {
+        return json({
+          success: false,
+          error: {
+            code: "RU_ACCOUNT_RETIRED",
+            message: `Sub-account ${ruOwnerId} is permanently retired and cannot be bound. Restore it from the Channel Monitor first if this is deliberate.`,
+          },
+        }, 409);
+      }
+
 
       const { data: account } = await admin
         .from("ru_owner_accounts")

@@ -7,6 +7,7 @@
 // ROL'OS Channel Manager screen can lock itself and billing stops counting it.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
+import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -489,6 +490,11 @@ Deno.serve(async (req) => {
         if (c.ru_owner_id) credByOwner.set(String(c.ru_owner_id), (c.login_email as string) ?? null);
       }
 
+      // Retired test sub-accounts: never read, never counted, never alerted on. They
+      // are reported once as an explicit exclusion so the numbers stay auditable.
+      const retiredAccounts = await fetchRetiredRuAccounts();
+      const retiredOwnerIds = new Set(retiredAccounts.map((r) => r.ru_owner_id));
+
       // Roster straight from the channel: accounts ROL'OS never bound still hold
       // listings (and still bill), so reading only our own table under-reports.
       type RosterEntry = { owner_id: string; portal_email: string | null; portal_name: string | null };
@@ -511,14 +517,14 @@ Deno.serve(async (req) => {
         } else {
           for (const u of ures.users || []) {
             const oid = String(u.owner_id || "").trim();
-            if (!oid) continue;
+            if (!oid || retiredOwnerIds.has(oid)) continue;
             const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
             roster.set(oid, { owner_id: oid, portal_email: u.email || null, portal_name: name || null });
           }
         }
       }
       for (const ownerId of boundByOwner.keys()) {
-        if (!roster.has(ownerId)) {
+        if (!roster.has(ownerId) && !retiredOwnerIds.has(ownerId)) {
           const acct = boundByOwner.get(ownerId)!;
           roster.set(ownerId, {
             owner_id: ownerId,
@@ -528,6 +534,7 @@ Deno.serve(async (req) => {
         }
       }
       const ownerIds = Array.from(roster.keys());
+
 
       // One canonical way to name a sub-account everywhere it is reported.
       const accountLabel = (ownerId: string) => {
@@ -1000,6 +1007,8 @@ Deno.serve(async (req) => {
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
           roster_error: rosterError,
+          // Retired test sub-accounts, excluded from every number above.
+          retired_accounts: retiredAccounts,
           // Mutually exclusive: live + archived always equals the bound-account total.
           channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
