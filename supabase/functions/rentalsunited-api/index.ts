@@ -2828,7 +2828,9 @@ Deno.serve(async (req) => {
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
+        reactivated_listing: reactivatedListing,
         was_create: (ru_property_id as number) === 0 && !adoptedExistingListing,
+
         building_id: p.building_id ?? null,
 
         distances_pushed: distancesSkipped > 0 ? 0 : (Array.isArray(p.distances) ? p.distances.length : 0),
