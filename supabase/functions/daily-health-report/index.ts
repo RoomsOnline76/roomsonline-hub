@@ -171,7 +171,18 @@ interface RuWlMetrics {
   ari_last_push_at: string | null;
   ari_stale_hours: number | null;
   cert: { status: string; passed: number; total: number; at: string | null } | null;
+  /** Trading properties with a real channel footprint (building listing or unit listings). */
   live_properties: number;
+  /** Distribution sub-accounts on record — an account is not a property. */
+  distribution_accounts: number;
+  /**
+   * Wizard-gate refusals. `phase_blocked` records are evidence that a push was refused,
+   * never a pipeline outcome, so they are reported here and resolved against current state.
+   */
+  blocked: {
+    outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
+    cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
+  };
   current_ok: boolean | null;
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
