@@ -1323,7 +1323,7 @@ Deno.serve(async (req) => {
         key: string;
         listing_id: string | null;
         label: string;
-        outcome: "already_gone" | "deleted" | "refused" | "failed" | "no_listing_id";
+        outcome: "already_gone" | "deleted" | "refused" | "failed" | "no_listing_id" | "skipped";
         detail: string;
       };
       const results: BatchResult[] = [];
