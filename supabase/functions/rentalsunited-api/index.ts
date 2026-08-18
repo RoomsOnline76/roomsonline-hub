@@ -2380,6 +2380,8 @@ Deno.serve(async (req) => {
       return jsonResponse({
         success: true,
         owns,
+        verified: ownerStatus.ok,
+        method: 'Pull_ListOwnerProp_RQ',
         auth_mode: childAuthMode(childAuth),
         owner_id: targetOwnerId,
         ru_status_id: ownerStatus.status.id ?? null,
