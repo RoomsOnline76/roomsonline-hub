@@ -301,6 +301,15 @@ async function verifyListingPresence(
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
   const { listings, error, deferred } = await pullOwnerListings(admin, args.ownerId, args.ctx);
   if (error) return { present: null, archived: false, error, deferred };
+  // An empty answer is not evidence a listing was removed — treat it as unread so
+  // a local id is never released on the back of a blank read.
+  if (listings.length === 0) {
+    return {
+      present: null,
+      archived: false,
+      error: "The channel account answered with no listings at all — nothing was verified, try again shortly",
+    };
+  }
   const hit = listings.find((l) => String(l.id) === args.listingId);
   // RU never hard-deletes: a removed listing stays in the feed either flagged
   // archived (NLA) or simply switched inactive (Active="false"). Both mean it
@@ -1358,6 +1367,13 @@ Deno.serve(async (req) => {
       const snapshot = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
       if (snapshot.error) {
         return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
+      }
+      // A blank account read is unverified, not empty. Removing/releasing against it
+      // would delete the account's real inventory, so the batch refuses to run.
+      if (snapshot.listings.length === 0) {
+        return deferred(
+          "The channel account answered with no listings at all — nothing was verified, so no cleanup was run",
+        );
       }
       const heldNow = new Map<string, boolean>(); // listing id → still sellable
       for (const l of snapshot.listings) {
