@@ -355,13 +355,34 @@ export function useChannelReconciliation() {
     );
   }, []);
 
+  /**
+   * Releases a local listing id. The backend always verifies the listing at the
+   * channel and archives it first, so an id is never dropped locally while the
+   * listing still sells and bills. A channel refusal keeps the row in the list.
+   */
   const clearStale = useCallback(async (row: ReconStale) => {
     const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
-      body: { scope: "clear_local_listing", entity_id: row.record_id, record_kind: row.kind },
+      body: {
+        scope: "clear_local_listing",
+        entity_id: row.record_id,
+        record_kind: row.kind,
+        reason: "Local listing id released during channel reconciliation",
+      },
     });
-    if (fnError) throw fnError;
-    const payload = (data || {}) as { success?: boolean; error?: string };
-    if (payload.success === false) throw new Error(payload.error || "Could not clear the local id");
+    if (fnError) {
+      const detail = await readFunctionError(fnError);
+      const status = (fnError as { context?: Response }).context?.status;
+      if (status === 409) {
+        const reason = detail || "The channel account still returns this listing";
+        setRefused((prev) => ({ ...prev, [row.record_id]: reason }));
+        throw new Error(reason);
+      }
+      throw new Error(detail || fnError.message);
+    }
+    const payload = (data || {}) as { success?: boolean; error?: string; detail?: string };
+    if (payload.success === false) {
+      throw new Error(payload.detail || payload.error || "Could not release the local id");
+    }
     setResult((prev) =>
       prev ? { ...prev, stale: prev.stale.filter((s) => s.record_id !== row.record_id) } : prev,
     );
@@ -371,10 +392,10 @@ export function useChannelReconciliation() {
    * Resolves the discrepancies the last pass found, one row at a time so a single
    * failure never aborts the rest. Matched (billable) listings are never touched.
    *
-   * Default scope is "actionable": live orphans on the account plus stale local
-   * ids. Archived listings cost nothing, so they are only deleted when the
-   * caller explicitly asks for the "archived" scope. The "duplicates" scope removes
-   * surplus same-name copies and always leaves the keeper in place.
+   * Default scope is "actionable": live orphans plus surplus same-name duplicate
+   * copies (both bill) plus stale local ids. Archived listings cost nothing, so
+   * they are only removed when the caller asks for the "archived" scope. The
+   * "duplicates" scope removes surplus copies only and always keeps the keeper.
    */
   const cleanupAll = useCallback(async (
     scope: "actionable" | "archived" | "duplicates" = "actionable",
@@ -383,15 +404,18 @@ export function useChannelReconciliation() {
     if (!snapshot) return { cleaned: 0, total: 0, refused: 0, failures: [] };
 
     const erroredOwners = new Set(snapshot.accounts.filter((a) => a.error).map((a) => a.owner_id));
-    const source =
+    const source: Array<{ listing_id: string; owner_id: string; name: string }> =
       scope === "archived" ? snapshot.archived_orphans
       : scope === "duplicates" ? snapshot.duplicates
-      : snapshot.orphans;
-    const listings: Array<{ listing_id: string; owner_id: string; name: string }> = source
+      : [...snapshot.orphans, ...snapshot.duplicates];
+    const seenListing = new Set<string>();
+    const listings = source
       .filter((o) => !erroredOwners.has(o.owner_id))
+      .filter((o) => (seenListing.has(o.listing_id) ? false : seenListing.add(o.listing_id) && true))
       .map((o) => ({ listing_id: o.listing_id, owner_id: o.owner_id, name: o.name }));
     const stale = scope === "actionable" ? snapshot.stale : [];
     const total = listings.length + stale.length;
+
 
 
 
