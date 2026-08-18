@@ -14539,6 +14539,39 @@ export type Database = {
           },
         ]
       }
+      ru_retired_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          portal_email: string | null
+          reason: string | null
+          retired_at: string
+          retired_by: string | null
+          ru_owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          portal_email?: string | null
+          reason?: string | null
+          retired_at?: string
+          retired_by?: string | null
+          ru_owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          portal_email?: string | null
+          reason?: string | null
+          retired_at?: string
+          retired_by?: string | null
+          ru_owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_sync_runs: {
         Row: {
           action: string
