@@ -918,7 +918,10 @@ Deno.serve(async (req) => {
         supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
       ]);
 
-      const runs = syncRuns || [];
+      const allRuns = syncRuns || [];
+      // Wizard refusals are not calls: they must not pad totals or grade an action.
+      const runs = allRuns.filter(r => !isRefusalRecord(r));
+      const refusalRuns = allRuns.filter(isRefusalRecord);
       const byAction = new Map<string, typeof runs>();
       for (const r of runs) {
         const key = r.action || 'unknown';
