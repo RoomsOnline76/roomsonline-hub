@@ -55,7 +55,13 @@ export interface MacroFieldTask {
 
 export type MacroTask = MacroStateTask | MacroFieldTask;
 
-export type MacroActionKind = "ensure_owner" | "signoff" | "pull_listings" | "open_channels" | "none";
+export type MacroActionKind =
+  | "ensure_owner"
+  | "ensure_company_details"
+  | "signoff"
+  | "pull_listings"
+  | "open_channels"
+  | "none";
 
 export interface MacroDef {
   key: string;
