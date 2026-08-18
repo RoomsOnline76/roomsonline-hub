@@ -171,6 +171,8 @@ export interface ChannelReconciliation {
   allowed_owner_ids?: string[];
   owner_violations?: ReconOwnerViolation[];
   unverifiable_accounts?: ReconUnverifiableAccount[];
+  /** Retired test sub-accounts — excluded from every count above, shown for audit only. */
+  retired_accounts?: ReconRetiredAccount[];
 
 
 }
