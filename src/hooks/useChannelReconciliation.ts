@@ -272,6 +272,7 @@ export function useChannelReconciliation() {
         allowed_owner_ids: payload.allowed_owner_ids || [],
         owner_violations: payload.owner_violations || [],
         unverifiable_accounts: payload.unverifiable_accounts || [],
+        retired_accounts: payload.retired_accounts || [],
 
       });
       return true;
