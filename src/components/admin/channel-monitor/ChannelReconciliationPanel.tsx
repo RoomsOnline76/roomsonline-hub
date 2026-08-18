@@ -71,6 +71,17 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   }, [result, erroredOwners, duplicateCleanable]);
   const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
 
+  // Every live listing belongs to exactly one class, so the buckets must add up
+  // to the live count the account returned. Any gap is a classification bug and
+  // is shown rather than hidden.
+  const matchedLiveListings = useMemo(
+    () => new Set((result?.matched || []).map((m) => m.listing_id)).size,
+    [result],
+  );
+  const liveBucketTotal =
+    matchedLiveListings + (result?.duplicates.length || 0) + (result?.orphans.length || 0);
+
+
 
 
 
