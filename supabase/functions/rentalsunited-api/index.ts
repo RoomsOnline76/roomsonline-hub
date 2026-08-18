@@ -2872,7 +2872,21 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Keep the warm-worker snapshot truthful: a listing just created (or adopted) must be
+      // visible to the next unit of this push, which reads the snapshot instead of the channel.
+      if (returnedPropertyId != null) {
+        const ownerIdNum = Number(p.owner_id);
+        const snap = readOwnerListingSnapshot(ownerIdNum);
+        if (snap) {
+          const idStr = String(returnedPropertyId);
+          const next = snap.filter((l) => String(l.id) !== idStr);
+          next.push({ id: idStr, name: String(p.name ?? ''), is_archived: false });
+          writeOwnerListingSnapshot(ownerIdNum, next);
+        }
+      }
+
       return jsonResponse({
+
         success: true,
         message: distancesSkipped > 0
           ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
