@@ -4474,6 +4474,31 @@ Deno.serve(async (req) => {
         const failedUnitIds = unitResults.filter((u: any) => !u.success).map((u: any) => u.room_type_id);
         const retryableUnitIds = unitResults.filter((u: any) => u.transport_failure).map((u: any) => u.room_type_id);
         const remainingUnitIds = [...remainingUnits.map(u => u.id), ...retryableUnitIds];
+
+        /**
+         * Publish invariant. A chunk only knows about the units it carried, so a unit that
+         * was inactive when the sequence started (or added since) used to end the run
+         * unpublished while the push reported "complete". Re-read the property's active
+         * canonical units and treat any that still hold no listing id as outstanding work.
+         */
+        let unpublishedUnits: Array<{ id: string; name: string }> = [];
+        if (remainingUnitIds.length === 0) {
+          const canonicalIds = new Set(activeRoomTypes.map((rt: any) => rt.id));
+          const { data: freshUnits } = await supabase
+            .from('hostfully_room_types')
+            .select('id, name, rentalsunited_property_id')
+            .eq('property_id', property_id)
+            .eq('is_active', true);
+          unpublishedUnits = ((freshUnits ?? []) as Array<{ id: string; name: string | null; rentalsunited_property_id: string | null }>)
+            .filter((u) => canonicalIds.has(u.id) && !String(u.rentalsunited_property_id ?? '').trim())
+            .map((u) => ({ id: u.id, name: String(u.name ?? 'Unit') }));
+          // A scoped request (only_unit_ids) is deliberately partial — report, never resume.
+          if (unpublishedUnits.length > 0 && !Array.isArray(only_unit_ids)) {
+            remainingUnitIds.push(...unpublishedUnits.map((u) => u.id));
+            console.log(`[push-property-to-ru] Publish invariant: ${unpublishedUnits.map((u) => u.name).join(', ')} still hold no listing — queued for the next chunk`);
+          }
+        }
+
         // The whole inventory is only pushed when this chunk finished the sequence cleanly.
         const inventorySuccess = chunkSuccess && remainingUnitIds.length === 0;
         const inventoryVerified = chunkVerified && remainingUnitIds.length === 0;
