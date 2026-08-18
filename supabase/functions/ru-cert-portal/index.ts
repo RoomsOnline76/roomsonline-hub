@@ -3586,36 +3586,16 @@ Deno.serve(async (req) => {
           }, 200);
         }
 
-        // Rejected. Is the PAIR bad, or the sub-user account itself not usable yet? One
-        // confirmatory check with the sub-user's operator portal login separates the two, so the
-        // operator is never told to regenerate keys for an account that cannot log in at all.
-        let accountUsable: boolean | null = null;
-        if (loginEmail) {
-          const { data: loginProbe } = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "verify_child_login",
-              auth_username: loginEmail,
-              auth_password: RU_SUB_USER_PASSWORD,
-            },
-          });
-          if (loginProbe?.success === true) accountUsable = loginProbe?.verified === true;
-        }
-
         return json({
           success: false,
           verified: false,
           state: "rejected",
           method: "Pull_ListOwnerProp_RQ",
-          account_login_usable: accountUsable,
           ru_status_id: owned?.ru_status_id ?? null,
           ru_status_message: owned?.ru_status_message ?? null,
           error: {
             code: "RU_CHILD_KEYS_REJECTED",
-            message: accountUsable === true
-              ? `The sub-account ${who} is fine, but the channel refused this key pair (${owned?.ru_status_message ?? "auth rejected"}). Sign in as ${who}, generate a fresh key pair with scope XmlApi, and paste it here.`
-              : accountUsable === false
-                ? `The channel refused both this key pair and the ${who} portal login (${owned?.ru_status_message ?? "auth rejected"}). The sub-account login must be working before a key pair can be captured.`
-                : `The channel refused this key pair for ${who} (${owned?.ru_status_message ?? "auth rejected"}). Generate the pair while signed in as ${who} (Security settings, scope XmlApi).`,
+            message: `The channel's XML API refused this key pair for ${who} (${owned?.ru_status_message ?? "auth rejected"}). The portal username/password was not tested because portal login and XML API authentication are separate. Confirm that this downloaded pair is enabled for XmlApi access on OwnerID ${ownerId}.`,
           },
         }, 200);
       }
