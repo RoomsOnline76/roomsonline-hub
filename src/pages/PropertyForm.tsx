@@ -3680,23 +3680,47 @@ export default function PropertyForm({
       }
 
       // Deactivate orphan hostfully_room_types ONLY for ROL'OS native properties
-      // PMS-managed properties (Hostfully, Benson, etc.) use the importer as source of truth
-      if (isRolProperty && savedPropertyId) {
+      // PMS-managed properties (Hostfully, Benson, etc.) use the importer as source of truth.
+      //
+      // Two hard guards: a save made before the units tab hydrated (empty roomTypes) may
+      // never archive anything, and a unit that holds a channel listing id is never
+      // archived silently — that is how live units vanished from the channel footprint.
+      if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
         try {
           const currentRoomNames = roomTypes.map((r: any) => (r.name || "").toLowerCase().trim()).filter(Boolean);
           const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
           const { data: allActiveDbRooms } = await supabase
             .from("hostfully_room_types")
-            .select("id, name")
+            .select("id, name, rentalsunited_property_id")
             .eq("property_id", savedPropertyId)
             .eq("is_active", true);
 
           if (allActiveDbRooms) {
-            const orphanRooms = allActiveDbRooms.filter(
+            const candidates = allActiveDbRooms.filter(
               (dbRoom: any) =>
                 !currentRoomIds.includes(dbRoom.id) &&
                 !currentRoomNames.includes((dbRoom.name || "").toLowerCase().trim()),
             );
+            const protectedRooms = candidates.filter((r: any) =>
+              !!String(r.rentalsunited_property_id ?? "").trim(),
+            );
+            const orphanRooms = candidates.filter((r: any) =>
+              !String(r.rentalsunited_property_id ?? "").trim(),
+            );
+            if (protectedRooms.length > 0) {
+              console.warn(
+                "[Save] Kept units that hold a channel listing:",
+                protectedRooms.map((o: any) => o.name),
+              );
+              toast({
+                title: "Units kept",
+                description: `${protectedRooms
+                  .map((o: any) => o.name)
+                  .join(", ")} ${protectedRooms.length === 1 ? "is" : "are"} published on the channel, so ${
+                  protectedRooms.length === 1 ? "it was" : "they were"
+                } not removed. Release the listing first if this is intended.`,
+              });
+            }
             if (orphanRooms.length > 0) {
               const orphanIds = orphanRooms.map((o: any) => o.id);
               await supabase
@@ -3707,12 +3731,17 @@ export default function PropertyForm({
                 `[Save] Deactivated ${orphanRooms.length} orphan hostfully_room_types:`,
                 orphanRooms.map((o: any) => o.name),
               );
+              toast({
+                title: "Units removed",
+                description: `Deactivated ${orphanRooms.map((o: any) => o.name).join(", ")}.`,
+              });
             }
           }
         } catch (orphanErr) {
           console.warn("[Save] Orphan room cleanup warning:", orphanErr);
         }
       }
+
 
       // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
       if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {

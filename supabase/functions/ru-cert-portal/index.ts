@@ -3940,11 +3940,23 @@ Deno.serve(async (req) => {
       });
       // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
       const listedBody = listed ?? (await readInvokeErrorBody(listErr));
-      if (listErr || listedBody?.success !== true) {
+      /**
+       * A rate-limited read answers 202 { success: true, queued: true } with no property
+       * list. Treating that as "the account is empty" is what wiped listing verification
+       * and reported an empty sub-account, so an unresolved read is a deferral.
+       */
+      const queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
+      if (listErr || listedBody?.success !== true || queuedRead) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
         // never be reported as "the sub-account was empty".
-        const code = typeof listedBody?.error?.code === "string" ? listedBody.error.code : "RU_LIST_FAILED";
-        const detail = listedBody?.error?.message ?? listErr?.message ?? "Rentals United did not return a property list";
+        const code = typeof listedBody?.error?.code === "string"
+          ? listedBody.error.code
+          : (queuedRead && listedBody?.success === true ? "RU_RATE_DEFERRED" : "RU_LIST_FAILED");
+        const detail = listedBody?.error?.message
+          ?? (queuedRead && listedBody?.success === true
+            ? "The listing read was queued behind the channel rate limit and has not returned yet."
+            : null)
+          ?? listErr?.message ?? "Rentals United did not return a property list";
         const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
         return json({
           success: false,
@@ -3963,30 +3975,14 @@ Deno.serve(async (req) => {
       }
 
 
-      const remote: { id: string; name: string }[] = Array.isArray(listed.properties) ? listed.properties : [];
+      const remote: { id: string; name: string; is_archived?: boolean }[] = Array.isArray(listed.properties) ? listed.properties : [];
       const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
       const slug = (v: unknown) => norm(v).replace(/[^a-z0-9]+/g, "");
       const claimed = new Set<string>();
-      /**
-       * Exact name first, then slug (punctuation/dash noise), then a containment match —
-       * RU listing names often carry a portfolio prefix ("Tidal Pools - Leervis").
-       * Each remote listing can only be claimed once so two units never link to one RUID.
-       */
-      const findRemote = (name: string | null) => {
-        const key = norm(name);
-        if (!key) return null;
-        const free = remote.filter((r) => !claimed.has(r.id));
-        const hit =
-          free.find((r) => norm(r.name) === key) ??
-          free.find((r) => slug(r.name) === slug(key)) ??
-          free.find((r) => slug(r.name).includes(slug(key)) || slug(key).includes(slug(r.name))) ??
-          null;
-        if (hit) claimed.add(hit.id);
-        return hit;
-      };
 
-      const matched: { scope: "property" | "unit"; name: string; ru_property_id: string }[] = [];
+      const matched: { scope: "property" | "unit"; name: string; ru_property_id: string; adopted_archived?: boolean }[] = [];
       const unmatched: string[] = [];
+      const conflicts: { name: string; ru_property_id: string; held_by: string }[] = [];
 
       // Multi-unit properties carry the RUID per unit; single-unit on the property row.
       const { data: units } = await admin
@@ -3995,27 +3991,134 @@ Deno.serve(async (req) => {
         .eq("property_id", targetPropertyId);
       const activeUnits = (units ?? []).filter((u) => u.is_active !== false);
 
+      /**
+       * Ids already held anywhere else in ROL'OS. A listing may only ever back one
+       * record — writing an id a sibling property/unit already holds is exactly how one
+       * building listing ended up claimed by two properties.
+       */
+      const heldElsewhere = new Map<string, string>();
+      {
+        const localUnitIds = new Set((units ?? []).map((u) => u.id));
+        const [{ data: otherUnits }, { data: otherProps }] = await Promise.all([
+          admin
+            .from("hostfully_room_types")
+            .select("id, name, property_id, rentalsunited_property_id")
+            .not("rentalsunited_property_id", "is", null),
+          admin
+            .from("properties")
+            .select("id, name, rentalsunited_property_id")
+            .not("rentalsunited_property_id", "is", null),
+        ]);
+        for (const u of otherUnits ?? []) {
+          if (localUnitIds.has(u.id)) continue;
+          heldElsewhere.set(String(u.rentalsunited_property_id), `unit "${u.name ?? u.id}"`);
+        }
+        for (const p of otherProps ?? []) {
+          if (p.id === targetPropertyId) continue;
+          heldElsewhere.set(String(p.rentalsunited_property_id), `property "${p.name ?? p.id}"`);
+        }
+      }
+
+      /**
+       * Live listings are matched first; an archived listing is only adopted when nothing
+       * live matches, and it is reactivated as part of adoption. Matching is exact name
+       * then slug (punctuation/dash noise) — never a substring, so "Kaapse Noontjie" can
+       * not claim "Kaapse Nooientjie". Each remote listing can only be claimed once.
+       */
+      const findRemote = (name: string | null) => {
+        const key = norm(name);
+        if (!key) return null;
+        const free = remote.filter((r) => !claimed.has(r.id) && !heldElsewhere.has(r.id));
+        const live = free.filter((r) => r.is_archived !== true);
+        const pick = (pool: typeof free) =>
+          pool.find((r) => norm(r.name) === key) ?? pool.find((r) => slug(r.name) === slug(key)) ?? null;
+        const hit = pick(live) ?? pick(free);
+        if (hit) claimed.add(hit.id);
+        return hit;
+      };
+
+      /** Reactivate an archived listing we are adopting so the push updates a live listing. */
+      const reactivate = async (listingId: string) => {
+        try {
+          await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "set_property_status",
+              ru_property_id: Number(listingId),
+              owner_id: Number(ownerId),
+              metadata: { is_active: true, is_archived: false },
+            },
+          });
+        } catch (e) {
+          console.warn("[ru-cert-portal] reactivate on adoption failed", listingId, e);
+        }
+      };
+
       for (const unit of activeUnits) {
+        const held = String(unit.rentalsunited_property_id ?? "").trim();
+        // A unit that already holds an id keeps it while the account still returns it.
+        if (held) {
+          const stillThere = remote.find((r) => r.id === held);
+          if (stillThere) {
+            claimed.add(held);
+            if (stillThere.is_archived === true) await reactivate(held);
+            matched.push({
+              scope: "unit",
+              name: String(unit.name ?? ""),
+              ru_property_id: held,
+              adopted_archived: stillThere.is_archived === true,
+            });
+            continue;
+          }
+        }
         const hit = findRemote(unit.name as string | null);
         if (!hit) {
           unmatched.push(String(unit.name ?? unit.id));
           continue;
         }
-        if (String(unit.rentalsunited_property_id ?? "") !== hit.id) {
+        const conflict = heldElsewhere.get(hit.id);
+        if (conflict) {
+          conflicts.push({ name: String(unit.name ?? unit.id), ru_property_id: hit.id, held_by: conflict });
+          unmatched.push(String(unit.name ?? unit.id));
+          continue;
+        }
+        if (hit.is_archived === true) await reactivate(hit.id);
+        if (held !== hit.id) {
           await admin.from("hostfully_room_types").update({ rentalsunited_property_id: hit.id }).eq("id", unit.id);
         }
-        matched.push({ scope: "unit", name: String(unit.name ?? ""), ru_property_id: hit.id });
+        matched.push({
+          scope: "unit",
+          name: String(unit.name ?? ""),
+          ru_property_id: hit.id,
+          adopted_archived: hit.is_archived === true,
+        });
       }
 
-      const propertyHit = findRemote(prop.name as string | null);
+      /**
+       * A multi-unit property has no building listing of its own: its units are the
+       * listings. Only a single-unit property may carry a listing id on the property row,
+       * so a name match is never written back for a property that has active units.
+       */
+      const propertyHit = activeUnits.length === 0 ? findRemote(prop.name as string | null) : null;
       if (propertyHit) {
-        if (String(prop.rentalsunited_property_id ?? "") !== propertyHit.id) {
-          await admin.from("properties").update({ rentalsunited_property_id: propertyHit.id }).eq("id", targetPropertyId);
+        const conflict = heldElsewhere.get(propertyHit.id);
+        if (conflict) {
+          conflicts.push({ name: String(prop.name ?? targetPropertyId), ru_property_id: propertyHit.id, held_by: conflict });
+          unmatched.push(String(prop.name ?? targetPropertyId));
+        } else {
+          if (propertyHit.is_archived === true) await reactivate(propertyHit.id);
+          if (String(prop.rentalsunited_property_id ?? "") !== propertyHit.id) {
+            await admin.from("properties").update({ rentalsunited_property_id: propertyHit.id }).eq("id", targetPropertyId);
+          }
+          matched.push({ scope: "property", name: String(prop.name ?? ""), ru_property_id: propertyHit.id });
         }
-        matched.push({ scope: "property", name: String(prop.name ?? ""), ru_property_id: propertyHit.id });
       } else if (activeUnits.length === 0) {
         unmatched.push(String(prop.name ?? targetPropertyId));
+      } else if (String(prop.rentalsunited_property_id ?? "").trim()) {
+        // Stale building id on a multi-unit property: release it so two properties can
+        // never claim the same listing.
+        await admin.from("properties").update({ rentalsunited_property_id: null }).eq("id", targetPropertyId);
       }
+
 
       /**
        * Persist the read-back result. This is the property's listing-verification
@@ -4071,9 +4174,10 @@ Deno.serve(async (req) => {
         success: true,
         ru_owner_id: ownerId,
         ru_owner_label: subAccountLabel,
-        rentalsunited_property_id: propertyHit?.id ?? prop.rentalsunited_property_id ?? null,
+        rentalsunited_property_id: activeUnits.length ? null : (propertyHit?.id ?? prop.rentalsunited_property_id ?? null),
         matched,
         unmatched,
+        conflicts,
         listing_status: listingStatus,
         remote_count: remote.length,
         auth_mode: listed.auth_mode ?? null,
