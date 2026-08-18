@@ -587,6 +587,10 @@ Deno.serve(async (req) => {
         listing_count: number;
         archived_count?: number;
         total_listing_count?: number;
+        /** The account really answered with its listing set on this pass. */
+        read?: boolean;
+        /** Not read because the channel rate-limited/queued the pull. */
+        deferred?: boolean;
         error: string | null;
         is_master: boolean;
       }> = [];
