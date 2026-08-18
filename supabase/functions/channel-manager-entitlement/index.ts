@@ -783,7 +783,18 @@ Deno.serve(async (req) => {
             copies: rows.length,
           });
         }
+
+      /**
+       * One listing, one class. A surplus same-name copy that no local record
+       * points at was previously counted as an orphan *and* as a duplicate, so
+       * the tiles added up to more problems than the account holds. Duplicate
+       * wins: it is the actionable description of that listing.
+       */
+      const duplicateIds = new Set(duplicates.map((d) => d.listing_id));
+      for (let i = orphans.length - 1; i >= 0; i--) {
+        if (duplicateIds.has(orphans[i].listing_id)) orphans.splice(i, 1);
       }
+
 
       // A record whose id is archived upstream usually has a live twin under the
       // same unit name — that is the listing it should point at.
