@@ -1,37 +1,49 @@
-# Correct queued channel reads in onboarding readiness
+# Stop rate-limited channel reads from failing gates that already passed
 
-## Confirmed cause
+## What the data proves
 
-The failure is not missing availability, pricing, or MinStay data.
+Nothing is wrong with the Jongensfontein properties, and no gate is genuinely violated.
 
-For Fonteinhutte, the live channel response for Kaapse Noontjie (`5806507`) returned a full 366-day calendar with `Units="1"`, `IsBlocked=false`, and `MinStay=1`. At the same time, another readiness request was rate-gated and returned a queued HTTP 202 payload with `success: true` but no `raw_xml`.
+Fonteinhutte's stored gate payload blocks on one unit:
 
-`ru-cert-portal` currently treats `success: true` as `availability_responded: true`, even when the response is only queued. It then parses the absent XML as zero days and accepts that zero-day result as complete channel evidence. That false result is stored in `ru_readiness_snapshots` and drives the persistent pink “Availability coverage” blocker after refresh.
+- "Kaapse Noontjie: Longest run of open, priced days is 0 (need 3); 0 open day(s), 0 of them unpriced"
+- "Kaapse Noontjie: No MinStay value reached the channel for the affected unit"
 
-## Implementation
+The channel's own responses for that same unit (`5806507`), read minutes earlier, say the opposite:
 
-1. **Reject queued/empty payloads as channel evidence**
-   - Count availability or pricing as answered only when the invocation succeeded, is not queued, and contains the expected XML payload.
-   - A queued 202, deferred response, timeout, or empty body becomes incomplete evidence—not a zero-day channel calendar.
+- Availability: `Status ID="0" Success`, 63 183 bytes, `CalDay ... Units="1"` with `IsBlocked=false`, `MinStay=1`, `MaxStay=30` across the rolling year.
+- Pricing: `Status ID="0" Success`, ten contiguous seasons from 2026-08-18 through 2027-08-18 at 1010 / 1230 / 2120.
 
-2. **Preserve the last valid verdict**
-   - Route incomplete reads through the existing snapshot/local fallback path.
-   - Do not write zero-day windows from queued responses into the ARI snapshot or phase payload.
-   - Keep genuine channel responses with a real calendar and zero open units blocking, so actual closed inventory remains visible.
+In the same window the call log shows repeated `429 RU_RATE_DEFERRED` for both calls ("called with the same parameters less than a minute ago"). The readiness snapshot written at 19:51:37 recorded zeroes — those zeroes come from the deferred calls, not from the channel.
 
-3. **Add regression coverage for the exact failure**
-   - Test a queued `success: true` response with no XML and verify it cannot produce complete zero-day evidence.
-   - Test a real XML response with zero units and verify it still blocks.
-   - Test a real open calendar with MinStay and pricing and verify it passes.
+So the scorer is treating a rate-limited deferral as an answered calendar containing zero open days and no MinStay, and that fabricated zero is what blocks the wizard.
 
-4. **Verify against both affected properties**
-   - Re-score Fonteinhutte and confirm Kaapse Noontjie no longer reports 0 open days / missing MinStay.
-   - Re-score RU Test Clone A and confirm queued reads do not replace valid local/snapshot evidence; unpublished units remain a separate publishing blocker.
+The push itself is complete: the payload lists all nine unit IDs (5806492–5806518) with `inventory_push_at` recorded, and phase 4 already reads `verified: true`. Phases 3 and 4 show as pending only because phase 2 is blocked upstream. That is why the wizard stalls on "Push property / Fetch channel manager IDs" for work that is already done.
+
+## The fix
+
+1. **A deferred read is never evidence.**
+   A `429`/`RU_RATE_DEFERRED` (or any queued, empty, or errored payload) must not be counted as availability or pricing answered. Only a real `Status ID="0"` response carrying a calendar or price body may produce open-day, MinStay and priced-day numbers.
+
+2. **Reuse the successful read instead of re-probing.**
+   When a good response for a unit already exists inside the channel's own repeat window, score from it rather than firing a duplicate call that is guaranteed to come back rate-limited. This uses the existing rate gate and call-queue rather than adding anything new.
+
+3. **Never overwrite a good verdict with a deferred one.**
+   Deferred reads leave the last valid per-unit verdict in place in the readiness snapshot and phase payload. A genuinely closed or unpriced unit still blocks; a unit that could not be read is reported as "not re-checked", not as failed.
+
+4. **Phase 3 and 4 reflect recorded reality.**
+   With phase 2 passing on real evidence, the pushed unit IDs and the existing verification timestamp let the wizard show push and verification as complete, leaving the live-connector step as the only remaining work.
+
+## Verification before reporting back
+
+- Re-score all four Jongensfontein properties and confirm no unit reports 0 open days or missing MinStay while the channel is returning full calendars.
+- Confirm the stored snapshot for Fonteinhutte lists Kaapse Noontjie as open and priced.
+- Confirm a deliberately rate-limited re-score changes nothing in the stored verdict.
 
 ## Technical scope
 
-- `supabase/functions/ru-cert-portal/index.ts` — correct readiness response classification and snapshot persistence eligibility.
-- `supabase/functions/_shared/ruReadiness.ts` — add a small, testable response-evidence classifier if needed.
-- `supabase/functions/_shared/ruReadiness.test.ts` — exact queued-versus-real-response regressions.
+- `supabase/functions/ru-cert-portal/index.ts` — treat deferred/queued/empty ARI responses as "not read"; reuse the recent successful read; do not persist zero-day windows from unread units.
+- `supabase/functions/_shared/ruReadiness.ts` — evidence classification for deferred versus answered responses.
+- `supabase/functions/_shared/ruReadiness.test.ts` — regressions for: deferred 429 cannot fail a unit; a real empty calendar still fails; the real Kaapse Noontjie response passes.
 
-No rate-plan, calendar, unit, or property data will be changed. No new feature or fallback source will be added.
+No property, unit, rate, or calendar data changes. No new feature.
