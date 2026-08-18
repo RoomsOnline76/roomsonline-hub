@@ -40,6 +40,16 @@ export interface RuLocalWindow {
   } | null;
   /** Active units with no MinStay authored on the room type. */
   units_without_min_stay: string[];
+  unit_windows: Array<{
+    name: string;
+    ok: boolean;
+    start: string | null;
+    longest_run: number;
+    open_days: number;
+    unpriced_open_days: number;
+    min_stay_set: boolean;
+    min_stay_days: number;
+  }>;
 }
 
 const EMPTY = (from: string, to: string): RuLocalWindow => ({
@@ -58,6 +68,7 @@ const EMPTY = (from: string, to: string): RuLocalWindow => ({
   units_with_max_stay: 0,
   worst_unit: null,
   units_without_min_stay: [],
+  unit_windows: [],
 });
 
 /**
@@ -177,6 +188,7 @@ export async function computeLocalBookableWindow(
       let open = 0;
       let unpriced = 0;
       let unitBestRun = 0;
+      let unitBestStart: string | null = null;
       for (const date of allDates) {
         const isOpen = !blockedAll.has(date) && !unitBlocked.has(date);
         if (!isOpen) {
@@ -194,7 +206,10 @@ export async function computeLocalBookableWindow(
         }
         run = run === 0 ? 1 : run + 1;
         if (run === 1) runStart = date;
-        if (run > unitBestRun) unitBestRun = run;
+        if (run > unitBestRun) {
+          unitBestRun = run;
+          unitBestStart = runStart;
+        }
         if (run > bestRun) {
           bestRun = run;
           bestStart = runStart;
@@ -210,6 +225,19 @@ export async function computeLocalBookableWindow(
         open_days: open,
         unpriced_open_days: unpriced,
       };
+      const authoredMinStay = Number(
+        activeStayRows.find((row) => String(row.name ?? "").trim().toLowerCase() === label)?.min_stay ?? 0,
+      ) > 0;
+      result.unit_windows.push({
+        name: candidate.name,
+        ok: unitBestRun >= RU_MIN_BOOKABLE_WINDOW,
+        start: unitBestStart,
+        longest_run: unitBestRun,
+        open_days: open,
+        unpriced_open_days: unpriced,
+        min_stay_set: authoredMinStay || minStayDates.size > 0,
+        min_stay_days: minStayDates.size,
+      });
       if (!worst || candidate.longest_run < worst.longest_run) worst = candidate;
     }
     result.worst_unit = worst;

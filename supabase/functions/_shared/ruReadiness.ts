@@ -133,6 +133,25 @@ export interface RuUnitInput {
   validation?: RuUnitValidation | null;
 }
 
+export type RuChannelWindowEvidence = "complete" | "incomplete";
+
+/**
+ * Decide whether a live channel calendar can safely author the readiness verdict.
+ * An answered calendar with no open days is a real (blocking) result. Open inventory
+ * with no returned prices is only half a response and must fall back to ROL'OS evidence.
+ */
+export function classifyChannelWindowEvidence(
+  window: { open_days?: number; unpriced_open_days?: number } | null | undefined,
+  transport: { availability_responded: boolean; prices_responded: boolean },
+): RuChannelWindowEvidence {
+  if (!window || !transport.availability_responded) return "incomplete";
+  const openDays = Math.max(0, Number(window.open_days ?? 0));
+  if (openDays === 0) return "complete";
+  if (!transport.prices_responded) return "incomplete";
+  const unpricedOpenDays = Math.max(0, Number(window.unpriced_open_days ?? openDays));
+  return unpricedOpenDays < openDays ? "complete" : "incomplete";
+}
+
 export interface RuReadinessSummary {
   score: number;
   checks_total: number;
