@@ -51,7 +51,9 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   const [showArchived, setShowArchived] = useState(false);
 
   const erroredOwners = useMemo(
-    () => new Set((result?.accounts || []).filter((a) => a.error).map((a) => a.owner_id)),
+    // An account that was deferred or answered blank counts as un-read: nothing it
+    // "did not return" may be treated as removable.
+    () => new Set((result?.accounts || []).filter((a) => a.error || a.read === false).map((a) => a.owner_id)),
     [result],
   );
 
@@ -70,7 +72,8 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     const seen = new Set(orphans.map((o) => o.listing_id));
     return [...orphans, ...duplicateCleanable.filter((d) => !seen.has(d.listing_id))];
   }, [result, erroredOwners, duplicateCleanable]);
-  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
+  const readComplete = result?.read_complete !== false;
+  const cleanableTotal = cleanableListings.length + (readComplete ? result?.stale.length || 0 : 0);
 
   // Every live listing belongs to exactly one class, so the buckets must add up
   // to the live count the account returned. Any gap is a classification bug and
@@ -308,6 +311,14 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 ({result.channel_listing_count} live + {result.archived_count} archived)
               </span>
               <span>{result.stale.length} stale local id{result.stale.length === 1 ? "" : "s"}</span>
+              {!readComplete && (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Incomplete read — {(result.unread_owner_ids || []).length || 1} account
+                  {((result.unread_owner_ids || []).length || 1) === 1 ? "" : "s"} did not answer, no id can be
+                  called stale
+                </Badge>
+              )}
               <span>
                 Live breakdown: {matchedLiveListings} matched + {result.duplicates.length} duplicate cop
                 {result.duplicates.length === 1 ? "y" : "ies"} + {result.orphans.length} orphan
@@ -795,6 +806,28 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                         Delete from channel
                       </Button>
 
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {(result.unverified?.length ?? 0) > 0 && (
+              <section className="space-y-2">
+                <h4 className="text-sm font-medium">
+                  Unverified local ids — the account was not read, so nothing may be cleared
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  The channel rate-limited or answered blank on this pass. Reconcile again once the account
+                  responds; these ids stay untouched until then.
+                </p>
+                <ul className="divide-y rounded-md border">
+                  {result.unverified!.map((s) => (
+                    <li key={s.record_id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                      <span className="min-w-0 truncate">
+                        {s.label} <span className="text-muted-foreground">#{s.listing_id}</span>
+                      </span>
+                      <Badge variant="outline">Not verified</Badge>
                     </li>
                   ))}
                 </ul>
