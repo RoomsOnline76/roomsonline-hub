@@ -11,7 +11,7 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
@@ -172,7 +172,9 @@ export interface AriSnapshot {
  */
 function isMeaningfulWindow(w: any): boolean {
   if (!w || typeof w !== "object") return false;
-  return Number(w.open_days ?? 0) > 0 || Number(w.longest_run ?? 0) > 0;
+  const openDays = Math.max(0, Number(w.open_days ?? 0));
+  const unpricedOpenDays = Math.max(0, Number(w.unpriced_open_days ?? openDays));
+  return openDays > 0 && unpricedOpenDays < openDays;
 }
 
 
@@ -1669,6 +1671,7 @@ Deno.serve(async (req) => {
       // ── Live ARI verification (365 days forward) ──
       const extraChecks: RuCheck[] = [];
       let ari: Record<string, unknown> | null = null;
+      let availabilitySource: "channel" | "local" | "mixed" = "local";
       // Local readiness is always evaluated, including after publication. Live read-back is
       // verification evidence; an empty transport/account response must not erase a complete
       // outbound payload that the same shared resolver can build now.
@@ -1741,6 +1744,8 @@ Deno.serve(async (req) => {
             unit_name: nameFor(ruId),
             open_days: openDays,
             price_points: prices.length,
+            availability_responded: !!avbRes.data?.success && avbRes.error == null,
+            prices_responded: !!priceRes.data?.success && priceRes.error == null,
             availability_ok: !!avbRes.data?.success && openDays > 0,
             availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
             prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
@@ -1775,9 +1780,29 @@ Deno.serve(async (req) => {
         const failedAvailabilityIds = unitProbes.filter((probe) => !probe.availability_ok).map((probe) => probe.ru_property_id);
         const failedPriceIds = unitProbes.filter((probe) => !probe.prices_ok).map((probe) => probe.ru_property_id);
 
-        // MinStay + "3 consecutive bookable, priced days" — scored on the weakest unit so a
-        // single unsellable unit cannot pass behind a healthy sibling.
-        const worstProbe = unitProbes.reduce<typeof unitProbes[number] | null>((worst, probe) => {
+        // Select evidence per unit. A successful availability response with no open days is a
+        // genuine failure; open inventory with no returned price is incomplete and must not
+        // override the same unit's valid ROL'OS Rate Plan + Calendar evidence.
+        const localByName = new Map(localWindow.unit_windows.map((window) => [window.name.trim().toLowerCase(), window]));
+        const selectedWindows = unitProbes.map((probe) => {
+          const channelComplete = classifyChannelWindowEvidence(probe.bookable_window, {
+            availability_responded: probe.availability_responded,
+            prices_responded: probe.prices_responded,
+          }) === "complete";
+          const local = localByName.get(probe.unit_name.trim().toLowerCase()) ?? (
+            localWindow.unit_windows.length === 1 ? localWindow.unit_windows[0] : null
+          );
+          return channelComplete || !local
+            ? { ...probe, evidence_source: "channel" as const }
+            : { ...probe, bookable_window: local, evidence_source: "local" as const };
+        });
+        const channelEvidenceCount = selectedWindows.filter((probe) => probe.evidence_source === "channel").length;
+        availabilitySource = channelEvidenceCount === selectedWindows.length
+          ? "channel"
+          : channelEvidenceCount === 0 ? "local" : "mixed";
+        // MinStay + "3 consecutive bookable, priced days" — scored on the weakest selected
+        // unit so a genuine channel failure still blocks while incomplete reads fall back.
+        const worstProbe = selectedWindows.reduce<typeof selectedWindows[number] | null>((worst, probe) => {
           if (!worst) return probe;
           const w = probe.bookable_window;
           const cur = worst.bookable_window;
@@ -1786,9 +1811,10 @@ Deno.serve(async (req) => {
           return worst;
         }, null);
         const worstWindow = worstProbe?.bookable_window ?? null;
-        if (worstWindow && liveAvailabilityResponded) {
-          // Worst unit wins — and the check carries that unit's name so the wizard opens it.
+        if (worstWindow && worstProbe?.evidence_source === "channel") {
           extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
+        } else if (worstWindow) {
+          extraChecks.push(...localBookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
         } else if (!liveAvailabilityResponded && isMeaningfulWindow(ariSnapshot?.worst_window)) {
           extraChecks.push(...bookableWindowChecks(ariSnapshot!.worst_window as RuBookableWindow, soleUnitName ?? undefined));
 
@@ -1805,7 +1831,7 @@ Deno.serve(async (req) => {
             prices_ok: livePricesVerified || ariSnapshot?.prices_ok === true,
             units: unitProbes,
             // Never overwrite a real window with an all-zero one from a silent read.
-            worst_window: isMeaningfulWindow(worstWindow)
+            worst_window: worstProbe?.evidence_source === "channel" && isMeaningfulWindow(worstWindow)
               ? worstWindow
               : (isMeaningfulWindow(ariSnapshot?.worst_window) ? ariSnapshot!.worst_window : null),
 
@@ -1869,6 +1895,7 @@ Deno.serve(async (req) => {
           rate_coverage: localCoverage,
           snapshot_at: ariSnapshot?.probed_at ?? null,
           snapshot_held: snapshotHeldAvailability || snapshotHeldPrices,
+          availability_source: availabilitySource,
         };
 
       } else if (ruIds.length > 0 && ariSnapshot) {
@@ -1876,6 +1903,7 @@ Deno.serve(async (req) => {
         // instead of re-pulling every unit's calendar on page load.
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
         if (isMeaningfulWindow(ariSnapshot.worst_window)) {
+          availabilitySource = "channel";
           extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
 
         } else {
@@ -1911,6 +1939,7 @@ Deno.serve(async (req) => {
           units: ariSnapshot.units ?? [],
           from_snapshot: true,
           snapshot_at: ariSnapshot.probed_at,
+          availability_source: availabilitySource,
         };
       } else {
         // Pre-publish: there is no RU property ID yet, so live ARI simply cannot exist.
@@ -2095,6 +2124,7 @@ Deno.serve(async (req) => {
         score: summary.score,
         unpublished_units: unpublishedUnitNames,
         ari,
+        availability_source: availabilitySource,
       };
     };
 
@@ -4853,7 +4883,7 @@ Deno.serve(async (req) => {
         readiness,
         // Tells the wizard whether availability rules were judged on the live channel
         // calendar or on the ROL'OS calendar (pre-publish).
-        availability_source: probeAri ? "channel" : "local",
+        availability_source: (readiness as { availability_source?: string } | null)?.availability_source ?? "local",
         last_mcq: mcq ?? null,
         sales_channel: salesChannel,
       };
