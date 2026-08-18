@@ -641,7 +641,7 @@ export function useChannelReconciliation() {
     // the post-cleanup truth rather than our optimistic local decrements.
     if (cleaned > 0) await reconcile({ keepFailures: true });
     return { cleaned, total, refused: refusedCount, failures: failed };
-  }, [result, purgeListing, clearStale, reconcile]);
+  }, [result, reconcile]);
 
   return {
     result,
