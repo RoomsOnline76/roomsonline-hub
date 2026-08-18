@@ -136,6 +136,27 @@ export interface RuUnitInput {
 export type RuChannelWindowEvidence = "complete" | "incomplete";
 
 /**
+ * Did a channel read actually answer with data?
+ *
+ * The channel gateway answers a rate-limited read with HTTP 202 `{ success: true, queued: true }`
+ * so the caller knows the work is parked in the background queue — there is no calendar in that
+ * body. Counting it as "responded" made an unread unit look like an answered calendar with zero
+ * open days and no MinStay, which blocked properties whose live calendars were fully open and
+ * priced. Only a real payload counts as read.
+ */
+export function ruReadAnswered(
+  result: { data?: unknown; error?: unknown } | null | undefined,
+  payloadKey = "raw_xml",
+): boolean {
+  if (!result || result.error != null) return false;
+  const data = result.data as Record<string, unknown> | null | undefined;
+  if (!data || data.success !== true) return false;
+  if (data.queued === true || data.deferred === true || data.rate_deferred === true) return false;
+  const payload = data[payloadKey];
+  return typeof payload === "string" && payload.trim().length > 0;
+}
+
+/**
  * Decide whether a live channel calendar can safely author the readiness verdict.
  * An answered calendar with no open days is a real (blocking) result. Open inventory
  * with no returned prices is only half a response and must fall back to ROL'OS evidence.

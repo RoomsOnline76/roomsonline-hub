@@ -11,7 +11,7 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
@@ -146,6 +146,41 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
 const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
+
+/** How far back a logged channel answer is still trusted when the live read is rate limited. */
+const RU_LAST_GOOD_XML_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * The channel enforces one call per method per sliding minute, so a re-score inside that window
+ * is answered with a queued 202 carrying no calendar. Every real answer is already persisted in
+ * `ru_api_log`, so replay the most recent successful body for this unit instead of scoring the
+ * unit as if the channel had reported no availability and no MinStay.
+ */
+async function loadLastGoodRuXml(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+  ruPropertyId: number,
+  action: string,
+): Promise<string | null> {
+  const since = new Date(Date.now() - RU_LAST_GOOD_XML_MAX_AGE_MS).toISOString();
+  const { data, error } = await admin
+    .from("ru_api_log")
+    .select("response_xml")
+    .eq("ru_property_id", String(ruPropertyId))
+    .eq("action", action)
+    .eq("success", true)
+    .gte("created_at", since)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.warn(`[ru-cert-portal] could not replay ${action} for ${ruPropertyId}: ${error.message}`);
+    return null;
+  }
+  const xml = typeof data?.response_xml === "string" ? data.response_xml.trim() : "";
+  return xml.length > 0 ? xml : null;
+}
+
 
 /** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
 const PHASE_STATUS_TTL_MS = 90_000;
@@ -1734,8 +1769,27 @@ Deno.serve(async (req) => {
               body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
             })),
           ]);
-          const avbXml: string = avbRes.data?.raw_xml ?? "";
-          const priceXml: string = priceRes.data?.raw_xml ?? "";
+          // A rate-limited read comes back as 202 { success: true, queued: true } with no XML.
+          // That is "not read", never "answered with an empty calendar" — reuse the last real
+          // answer the channel gave for this unit instead of inventing a zero-day verdict.
+          let availabilityAnswered = ruReadAnswered(avbRes);
+          let pricesAnswered = ruReadAnswered(priceRes);
+          let avbXml: string = availabilityAnswered ? String(avbRes.data?.raw_xml ?? "") : "";
+          let priceXml: string = pricesAnswered ? String(priceRes.data?.raw_xml ?? "") : "";
+          if (!availabilityAnswered) {
+            const replayed = await loadLastGoodRuXml(admin, ruId, "Pull_ListPropertyAvailabilityCalendar_RQ");
+            if (replayed) {
+              avbXml = replayed;
+              availabilityAnswered = true;
+            }
+          }
+          if (!pricesAnswered) {
+            const replayed = await loadLastGoodRuXml(admin, ruId, "Pull_ListPropertyPrices_RQ");
+            if (replayed) {
+              priceXml = replayed;
+              pricesAnswered = true;
+            }
+          }
           const prices = parseRuPricePoints(priceXml);
           const openDays = countRuOpenDays(avbXml);
           const bookableWindow = findRuBookableWindow(avbXml, priceXml);
@@ -1744,11 +1798,13 @@ Deno.serve(async (req) => {
             unit_name: nameFor(ruId),
             open_days: openDays,
             price_points: prices.length,
-            availability_responded: !!avbRes.data?.success && avbRes.error == null,
-            prices_responded: !!priceRes.data?.success && priceRes.error == null,
-            availability_ok: !!avbRes.data?.success && openDays > 0,
-            availability_error: avbRes.error?.message ?? avbRes.data?.error?.message ?? null,
-            prices_ok: !!priceRes.data?.success && prices.length > 0 && prices.every((price) => price > 0),
+            availability_responded: availabilityAnswered,
+            prices_responded: pricesAnswered,
+            availability_ok: availabilityAnswered && openDays > 0,
+            availability_error: availabilityAnswered
+              ? null
+              : (avbRes.error?.message ?? avbRes.data?.error?.message ?? "Channel read not available (rate limited or queued)"),
+            prices_ok: pricesAnswered && prices.length > 0 && prices.every((price) => price > 0),
             bookable_window: bookableWindow as RuBookableWindow,
           };
           ariProbeCache.set(cacheKey, { at: Date.now(), probe });
@@ -1784,20 +1840,30 @@ Deno.serve(async (req) => {
         // genuine failure; open inventory with no returned price is incomplete and must not
         // override the same unit's valid ROL'OS Rate Plan + Calendar evidence.
         const localByName = new Map(localWindow.unit_windows.map((window) => [window.name.trim().toLowerCase(), window]));
-        const selectedWindows = unitProbes.map((probe) => {
+        const selectedWindows = unitProbes.flatMap((probe) => {
           const channelComplete = classifyChannelWindowEvidence(probe.bookable_window, {
             availability_responded: probe.availability_responded,
             prices_responded: probe.prices_responded,
           }) === "complete";
-          const local = localByName.get(probe.unit_name.trim().toLowerCase()) ?? (
-            localWindow.unit_windows.length === 1 ? localWindow.unit_windows[0] : null
-          );
-          return channelComplete || !local
-            ? { ...probe, evidence_source: "channel" as const }
-            : { ...probe, bookable_window: local, evidence_source: "local" as const };
+          if (channelComplete) return [{ ...probe, evidence_source: "channel" as const }];
+          // The channel did not answer for this unit (rate limited, queued or half a response).
+          // Score it on ROL'OS evidence — its own unit window, else the property window. When
+          // neither exists the unit is simply not scored: an unread unit is never a failure.
+          const local = localByName.get(probe.unit_name.trim().toLowerCase())
+            ?? (localWindow.unit_windows.length === 1 ? localWindow.unit_windows[0] : null)
+            ?? (isMeaningfulWindow(localWindow) ? localWindow : null);
+          if (!local) {
+            console.warn(
+              `[ru-cert-portal] ${probe.unit_name} (RU ${probe.ru_property_id}) was not read and has no ROL'OS window — left unscored`,
+            );
+            return [];
+          }
+          return [{ ...probe, bookable_window: local, evidence_source: "local" as const }];
         });
         const channelEvidenceCount = selectedWindows.filter((probe) => probe.evidence_source === "channel").length;
-        availabilitySource = channelEvidenceCount === selectedWindows.length
+        availabilitySource = selectedWindows.length === 0
+          ? "local"
+          : channelEvidenceCount === selectedWindows.length
           ? "channel"
           : channelEvidenceCount === 0 ? "local" : "mixed";
         // MinStay + "3 consecutive bookable, priced days" — scored on the weakest selected

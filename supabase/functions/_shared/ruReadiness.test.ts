@@ -3,7 +3,44 @@ import {
   classifyChannelWindowEvidence,
   currencyVerificationChecks,
   localBookableWindowChecks,
+  ruReadAnswered,
 } from "./ruReadiness.ts";
+
+Deno.test("a rate-limited queued read is never an answered calendar", () => {
+  assertEquals(
+    ruReadAnswered({
+      data: { success: true, queued: true, queue_id: "abc", action: "get_availability" },
+      error: null,
+    }),
+    false,
+  );
+  // …and therefore cannot author a zero-day channel verdict.
+  assertEquals(
+    classifyChannelWindowEvidence(
+      { open_days: 0, unpriced_open_days: 0 },
+      { availability_responded: false, prices_responded: false },
+    ),
+    "incomplete",
+  );
+});
+
+Deno.test("a real calendar body counts as answered", () => {
+  assertEquals(
+    ruReadAnswered({
+      data: {
+        success: true,
+        raw_xml: '<Pull_ListPropertyAvailabilityCalendar_RS><Status ID="0">Success</Status></Pull_ListPropertyAvailabilityCalendar_RS>',
+      },
+      error: null,
+    }),
+    true,
+  );
+});
+
+Deno.test("a success flag with no payload is not evidence", () => {
+  assertEquals(ruReadAnswered({ data: { success: true, raw_xml: "" }, error: null }), false);
+  assertEquals(ruReadAnswered({ data: null, error: { message: "429" } }), false);
+});
 
 Deno.test("open but wholly unpriced channel data is incomplete", () => {
   assertEquals(classifyChannelWindowEvidence(
