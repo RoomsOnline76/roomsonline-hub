@@ -589,6 +589,33 @@ function buildVerifyOwnerAccessXml(creds: RUCredentials, ownerId: number): strin
 }
 
 /**
+ * Owner listing snapshot, shared across invocations on the same warm worker.
+ *
+ * `Pull_ListOwnerProp_RQ` for one owner is byte-identical for every unit of a property push, so
+ * the sliding-minute gate legitimately refused units 2..N and whole units went unpublished. The
+ * first unit pays for the read; the rest of the push adopts from this snapshot and never touches
+ * the channel again inside the same window.
+ */
+interface OwnerListingRow { id: string; name: string; is_archived: boolean }
+const OWNER_LISTING_SNAPSHOTS = new Map<number, { at: number; listings: OwnerListingRow[] }>();
+const OWNER_LISTING_TTL_MS = RU_RATE_WINDOW_SECONDS * 1000;
+
+function readOwnerListingSnapshot(ownerId: number): OwnerListingRow[] | null {
+  const hit = OWNER_LISTING_SNAPSHOTS.get(ownerId);
+  if (!hit) return null;
+  if (Date.now() - hit.at > OWNER_LISTING_TTL_MS) {
+    OWNER_LISTING_SNAPSHOTS.delete(ownerId);
+    return null;
+  }
+  return hit.listings;
+}
+
+function writeOwnerListingSnapshot(ownerId: number, listings: OwnerListingRow[]): void {
+  OWNER_LISTING_SNAPSHOTS.set(ownerId, { at: Date.now(), listings });
+}
+
+
+/**
  * Resolve the RU OwnerID to list properties for: explicit param → RU_OWNER_ID
  * secret → first owner returned by Pull_ListMyUsers_RQ.
  */
