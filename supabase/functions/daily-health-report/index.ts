@@ -397,6 +397,14 @@ function generateEmailHtml(
           ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
         </ul>
       </div>` : ''}
+      ${(ruWl.blocked.outstanding.length > 0 || ruWl.blocked.cleared.length > 0) ? `
+      <div style="margin-top:10px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;">
+        <strong style="font-size:12px;color:#334155;">Pushes refused by the Channel wizard gate (not pipeline errors)</strong>
+        <ul style="margin:6px 0 0 0;padding-left:18px;color:#475569;font-size:12px;">
+          ${ruWl.blocked.outstanding.map(b => `<li style="margin-bottom:3px;"><strong>Outstanding</strong> — ${b.blocker}${b.properties.length > 0 ? ` · ${b.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.blocked.cleared.map(b => `<li style="margin-bottom:3px;color:#16a34a;">Cleared${b.cleared_at ? ` at ${b.cleared_at}` : ''} — ${b.blocker}${b.properties.length > 0 ? ` · ${b.properties.join(', ')}` : ''}</li>`).join('')}
+        </ul>
+      </div>` : ''}
 
       ${ruWl.top_errors.length > 0 ? `
       <div style="margin-top:10px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;">
