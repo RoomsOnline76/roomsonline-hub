@@ -558,6 +558,7 @@ export function useChannelReconciliation() {
     purgeOrphan,
     clearStale,
     repointListing,
+    publishMissingUnits,
     clearConflict,
     cleanupAll,
     cleanup,
