@@ -994,6 +994,62 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     [lockedSignoffItems, writeChannelReadiness],
   );
 
+  /**
+   * Step 8 — company profile. As soon as the sub-account has a verified key pair the
+   * profile is submitted automatically: it is a machine step, not something an operator
+   * should have to remember. `ensure_company_details` is idempotent, and a per-owner
+   * attempt guard (plus cooldown after a failure) keeps repeated wizard opens cheap.
+   */
+  const companyAutoRef = useRef<Map<string, number>>(new Map());
+  const [companyAuto, setCompanyAuto] = useState<{
+    status: "idle" | "sending" | "failed";
+    error: string | null;
+  }>({ status: "idle", error: null });
+
+  const sendCompanyDetails = useCallback(
+    async (force = false): Promise<{ pushed: boolean; error: string | null }> => {
+      setCompanyAuto({ status: "sending", error: null });
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "ensure_company_details", property_id: propertyId, force },
+        });
+        const pushed = !error && data?.success === true && data?.company_details_pushed === true;
+        if (pushed) {
+          setCompanyAuto({ status: "idle", error: null });
+          await refresh();
+          return { pushed: true, error: null };
+        }
+        const reason = String(
+          data?.error?.message
+            ?? data?.company_details_warning
+            ?? error?.message
+            ?? "The Channel Manager did not confirm the company profile.",
+        );
+        setCompanyAuto({ status: "failed", error: reason });
+        await refresh();
+        return { pushed: false, error: reason };
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : "Could not send the company profile.";
+        setCompanyAuto({ status: "failed", error: reason });
+        return { pushed: false, error: reason };
+      }
+    },
+    [propertyId, refresh],
+  );
+
+  const companyAutoOwner = String(d?.identity?.account?.ru_owner_id ?? "").trim();
+  const companyAutoReady =
+    !!companyAutoOwner && !!d?.identity?.keys_captured && !!d?.identity?.keys?.verified_at;
+  useEffect(() => {
+    if (!isPlatformActor) return;
+    if (!companyAutoReady || companyDetailsPushed) return;
+    const last = companyAutoRef.current.get(companyAutoOwner) ?? 0;
+    // One attempt per owner per session, retried at most every 5 minutes.
+    if (Date.now() - last < 5 * 60_000) return;
+    companyAutoRef.current.set(companyAutoOwner, Date.now());
+    void sendCompanyDetails(false);
+  }, [companyAutoOwner, companyAutoReady, companyDetailsPushed, isPlatformActor, sendCompanyDetails]);
+
   /** Record the outcome of a "Pull listings" run (step 9). */
   const recordListingPull = useCallback(
     async (
@@ -1050,6 +1106,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
     listingPull,
     recordListingPull,
+
+    /** Step 8 — automatic company-profile push state and its manual re-send. */
+    companyProfile: {
+      pushed: companyDetailsPushed,
+      pushedAt: d?.identity?.account?.company_filled_at ?? null,
+      sending: companyAuto.status === "sending",
+      error: companyAuto.status === "failed" ? companyAuto.error : null,
+    },
+    sendCompanyDetails,
 
     refresh,
     // The channel scorecard is deliberately excluded from isLoading so the wizard paints
