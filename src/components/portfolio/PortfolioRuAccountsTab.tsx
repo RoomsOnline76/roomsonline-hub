@@ -1616,58 +1616,73 @@ export function PortfolioRuAccountsTab() {
       <Dialog open={!!keysFor} onOpenChange={(o) => !o && setKeysFor(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>RU sub-user API keys</DialogTitle>
+            <DialogTitle>Distribution sub-account API keys</DialogTitle>
             <DialogDescription>
-              Rentals United requires every sub-account to authenticate API calls with its own
-              AccessKey + SecretKey. Pick the sub-user the pair belongs to, sign in to the RU
-              dashboard as that account, open Security settings, create a key with the XmlApi scope
-              and paste both values here. Keys are stored per OwnerID, so saving one sub-user's pair
-              never overwrites another's. The pair is validated against RU before it is stored and
-              the secret is encrypted at rest.
+              {keysFor?.ownerId ? (
+                <>
+                  Capturing the AccessKey + SecretKey for{" "}
+                  <span className="font-medium text-foreground">{keysFor.email ?? "this sub-account"}</span> (OwnerID{" "}
+                  {keysFor.ownerId}). Sign in to the channel portal <em>as that account</em>, open Security settings,
+                  create a key with the XmlApi scope and paste both values here. The pair is checked against this
+                  account's own inventory before it is stored, and the secret is encrypted at rest.
+                </>
+              ) : (
+                <>
+                  This row is not bound to a sub-account yet — pick the sub-user the pair belongs to, then paste the
+                  AccessKey + SecretKey generated while signed in as that account (Security settings, scope XmlApi).
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">RU sub-user (OwnerID)</Label>
-              {keyCandidatesLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3 w-3 animate-spin" /> Loading active sub-users…
-                </div>
-              ) : (
-                <div className="max-h-40 overflow-y-auto rounded-md border border-border divide-y divide-border">
-                  {keyCandidates.length === 0 && (
-                    <p className="p-2 text-[11px] text-muted-foreground">
-                      No active RU sub-users returned. Keys will be saved against the bound OwnerID
-                      {keysFor?.ownerId ? ` ${keysFor.ownerId}` : " (none — bind one first)"}.
-                    </p>
-                  )}
-                  {keyCandidates.map((u) => {
-                    const selected = keyOwnerId === u.owner_id;
-                    const hasKeys = storedKeyByOwner.has(String(u.owner_id));
-                    return (
-                      <button
-                        key={u.owner_id}
-                        type="button"
-                        onClick={() => setKeyOwnerId(u.owner_id)}
-                        className={`w-full text-left p-2 text-xs flex items-center justify-between gap-2 transition-colors ${
-                          selected ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"
-                        }`}
-                      >
-                        <span className="min-w-0">
-                          <span className="font-mono">OwnerID {u.owner_id}</span>
-                          <span className="block text-[11px] opacity-80 truncate">{u.email}</span>
-                        </span>
-                        {hasKeys && (
-                          <Badge variant={selected ? "secondary" : "outline"} className="text-[10px] px-1 py-0 shrink-0">
-                            Keys stored
-                          </Badge>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {keysFor?.ownerId ? (
+              <div className="rounded-md border border-border bg-muted/40 p-2 text-xs">
+                <p className="font-mono">OwnerID {keysFor.ownerId}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{keysFor.email ?? "no login email on file"}</p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Sub-account (OwnerID)</Label>
+                {keyCandidatesLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Loading active sub-accounts…
+                  </div>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-border divide-y divide-border">
+                    {keyCandidates.length === 0 && (
+                      <p className="p-2 text-[11px] text-muted-foreground">
+                        No active sub-accounts returned — bind one to this row first.
+                      </p>
+                    )}
+                    {keyCandidates.map((u) => {
+                      const selected = keyOwnerId === u.owner_id;
+                      const hasKeys = storedKeyByOwner.has(String(u.owner_id));
+                      return (
+                        <button
+                          key={u.owner_id}
+                          type="button"
+                          onClick={() => setKeyOwnerId(u.owner_id)}
+                          className={`w-full text-left p-2 text-xs flex items-center justify-between gap-2 transition-colors ${
+                            selected ? "bg-primary text-primary-foreground" : "hover:bg-muted/50"
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="font-mono">OwnerID {u.owner_id}</span>
+                            <span className="block text-[11px] opacity-80 truncate">{u.email}</span>
+                          </span>
+                          {hasKeys && (
+                            <Badge variant={selected ? "secondary" : "outline"} className="text-[10px] px-1 py-0 shrink-0">
+                              Keys stored
+                            </Badge>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1.5">
 
               <Label className="text-xs">AccessKey</Label>
