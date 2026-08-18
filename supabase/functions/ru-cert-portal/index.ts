@@ -3512,7 +3512,7 @@ Deno.serve(async (req) => {
             message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message
               ?? "Rentals United rejected this API key pair. Confirm it belongs to the sub-user and has the XmlApi scope.",
           },
-        }, 422);
+        }, 200);
       }
 
       // Ownership check: a VALID pair is not necessarily THIS sub-user's pair. Without this,
@@ -3767,7 +3767,7 @@ Deno.serve(async (req) => {
             message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message
               ?? "Rentals United rejected the stored API keys. Regenerate the pair in the RU dashboard and save it here.",
           },
-        }, 422);
+        }, 200);
       }
       const company = await provisionCompanyAfterKeyVerification();
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
