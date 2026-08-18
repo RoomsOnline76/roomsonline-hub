@@ -991,6 +991,131 @@ Deno.serve(async (req) => {
         .slice(0, 5);
 
 
+      /**
+       * Wizard refusals resolved against current state. A refusal only matters if its blocker
+       * is STILL true — company details accepted a minute later must read "cleared", never
+       * "now failing", and the AI summary must not ask for work that already happened.
+       */
+      const blockedOutstanding: Array<{ blocker: string; count: number; properties: string[] }> = [];
+      const blockedCleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }> = [];
+
+      if (refusalRuns.length > 0) {
+        const blockedPropertyIds = [...new Set(
+          refusalRuns.map(r => (r as { property_id?: string | null }).property_id).filter(Boolean),
+        )] as string[];
+
+        const [{ data: blockedProps }, { data: memberRows }, { data: ownerAccounts }, { data: creds }] = await Promise.all([
+          blockedPropertyIds.length > 0
+            ? supabase.from('properties').select('id, name').in('id', blockedPropertyIds)
+            : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+          blockedPropertyIds.length > 0
+            ? supabase.from('property_portfolio_members').select('property_id, portfolio_id').in('property_id', blockedPropertyIds)
+            : Promise.resolve({ data: [] as Array<{ property_id: string; portfolio_id: string }> }),
+          supabase
+            .from('ru_owner_accounts')
+            .select('ru_owner_id, portfolio_id, property_id, company_details_status, company_filled_at'),
+          supabase.from('ru_api_credentials').select('ru_owner_id, verified_at'),
+        ]);
+
+        const nameById = new Map<string, string>((blockedProps ?? []).map((p: any) => [p.id, p.name]));
+        const portfolioByProperty = new Map<string, string>((memberRows ?? []).map((m: any) => [m.property_id, m.portfolio_id]));
+        const verifiedByOwner = new Map<string, string | null>((creds ?? []).map((c: any) => [String(c.ru_owner_id), c.verified_at]));
+
+        const accountFor = (propertyId: string | null) => {
+          if (!propertyId) return null;
+          const direct = (ownerAccounts ?? []).find((a: any) => a.property_id === propertyId);
+          if (direct) return direct as any;
+          const portfolioId = portfolioByProperty.get(propertyId);
+          return (ownerAccounts ?? []).find((a: any) => portfolioId && a.portfolio_id === portfolioId) ?? null;
+        };
+
+        /** Returns the clearance timestamp when the blocker no longer holds, else null. */
+        const clearedAt = (propertyId: string | null, blocker: string, refusedAt: string): string | null => {
+          const later = runs.find(
+            r =>
+              (r as { property_id?: string | null }).property_id === propertyId &&
+              r.success === true &&
+              new Date(r.created_at as string).getTime() > new Date(refusedAt).getTime(),
+          );
+          const account = accountFor(propertyId);
+          const verifiedAt = account ? verifiedByOwner.get(String((account as any).ru_owner_id)) ?? null : null;
+
+          if (/company details/i.test(blocker)) {
+            const status = String((account as any)?.company_details_status ?? '').toLowerCase();
+            const filledAt = (account as any)?.company_filled_at as string | null;
+            const ok =
+              ['sent', 'already_set'].includes(status) &&
+              !!filledAt &&
+              !!verifiedAt &&
+              new Date(filledAt).getTime() >= new Date(verifiedAt).getTime() - 60_000;
+            return ok ? filledAt : null;
+          }
+          if (/key ?& ?secret|accesskey|api key/i.test(blocker)) {
+            return verifiedAt;
+          }
+          return (later?.created_at as string) ?? null;
+        };
+
+        const groups = new Map<string, { count: number; properties: Set<string>; clearedAt: (string | null)[] }>();
+        for (const r of refusalRuns) {
+          const pid = (r as { property_id?: string | null }).property_id ?? null;
+          const blockers = String(r.error_message ?? 'Push refused by the Channel wizard gate')
+            .split('; ')
+            .map(b => b.trim())
+            .filter(Boolean);
+          for (const blocker of blockers) {
+            const entry = groups.get(blocker) ?? { count: 0, properties: new Set<string>(), clearedAt: [] };
+            entry.count += 1;
+            if (pid) entry.properties.add(nameById.get(pid) ?? pid.slice(0, 8));
+            entry.clearedAt.push(clearedAt(pid, blocker, r.created_at as string));
+            groups.set(blocker, entry);
+          }
+        }
+
+        for (const [blocker, v] of groups.entries()) {
+          const properties = [...v.properties].slice(0, 6);
+          const allCleared = v.clearedAt.every(Boolean);
+          if (allCleared) {
+            const newest = v.clearedAt
+              .filter(Boolean)
+              .sort((a, b) => new Date(b as string).getTime() - new Date(a as string).getTime())[0] as string | undefined;
+            blockedCleared.push({ blocker: blocker.slice(0, 160), count: v.count, properties, cleared_at: shortTime(newest ?? null) });
+          } else {
+            blockedOutstanding.push({ blocker: blocker.slice(0, 160), count: v.count, properties });
+          }
+        }
+        blockedOutstanding.sort((a, b) => b.count - a.count);
+        blockedCleared.sort((a, b) => b.count - a.count);
+      }
+
+      /**
+       * "Live properties" means properties actually on the channel — a trading, non-sandbox,
+       * push-enabled property carrying a building listing id or at least one unit listing id.
+       * Counting distribution accounts here made 4 live properties read as 2.
+       */
+      let livePropertyCount = 0;
+      try {
+        const [{ data: footprintProps }, { data: footprintUnits }] = await Promise.all([
+          supabase
+            .from('properties')
+            .select('id, rentalsunited_property_id, is_trading, is_sandbox, ru_push_enabled')
+            .eq('is_trading', true)
+            .eq('ru_push_enabled', true),
+          supabase.from('hostfully_room_types').select('property_id, rentalsunited_property_id'),
+        ]);
+        const unitFootprint = new Set(
+          (footprintUnits ?? [])
+            .filter((u: any) => !!String(u.rentalsunited_property_id ?? '').trim())
+            .map((u: any) => u.property_id as string),
+        );
+        livePropertyCount = (footprintProps ?? []).filter(
+          (p: any) =>
+            p.is_sandbox !== true &&
+            (!!String(p.rentalsunited_property_id ?? '').trim() || unitFootprint.has(p.id)),
+        ).length;
+      } catch (footprintError) {
+        console.error('[Daily Health Report] Live-property footprint error:', footprintError);
+      }
 
 
       const errorCounts = new Map<string, { action: string; code: string; count: number; sample: string }>();
