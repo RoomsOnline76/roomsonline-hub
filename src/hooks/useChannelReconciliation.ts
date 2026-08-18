@@ -69,6 +69,9 @@ export interface ReconDuplicate {
   /** The copy ROL'OS keeps — never removed. */
   keep_listing_id: string;
   copies: number;
+  /** True when a local record points at this surplus copy (mis-wired id). */
+  matched?: boolean;
+
 }
 
 
