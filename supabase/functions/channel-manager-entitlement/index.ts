@@ -745,7 +745,7 @@ Deno.serve(async (req) => {
             listing_count: 0,
             read: false,
             deferred: false,
-            error: `Unverifiable — the account answered empty while ${localIdsForOwner} local listing id(s) point at it`,
+            error: `Unverifiable — the account answered empty while ${localIdsHeld} local listing id(s) point at it`,
           });
           continue;
         }
