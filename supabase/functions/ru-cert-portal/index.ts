@@ -1840,20 +1840,30 @@ Deno.serve(async (req) => {
         // genuine failure; open inventory with no returned price is incomplete and must not
         // override the same unit's valid ROL'OS Rate Plan + Calendar evidence.
         const localByName = new Map(localWindow.unit_windows.map((window) => [window.name.trim().toLowerCase(), window]));
-        const selectedWindows = unitProbes.map((probe) => {
+        const selectedWindows = unitProbes.flatMap((probe) => {
           const channelComplete = classifyChannelWindowEvidence(probe.bookable_window, {
             availability_responded: probe.availability_responded,
             prices_responded: probe.prices_responded,
           }) === "complete";
-          const local = localByName.get(probe.unit_name.trim().toLowerCase()) ?? (
-            localWindow.unit_windows.length === 1 ? localWindow.unit_windows[0] : null
-          );
-          return channelComplete || !local
-            ? { ...probe, evidence_source: "channel" as const }
-            : { ...probe, bookable_window: local, evidence_source: "local" as const };
+          if (channelComplete) return [{ ...probe, evidence_source: "channel" as const }];
+          // The channel did not answer for this unit (rate limited, queued or half a response).
+          // Score it on ROL'OS evidence — its own unit window, else the property window. When
+          // neither exists the unit is simply not scored: an unread unit is never a failure.
+          const local = localByName.get(probe.unit_name.trim().toLowerCase())
+            ?? (localWindow.unit_windows.length === 1 ? localWindow.unit_windows[0] : null)
+            ?? (isMeaningfulWindow(localWindow) ? localWindow : null);
+          if (!local) {
+            console.warn(
+              `[ru-cert-portal] ${probe.unit_name} (RU ${probe.ru_property_id}) was not read and has no ROL'OS window — left unscored`,
+            );
+            return [];
+          }
+          return [{ ...probe, bookable_window: local, evidence_source: "local" as const }];
         });
         const channelEvidenceCount = selectedWindows.filter((probe) => probe.evidence_source === "channel").length;
-        availabilitySource = channelEvidenceCount === selectedWindows.length
+        availabilitySource = selectedWindows.length === 0
+          ? "local"
+          : channelEvidenceCount === selectedWindows.length
           ? "channel"
           : channelEvidenceCount === 0 ? "local" : "mixed";
         // MinStay + "3 consecutive bookable, priced days" — scored on the weakest selected
