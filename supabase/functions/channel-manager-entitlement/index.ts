@@ -948,22 +948,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Local ids no account returns — only trustworthy when at least one account
-      // read succeeded, otherwise everything would look stale. A listing found on
-      // an unbound sub-account counts as seen, so it is reported as foreign, not stale.
-      const anyRead = accountResults.some((a) => a.error === null);
-      const stale = anyRead
-        ? Array.from(localRecords.values())
-            .filter((l) => !seenAnywhere.has(l.listingId))
-            .map((l) => ({
-              listing_id: l.listingId,
-              label: l.label,
-              kind: l.kind,
-              record_id: l.recordId,
-              property_id: l.propertyId,
-              local_active: l.isActive,
-            }))
-        : [];
+      // Local ids no account returns. "Stale" is a deletion verdict, so it may only
+      // be issued when EVERY account that could hold ROL'OS listings actually
+      // answered. If any of them was deferred, timed out, unreadable or answered
+      // empty, the unseen ids are reported as unverified instead — the cleanup path
+      // must never act on a read that did not happen.
+      const unreadAccounts = accountResults.filter((a) => a.error !== null && (a.bound || a.monitored));
+      const allAccountsRead = unreadAccounts.length === 0 && accountResults.some((a) => a.read === true);
+      const unseen = Array.from(localRecords.values())
+        .filter((l) => !seenAnywhere.has(l.listingId))
+        .map((l) => ({
+          listing_id: l.listingId,
+          label: l.label,
+          kind: l.kind,
+          record_id: l.recordId,
+          property_id: l.propertyId,
+          local_active: l.isActive,
+        }));
+      const stale = allAccountsRead ? unseen : [];
+      const unverified = allAccountsRead ? [] : unseen;
 
       const accountTotal = accountResults.reduce(
         (sum, a) => sum + (a.total_listing_count ?? a.listing_count),
