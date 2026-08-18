@@ -530,14 +530,12 @@ export default function AdminOnboarding() {
         }
       });
 
-      // Exclude test/demo/sandbox properties (explicit flags win over naming)
-      const testPattern = /\b(test|demo|staging|dummy|sandbox)\b/i;
+      // Only a genuine sandbox environment is excluded. Names are never inspected
+      // and the Test flag is a marker only, so "RU Test Clone A" behaves normally.
       const realProperties = (propData || []).filter(
-        (prop) =>
-          !testPattern.test(prop.name) &&
-          (prop as { is_sandbox?: boolean | null }).is_sandbox !== true &&
-          (prop as { is_test_property?: boolean | null }).is_test_property !== true,
+        (prop) => (prop as { is_sandbox?: boolean | null }).is_sandbox !== true,
       );
+
 
       const rolosSystems = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
