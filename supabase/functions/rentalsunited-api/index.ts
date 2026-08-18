@@ -2700,25 +2700,49 @@ Deno.serve(async (req) => {
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, ' ')
             .trim();
-        let listing: { id: string; name: string; is_archived: boolean } | undefined;
-        try {
-          const ownerId = Number(p.owner_id);
-          const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
-          const listStatus = handleRUStatus(listXml);
-          if (!listStatus.ok) {
+        let listing: OwnerListingRow | undefined;
+        const ownerId = Number(p.owner_id);
+        const wanted = normaliseName(p.name as string);
+        const snapshot = readOwnerListingSnapshot(ownerId);
+        if (snapshot) {
+          // Already read inside the channel's sliding window by an earlier unit of this push.
+          listing = snapshot.find((l) => normaliseName(l.name) === wanted);
+        } else {
+          try {
+            const listXml = await callRentalsUnited(scopedCreds, buildListPropertiesXml(scopedCreds, ownerId));
+            const listStatus = handleRUStatus(listXml);
+            if (!listStatus.ok) {
+              return errorResponse(
+                'RU_ADOPTION_UNVERIFIED',
+                `Could not read the account's existing listings (${listStatus.status.id}: ${listStatus.status.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+              );
+            }
+            const listings = extractPropertyIds(listXml) as OwnerListingRow[];
+            writeOwnerListingSnapshot(ownerId, listings);
+            listing = listings.find((l) => normaliseName(l.name) === wanted);
+          } catch (e) {
+            // A gate deferral means the read never happened — nothing was created, so the caller
+            // can safely retry. Carry the gate's own wait so it paces instead of guessing.
+            if (e instanceof RuRateDeferredError) {
+              return jsonResponse({
+                success: false,
+                error: {
+                  code: 'RU_ADOPTION_UNVERIFIED',
+                  rate_deferred: true,
+                  rate_deferred_code: RU_RATE_DEFERRED_CODE,
+                  retry_after_ms: e.waitMs,
+                  message: `Could not read the account's existing listings (${e.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+                },
+                retry_after_ms: e.waitMs,
+              }, 429);
+            }
             return errorResponse(
               'RU_ADOPTION_UNVERIFIED',
-              `Could not read the account's existing listings (${listStatus.status.id}: ${listStatus.status.message}) — refusing to create a listing that may already exist. Retry shortly.`,
+              `Could not read the account's existing listings (${e instanceof Error ? e.message : String(e)}) — refusing to create a listing that may already exist. Retry shortly.`,
             );
           }
-          const wanted = normaliseName(p.name as string);
-          listing = extractPropertyIds(listXml).find((l) => normaliseName(l.name) === wanted);
-        } catch (e) {
-          return errorResponse(
-            'RU_ADOPTION_UNVERIFIED',
-            `Could not read the account's existing listings (${e instanceof Error ? e.message : String(e)}) — refusing to create a listing that may already exist. Retry shortly.`,
-          );
         }
+
 
         if (listing) {
           effectiveRuPropertyId = parseInt(listing.id, 10);
