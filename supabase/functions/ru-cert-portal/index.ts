@@ -165,6 +165,16 @@ export interface AriSnapshot {
   probed_at: string;
   ru_owner_id?: number | null;
 }
+/**
+ * A stored bookable window is only trustworthy when the probe actually saw the calendar.
+ * A throttled / empty read-back yields an all-zero window; persisting or scoring that as a
+ * real verdict turned a healthy property into a permanent "nothing is sellable" blocker.
+ */
+function isMeaningfulWindow(w: any): boolean {
+  if (!w || typeof w !== "object") return false;
+  return Number(w.open_days ?? 0) > 0 || Number(w.longest_run ?? 0) > 0;
+}
+
 
 async function loadAriSnapshot(admin: any, propertyId: string): Promise<AriSnapshot | null> {
   try {
