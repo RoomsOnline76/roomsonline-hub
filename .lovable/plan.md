@@ -1,37 +1,28 @@
-# Fix false Availability 365d onboarding blocks
+# Fix false Channel Availability blockers
 
-## Confirmed current state
+## Goal
+Make the onboarding wizard judge “Availability coverage — rolling 365 days” from trustworthy evidence, so Fonteinhutte and the RU test clones are not blocked by incomplete channel read-backs when their ROL'OS Rate Plans and Calendar coverage are valid.
 
-- Fonteinhutte is still blocked by `bookable_window`: one channel unit reports 366 open days but no price points, producing a 0-day bookable run.
-- RU Test Clone A has the same false availability blocker. Clones B, C, and D currently pass the Availability 365d group in the stored readiness payload, so their remaining wizard blockers must be kept separate from availability.
-- The previous safeguard only rejects a window when both `open_days` and `longest_run` are zero. It therefore incorrectly accepts an open-but-unpriced channel window as authoritative.
-- All five properties have active Rack rate plans with a base rate and linked units; readiness must compare channel evidence with the canonical local Rate Plan resolver rather than allowing a partial channel read-back to invalidate locally complete coverage.
+## Changes
+1. **Classify channel calendar evidence explicitly**
+   - Treat a response with open days but zero price points as incomplete, not as a valid failed calendar.
+   - Keep a genuine, fully priced channel failure blocking; do not turn real availability gaps green.
 
-## Implementation
+2. **Use ROL'OS evidence when the channel response is incomplete**
+   - Score the local Calendar + Rate Plan window per active unit.
+   - Prefer valid local priced coverage only for units whose channel probe is missing/incomplete.
+   - Preserve channel evidence for units that returned complete availability and pricing data.
 
-1. **Correct channel-window trust rules**
-   - Replace the broad “meaningful window” check with explicit evidence states: bookable, genuinely closed, unpriced/incomplete, or unavailable.
-   - Treat an open-but-entirely-unpriced result as incomplete channel evidence, not a final availability verdict, when the canonical local resolver has complete positive pricing.
-   - Preserve genuine channel failures such as authored stop-sells or a locally unpriced/closed calendar; do not turn every failure green.
+3. **Keep every readiness surface consistent**
+   - Apply the same evidence rule to the certification response, persisted readiness snapshot, and onboarding wizard phase result.
+   - Report the actual source used for the availability result instead of labeling every requested probe as channel-derived.
+   - Ensure refresh/re-score replaces the stale failing snapshot and invalidates the wizard query.
 
-2. **Score every unit consistently**
-   - Reconcile the live unit probe with the local Rate Plan result per active room type.
-   - Do not let one partial/stale channel price response create a property-wide Availability failure when that unit has a valid local rate ready to push.
-   - Keep Pricing and Availability independent so missing channel price verification is reported as pending under Pricing, rather than falsely blocking Availability.
+4. **Regression coverage and verification**
+   - Add focused tests for: open-but-unpriced channel data with valid local coverage, genuine local failure, genuine priced channel failure, and mixed multi-unit evidence.
+   - Re-score Fonteinhutte and RU Test Clones A–D against current data and confirm the wizard no longer blocks properties with valid authored coverage.
 
-3. **Align wizard and push gate**
-   - Ensure the backend readiness endpoint, onboarding wizard group status, and live push gate consume the same normalized readiness result.
-   - Remove reliance on a stale failed readiness payload after a successful fresh score and invalidate the wizard query after refresh/push actions.
-
-4. **Recover and verify affected properties**
-   - Re-score Fonteinhutte and RU Test Clones A–D after deployment.
-   - Confirm Fonteinhutte and Clone A no longer show the false `0-day / 366 unpriced` Availability blocker.
-   - Verify Clones B–D remain correctly passed for Availability and report only their actual independent blockers.
-   - Confirm a deliberately unpriced test case still fails, preventing a permissive regression.
-
-## Technical files
-
-- `supabase/functions/ru-cert-portal/index.ts`
-- `supabase/functions/_shared/ruReadiness.ts` and/or the shared local-window normalization helper
-- `src/hooks/useRolosOnboardingProgress.ts` only if cache invalidation still retains the old readiness payload
-- Focused readiness tests for open-but-unpriced, throttled, locally priced, and genuinely unavailable cases
+## Technical scope
+- `supabase/functions/ru-cert-portal/index.ts`: evidence selection, per-unit fallback, response source, persisted score.
+- `supabase/functions/_shared/ruReadiness.ts`: shared evidence classification and readiness checks.
+- Focused readiness tests only; no new queues, gates, or onboarding features.
