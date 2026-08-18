@@ -514,46 +514,129 @@ export function useChannelReconciliation() {
     const stale = scope === "actionable" ? snapshot.stale : [];
     const total = listings.length + stale.length;
 
-
-
-
-
     const failed: CleanupOutcome["failures"] = [];
     const failMap: Record<string, string> = {};
+    const refusedMap: Record<string, string> = {};
     let done = 0;
     let cleaned = 0;
     let refusedCount = 0;
     setCleanup({ done: 0, total });
 
-    for (const listing of listings) {
-      try {
-        const outcome = await purgeListing(listing);
-        if (outcome === "refused") refusedCount++;
-        else cleaned++;
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : "Could not remove the listing";
-        failed.push({ key: listing.listing_id, label: `${listing.name} #${listing.listing_id}`, reason });
-        failMap[listing.listing_id] = reason;
+    // One batch per channel account: the backend reads the account once, removes
+    // every target against that snapshot, then verifies once. Per-row calls each
+    // cost two full account reads (and their rate-limit waits), which is what made
+    // cleanup take minutes per listing.
+    type BatchTarget = {
+      type: "listing" | "stale";
+      listing_id?: string | null;
+      record_id?: string | null;
+      record_kind?: "property" | "unit";
+      property_id?: string | null;
+      name?: string;
+    };
+    const byOwner = new Map<string, BatchTarget[]>();
+    for (const l of listings) {
+      const list = byOwner.get(l.owner_id) ?? [];
+      list.push({ type: "listing", listing_id: l.listing_id, name: l.name });
+      byOwner.set(l.owner_id, list);
+    }
+    // Stale rows carry no owner id; the backend scopes each one to its own
+    // account and reports `skipped` when it belongs elsewhere, so offering them
+    // to every account resolves them exactly once.
+    const staleTargets: BatchTarget[] = stale.map((s) => ({
+      type: "stale",
+      record_id: s.record_id,
+      record_kind: s.kind,
+      property_id: s.property_id,
+      listing_id: s.listing_id,
+      name: `${s.label} #${s.listing_id}`,
+    }));
+    const owners = byOwner.size > 0
+      ? Array.from(byOwner.keys())
+      : snapshot.accounts.filter((a) => !a.error).map((a) => a.owner_id);
+    if (staleTargets.length > 0) {
+      for (const owner of owners) {
+        byOwner.set(owner, [...(byOwner.get(owner) ?? []), ...staleTargets]);
       }
-      done++;
-      setCleanup({ done, total });
     }
 
-    for (const s of stale) {
-      try {
-        await clearStale(s);
-        cleaned++;
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : "Could not clear the local id";
-        failed.push({ key: s.record_id, label: `${s.label} #${s.listing_id}`, reason });
-        failMap[s.record_id] = reason;
+    const resolvedStale = new Set<string>();
+
+    for (const [owner, ownerTargets] of byOwner.entries()) {
+      let queue = ownerTargets.filter(
+        (t) => !(t.type === "stale" && t.record_id && resolvedStale.has(t.record_id)),
+      );
+      let guard = 0;
+      while (queue.length > 0 && guard++ < 20) {
+        const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+          body: {
+            scope: "cleanup_batch",
+            entity_id: "batch",
+            owner_id: owner,
+            targets: queue,
+            reason: "Listing removed during channel reconciliation",
+          },
+        });
+        if (fnError) {
+          const reason = (await readFunctionError(fnError)) || fnError.message;
+          for (const t of queue) {
+            const key = t.type === "stale" ? String(t.record_id) : String(t.listing_id);
+            failed.push({ key, label: t.name || key, reason });
+            failMap[key] = reason;
+            done++;
+          }
+          setCleanup({ done, total });
+          queue = [];
+          break;
+        }
+        const payload = (data || {}) as {
+          deferred?: boolean;
+          error?: string;
+          status?: string;
+          results?: Array<{ key: string; label: string; outcome: string; detail: string }>;
+          remaining?: BatchTarget[];
+        };
+        if (payload.deferred) {
+          const reason =
+            payload.error || "The channel is rate-limited right now — try the cleanup again in a minute.";
+          for (const t of queue) {
+            const key = t.type === "stale" ? String(t.record_id) : String(t.listing_id);
+            failed.push({ key, label: t.name || key, reason });
+            failMap[key] = reason;
+            done++;
+          }
+          setCleanup({ done, total });
+          queue = [];
+          break;
+        }
+
+        for (const r of payload.results || []) {
+          if (r.outcome === "skipped") continue;
+          if (r.outcome === "deleted" || r.outcome === "already_gone" || r.outcome === "no_listing_id") {
+            cleaned++;
+            resolvedStale.add(r.key);
+          } else if (r.outcome === "refused") {
+            refusedCount++;
+            refusedMap[r.key] = r.detail;
+            resolvedStale.add(r.key);
+          } else {
+            failed.push({ key: r.key, label: r.label, reason: r.detail });
+            failMap[r.key] = r.detail;
+            resolvedStale.add(r.key);
+          }
+          done++;
+        }
+        setCleanup({ done, total });
+        queue = (payload.remaining || []).filter(
+          (t) => !(t.type === "stale" && t.record_id && resolvedStale.has(t.record_id)),
+        );
       }
-      done++;
-      setCleanup({ done, total });
     }
 
     setFailures(failMap);
+    setRefused((prev) => ({ ...prev, ...refusedMap }));
     setCleanup(null);
+
     // Re-read the channel so every counter (and the billing-gap footer) reflects
     // the post-cleanup truth rather than our optimistic local decrements.
     if (cleaned > 0) await reconcile({ keepFailures: true });
