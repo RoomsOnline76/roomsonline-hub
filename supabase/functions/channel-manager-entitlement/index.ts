@@ -783,6 +783,9 @@ Deno.serve(async (req) => {
             copies: rows.length,
           });
         }
+      }
+
+
 
       /**
        * One listing, one class. A surplus same-name copy that no local record
