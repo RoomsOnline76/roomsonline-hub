@@ -610,7 +610,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           : listingPull.stale
             ? `Last pull ran against OwnerID ${listingPull.ownerId} — re-pull against OwnerID ${listingPull.boundOwnerId}`
             : listingPull.remoteCount === 0
-              ? "Nothing to adopt — sub-account is empty"
+              ? `${listingPull.account ?? `OwnerID ${listingPull.ownerId ?? "?"}`} returned no listings — nothing to adopt`
               : `${listingPull.matched} adopted of ${listingPull.remoteCount} listing(s)${
                   listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
                 }`,
