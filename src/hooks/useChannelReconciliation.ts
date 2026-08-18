@@ -386,6 +386,28 @@ export function useChannelReconciliation() {
     );
   }, []);
 
+  /**
+   * Publishes the active units of a property that hold no channel listing yet.
+   * Runs the normal push path scoped to those units, so adoption (live first,
+   * then archived) still applies and no duplicate listing is minted.
+   */
+  const publishMissingUnits = useCallback(async (row: {
+    property_id: string;
+    unit_ids: string[];
+  }) => {
+    if (row.unit_ids.length === 0) return;
+    const { data, error: fnError } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { property_id: row.property_id, only_unit_ids: row.unit_ids },
+    });
+    if (fnError) throw new Error((await readFunctionError(fnError)) || fnError.message);
+    const payload = (data || {}) as { success?: boolean; status?: string; error?: { message?: string }; message?: string };
+    if (payload.success === false && payload.status !== "resumable") {
+      throw new Error(payload.error?.message || payload.message || "The channel push did not complete");
+    }
+    await reconcile({ keepFailures: true });
+  }, [reconcile]);
+
+
   /** Releases a mis-wired id from one of the records claiming it. */
   const clearConflict = useCallback(async (row: {
     listing_id: string;
