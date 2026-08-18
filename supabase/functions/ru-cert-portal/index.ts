@@ -1990,19 +1990,6 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Currency verification is a wizard gate too — the Currency panel is no longer the
-      // only place it is visible, so a property cannot clear onboarding unverified.
-      {
-        const { data: currencyState } = await admin
-          .from("ru_currency_state")
-          .select("published_currency_iso, ru_reported_currency_iso, verified_at, flip_outcome, location_currency_iso")
-          .eq("property_id", p.id)
-          .maybeSingle();
-        extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
-          published: !(ari as { pending_publish?: boolean } | null)?.pending_publish,
-        }));
-      }
-
       /**
        * Publish invariant — scored on the property's CURRENT unit rows, not the push
        * snapshot. A unit that was inactive during the last push (or was added since) is
@@ -2010,6 +1997,7 @@ Deno.serve(async (req) => {
        * ready while one unit existed only in ROL'OS.
        */
       let unpublishedUnitNames: string[] = [];
+      let fullListingSetPublished = false;
       {
         const { data: propRow } = await admin
           .from("properties")
@@ -2036,10 +2024,27 @@ Deno.serve(async (req) => {
         // Multi-unit properties hold their listings on the units; a single-unit property
         // publishes as the building itself, so only score the invariant when units exist.
         const isPublished = publishStates.some((u) => u.published) || !!propRow?.rentalsunited_property_id;
+        fullListingSetPublished = isPublished && (
+          publishStates.length === 0 || publishStates.every((u) => u.published)
+        );
         if (publishStates.length > 1 || (publishStates.length === 1 && isPublished)) {
           extraChecks.push(...unitsPublishedChecks(publishStates, { published: isPublished }));
         }
         unpublishedUnitNames = publishStates.filter((u) => !u.published).map((u) => u.name);
+      }
+
+      // Currency read-back is a post-publish verification. During a partial first publish,
+      // the intended currency is enough: requiring read-back here would block creation of
+      // the remaining listings. Once every active unit exists, a mismatch is mandatory.
+      {
+        const { data: currencyState } = await admin
+          .from("ru_currency_state")
+          .select("published_currency_iso, ru_reported_currency_iso, verified_at, flip_outcome, location_currency_iso")
+          .eq("property_id", p.id)
+          .maybeSingle();
+        extraChecks.push(...currencyVerificationChecks(currencyState ?? null, {
+          published: fullListingSetPublished,
+        }));
       }
 
       const summary = summarizeReadiness(units, extraChecks);

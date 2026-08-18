@@ -1,5 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { classifyChannelWindowEvidence, localBookableWindowChecks } from "./ruReadiness.ts";
+import {
+  classifyChannelWindowEvidence,
+  currencyVerificationChecks,
+  localBookableWindowChecks,
+} from "./ruReadiness.ts";
 
 Deno.test("open but wholly unpriced channel data is incomplete", () => {
   assertEquals(classifyChannelWindowEvidence(
@@ -53,4 +57,24 @@ Deno.test("mixed multi-unit evidence falls back only for the incomplete unit", (
     ),
   ];
   assertEquals(evidence, ["complete", "incomplete"]);
+});
+
+Deno.test("currency decision is advisory before the listing set is complete", () => {
+  const [check] = currencyVerificationChecks({ published_currency_iso: "ZAR" }, { published: false });
+  assertEquals(check.group, "Channel publishing");
+  assertEquals(check.mandatory, false);
+  assertEquals(check.passed, true);
+});
+
+Deno.test("fully published listing requires a matching currency read-back", () => {
+  const [unverified] = currencyVerificationChecks({ published_currency_iso: "ZAR" }, { published: true });
+  assertEquals(unverified.mandatory, true);
+  assertEquals(unverified.passed, false);
+
+  const [mismatch] = currencyVerificationChecks({
+    published_currency_iso: "ZAR",
+    ru_reported_currency_iso: "EUR",
+    verified_at: "2026-08-18T00:00:00Z",
+  }, { published: true });
+  assertEquals(mismatch.passed, false);
 });
