@@ -27,9 +27,23 @@ interface Body {
     | "purge_listing"
     /** Clear a local listing id the channel account no longer returns. */
     | "clear_local_listing"
+    /** Remove/release many listings on one account with a single pair of reads. */
+    | "cleanup_batch"
     /** Point a local record at a listing id verified live on the account. */
     | "repoint_local_listing";
   entity_id: string;
+  /** cleanup_batch: everything to resolve on this account, in order. */
+  targets?: Array<{
+    type: "listing" | "stale";
+    listing_id?: string | null;
+    record_id?: string | null;
+    record_kind?: "property" | "unit";
+    /** Property the stale record belongs to, used to scope it to its account. */
+    property_id?: string | null;
+    name?: string;
+
+  }>;
+
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
   reason?: string;
@@ -388,12 +402,22 @@ Deno.serve(async (req) => {
       "reconcile",
       "purge_listing",
       "clear_local_listing",
+      "cleanup_batch",
+      "repoint_local_listing",
     ];
     if (!raw || !scopes.includes(raw.scope)) {
       return bad(`scope must be one of: ${scopes.join(", ")}`);
     }
-    if (!raw.entity_id) return bad("entity_id is required");
-    const NO_ENABLED = new Set(["purge_duplicates", "reconcile", "purge_listing", "clear_local_listing"]);
+    if (!raw.entity_id && raw.scope !== "cleanup_batch") return bad("entity_id is required");
+    const NO_ENABLED = new Set([
+      "purge_duplicates",
+      "reconcile",
+      "purge_listing",
+      "clear_local_listing",
+      "cleanup_batch",
+      "repoint_local_listing",
+    ]);
+
     if (!NO_ENABLED.has(raw.scope) && typeof raw.enabled !== "boolean") {
       return bad("enabled is required");
     }
@@ -1262,6 +1286,279 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    // ── Bulk cleanup for one channel account: one pull, N removals, one pull ─
+    //    The per-row scopes above each cost two full account reads (and each of
+    //    those can sit out the rate-limit ladder for up to a minute), which is
+    //    what made "Clean up all" take minutes per listing. Here the account is
+    //    read once for presence, every target is removed against that snapshot,
+    //    and a single verification read at the end decides deleted vs refused.
+    if (raw.scope === "cleanup_batch") {
+      const targets = Array.isArray(raw.targets) ? raw.targets : [];
+      if (targets.length === 0) return bad("targets is required", 400);
+
+      let ownerId = raw.owner_id ? String(raw.owner_id) : null;
+      if (!ownerId) {
+        const { data: acct } = await admin
+          .from("ru_owner_accounts")
+          .select("ru_owner_id")
+          .not("ru_owner_id", "is", null)
+          .limit(1)
+          .maybeSingle();
+        ownerId = acct?.ru_owner_id ? String(acct.ru_owner_id) : null;
+      }
+      if (!ownerId) return bad("No channel account could be resolved", 400);
+
+      const startedAt = Date.now();
+      const BUDGET_MS = 12 * 60 * 1000;
+
+      // 1. One presence read for the whole run.
+      const snapshot = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
+      if (snapshot.error) {
+        return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
+      }
+      const heldNow = new Map<string, boolean>(); // listing id → still sellable
+      for (const l of snapshot.listings) {
+        heldNow.set(String(l.id), !(l.is_archived === true || l.is_active === false));
+      }
+
+      type BatchResult = {
+        key: string;
+        listing_id: string | null;
+        label: string;
+        outcome: "already_gone" | "deleted" | "refused" | "failed" | "no_listing_id" | "skipped";
+        detail: string;
+      };
+      const results: BatchResult[] = [];
+      const remaining: typeof targets = [];
+      // Targets whose removal call succeeded and still need the closing verify.
+      const pending: Array<{
+        key: string;
+        label: string;
+        listingId: string;
+        method: string;
+        propertyId: string | null;
+        recordKind: "property" | "unit" | null;
+        recordId: string | null;
+      }> = [];
+
+      const clearListingLocally = async (listingId: string) => {
+        await admin
+          .from("properties")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+        await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("rentalsunited_property_id", listingId);
+      };
+
+      for (let i = 0; i < targets.length; i++) {
+        const t = targets[i];
+        if (Date.now() - startedAt > BUDGET_MS) {
+          remaining.push(...targets.slice(i));
+          break;
+        }
+        const key = t.type === "stale" ? String(t.record_id ?? "") : String(t.listing_id ?? "");
+        const label = t.name || key;
+
+        // Resolve the listing id: stale rows carry it on the local record.
+        let listingId = t.listing_id ? String(t.listing_id) : null;
+        let recordKind: "property" | "unit" | null = t.record_kind ?? null;
+        if (t.type === "stale") {
+          // A stale id may belong to a different sub-account; never judge its
+          // presence against this account's snapshot.
+          const scopeProperty = t.property_id
+            ? String(t.property_id)
+            : recordKind === "property"
+              ? String(t.record_id ?? "")
+              : null;
+          if (scopeProperty) {
+            const staleOwner = await resolveRuOwnerId(admin, scopeProperty);
+            if (staleOwner && staleOwner !== ownerId) {
+              results.push({
+                key,
+                listing_id: t.listing_id ?? null,
+                label,
+                outcome: "skipped",
+                detail: `belongs to channel account ${staleOwner}`,
+              });
+              continue;
+            }
+          }
+
+          const table = recordKind === "property" ? "properties" : "hostfully_room_types";
+          const { data: record } = await admin
+            .from(table)
+            .select("id, rentalsunited_property_id")
+            .eq("id", t.record_id)
+            .maybeSingle();
+          listingId = record?.rentalsunited_property_id ? String(record.rentalsunited_property_id) : null;
+          if (!listingId) {
+            results.push({
+              key,
+              listing_id: null,
+              label,
+              outcome: "no_listing_id",
+              detail: "record held no channel listing id",
+            });
+            continue;
+          }
+        }
+        if (!listingId) {
+          results.push({ key, listing_id: null, label, outcome: "failed", detail: "no listing id supplied" });
+          continue;
+        }
+
+        const { data: ownerProp } = await admin
+          .from("properties")
+          .select("id")
+          .eq("rentalsunited_property_id", listingId)
+          .maybeSingle();
+        const propertyId = ownerProp?.id ?? "";
+
+        const sellable = heldNow.get(listingId);
+        if (sellable === undefined) {
+          // Not held by the account at all — nothing to remove upstream.
+          if (t.type === "stale" && t.record_id) {
+            const table = recordKind === "property" ? "properties" : "hostfully_room_types";
+            await admin.from(table).update({ rentalsunited_property_id: null }).eq("id", t.record_id);
+          } else {
+            await clearListingLocally(listingId);
+          }
+          results.push({
+            key,
+            listing_id: listingId,
+            label,
+            outcome: "already_gone",
+            detail: `listing ${listingId} was no longer held by the channel account`,
+          });
+          continue;
+        }
+        if (sellable === false) {
+          // Present but already archived/inactive: terminal removed state.
+          if (t.type === "stale" && t.record_id) {
+            const table = recordKind === "property" ? "properties" : "hostfully_room_types";
+            await admin.from(table).update({ rentalsunited_property_id: null }).eq("id", t.record_id);
+          } else {
+            await clearListingLocally(listingId);
+          }
+          results.push({
+            key,
+            listing_id: listingId,
+            label,
+            outcome: "deleted",
+            detail: `listing ${listingId} already archived on the channel account (no longer sellable)`,
+          });
+          continue;
+        }
+
+        const removal = await removeListingUpstream(admin, {
+          propertyId,
+          listingId,
+          ownerId,
+          ctx: logCtx(traceId, "channel-cleanup:delete"),
+        });
+        if (removal.error) {
+          results.push({ key, listing_id: listingId, label, outcome: "failed", detail: removal.error });
+          continue;
+        }
+        pending.push({
+          key,
+          label,
+          listingId,
+          method: removal.method,
+          propertyId: propertyId || null,
+          recordKind,
+          recordId: t.type === "stale" ? String(t.record_id ?? "") : null,
+        });
+      }
+
+      // 3. One closing verification read for everything we touched.
+      if (pending.length > 0) {
+        const after = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify_after"));
+        const stillSellable = new Map<string, boolean>();
+        if (!after.error) {
+          for (const l of after.listings) {
+            stillSellable.set(String(l.id), !(l.is_archived === true || l.is_active === false));
+          }
+        }
+        for (const p of pending) {
+          if (after.error) {
+            results.push({
+              key: p.key,
+              listing_id: p.listingId,
+              label: p.label,
+              outcome: "failed",
+              detail: `removal sent (${p.method}) but the account could not be re-read: ${after.error}`,
+            });
+            continue;
+          }
+          const live = stillSellable.get(p.listingId);
+          if (live === true) {
+            results.push({
+              key: p.key,
+              listing_id: p.listingId,
+              label: p.label,
+              outcome: "refused",
+              detail: `listing ${p.listingId} is still live on the channel account after a ${p.method} request`,
+            });
+            continue;
+          }
+          if (p.recordId) {
+            const table = p.recordKind === "property" ? "properties" : "hostfully_room_types";
+            await admin.from(table).update({ rentalsunited_property_id: null }).eq("id", p.recordId);
+          } else {
+            await clearListingLocally(p.listingId);
+          }
+          results.push({
+            key: p.key,
+            listing_id: p.listingId,
+            label: p.label,
+            outcome: "deleted",
+            detail:
+              live === false
+                ? `listing ${p.listingId} confirmed archived on the channel account (no longer sellable)`
+                : `listing ${p.listingId} confirmed removed from the channel account (${p.method})`,
+          });
+        }
+      }
+
+      // One audit row per target, exactly as the per-row scopes write them.
+      const events = results
+        .filter((r) => r.outcome !== "no_listing_id")
+        .map((r) => ({
+          property_id: null,
+          property_name: `Listing cleanup (#${r.listing_id ?? "?"})`,
+          direction: "archived",
+          unit_count: 0,
+          listing_count: r.outcome === "deleted" || r.outcome === "already_gone" ? 1 : 0,
+          reason: raw.reason ?? "Listing removed during channel reconciliation",
+          actor_user_id: actorUserId,
+          actor_email: actorEmail,
+          ru_status: r.outcome === "deleted" || r.outcome === "already_gone" ? "updated" : "ru_failed",
+          detail: r.detail,
+        }));
+      if (events.length > 0) await admin.from("ru_archive_events").insert(events);
+
+      const cleaned = results.filter((r) => r.outcome === "deleted" || r.outcome === "already_gone").length;
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: remaining.length > 0 ? "resumable" : "complete",
+          owner_id: ownerId,
+          trace_id: traceId,
+          cleaned,
+          refused: results.filter((r) => r.outcome === "refused").length,
+          failed: results.filter((r) => r.outcome === "failed").length,
+          results,
+          remaining,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+
 
 
     // ── Re-point a local record at a listing that is live on the account ──
