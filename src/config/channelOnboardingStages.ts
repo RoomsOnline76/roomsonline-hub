@@ -30,7 +30,7 @@ export const CHANNEL_ONBOARDING_STAGES: ChannelOnboardingStageDef[] = [
     key: "published",
     title: "Published",
     goal: "Goal: get the listing onto the distribution layer and signed off.",
-    macroKeys: ["push_owner", "keys", "pull_listings", "signoff", "publish", "currency", "entitlement"],
+    macroKeys: ["push_owner", "keys", "company_profile", "signoff", "pull_listings", "publish", "currency", "entitlement"],
   },
   {
     key: "live",
