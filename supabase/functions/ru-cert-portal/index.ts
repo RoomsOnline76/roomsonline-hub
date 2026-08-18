@@ -1875,8 +1875,9 @@ Deno.serve(async (req) => {
         // Published, probing intentionally skipped for a fast paint: serve the stored verdict
         // instead of re-pulling every unit's calendar on page load.
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
-        if (ariSnapshot.worst_window) {
+        if (isMeaningfulWindow(ariSnapshot.worst_window)) {
           extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
