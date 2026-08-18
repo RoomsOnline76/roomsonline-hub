@@ -4489,13 +4489,17 @@ Deno.serve(async (req) => {
             .select('id, name, rentalsunited_property_id')
             .eq('property_id', property_id)
             .eq('is_active', true);
+          const attemptedIds = new Set(filteredUnits.map((u: any) => u.id));
           unpublishedUnits = ((freshUnits ?? []) as Array<{ id: string; name: string | null; rentalsunited_property_id: string | null }>)
             .filter((u) => canonicalIds.has(u.id) && !String(u.rentalsunited_property_id ?? '').trim())
             .map((u) => ({ id: u.id, name: String(u.name ?? 'Unit') }));
+          // Only units this run never attempted are queued — re-queuing a unit that was just
+          // attempted and still has no id would loop the sequence forever.
+          const neverAttempted = unpublishedUnits.filter((u) => !attemptedIds.has(u.id));
           // A scoped request (only_unit_ids) is deliberately partial — report, never resume.
-          if (unpublishedUnits.length > 0 && !Array.isArray(only_unit_ids)) {
-            remainingUnitIds.push(...unpublishedUnits.map((u) => u.id));
-            console.log(`[push-property-to-ru] Publish invariant: ${unpublishedUnits.map((u) => u.name).join(', ')} still hold no listing — queued for the next chunk`);
+          if (neverAttempted.length > 0 && !Array.isArray(only_unit_ids)) {
+            remainingUnitIds.push(...neverAttempted.map((u) => u.id));
+            console.log(`[push-property-to-ru] Publish invariant: ${neverAttempted.map((u) => u.name).join(', ')} hold no listing — queued for the next chunk`);
           }
         }
 
