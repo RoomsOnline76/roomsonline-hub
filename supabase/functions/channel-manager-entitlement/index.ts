@@ -1007,6 +1007,8 @@ Deno.serve(async (req) => {
           reconciled_at: new Date().toISOString(),
           accounts: accountResults,
           roster_error: rosterError,
+          // Retired test sub-accounts, excluded from every number above.
+          retired_accounts: retiredAccounts,
           // Mutually exclusive: live + archived always equals the bound-account total.
           channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
