@@ -38,6 +38,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     purgeListing,
     clearStale,
     repointListing,
+    publishMissingUnits,
     clearConflict,
     cleanupAll,
     cleanup,
