@@ -1085,6 +1085,11 @@ Deno.serve(async (req) => {
           orphans,
           duplicates,
           stale,
+          /** Unseen local ids from a pass where some account was not read. Never cleanup targets. */
+          unverified,
+          /** Every account that could hold ROL'OS listings answered on this pass. */
+          read_complete: allAccountsRead,
+          unread_owner_ids: unreadAccounts.map((a) => a.owner_id),
           footprint,
           untracked_unit_count: untrackedUnitCount,
           inactive_units_holding_listings: inactiveHeldCount,
