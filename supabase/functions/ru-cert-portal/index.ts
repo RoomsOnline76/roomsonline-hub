@@ -3498,26 +3498,16 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      // Validate the pair against RU before persisting it
-      const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "verify_child_login", auth_access_key: accessKey, auth_secret_key: secretKey },
-      });
-      const accepted = !verifyError && verified?.success === true && verified?.verified === true;
-      if (!accepted) {
-        return json({
-          success: false,
-          verified: false,
-          error: {
-            code: "RU_CHILD_KEYS_REJECTED",
-            message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message
-              ?? "Rentals United rejected this API key pair. Confirm it belongs to the sub-user and has the XmlApi scope.",
-          },
-        }, 200);
-      }
-
-      // Ownership check: a VALID pair is not necessarily THIS sub-user's pair. Without this,
-      // one sub-user's keys can be pasted onto another OwnerID, after which every
-      // sub-account-scoped call silently authenticates as the wrong RU account.
+      /**
+       * ONE probe, owner-scoped: validity and ownership are the same question.
+       *
+       * The old path ran Pull_ListBuildings_RQ first (account-level, no OwnerID, the most
+       * rate-limited method we call) and then a second owner-scoped read. Two identical-parameter
+       * reads inside the channel's sliding minute made a perfectly good pair report
+       * "Incorrect login or password" — that string is the channel's generic auth refusal, not
+       * evidence that a login/password was sent. Now a single Pull_ListOwnerProp_RQ under the
+       * pasted pair answers all three outcomes: verified, wrong account, or rate-deferred.
+       */
       const { data: owned, error: ownedError } = await admin.functions.invoke("rentalsunited-api", {
         body: {
           action: "verify_child_key_owner",
@@ -3526,23 +3516,106 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
         },
       });
-      if (ownedError || owned?.success !== true || owned?.owns !== true) {
-        const otherEmails: string[] = Array.isArray(owned?.identified_emails) ? owned.identified_emails : [];
-        const otherOwners: string[] = Array.isArray(owned?.identified_owner_ids) ? owned.identified_owner_ids : [];
-        const belongsTo = otherEmails[0] ?? otherOwners[0] ?? null;
+
+      const deferralCode = (payload: unknown): string | null => {
+        const code = (payload as { error?: { code?: string } } | null)?.error?.code ?? null;
+        return code === "RU_RATE_DEFERRED" ? code : null;
+      };
+      const rawError = ownedError ? await readInvokeError(ownedError) : null;
+      const rateDeferred =
+        deferralCode(owned) !== null ||
+        (owned as { queued?: boolean } | null)?.queued === true ||
+        (rawError?.includes("RU_RATE_DEFERRED") ?? false);
+
+      if (rateDeferred) {
+        const retryMs =
+          (owned as { error?: { retry_after_ms?: number } } | null)?.error?.retry_after_ms ?? null;
         return json({
           success: false,
           verified: false,
+          state: "deferred",
+          method: "Pull_ListOwnerProp_RQ",
+          retry_after_ms: retryMs,
           error: {
-            code: "RU_CHILD_KEYS_WRONG_ACCOUNT",
-            message: belongsTo
-              ? `This key pair belongs to ${belongsTo}, not to ${loginEmail ?? `OwnerID ${ownerId}`}. Sign in at Rentals United AS ${loginEmail ?? `OwnerID ${ownerId}`} and generate a key pair there.`
-              : `Rentals United will not let this key pair read OwnerID ${ownerId}. Generate the pair while signed in as ${loginEmail ?? "this sub-user"} (Security settings, scope XmlApi).`,
+            code: "RU_RATE_DEFERRED",
+            message: `The channel is rate limiting this check${
+              retryMs ? ` — retry in ${Math.ceil(retryMs / 1000)}s` : " — retry in about a minute"
+            }. Nothing was stored and the key pair has not been rejected.`,
           },
+        }, 200);
+      }
+
+      if (ownedError || owned?.success !== true) {
+        return json({
+          success: false,
+          verified: false,
+          state: "rejected",
+          method: "Pull_ListOwnerProp_RQ",
+          error: {
+            code: "RU_CHILD_KEYS_REJECTED",
+            message: (owned as { error?: { message?: string } } | null)?.error?.message
+              ?? rawError
+              ?? "The channel could not be reached to check this key pair. Try again shortly.",
+          },
+        }, 200);
+      }
+
+      if (owned?.owns !== true) {
+        const otherEmails: string[] = Array.isArray(owned?.identified_emails) ? owned.identified_emails : [];
+        const otherOwners: string[] = Array.isArray(owned?.identified_owner_ids) ? owned.identified_owner_ids : [];
+        const belongsTo = otherEmails[0] ?? otherOwners[0] ?? null;
+        const who = loginEmail ?? `OwnerID ${ownerId}`;
+
+        if (belongsTo) {
+          return json({
+            success: false,
+            verified: false,
+            state: "wrong_account",
+            method: "Pull_ListOwnerProp_RQ",
+            authenticated_as: belongsTo,
+            ru_status_id: owned?.ru_status_id ?? null,
+            ru_status_message: owned?.ru_status_message ?? null,
+            error: {
+              code: "RU_CHILD_KEYS_WRONG_ACCOUNT",
+              message: `This key pair authenticates as ${belongsTo}, not ${who}. Sign in at the channel AS ${who} and generate a key pair there.`,
+            },
+          }, 200);
+        }
+
+        // Rejected. Is the PAIR bad, or the sub-user account itself not usable yet? One
+        // confirmatory check with the sub-user's operator portal login separates the two, so the
+        // operator is never told to regenerate keys for an account that cannot log in at all.
+        let accountUsable: boolean | null = null;
+        if (loginEmail) {
+          const { data: loginProbe } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "verify_child_login",
+              auth_username: loginEmail,
+              auth_password: RU_SUB_USER_PASSWORD,
+            },
+          });
+          if (loginProbe?.success === true) accountUsable = loginProbe?.verified === true;
+        }
+
+        return json({
+          success: false,
+          verified: false,
+          state: "rejected",
+          method: "Pull_ListOwnerProp_RQ",
+          account_login_usable: accountUsable,
           ru_status_id: owned?.ru_status_id ?? null,
           ru_status_message: owned?.ru_status_message ?? null,
-        }, 422);
+          error: {
+            code: "RU_CHILD_KEYS_REJECTED",
+            message: accountUsable === true
+              ? `The sub-account ${who} is fine, but the channel refused this key pair (${owned?.ru_status_message ?? "auth rejected"}). Sign in as ${who}, generate a fresh key pair with scope XmlApi, and paste it here.`
+              : accountUsable === false
+                ? `The channel refused both this key pair and the ${who} portal login (${owned?.ru_status_message ?? "auth rejected"}). The sub-account login must be working before a key pair can be captured.`
+                : `The channel refused this key pair for ${who} (${owned?.ru_status_message ?? "auth rejected"}). Generate the pair while signed in as ${who} (Security settings, scope XmlApi).`,
+          },
+        }, 200);
       }
+
 
       // Guard against the same pair sitting on two OwnerIDs (the exact cross-save above).
       const { data: clashRows } = await admin
