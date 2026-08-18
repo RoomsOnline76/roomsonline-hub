@@ -767,6 +767,8 @@ Deno.serve(async (req) => {
         owner_id: string;
         keep_listing_id: string;
         copies: number;
+        /** Does a local record point at this surplus copy (mis-wired) or is it unmatched? */
+        matched: boolean;
       }> = [];
       for (const rows of dupGroups.values()) {
         if (rows.length < 2) continue;
@@ -781,8 +783,10 @@ Deno.serve(async (req) => {
             owner_id: r.owner_id,
             keep_listing_id: keeper.listing_id,
             copies: rows.length,
+            matched: r.matched,
           });
         }
+
       }
 
 
