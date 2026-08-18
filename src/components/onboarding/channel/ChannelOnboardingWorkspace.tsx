@@ -1196,7 +1196,7 @@ function PublishedPane({
           ) : listingPull ? (
             <p className="text-sm text-emerald-600">
               {listingPull.remoteCount === 0
-                ? "Sub-account was empty — nothing to adopt."
+                ? `${listingPull.account ?? "The sub-account"} returned no listings — nothing to adopt.`
                 : `${listingPull.matched} listing(s) adopted of ${listingPull.remoteCount}${
                     listingPull.unmatched > 0 ? ` · ${listingPull.unmatched} unmatched` : ""
                   }.`}
