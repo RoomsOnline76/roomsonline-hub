@@ -21,6 +21,10 @@ const BACKOFF_MS = [1500, 4000];
 /** Longer ladder for the channel's own 1-per-sliding-minute rate limit. */
 const RATE_BACKOFF_MS = [20_000, 45_000, 70_000];
 
+/** Attempt budget for a create refused at the adoption pre-read (nothing was created yet). */
+const ADOPTION_RETRY_ATTEMPTS = 3;
+
+
 /** True when the failure is the channel's sliding-minute rate limit (status -6 / our gate). */
 function isRateLimited(data: any, errorCode: string | null, message: string | null): boolean {
   if (errorCode === 'RU_RATE_DEFERRED') return true;
