@@ -1804,7 +1804,11 @@ Deno.serve(async (req) => {
             availability_ok: hasAvailability || ariSnapshot?.availability_ok === true,
             prices_ok: livePricesVerified || ariSnapshot?.prices_ok === true,
             units: unitProbes,
-            worst_window: worstWindow ?? ariSnapshot?.worst_window ?? null,
+            // Never overwrite a real window with an all-zero one from a silent read.
+            worst_window: isMeaningfulWindow(worstWindow)
+              ? worstWindow
+              : (isMeaningfulWindow(ariSnapshot?.worst_window) ? ariSnapshot!.worst_window : null),
+
             ru_owner_id: scopedOwnerId,
           });
         }
