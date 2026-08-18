@@ -165,6 +165,16 @@ export interface AriSnapshot {
   probed_at: string;
   ru_owner_id?: number | null;
 }
+/**
+ * A stored bookable window is only trustworthy when the probe actually saw the calendar.
+ * A throttled / empty read-back yields an all-zero window; persisting or scoring that as a
+ * real verdict turned a healthy property into a permanent "nothing is sellable" blocker.
+ */
+function isMeaningfulWindow(w: any): boolean {
+  if (!w || typeof w !== "object") return false;
+  return Number(w.open_days ?? 0) > 0 || Number(w.longest_run ?? 0) > 0;
+}
+
 
 async function loadAriSnapshot(admin: any, propertyId: string): Promise<AriSnapshot | null> {
   try {
@@ -1779,8 +1789,9 @@ Deno.serve(async (req) => {
         if (worstWindow && liveAvailabilityResponded) {
           // Worst unit wins — and the check carries that unit's name so the wizard opens it.
           extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
-        } else if (!liveAvailabilityResponded && ariSnapshot?.worst_window) {
-          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+        } else if (!liveAvailabilityResponded && isMeaningfulWindow(ariSnapshot?.worst_window)) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot!.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
@@ -1793,7 +1804,11 @@ Deno.serve(async (req) => {
             availability_ok: hasAvailability || ariSnapshot?.availability_ok === true,
             prices_ok: livePricesVerified || ariSnapshot?.prices_ok === true,
             units: unitProbes,
-            worst_window: worstWindow ?? ariSnapshot?.worst_window ?? null,
+            // Never overwrite a real window with an all-zero one from a silent read.
+            worst_window: isMeaningfulWindow(worstWindow)
+              ? worstWindow
+              : (isMeaningfulWindow(ariSnapshot?.worst_window) ? ariSnapshot!.worst_window : null),
+
             ru_owner_id: scopedOwnerId,
           });
         }
@@ -1860,8 +1875,9 @@ Deno.serve(async (req) => {
         // Published, probing intentionally skipped for a fast paint: serve the stored verdict
         // instead of re-pulling every unit's calendar on page load.
         const localPricingReady = localCoverage ? localCoverage.complete !== false : true;
-        if (ariSnapshot.worst_window) {
+        if (isMeaningfulWindow(ariSnapshot.worst_window)) {
           extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
