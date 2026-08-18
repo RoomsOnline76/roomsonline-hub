@@ -22,7 +22,8 @@ export type RuCheckGroup =
   | "Address & geo"
   | "Policies & payments"
   | "Availability 365d"
-  | "Pricing 365d";
+  | "Pricing 365d"
+  | "Channel publishing";
 
 export interface RuCheck {
   key: string;
