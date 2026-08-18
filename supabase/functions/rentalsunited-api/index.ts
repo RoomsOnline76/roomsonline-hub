@@ -2303,6 +2303,12 @@ Deno.serve(async (req) => {
     // Real sub-user login test on RU's XML surface. Prefers the sub-user's own API keys
     // (mandatory for accounts created after RU's Nov-2025 API-keys rollout) and falls back
     // to the legacy UserName/Password envelope for older accounts.
+    //
+    // When an owner_id is supplied with a key pair we probe the OWNER-SCOPED listing read
+    // (Pull_ListOwnerProp_RQ) instead of the account-level Pull_ListBuildings_RQ: buildings
+    // is the single most rate-limited method we call (identical parameters every time) and a
+    // fresh sub-user key pair can be refused there with RU's generic "Incorrect login or
+    // password" text even though the pair is fine for its own inventory.
     if (action === 'verify_child_login') {
       const childAuth = await resolveChildAuth(body);
       if (!childAuth) {
@@ -2311,17 +2317,25 @@ Deno.serve(async (req) => {
           'auth_access_key + auth_secret_key (preferred) or auth_username + auth_password are required',
         );
       }
-      const xml = buildListBuildingsXml(creds, childAuth);
+      const probeOwnerId = parseInt(String(body.owner_id ?? '').trim(), 10);
+      const ownerScoped = childAuth.mode === 'keys' && Number.isFinite(probeOwnerId) && probeOwnerId > 0;
+      const method = ownerScoped ? 'Pull_ListOwnerProp_RQ' : 'Pull_ListBuildings_RQ';
+      const xml = ownerScoped
+        ? buildListPropertiesXml(effectiveCreds(creds, childAuth), probeOwnerId)
+        : buildListBuildingsXml(creds, childAuth);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       return jsonResponse({
         success: true,
         verified: ok,
         auth_mode: childAuthMode(childAuth),
+        method,
+        owner_id: ownerScoped ? String(probeOwnerId) : null,
         ru_status_id: status.id ?? null,
         ru_status_message: status.message ?? null,
       });
     }
+
 
     // ── verify_child_key_owner ──
     // Read-only ownership probe: confirm a supplied AccessKey/SecretKey pair really belongs to
