@@ -402,6 +402,7 @@ export function summarizeReadiness(
     "Policies & payments",
     "Availability 365d",
     "Pricing 365d",
+    "Channel publishing",
   ];
   const groups = groupOrder
     .map((group) => {
