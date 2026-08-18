@@ -100,6 +100,39 @@ export interface ReconConflict {
     local_active: boolean;
   }>;
 }
+/**
+ * Per-property footprint: what ROL'OS holds versus what the channel returns, so an
+ * active unit with no listing id (or a listing parked on an inactive unit) is visible.
+ */
+export interface ReconFootprint {
+  property_id: string;
+  property_name: string;
+  push_enabled: boolean;
+  building_listing_id: string | null;
+  active_units: number;
+  units_with_listing: number;
+  units_without_listing: Array<{ record_id: string; name: string }>;
+  inactive_units_with_listing: Array<{ record_id: string; name: string; listing_id: string }>;
+  live_on_channel: number;
+  archived_on_channel: number;
+}
+
+/** A sub-account holding live listings although it is not the monitored account. */
+export interface ReconOwnerViolation {
+  owner_id: string;
+  owner_label: string;
+  live_listing_count: number;
+}
+
+/** An account whose listings could not be read — cannot be proven empty. */
+export interface ReconUnverifiableAccount {
+  owner_id: string;
+  owner_label: string;
+  bound: boolean;
+  has_keys: boolean;
+  reason: string;
+}
+
 
 export interface ReconStale {
   listing_id: string;
