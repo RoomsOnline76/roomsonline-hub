@@ -54,20 +54,23 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     [result],
   );
 
-  // Only real discrepancies are cleanable: live listings on the account with no
-  // local match, plus stale local ids. Archived listings are already gone from
-  // the portal and carry no cost, so a matched account has nothing to clean up.
-  const cleanableListings = useMemo(
-    () => (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id)),
-    [result, erroredOwners],
-  );
-  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
   // Surplus same-name copies of one unit. They bill like any other listing, so they are called
   // out separately from orphans — the keeper of each group is never in this list.
   const duplicateCleanable = useMemo(
     () => (result?.duplicates || []).filter((d) => !erroredOwners.has(d.owner_id)),
     [result, erroredOwners],
   );
+
+  // Real discrepancies that still bill: live listings with no local match, plus
+  // surplus duplicate copies. Archived listings are already off the portal and
+  // carry no cost, so they are never part of a one-click cleanup.
+  const cleanableListings = useMemo(() => {
+    const orphans = (result?.orphans || []).filter((o) => !erroredOwners.has(o.owner_id));
+    const seen = new Set(orphans.map((o) => o.listing_id));
+    return [...orphans, ...duplicateCleanable.filter((d) => !seen.has(d.listing_id))];
+  }, [result, erroredOwners, duplicateCleanable]);
+  const cleanableTotal = cleanableListings.length + (result?.stale.length || 0);
+
 
 
 
