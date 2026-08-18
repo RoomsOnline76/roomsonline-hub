@@ -125,10 +125,11 @@ export async function invokeRuWithRetry(
     if (!retryable || attempt === maxAttempts) break;
 
 
-    const suggested = Number(data?.error?.retry_after_ms ?? 0);
-    const wait = rateLimited
+    const suggested = Number(data?.error?.retry_after_ms ?? data?.retry_after_ms ?? 0);
+    const wait = rateLimited || adoptionUnverified
       ? Math.max(suggested + 500, RATE_BACKOFF_MS[attempt - 1] ?? RATE_BACKOFF_MS[RATE_BACKOFF_MS.length - 1])
       : (BACKOFF_MS[attempt - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1]);
+
     console.warn(
       `[ruInvokeRetry] ${label} attempt ${attempt}/${maxAttempts} failed (${httpStatus ?? 'no status'}: ${message}) — retrying in ${wait}ms${rateLimited ? ' [rate limit backoff]' : ''}`,
     );
