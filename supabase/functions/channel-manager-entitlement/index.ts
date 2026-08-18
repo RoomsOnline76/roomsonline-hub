@@ -50,6 +50,17 @@ interface Body {
 }
 
 
+/**
+ * A rate-limit deferral is a "come back shortly", not an error: answer 200 so
+ * the monitor can show it inline instead of blanking on a 502.
+ */
+function deferred(message: string) {
+  return new Response(JSON.stringify({ success: false, deferred: true, error: message }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 function bad(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -218,11 +229,15 @@ interface ChannelListing {
 }
 
 /** Read every listing one channel account holds. Errors are returned, never thrown. */
-async function pullOwnerListings(
+export const QUEUED_READ_MESSAGE =
+  "Listing read queued behind the channel rate limit — not counted as empty";
+
+/** A queued read is not a failure: the channel queue drains within a minute. */
+async function pullOwnerListingsOnce(
   admin: ReturnType<typeof createClient>,
   ownerId: string,
   ctx: ChannelLogCtx,
-): Promise<{ listings: ChannelListing[]; error: string | null }> {
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred: boolean }> {
   const { data, error } = await admin.functions.invoke("rentalsunited-api", {
     body: { action: "list_properties", owner_id: Number(ownerId), ...ctx },
   });
@@ -236,12 +251,27 @@ async function pullOwnerListings(
     const message =
       error?.message ||
       (typeof res.error === "string" ? res.error : res.error?.message) ||
-      (queued
-        ? "Listing read queued behind the channel rate limit — not counted as empty"
-        : "Channel account could not be read");
-    return { listings: [], error: message };
+      (queued ? QUEUED_READ_MESSAGE : "Channel account could not be read");
+    return { listings: [], error: message, deferred: queued && res.success !== false && !error };
   }
-  return { listings: res.properties || [], error: null };
+  return { listings: res.properties || [], error: null, deferred: false };
+}
+
+/**
+ * Read one account's listings, waiting out the channel rate-limit queue instead
+ * of reporting a deferral to the caller as a hard failure.
+ */
+async function pullOwnerListings(
+  admin: ReturnType<typeof createClient>,
+  ownerId: string,
+  ctx: ChannelLogCtx,
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean }> {
+  let last = await pullOwnerListingsOnce(admin, ownerId, ctx);
+  for (let attempt = 0; attempt < 3 && last.deferred; attempt++) {
+    await new Promise((r) => setTimeout(r, 20_000));
+    last = await pullOwnerListingsOnce(admin, ownerId, ctx);
+  }
+  return last;
 }
 
 /**
@@ -252,16 +282,16 @@ async function pullOwnerListings(
 async function verifyListingPresence(
   admin: ReturnType<typeof createClient>,
   args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
-): Promise<{ present: boolean | null; archived: boolean; error: string | null }> {
+): Promise<{ present: boolean | null; archived: boolean; error: string | null; deferred?: boolean }> {
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
-  const { listings, error } = await pullOwnerListings(admin, args.ownerId, args.ctx);
-  if (error) return { present: null, archived: false, error };
+  const { listings, error, deferred } = await pullOwnerListings(admin, args.ownerId, args.ctx);
+  if (error) return { present: null, archived: false, error, deferred };
   const hit = listings.find((l) => String(l.id) === args.listingId);
   // RU never hard-deletes: a removed listing stays in the feed either flagged
   // archived (NLA) or simply switched inactive (Active="false"). Both mean it
   // no longer sells or bills, so both count as the terminal removed state.
   const notSellable = hit ? hit.is_archived === true || hit.is_active === false : false;
-  return { present: !!hit, archived: notSellable, error: null };
+  return { present: !!hit, archived: notSellable, error: null, deferred: false };
 }
 
 /**
@@ -1026,7 +1056,7 @@ Deno.serve(async (req) => {
         ownerId,
         ctx: logCtx(traceId, "channel-cleanup:verify"),
       });
-      if (before.error) return bad(before.error, 502);
+      if (before.error) return before.deferred ? deferred(before.error) : bad(before.error, 502);
 
       let outcome: "already_gone" | "deleted" | "refused" = "already_gone";
       let method: "deleted" | "archived" | "none" = "none";
@@ -1049,7 +1079,7 @@ Deno.serve(async (req) => {
           ownerId,
           ctx: logCtx(traceId, "channel-cleanup:verify_after"),
         });
-        if (after.error) return bad(after.error, 502);
+        if (after.error) return after.deferred ? deferred(after.error) : bad(after.error, 502);
 
         // The channel does not hard-delete listings: an archived listing stays in
         // the owner list flagged as archived. That is the terminal removed state —
@@ -1157,7 +1187,7 @@ Deno.serve(async (req) => {
           ownerId,
           ctx: logCtx(traceId, "channel-cleanup:verify"),
         });
-        if (before.error) return bad(before.error, 502);
+        if (before.error) return before.deferred ? deferred(before.error) : bad(before.error, 502);
 
         if (!before.present) {
           outcome = "already_gone";
@@ -1181,7 +1211,7 @@ Deno.serve(async (req) => {
             ownerId,
             ctx: logCtx(traceId, "channel-cleanup:verify_after"),
           });
-          if (after.error) return bad(after.error, 502);
+          if (after.error) return after.deferred ? deferred(after.error) : bad(after.error, 502);
 
           if (after.present && !after.archived) {
             outcome = "refused";
@@ -1240,7 +1270,7 @@ Deno.serve(async (req) => {
         ownerId,
         ctx: logCtx(traceId, "channel-repoint:verify"),
       });
-      if (presence.error) return bad(presence.error, 502);
+      if (presence.error) return presence.deferred ? deferred(presence.error) : bad(presence.error, 502);
       if (!presence.present) return bad(`Listing ${listingId} is not held by the channel account`, 409);
       if (presence.archived) return bad(`Listing ${listingId} is archived on the channel account`, 409);
 
