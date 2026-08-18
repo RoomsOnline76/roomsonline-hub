@@ -1789,8 +1789,9 @@ Deno.serve(async (req) => {
         if (worstWindow && liveAvailabilityResponded) {
           // Worst unit wins — and the check carries that unit's name so the wizard opens it.
           extraChecks.push(...bookableWindowChecks(worstWindow, worstProbe?.unit_name ?? soleUnitName ?? undefined));
-        } else if (!liveAvailabilityResponded && ariSnapshot?.worst_window) {
-          extraChecks.push(...bookableWindowChecks(ariSnapshot.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+        } else if (!liveAvailabilityResponded && isMeaningfulWindow(ariSnapshot?.worst_window)) {
+          extraChecks.push(...bookableWindowChecks(ariSnapshot!.worst_window as RuBookableWindow, soleUnitName ?? undefined));
+
         } else {
           extraChecks.push(
             ...localBookableWindowChecks(localWindow, localWindow.worst_unit?.name ?? soleUnitName ?? undefined),
