@@ -22,7 +22,8 @@ export type RuCheckGroup =
   | "Address & geo"
   | "Policies & payments"
   | "Availability 365d"
-  | "Pricing 365d";
+  | "Pricing 365d"
+  | "Channel publishing";
 
 export interface RuCheck {
   key: string;
@@ -401,6 +402,7 @@ export function summarizeReadiness(
     "Policies & payments",
     "Availability 365d",
     "Pricing 365d",
+    "Channel publishing",
   ];
   const groups = groupOrder
     .map((group) => {
@@ -427,6 +429,44 @@ export function summarizeReadiness(
     checks,
     groups,
   };
+}
+
+/** One active unit of a property and whether it currently holds a channel listing. */
+export interface RuUnitPublishState {
+  name: string;
+  published: boolean;
+}
+
+/**
+ * The publish invariant: every active unit the Rooms tab lists must hold a channel
+ * listing id. Content scoring alone let a unit that was inactive during the last push
+ * disappear from the channel while the property still read 100% ready, so this is scored
+ * from the property's *current* unit rows rather than the push snapshot.
+ *
+ * It is only mandatory once the property is published — before the first push nothing
+ * holds a listing id yet.
+ */
+export function unitsPublishedChecks(
+  units: RuUnitPublishState[],
+  opts: { published: boolean },
+): RuCheck[] {
+  if (units.length === 0) return [];
+  const missing = units.filter((u) => !u.published);
+  const passed = missing.length === 0;
+  return [{
+    key: "units_published",
+    group: "Channel publishing",
+    label: `Every unit is published to the channel (${units.length - missing.length} of ${units.length})`,
+    mandatory: opts.published === true,
+    passed,
+    unit: missing.length === 1 ? missing[0].name : undefined,
+    ...(passed ? {} : {
+      detail: `${missing.map((u) => u.name).join(", ")} ${missing.length === 1 ? "holds" : "hold"} no channel listing — ${
+        missing.length === 1 ? "it exists" : "they exist"
+      } in ROL'OS but not at the channel. Run the channel push to publish ${missing.length === 1 ? "it" : "them"}.`,
+    }),
+    fix_hint: "ROL'OS → Channels → push to the channel",
+  }];
 }
 
 /** Convenience helper used by push-property-to-ru to gate live pushes. */

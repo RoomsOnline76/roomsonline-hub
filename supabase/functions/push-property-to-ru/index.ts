@@ -4474,6 +4474,35 @@ Deno.serve(async (req) => {
         const failedUnitIds = unitResults.filter((u: any) => !u.success).map((u: any) => u.room_type_id);
         const retryableUnitIds = unitResults.filter((u: any) => u.transport_failure).map((u: any) => u.room_type_id);
         const remainingUnitIds = [...remainingUnits.map(u => u.id), ...retryableUnitIds];
+
+        /**
+         * Publish invariant. A chunk only knows about the units it carried, so a unit that
+         * was inactive when the sequence started (or added since) used to end the run
+         * unpublished while the push reported "complete". Re-read the property's active
+         * canonical units and treat any that still hold no listing id as outstanding work.
+         */
+        let unpublishedUnits: Array<{ id: string; name: string }> = [];
+        if (remainingUnitIds.length === 0) {
+          const canonicalIds = new Set(activeRoomTypes.map((rt: any) => rt.id));
+          const { data: freshUnits } = await supabase
+            .from('hostfully_room_types')
+            .select('id, name, rentalsunited_property_id')
+            .eq('property_id', property_id)
+            .eq('is_active', true);
+          const attemptedIds = new Set(filteredUnits.map((u: any) => u.id));
+          unpublishedUnits = ((freshUnits ?? []) as Array<{ id: string; name: string | null; rentalsunited_property_id: string | null }>)
+            .filter((u) => canonicalIds.has(u.id) && !String(u.rentalsunited_property_id ?? '').trim())
+            .map((u) => ({ id: u.id, name: String(u.name ?? 'Unit') }));
+          // Only units this run never attempted are queued — re-queuing a unit that was just
+          // attempted and still has no id would loop the sequence forever.
+          const neverAttempted = unpublishedUnits.filter((u) => !attemptedIds.has(u.id));
+          // A scoped request (only_unit_ids) is deliberately partial — report, never resume.
+          if (neverAttempted.length > 0 && !Array.isArray(only_unit_ids)) {
+            remainingUnitIds.push(...neverAttempted.map((u) => u.id));
+            console.log(`[push-property-to-ru] Publish invariant: ${neverAttempted.map((u) => u.name).join(', ')} hold no listing — queued for the next chunk`);
+          }
+        }
+
         // The whole inventory is only pushed when this chunk finished the sequence cleanly.
         const inventorySuccess = chunkSuccess && remainingUnitIds.length === 0;
         const inventoryVerified = chunkVerified && remainingUnitIds.length === 0;
@@ -4490,13 +4519,16 @@ Deno.serve(async (req) => {
         }
 
         const hardFailures = unitResults.filter((u: any) => !u.success && !u.transport_failure);
+        const unpublishedNote = unpublishedUnits.length > 0
+          ? ` ${unpublishedUnits.map((u) => u.name).join(', ')} still hold no channel listing.`
+          : '';
         const chunkErrorCode = chunkSuccess
           ? (remainingUnitIds.length > 0 ? 'RU_PUSH_RESUMABLE' : null)
           : hardFailures.length > 0 ? 'RU_INVENTORY_INCOMPLETE' : 'RU_PUSH_INTERRUPTED';
         const chunkErrorMessage = chunkSuccess
           ? (remainingUnitIds.length > 0
-            ? `Chunk complete — ${unitResults.length} unit(s) pushed and verified, ${remainingUnitIds.length} unit(s) still queued in this sequence.`
-            : null)
+            ? `Chunk complete — ${unitResults.length} unit(s) pushed and verified, ${remainingUnitIds.length} unit(s) still queued in this sequence.${unpublishedNote}`
+            : unpublishedNote.trim() || null)
           : hardFailures.length > 0
             ? `Rentals United rejected ${hardFailures.length} unit(s): ${hardFailures.map((u: any) => `${u.name} — ${u.error}`).join('; ')}`
             : 'The run ran out of time before every unit was pushed — retry the outstanding units.';
@@ -4518,6 +4550,7 @@ Deno.serve(async (req) => {
             sequence_complete: remainingUnitIds.length === 0,
             resumable: remainingUnitIds.length > 0,
             units: unitResults,
+            unpublished_units: unpublishedUnits,
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
@@ -4539,6 +4572,7 @@ Deno.serve(async (req) => {
             standalone_units: true,
             property_id,
             units: unitResults,
+            unpublished_units: unpublishedUnits,
             batch_id: sequenceBatchId,
             chunked: true,
             chunk_size: chunkSize,

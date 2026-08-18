@@ -11,7 +11,7 @@
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
+import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
 import { findRuBookableWindow, type RuBookableWindow } from "../_shared/ruContentQuality.ts";
 import { evaluatePhases, findOwnerAccount, resolvePortfolioId } from "../_shared/ruPhaseGate.ts";
@@ -1957,6 +1957,44 @@ Deno.serve(async (req) => {
         }));
       }
 
+      /**
+       * Publish invariant — scored on the property's CURRENT unit rows, not the push
+       * snapshot. A unit that was inactive during the last push (or was added since) is
+       * absent from the dry run entirely, which is how a live property could read 100%
+       * ready while one unit existed only in ROL'OS.
+       */
+      let unpublishedUnitNames: string[] = [];
+      {
+        const { data: propRow } = await admin
+          .from("properties")
+          .select("amenities, rentalsunited_property_id")
+          .eq("id", p.id)
+          .maybeSingle();
+        const { data: unitRows } = await admin
+          .from("hostfully_room_types")
+          .select("name, is_active, rentalsunited_property_id")
+          .eq("property_id", p.id)
+          .eq("is_active", true);
+
+        const canonical = new Set(
+          (((propRow?.amenities as { room_types?: Array<{ name?: string | null }> } | null)?.room_types) ?? [])
+            .map((rt) => String(rt?.name ?? "").trim().toLowerCase())
+            .filter(Boolean),
+        );
+        const publishStates = ((unitRows ?? []) as Array<{ name: string | null; rentalsunited_property_id: string | null }>)
+          .filter((u) => canonical.size === 0 || canonical.has(String(u.name ?? "").trim().toLowerCase()))
+          .map((u) => ({
+            name: String(u.name ?? "Unit"),
+            published: !!String(u.rentalsunited_property_id ?? "").trim(),
+          }));
+        // Multi-unit properties hold their listings on the units; a single-unit property
+        // publishes as the building itself, so only score the invariant when units exist.
+        const isPublished = publishStates.some((u) => u.published) || !!propRow?.rentalsunited_property_id;
+        if (publishStates.length > 1 || (publishStates.length === 1 && isPublished)) {
+          extraChecks.push(...unitsPublishedChecks(publishStates, { published: isPublished }));
+        }
+        unpublishedUnitNames = publishStates.filter((u) => !u.published).map((u) => u.name);
+      }
 
       const summary = summarizeReadiness(units, extraChecks);
 
@@ -2038,6 +2076,7 @@ Deno.serve(async (req) => {
         mandatory_total: summary.mandatory_total,
         mandatory_passed: summary.mandatory_passed,
         score: summary.score,
+        unpublished_units: unpublishedUnitNames,
         ari,
       };
     };

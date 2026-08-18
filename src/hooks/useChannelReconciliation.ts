@@ -254,6 +254,14 @@ export function useChannelReconciliation() {
         orphans: payload.orphans || [],
         duplicates: payload.duplicates || [],
         stale: payload.stale || [],
+        // Footprint and owner-scope findings: dropping these here is what made the
+        // per-property panel (and the unpublished-unit gap) invisible in the monitor.
+        footprint: payload.footprint || [],
+        untracked_unit_count: payload.untracked_unit_count ?? 0,
+        inactive_units_holding_listings: payload.inactive_units_holding_listings ?? 0,
+        allowed_owner_ids: payload.allowed_owner_ids || [],
+        owner_violations: payload.owner_violations || [],
+        unverifiable_accounts: payload.unverifiable_accounts || [],
 
       });
       return true;
@@ -377,6 +385,28 @@ export function useChannelReconciliation() {
         : prev,
     );
   }, []);
+
+  /**
+   * Publishes the active units of a property that hold no channel listing yet.
+   * Runs the normal push path scoped to those units, so adoption (live first,
+   * then archived) still applies and no duplicate listing is minted.
+   */
+  const publishMissingUnits = useCallback(async (row: {
+    property_id: string;
+    unit_ids: string[];
+  }) => {
+    if (row.unit_ids.length === 0) return;
+    const { data, error: fnError } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { property_id: row.property_id, only_unit_ids: row.unit_ids },
+    });
+    if (fnError) throw new Error((await readFunctionError(fnError)) || fnError.message);
+    const payload = (data || {}) as { success?: boolean; status?: string; error?: { message?: string }; message?: string };
+    if (payload.success === false && payload.status !== "resumable") {
+      throw new Error(payload.error?.message || payload.message || "The channel push did not complete");
+    }
+    await reconcile({ keepFailures: true });
+  }, [reconcile]);
+
 
   /** Releases a mis-wired id from one of the records claiming it. */
   const clearConflict = useCallback(async (row: {
@@ -528,6 +558,7 @@ export function useChannelReconciliation() {
     purgeOrphan,
     clearStale,
     repointListing,
+    publishMissingUnits,
     clearConflict,
     cleanupAll,
     cleanup,
