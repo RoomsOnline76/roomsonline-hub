@@ -293,7 +293,19 @@ export function useChannelReconciliation() {
         throw new Error(detail || fnError.message);
       }
 
-      const payload = (data || {}) as { success?: boolean; error?: string; outcome?: PurgeOutcome; detail?: string };
+      const payload = (data || {}) as {
+        success?: boolean;
+        deferred?: boolean;
+        error?: string;
+        outcome?: PurgeOutcome;
+        detail?: string;
+      };
+      // Rate-limit deferral: nothing was changed and nothing is refused — retry shortly.
+      if (payload.deferred) {
+        throw new Error(
+          payload.error || "The channel is rate-limited right now — try this cleanup again in a minute.",
+        );
+      }
       if (payload.success === false || payload.outcome === "refused") {
         const reason = payload.detail || payload.error || "The channel account still returns this listing";
         setRefused((prev) => ({ ...prev, [listing.listing_id]: reason }));
@@ -419,7 +431,12 @@ export function useChannelReconciliation() {
       }
       throw new Error(detail || fnError.message);
     }
-    const payload = (data || {}) as { success?: boolean; error?: string; detail?: string };
+    const payload = (data || {}) as { success?: boolean; deferred?: boolean; error?: string; detail?: string };
+    if (payload.deferred) {
+      throw new Error(
+        payload.error || "The channel is rate-limited right now — try releasing this id again in a minute.",
+      );
+    }
     if (payload.success === false) {
       throw new Error(payload.detail || payload.error || "Could not release the local id");
     }
