@@ -704,25 +704,55 @@ Deno.serve(async (req) => {
         ]) as { data: unknown; error: { message: string } | null };
         const res = (listRes || {}) as {
           success?: boolean;
+          queued?: boolean;
           error?: { message?: string } | string;
           properties?: Array<{ id: string; name: string; is_active?: boolean; is_archived?: boolean }>;
         };
-        if (listErr || res.success === false) {
+        // A queued/rate-deferred pull answers `{ success: true, queued: true }` with
+        // NO properties array. Reading that as "zero listings" is what made every
+        // local id look stale and offered the real inventory up for cleanup.
+        const queuedRead = res.queued === true || !Array.isArray(res.properties);
+        if (listErr || res.success === false || queuedRead) {
           const message =
             listErr?.message ||
             (typeof res.error === "string" ? res.error : res.error?.message) ||
-            "Channel account could not be read";
-          accountResults.push({ ...base, listing_count: 0, error: message });
+            (queuedRead
+              ? "Not read — the channel rate-limited this pull, run the reconciliation again shortly"
+              : "Channel account could not be read");
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            read: false,
+            deferred: queuedRead && !listErr && res.success !== false,
+            error: message,
+          });
           continue;
         }
 
         const listings = res.properties || [];
+        const localIdsForOwner = Array.from(localRecords.values()).filter(
+          (l) => (ownerByListing.get(l.listingId) ?? ownerId) === ownerId,
+        ).length;
+        if (listings.length === 0 && localIdsForOwner > 0) {
+          // The account answered, but empty, while ROL'OS holds ids against it.
+          // That is unverifiable, not proof of removal.
+          accountResults.push({
+            ...base,
+            listing_count: 0,
+            read: false,
+            deferred: false,
+            error: `Unverifiable — the account answered empty while ${localIdsForOwner} local listing id(s) point at it`,
+          });
+          continue;
+        }
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
           ...base,
           listing_count: liveListings.length,
           archived_count: listings.length - liveListings.length,
           total_listing_count: listings.length,
+          read: true,
+          deferred: false,
           error: null,
         });
 
