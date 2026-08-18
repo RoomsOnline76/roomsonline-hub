@@ -27,9 +27,20 @@ interface Body {
     | "purge_listing"
     /** Clear a local listing id the channel account no longer returns. */
     | "clear_local_listing"
+    /** Remove/release many listings on one account with a single pair of reads. */
+    | "cleanup_batch"
     /** Point a local record at a listing id verified live on the account. */
     | "repoint_local_listing";
   entity_id: string;
+  /** cleanup_batch: everything to resolve on this account, in order. */
+  targets?: Array<{
+    type: "listing" | "stale";
+    listing_id?: string | null;
+    record_id?: string | null;
+    record_kind?: "property" | "unit";
+    name?: string;
+  }>;
+
   enabled?: boolean;
   /** Free-text audit note captured in the confirmation dialog. */
   reason?: string;
