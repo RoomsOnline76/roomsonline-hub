@@ -375,9 +375,10 @@ Deno.serve(async (req) => {
 
 
       const [{ data: props }, { data: units }] = await Promise.all([
-        admin.from("properties").select("id, name, is_active, rentalsunited_property_id"),
+        admin.from("properties").select("id, name, is_active, is_trading, ru_push_enabled, rentalsunited_property_id"),
         admin.from("hostfully_room_types").select("id, name, property_id, is_active, rentalsunited_property_id"),
       ]);
+
 
       type Local = {
         listingId: string;
