@@ -165,6 +165,13 @@ export interface ChannelReconciliation {
   orphans: ReconOrphan[];
   duplicates: ReconDuplicate[];
   stale: ReconStale[];
+  footprint?: ReconFootprint[];
+  untracked_unit_count?: number;
+  inactive_units_holding_listings?: number;
+  allowed_owner_ids?: string[];
+  owner_violations?: ReconOwnerViolation[];
+  unverifiable_accounts?: ReconUnverifiableAccount[];
+
 
 }
 
