@@ -323,6 +323,23 @@ interface RequestBody {
   /** Push_ModifyStay_RQ current + new state. */
   current_stay?: RUStayState;
   modify_stay?: RUStayModification;
+  /** Push_PutConfirmedReservationMulti_RQ — a ROL'OS-created stay handed to the channel. */
+  stay?: {
+    ru_property_id: string | number;
+    date_from: string;
+    date_to: string;
+    number_of_guests?: number | null;
+    client_price?: number | null;
+    already_paid?: number | null;
+  };
+  guest?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    comments?: string | null;
+  };
+
 
   // Live Notification Mechanism (LNM) subscriptions
   url_base?: string;
