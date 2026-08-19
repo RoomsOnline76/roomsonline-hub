@@ -144,6 +144,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
     recordListingPull,
     refresh,
+    recheckChannel,
+    ledgerActive,
+    ledgerStaleSteps,
+    ledgerPendingSteps,
     isLoading,
     isFetching,
     propertyName,
@@ -715,12 +719,28 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               type="button"
               size="icon"
               variant="ghost"
-              onClick={() => void refresh({ probeAri: true })}
+              onClick={() => void (ledgerActive ? refresh() : refresh({ probeAri: true }))}
               aria-label="Refresh readiness"
-              title="Re-check readiness, including the live channel calendar"
+              title={
+                ledgerActive
+                  ? "Refresh the steps that need a re-check (no channel call)"
+                  : "Re-check readiness, including the live channel calendar"
+              }
             >
               {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
+            {ledgerActive && isPlatformUser && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => void recheckChannel()}
+                title="Ask the Channel Manager to confirm the channel-side steps"
+              >
+                Recheck channel
+              </Button>
+            )}
 
             <Button type="button" onClick={nextAction.run} disabled={nextAction.disabled || !!busy}>
               {busy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}
@@ -760,6 +780,16 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           </div>
         </div>
       </header>
+
+      {ledgerActive && ledgerStaleSteps.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">Some steps need a quick refresh.</p>
+      )}
+
+      {ledgerActive && ledgerPendingSteps.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          Channel confirmation pending — last successful check still counts.
+        </p>
+      )}
 
       {readyRegressed && (
 

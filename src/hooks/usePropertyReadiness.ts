@@ -127,6 +127,12 @@ export interface UsePropertyReadinessOptions {
   channelChecks?: boolean;
   /** Measure gallery images. Disabled on list rows to avoid mass image downloads. */
   measureImages?: boolean;
+  /**
+   * Call `check-activation-readiness` for the server-side checks. The channel step
+   * ledger (Phase 3) already holds those verdicts durably, so the wizard turns this
+   * off on the ledger path to keep page load free of re-grading round trips.
+   */
+  backendChecks?: boolean;
 }
 
 /** Every image URL the property is judged on: gallery + unit galleries. */
@@ -157,10 +163,10 @@ export function usePropertyReadiness(
   propertyId?: string | null,
   options: UsePropertyReadinessOptions = {},
 ) {
-  const { channelChecks = true, measureImages = true } = options;
+  const { channelChecks = true, measureImages = true, backendChecks = true } = options;
   const queryClient = useQueryClient();
   const query = useQuery({
-    queryKey: ["property-readiness", propertyId],
+    queryKey: ["property-readiness", propertyId, backendChecks ? "backend" : "local"],
     queryFn: async () => {
       if (!propertyId) return null;
       const [{ data: property, error }, { data: policyRows }, { data: contactRows }, { data: attractionRows }, backend] = await Promise.all([
@@ -181,10 +187,12 @@ export function usePropertyReadiness(
           .select("title, category, distance_km, is_active")
           .eq("property_id", propertyId)
           .eq("is_active", true),
-        supabase.functions
-          .invoke("check-activation-readiness", { body: { property_id: propertyId } })
-          .then((res) => (res.error ? null : (res.data as ReadinessBackendResponse)))
-          .catch(() => null),
+        backendChecks
+          ? supabase.functions
+              .invoke("check-activation-readiness", { body: { property_id: propertyId } })
+              .then((res) => (res.error ? null : (res.data as ReadinessBackendResponse)))
+              .catch(() => null)
+          : Promise.resolve(null),
       ]);
       if (error) throw error;
       if (!property) return null;

@@ -2,7 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
-import { markChannelStepsStale } from "@/lib/channelStepLedger";
+import {
+  markChannelStepsStale,
+  isChannelStepLedgerEnabled,
+  fetchChannelLedger,
+  seedChannelLedger,
+  recheckChannelLedger,
+  ledgerStepComplete,
+  type ChannelLedgerSnapshot,
+  type ChannelLedgerStep,
+  type ChannelLedgerStatus,
+} from "@/lib/channelStepLedger";
+
 
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,6 +89,12 @@ export interface MacroProgress {
   locked: boolean;
   /** Plain-English reason the step's action cannot run yet. */
   actionBlockedReason?: string;
+  /** Phase 3 ledger row status, when the step ledger is driving this step. */
+  ledgerStatus?: ChannelLedgerStatus;
+  /** Ledger says the underlying data moved — the step wants a quick refresh. */
+  needsRefresh?: boolean;
+  /** Channel confirmation is pending; the last successful check still counts. */
+  channelPending?: boolean;
   outstandingLabels: string[];
 }
 
@@ -159,7 +176,55 @@ const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
-  const readiness = usePropertyReadiness(propertyId);
+
+  /**
+   * Phase 3 — channel step ledger.
+   *
+   * When the rollout flag is on and the property has seeded rows, the wizard reads
+   * its step verdicts from `property_channel_step_status` instead of re-grading on
+   * mount. With the flag off every query below behaves exactly as it did before.
+   */
+  const ledgerFlagQuery = useQuery({
+    queryKey: ["channel-step-ledger-enabled"],
+    queryFn: isChannelStepLedgerEnabled,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const ledgerEnabled = ledgerFlagQuery.data === true;
+
+  const seededOnce = useRef<string | null>(null);
+  const ledgerQuery = useQuery({
+    queryKey: ["channel-step-ledger", propertyId],
+    enabled: !!propertyId && ledgerEnabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<ChannelLedgerSnapshot | null> => {
+      const id = propertyId as string;
+      const snapshot = await fetchChannelLedger(id);
+      if (!snapshot?.enabled) return snapshot;
+      if (snapshot.steps.length > 0) return snapshot;
+      // Seed exactly once per property — a repeat mount must never re-seed.
+      if (seededOnce.current === id) return snapshot;
+      seededOnce.current = id;
+      return (await seedChannelLedger(id)) ?? snapshot;
+    },
+  });
+
+  const ledgerSteps = ledgerQuery.data?.steps ?? [];
+  const ledgerActive = ledgerEnabled && ledgerQuery.data?.enabled === true && ledgerSteps.length > 0;
+  const ledgerByStep = useMemo(() => {
+    const map = new Map<string, ChannelLedgerStep>();
+    for (const step of ledgerSteps) map.set(String(step.step_key), step);
+    return map;
+  }, [ledgerSteps]);
+
+  const readiness = usePropertyReadiness(propertyId, {
+    // On the ledger path the durable rows already hold the server verdicts, so the
+    // wizard does not re-grade (no `check-activation-readiness`, no channel report).
+    backendChecks: !ledgerActive,
+    channelChecks: !ledgerActive,
+  });
+
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
   /**
    * Live channel probes are expensive and rate limited. They run on an explicit
@@ -177,7 +242,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
    */
   const phaseQuery = useQuery({
     queryKey: ["rolos-onboarding-phase", propertyId, probeAri],
-    enabled: !!propertyId,
+    // Ledger path: the scorecard only runs for an explicit channel recheck. Its
+    // absence degrades to local ROL'OS truth (advisory `unknown`), never a blocker.
+    enabled: !!propertyId && (!ledgerActive || probeAri),
+
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
@@ -772,8 +840,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         fieldItems.filter((i) => i.tier === "mandatory").length + mandatoryStateChecks.length;
       const mandatoryDone = mandatoryTotal - mandatoryOutstanding - stateOutstanding;
       const score = mandatoryTotal === 0 ? 100 : Math.round((mandatoryDone / mandatoryTotal) * 100);
-      const complete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+      const localComplete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+
+      /**
+       * Phase 3 ledger overlay. The durable row decides the step when the ledger is
+       * live: `passed` completes it, `blocked` holds it open with the recorded
+       * blockers, and `stale` / `unknown` keep the last successful verdict so a
+       * throttled channel read can never un-complete finished work.
+       */
+      const ledgerRow = ledgerActive ? ledgerByStep.get(macro.key) : undefined;
+      const ledgerStatus = ledgerRow?.status;
+      const ledgerBlockers = ledgerRow?.status === "blocked"
+        ? String(ledgerRow.blocker_summary ?? "")
+            .split("·")
+            .map((part) => part.trim())
+            .filter(Boolean)
+        : [];
+      const complete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
+      const needsRefresh = ledgerStatus === "stale";
+      const channelPending = ledgerStatus === "unknown" && !!ledgerRow?.passed_at;
       completeByKey.set(macro.key, complete);
+
 
       /**
        * Only real prerequisites gate an action — not "the step above is not
@@ -825,15 +912,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         complete,
         locked: !!actionBlockedReason,
         actionBlockedReason,
-        outstandingLabels: [
-          ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
-          ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
-        ],
+        ledgerStatus,
+        needsRefresh,
+        channelPending,
+        outstandingLabels: complete
+          ? []
+          : [
+              ...new Set([
+                ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
+                ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
+                ...ledgerBlockers,
+              ]),
+            ],
       });
     }
 
     return result;
-  }, [readiness.items, stateChecks]);
+  }, [readiness.items, stateChecks, ledgerActive, ledgerByStep]);
 
 
   /**
@@ -917,13 +1012,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     async (opts?: { probeAri?: boolean }) => {
       readiness.refresh();
       if (opts?.probeAri) setProbeAri(true);
+      // Ledger path: re-grade the durable rows without touching the channel unless
+      // the caller explicitly asked for a probe (staff "Recheck channel").
+      if (ledgerActive && propertyId) {
+        await recheckChannelLedger(propertyId, { allowChannelProbe: opts?.probeAri === true });
+        await queryClient.invalidateQueries({ queryKey: ["channel-step-ledger", propertyId] });
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] }),
         queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-phase", propertyId] }),
       ]);
     },
-    [propertyId, queryClient],
+    [ledgerActive, propertyId, queryClient],
   );
+
+  /** Staff / platform action: the only path allowed to hit the channel. */
+  const recheckChannel = useCallback(() => refresh({ probeAri: true }), [refresh]);
+
 
 
   const writeChannelReadiness = useCallback(
@@ -1124,10 +1229,19 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     sendCompanyDetails,
 
     refresh,
+    recheckChannel,
+    /** Phase 3 — the ledger is driving this property's step verdicts. */
+    ledgerActive,
+    /** Steps whose data moved since the last check ("needs a quick refresh"). */
+    ledgerStaleSteps: macros.filter((m) => m.needsRefresh).map((m) => m.macro.key),
+    /** Steps waiting on channel confirmation; their last pass still counts. */
+    ledgerPendingSteps: macros.filter((m) => m.channelPending).map((m) => m.macro.key),
     // The channel scorecard is deliberately excluded from isLoading so the wizard paints
     // local truth first; its arrival is signalled through isFetching instead.
-    isLoading: readiness.isLoading || distribution.isLoading,
-    isFetching: readiness.isFetching || distribution.isFetching || phaseQuery.isFetching,
+    // A ledger hit must not flash a spinner: only the very first seed counts as loading.
+    isLoading: readiness.isLoading || distribution.isLoading || (ledgerEnabled && ledgerQuery.isLoading),
+    isFetching:
+      readiness.isFetching || distribution.isFetching || phaseQuery.isFetching || ledgerQuery.isFetching,
     distributionLoading: phaseQuery.isLoading,
     propertyName: String((d?.property as Record<string, unknown> | null)?.name ?? ""),
     ownerEmail: String((d?.property as Record<string, unknown> | null)?.owner_email ?? ""),

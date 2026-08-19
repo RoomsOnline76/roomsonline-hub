@@ -200,3 +200,83 @@ export function derivePropertyStepsFromChanges(
 
   return [...steps];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 3 — read path. The wizard reads the ledger instead of re-grading on mount.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ChannelLedgerStatus = "pending" | "blocked" | "passed" | "stale" | "unknown";
+
+export interface ChannelLedgerStep {
+  step_key: ChannelLedgerStepKey | string;
+  status: ChannelLedgerStatus;
+  blocker_summary?: string | null;
+  input_fingerprint?: string | null;
+  source?: string | null;
+  details?: Record<string, unknown> | null;
+  passed_at?: string | null;
+  stale_at?: string | null;
+  last_checked_at?: string | null;
+}
+
+export interface ChannelLedgerSnapshot {
+  enabled: boolean;
+  steps: ChannelLedgerStep[];
+}
+
+/** Steps whose truth lives on the channel side — the only ones a probe may refresh. */
+export const CHANNEL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = [
+  "publish",
+  "currency",
+  "pull_listings",
+  "company_profile",
+  "keys",
+  "push_owner",
+];
+
+async function invokeLedger(body: Record<string, unknown>): Promise<ChannelLedgerSnapshot | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
+    if (error || !data?.success) return null;
+    return {
+      enabled: data.enabled === true,
+      steps: Array.isArray(data.steps) ? (data.steps as ChannelLedgerStep[]) : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Pure read. Never calls the channel, never writes. */
+export function fetchChannelLedger(propertyId: string): Promise<ChannelLedgerSnapshot | null> {
+  return invokeLedger({ action: "ledger_get", property_id: propertyId });
+}
+
+/** Create missing rows as `pending`. Idempotent — existing rows are untouched. */
+export function seedChannelLedger(propertyId: string): Promise<ChannelLedgerSnapshot | null> {
+  return invokeLedger({ action: "ledger_seed", property_id: propertyId });
+}
+
+/**
+ * Re-grade the ledger. `allowChannelProbe` is the only switch that permits a live
+ * channel read — the wizard's own Refresh always passes `false`.
+ */
+export function recheckChannelLedger(
+  propertyId: string,
+  opts?: { allowChannelProbe?: boolean },
+): Promise<ChannelLedgerSnapshot | null> {
+  return invokeLedger({
+    action: "ledger_recheck",
+    property_id: propertyId,
+    probe_ari: opts?.allowChannelProbe === true,
+  });
+}
+
+/** Does this ledger row still count as complete? A prior pass survives stale/unknown. */
+export function ledgerStepComplete(step: ChannelLedgerStep | undefined | null): boolean {
+  if (!step) return false;
+  if (step.status === "passed") return true;
+  if (step.status === "blocked") return false;
+  // stale / unknown / pending keep the last successful verdict visible.
+  return !!step.passed_at;
+}
