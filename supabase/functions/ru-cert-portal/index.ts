@@ -2199,7 +2199,84 @@ Deno.serve(async (req) => {
       };
     };
 
+    /**
+     * ── Channel step ledger (Phase 1) ──
+     *
+     * Durable per-step status storage. Every action is gated on the default-off
+     * `channel_step_ledger_enabled` flag and NOTHING in the wizard reads them yet:
+     * readiness is still computed live on mount exactly as before.
+     *
+     *   ledger_seed        → create missing rows as `pending` (idempotent)
+     *   ledger_get         → pure read (no channel calls, no writes)
+     *   ledger_mark_stale  → flag steps `stale` (no channel calls)
+     *   ledger_recheck     → run the readiness scorer, persist passed/blocked/unknown
+     */
+    const LEDGER_ACTIONS = ["ledger_seed", "ledger_get", "ledger_mark_stale", "ledger_recheck"];
+    if (LEDGER_ACTIONS.includes(action)) {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const ledgerEnabled = await isChannelStepLedgerEnabled(admin);
+      if (!ledgerEnabled) {
+        logLedgerEvent({ propertyId, event: `${action}_disabled` });
+        return json({ success: true, enabled: false, steps: [] });
+      }
+
+      try {
+        if (action === "ledger_seed") {
+          const seeded = await seedLedger(admin, propertyId);
+          logLedgerEvent({ propertyId, event: "ledger_seed", detail: seeded });
+          return json({ success: true, enabled: true, ...seeded, steps: await readLedger(admin, propertyId) });
+        }
+
+        if (action === "ledger_get") {
+          const steps = await readLedger(admin, propertyId);
+          logLedgerEvent({ propertyId, event: "ledger_get", detail: { rows: steps.length } });
+          return json({ success: true, enabled: true, steps });
+        }
+
+        if (action === "ledger_mark_stale") {
+          const keys: string[] | null = Array.isArray(body.step_keys) ? body.step_keys : null;
+          const marked = await markLedgerStale(admin, propertyId, keys);
+          logLedgerEvent({ propertyId, event: "ledger_mark_stale", detail: { ...marked, step_keys: keys } });
+          return json({ success: true, enabled: true, ...marked, steps: await readLedger(admin, propertyId) });
+        }
+
+        // ledger_recheck — the only ledger action that may touch the channel.
+        const { data: prop } = await admin
+          .from("properties")
+          .select("id, name, rentalsunited_property_id")
+          .eq("id", propertyId)
+          .maybeSingle();
+        if (!prop) {
+          return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+        }
+        await seedLedger(admin, propertyId);
+        const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+        const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
+        const written = await writeLedgerRows(admin, propertyId, rows);
+        logLedgerEvent({
+          propertyId,
+          event: "ledger_recheck",
+          detail: {
+            ...written,
+            statuses: rows.reduce<Record<string, number>>((acc, row) => {
+              acc[row.status] = (acc[row.status] ?? 0) + 1;
+              return acc;
+            }, {}),
+          },
+        });
+        return json({ success: true, enabled: true, steps: await readLedger(admin, propertyId) });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Ledger action failed";
+        logLedgerEvent({ propertyId, event: `${action}_error`, detail: { message } });
+        return json({ success: false, error: { code: "LEDGER_ERROR", message } }, 500);
+      }
+    }
+
     // ── property_readiness: single-property scorecard (ROLOS + admin) ──
+
     if (action === "property_readiness") {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) {
