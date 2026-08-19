@@ -489,11 +489,17 @@ export async function ingestRuReservation(
       return { ...base, outcome: 'failed', error: error.message };
     }
 
-    if (!opts.skipAvailability && holdExpiresAt.getTime() > Date.now()) {
-      await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log);
+    const heldId = inserted?.id ?? null;
+    const holdLive = holdExpiresAt.getTime() > Date.now();
+    if (heldId) {
+      await syncRuStayUnits(supabase, heldId, r, unit, opts, holdLive);
+    }
+    if (!opts.skipAvailability && holdLive && !r.stays.length) {
+      await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log, heldId);
     }
     console.log(`${log} ✅ Held RU request ${r.ruReservationId} until ${holdExpiresAt.toISOString()}`);
-    return { ...base, outcome: 'held', bookingId: inserted?.id ?? null };
+    return { ...base, outcome: 'held', bookingId: heldId };
+
   }
 
   // ── Confirmed ──
