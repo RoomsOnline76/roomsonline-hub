@@ -317,7 +317,9 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bug className="h-4 w-4" />Live error taxonomy (last 7 days)</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Each failed sync run is classified into one bucket: what caused it, what the platform does automatically, and what you must do.
+            Each faulty sync run is classified into one bucket: what caused it, what the platform does automatically, and what you
+            must do. The activity chip says whether the pattern is still happening (Active, last 6h), settling (Cooling, last 48h)
+            or already gone (Cleared).
           </p>
         </CardHeader>
         <CardContent>
@@ -335,11 +337,15 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
             <TableBody>
               {groups.map(({ cls, count, last }) => {
                 const badge = severityBadge[cls.severity];
+                const activity = activityChip(last.created_at);
                 return (
                   <TableRow key={cls.key} className="align-top">
                     <TableCell>
                       <div className="font-medium text-sm">{cls.label}</div>
-                      <Badge variant="outline" className={`mt-1 text-[10px] ${badge.className}`}>{badge.label}</Badge>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge variant="outline" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${activity.className}`}>{activity.label}</Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="font-semibold">{count}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[240px]">{cls.cause}</TableCell>
@@ -358,10 +364,11 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
               {groups.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No failed sync runs in the last 7 days.
+                    No faulty sync runs in the last 7 days.
                   </TableCell>
                 </TableRow>
               )}
+
             </TableBody>
           </Table>
         </CardContent>
