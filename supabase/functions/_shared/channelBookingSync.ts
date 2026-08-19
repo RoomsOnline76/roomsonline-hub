@@ -84,7 +84,7 @@ export async function syncBookingToChannel(
     .from('bookings')
     .select(
       'id, property_id, room_type_id, status, payment_status, check_in_date, check_out_date, ' +
-        'adults, children, teens, infants, total_price, deposit_amount, amount_paid, arrival_time, ' +
+        'adults, children, teens, infants, total_price, deposit_amount, amount_paid, ' +
         'special_requests, booking_channel, integration_type, external_reservation_id, ' +
         'cancellation_reason',
     )
@@ -138,7 +138,6 @@ export async function syncBookingToChannel(
         number_of_guests: guestCount(row),
         client_price: row.total_price != null ? Number(row.total_price) : null,
         already_paid: row.amount_paid != null ? Number(row.amount_paid) : null,
-        arrival_time: (row.arrival_time as string | null) ?? null,
       },
       {
         room_type_id: request.previous?.room_type_id ?? null,
