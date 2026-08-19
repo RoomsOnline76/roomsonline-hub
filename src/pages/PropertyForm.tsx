@@ -68,6 +68,8 @@ import { runAutoShare } from "@/lib/portfolioCommons";
 import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
 import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
+import { deriveChangedChannelFields } from "@/lib/channelPushFields";
+import { pushChangedChannelFields } from "@/lib/channelSavePush";
 
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -3986,8 +3988,15 @@ export default function PropertyForm({
 
       // Phase 2 ledger — mark only the sections this save actually changed as stale.
       // Fire-and-forget bookkeeping: it never blocks or fails the save.
+      const previousRow = loadedPropertyRowRef.current;
       const changedSteps = derivePropertyStepsFromChanges(
-        loadedPropertyRowRef.current,
+        previousRow,
+        propertyData as unknown as Record<string, unknown>,
+      );
+      // Channel-mandatory fields that moved in this save — these decide which channel
+      // sections are pushed and what the delivery toast names.
+      const changedChannelFields = deriveChangedChannelFields(
+        previousRow,
         propertyData as unknown as Record<string, unknown>,
       );
       loadedPropertyRowRef.current = {
@@ -4002,44 +4011,16 @@ export default function PropertyForm({
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
       });
 
-      // Static content delta to the Channel Manager. Fires for unit-level listings too,
-      // respects paused pushes, and is a no-op when nothing the channel cares about changed.
-      if (isEditMode && savedPropertyId) {
-        void queueChannelContentSync(savedPropertyId, "property_save");
-        // Seasons and their periods are saved with the property, and they decide what a night
-        // costs and when it is sellable — the static delta deliberately excludes ARI, so fire
-        // the rates & availability delta too.
-        void queueChannelRatesSync(savedPropertyId, "property_save_seasons");
-        // Company information is authored here but lives on the distribution account —
-        // re-push it when this save is newer than the last accepted company push.
-        // Awaited, not fire-and-forget: the request used to be cancellable by the very
-        // navigation/refresh that follows a save, which is why company edits could reach the
-        // database and never the channel. The outcome is now visible too.
-        try {
-          const { data: companyPush, error: companyPushError } = await supabase.functions.invoke(
-            "ru-cert-portal",
-            {
-              body: { action: "ensure_company_details", property_id: savedPropertyId, resend_if_changed: true },
-            },
-          );
-          const pushed = companyPush?.success === true && companyPush?.skipped !== true;
-          const reason = companyPush?.error?.message ?? companyPushError?.message ?? null;
-          if (pushed) {
-            toast({
-              title: "Company profile updated",
-              description: `Company information was sent to the ${CHANNEL_MANAGER}.`,
-            });
-          } else if (!companyPush?.skipped && reason) {
-            toast({
-              title: `Company profile not sent to the ${CHANNEL_MANAGER}`,
-              description: reason,
-              variant: "destructive",
-            });
-          }
-        } catch (companyErr) {
-          console.warn("[PropertyForm] company details resend failed:", companyErr);
-        }
+      // Mandatory channel fields changed → push the affected sections and confirm delivery
+      // against the sync ledger before claiming success. Sections run sequentially inside the
+      // helper so one save cannot trip the channel rate limit, and the whole watcher runs
+      // outside the save path: a slow channel never holds up the editor.
+      if (isEditMode && savedPropertyId && changedChannelFields.length > 0) {
+        void pushChangedChannelFields(savedPropertyId, changedChannelFields, ({ title, description, variant }) =>
+          toast({ title, description, variant }),
+        ).catch((pushErr) => console.warn("[PropertyForm] channel push watcher failed:", pushErr));
       }
+
 
       // Stay on current page after save - don't navigate away for edits
     } catch (error) {
