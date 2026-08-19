@@ -266,10 +266,18 @@ export const RoomPlanBar = memo(function RoomPlanBar({
                 size="sm"
                 variant="destructive"
                 className="h-6 px-2 text-[10px]"
-                onClick={() => onCancel(booking)}
+                onClick={() =>
+                  onCancel(
+                    booking,
+                    isMultiUnit && unitLine
+                      ? { lineId: unitLine.id, roomLabel, unitCount: unitCount || 1 }
+                      : undefined,
+                  )
+                }
               >
                 <XCircle className="mr-1 h-3 w-3" />Cancel
               </Button>
+
             )}
           </div>
         </div>
