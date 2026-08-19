@@ -5440,6 +5440,7 @@ export type Database = {
           pms_managed_fields: string[] | null
           pms_readiness: string | null
           pms_sync_status: string | null
+          post_stay_survey_enabled: boolean
           postal_code: string | null
           price_per_night: number
           pricelabs_config: Json
@@ -5554,6 +5555,7 @@ export type Database = {
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
           pms_sync_status?: string | null
+          post_stay_survey_enabled?: boolean
           postal_code?: string | null
           price_per_night: number
           pricelabs_config?: Json
@@ -5668,6 +5670,7 @@ export type Database = {
           pms_managed_fields?: string[] | null
           pms_readiness?: string | null
           pms_sync_status?: string | null
+          post_stay_survey_enabled?: boolean
           postal_code?: string | null
           price_per_night?: number
           pricelabs_config?: Json
@@ -9997,6 +10000,115 @@ export type Database = {
           },
         ]
       }
+      rolos_feedback_requests: {
+        Row: {
+          assigned_to: string | null
+          booking_id: string
+          comment: string | null
+          created_at: string
+          email_error: string | null
+          email_sent_at: string | null
+          guest_email: string | null
+          guest_name: string | null
+          guest_profile_id: string | null
+          hubspot_synced_at: string | null
+          id: string
+          property_id: string | null
+          rating: number | null
+          resolved_at: string | null
+          responded_at: string | null
+          status: string
+          token: string
+          updated_at: string
+          would_recommend: boolean | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          booking_id: string
+          comment?: string | null
+          created_at?: string
+          email_error?: string | null
+          email_sent_at?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_profile_id?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          property_id?: string | null
+          rating?: number | null
+          resolved_at?: string | null
+          responded_at?: string | null
+          status?: string
+          token: string
+          updated_at?: string
+          would_recommend?: boolean | null
+        }
+        Update: {
+          assigned_to?: string | null
+          booking_id?: string
+          comment?: string | null
+          created_at?: string
+          email_error?: string | null
+          email_sent_at?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_profile_id?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          property_id?: string | null
+          rating?: number | null
+          resolved_at?: string | null
+          responded_at?: string | null
+          status?: string
+          token?: string
+          updated_at?: string
+          would_recommend?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_feedback_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_feedback_requests_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_feedback_requests_guest_profile_id_fkey"
+            columns: ["guest_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_guest_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_feedback_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_feedback_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_feedback_requests_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_folio_transactions: {
         Row: {
           amount: number
@@ -10468,6 +10580,145 @@ export type Database = {
           },
         ]
       }
+      rolos_guest_checkins: {
+        Row: {
+          accessibility_needs: string | null
+          address: string | null
+          arrival_time: string | null
+          booking_id: string
+          completed_at: string | null
+          created_at: string
+          date_of_birth_encrypted: string | null
+          dietary_requirements: string | null
+          email: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          full_name: string | null
+          guest_profile_id: string | null
+          hubspot_synced_at: string | null
+          id: string
+          identity_number_encrypted: string | null
+          marketing_consent: boolean
+          nationality: string | null
+          phone: string | null
+          preferences: string | null
+          property_id: string | null
+          special_occasion: string | null
+          submitted_by: string
+          submitted_by_user_id: string | null
+          token: string | null
+          token_expires_at: string | null
+          travelling_party: Json
+          updated_at: string
+          vehicle_registration: string | null
+        }
+        Insert: {
+          accessibility_needs?: string | null
+          address?: string | null
+          arrival_time?: string | null
+          booking_id: string
+          completed_at?: string | null
+          created_at?: string
+          date_of_birth_encrypted?: string | null
+          dietary_requirements?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name?: string | null
+          guest_profile_id?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          identity_number_encrypted?: string | null
+          marketing_consent?: boolean
+          nationality?: string | null
+          phone?: string | null
+          preferences?: string | null
+          property_id?: string | null
+          special_occasion?: string | null
+          submitted_by?: string
+          submitted_by_user_id?: string | null
+          token?: string | null
+          token_expires_at?: string | null
+          travelling_party?: Json
+          updated_at?: string
+          vehicle_registration?: string | null
+        }
+        Update: {
+          accessibility_needs?: string | null
+          address?: string | null
+          arrival_time?: string | null
+          booking_id?: string
+          completed_at?: string | null
+          created_at?: string
+          date_of_birth_encrypted?: string | null
+          dietary_requirements?: string | null
+          email?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          full_name?: string | null
+          guest_profile_id?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          identity_number_encrypted?: string | null
+          marketing_consent?: boolean
+          nationality?: string | null
+          phone?: string | null
+          preferences?: string | null
+          property_id?: string | null
+          special_occasion?: string | null
+          submitted_by?: string
+          submitted_by_user_id?: string | null
+          token?: string | null
+          token_expires_at?: string | null
+          travelling_party?: Json
+          updated_at?: string
+          vehicle_registration?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_guest_checkins_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_checkins_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_checkins_guest_profile_id_fkey"
+            columns: ["guest_profile_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_guest_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_checkins_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_checkins_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_guest_checkins_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_guest_comments: {
         Row: {
           booking_id: string | null
@@ -10754,6 +11005,267 @@ export type Database = {
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "rolos_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_inquiries: {
+        Row: {
+          adults: number
+          assigned_to: string | null
+          check_in: string | null
+          check_out: string | null
+          children: number
+          company_name: string | null
+          created_at: string
+          created_by: string | null
+          currency: string
+          estimated_value: number | null
+          first_response_at: string | null
+          guest_country: string | null
+          guest_email: string | null
+          guest_name: string
+          guest_phone: string | null
+          hubspot_synced_at: string | null
+          id: string
+          intake_key_id: string | null
+          is_trade: boolean
+          linked_booking_id: string | null
+          lost_reason: string | null
+          notes: string | null
+          owner_id: string | null
+          portfolio_id: string | null
+          property_id: string | null
+          source: string
+          status: Database["public"]["Enums"]["inquiry_status"]
+          updated_at: string
+        }
+        Insert: {
+          adults?: number
+          assigned_to?: string | null
+          check_in?: string | null
+          check_out?: string | null
+          children?: number
+          company_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          estimated_value?: number | null
+          first_response_at?: string | null
+          guest_country?: string | null
+          guest_email?: string | null
+          guest_name: string
+          guest_phone?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          intake_key_id?: string | null
+          is_trade?: boolean
+          linked_booking_id?: string | null
+          lost_reason?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["inquiry_status"]
+          updated_at?: string
+        }
+        Update: {
+          adults?: number
+          assigned_to?: string | null
+          check_in?: string | null
+          check_out?: string | null
+          children?: number
+          company_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          estimated_value?: number | null
+          first_response_at?: string | null
+          guest_country?: string | null
+          guest_email?: string | null
+          guest_name?: string
+          guest_phone?: string | null
+          hubspot_synced_at?: string | null
+          id?: string
+          intake_key_id?: string | null
+          is_trade?: boolean
+          linked_booking_id?: string | null
+          lost_reason?: string | null
+          notes?: string | null
+          owner_id?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["inquiry_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_inquiries_intake_key_fkey"
+            columns: ["intake_key_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_inquiry_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_linked_booking_id_fkey"
+            columns: ["linked_booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_linked_booking_id_fkey"
+            columns: ["linked_booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiries_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_inquiry_events: {
+        Row: {
+          actor_id: string | null
+          actor_label: string | null
+          created_at: string
+          event_type: string
+          from_status: Database["public"]["Enums"]["inquiry_status"] | null
+          id: string
+          inquiry_id: string
+          note: string | null
+          to_status: Database["public"]["Enums"]["inquiry_status"] | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_label?: string | null
+          created_at?: string
+          event_type: string
+          from_status?: Database["public"]["Enums"]["inquiry_status"] | null
+          id?: string
+          inquiry_id: string
+          note?: string | null
+          to_status?: Database["public"]["Enums"]["inquiry_status"] | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_label?: string | null
+          created_at?: string
+          event_type?: string
+          from_status?: Database["public"]["Enums"]["inquiry_status"] | null
+          id?: string
+          inquiry_id?: string
+          note?: string | null
+          to_status?: Database["public"]["Enums"]["inquiry_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_inquiry_events_inquiry_id_fkey"
+            columns: ["inquiry_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_inquiries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_inquiry_keys: {
+        Row: {
+          allowed_origins: string[]
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          key_public: string
+          label: string
+          last_used_at: string | null
+          portfolio_id: string | null
+          property_id: string | null
+          request_count: number
+          updated_at: string
+        }
+        Insert: {
+          allowed_origins?: string[]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_public: string
+          label?: string
+          last_used_at?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          request_count?: number
+          updated_at?: string
+        }
+        Update: {
+          allowed_origins?: string[]
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          key_public?: string
+          label?: string
+          last_used_at?: string | null
+          portfolio_id?: string | null
+          property_id?: string | null
+          request_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_inquiry_keys_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "property_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiry_keys_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiry_keys_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_inquiry_keys_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
             referencedColumns: ["id"]
           },
         ]
@@ -16915,6 +17427,13 @@ export type Database = {
       group_booking_status: "inquiry" | "tentative" | "confirmed" | "cancelled"
       health_status: "healthy" | "degraded" | "failed" | "unknown"
       help_impact_level: "critical" | "warning" | "info"
+      inquiry_status:
+        | "new"
+        | "contacted"
+        | "quoted"
+        | "provisional"
+        | "confirmed"
+        | "lost"
       invoice_status: "draft" | "issued" | "paid" | "overdue" | "cancelled"
       lead_source:
         | "cold_call"
@@ -17207,6 +17726,14 @@ export const Constants = {
       group_booking_status: ["inquiry", "tentative", "confirmed", "cancelled"],
       health_status: ["healthy", "degraded", "failed", "unknown"],
       help_impact_level: ["critical", "warning", "info"],
+      inquiry_status: [
+        "new",
+        "contacted",
+        "quoted",
+        "provisional",
+        "confirmed",
+        "lost",
+      ],
       invoice_status: ["draft", "issued", "paid", "overdue", "cancelled"],
       lead_source: [
         "cold_call",

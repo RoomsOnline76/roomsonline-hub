@@ -18,6 +18,9 @@ const HUBSPOT_BASE = "https://api.hubapi.com";
 const SERVICE = "hubspot";
 /** Custom HubSpot property carrying the Trade / Direct segmentation marker. */
 const TRADE_PROPERTY = "rol_trade_or_direct";
+/** Custom HubSpot property carrying the guest lifecycle marker. */
+const LIFECYCLE_PROPERTY = "rol_guest_lifecycle";
+
 
 const requestSchema = z.object({
   action: z.enum([
@@ -29,8 +32,12 @@ const requestSchema = z.object({
     "upsert_company",
     "upsert_contact",
     "create_or_update_deal",
+    "upsert_inquiry",
+    "enrich_contact",
+    "log_engagement",
     "sync_owner",
   ]),
+
   owner_id: z.string().uuid().optional(),
   portal_id: z.string().trim().min(1).max(64).optional(),
   access_token: z.string().trim().min(10).max(512).optional(),
@@ -68,10 +75,47 @@ const requestSchema = z.object({
       trade_or_direct: z.enum(["trade", "direct"]).optional(),
     })
     .optional(),
+  /** Native inquiry projected as a HubSpot deal in an "enquiry" stage. */
+  inquiry: z
+    .object({
+      inquiry_id: z.string().trim().min(1).max(120),
+      reference: z.string().trim().max(64).optional(),
+      stage: z.string().trim().max(64).optional(),
+      guest_name: z.string().trim().max(255).optional(),
+      guest_email: z.string().email().max(255).optional(),
+      guest_phone: z.string().trim().max(64).optional(),
+      property_name: z.string().trim().max(255).optional(),
+      estimated_value: z.number().nonnegative().optional(),
+      currency: z.string().trim().max(8).optional(),
+      check_in_date: z.string().trim().max(40).optional(),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
+      source: z.string().trim().max(64).optional(),
+    })
+    .optional(),
+  /** Segmentation / lifecycle enrichment for an existing guest contact. */
+  enrichment: z
+    .object({
+      email: z.string().email().max(255),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
+      lifecycle: z.enum(["new", "repeat", "lapsed"]).optional(),
+      total_stays: z.number().int().nonnegative().optional(),
+      total_spent: z.number().nonnegative().optional(),
+      last_stay_date: z.string().trim().max(40).optional(),
+    })
+    .optional(),
+  /** Timeline note against a contact (check-in completed, feedback received). */
+  engagement: z
+    .object({
+      email: z.string().email().max(255),
+      title: z.string().trim().min(1).max(255),
+      body: z.string().trim().max(4000).optional(),
+    })
+    .optional(),
   /** Delta sweep window for `sync_owner` — ISO timestamp. */
   since: z.string().trim().max(40).optional(),
   limit: z.number().int().min(1).max(200).optional(),
 });
+
 
 
 type Json = Record<string, unknown>;
@@ -297,6 +341,40 @@ Deno.serve(async (req) => {
       const ready = await ensureTradeProperty(token, objectType);
       return ready ? { ...props, [TRADE_PROPERTY]: segment } : props;
     };
+
+    // Guest lifecycle marker (new / repeat / lapsed) — same soft-fail contract
+    // as the trade marker: never break a sync because a portal refuses it.
+    const lifecycleReady = new Map<string, boolean>();
+
+    const ensureLifecycleProperty = async (token: string): Promise<boolean> => {
+      const cached = lifecycleReady.get("contacts");
+      if (cached !== undefined) return cached;
+
+      const probe = await hubspot(token, `/crm/v3/properties/contacts/${LIFECYCLE_PROPERTY}`);
+      if (probe.ok) {
+        lifecycleReady.set("contacts", true);
+        return true;
+      }
+      const created = await hubspot(token, "/crm/v3/properties/contacts", {
+        method: "POST",
+        body: JSON.stringify({
+          name: LIFECYCLE_PROPERTY,
+          label: "Guest lifecycle",
+          type: "enumeration",
+          fieldType: "select",
+          groupName: "contactinformation",
+          options: [
+            { label: "New", value: "new", displayOrder: 0 },
+            { label: "Repeat", value: "repeat", displayOrder: 1 },
+            { label: "Lapsed", value: "lapsed", displayOrder: 2 },
+          ],
+        }),
+      });
+      const ready = created.ok || created.status === 409;
+      lifecycleReady.set("contacts", ready);
+      return ready;
+    };
+
 
     // ---- Deduped remote upserts (shared by single events and sweeps) -------
     const findContactId = async (token: string, email: string): Promise<string | null> => {
@@ -611,6 +689,132 @@ Deno.serve(async (req) => {
 
         await markSync("ok");
         return ok({ deal_id: res.id, created: res.created });
+      }
+
+      // ---- Guest intelligence projections -----------------------------------
+      // ROLOS owns inquiries, check-ins and feedback natively; HubSpot only
+      // ever receives a projection of what already exists locally.
+      case "upsert_inquiry": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.inquiry) return fail("inquiry is required", 400);
+
+        const inq = body.inquiry;
+        const label = inq.reference || inq.inquiry_id;
+        const guest = (inq.guest_name || "").trim();
+        const segment = inq.trade_or_direct;
+
+        let contactId: string | null = null;
+        if (inq.guest_email) {
+          const parts = guest ? guest.split(/\s+/) : [];
+          const contactProps = await withTrade(
+            active.token,
+            "contacts",
+            {
+              email: inq.guest_email,
+              ...(parts[0] ? { firstname: parts[0] } : {}),
+              ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
+              ...(inq.guest_phone ? { phone: inq.guest_phone } : {}),
+            },
+            segment,
+          );
+          const cRes = await upsertContactRemote(active.token, contactProps, inq.guest_email);
+          contactId = cRes.id;
+        }
+
+        const dealProps = await withTrade(
+          active.token,
+          "deals",
+          {
+            dealname: `${label}${guest ? ` · ${guest}` : ""}`,
+            pipeline: (active.config.pipeline_id as string) || "default",
+            dealstage: resolveStage(inq.stage || "enquiry", active.config),
+            ...(inq.estimated_value != null ? { amount: String(inq.estimated_value) } : {}),
+            ...(inq.check_in_date
+              ? { closedate: new Date(inq.check_in_date).toISOString() }
+              : {}),
+            ...(inq.source || inq.property_name
+              ? {
+                  description: [
+                    inq.property_name ? `Property: ${inq.property_name}` : null,
+                    inq.source ? `Source: ${inq.source}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                }
+              : {}),
+          },
+          segment,
+        );
+
+        const res = await upsertDealRemote(active.token, dealProps, label);
+        if (!res.ok) {
+          await markSync("error", `Inquiry sync failed (${res.status})`);
+          return fail("HubSpot inquiry sync failed", res.status, { details: res.body });
+        }
+        if (res.id && inq.guest_email) {
+          await associateDealContact(active.token, res.id, inq.guest_email);
+        }
+        await markSync("ok");
+        return ok({ deal_id: res.id, contact_id: contactId, created: res.created });
+      }
+
+      case "enrich_contact": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.enrichment) return fail("enrichment is required", 400);
+
+        const e = body.enrichment;
+        let props: Json = { email: e.email };
+        props = await withTrade(active.token, "contacts", props, e.trade_or_direct);
+        if (e.lifecycle && (await ensureLifecycleProperty(active.token))) {
+          props = { ...props, [LIFECYCLE_PROPERTY]: e.lifecycle };
+        }
+        if (e.total_spent != null) props = { ...props, total_revenue: String(e.total_spent) };
+
+        const res = await upsertContactRemote(active.token, props, e.email);
+        if (!res.ok) {
+          await markSync("error", `Contact enrichment failed (${res.status})`);
+          return fail("HubSpot contact enrichment failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({ contact_id: res.id, lifecycle: e.lifecycle ?? null });
+      }
+
+      case "log_engagement": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.engagement) return fail("engagement is required", 400);
+
+        const contactId = await findContactId(active.token, body.engagement.email);
+        if (!contactId) return ok({ skipped: true, reason: "contact_not_found" });
+
+        const noteBody = [body.engagement.title, body.engagement.body]
+          .filter(Boolean)
+          .join("\n\n");
+        const res = await hubspot(active.token, "/crm/v3/objects/notes", {
+          method: "POST",
+          body: JSON.stringify({
+            properties: {
+              hs_timestamp: new Date().toISOString(),
+              hs_note_body: noteBody,
+            },
+            associations: [
+              {
+                to: { id: contactId },
+                types: [
+                  { associationCategory: "HUBSPOT_DEFINED", associationTypeId: 202 },
+                ],
+              },
+            ],
+          }),
+        });
+        if (!res.ok) {
+          await markSync("error", `Engagement log failed (${res.status})`);
+          return fail("HubSpot engagement log failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({ note_id: (res.body as { id?: string })?.id ?? null, contact_id: contactId });
       }
 
 

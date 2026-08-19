@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 
+import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
@@ -483,6 +484,7 @@ export default function PMSDashboard() {
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
+  const [checkInBookingId, setCheckInBookingId] = useState<string | null>(null);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
   const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(() => new Set());
   const [showOnlyBookedDays, setShowOnlyBookedDays] = useState(false);
@@ -1944,6 +1946,14 @@ export default function PMSDashboard() {
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 py-0"
+                          onClick={() => setCheckInBookingId(b.id)}
+                        >
+                          Check-in form
+                        </Button>
                         {alreadyIn ? (
                           <Badge variant="secondary" className="text-[10px]">In House</Badge>
                         ) : (
@@ -1959,6 +1969,7 @@ export default function PMSDashboard() {
                           </Button>
                         )}
                       </div>
+
                     </div>
                   );
                 })}
@@ -2500,6 +2511,12 @@ export default function PMSDashboard() {
       )}
 
       {/* Manual Booking Dialog */}
+      <GuestCheckInDialog
+        open={!!checkInBookingId}
+        onOpenChange={(open) => { if (!open) setCheckInBookingId(null); }}
+        bookingId={checkInBookingId}
+      />
+
       <ManualBookingDialog
         open={manualBookingOpen}
         onOpenChange={(next) => { setManualBookingOpen(next); if (!next) setRoomPlanPrefill(null); }}

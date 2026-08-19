@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.log_inquiry_stage_change() FROM PUBLIC, anon, authenticated;
