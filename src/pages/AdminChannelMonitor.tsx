@@ -1,9 +1,12 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
@@ -55,8 +58,84 @@ const RuApiLogPanel = lazy(() =>
   import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
 );
 
-type TabKey = "cost" | "accounts" | "cert" | "reservations" | "diagnostics";
-const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations", "diagnostics"];
+const RuBuildingsPanel = lazy(() =>
+  import("@/components/integrations/RuBuildingsPanel").then((m) => ({ default: m.RuBuildingsPanel })),
+);
+const RuCoverageTab = lazy(() =>
+  import("@/components/integrations/RuCoverageTab").then((m) => ({ default: m.RuCoverageTab })),
+);
+const RuAvailabilityPlayground = lazy(() =>
+  import("@/components/integrations/RuAvailabilityPlayground").then((m) => ({
+    default: m.RuAvailabilityPlayground,
+  })),
+);
+const RuPricingPlayground = lazy(() =>
+  import("@/components/integrations/RuPricingPlayground").then((m) => ({ default: m.RuPricingPlayground })),
+);
+const RuCalendarVerifyPanel = lazy(() =>
+  import("@/components/integrations/RuCalendarVerifyPanel").then((m) => ({
+    default: m.RuCalendarVerifyPanel,
+  })),
+);
+
+/** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
+type TabKey =
+  | "accounts"
+  | "cost"
+  | "binding"
+  | "mapping"
+  | "ari"
+  | "reservations"
+  | "cert"
+  | "advanced";
+
+const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
+  {
+    key: "accounts",
+    title: "Accounts & Company",
+    tests: "Create / archive sub-users and push company details required for cert.",
+  },
+  {
+    key: "cost",
+    title: "Cost Monitor",
+    tests: "Confirms billable listing counts and forecast spend per sub-account.",
+  },
+  {
+    key: "binding",
+    title: "Property Binding",
+    tests: "Verifies each property is bound to the correct channel listing and building.",
+  },
+  {
+    key: "mapping",
+    title: "Room & Rate Mapping",
+    tests: "Checks room types and rate plans map to live channel listings.",
+  },
+  {
+    key: "ari",
+    title: "ARI Live Lab",
+    tests: "Runs live availability and pricing reads against the channel for a chosen property.",
+  },
+  {
+    key: "reservations",
+    title: "Reservation Round-Trip",
+    tests: "Creates, modifies and cancels reservations end-to-end and shows the sync trail.",
+  },
+  {
+    key: "cert",
+    title: "Cert Status & Logs",
+    tests: "Full certification console with run history and the searchable RU exchange log.",
+  },
+  {
+    key: "advanced",
+    title: "Advanced (Dev only)",
+    tests: "Queue, retries and low-level channel plumbing for engineers.",
+    devOnly: true,
+  },
+];
+
+const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
+// Old tab names stay valid so health-report and wizard deep links keep working.
+const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
@@ -70,8 +149,13 @@ export default function AdminChannelMonitor() {
   const exchangeLogRef = useRef<HTMLDivElement | null>(null);
 
 
-  const rawTab = params.get("tab") as TabKey | null;
-  const tab: TabKey = rawTab && TAB_KEYS.includes(rawTab) ? rawTab : "cost";
+  const { isDev, isFearlessLeader } = useAuth();
+  const [certSubTab, setCertSubTab] = useState<string | undefined>(undefined);
+  const [ariPropertyId, setAriPropertyId] = useState<string>("");
+
+  const rawTab = params.get("tab");
+  const mapped = rawTab ? (LEGACY_TAB_MAP[rawTab] ?? (rawTab as TabKey)) : null;
+  const tab: TabKey = mapped && TAB_KEYS.includes(mapped) ? mapped : "cost";
 
   // Tab lives in the URL so health reports, the RU wizard and certification logs can deep-link.
   const setTab = useCallback(
@@ -252,6 +336,20 @@ export default function AdminChannelMonitor() {
     [data.properties],
   );
 
+  const visibleRail = useMemo(
+    () => RAIL.filter((item) => !item.devOnly || isDev || isFearlessLeader),
+    [isDev, isFearlessLeader],
+  );
+
+  // Deep-open the certification console on a specific sub-tab from another rail item.
+  const openCert = useCallback(
+    (subTab: string) => {
+      setCertSubTab(subTab);
+      setTab("cert");
+    },
+    [setTab],
+  );
+
   return (
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
@@ -283,90 +381,186 @@ export default function AdminChannelMonitor() {
 
         <ChannelRuStatusStrip data={data} onNavigate={(t) => setTab(t)} />
 
-        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
-            <TabsTrigger value="accounts">RU Accounts Manager</TabsTrigger>
-            <TabsTrigger value="cert">Certification</TabsTrigger>
-            <TabsTrigger value="reservations">Reservations</TabsTrigger>
-            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-          </TabsList>
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+          {/* Compact sticky rail: every testable surface is one click away. */}
+          <nav className="lg:sticky lg:top-4 lg:self-start">
+            <Card>
+              <CardContent className="space-y-1 p-2">
+                {visibleRail.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    aria-current={tab === item.key ? "page" : undefined}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left transition-colors",
+                      tab === item.key
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-transparent hover:bg-muted",
+                    )}
+                  >
+                    <span className="block text-sm font-medium">{item.title}</span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                      {item.tests}
+                    </span>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          </nav>
 
-
-          <TabsContent value="cost" className="space-y-4">
-            {data.loading && data.properties.length === 0 ? (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-24 w-full" />
-                  ))}
+          <div className="min-w-0 space-y-4">
+            {tab === "cost" &&
+              (data.loading && data.properties.length === 0 ? (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[0, 1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-24 w-full" />
+                    ))}
+                  </div>
+                  <Skeleton className="h-64 w-full" />
                 </div>
-                <Skeleton className="h-64 w-full" />
-              </div>
-            ) : (
-              <>
-                <ChannelCostSummary data={data} />
-                <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
-                <ChannelPropertyTable
-                  rows={data.properties}
-                  fx={data.fx}
-                  busyPropertyId={busyId}
-                  busyUnitId={busyUnitId}
-                  onToggleUnit={handleToggleUnit}
-                  onArchive={(row) => setTarget({ row, mode: "archive" })}
-                  onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
-                  onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
-                />
+              ) : (
+                <>
+                  <ChannelCostSummary data={data} />
+                  <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
+                  <ChannelPropertyTable
+                    rows={data.properties}
+                    fx={data.fx}
+                    busyPropertyId={busyId}
+                    busyUnitId={busyUnitId}
+                    onToggleUnit={handleToggleUnit}
+                    onArchive={(row) => setTarget({ row, mode: "archive" })}
+                    onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+                    onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
+                  />
+                  <ChannelReconciliationPanel
+                    billableListings={data.billableListings}
+                    onChanged={() => data.refresh()}
+                  />
+                  <ChannelArchiveLog events={data.events} />
+                </>
+              ))}
+
+            {tab === "accounts" && (
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <PortfolioRuAccountsTab />
+              </Suspense>
+            )}
+
+            {/* Listing/building binding evidence. */}
+            {tab === "binding" && (
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <RuBuildingsPanel />
                 <ChannelReconciliationPanel
                   billableListings={data.billableListings}
                   onChanged={() => data.refresh()}
                 />
-                <ChannelArchiveLog events={data.events} />
+              </Suspense>
+            )}
+
+            {tab === "mapping" && (
+              <>
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={() => openCert("coverage")}>
+                    Open certification coverage
+                  </Button>
+                </div>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuCoverageTab />
+                </Suspense>
               </>
             )}
 
-          </TabsContent>
+            {tab === "ari" && (
+              <>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center gap-2 p-3">
+                    <Select value={ariPropertyId} onValueChange={setAriPropertyId}>
+                      <SelectTrigger className="w-full sm:w-80">
+                        <SelectValue placeholder="Choose a property to test" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reservationProperties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" onClick={() => openCert("availability")}>
+                      Availability window
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openCert("pricing")}>
+                      Pricing window
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuAvailabilityPlayground
+                    propertyId={ariPropertyId}
+                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
+                  />
+                  <RuPricingPlayground
+                    propertyId={ariPropertyId}
+                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
+                  />
+                </Suspense>
+              </>
+            )}
 
-          <TabsContent value="accounts">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <PortfolioRuAccountsTab />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="cert">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <ChannelCertificationTab />
-            </Suspense>
-          </TabsContent>
-
-          {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup live in the same console. */}
-          <TabsContent value="reservations">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <RuReservationsPanel properties={reservationProperties} />
-            </Suspense>
-          </TabsContent>
-
-          {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
-          <TabsContent value="diagnostics" className="space-y-6">
-            <ChannelCallQueuePanel />
-            <ChannelLedgerMetricsPanel />
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <BookingSyncTrailPanel
-                properties={reservationProperties}
-                onInspectExchange={(term) => {
-                  setExchangeSearch(term);
-                  exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-              />
-            </Suspense>
-            <div ref={exchangeLogRef}>
+            {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup + sync trail. */}
+            {tab === "reservations" && (
               <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+                <RuReservationsPanel properties={reservationProperties} />
+                <BookingSyncTrailPanel
+                  properties={reservationProperties}
+                  onInspectExchange={(term) => {
+                    setExchangeSearch(term);
+                    setTab("cert");
+                    window.setTimeout(
+                      () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                      150,
+                    );
+                  }}
+                />
               </Suspense>
-            </div>
+            )}
 
-          </TabsContent>
-        </Tabs>
+            {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+            {tab === "cert" && (
+              <>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <ChannelCertificationTab initialTab={certSubTab} />
+                </Suspense>
+                <ChannelLedgerMetricsPanel />
+                <div ref={exchangeLogRef}>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+                  </Suspense>
+                </div>
+              </>
+            )}
+
+            {tab === "advanced" && (
+              <>
+                <ChannelCallQueuePanel />
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuCalendarVerifyPanel properties={reservationProperties} />
+                </Suspense>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm text-muted-foreground">
+                    <span>Sync error classification, currency, live notifications and content quality.</span>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/admin/integrations/rentals-united?tab=errors">Open channel diagnostics</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        </div>
+
 
       </div>
 
