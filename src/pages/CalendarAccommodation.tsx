@@ -1072,7 +1072,56 @@ const CalendarAccommodation = () => {
         restrictionsByDate,
       };
     });
-    
+
+    // Native ROL'OS properties: ROL'OS Rate Plans is the sole author of nightly
+    // rates, so overlay the resolver's per-night prices (via the orchestrator)
+    // instead of relying on legacy wizard/season_rates values.
+    const isNativeRolos = property.external_system === "roomsonline" && !!property.is_rol_property;
+    if (isNativeRolos) {
+      try {
+        const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
+          body: {
+            action: "fetch_availability",
+            property_id: property.id,
+            start_date: format(startDate, "yyyy-MM-dd"),
+            end_date: format(endDate, "yyyy-MM-dd"),
+          },
+        });
+        const payload = (data as any)?.data ?? data;
+        const liveRoomTypes: any[] = (!error && (data as any)?.success && (payload?.room_types || payload?.roomTypes)) || [];
+
+        const normalise = (value: string) => value.trim().toLowerCase();
+        const liveByName = new Map<string, any>();
+        for (const rt of liveRoomTypes) {
+          const name = rt.room_type_name || rt.roomTypeName || rt.name || "";
+          if (name) liveByName.set(normalise(String(name)), rt);
+        }
+
+        for (const room of transformedRooms) {
+          const live = liveByName.get(normalise(room.roomTypeName));
+          if (!live) continue;
+          const rateTypes = live.rate_types || live.rateTypes || [];
+          for (const rateType of rateTypes) {
+            const rateTypeName = rateType.rate_type_name || rateType.rateTypeName || "Standard Rate";
+            const rateTypeId = String(rateType.rate_type_id ?? rateType.rateTypeId ?? "rolos-rate");
+            for (const rate of rateType.rates || []) {
+              const dateStr = rate.date || rate.night_date;
+              const amount = Number(rate.room_amount ?? rate.roomAmount ?? 0);
+              if (!dateStr || !(amount > 0)) continue;
+              room.ratesByDate[dateStr] = [{
+                rateTypeId,
+                rateTypeName,
+                priceType: rateType.price_type ?? rateType.priceType ?? "per_room",
+                roomAmount: amount,
+              }];
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[Calendar] ROL'OS live rate overlay failed", err);
+      }
+    }
+
     setPmsData({
       roomTypes: transformedRooms,
       lastSynced: new Date(),
