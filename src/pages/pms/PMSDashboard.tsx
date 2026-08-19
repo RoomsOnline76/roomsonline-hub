@@ -135,6 +135,9 @@ type BookingDetailTab = "details" | "folio" | "invoice" | "notes";
 
 interface BookingRow {
   id: string;
+  /** Concurrency stamp so a save cannot undo a newer channel modification. */
+  updated_at?: string | null;
+
   guest_name: string;
   guest_email: string;
   guest_phone: string | null;
@@ -674,7 +677,7 @@ export default function PMSDashboard() {
       if (!propertyId) return { items: [] as BookingRow[], nextOffset: null as number | null };
       const { data, count } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at", { count: "exact" })
+        .select("id, updated_at, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at", { count: "exact" })
         .eq("property_id", propertyId)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -1002,7 +1005,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("bookings")
-        .select("id, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at")
+        .select("id, updated_at, guest_name, guest_email, guest_phone, check_in_date, check_out_date, status, adults, children, infants, pets, teens, total_price, special_requests, special_requests_parsed, requires_intervention, rol_reference, external_reservation_id, booking_channel, payment_status, payment_method, rolos_check_in_time, rolos_check_out_time, rolos_room_ids, rolos_rate_plan_id, modification_notes, room_type_id, rolos_guest_id, property_id, integration_type, hold_expires_at, hold_released_at, booker_is_guest, booker_name, booker_email, booker_phone, company_account_id, agent_account_id, source_account_id, market_segment, comm_channel, invoice_to_name, invoice_to_vat, invoice_to_address, guest_company, second_guest_name, booking_made_by, internal_notes, deposit_amount, payment_reference, created_at")
         .in("property_id", portfolioPropertyIds)
         .neq("status", "cancelled")
         .lte("check_in_date", format(dateRange.end, "yyyy-MM-dd"))
@@ -1031,6 +1034,11 @@ export default function PMSDashboard() {
       queryClient.invalidateQueries({ queryKey: ["pms-portfolio-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
       queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
+      // A channel modification moves the stay AND its blocked nights — redraw both layers.
+      queryClient.invalidateQueries({ queryKey: ["pms-cal-overrides"] });
+      queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["pms-booking-room-lines"] });
+
       if (event?.isNew) {
         const stay = event.checkIn && event.checkOut ? ` ${event.checkIn} → ${event.checkOut}` : "";
         toast.info(`New reservation${stay}`, { description: event.guestName || undefined });
@@ -1708,7 +1716,11 @@ export default function PMSDashboard() {
     try {
       if (datesChanged) {
         const { data, error } = await supabase.functions.invoke("modify-booking", {
-          body: { booking_id: booking.id, modifications: { check_in_date: checkIn, check_out_date: checkOut } },
+          body: {
+            booking_id: booking.id,
+            modifications: { check_in_date: checkIn, check_out_date: checkOut },
+            expected_updated_at: (booking as { updated_at?: string | null }).updated_at ?? null,
+          },
         });
         if (error) throw new Error(await extractFunctionError(error, "Could not move the reservation"));
         if (data && data.success === false) throw new Error(data.message || "Could not move the reservation");
@@ -2450,6 +2462,7 @@ export default function PMSDashboard() {
             guest_name: modifyTarget.guest_name,
             check_in_date: modifyTarget.check_in_date,
             check_out_date: modifyTarget.check_out_date,
+            updated_at: modifyTarget.updated_at ?? null,
             adults: modifyTarget.adults,
             children: modifyTarget.children,
             teens: modifyTarget.teens,
@@ -3532,6 +3545,7 @@ function BookingDetail({
             total_price: booking.total_price,
             property_id: booking.property_id ?? null,
             room_type_id: booking.room_type_id ?? null,
+            updated_at: (booking as { updated_at?: string | null }).updated_at ?? null,
           }}
 
           isRuBooking={isRuSourced}
