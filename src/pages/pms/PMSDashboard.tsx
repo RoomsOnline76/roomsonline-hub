@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 
+import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
@@ -483,6 +484,7 @@ export default function PMSDashboard() {
   const [leadDaysAdvanceOpen, setLeadDaysAdvanceOpen] = useState(false);
   const [leadDaysPostOpen, setLeadDaysPostOpen] = useState(false);
   const [manualBookingOpen, setManualBookingOpen] = useState(false);
+  const [checkInBookingId, setCheckInBookingId] = useState<string | null>(null);
   const [dashboardView, setDashboardView] = useState<"single" | "portfolio">("single");
   const [collapsedWeeks, setCollapsedWeeks] = useState<Set<string>>(() => new Set());
   const [showOnlyBookedDays, setShowOnlyBookedDays] = useState(false);
@@ -2509,6 +2511,12 @@ export default function PMSDashboard() {
       )}
 
       {/* Manual Booking Dialog */}
+      <GuestCheckInDialog
+        open={!!checkInBookingId}
+        onOpenChange={(open) => { if (!open) setCheckInBookingId(null); }}
+        bookingId={checkInBookingId}
+      />
+
       <ManualBookingDialog
         open={manualBookingOpen}
         onOpenChange={(next) => { setManualBookingOpen(next); if (!next) setRoomPlanPrefill(null); }}
