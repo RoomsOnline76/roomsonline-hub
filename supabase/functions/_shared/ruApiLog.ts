@@ -173,7 +173,9 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
     const { error } = await supabase.from('ru_api_log').insert({
       trace_id: entry.trace_id ?? null,
       parent_action: entry.parent_action ?? null,
-      action: extractRuVerb(entry.request_xml) ?? entry.action,
+      // Inbound rows keep the classified event name; the RU verb inside the body would otherwise
+      // overwrite it and make the trail unfilterable by action.
+      action: entry.direction === 'inbound' ? entry.action : (extractRuVerb(entry.request_xml) ?? entry.action),
       endpoint: entry.endpoint ?? null,
       direction: entry.direction ?? 'outbound',
       property_id: entry.property_id ?? null,
