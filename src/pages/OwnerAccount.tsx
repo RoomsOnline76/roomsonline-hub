@@ -17,6 +17,7 @@ import { AccountPayoutsTab } from "@/components/account/AccountPayoutsTab";
 import { AccountAnalyticsTab } from "@/components/account/AccountAnalyticsTab";
 import { AccountStatementTab } from "@/components/account/AccountStatementTab";
 import { AccountTwoPaymentCard } from "@/components/account/AccountTwoPaymentCard";
+import { HubSpotIntegrationCard } from "@/components/integrations/HubSpotIntegrationCard";
 
 const startOfYear = () => `${new Date().getFullYear()}-01-01`;
 const todayIso = () => new Date().toISOString().slice(0, 10);
