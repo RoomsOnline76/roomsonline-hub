@@ -72,14 +72,23 @@ interface ManualBookingDialogProps {
   /** Optional portfolio scope selector. */
   portfolioOptions?: PortfolioPropertyOption[];
 
-  /** Optional prefill, e.g. when the Room Plan opens the dialog from a dragged date span. */
+  /** Optional prefill, e.g. from a dragged Room Plan span or a converted inquiry. */
   initialValues?: {
     propertyId?: string | null;
     roomTypeId?: string | null;
     roomId?: string | null;
     checkIn?: Date | null;
     checkOut?: Date | null;
+    guestName?: string | null;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
+    notes?: string | null;
+    adults?: number | null;
+    children?: number | null;
   } | null;
+  /** Fires with the new booking id — used when a caller must link the stay back to a record. */
+  onCreatedBooking?: (bookingId: string) => void;
+
 }
 
 /** A single room line on the booking — mirrors NightsBridge "Select Room / Unit". */
