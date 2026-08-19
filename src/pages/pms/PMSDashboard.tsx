@@ -43,6 +43,7 @@ import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, typ
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
 import { queueChannelRatesSync } from "@/lib/channelContentSync";
+import { pushBookingToChannel } from "@/lib/channelBookingSync";
 
 import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
 
@@ -1757,9 +1758,17 @@ export default function PMSDashboard() {
       }
       toast.success("Reservation moved");
       refreshBookingQueries();
-      // Both the vacated and the newly sold room type need re-pushing upstream.
+      // A move has to reach the channel as a reservation modification (so a channel-sourced stay
+      // stops pointing at the unit it left) AND as an availability delta for both the vacated and
+      // the newly sold unit. The sync function does both and reports rate-limit deferrals.
       if (roomsChanged || typeChanged || roomTypeChanged || datesChanged) {
-        void queueChannelRatesSync(booking.property_id || propertyId, "booking_moved", { force: true });
+        void pushBookingToChannel(booking.id, datesChanged ? "dates" : "moved", {
+          previous: {
+            room_type_id: booking.room_type_id ?? null,
+            check_in_date: booking.check_in_date ?? null,
+            check_out_date: booking.check_out_date ?? null,
+          },
+        });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not move the reservation");
