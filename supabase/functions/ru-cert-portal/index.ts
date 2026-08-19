@@ -5778,13 +5778,21 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
+      type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
         const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
         return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
       };
+      // A sub-user's RU login (`<UserName>`) can differ from its contact `<Email>` — e.g.
+      // OwnerID 741765 logs in as connect@… with rooms@… as contact — so both must match.
+      const sameEmail = (a: unknown, b: unknown) => {
+        const x = String(a ?? "").trim().toLowerCase();
+        const y = String(b ?? "").trim().toLowerCase();
+        return Boolean(x) && x === y;
+      };
       const matchByEmail = (users: RuUser[]) =>
-        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
+        users.find((u) => sameEmail(u.email, ownerEmail) || sameEmail(u.login_email, ownerEmail)) ?? null;
+
       const usableRuId = (value: unknown): string => {
         const normalized = String(value ?? "").trim();
         return normalized && normalized !== "0" ? normalized : "";
