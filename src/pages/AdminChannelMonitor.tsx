@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
