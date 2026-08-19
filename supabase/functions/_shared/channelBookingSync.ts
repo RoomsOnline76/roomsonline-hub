@@ -68,6 +68,43 @@ export interface ChannelBookingSyncResult {
   deferred: boolean;
 }
 
+/**
+ * The listing the channel believes the reservation sits on. Reservations ingested before we stored
+ * it (and any record whose mapping was rewritten locally) have to ask the channel, otherwise a
+ * modification is sent with a `Current` listing the channel rejects outright.
+ */
+async function resolveCurrentListing(
+  supabase: Db,
+  row: Record<string, unknown>,
+): Promise<string | null> {
+  const stored = row.channel_listing_id as string | null;
+  if (stored) return stored;
+
+  const reservationId = String(row.external_reservation_id ?? '');
+  if (!reservationId) return null;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: {
+        action: 'get_reservation_by_id',
+        reservation_id: reservationId,
+        property_id: row.property_id ?? null,
+        deferrable: true,
+      },
+    });
+    if (error) return null;
+    const listing = data?.reservation?.ruPropertyId;
+    if (!listing) return null;
+    await supabase
+      .from('bookings')
+      .update({ channel_listing_id: String(listing) })
+      .eq('id', String(row.id));
+    return String(listing);
+  } catch (_err) {
+    return null;
+  }
+}
+
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'no_show', 'rejected', 'declined']);
 
 /** Changes that carry no information the channel's reservation record holds. */
@@ -149,7 +186,7 @@ export async function syncBookingToChannel(
         room_type_id: request.previous?.room_type_id ?? null,
         // The listing recorded at ingestion is what the channel holds; the local unit mapping may
         // already have been rewritten by the move we are pushing.
-        ru_property_id: (row.channel_listing_id as string | null) ?? null,
+        ru_property_id: await resolveCurrentListing(supabase, row),
         date_from: request.previous?.check_in_date ?? null,
         date_to: request.previous?.check_out_date ?? null,
       },
