@@ -5854,7 +5854,10 @@ Deno.serve(async (req) => {
       } else if (currentRuUser) {
         // Same RU account, possibly renamed in the portal: re-align the stored login
         // email (and OwnerID) without touching the retained password.
-        const ruEmail = String(currentRuUser.email ?? "").trim();
+        // `ru_login_email` must hold the RU *login* (`<UserName>`), which is what
+        // Push_FillCompanyDetails_RQ authenticates with. Never overwrite it with the
+        // contact `<Email>` — the two can differ (OwnerID 741765).
+        const ruEmail = String(currentRuUser.login_email ?? currentRuUser.email ?? "").trim();
         const patch: Record<string, unknown> = {};
         if (ruEmail && ruEmail.toLowerCase() !== String((existing.account as any)?.ru_login_email ?? "").trim().toLowerCase()) {
           patch.ru_login_email = ruEmail;
