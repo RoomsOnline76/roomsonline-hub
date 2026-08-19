@@ -6360,13 +6360,22 @@ Deno.serve(async (req) => {
         .eq("id", (saved as any)?.id)
         .maybeSingle();
 
-      // Owner push / company profile outcome landed — both steps need re-grading.
-      await markLedgerStaleForScope(
-        admin,
-        { propertyId: propertyId || null, portfolioId },
-        action === "ensure_company_details" ? ["company_profile"] : ["push_owner", "company_profile"],
-        action,
-      );
+      /**
+       * The channel accepted the profile (and, on the create/adopt path, the owner):
+       * record those verdicts instead of flagging them stale. A profile the channel
+       * did not accept stays stale so the wizard asks for a re-send.
+       */
+      const ownerScope = { propertyId: propertyId || null, portfolioId };
+      const passedSteps = [
+        ...(action === "ensure_company_details" ? [] : ["push_owner"]),
+        ...(companyResult.sent ? ["company_profile"] : []),
+      ];
+      if (passedSteps.length > 0) {
+        await recordLedgerPassForScope(admin, ownerScope, passedSteps, action, "push_result");
+      }
+      if (!companyResult.sent) {
+        await markLedgerStaleForScope(admin, ownerScope, ["company_profile"], `${action}_company_pending`);
+      }
 
       return json({
 
