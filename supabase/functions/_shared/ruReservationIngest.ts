@@ -336,6 +336,10 @@ export async function ingestRuReservation(
     modification_notes: notes,
   };
   if (unit.roomTypeId) fields.room_type_id = unit.roomTypeId;
+  // Remember the listing the reservation actually arrived on. Re-deriving it later from the local
+  // unit mapping is what made outbound modifications fail with "PropertyID specified in Current
+  // element doesn't match" once a stay had been moved between units.
+  if (r.ruPropertyId) fields.channel_listing_id = String(r.ruPropertyId);
   if (r.comments) fields.special_requests = r.comments;
 
   // Anchor the stay on the physical unit straight away: without this the grids have no

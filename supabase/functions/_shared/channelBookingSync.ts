@@ -15,7 +15,13 @@
  * and answers `queued`, which is reported back as `deferred` so the UI can say so.
  */
 import { queueRuAriDelta } from './ruAriDelta.ts';
-import { cancelRuReservation, isRuBooking, isRuLead, modifyRuStay } from './ruBookingSync.ts';
+import {
+  cancelRuReservation,
+  isRuBooking,
+  isRuLead,
+  modifyRuStay,
+  resolveRuPropertyId,
+} from './ruBookingSync.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -86,7 +92,7 @@ export async function syncBookingToChannel(
       'id, property_id, room_type_id, status, payment_status, check_in_date, check_out_date, ' +
         'adults, children, teens, infants, total_price, deposit_amount, amount_paid, ' +
         'special_requests, booking_channel, integration_type, external_reservation_id, ' +
-        'cancellation_reason',
+        'channel_listing_id, cancellation_reason',
     )
     .eq('id', request.booking_id)
     .maybeSingle();
@@ -141,6 +147,9 @@ export async function syncBookingToChannel(
       },
       {
         room_type_id: request.previous?.room_type_id ?? null,
+        // The listing recorded at ingestion is what the channel holds; the local unit mapping may
+        // already have been rewritten by the move we are pushing.
+        ru_property_id: (row.channel_listing_id as string | null) ?? null,
         date_from: request.previous?.check_in_date ?? null,
         date_to: request.previous?.check_out_date ?? null,
       },
@@ -153,6 +162,15 @@ export async function syncBookingToChannel(
       result.reservation = 'failed';
       result.code = push.code ?? null;
       result.message = push.message ?? null;
+    }
+
+    // A delivered move means the channel now holds the new listing; keep our record of "current"
+    // in step so the next modification does not aim at the listing the stay left.
+    if (push.ok && !push.deferred) {
+      const landed = await resolveRuPropertyId(supabase, row as never);
+      if (landed && landed !== row.channel_listing_id) {
+        await supabase.from('bookings').update({ channel_listing_id: landed }).eq('id', String(row.id));
+      }
     }
   }
 
