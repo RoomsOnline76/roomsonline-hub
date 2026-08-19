@@ -63,6 +63,17 @@ const EVENT_BY_KIND: Record<RuNotificationKind, NotificationEvent> = {
   request: 'reservation_request',
 };
 
+/**
+ * The channel routinely notifies a second or two BEFORE it will serve the reservation, so the
+ * first detail pull misses. Retrying on this fast ladder in the background — after the channel
+ * already has its OK — lands a normal request in seconds instead of waiting for the
+ * minute-scale parked sweep.
+ */
+const FAST_RETRY_DELAYS_MS = [5_000, 15_000, 40_000];
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
