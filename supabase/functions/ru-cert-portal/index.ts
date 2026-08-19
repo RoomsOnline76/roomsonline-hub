@@ -2333,6 +2333,25 @@ Deno.serve(async (req) => {
           return json({ success: true, enabled: true, ...marked, steps: await readLedger(admin, propertyId) });
         }
 
+        /**
+         * ledger_record — the caller completed an account-scoped step (company profile
+         * accepted, listings pulled, verification signed off) and records that verdict.
+         * No channel call: the caller already has the confirmed outcome.
+         */
+        if (action === "ledger_record") {
+          const keys: string[] = Array.isArray(body.step_keys) ? body.step_keys : [];
+          const source = typeof body.source === "string" ? body.source : "push_result";
+          await recordLedgerPassForScope(
+            admin,
+            { propertyId },
+            keys,
+            "ledger_record",
+            source as "push_result" | "manual_signoff" | "local",
+          );
+          return json({ success: true, enabled: true, steps: await readLedger(admin, propertyId) });
+        }
+
+
         // ledger_recheck — the only ledger action that may touch the channel.
         const { data: prop } = await admin
           .from("properties")
