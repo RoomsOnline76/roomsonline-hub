@@ -105,13 +105,23 @@ export async function resolveRuChildAuth(
   return null;
 }
 
-/** Resolve the RU PropertyID (unit-level where mapped) backing this booking. */
+/**
+ * Resolve the RU PropertyID (unit-level where mapped) backing this booking.
+ *
+ * `roomTypeOverride` lets a caller resolve the listing for a room type the booking no longer
+ * carries — needed when a stay is moved between units, because RU's modify verb has to name the
+ * listing the reservation currently sits on *and* the listing it moves to.
+ */
 export async function resolveRuPropertyId(
   supabase: Db,
   booking: RuBookingRef,
+  roomTypeOverride?: string | null,
 ): Promise<string | null> {
+  const roomTypeId = roomTypeOverride !== undefined && roomTypeOverride !== null
+    ? roomTypeOverride
+    : booking.room_type_id;
   // Unit-level mapping: the booking's canonical room type name → hostfully_room_types row.
-  if (booking.room_type_id) {
+  if (roomTypeId) {
     const { data: direct } = await supabase
       .from('hostfully_room_types')
       .select('rentalsunited_property_id')
