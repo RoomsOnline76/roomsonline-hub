@@ -201,9 +201,11 @@ async function invokeRu(
     traceId?: string | null;
     parentAction?: string | null;
   },
-): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string }> {
+): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null }> {
   const startedAt = Date.now();
-  const finish = async (result: { ok: boolean; deferred?: boolean; code?: string; message?: string }) => {
+  const finish = async (
+    result: { ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null },
+  ) => {
     await logRuSyncRun(supabase, {
       action,
       propertyId: log?.propertyId ?? null,
@@ -252,7 +254,7 @@ async function invokeRu(
           : 'Channel rate limit reached — the change is queued and will reach the channel within a minute.',
       });
     }
-    return await finish({ ok: true });
+    return await finish({ ok: true, data: data as Record<string, unknown> });
   }
   return await finish({
     ok: false,
@@ -448,4 +450,110 @@ export async function modifyRuStay(
   return result.ok
     ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', traceId }
     : { ok: false, method: 'modify_stay', code: result.code, message: result.message, traceId };
+}
+
+
+/**
+ * Hand a stay created in ROL'OS (a direct/manual booking) to the channel as a confirmed
+ * reservation, so the channel stops selling those nights and the stay is visible in the portal.
+ * RU answers with its own ReservationID, which the caller stores on the booking so later
+ * modifications and cancellations follow the normal reservation path.
+ */
+export async function pushRuConfirmedReservation(
+  supabase: Db,
+  booking: RuBookingRef & {
+    total_price?: number | null;
+    amount_paid?: number | null;
+    adults?: number | null;
+    children?: number | null;
+    teens?: number | null;
+    guest_first_name?: string | null;
+    guest_last_name?: string | null;
+    guest_email?: string | null;
+    guest_phone?: string | null;
+    special_requests?: string | null;
+  },
+): Promise<RuPushResult & { reservationId?: string | null; ruPropertyId?: string | null }> {
+  const traceId = newRuTraceId();
+  const auth = await resolveRuChildAuth(supabase, booking.property_id);
+  if (!auth) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:create',
+      property_id: booking.property_id,
+      action: 'Push_PutConfirmedReservationMulti_RQ',
+      error_reason: 'no_subuser_keys: no Rentals United sub-user API keys stored for this property',
+    });
+    return {
+      ok: false,
+      code: 'RU_AUTH_UNAVAILABLE',
+      message: 'No Rentals United sub-user API keys stored for this property — the stay was not sent to the channel.',
+      traceId,
+    };
+  }
+
+  const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+  if (!ruPropertyId) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:create',
+      property_id: booking.property_id,
+      action: 'Push_PutConfirmedReservationMulti_RQ',
+      error_reason: 'unmapped_listing: no Rentals United PropertyID mapped for this unit',
+    });
+    return {
+      ok: false,
+      code: 'RU_PROPERTY_UNMAPPED',
+      message: 'No Rentals United PropertyID mapped for this unit — publish the unit to the channel first.',
+      traceId,
+    };
+  }
+
+  const guests = (Number(booking.adults ?? 0) || 0) + (Number(booking.children ?? 0) || 0) +
+    (Number(booking.teens ?? 0) || 0);
+
+  const result = await invokeRu(supabase, 'push_confirmed_reservation', {
+    stay: {
+      ru_property_id: ruPropertyId,
+      date_from: booking.check_in_date,
+      date_to: booking.check_out_date,
+      number_of_guests: guests > 0 ? guests : 1,
+      client_price: booking.total_price ?? 0,
+      already_paid: booking.amount_paid ?? 0,
+    },
+    guest: {
+      first_name: booking.guest_first_name ?? null,
+      last_name: booking.guest_last_name ?? null,
+      email: booking.guest_email ?? null,
+      phone: booking.guest_phone ?? null,
+      comments: booking.special_requests ?? null,
+    },
+    ...auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId,
+    traceId,
+    parentAction: 'ruBookingSync:create',
+    details: { booking_id: booking.id },
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: result.code,
+      message: result.message,
+      traceId,
+      ruPropertyId,
+    };
+  }
+
+  return {
+    ok: true,
+    deferred: result.deferred === true,
+    method: 'push_confirmed_reservation',
+    traceId,
+    ruPropertyId,
+    reservationId: typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null,
+  };
 }

@@ -514,6 +514,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       invoice_to_address: invoiceTo.address || null,
     };
 
+    /* Stamp the rate plan that priced the stay: without it a later modification cannot reprice
+     * and the booking keeps its original total. */
+    const stampedPlanId = validLines.find(l => l.rate_plan_id)?.rate_plan_id || null;
+    if (stampedPlanId) payload.rolos_rate_plan_id = stampedPlanId;
+
     const assignedRoomIds = validLines.map(l => l.room_id).filter(Boolean);
     if (assignedRoomIds.length) payload.rolos_room_ids = assignedRoomIds;
     if (guestId) payload.rolos_guest_id = guestId;

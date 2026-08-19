@@ -21,6 +21,7 @@ import {
   isRuBooking,
   isRuLead,
   modifyRuStay,
+  pushRuConfirmedReservation,
   resolveRuPropertyId,
 } from './ruBookingSync.ts';
 
@@ -146,7 +147,8 @@ export async function syncBookingToChannel(
       'id, property_id, room_type_id, status, payment_status, check_in_date, check_out_date, ' +
         'adults, children, teens, infants, total_price, deposit_amount, amount_paid, ' +
         'special_requests, booking_channel, integration_type, external_reservation_id, ' +
-        'channel_listing_id, cancellation_reason',
+        'channel_listing_id, cancellation_reason, guest_first_name, guest_last_name, ' +
+        'guest_email, guest_phone',
     )
     .eq('id', request.booking_id)
     .maybeSingle();
@@ -175,10 +177,52 @@ export async function syncBookingToChannel(
     CANCELLED_STATUSES.has(status);
   let traceId: string | null = null;
 
-  // ── 1. Reservation-level push (channel-sourced bookings only) ──
+  // ── 1. Reservation-level push ──
+  // A stay created in ROL'OS has no reservation at the channel yet. Leaving it that way is what let
+  // the channel keep selling nights we had already sold, so an active local stay on a listed unit is
+  // handed over as a confirmed reservation and then follows the normal modify/cancel path.
   if (!isRuBooking(row)) {
-    result.reservation = 'skipped';
-    result.reservation_reason = 'not_a_channel_booking';
+    if (cancelled) {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'no_channel_reservation_to_cancel';
+    } else if (RESERVATION_IRRELEVANT.includes(change)) {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'change_not_carried_by_channel';
+    } else {
+      const push = await pushRuConfirmedReservation(supabase, row as never);
+      result.reservation_method = push.method ?? null;
+      traceId = push.traceId ?? null;
+      if (push.ok) {
+        result.reservation = push.deferred ? 'queued' : 'pushed';
+        result.deferred = result.deferred || push.deferred === true;
+        if (push.reservationId) {
+          await supabase
+            .from('bookings')
+            .update({
+              external_reservation_id: push.reservationId,
+              channel_listing_id: push.ruPropertyId ?? row.channel_listing_id ?? null,
+              integration_type: 'rentalsunited',
+            })
+            .eq('id', String(row.id));
+        }
+      } else if (
+        push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE' ||
+        push.code === 'RU_LISTING_MISSING'
+      ) {
+        // Not a fault: this unit simply is not distributed through the channel.
+        result.reservation = 'skipped';
+        result.reservation_reason = push.code === 'RU_AUTH_UNAVAILABLE'
+          ? 'no_channel_credentials'
+          : push.code === 'RU_LISTING_MISSING'
+            ? 'listing_missing_at_channel'
+            : 'unit_not_listed_on_channel';
+        result.message = push.message ?? null;
+      } else {
+        result.reservation = 'failed';
+        result.code = push.code ?? null;
+        result.message = push.message ?? null;
+      }
+    }
   } else if (RESERVATION_IRRELEVANT.includes(change)) {
     result.reservation = 'skipped';
     result.reservation_reason = 'change_not_carried_by_channel';

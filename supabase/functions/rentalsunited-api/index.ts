@@ -323,6 +323,23 @@ interface RequestBody {
   /** Push_ModifyStay_RQ current + new state. */
   current_stay?: RUStayState;
   modify_stay?: RUStayModification;
+  /** Push_PutConfirmedReservationMulti_RQ — a ROL'OS-created stay handed to the channel. */
+  stay?: {
+    ru_property_id: string | number;
+    date_from: string;
+    date_to: string;
+    number_of_guests?: number | null;
+    client_price?: number | null;
+    already_paid?: number | null;
+  };
+  guest?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    comments?: string | null;
+  };
+
 
   // Live Notification Mechanism (LNM) subscriptions
   url_base?: string;
@@ -801,6 +818,62 @@ function buildCancelReservationXml(creds: RUCredentials, reservationId: string, 
   <CancelTypeID>${cancelTypeId}</CancelTypeID>
 </Push_CancelReservation_RQ>`;
 }
+
+/**
+ * Push_PutConfirmedReservationMulti_RQ — hand a stay that was created in ROL'OS to the channel so
+ * the channel stops selling those nights and the reservation is visible in the portal.
+ * RU answers with its own ReservationID, which we store as the booking's channel reservation id.
+ */
+function buildPutConfirmedReservationXml(
+  creds: RUCredentials,
+  stay: {
+    ru_property_id: string | number;
+    date_from: string;
+    date_to: string;
+    number_of_guests?: number | null;
+    client_price?: number | null;
+    already_paid?: number | null;
+  },
+  guest: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    comments?: string | null;
+  },
+): string {
+  const day = (value: string) => escapeXml(String(value).slice(0, 10));
+  const money = (value: unknown) => Number(value ?? 0).toFixed(2);
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutConfirmedReservationMulti_RQ>
+  ${buildAuthXml(creds)}
+  <Reservation>
+    <StayInfos>
+      <StayInfo>
+        <PropertyID>${escapeXml(String(stay.ru_property_id))}</PropertyID>
+        <DateFrom>${day(stay.date_from)}</DateFrom>
+        <DateTo>${day(stay.date_to)}</DateTo>
+        <NumberOfGuests>${Math.max(1, Math.round(Number(stay.number_of_guests ?? 1)))}</NumberOfGuests>
+        <Costs>
+          <RUPrice>${money(stay.client_price)}</RUPrice>
+          <ClientPrice>${money(stay.client_price)}</ClientPrice>
+          <AlreadyPaid>${money(stay.already_paid)}</AlreadyPaid>
+          <ChannelCommission>0.00</ChannelCommission>
+          <PriceScale>1</PriceScale>
+        </Costs>
+      </StayInfo>
+    </StayInfos>
+    <CustomerInfo>
+      <Name>${escapeXml(guest.first_name?.trim() || 'Guest')}</Name>
+      <SurName>${escapeXml(guest.last_name?.trim() || 'Booking')}</SurName>
+      <Email>${escapeXml(guest.email?.trim() || '')}</Email>
+      <Phone>${escapeXml(guest.phone?.trim() || '')}</Phone>
+    </CustomerInfo>${guest.comments ? `
+    <Comments>${escapeXml(guest.comments)}</Comments>` : ''}
+  </Reservation>
+</Push_PutConfirmedReservationMulti_RQ>`;
+}
+
 
 /**
  * Push_ModifyStay_RQ — RU requires BOTH the current state and the new state.
@@ -1884,6 +1957,8 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
   reject_request: 'Push_RejectRequest_RQ',
   cancel_reservation: 'Push_CancelReservation_RQ',
   modify_stay: 'Push_ModifyStay_RQ',
+  push_confirmed_reservation: 'Push_PutConfirmedReservationMulti_RQ',
+
   push_property: 'Push_PutProperty_RQ',
   push_availability: 'Push_PutAvbUnits_RQ',
   push_prices: 'Push_PutPrices_RQ',
@@ -4275,6 +4350,51 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
+    // ── push_confirmed_reservation (a stay created in ROL'OS handed to the channel) ──
+    if (action === 'push_confirmed_reservation') {
+      const stay = body.stay;
+      if (!stay?.ru_property_id || !stay?.date_from || !stay?.date_to) {
+        return await abortReservationVerb(
+          'missing_stay',
+          'stay { ru_property_id, date_from, date_to } is required',
+        );
+      }
+      const xml = buildPutConfirmedReservationXml(scopedCreds, stay, body.guest ?? {});
+      const compactRequestXml = compactXml(xml);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(
+        `[rentalsunited-api] push_confirmed_reservation (auth=${authMode}) response: ${response.substring(0, 500)}`,
+      );
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        // Status 56: the listing we hold locally is not (or no longer) at the channel. Retrying
+        // cannot fix a stale mapping — say so plainly so the operator republishes the unit.
+        if (status.id === '56') {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_LISTING_MISSING',
+              message: `The channel has no listing ${stay.ru_property_id} for this unit — republish the unit to the channel, then resend the stay.`,
+              ru_status_id: status.id,
+            },
+          });
+        }
+        return ruErrorResponse(
+          status,
+          buildDiagnostics(compactRequestXml, status, 'push_confirmed_reservation', response),
+        );
+      }
+      const reservationId = response.match(/<ReservationID>([^<]+)<\/ReservationID>/i)?.[1]?.trim() ?? null;
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        reservation_id: reservationId,
+        raw_xml: response,
+      });
+    }
+
+
 
 
     // Unknown action

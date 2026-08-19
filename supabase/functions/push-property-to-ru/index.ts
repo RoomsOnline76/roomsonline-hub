@@ -1884,8 +1884,8 @@ async function loadBookingBlocks(
   const ranges: { from: string; to: string }[] = [];
   const stats = { bookings: 0, nights: 0, ranges };
 
-  /* Sold statuses. `pending` is deliberately excluded for native ROL bookings (those are
-   * unpaid checkout carts), but an imported/ingested reservation is real occupancy even when
+  /* Sold statuses. `pending` counts for everything except a live web checkout cart (see below);
+   * an imported/ingested reservation is real occupancy even when
    * it arrives as `pending` — a NightsBridge export carries no ROL confirmation step. Those
    * nights must close upstream or the unit stays double-sellable at the channel. */
   const SOLD_STATUSES = ['confirmed', 'checked_in', 'checked_out', 'completed', 'in_house'];
@@ -1893,7 +1893,7 @@ async function loadBookingBlocks(
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, integration_type, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
+    .select('id, status, payment_status, integration_type, booking_channel, hold_expires_at, hold_released_at, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
     .eq('property_id', propertyId)
     .lt('check_in_date', windowTo)
     .gt('check_out_date', windowFrom)
@@ -1901,9 +1901,23 @@ async function loadBookingBlocks(
 
   if (error || !Array.isArray(data)) return { dates, stats };
 
+  /* A pending stay that an operator created (direct / manual / agent) is real occupancy, not a
+   * checkout cart — those nights must close upstream too. Web carts only hold the night while
+   * their hold is live, so an expired or released hold reopens it. */
+  const CART_CHANNELS = new Set(['website', 'embed', 'online', 'rol_itinerary']);
+  const holdStillLive = (b: any) => {
+    if (b.hold_released_at) return false;
+    if (!b.hold_expires_at) return false;
+    return new Date(String(b.hold_expires_at)).getTime() > Date.now();
+  };
+
   const sold = (data as any[]).filter((b) => {
     if (SOLD_STATUSES.includes(String(b.status))) return true;
-    return IMPORTED_SOURCES.has(String(b.integration_type ?? ''));
+    if (IMPORTED_SOURCES.has(String(b.integration_type ?? ''))) return true;
+    const channel = String(b.booking_channel ?? '').toLowerCase();
+    if (CART_CHANNELS.has(channel)) return holdStillLive(b);
+    // Operator-created or channel-sourced pending stays hold the night.
+    return true;
   });
 
 
