@@ -35,7 +35,11 @@ export async function queueChannelContentSync(
   options: { force?: boolean; wait?: boolean } = {},
 ): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
+  // Phase 2 ledger bookkeeping: the section data is already persisted by the time a
+  // delta is queued, so this is the safe place to mark only the affected steps stale.
+  void markChannelStepsStale(propertyId, channelLedgerStepsForTrigger(trigger, "content"));
   try {
+
     const { data, error } = await supabase.functions.invoke("ru-static-delta", {
       body: {
         property_id: propertyId,
