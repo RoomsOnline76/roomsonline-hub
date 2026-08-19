@@ -49,6 +49,17 @@ function isPermanent(message: string | null | undefined): boolean {
   );
 }
 
+/**
+ * Terminal, but not a defect: the channel says the work is already unnecessary (e.g. cancelling a
+ * reservation it never had). These land as `no_op` so certification review and the health report
+ * stop reading them as unhealed failures.
+ */
+function isNoOp(message: string | null | undefined): boolean {
+  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)/i.test(
+    String(message ?? ''),
+  );
+}
+
 async function invokeErrorMessage(error: unknown): Promise<string> {
   const body = await readInvokeErrorBody(error);
   const nested = body?.error as { message?: string } | string | undefined;
