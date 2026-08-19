@@ -262,3 +262,38 @@ export async function summarizeRuExchanges(
     return [];
   }
 }
+
+/**
+ * Record an INBOUND exchange: the channel posting a reservation notification to us.
+ *
+ * Certification and day-to-day support both need the two directions in one place — before this the
+ * exchange log held outbound rows only, so an operator could see what we sent but never what the
+ * channel actually said. The notification body is the "request" here; our answer is the response.
+ */
+export async function logRuInboundNotification(
+  supabase: any,
+  entry: RuApiLogContext & {
+    /** Classified event, e.g. `RLNM_ReservationConfirmed`. */
+    action: string;
+    body_xml?: string | null;
+    response_xml?: string | null;
+    success: boolean;
+    error_message?: string | null;
+    error_reason?: string | null;
+    ru_reservation_id?: string | null;
+  },
+): Promise<void> {
+  await logRuExchange(supabase, {
+    ...entry,
+    action: entry.action,
+    direction: 'inbound',
+    endpoint: 'ru-reservation-handler',
+    request_xml: entry.body_xml ?? null,
+    response_xml: entry.response_xml ?? '<Response>OK</Response>',
+    http_status: 200,
+    success: entry.success,
+    transport_status: entry.success ? 'completed' : undefined,
+    error_reason: entry.error_reason ?? null,
+    error_message: entry.error_message ?? null,
+  });
+}
