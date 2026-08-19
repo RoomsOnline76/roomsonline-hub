@@ -66,6 +66,37 @@ const corsHeaders = {
 type StepStatus = "passed" | "failed" | "skipped";
 type CertScope = "account" | "property";
 
+/**
+ * Phase 2 ledger bookkeeping for account-scoped writers.
+ *
+ * Key capture, owner push and company profile are recorded against an RU sub-account,
+ * not a property — resolve the account's scope (portfolio or single property) and mark
+ * the affected macro steps stale for every property it covers. Never throws.
+ */
+// deno-lint-ignore no-explicit-any
+async function markLedgerStaleForOwnerAccount(
+  admin: any,
+  ref: { accountId?: string | null; ownerId?: string | null },
+  stepKeys: string[],
+  event: string,
+): Promise<void> {
+  try {
+    let query = admin.from("ru_owner_accounts").select("portfolio_id, property_id");
+    query = ref.accountId ? query.eq("id", ref.accountId) : query.eq("ru_owner_id", ref.ownerId ?? "");
+    const { data } = await query.limit(1).maybeSingle();
+    if (!data) return;
+    await markLedgerStaleForScope(
+      admin,
+      { propertyId: data.property_id ?? null, portfolioId: data.portfolio_id ?? null },
+      stepKeys,
+      event,
+    );
+  } catch (error) {
+    console.warn("[channel-ledger] owner-account stale marking skipped:", error);
+  }
+}
+
+
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
 const RUN_COOLDOWN_SECONDS = 60;
 
