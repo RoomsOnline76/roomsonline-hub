@@ -76,12 +76,12 @@ export interface ChannelBookingSyncResult {
 async function resolveCurrentListing(
   supabase: Db,
   row: Record<string, unknown>,
-): Promise<string | null> {
+): Promise<{ listing: string | null; absent: boolean }> {
   const stored = row.channel_listing_id as string | null;
-  if (stored) return stored;
+  if (stored) return { listing: stored, absent: false };
 
   const reservationId = String(row.external_reservation_id ?? '');
-  if (!reservationId) return null;
+  if (!reservationId) return { listing: null, absent: false };
 
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -92,16 +92,23 @@ async function resolveCurrentListing(
         deferrable: true,
       },
     });
-    if (error) return null;
+    if (error) return { listing: null, absent: false };
     const listing = data?.reservation?.ruPropertyId;
-    if (!listing) return null;
+    if (!listing) {
+      // The channel answering "reservation does not exist" is a definitive answer: there is
+      // nothing to modify, so the push is skipped instead of failing on a mismatched listing.
+      const absent = data?.found === false || isAbsentAtChannel(
+        typeof data?.raw_xml === 'string' ? data.raw_xml : null,
+      );
+      return { listing: null, absent };
+    }
     await supabase
       .from('bookings')
       .update({ channel_listing_id: String(listing) })
       .eq('id', String(row.id));
-    return String(listing);
+    return { listing: String(listing), absent: false };
   } catch (_err) {
-    return null;
+    return { listing: null, absent: false };
   }
 }
 
@@ -181,6 +188,12 @@ export async function syncBookingToChannel(
     result.reservation = 'skipped';
     result.reservation_reason = 'unconfirmed_request';
   } else {
+    const current = await resolveCurrentListing(supabase, row);
+    if (current.absent) {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'reservation_absent_at_channel';
+      return await finishAri(supabase, request, result, propertyId, change);
+    }
     const push = await modifyRuStay(
       supabase,
       row as never,
@@ -195,7 +208,7 @@ export async function syncBookingToChannel(
         room_type_id: request.previous?.room_type_id ?? null,
         // The listing recorded at ingestion is what the channel holds; the local unit mapping may
         // already have been rewritten by the move we are pushing.
-        ru_property_id: await resolveCurrentListing(supabase, row),
+        ru_property_id: current.listing,
         date_from: request.previous?.check_in_date ?? null,
         date_to: request.previous?.check_out_date ?? null,
       },
