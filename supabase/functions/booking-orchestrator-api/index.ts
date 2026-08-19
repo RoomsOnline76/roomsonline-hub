@@ -269,7 +269,7 @@ async function resolveRolosRates(
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
@@ -286,6 +286,7 @@ async function resolveRolosRates(
             child_rate: plan.child_rate != null ? Number(plan.child_rate) : undefined,
             infant_rate: plan.infant_rate != null ? Number(plan.infant_rate) : undefined,
             rate_plan_id: plan.id,
+            rate_plan_name: plan.name || null,
           };
         }
       }
@@ -512,8 +513,10 @@ async function resolveRolosRates(
       room_type_id: room.id,
       room_type_name: room.name,
       rate_types: [{
-        rate_type_id: "rolos-rate",
-        rate_type_name: "Standard Rate",
+        // Publish the real ROL'OS rate plan identity so consumers (calendar,
+        // widgets) label prices with the plan the operator actually authored.
+        rate_type_id: rolosPlan?.rate_plan_id ? String(rolosPlan.rate_plan_id) : "rolos-rate",
+        rate_type_name: rolosPlan?.rate_plan_name || "Standard Rate",
         price_type: priceTypeForModel(pricingModel),
         rates: dailyRates,
       }],

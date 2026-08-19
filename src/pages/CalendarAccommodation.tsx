@@ -231,6 +231,8 @@ const CalendarAccommodation = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
   const [canonicalRoomTypeMap, setCanonicalRoomTypeMap] = useState<Map<string, CanonicalRoomType>>(new Map());
+  const [nativeRatePlans, setNativeRatePlans] = useState<{ id: string; name: string }[]>([]);
+
   const [bookedByRoom, setBookedByRoom] = useState<Map<string, Map<string, BookedCell>>>(new Map());
 
 
@@ -380,6 +382,37 @@ const CalendarAccommodation = () => {
 
   const isPmsProperty = !!selectedPropertyData?.external_system;
   const isNativeRolosProperty = selectedPropertyData?.external_system === "roomsonline" && !!selectedPropertyData?.is_rol_property;
+
+  // ROL'OS Rate Plans is the sole author of rate identity for native properties,
+  // so the calendar's rate-type filter must come from it — not from the legacy
+  // wizard copy in amenities, which still holds retired ids.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!selectedProperty || !isNativeRolosProperty) {
+        setNativeRatePlans([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name")
+        .eq("property_id", selectedProperty)
+        .eq("is_active", true)
+        .order("sell_priority", { ascending: true, nullsFirst: false });
+      if (cancelled) return;
+      if (error) {
+        console.warn("[Calendar] rate plan load failed", error);
+        setNativeRatePlans([]);
+        return;
+      }
+      setNativeRatePlans((data || []).map((p) => ({ id: String(p.id), name: p.name || "Rate plan" })));
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProperty, isNativeRolosProperty]);
+
   const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
   const hasPmsPropertyCode = !!pmsPropertyCode;
 
@@ -1026,7 +1059,8 @@ const CalendarAccommodation = () => {
             
             ratesByDate[dateStr].push({
               rateTypeId: String(matchedId),
-              rateTypeName: matchedRateType?.name || room.name || 'Standard Rate',
+              // Never label a rate after the room — a room name is not a rate type.
+              rateTypeName: matchedRateType?.name || 'Standard Rate',
               priceType: orphanPriceType,
               roomAmount: orphanRateAmount,
               ...(isOrphanPerPerson ? {
@@ -1454,6 +1488,37 @@ const CalendarAccommodation = () => {
   const rateTypeOptions = React.useMemo(() => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
     const seenNames = new Set<string>();
+
+    const rateTypeHasRates = (rateTypeId: string) => {
+      let hasRates = false;
+      pmsData.roomTypes.forEach((room) => {
+        Object.values(room.ratesByDate).forEach((dateRates) => {
+          dateRates.forEach((rate) => {
+            if (String(rate.rateTypeId) !== rateTypeId) return;
+            const hasValues =
+              (rate.roomAmount != null && rate.roomAmount > 0) ||
+              (rate.adultAmounts && Object.values(rate.adultAmounts).some((v) => v != null && v > 0)) ||
+              (rate.teenAmount != null && rate.teenAmount > 0) ||
+              (rate.childAmount != null && rate.childAmount > 0) ||
+              (rate.infantAmount != null && rate.infantAmount > 0);
+            if (hasValues) hasRates = true;
+          });
+        });
+      });
+      return hasRates;
+    };
+
+    // Native ROL'OS: rate plans are the single source of truth. De-duplicate
+    // strictly by plan id so no room name or retired wizard id can appear.
+    if (isNativeRolosProperty && nativeRatePlans.length > 0) {
+      return nativeRatePlans.map((plan) => ({
+        id: plan.id,
+        label: plan.name,
+        hasRates: rateTypeHasRates(plan.id),
+      }));
+    }
+    
+
     
     // Only use property's saved pms_rate_types to match Property Form when they map to actual PMS data.
     if (selectedPropertyData?.amenities?.pms_rate_types) {
@@ -1515,7 +1580,7 @@ const CalendarAccommodation = () => {
     }
     
     return rateTypes;
-  }, [pmsData, selectedPropertyData]);
+  }, [pmsData, selectedPropertyData, isNativeRolosProperty, nativeRatePlans]);
 
   // Set only rate types with data as selected when rateTypeOptions changes
   useEffect(() => {
