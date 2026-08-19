@@ -534,6 +534,21 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     /* Stay totals are derived from bookings, never incremented by hand. */
     await rebuildGuestStats([guestId]);
 
+    /* Optional owner CRM add-on: no-op unless the owner connected HubSpot. */
+    if (insertedData?.id) {
+      syncBookingToHubSpot({
+        bookingId: insertedData.id,
+        guestName: form.guest_name,
+        guestEmail: form.guest_email,
+        guestPhone: form.guest_phone || null,
+        amount: totalPrice,
+        status: autoStatus,
+        checkOut: format(form.check_out!, "yyyy-MM-dd"),
+      });
+    }
+
+
+
 
     // 3. Persist the per-room lines (rate plan + occupancy + nightly rate)
     if (insertedData?.id) {
