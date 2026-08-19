@@ -838,7 +838,7 @@ export function RuCertificationConsole({
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="runs" className="space-y-4">
+      <Tabs key={initialTab ?? "runs"} defaultValue={initialTab ?? "runs"} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="runs" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Runs</TabsTrigger>
           <TabsTrigger value="milestones" className="gap-1.5" onClick={loadMilestones}>
