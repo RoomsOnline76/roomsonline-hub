@@ -160,6 +160,54 @@ export async function resolveRuPropertyId(
   return prop?.rentalsunited_property_id ? String(prop.rentalsunited_property_id) : null;
 }
 
+/**
+ * Outcomes the channel reports that are NOT platform faults:
+ *
+ *  - `no_op`         — the channel has nothing to act on (cancelling a reservation it never held).
+ *                      Recording these as failures produced a permanent red row for work that was
+ *                      already in the desired state.
+ *  - `stale_mapping` — the local unit → listing mapping points at a listing the channel no longer
+ *                      serves. Retrying cannot fix it, so it is logged once per listing per window
+ *                      instead of every minute, with the operator action stored on the run.
+ */
+type RuOutcomeClass = 'delivered' | 'no_op' | 'stale_mapping' | 'error';
+
+function classifyRuOutcome(
+  ok: boolean,
+  code?: string | null,
+  message?: string | null,
+): RuOutcomeClass {
+  if (ok) return 'delivered';
+  const msg = String(message ?? '');
+  if (/reservation does not exist|no such reservation|already cancelled/i.test(msg)) return 'no_op';
+  if ((code ?? '') === 'RU_LISTING_MISSING' || /channel has no listing/i.test(msg)) return 'stale_mapping';
+  return 'error';
+}
+
+/** True when an identical stale-mapping row was already written recently — suppress the duplicate. */
+async function staleMappingAlreadyLogged(
+  supabase: Db,
+  action: string,
+  ruPropertyId: string | null,
+  windowMinutes = 360,
+): Promise<boolean> {
+  if (!ruPropertyId) return false;
+  try {
+    const since = new Date(Date.now() - windowMinutes * 60000).toISOString();
+    const { data } = await supabase
+      .from('ru_sync_runs')
+      .select('id')
+      .eq('action', action)
+      .eq('ru_property_id', ruPropertyId)
+      .eq('success', false)
+      .gte('created_at', since)
+      .limit(1);
+    return Array.isArray(data) && data.length > 0;
+  } catch (_e) {
+    return false;
+  }
+}
+
 async function logRuSyncRun(
   supabase: Db,
   entry: {
@@ -189,6 +237,7 @@ async function logRuSyncRun(
     // Observability must never break the booking lifecycle.
   }
 }
+
 
 async function invokeRu(
   supabase: Db,
