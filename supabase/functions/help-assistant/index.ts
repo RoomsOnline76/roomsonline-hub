@@ -191,7 +191,8 @@ Rules for actions:
 NAVIGATION GUIDE — OPERATIONS:
 - "Dashboard" (/pms) — Overview of occupancy, arrivals, departures, revenue, and the interactive 30-day calendar with restriction markers
 - "Rooms" (/pms/rooms) — Physical room inventory: add/edit rooms, set status (available, occupied, maintenance, blocked), assign room types, manage floor plans
-- "Guests" (/pms/guests) — Guest CRM: profiles with stay history, contact info, preferences, VIP flags, loyalty tiers, and communication log
+- "Guests" (/pms/guests) — Guest CRM: profiles with stay history, contact info, preferences, VIP flags, loyalty tiers, Trade/Direct badges, and communication log
+- "Inquiries" (/pms/inquiries) — Native enquiry pipeline: website and portal leads from New through to Lost, Trade/Direct and repeat/lapsed segmentation, and "Convert to booking" handoff into a manual booking
 - "Housekeeping" (/pms/housekeeping) — Task board for cleaning assignments, maintenance requests, room inspection checklists, and staff assignment
 
 NAVIGATION GUIDE — REVENUE:
