@@ -342,6 +342,33 @@ interface InactiveComponent {
   component_type: string;
 }
 
+/**
+ * Single source of truth for the report headline. A failing sync pipeline is a real outage even
+ * when every component probe is green, so both the email body strip AND the subject line derive
+ * from this — the subject must never read "All Systems Operational" while the body says otherwise.
+ */
+function computeEffectiveStatus(
+  overallStatus: string,
+  ruWl: RuWlMetrics | null,
+  criticalCount = 0,
+): { status: string; label: string; failingActions: string[] } {
+  const failingActions = (ruWl?.actions ?? []).filter(a => a.current_ok === false).map(a => a.action);
+  const pipelineFailing = failingActions.length > 0;
+  const status = overallStatus === 'failed' || criticalCount > 0
+    ? 'failed'
+    : pipelineFailing || overallStatus === 'degraded'
+      ? 'degraded'
+      : overallStatus;
+  const label = status === 'healthy'
+    ? 'All Systems Operational'
+    : status === 'degraded'
+      ? pipelineFailing
+        ? `Degraded — ${failingActions.join(', ')} failing`
+        : 'Some Issues Detected'
+      : 'Critical Issues';
+  return { status, label, failingActions };
+}
+
 function generateEmailHtml(
   date: string,
   generatedAt: string,
@@ -358,23 +385,9 @@ function generateEmailHtml(
   devTasks: DevTask[],
   ruWl: RuWlMetrics | null
 ): string {
-  // A failing sync pipeline is a real outage even when every component probe is green — the
-  // headline must never read "All Systems Operational" while the channel strip says "Failing".
-  const failingPipelines = (ruWl?.actions ?? []).filter(a => a.current_ok === false);
-  const pipelineFailing = failingPipelines.length > 0;
-  const effectiveStatus = overallStatus === 'failed'
-    ? 'failed'
-    : pipelineFailing || overallStatus === 'degraded'
-      ? 'degraded'
-      : overallStatus;
+  const { status: effectiveStatus, label: overallStatusLabel } = computeEffectiveStatus(overallStatus, ruWl);
   const overallStatusColor = getStatusColor(effectiveStatus);
-  const overallStatusLabel = effectiveStatus === 'healthy'
-    ? 'All Systems Operational'
-    : effectiveStatus === 'degraded'
-      ? pipelineFailing
-        ? `Degraded — ${failingPipelines.map(a => a.action).join(', ')} failing`
-        : 'Some Issues Detected'
-      : 'Critical Issues';
+
 
   const card = 'background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;';
   const h3 = 'margin:0 0 8px 0;font-size:15px;font-weight:600;color:#111827;';
