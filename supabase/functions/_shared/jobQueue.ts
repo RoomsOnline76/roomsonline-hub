@@ -22,7 +22,9 @@ export type JobType =
   /** Re-run the channel listing review after the channel's rate window closed the read. */
   | "channel_listing_review"
   /** Finish publishing the units a chunked push left outstanding. */
-  | "channel_publish_units";
+  | "channel_publish_units"
+  /** Push a booking change (modify / cancel) and the resulting ARI delta to the channel. */
+  | "channel_booking_sync";
 
 
 export interface EnqueueOptions {
