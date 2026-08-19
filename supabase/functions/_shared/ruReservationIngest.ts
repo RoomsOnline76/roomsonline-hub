@@ -760,10 +760,13 @@ export async function refreshRuReservationById(
     forceRequest?: boolean;
     /** Kind carried over from the RLNM envelope (cancel/modify envelopes lack a status id). */
     kind?: RuNotificationKind;
+    /** RU `Creator` from the envelope — resolves the owning sub-account first. */
+    creator?: string | null;
   } = {},
-): Promise<RuIngestResult> {
+): Promise<RuIngestResult & { rateDeferred?: boolean; resolvedOwnerId?: string | null }> {
   const log = opts.logPrefix || '[ru-ingest]';
-  const { reservation, error } = await fetchRuReservationById(supabase, reservationId, opts);
+  const lookup = await fetchRuReservationById(supabase, reservationId, opts);
+  const { reservation, error } = lookup;
   if (error || !reservation?.ruReservationId) {
     console.warn(`${log} Detail pull for reservation ${reservationId} failed: ${error ?? 'not found'}`);
     return {
@@ -773,12 +776,16 @@ export async function refreshRuReservationById(
       deduped: false,
       channelLabel: null,
       error: error ?? 'Reservation not found in Rentals United',
+      rateDeferred: lookup.rateDeferred ?? false,
+      resolvedOwnerId: lookup.resolvedOwnerId ?? null,
     };
   }
-  return await ingestRuReservation(supabase, reservation, {
+  const ingested = await ingestRuReservation(supabase, reservation, {
     source: 'rlnm',
     logPrefix: log,
     forceRequest: opts.forceRequest,
     kind: opts.kind,
   });
+  return { ...ingested, resolvedOwnerId: lookup.resolvedOwnerId ?? null };
 }
+
