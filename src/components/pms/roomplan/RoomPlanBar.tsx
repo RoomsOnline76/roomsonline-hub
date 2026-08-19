@@ -114,6 +114,8 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   roomLabel,
   propertyName,
   dragging,
+  unitLine,
+  unitCount,
   onOpen,
   onQuickAction,
   onModify,
@@ -125,6 +127,10 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   const draggable = isBookingDraggable(booking) && !!onDragStart;
   const needsAttention = !!booking.requires_intervention || !!booking.special_requests?.trim();
   const isLead = (booking.integration_type ?? "").endsWith("_lead");
+  const isMultiUnit = (unitCount || 1) > 1;
+  // A multi-unit stay must show this unit's own party, not the whole booking's.
+  const paxText = isMultiUnit && unitLine ? paxLine(unitLine) : paxLine(booking);
+
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent) => {
