@@ -190,6 +190,8 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               <p className="text-[11px] text-slate-400">
                 {propertyName ? `${propertyName} · ` : ""}
                 {roomLabel}
+                {isMultiUnit && ` · 1 of ${unitCount} units`}
+
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-slate-600 px-2 py-0.5 text-[10px] capitalize">
