@@ -284,6 +284,18 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "resolve_ru_property_ids", property_id: propertyId },
       });
+      /**
+       * The channel allows one identical read per sliding minute. When that window is closed the
+       * review is queued as background work instead of failing, so this is progress — not an error.
+       */
+      if (data?.pending === true) {
+        setReadBackPending(true);
+        toast.info("Reviewing your listings with the channel", {
+          description: "The channel is rate limited right now — this finishes on its own and you will be told when it lands.",
+          duration: 9000,
+        });
+        return;
+      }
       if (error || data?.success !== true) {
         const reason = error
           ? await extractFunctionError(error, "Could not list the sub-account's listings")
