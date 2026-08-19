@@ -456,8 +456,11 @@ export async function ingestRuReservation(
 
     if (existing) {
       await supabase.from('bookings').update(fields).eq('id', existing.id);
+      // A modification can add or drop units — reconcile the lines and their blocks.
+      await syncRuStayUnits(supabase, existing.id, r, unit, opts, true);
       return { ...base, outcome: 'updated', bookingId: existing.id };
     }
+
 
     const insertRow = {
       ...fields,
