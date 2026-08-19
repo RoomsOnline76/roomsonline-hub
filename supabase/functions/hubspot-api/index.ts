@@ -671,7 +671,7 @@ Deno.serve(async (req) => {
           const bookingQuery = admin
             .from("bookings")
             .select(
-              "id, guest_name, guest_email, guest_phone, guest_country, total_price, currency, status, check_out_date, booking_reference, is_trade, updated_at",
+              "id, guest_name, guest_email, guest_phone, total_price, status, check_out_date, booking_reference, is_trade, updated_at",
             )
             .in("property_id", propertyIds)
             .order("updated_at", { ascending: false })
@@ -694,7 +694,6 @@ Deno.serve(async (req) => {
                   ...(parts[0] ? { firstname: parts[0] } : {}),
                   ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
                   ...(b.guest_phone ? { phone: b.guest_phone } : {}),
-                  ...(b.guest_country ? { country: b.guest_country } : {}),
                 },
                 segment,
               );
