@@ -2710,6 +2710,32 @@ const CalendarAccommodation = () => {
                                     >
                                       <div className="flex flex-col items-center">
                                         <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                        {(() => {
+                                          const booked = getBookedInfo(room.name, date);
+                                          if (!booked || booked.units === 0) return null;
+                                          return (
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className="mt-0.5 w-full truncate rounded bg-primary px-1 text-[9px] font-semibold leading-tight text-primary-foreground">
+                                                  {booked.stays[0].guestName}
+                                                  {booked.units > 1 ? ` +${booked.units - 1}` : ""}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <div className="space-y-0.5">
+                                                  {booked.stays.map((stay) => (
+                                                    <p key={stay.id} className="text-xs">
+                                                      {stay.reference ? `${stay.reference} — ` : ""}
+                                                      {stay.guestName} ({stay.status}
+                                                      {stay.channel ? `, ${stay.channel}` : ""})
+                                                    </p>
+                                                  ))}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          );
+                                        })()}
+
                                         {hasRestrictions && (
                                           <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">
                                             {showStopSell && (
