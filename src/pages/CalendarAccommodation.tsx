@@ -231,6 +231,8 @@ const CalendarAccommodation = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
   const [canonicalRoomTypeMap, setCanonicalRoomTypeMap] = useState<Map<string, CanonicalRoomType>>(new Map());
+  const [nativeRatePlans, setNativeRatePlans] = useState<{ id: string; name: string }[]>([]);
+
   const [bookedByRoom, setBookedByRoom] = useState<Map<string, Map<string, BookedCell>>>(new Map());
 
 
