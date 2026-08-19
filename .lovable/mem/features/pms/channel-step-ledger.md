@@ -5,8 +5,10 @@ type: feature
 ---
 
 `property_channel_step_status` holds durable per-step verdicts for Channel onboarding, gated by
-`ru_platform_settings.channel_step_ledger_enabled` (default `false` until production soak; setting
-it back to `false` is the rollback).
+`ru_platform_settings.channel_step_ledger_enabled` (now `true`; setting it back to `false` is the
+rollback). Admin Onboarding is ledger-first too: it patches each row from the stored verdicts and
+only spends a live `phase_status` probe on properties with no rows or dirty/unknown channel steps.
+
 
 - Flag true: the wizard reads the ledger — no mount-time re-grade, no channel call on page load.
   `unknown` is advisory, never a blocker, and a timed-out probe never clears a prior `passed`.
