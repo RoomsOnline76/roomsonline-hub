@@ -3872,7 +3872,9 @@ Deno.serve(async (req) => {
       const company = await provisionCompanyAfterKeyVerification();
       // Verified keys mean this account can be monitored — subscribe it now.
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
+      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys", "company_profile"], "keys_saved");
       return json({
+
         success: true,
         verified: true,
         ru_owner_id: ownerId,
