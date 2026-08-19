@@ -180,9 +180,9 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
     URL.revokeObjectURL(url);
   }, [rows, propertyNames]);
 
-  const submitResponseId = useCallback(() => {
-    patch({ responseId: responseIdDraft.trim() });
-  }, [patch, responseIdDraft]);
+  const submitSearch = useCallback(() => {
+    patch({ search: searchDraft.trim() });
+  }, [patch, searchDraft]);
 
   return (
     <div className="space-y-4">
@@ -190,41 +190,58 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Exchange log</CardTitle>
           <CardDescription>
-            Every request and response exchanged with the channel manager is stored with its ResponseID and kept
-            for 90 days — well beyond the 30-day certification minimum. Credentials are redacted before storage.
+            Every request and response exchanged with the channel manager — booking pushes,
+            cancellations and inbound reservation notifications included — is stored with its
+            ResponseID and kept for 90 days. Credentials are redacted before storage.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[220px] flex-1">
-              <Label className="text-xs">ResponseID lookup</Label>
+            <div className="min-w-[240px] flex-1">
+              <Label className="text-xs">Find a call</Label>
               <div className="flex gap-2">
                 <Input
-                  value={responseIdDraft}
-                  onChange={(e) => setResponseIdDraft(e.target.value)}
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") submitResponseId();
+                    if (e.key === "Enter") submitSearch();
                   }}
-                  placeholder="Paste the ResponseID from a support ticket"
+                  placeholder="Push_CancelReservation_RQ, a ResponseID, trace id or error text"
                 />
-                <Button variant="secondary" size="icon" onClick={submitResponseId} aria-label="Search ResponseID">
+                <Button variant="secondary" size="icon" onClick={submitSearch} aria-label="Search exchanges">
                   <Search className="h-4 w-4" />
                 </Button>
-                {filters.responseId && (
+                {filters.search && (
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Clear ResponseID search"
+                    aria-label="Clear search"
                     onClick={() => {
-                      setResponseIdDraft("");
-                      patch({ responseId: "" });
+                      setSearchDraft("");
+                      patch({ search: "" });
                     }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 )}
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Searches the whole retained window, ignoring the filters below.
+              </p>
             </div>
+
+            <div>
+              <Label className="text-xs">Scope</Label>
+              <Button
+                variant={filters.bookingsOnly ? "default" : "outline"}
+                size="sm"
+                className="block"
+                onClick={() => patch({ bookingsOnly: !filters.bookingsOnly })}
+              >
+                Bookings only
+              </Button>
+            </div>
+
 
             <div className="w-[190px]">
               <Label className="text-xs">Property</Label>
