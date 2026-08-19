@@ -1001,6 +1001,7 @@ export type Database = {
           calculated_commission: number | null
           cancellation_reason: string | null
           cancellation_reason_category: string | null
+          channel_listing_id: string | null
           charges_breakdown: Json | null
           check_in_date: string
           check_out_date: string
@@ -1096,6 +1097,7 @@ export type Database = {
           calculated_commission?: number | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
+          channel_listing_id?: string | null
           charges_breakdown?: Json | null
           check_in_date: string
           check_out_date: string
@@ -1191,6 +1193,7 @@ export type Database = {
           calculated_commission?: number | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
+          channel_listing_id?: string | null
           charges_breakdown?: Json | null
           check_in_date?: string
           check_out_date?: string
