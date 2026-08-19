@@ -1,0 +1,1 @@
+UPDATE public.ru_call_queue SET status = 'no_op' WHERE status = 'failed' AND last_error ~* 'reservation does not exist|already cancell?ed|no such reservation';
