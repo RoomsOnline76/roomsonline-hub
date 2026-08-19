@@ -160,6 +160,54 @@ export async function resolveRuPropertyId(
   return prop?.rentalsunited_property_id ? String(prop.rentalsunited_property_id) : null;
 }
 
+/**
+ * Outcomes the channel reports that are NOT platform faults:
+ *
+ *  - `no_op`         — the channel has nothing to act on (cancelling a reservation it never held).
+ *                      Recording these as failures produced a permanent red row for work that was
+ *                      already in the desired state.
+ *  - `stale_mapping` — the local unit → listing mapping points at a listing the channel no longer
+ *                      serves. Retrying cannot fix it, so it is logged once per listing per window
+ *                      instead of every minute, with the operator action stored on the run.
+ */
+type RuOutcomeClass = 'delivered' | 'no_op' | 'stale_mapping' | 'error';
+
+function classifyRuOutcome(
+  ok: boolean,
+  code?: string | null,
+  message?: string | null,
+): RuOutcomeClass {
+  if (ok) return 'delivered';
+  const msg = String(message ?? '');
+  if (/reservation does not exist|no such reservation|already cancelled/i.test(msg)) return 'no_op';
+  if ((code ?? '') === 'RU_LISTING_MISSING' || /channel has no listing/i.test(msg)) return 'stale_mapping';
+  return 'error';
+}
+
+/** True when an identical stale-mapping row was already written recently — suppress the duplicate. */
+async function staleMappingAlreadyLogged(
+  supabase: Db,
+  action: string,
+  ruPropertyId: string | null,
+  windowMinutes = 360,
+): Promise<boolean> {
+  if (!ruPropertyId) return false;
+  try {
+    const since = new Date(Date.now() - windowMinutes * 60000).toISOString();
+    const { data } = await supabase
+      .from('ru_sync_runs')
+      .select('id')
+      .eq('action', action)
+      .eq('ru_property_id', ruPropertyId)
+      .eq('success', false)
+      .gte('created_at', since)
+      .limit(1);
+    return Array.isArray(data) && data.length > 0;
+  } catch (_e) {
+    return false;
+  }
+}
+
 async function logRuSyncRun(
   supabase: Db,
   entry: {
@@ -190,6 +238,7 @@ async function logRuSyncRun(
   }
 }
 
+
 async function invokeRu(
   supabase: Db,
   action: string,
@@ -203,9 +252,61 @@ async function invokeRu(
   },
 ): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null }> {
   const startedAt = Date.now();
+  /** Raw channel error payload for the current attempt — makes opaque RU text diagnosable. */
+  let channelError: Record<string, unknown> | null = null;
   const finish = async (
     result: { ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null },
   ) => {
+    const outcome = classifyRuOutcome(result.ok, result.code, result.message);
+
+    // No-ops are the desired end state, not failures: cancelling a reservation the channel never
+    // held leaves nothing to do, so the run is recorded as a successful no-op.
+    if (outcome === 'no_op') {
+      await logRuSyncRun(supabase, {
+        action,
+        propertyId: log?.propertyId ?? null,
+        ruPropertyId: log?.ruPropertyId ?? null,
+        success: true,
+        errorCode: null,
+        errorMessage: null,
+        elapsedMs: Date.now() - startedAt,
+        details: {
+          ...(log?.details ?? {}),
+          trace_id: log?.traceId ?? null,
+          outcome: 'no_op',
+          no_op_reason: 'absent_at_channel',
+          channel_message: result.message ?? null,
+        },
+      });
+      return result;
+    }
+
+    // A stale mapping cannot be retried into health. Log it once per listing per 6h with the
+    // operator action attached, instead of one red row per retry attempt.
+    if (outcome === 'stale_mapping') {
+      const duplicate = await staleMappingAlreadyLogged(supabase, action, log?.ruPropertyId ?? null);
+      if (!duplicate) {
+        await logRuSyncRun(supabase, {
+          action,
+          propertyId: log?.propertyId ?? null,
+          ruPropertyId: log?.ruPropertyId ?? null,
+          success: false,
+          errorCode: result.code ?? 'RU_LISTING_MISSING',
+          errorMessage: result.message ?? null,
+          elapsedMs: Date.now() - startedAt,
+          details: {
+            ...(log?.details ?? {}),
+            trace_id: log?.traceId ?? null,
+            outcome: 'stale_mapping',
+            retry_suppressed: true,
+            action_required: 'Republish this unit to the channel, then resend the stay.',
+            channel_error: channelError,
+          },
+        });
+      }
+      return result;
+    }
+
     await logRuSyncRun(supabase, {
       action,
       propertyId: log?.propertyId ?? null,
@@ -214,7 +315,15 @@ async function invokeRu(
       errorCode: result.code ?? null,
       errorMessage: result.message ?? null,
       elapsedMs: Date.now() - startedAt,
-      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null, deferred: result.deferred === true },
+      details: {
+        ...(log?.details ?? {}),
+        trace_id: log?.traceId ?? null,
+        deferred: result.deferred === true,
+        outcome,
+        // Opaque channel text ("Unexpected error, contact IT or try again") is useless on its own;
+        // keep the verb, the listing and the raw error payload with the run.
+        ...(result.ok ? {} : { channel_error: channelError, channel_verb: action }),
+      },
     });
     return result;
   };
@@ -234,6 +343,11 @@ async function invokeRu(
       ...payload,
     },
   });
+  if (data?.error && typeof data.error === 'object') {
+    channelError = { ...(data.error as Record<string, unknown>), invoke_error: error?.message ?? null };
+  } else if (error) {
+    channelError = { invoke_error: error.message ?? null };
+  }
   if (!error && data?.success) {
     if (data.auth_mode === 'master') {
       return await finish({
@@ -261,6 +375,7 @@ async function invokeRu(
     code: data?.error?.code || 'RU_ERROR',
     message: data?.error?.message || error?.message || 'Unknown Rentals United error',
   });
+
 }
 
 

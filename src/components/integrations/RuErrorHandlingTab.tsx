@@ -20,7 +20,7 @@ interface Props {
   propertyNameById: Map<string, string>;
 }
 
-type Severity = "blocker" | "retryable" | "advisory";
+type Severity = "blocker" | "retryable" | "advisory" | "expected";
 
 interface Classification {
   key: string;
@@ -34,14 +34,53 @@ interface Classification {
 /**
  * Deterministic RU error taxonomy. Every failed `ru_sync_runs` row is mapped to
  * exactly one bucket so operators see cause → automatic handling → manual fix.
+ * Buckets with severity `expected` are refusals or no-ops, not defects: they are
+ * counted separately and never colour the panel red.
  */
 export const classifyRuError = (run: {
   error_code: string | null;
   error_message: string | null;
   http_status: number | null;
+  action?: string | null;
 }): Classification => {
   const msg = (run.error_message ?? "").toLowerCase();
   const code = (run.error_code ?? "").toLowerCase();
+  const action = (run.action ?? "").toLowerCase();
+
+  // ---- Expected states: recorded for the trail, never a fault ----
+  if (
+    action === "wizard_sync_blocked" || code === "wizard_sync_not_ready" ||
+    msg.includes("wizard") && msg.includes("not ready")
+  ) {
+    return {
+      key: "wizard_gate",
+      label: "Wizard gate refused the push",
+      severity: "expected",
+      cause: "The go-live wizard has not cleared this property yet, so no channel call was attempted.",
+      handling: "Refusal only — nothing was sent to the channel and nothing needs retrying.",
+      fix: "Finish the outstanding wizard steps; the push arms itself once the property passes.",
+    };
+  }
+  if (msg.includes("reservation does not exist") || msg.includes("already cancelled") || code === "ru_no_op") {
+    return {
+      key: "no_op",
+      label: "Already in desired state",
+      severity: "expected",
+      cause: "The channel had nothing to act on — typically a cancel for a reservation it never held.",
+      handling: "Treated as a successful no-op: the local and channel states already agree.",
+      fix: "None.",
+    };
+  }
+  if (code === "ru_queued" || msg.includes("queued and will reach the channel")) {
+    return {
+      key: "queued",
+      label: "Queued behind rate limit",
+      severity: "expected",
+      cause: "The identical-call-per-minute rule parked the call in the shared channel queue.",
+      handling: "The queue drain replays the call automatically within a minute.",
+      fix: "None — confirm the follow-up run succeeded if the change is time critical.",
+    };
+  }
 
   if (msg.includes("incorrect login or password") || code === "auth" || run.http_status === 401) {
     return {
@@ -51,6 +90,26 @@ export const classifyRuError = (run: {
       cause: "RU AccessKey / SecretKey missing, rotated, or mismatched between platform secrets and the PMS config.",
       handling: "Run is marked failed immediately — no retry, since retrying a bad credential can lock the account.",
       fix: "Re-enter AccessKey / SecretKey in Admin → Keys, then re-run a manual push to confirm.",
+    };
+  }
+  if (code === "ru_email_in_use" || msg.includes("email in use") || msg.includes("already registered") || msg.includes("login email")) {
+    return {
+      key: "account_conflict",
+      label: "Channel account conflict",
+      severity: "blocker",
+      cause: "The channel already holds an account for this login or contact email, so the sub-account cannot be created.",
+      handling: "Creation stops before any listing is written, so no duplicate account or listing is produced.",
+      fix: "Setup gap, not a code defect: bind the existing sub-account under the master instead of registering a new one.",
+    };
+  }
+  if (code === "ru_master_auth_refused" || msg.includes("master credentials")) {
+    return {
+      key: "master_auth",
+      label: "Refused master-credential write",
+      severity: "blocker",
+      cause: "The channel answered on master credentials for a write that must target the linked sub-user.",
+      handling: "The write is refused rather than applied to the wrong account.",
+      fix: "Bind the property's OwnerID and sub-user keys, then re-run the push.",
     };
   }
   if (code.startsWith("readiness") || msg.includes("readiness") || msg.includes("sync gate")) {
@@ -63,7 +122,7 @@ export const classifyRuError = (run: {
       fix: "Open the property's RU Readiness scorecard and clear every mandatory deficiency, then push again.",
     };
   }
-  if (run.http_status === 429 || msg.includes("rate limit") || msg.includes("too many")) {
+  if (code === "ru_rate_deferred" || run.http_status === 429 || msg.includes("rate limit") || msg.includes("too many")) {
     return {
       key: "rate_limit",
       label: "Rate limited by RU",
@@ -74,8 +133,34 @@ export const classifyRuError = (run: {
     };
   }
   if (
+    code === "ru_listing_missing" || msg.includes("channel has no listing") ||
+    msg.includes("no longer") && msg.includes("listing")
+  ) {
+    return {
+      key: "listing_missing",
+      label: "Listing missing at channel",
+      severity: "blocker",
+      cause: "The local unit → listing mapping points at a listing the channel no longer serves (archived or deleted).",
+      handling: "Retries are suppressed — one row is logged per listing per 6 hours instead of a retry storm.",
+      fix: "Republish the unit to the channel to mint a fresh listing ID, then resend the stay.",
+    };
+  }
+  if (
+    code.includes("edge") || msg.includes("failed to send a request") || msg.includes("edge function") ||
+    msg.includes("non-2xx status code")
+  ) {
+    return {
+      key: "edge_transport",
+      label: "Platform transport failure",
+      severity: "retryable",
+      cause: "The call never reached the channel — the edge invocation itself failed (cold start, timeout, boot error).",
+      handling: "Logged with the raw invoke error and left for the next cadence run; all jobs are idempotent.",
+      fix: "Re-run the action manually if the next scheduled run has not already cleared it.",
+    };
+  }
+  if (
     msg.includes("timeout") || msg.includes("aborted") || msg.includes("network") ||
-    msg.includes("returned http") || msg.includes("non-2xx") || msg.includes("fetch failed") ||
+    msg.includes("returned http") || msg.includes("fetch failed") ||
     (run.http_status ?? 0) >= 500
   ) {
     return {
@@ -107,6 +192,16 @@ export const classifyRuError = (run: {
       fix: "Run a full content push (PutProperty) first to create the RU listing and capture its RUID.",
     };
   }
+  if (msg.includes("unexpected error") || msg.includes("contact it")) {
+    return {
+      key: "channel_opaque",
+      label: "Opaque channel error",
+      severity: "retryable",
+      cause: "The channel returned a generic error without naming the offending field.",
+      handling: "The verb, listing ID and raw channel payload are captured on the run so the call can be replayed.",
+      fix: "Open Run detail, replay the captured payload, and quote the trace ID to the channel if it repeats.",
+    };
+  }
   return {
     key: "other",
     label: "Unclassified failure",
@@ -121,7 +216,17 @@ const severityBadge: Record<Severity, { label: string; className: string }> = {
   blocker: { label: "Blocker", className: "bg-destructive/10 text-destructive border-destructive/30" },
   retryable: { label: "Self-healing", className: "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400" },
   advisory: { label: "Advisory", className: "bg-muted text-muted-foreground border-border" },
+  expected: { label: "Expected state", className: "bg-muted text-muted-foreground border-border" },
 };
+
+/** Recency chip so a cleared pattern is not read as an ongoing incident. */
+const activityChip = (iso: string): { label: string; className: string } => {
+  const hours = (Date.now() - new Date(iso).getTime()) / 3600000;
+  if (hours <= 6) return { label: "Active", className: "bg-destructive/10 text-destructive border-destructive/30" };
+  if (hours <= 48) return { label: "Cooling", className: "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400" };
+  return { label: "Cleared", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" };
+};
+
 
 const WIRING = [
   {
@@ -159,7 +264,7 @@ const WIRING = [
 export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
   const failures = useMemo(() => runs.filter((r) => !r.success), [runs]);
 
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const map = new Map<string, { cls: Classification; count: number; last: RuErrorRun }>();
     failures.forEach((r) => {
       const cls = classifyRuError(r);
@@ -174,15 +279,21 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [failures]);
 
+  // Refusals and no-ops are recorded for the audit trail but are not defects.
+  const groups = useMemo(() => allGroups.filter((g) => g.cls.severity !== "expected"), [allGroups]);
+  const expectedGroups = useMemo(() => allGroups.filter((g) => g.cls.severity === "expected"), [allGroups]);
+  const expectedCount = expectedGroups.reduce((s, g) => s + g.count, 0);
+  const faultCount = groups.reduce((s, g) => s + g.count, 0);
+
   const blockers = groups.filter((g) => g.cls.severity === "blocker").reduce((s, g) => s + g.count, 0);
   const selfHealing = groups.filter((g) => g.cls.severity === "retryable").reduce((s, g) => s + g.count, 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Failures (7d)</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-semibold">{failures.length}</div></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Faults (7d)</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-semibold">{faultCount}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Need manual fix</CardTitle></CardHeader>
@@ -192,13 +303,23 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Self-healing</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-semibold text-amber-600 dark:text-amber-400">{selfHealing}</div></CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Expected states</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{expectedCount}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Wizard refusals, queued calls and no-ops — excluded from faults.</p>
+          </CardContent>
+        </Card>
       </div>
+
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bug className="h-4 w-4" />Live error taxonomy (last 7 days)</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Each failed sync run is classified into one bucket: what caused it, what the platform does automatically, and what you must do.
+            Each faulty sync run is classified into one bucket: what caused it, what the platform does automatically, and what you
+            must do. The activity chip says whether the pattern is still happening (Active, last 6h), settling (Cooling, last 48h)
+            or already gone (Cleared).
           </p>
         </CardHeader>
         <CardContent>
@@ -216,11 +337,15 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
             <TableBody>
               {groups.map(({ cls, count, last }) => {
                 const badge = severityBadge[cls.severity];
+                const activity = activityChip(last.created_at);
                 return (
                   <TableRow key={cls.key} className="align-top">
                     <TableCell>
                       <div className="font-medium text-sm">{cls.label}</div>
-                      <Badge variant="outline" className={`mt-1 text-[10px] ${badge.className}`}>{badge.label}</Badge>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        <Badge variant="outline" className={`text-[10px] ${badge.className}`}>{badge.label}</Badge>
+                        <Badge variant="outline" className={`text-[10px] ${activity.className}`}>{activity.label}</Badge>
+                      </div>
                     </TableCell>
                     <TableCell className="font-semibold">{count}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[240px]">{cls.cause}</TableCell>
@@ -239,10 +364,11 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
               {groups.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    No failed sync runs in the last 7 days.
+                    No faulty sync runs in the last 7 days.
                   </TableCell>
                 </TableRow>
               )}
+
             </TableBody>
           </Table>
         </CardContent>
