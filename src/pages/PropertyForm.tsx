@@ -68,6 +68,8 @@ import { runAutoShare } from "@/lib/portfolioCommons";
 import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
 import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
+import { deriveChangedChannelFields } from "@/lib/channelPushFields";
+import { pushChangedChannelFields } from "@/lib/channelSavePush";
 
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
