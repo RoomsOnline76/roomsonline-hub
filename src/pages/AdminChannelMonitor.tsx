@@ -491,7 +491,15 @@ export default function AdminChannelMonitor() {
                     )}
                   >
                     <span className="block text-sm font-medium">{item.title}</span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    <span
+                      className={cn(
+                        "mt-1 inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        CHIP_TONE[railChips[item.key].tone],
+                      )}
+                    >
+                      {railChips[item.key].label}
+                    </span>
+                    <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                       {item.tests}
                     </span>
                   </button>
