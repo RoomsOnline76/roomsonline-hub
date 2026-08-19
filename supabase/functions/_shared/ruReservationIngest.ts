@@ -27,6 +27,7 @@ import {
   extractAllBlocks,
   extractTag,
   parseRuReservation,
+  releaseChannelBlocksForBooking,
   resolveRuUnit,
   type ParsedRuReservation,
   type ResolvedRuUnit,
