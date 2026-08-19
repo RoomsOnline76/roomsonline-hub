@@ -301,7 +301,7 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
-    if (rejected.ok) return { ok: true, method: 'reject_request' };
+    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request' };
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
@@ -310,7 +310,7 @@ export async function cancelRuReservation(
       ...auth,
     }, logCtx);
     return cancelled.ok
-      ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation' }
+      ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation' }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
   }
 
