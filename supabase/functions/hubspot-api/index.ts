@@ -547,15 +547,94 @@ Deno.serve(async (req) => {
         const active = await requireActive();
         if (active instanceof Response) return active;
 
-        // Soft sync: verify the token and confirm the portal is reachable.
+        // Soft sync: verify the portal, then push the owner's properties as
+        // companies and their recent reservations as contacts + deals.
         const probe = await hubspot(active.token, "/crm/v3/objects/companies?limit=1");
         if (!probe.ok) {
           await markSync("error", `Sync failed (${probe.status})`);
           return fail("HubSpot sync failed", probe.status, { details: probe.body });
         }
+
+        const { data: links } = await admin
+          .from("property_owners")
+          .select("property_id")
+          .eq("user_id", ownerId);
+        const propertyIds = (links || []).map((l: { property_id: string }) => l.property_id);
+
+        let companies = 0;
+        let contacts = 0;
+        let deals = 0;
+
+        if (propertyIds.length) {
+          const { data: props } = await admin
+            .from("properties")
+            .select("id, name, city, country")
+            .in("id", propertyIds)
+            .eq("is_active", true);
+
+          for (const p of (props || []) as Array<{ id: string; name: string; city: string | null; country: string | null }>) {
+            const res = await hubspot(active.token, "/crm/v3/objects/companies", {
+              method: "POST",
+              body: JSON.stringify({
+                properties: {
+                  name: p.name,
+                  ...(p.city ? { city: p.city } : {}),
+                  ...(p.country ? { country: p.country } : {}),
+                },
+              }),
+            });
+            if (res.ok) companies += 1;
+          }
+
+          const { data: bookings } = await admin
+            .from("bookings")
+            .select("id, guest_name, guest_email, guest_phone, total_price, status, check_out_date, booking_reference")
+            .in("property_id", propertyIds)
+            .order("created_at", { ascending: false })
+            .limit(50);
+
+          for (const b of (bookings || []) as Array<Record<string, unknown>>) {
+            const email = (b.guest_email as string | null)?.trim();
+            const name = ((b.guest_name as string | null) || "").trim();
+            const parts = name.split(/\s+/);
+            if (email) {
+              const res = await hubspot(active.token, "/crm/v3/objects/contacts", {
+                method: "POST",
+                body: JSON.stringify({
+                  properties: {
+                    email,
+                    ...(parts[0] ? { firstname: parts[0] } : {}),
+                    ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
+                    ...(b.guest_phone ? { phone: b.guest_phone } : {}),
+                  },
+                }),
+              });
+              if (res.ok) contacts += 1;
+            }
+
+            const label = (b.booking_reference as string | null) || (b.id as string);
+            const res = await hubspot(active.token, "/crm/v3/objects/deals", {
+              method: "POST",
+              body: JSON.stringify({
+                properties: {
+                  dealname: `${label}${name ? ` · ${name}` : ""}`,
+                  pipeline: (active.config.pipeline_id as string) || "default",
+                  dealstage: resolveStage(b.status as string | undefined, active.config),
+                  ...(b.total_price != null ? { amount: String(b.total_price) } : {}),
+                  ...(b.check_out_date
+                    ? { closedate: new Date(b.check_out_date as string).toISOString() }
+                    : {}),
+                },
+              }),
+            });
+            if (res.ok) deals += 1;
+          }
+        }
+
         await markSync("ok");
-        return ok({ synced: true, status: probe.status });
+        return ok({ synced: true, companies, contacts, deals, properties: propertyIds.length });
       }
+
     }
 
     return fail(`Unknown action: ${body.action}`, 400);
