@@ -1758,13 +1758,13 @@ export default function PMSDashboard() {
       toast.success("Reservation moved");
       refreshBookingQueries();
       // Both the vacated and the newly sold room type need re-pushing upstream.
-      if (roomsChanged || roomTypeChanged || datesChanged) {
+      if (roomsChanged || typeChanged || roomTypeChanged || datesChanged) {
         void queueChannelRatesSync(booking.property_id || propertyId, "booking_moved", { force: true });
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not move the reservation");
     }
-  }, [refreshBookingQueries, propertyId]);
+  }, [refreshBookingQueries, propertyId, rooms]);
 
 
   const displayName = isPortfolioMode ? (portfolioName || "Portfolio") : (brandName || propertyData?.name || "");
