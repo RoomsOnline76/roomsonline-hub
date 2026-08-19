@@ -123,9 +123,10 @@ export function RuMcqReportPanel() {
             <ClipboardCheck className="h-4 w-4" /> Content quality (MCQ)
           </CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
-            Rentals United requires a minimum content quality check on every listing before channel
-            onboarding. Results arrive asynchronously as LNM notifications.
+            One row per unit currently published to the channel. Every listing needs a minimum
+            content quality check before go-live; results arrive asynchronously.
           </p>
+
         </div>
         <div className="flex shrink-0 gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
@@ -154,7 +155,7 @@ export function RuMcqReportPanel() {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No published listings to check yet.</p>
+          <p className="text-sm text-muted-foreground">Nothing is published to the channel yet.</p>
         ) : (
           <div className="space-y-2">
             {rows.map((row) => (
