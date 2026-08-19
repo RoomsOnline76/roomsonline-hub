@@ -562,7 +562,7 @@ Deno.serve(async (req) => {
         }
       }
     } else if (pmsContext?.propertyId) {
-      systemPrompt = PMS_SYSTEM_PROMPT;
+      systemPrompt = PMS_SYSTEM_PROMPT + HUBSPOT_KNOWLEDGE;
 
       const propertyId = pmsContext.propertyId;
       const portfolioPropertyIds: string[] | undefined = pmsContext.portfolioPropertyIds;
