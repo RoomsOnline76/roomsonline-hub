@@ -2308,6 +2308,8 @@ export default function PropertyForm({
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
           persistedOwnerEmailRef.current = String(data.owner_email || "").trim().toLowerCase();
+          loadedPropertyRowRef.current = data as unknown as Record<string, unknown>;
+
 
           // Check if Experience Engine is enabled
           supabase
