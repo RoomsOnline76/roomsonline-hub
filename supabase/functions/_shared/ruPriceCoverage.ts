@@ -152,8 +152,14 @@ export async function auditChannelPriceCoverage(
   result.channel_zero_priced_days = zeroPriced;
 
   // First missing night and how long the gap runs.
+  let lastMissingIndex = -1;
+  let firstMissingIndex = -1;
   for (let i = 0; i < days; i++) {
     const iso = addDays(from, i);
+    if (!priced.has(iso)) {
+      if (firstMissingIndex < 0) firstMissingIndex = i;
+      lastMissingIndex = i;
+    }
     if (priced.has(iso)) {
       if (result.first_gap_date) break;
       continue;
@@ -162,7 +168,13 @@ export async function auditChannelPriceCoverage(
     result.gap_length += 1;
   }
 
-  const channelComplete = result.channel_priced_days >= days;
+  // The channel's own year rolls a few nights behind ours: rates are held to the end of the last
+  // authored season, so the final handful of nights in a 365-day window are routinely unpriced with
+  // nothing wrong locally. Treating that tail as a gap made the wizard warning impossible to clear —
+  // a re-check would pass the read and still paint amber. Only real gaps inside the window count.
+  const tailOnly =
+    firstMissingIndex >= 0 && firstMissingIndex >= days - TAIL_TOLERANCE_DAYS && lastMissingIndex === days - 1;
+  const channelComplete = result.channel_priced_days >= days || tailOnly;
 
   // Local truth: only consulted when the channel is short, because a complete channel year needs
   // no repair regardless of how ROL'OS authored it.
