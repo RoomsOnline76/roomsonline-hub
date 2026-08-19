@@ -939,7 +939,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         .from("property_onboarding_roadmap")
         .upsert({ property_id: propertyId, roadmap: next as never }, { onConflict: "property_id" });
       if (error) throw error;
+      // Phase 2 ledger — the manual verification checklist moved; nothing else did.
+      void markChannelStepsStale(propertyId, ["signoff"]);
       await refresh();
+
     },
     [d?.roadmap, propertyId, refresh],
   );
