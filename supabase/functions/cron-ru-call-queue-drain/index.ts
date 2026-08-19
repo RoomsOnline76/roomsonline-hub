@@ -119,15 +119,17 @@ Deno.serve(async (req) => {
         .eq('id', row.id);
     } else {
       const deferred = isDeferral(failure);
-      const giveUp = !deferred && (isPermanent(failure) || row.attempts >= row.max_attempts);
-      if (giveUp) summary.failed++;
+      const noOp = !deferred && isNoOp(failure);
+      const giveUp = !deferred && !noOp && (isPermanent(failure) || row.attempts >= row.max_attempts);
+      if (noOp) summary.noOp++;
+      else if (giveUp) summary.failed++;
       else summary.requeued++;
       await supabase
         .from('ru_call_queue')
         .update({
-          status: giveUp ? 'failed' : 'pending',
+          status: noOp ? 'no_op' : giveUp ? 'failed' : 'pending',
           last_error: failure,
-          completed_at: giveUp ? nowIso : null,
+          completed_at: noOp || giveUp ? nowIso : null,
           claimed_at: null,
           not_before: new Date(
             Date.now() + (deferred ? 65_000 : BACKOFF_MS[Math.min(row.attempts, BACKOFF_MS.length) - 1] ?? 60_000),
