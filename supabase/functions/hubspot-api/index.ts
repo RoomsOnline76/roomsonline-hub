@@ -51,6 +51,7 @@ const requestSchema = z.object({
       lastname: z.string().trim().max(120).optional(),
       phone: z.string().trim().max(64).optional(),
       country: z.string().trim().max(120).optional(),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
     })
     .optional(),
   deal: z
@@ -62,9 +63,14 @@ const requestSchema = z.object({
       status: z.string().trim().max(64).optional(),
       closedate: z.string().trim().max(40).optional(),
       contact_email: z.string().email().max(255).optional(),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
     })
     .optional(),
+  /** Delta sweep window for `sync_owner` — ISO timestamp. */
+  since: z.string().trim().max(40).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
 });
+
 
 type Json = Record<string, unknown>;
 
