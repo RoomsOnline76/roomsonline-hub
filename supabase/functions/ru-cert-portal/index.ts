@@ -5149,27 +5149,20 @@ Deno.serve(async (req) => {
       let ownerName: string = body.owner_name ?? "";
 
       // Logins Rentals United already holds outside our master account can never become
-      // a sub-user login: RU answers "Email already exists." (status 95) and the address
-      // is invisible in Pull_ListMyUsers, so it can never be adopted either. That covers
-      // the shared platform mailboxes, the RU master/portal login itself, and every
-      // retired test sub-account login (which must never be reused or read).
+      // a sub-user login: RU answers "Email already exists." (status 95) and the address is
+      // invisible in Pull_ListMyUsers, so it can never be adopted either — the create call
+      // dead-ends on a 409 forever. `connect@` is the RU master/portal login itself, so it
+      // is reserved alongside the shared platform mailboxes. Retired sub-account logins are
+      // NOT reserved here: some (rooms@) are also the live portfolio distribution login.
       const INTERNAL_LOGIN_PREFIXES = ["dev@", "noreply@", "no-reply@"];
-      const reservedLogins = new Set<string>(["connect@roomsonline.co.za"]);
-      {
-        const { data: retiredRows } = await admin
-          .from("ru_retired_accounts")
-          .select("portal_email");
-        for (const r of ((retiredRows ?? []) as any[])) {
-          const e = String(r?.portal_email ?? "").trim().toLowerCase();
-          if (e) reservedLogins.add(e);
-        }
-      }
+      const RESERVED_LOGIN_EMAILS = new Set<string>(["connect@roomsonline.co.za"]);
       const isInternalLogin = (email: string | null | undefined) => {
         const e = String(email ?? "").trim().toLowerCase();
         if (!e) return true;
-        if (reservedLogins.has(e)) return true;
+        if (RESERVED_LOGIN_EMAILS.has(e)) return true;
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
+
 
 
 
