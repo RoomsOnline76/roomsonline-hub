@@ -232,7 +232,16 @@ export const CHANNEL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = [
   "company_profile",
   "keys",
   "push_owner",
+  "connect",
 ];
+
+/**
+ * Steps decided entirely from ROL'OS data — the only class the background drain
+ * re-checks, and the class the wizard's own Refresh button covers.
+ */
+export const LOCAL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = CHANNEL_LEDGER_STEP_KEYS.filter(
+  (key) => !CHANNEL_CLASS_LEDGER_STEPS.includes(key),
+);
 
 async function invokeLedger(body: Record<string, unknown>): Promise<ChannelLedgerSnapshot | null> {
   try {
