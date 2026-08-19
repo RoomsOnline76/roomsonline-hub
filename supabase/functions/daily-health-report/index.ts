@@ -28,7 +28,9 @@ async function generateAIDigest(
     recovered: Array<{ action: string; last_failure_at: string | null }>;
     top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
     rate_deferrals: number;
-    setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+    setup_gaps: Array<{ reason: string; count: number; properties: string[]; kind?: 'setup' | 'account' }>;
+    reconciled: Array<{ reason: string; count: number }>;
+
     blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
     blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
   } | null,
@@ -53,7 +55,9 @@ Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
 Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.action}: ${e.code} ×${e.count}${e.recovered ? ' (recovered)' : ''} — ${e.sample}`).join('; ') : 'None'}
 Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
-Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Waiting on owner setup / account reconciliation (operational, NOT code defects — never call these bugs): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.kind === 'account' ? '[account conflict] ' : ''}${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Account conflicts RECENTLY RECONCILED (successes to note, do NOT recommend work): ${channelHealth.reconciled.length > 0 ? channelHealth.reconciled.map(r => `${r.reason} (stopped occurring)`).join('; ') : 'None'}
+
 Wizard-gate refusals STILL outstanding (work genuinely needed): ${channelHealth.blocked_outstanding.length > 0 ? channelHealth.blocked_outstanding.map(b => `${b.blocker} ×${b.count}${b.properties.length > 0 ? ` (${b.properties.join(', ')})` : ''}`).join('; ') : 'None'}
 Wizard-gate refusals ALREADY CLEARED (do NOT recommend these): ${channelHealth.blocked_cleared.length > 0 ? channelHealth.blocked_cleared.map(b => `${b.blocker}${b.cleared_at ? ` cleared ${b.cleared_at}` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
 
@@ -191,8 +195,14 @@ interface RuWlMetrics {
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
   rate_deferrals: number;
-  /** Owner-configuration gaps (no distribution account, no owner email, listing unmapped). */
-  setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+  /**
+   * Owner-configuration gaps (no distribution account, no owner email, listing unmapped) and
+   * account reconciliation conflicts (login already registered, listing owned elsewhere).
+   */
+  setup_gaps: Array<{ reason: string; count: number; properties: string[]; kind: 'setup' | 'account' }>;
+  /** Account conflicts seen in the previous window that have stopped appearing — cleared wins. */
+  reconciled: Array<{ reason: string; count: number }>;
+
   /** Background call queue: work parked by the rate gate and replayed by the drainer. */
   call_queue: { waiting: number; oldest_waiting_minutes: number | null; drained_24h: number; gave_up: number };
 }
@@ -221,8 +231,20 @@ const isSetupGap = (r: RunLike): boolean =>
   ['RU_LNM_OWNER_UNPROVISIONED', 'RU_LNM_NO_OWNERS'].includes(
     String((r as { error_code?: string | null }).error_code ?? ''),
   );
+/**
+ * Account-level registration / ownership conflicts (a login already registered on the channel,
+ * a listing owned by another account) are operational reconciliation work, not code defects.
+ * They are bucketed with setup gaps so a permanent conflict never turns a pipeline red.
+ */
+const isAccountConflict = (r: RunLike): boolean =>
+  /account registration conflict|already registered|email already in use|email in use|login already exists|user already exists|belongs to (another|a different) (account|owner|user)|owned by (another|a different) (account|owner|user)|ownership conflict|master account conflict|duplicate (account|sub-user)/i
+    .test(r.error_message ?? '') ||
+  ['RU_EMAIL_IN_USE', 'RU_ACCOUNT_CONFLICT', 'RU_LOGIN_IN_USE'].includes(
+    String((r as { error_code?: string | null }).error_code ?? ''),
+  );
 
-
+/** Neither a defect nor an outage: owner setup work or account reconciliation work. */
+const isNonFault = (r: RunLike): boolean => isSetupGap(r) || isAccountConflict(r);
 
 /**
  * Refusal records are audit evidence, not pipelines: `phase_blocked` only ever writes
@@ -235,7 +257,8 @@ const isRefusalRecord = (r: { action?: string | null }): boolean =>
   REFUSAL_ACTIONS.has(String(r.action ?? ''));
 
 const isPipelineFailure = (r: RunLike): boolean =>
-  r.success === false && !isRateDeferral(r) && !isSetupGap(r);
+  r.success === false && !isRateDeferral(r) && !isNonFault(r);
+
 
 const RU_PRIORITY_ACTIONS = [
   'push_reservation',
@@ -323,6 +346,33 @@ interface InactiveComponent {
   component_type: string;
 }
 
+/**
+ * Single source of truth for the report headline. A failing sync pipeline is a real outage even
+ * when every component probe is green, so both the email body strip AND the subject line derive
+ * from this — the subject must never read "All Systems Operational" while the body says otherwise.
+ */
+function computeEffectiveStatus(
+  overallStatus: string,
+  ruWl: RuWlMetrics | null,
+  criticalCount = 0,
+): { status: string; label: string; failingActions: string[] } {
+  const failingActions = (ruWl?.actions ?? []).filter(a => a.current_ok === false).map(a => a.action);
+  const pipelineFailing = failingActions.length > 0;
+  const status = overallStatus === 'failed' || criticalCount > 0
+    ? 'failed'
+    : pipelineFailing || overallStatus === 'degraded'
+      ? 'degraded'
+      : overallStatus;
+  const label = status === 'healthy'
+    ? 'All Systems Operational'
+    : status === 'degraded'
+      ? pipelineFailing
+        ? `Degraded — ${failingActions.join(', ')} failing`
+        : 'Some Issues Detected'
+      : 'Critical Issues';
+  return { status, label, failingActions };
+}
+
 function generateEmailHtml(
   date: string,
   generatedAt: string,
@@ -339,23 +389,9 @@ function generateEmailHtml(
   devTasks: DevTask[],
   ruWl: RuWlMetrics | null
 ): string {
-  // A failing sync pipeline is a real outage even when every component probe is green — the
-  // headline must never read "All Systems Operational" while the channel strip says "Failing".
-  const failingPipelines = (ruWl?.actions ?? []).filter(a => a.current_ok === false);
-  const pipelineFailing = failingPipelines.length > 0;
-  const effectiveStatus = overallStatus === 'failed'
-    ? 'failed'
-    : pipelineFailing || overallStatus === 'degraded'
-      ? 'degraded'
-      : overallStatus;
+  const { status: effectiveStatus, label: overallStatusLabel } = computeEffectiveStatus(overallStatus, ruWl);
   const overallStatusColor = getStatusColor(effectiveStatus);
-  const overallStatusLabel = effectiveStatus === 'healthy'
-    ? 'All Systems Operational'
-    : effectiveStatus === 'degraded'
-      ? pipelineFailing
-        ? `Degraded — ${failingPipelines.map(a => a.action).join(', ')} failing`
-        : 'Some Issues Detected'
-      : 'Critical Issues';
+
 
   const card = 'background-color:#ffffff;border:1px solid #e5e7eb;border-radius:8px;';
   const h3 = 'margin:0 0 8px 0;font-size:15px;font-weight:600;color:#111827;';
@@ -416,13 +452,15 @@ function generateEmailHtml(
         Background call queue: ${ruWl.call_queue.waiting} waiting${ruWl.call_queue.oldest_waiting_minutes !== null ? ` (oldest ${ruWl.call_queue.oldest_waiting_minutes} min)` : ''},
         ${ruWl.call_queue.drained_24h} completed in 24h${ruWl.call_queue.gave_up > 0 ? `, ${ruWl.call_queue.gave_up} gave up after all retries` : ''}. Queued work is pending, not failed.
       </p>` : ''}
-      ${ruWl.setup_gaps.length > 0 ? `
+      ${(ruWl.setup_gaps.length > 0 || ruWl.reconciled.length > 0) ? `
       <div style="margin-top:10px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;">
-        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup (not a fault)</strong>
+        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup / account reconciliation (not a fault)</strong>
         <ul style="margin:6px 0 0 0;padding-left:18px;color:#78350f;font-size:12px;">
-          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.kind === 'account' ? '<em>Account conflict</em> — ' : ''}${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.reconciled.map(r => `<li style="margin-bottom:3px;color:#15803d;">Reconciled — ${r.reason} (no longer occurring)</li>`).join('')}
         </ul>
       </div>` : ''}
+
       ${(ruWl.blocked.outstanding.length > 0 || ruWl.blocked.cleared.length > 0) ? `
       <div style="margin-top:10px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#334155;">Pushes refused by the Channel wizard gate (not pipeline errors)</strong>
@@ -922,7 +960,17 @@ Deno.serve(async (req) => {
         supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
       ]);
 
+      // Previous window (48h → 24h ago): used only to celebrate conflicts that have stopped.
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
+      const { data: priorRuns } = await supabase
+        .from('ru_sync_runs')
+        .select('success, error_code, error_message')
+        .gte('created_at', fortyEightHoursAgo.toISOString())
+        .lt('created_at', twentyFourHoursAgo.toISOString())
+        .limit(5000);
+
       const allRuns = syncRuns || [];
+
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
       const refusalRuns = allRuns.filter(isRefusalRecord);
@@ -965,12 +1013,13 @@ Deno.serve(async (req) => {
         .slice(0, 8);
 
       const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
-      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isSetupGap(r));
+      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isNonFault(r));
 
-      const gapCounts = new Map<string, { count: number; propertyIds: Set<string> }>();
+      const gapCounts = new Map<string, { count: number; propertyIds: Set<string>; kind: 'setup' | 'account' }>();
       for (const r of setupGapRuns) {
         const reason = (r.error_message || 'Setup incomplete').slice(0, 120);
-        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>() };
+        const kind: 'setup' | 'account' = isAccountConflict(r) ? 'account' : 'setup';
+        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>(), kind };
         entry.count += 1;
         const pid = (r as { property_id?: string | null }).property_id;
         if (pid) entry.propertyIds.add(pid);
@@ -989,10 +1038,31 @@ Deno.serve(async (req) => {
         .map(([reason, v]) => ({
           reason,
           count: v.count,
+          kind: v.kind,
           properties: [...v.propertyIds].map(id => gapNames.get(id) ?? id.slice(0, 8)).slice(0, 6),
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
+
+      /**
+       * Conflicts that were happening in the previous window and have stopped: the reconciliation
+       * worked, so the report says so instead of silently dropping the line.
+       */
+      const currentConflictReasons = new Set(
+        setupGapRuns.filter(isAccountConflict).map(r => (r.error_message || '').slice(0, 120)),
+      );
+      const priorConflictCounts = new Map<string, number>();
+      for (const r of priorRuns ?? []) {
+        if (r.success !== false || !isAccountConflict(r)) continue;
+        const reason = (r.error_message || 'Account conflict').slice(0, 120);
+        if (currentConflictReasons.has(reason)) continue;
+        priorConflictCounts.set(reason, (priorConflictCounts.get(reason) ?? 0) + 1);
+      }
+      const reconciled = [...priorConflictCounts.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
 
 
       /**
@@ -1191,6 +1261,8 @@ Deno.serve(async (req) => {
         distribution_accounts: ownerCount ?? 0,
         blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
+        reconciled,
+
         call_queue: {
           waiting: waitingRows.length,
           oldest_waiting_minutes: oldestWaiting,
@@ -1228,6 +1300,8 @@ Deno.serve(async (req) => {
             top_errors: ruWl.top_errors,
             rate_deferrals: ruWl.rate_deferrals,
             setup_gaps: ruWl.setup_gaps,
+            reconciled: ruWl.reconciled,
+
             blocked_outstanding: ruWl.blocked.outstanding,
             blocked_cleared: ruWl.blocked.cleared,
 
@@ -1256,15 +1330,21 @@ Deno.serve(async (req) => {
     );
 
 
-    // Determine subject line
+    // Subject derives from the SAME effective status the body header shows — never "All Systems
+    // Operational" while a channel pipeline is failing.
+    const effective = computeEffectiveStatus(overallStatus, ruWl, criticalIssues.length);
     let subject: string;
-    if (criticalIssues.length > 0) {
-      subject = `🚨 ROL System Health Report - CRITICAL ISSUES - ${formatDate(now)}`;
-    } else if (failedCount > 0) {
-      subject = `⚠️ ROL System Health Report - ${failedCount} Issues Detected - ${formatDate(now)}`;
+    if (effective.status === 'failed') {
+      subject = `🚨 ROL System Health Report - ${criticalIssues.length > 0 ? 'CRITICAL ISSUES' : effective.label} - ${formatDate(now)}`;
+    } else if (effective.status === 'degraded') {
+      const detail = effective.failingActions.length > 0
+        ? effective.label
+        : `Degraded — ${failedCount} issue(s) detected`;
+      subject = `⚠️ ROL System Health Report - ${detail} - ${formatDate(now)}`;
     } else {
       subject = `✅ ROL System Health Report - All Systems Operational - ${formatDate(now)}`;
     }
+
 
     // Fetch sender email from api_keys (same pattern as booking emails)
     const { data: emailConfig } = await supabase
