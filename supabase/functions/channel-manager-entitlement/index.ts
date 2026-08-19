@@ -290,6 +290,33 @@ async function pullOwnerListings(
 }
 
 /**
+ * A blank account read used to be treated as "unverified" forever, which made the
+ * last listing on an account impossible to clean up: the removal succeeded, the
+ * account then legitimately answered empty, and every retry refused to run.
+ * An empty answer is only trusted when two consecutive successful reads agree.
+ */
+async function pullOwnerListingsConfirmed(
+  admin: ReturnType<typeof createClient>,
+  ownerId: string,
+  ctx: ChannelLogCtx,
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean; confirmedEmpty: boolean }> {
+  const first = await pullOwnerListings(admin, ownerId, ctx);
+  if (first.error) return { ...first, confirmedEmpty: false };
+  if (first.listings.length > 0) return { ...first, confirmedEmpty: false };
+  const second = await pullOwnerListings(admin, ownerId, ctx);
+  if (second.error) {
+    return {
+      listings: [],
+      error: `The channel account answered with no listings — the confirming read could not be completed (${second.error})`,
+      deferred: second.deferred,
+      confirmedEmpty: false,
+    };
+  }
+  if (second.listings.length > 0) return { ...second, confirmedEmpty: false };
+  return { listings: [], error: null, deferred: false, confirmedEmpty: true };
+}
+
+/**
  * Is this listing id still returned by the account? Archived listings stay in
  * the feed, so "present" here means present in any form — that is the state a
  * cleanup has to actually change.
@@ -299,17 +326,14 @@ async function verifyListingPresence(
   args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
 ): Promise<{ present: boolean | null; archived: boolean; error: string | null; deferred?: boolean }> {
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
-  const { listings, error, deferred } = await pullOwnerListings(admin, args.ownerId, args.ctx);
+  const { listings, error, deferred } = await pullOwnerListingsConfirmed(admin, args.ownerId, args.ctx);
   if (error) return { present: null, archived: false, error, deferred };
-  // An empty answer is not evidence a listing was removed — treat it as unread so
-  // a local id is never released on the back of a blank read.
+  // Two agreeing successful reads: the account really holds nothing, so the
+  // listing is genuinely absent and the local id can be released.
   if (listings.length === 0) {
-    return {
-      present: null,
-      archived: false,
-      error: "The channel account answered with no listings at all — nothing was verified, try again shortly",
-    };
+    return { present: false, archived: false, error: null, deferred: false };
   }
+
   const hit = listings.find((l) => String(l.id) === args.listingId);
   // RU never hard-deletes: a removed listing stays in the feed either flagged
   // archived (NLA) or simply switched inactive (Active="false"). Both mean it
@@ -742,22 +766,28 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const listings = res.properties || [];
+        let listings = res.properties || [];
         // Only bound accounts are expected to hold ROL'OS ids; an empty answer
-        // from one of those while local records still point somewhere is not proof.
+        // from one of those while local records still point somewhere is checked
+        // twice before it is believed — but once two reads agree, the account
+        // really is empty and those local ids are stale (clearable), not
+        // unverifiable forever.
         const localIdsHeld = bound ? localRecords.size : 0;
         if (listings.length === 0 && localIdsHeld > 0) {
-          // The account answered, but empty, while ROL'OS holds ids against it.
-          // That is unverifiable, not proof of removal.
-          accountResults.push({
-            ...base,
-            listing_count: 0,
-            read: false,
-            deferred: false,
-            error: `Unverifiable — the account answered empty while ${localIdsHeld} local listing id(s) point at it`,
-          });
-          continue;
+          const confirm = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-reconcile:confirm_empty"));
+          if (confirm.error) {
+            accountResults.push({
+              ...base,
+              listing_count: 0,
+              read: false,
+              deferred: confirm.deferred === true,
+              error: `Unverifiable — the account answered empty and the confirming read failed (${confirm.error})`,
+            });
+            continue;
+          }
+          listings = confirm.listings;
         }
+
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
           ...base,
@@ -1363,18 +1393,20 @@ Deno.serve(async (req) => {
       const startedAt = Date.now();
       const BUDGET_MS = 12 * 60 * 1000;
 
-      // 1. One presence read for the whole run.
-      const snapshot = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
+      // 1. One presence read for the whole run (empty answers confirmed twice).
+      const snapshot = await pullOwnerListingsConfirmed(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
       if (snapshot.error) {
         return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
       }
-      // A blank account read is unverified, not empty. Removing/releasing against it
-      // would delete the account's real inventory, so the batch refuses to run.
-      if (snapshot.listings.length === 0) {
+      // A single blank read is unverified — but two agreeing reads mean the account
+      // genuinely holds nothing, so every target is already gone and its local id
+      // can be released instead of the run refusing forever.
+      if (snapshot.listings.length === 0 && !snapshot.confirmedEmpty) {
         return deferred(
           "The channel account answered with no listings at all — nothing was verified, so no cleanup was run",
         );
       }
+
       const heldNow = new Map<string, boolean>(); // listing id → still sellable
       for (const l of snapshot.listings) {
         heldNow.set(String(l.id), !(l.is_archived === true || l.is_active === false));
