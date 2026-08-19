@@ -61,6 +61,8 @@ export interface RoomPlanUnitLine {
   teens?: number | null;
   infants?: number | null;
   pets?: number | null;
+  /** This unit's own guest note, shown instead of the whole booking's requests. */
+  guest_comments?: string | null;
 }
 
 interface RoomPlanBarProps {
@@ -206,6 +208,12 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               <span className="text-slate-400"> · {nights} night{nights === 1 ? "" : "s"}</span>
             </p>
             <p>{paxText}{isMultiUnit && unitLine ? " (this unit)" : ""}</p>
+            {unitLine?.guest_comments?.trim() && (
+              <p className="text-amber-300">Note (this unit): {unitLine.guest_comments.trim()}</p>
+            )}
+            {!unitLine?.guest_comments?.trim() && booking.special_requests?.trim() && (
+              <p className="text-amber-300">Requests: {booking.special_requests.trim()}</p>
+            )}
             <p>
               R{Number(booking.total_price || 0).toLocaleString()}
               <span className="text-slate-400"> · {(booking.payment_status || "unpaid").replace(/_/g, " ")}</span>

@@ -23,6 +23,8 @@ export interface BookingUnitLine {
   infants: number;
   pets: number;
   rate_charged: number;
+  /** Note the guest attached to this unit only (channel stays send one per unit). */
+  guest_comments: string | null;
 }
 
 export interface BookingRoomLineIndex {
@@ -50,7 +52,7 @@ export function useBookingRoomLines(bookingIds: string[]): BookingRoomLineIndex 
         const { data: page, error } = await supabase
           .from("rolos_booking_rooms")
           .select(
-            "id, booking_id, room_type_id, room_id, adults, children, teens, infants, pets, rate_charged, status",
+            "id, booking_id, room_type_id, room_id, adults, children, teens, infants, pets, rate_charged, guest_comments, status",
           )
           .in("booking_id", chunk);
         if (error) break; // RLS or transport hiccup — degrade to single-bar rendering.
@@ -66,6 +68,7 @@ export function useBookingRoomLines(bookingIds: string[]): BookingRoomLineIndex 
             infants: Number(r.infants ?? 0),
             pets: Number(r.pets ?? 0),
             rate_charged: Number(r.rate_charged ?? 0),
+            guest_comments: (r.guest_comments as string) ?? null,
             status: (r.status as string) ?? "active",
           });
         }
