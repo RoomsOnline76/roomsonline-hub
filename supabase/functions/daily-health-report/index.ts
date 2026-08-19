@@ -956,7 +956,17 @@ Deno.serve(async (req) => {
         supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
       ]);
 
+      // Previous window (48h → 24h ago): used only to celebrate conflicts that have stopped.
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
+      const { data: priorRuns } = await supabase
+        .from('ru_sync_runs')
+        .select('success, error_code, error_message')
+        .gte('created_at', fortyEightHoursAgo.toISOString())
+        .lt('created_at', twentyFourHoursAgo.toISOString())
+        .limit(5000);
+
       const allRuns = syncRuns || [];
+
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
       const refusalRuns = allRuns.filter(isRefusalRecord);
