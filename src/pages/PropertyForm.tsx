@@ -3981,6 +3981,19 @@ export default function PropertyForm({
 
       persistedOwnerEmailRef.current = nextOwnerEmail;
 
+      // Phase 2 ledger — mark only the sections this save actually changed as stale.
+      // Fire-and-forget bookkeeping: it never blocks or fails the save.
+      const changedSteps = derivePropertyStepsFromChanges(
+        loadedPropertyRowRef.current,
+        propertyData as unknown as Record<string, unknown>,
+      );
+      loadedPropertyRowRef.current = {
+        ...(loadedPropertyRowRef.current ?? {}),
+        ...(propertyData as unknown as Record<string, unknown>),
+      };
+      if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
+
+
       toast({
         title: "Success",
         description: isEditMode ? "Property updated successfully" : "Property created successfully",
