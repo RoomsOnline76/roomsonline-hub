@@ -766,22 +766,28 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const listings = res.properties || [];
+        let listings = res.properties || [];
         // Only bound accounts are expected to hold ROL'OS ids; an empty answer
-        // from one of those while local records still point somewhere is not proof.
+        // from one of those while local records still point somewhere is checked
+        // twice before it is believed — but once two reads agree, the account
+        // really is empty and those local ids are stale (clearable), not
+        // unverifiable forever.
         const localIdsHeld = bound ? localRecords.size : 0;
         if (listings.length === 0 && localIdsHeld > 0) {
-          // The account answered, but empty, while ROL'OS holds ids against it.
-          // That is unverifiable, not proof of removal.
-          accountResults.push({
-            ...base,
-            listing_count: 0,
-            read: false,
-            deferred: false,
-            error: `Unverifiable — the account answered empty while ${localIdsHeld} local listing id(s) point at it`,
-          });
-          continue;
+          const confirm = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-reconcile:confirm_empty"));
+          if (confirm.error) {
+            accountResults.push({
+              ...base,
+              listing_count: 0,
+              read: false,
+              deferred: confirm.deferred === true,
+              error: `Unverifiable — the account answered empty and the confirming read failed (${confirm.error})`,
+            });
+            continue;
+          }
+          listings = confirm.listings;
         }
+
         const liveListings = listings.filter((l) => l.is_archived !== true);
         accountResults.push({
           ...base,
