@@ -278,6 +278,20 @@ export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
               </Select>
             </div>
 
+            <div className="w-[170px]">
+              <Label className="text-xs">Direction</Label>
+              <Select value={filters.direction} onValueChange={(v) => patch({ direction: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Both directions</SelectItem>
+                  <SelectItem value="outbound">ROL'OS → channel</SelectItem>
+                  <SelectItem value="inbound">Channel → ROL'OS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="w-[210px]">
               <Label className="text-xs">Action</Label>
               <Select value={filters.action} onValueChange={(v) => patch({ action: v })}>
