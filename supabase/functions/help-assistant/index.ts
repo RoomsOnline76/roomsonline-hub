@@ -6,6 +6,35 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Shared knowledge: the free owner-level HubSpot CRM add-on and the native
+// guest-intelligence features it projects. Appended to the generic and PMS prompts.
+const HUBSPOT_KNOWLEDGE = `
+
+HUBSPOT CRM ADD-ON (free, optional, owner-level):
+- ROL'OS has a full native guest CRM. HubSpot is an OPTIONAL projection on top of it — every CRM feature keeps working with HubSpot switched off. Never present HubSpot as required.
+- It is free and opt-in per owner, and it covers that owner's whole portfolio. There is no extra fee, tier or upsell for it.
+- Connecting: Owner Account → the HubSpot card → paste a HubSpot private-app token → "Test connection" → save. The same card also appears in the property go-live workspace. Only the owner can connect or disconnect.
+- The token is verified against HubSpot before it is stored, kept encrypted server-side, owner-scoped, and can be revoked by disconnecting at any time. It is never shown again after saving.
+- What ROL'OS projects into HubSpot:
+  • Guests → contacts, with stay history, lifetime spend, last stay date and preferences
+  • Trade partners / agents → companies
+  • Bookings → deals, with stage following the booking's real status
+  • Website and portal enquiries → an enquiry pipeline (New → ... → Lost)
+- Sync behaviour: one-way, ROL'OS → HubSpot. A delta sweep runs every 15 minutes; new, modified and cancelled bookings and enquiry status changes are pushed as they happen. Nothing written in HubSpot flows back into ROL'OS.
+- Segmentation is first-class and native: Trade vs Direct, plus repeat and lapsed flags. Trade/Direct badges show on the **Guests** page and on inquiries, and the same flags travel to HubSpot.
+- Related native features that also project: the **Inquiries** pipeline (/pms/inquiries), website enquiry intake, digital check-in (tokenised guest link or staff-side form) and post-departure feedback.
+- Troubleshooting:
+  - "Test connection" fails → the token is invalid, expired or was revoked in HubSpot. Create a fresh private-app token and reconnect.
+  - Connection saved but records rejected for scopes → the private app needs contacts, companies and deals access; recreate the token with those scopes.
+  - Nothing in HubSpot yet → the sweep runs every 15 minutes; give it one cycle, then re-check.
+  - Disconnecting stops all future pushes and leaves records already in HubSpot untouched.
+- Never claim two-way sync, HubSpot-side writes into ROL'OS, or a paid HubSpot tier from ROL'OS. If asked for exact scope names or HubSpot property mappings beyond the above, point to the "HubSpot CRM — free owner add-on" help article instead of guessing.`;
+
+const HUBSPOT_ONBOARDING_NOTE = `
+
+HUBSPOT STEP: The HubSpot CRM card in the workspace is free and entirely optional. It never blocks go-live and is not a Channel or website gate — if it is unconnected, tell them to move on.`;
+
+
 const GENERIC_SYSTEM_PROMPT = `You are TOBI, the friendly guide built into Rooms Online (ROL) - a luxury accommodation booking platform.
 Your personality is helpful, warm, and occasionally playful with subtle cat references. You are part of the system itself, not a separate tool.
 
@@ -162,7 +191,8 @@ Rules for actions:
 NAVIGATION GUIDE — OPERATIONS:
 - "Dashboard" (/pms) — Overview of occupancy, arrivals, departures, revenue, and the interactive 30-day calendar with restriction markers
 - "Rooms" (/pms/rooms) — Physical room inventory: add/edit rooms, set status (available, occupied, maintenance, blocked), assign room types, manage floor plans
-- "Guests" (/pms/guests) — Guest CRM: profiles with stay history, contact info, preferences, VIP flags, loyalty tiers, and communication log
+- "Guests" (/pms/guests) — Guest CRM: profiles with stay history, contact info, preferences, VIP flags, loyalty tiers, Trade/Direct badges, and communication log
+- "Inquiries" (/pms/inquiries) — Native enquiry pipeline: website and portal leads from New through to Lost, Trade/Direct and repeat/lapsed segmentation, and "Convert to booking" handoff into a manual booking
 - "Housekeeping" (/pms/housekeeping) — Task board for cleaning assignments, maintenance requests, room inspection checklists, and staff assignment
 
 NAVIGATION GUIDE — REVENUE:
@@ -498,10 +528,10 @@ Deno.serve(async (req) => {
     }
 
     let contextContent = "";
-    let systemPrompt = GENERIC_SYSTEM_PROMPT;
+    let systemPrompt = GENERIC_SYSTEM_PROMPT + HUBSPOT_KNOWLEDGE;
 
     if (onboardingContext && typeof onboardingContext === "object") {
-      systemPrompt = ONBOARDING_SYSTEM_PROMPT;
+      systemPrompt = ONBOARDING_SYSTEM_PROMPT + HUBSPOT_ONBOARDING_NOTE;
       const oc = onboardingContext as Record<string, unknown>;
       const blockers = Array.isArray(oc.blockers) ? oc.blockers : [];
       contextContent = `\n\n--- ONBOARDING STATE ---\n`;
@@ -532,7 +562,7 @@ Deno.serve(async (req) => {
         }
       }
     } else if (pmsContext?.propertyId) {
-      systemPrompt = PMS_SYSTEM_PROMPT;
+      systemPrompt = PMS_SYSTEM_PROMPT + HUBSPOT_KNOWLEDGE;
 
       const propertyId = pmsContext.propertyId;
       const portfolioPropertyIds: string[] | undefined = pmsContext.portfolioPropertyIds;
