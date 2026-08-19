@@ -1944,6 +1944,14 @@ export default function PMSDashboard() {
                       </button>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Badge variant="outline" className="text-[10px] capitalize">{b.status.replace(/_/g, " ")}</Badge>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px] px-2 py-0"
+                          onClick={() => setCheckInBookingId(b.id)}
+                        >
+                          Check-in form
+                        </Button>
                         {alreadyIn ? (
                           <Badge variant="secondary" className="text-[10px]">In House</Badge>
                         ) : (
@@ -1959,6 +1967,7 @@ export default function PMSDashboard() {
                           </Button>
                         )}
                       </div>
+
                     </div>
                   );
                 })}
