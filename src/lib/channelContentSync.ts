@@ -86,7 +86,9 @@ export async function queueChannelRatesSync(
   options: { force?: boolean; wait?: boolean } = {},
 ): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
+  void markChannelStepsStale(propertyId, channelLedgerStepsForTrigger(trigger, "rates"));
   try {
+
     const { data, error } = await supabase.functions.invoke("ru-ari-delta", {
       body: {
         property_id: propertyId,
