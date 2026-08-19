@@ -27,6 +27,7 @@ import {
   readLedger,
   markLedgerStale,
   markLedgerStaleForScope,
+  recordLedgerPassForScope,
   writeLedgerRows,
   mapReadinessToLedgerRows,
   type ReadinessReportLike,
