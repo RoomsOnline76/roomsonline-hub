@@ -691,6 +691,132 @@ Deno.serve(async (req) => {
         return ok({ deal_id: res.id, created: res.created });
       }
 
+      // ---- Guest intelligence projections -----------------------------------
+      // ROLOS owns inquiries, check-ins and feedback natively; HubSpot only
+      // ever receives a projection of what already exists locally.
+      case "upsert_inquiry": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.inquiry) return fail("inquiry is required", 400);
+
+        const inq = body.inquiry;
+        const label = inq.reference || inq.inquiry_id;
+        const guest = (inq.guest_name || "").trim();
+        const segment = inq.trade_or_direct;
+
+        let contactId: string | null = null;
+        if (inq.guest_email) {
+          const parts = guest ? guest.split(/\s+/) : [];
+          const contactProps = await withTrade(
+            active.token,
+            "contacts",
+            {
+              email: inq.guest_email,
+              ...(parts[0] ? { firstname: parts[0] } : {}),
+              ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
+              ...(inq.guest_phone ? { phone: inq.guest_phone } : {}),
+            },
+            segment,
+          );
+          const cRes = await upsertContactRemote(active.token, contactProps, inq.guest_email);
+          contactId = cRes.id;
+        }
+
+        const dealProps = await withTrade(
+          active.token,
+          "deals",
+          {
+            dealname: `${label}${guest ? ` · ${guest}` : ""}`,
+            pipeline: (active.config.pipeline_id as string) || "default",
+            dealstage: resolveStage(inq.stage || "enquiry", active.config),
+            ...(inq.estimated_value != null ? { amount: String(inq.estimated_value) } : {}),
+            ...(inq.check_in_date
+              ? { closedate: new Date(inq.check_in_date).toISOString() }
+              : {}),
+            ...(inq.source || inq.property_name
+              ? {
+                  description: [
+                    inq.property_name ? `Property: ${inq.property_name}` : null,
+                    inq.source ? `Source: ${inq.source}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                }
+              : {}),
+          },
+          segment,
+        );
+
+        const res = await upsertDealRemote(active.token, dealProps, label);
+        if (!res.ok) {
+          await markSync("error", `Inquiry sync failed (${res.status})`);
+          return fail("HubSpot inquiry sync failed", res.status, { details: res.body });
+        }
+        if (res.id && inq.guest_email) {
+          await associateDealContact(active.token, res.id, inq.guest_email);
+        }
+        await markSync("ok");
+        return ok({ deal_id: res.id, contact_id: contactId, created: res.created });
+      }
+
+      case "enrich_contact": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.enrichment) return fail("enrichment is required", 400);
+
+        const e = body.enrichment;
+        let props: Json = { email: e.email };
+        props = await withTrade(active.token, "contacts", props, e.trade_or_direct);
+        if (e.lifecycle && (await ensureLifecycleProperty(active.token))) {
+          props = { ...props, [LIFECYCLE_PROPERTY]: e.lifecycle };
+        }
+        if (e.total_spent != null) props = { ...props, total_revenue: String(e.total_spent) };
+
+        const res = await upsertContactRemote(active.token, props, e.email);
+        if (!res.ok) {
+          await markSync("error", `Contact enrichment failed (${res.status})`);
+          return fail("HubSpot contact enrichment failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({ contact_id: res.id, lifecycle: e.lifecycle ?? null });
+      }
+
+      case "log_engagement": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.engagement) return fail("engagement is required", 400);
+
+        const contactId = await findContactId(active.token, body.engagement.email);
+        if (!contactId) return ok({ skipped: true, reason: "contact_not_found" });
+
+        const noteBody = [body.engagement.title, body.engagement.body]
+          .filter(Boolean)
+          .join("\n\n");
+        const res = await hubspot(active.token, "/crm/v3/objects/notes", {
+          method: "POST",
+          body: JSON.stringify({
+            properties: {
+              hs_timestamp: new Date().toISOString(),
+              hs_note_body: noteBody,
+            },
+            associations: [
+              {
+                to: { id: contactId },
+                types: [
+                  { associationCategory: "HUBSPOT_DEFINED", associationTypeId: 202 },
+                ],
+              },
+            ],
+          }),
+        });
+        if (!res.ok) {
+          await markSync("error", `Engagement log failed (${res.status})`);
+          return fail("HubSpot engagement log failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({ note_id: (res.body as { id?: string })?.id ?? null, contact_id: contactId });
+      }
+
 
       case "sync_owner": {
         const active = await requireActive();
