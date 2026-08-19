@@ -552,6 +552,7 @@ async function attemptListLookup(
     ...(scope.propertyId ? { property_id: scope.propertyId } : {}),
     ...(scope.ownerId ? { owner_id: scope.ownerId } : {}),
   };
+  let rateDeferred = false;
 
   for (const action of ['get_leads', 'list_reservations'] as const) {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -563,8 +564,15 @@ async function attemptListLookup(
         ...scopePayload,
       },
     });
-    if (error) continue;
-    const res = (data || {}) as { success?: boolean; raw_xml?: string };
+    if (error) {
+      const detail = await readInvokeError(error, `${action} failed`);
+      if (isRateDeferral(detail.errorCode, detail.message, detail.httpStatus)) rateDeferred = true;
+      continue;
+    }
+    const res = (data || {}) as { success?: boolean; raw_xml?: string; error?: { code?: string; message?: string } };
+    if (res.success === false && isRateDeferral(res.error?.code ?? null, res.error?.message ?? null, null)) {
+      rateDeferred = true;
+    }
     const xml = res.raw_xml || '';
     if (!xml) continue;
 
@@ -592,7 +600,30 @@ async function attemptListLookup(
       };
     }
   }
-  return { reservation: null, rawXml: null, error: 'Reservation not found in any account listing' };
+  return {
+    reservation: null,
+    rawXml: null,
+    error: rateDeferred
+      ? 'Channel rate limit — listing lookup deferred'
+      : 'Reservation not found in any account listing',
+    rateDeferred,
+  };
+}
+
+/** Sub-account OwnerID whose portal login matches the RU `Creator` on the envelope. */
+async function resolveRuOwnerIdForCreator(supabase: Db, creator: string | null): Promise<string | null> {
+  const name = (creator || '').trim().toLowerCase();
+  if (!name || !name.includes('@')) return null;
+  const { data } = await supabase
+    .from('ru_owner_accounts')
+    .select('ru_owner_id, ru_login_email, owner_email')
+    .not('ru_owner_id', 'is', null);
+  const match = ((data || []) as { ru_owner_id: string | number; ru_login_email: string | null; owner_email: string | null }[]).find(
+    (row) =>
+      (row.ru_login_email || '').trim().toLowerCase() === name ||
+      (row.owner_email || '').trim().toLowerCase() === name,
+  );
+  return match?.ru_owner_id ? String(match.ru_owner_id) : null;
 }
 
 /**
@@ -606,10 +637,13 @@ async function attemptListLookup(
 export async function fetchRuReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null } = {},
+  opts: { propertyId?: string | null; ownerId?: string | null; creator?: string | null } = {},
 ): Promise<RuDetailLookup> {
   const knownOwnerId =
     opts.ownerId ?? (opts.propertyId ? await resolveRuOwnerIdForProperty(supabase, opts.propertyId) : null);
+  // The envelope's `Creator` is the portal login of the account that raised the reservation —
+  // the cheapest, most reliable hint about which sub-account can actually read it.
+  const creatorOwnerId = await resolveRuOwnerIdForCreator(supabase, opts.creator ?? null);
 
   const scopes: { propertyId?: string | null; ownerId: string | null }[] = [];
   const seen = new Set<string>();
@@ -621,6 +655,7 @@ export async function fetchRuReservationById(
   };
 
   if (knownOwnerId || opts.propertyId) push(knownOwnerId, opts.propertyId ?? null);
+  if (creatorOwnerId) push(creatorOwnerId);
 
   const { data: accounts } = await supabase
     .from('ru_owner_accounts')
@@ -630,6 +665,9 @@ export async function fetchRuReservationById(
   push(null); // master last
 
   let lastError: string | null = null;
+  let rateDeferred = false;
+  let partial: ParsedRuReservation | null = null;
+  let partialOwnerId: string | null | undefined;
 
   // Pass 1 — by id, across accounts.
   for (const scope of scopes) {
@@ -637,17 +675,46 @@ export async function fetchRuReservationById(
     if (attempt.reservation?.ruReservationId && attempt.reservation.dateFrom) {
       return { ...attempt, resolvedOwnerId: scope.ownerId };
     }
+    // Reservation exists here but carries an empty <StayInfos /> — remember the account so the
+    // listing pass (which does carry stay data for leads) starts with the right credentials.
+    if (attempt.reservation?.ruReservationId && !partial) {
+      partial = attempt.reservation;
+      partialOwnerId = scope.ownerId;
+    }
+    if (attempt.rateDeferred) rateDeferred = true;
     if (attempt.error) lastError = attempt.error;
   }
 
-  // Pass 2 — lead/reservation listings, across accounts.
-  for (const scope of scopes) {
-    const listed = await attemptListLookup(supabase, reservationId, scope);
-    if (listed.reservation?.dateFrom) return listed;
+  // Pass 2 — lead/reservation listings. Owning account first, and with a tight window: the
+  // channel answers an over-wide range with an empty list.
+  const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }, ...scopes] : scopes;
+  const seenList = new Set<string>();
+  for (const scope of listScopes) {
+    const key = `${scope.ownerId ?? 'master'}:${scope.propertyId ?? ''}`;
+    if (seenList.has(key)) continue;
+    seenList.add(key);
+    for (const [back, forward] of [
+      [7, 400],
+      [90, 365],
+    ] as const) {
+      const listed = await attemptListLookup(supabase, reservationId, scope, back, forward);
+      if (listed.reservation?.dateFrom) return { ...listed, partial };
+      if (listed.rateDeferred) rateDeferred = true;
+    }
   }
 
-  return { reservation: null, rawXml: null, error: lastError ?? 'Reservation not found in Rentals United' };
+  return {
+    reservation: null,
+    rawXml: null,
+    error: rateDeferred
+      ? 'RU_RATE_DEFERRED: channel rate limit — reservation lookup deferred, will retry'
+      : lastError ?? 'Reservation not found in Rentals United',
+    rateDeferred,
+    partial,
+    resolvedOwnerId: partialOwnerId ?? null,
+  };
 }
+
 
 
 
