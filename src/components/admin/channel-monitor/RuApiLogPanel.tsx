@@ -219,235 +219,294 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
     patch({ search: searchDraft.trim() });
   }, [patch, searchDraft]);
 
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Presentation-only split: the four lifecycle verbs read as "bookings", the rest as polling.
+  const bookingStats = useMemo(() => RU_BOOKING_CHIPS.slice(0, 4), []);
+  const otherStats = useMemo(() => RU_BOOKING_CHIPS.slice(4), []);
+
+  const advancedActive = [
+    filters.ownerId !== "all",
+    filters.propertyId !== "all",
+    filters.action !== "all",
+    filters.operation !== "all",
+  ].filter(Boolean).length;
+
+  const statCount = useCallback(
+    (chip: (typeof RU_BOOKING_CHIPS)[number]) => (chip.inbound ? inboundCount : actionCounts.get(chip.key) ?? 0),
+    [actionCounts, inboundCount],
+  );
+
+  const statActive = useCallback(
+    (chip: (typeof RU_BOOKING_CHIPS)[number]) =>
+      chip.inbound ? filters.direction === "inbound" && filters.action === "all" : filters.action === chip.key,
+    [filters.action, filters.direction],
+  );
+
+  const toggleStat = useCallback(
+    (chip: (typeof RU_BOOKING_CHIPS)[number], active: boolean) => {
+      setSearchDraft("");
+      if (chip.inbound) {
+        patch({ search: "", action: "all", direction: active ? "all" : "inbound", bookingsOnly: false });
+      } else {
+        patch({ search: "", direction: "all", bookingsOnly: false, action: active ? "all" : chip.key });
+      }
+    },
+    [patch],
+  );
+
+  const renderStat = (chip: (typeof RU_BOOKING_CHIPS)[number]) => {
+    const count = statCount(chip);
+    const active = statActive(chip);
+    return (
+      <button
+        key={chip.key}
+        type="button"
+        disabled={count === 0}
+        onClick={() => toggleStat(chip, active)}
+        className={cn(
+          "rounded-md px-2.5 py-1.5 text-left transition-colors",
+          count === 0 ? "cursor-default opacity-50" : "hover:bg-muted",
+          active && "bg-muted",
+        )}
+      >
+        <div className={cn("text-sm font-semibold tabular-nums", active ? "text-foreground" : "text-foreground/80")}>
+          {count}
+        </div>
+        <div className="text-[11px] leading-tight text-muted-foreground">{chip.label}</div>
+      </button>
+    );
+  };
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Exchange log</CardTitle>
-          <CardDescription>
-            Every request and response exchanged with the channel manager — booking pushes,
-            cancellations and inbound reservation notifications included — is stored with its
-            ResponseID and kept for 90 days. Credentials are redacted before storage.
+          <CardDescription className="text-xs">
+            Every request and response exchanged with the channel manager is stored with its ResponseID and kept for
+            90 days. Credentials are redacted before storage.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[240px] flex-1">
-              <Label className="text-xs">Find a call</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={searchDraft}
-                  onChange={(e) => setSearchDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") submitSearch();
-                  }}
-                  placeholder="Push_CancelReservation_RQ, a ResponseID, trace id or error text"
-                />
-                <Button variant="secondary" size="icon" onClick={submitSearch} aria-label="Search exchanges">
-                  <Search className="h-4 w-4" />
-                </Button>
-                {filters.search && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Clear search"
-                    onClick={() => {
-                      setSearchDraft("");
-                      patch({ search: "" });
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Searches the whole retained window, ignoring the filters below.
-              </p>
-            </div>
-
-            <div>
-              <Label className="text-xs">Scope</Label>
-              <Button
-                variant={filters.bookingsOnly ? "default" : "outline"}
-                size="sm"
-                className="block"
-                onClick={() => patch({ bookingsOnly: !filters.bookingsOnly })}
-              >
-                Bookings only
-              </Button>
-            </div>
-
-
-            <div className="w-[190px]">
-              <Label className="text-xs">Property</Label>
-              <Select value={filters.propertyId} onValueChange={(v) => patch({ propertyId: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All properties</SelectItem>
-                  <SelectItem value="account">Account-level only</SelectItem>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-[190px]">
-              <Label className="text-xs">Operation</Label>
-              <Select value={filters.operation} onValueChange={(v) => patch({ operation: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All operations</SelectItem>
-                  {operations.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.value} ({o.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-[170px]">
-              <Label className="text-xs">Channel account</Label>
-              <Select value={filters.ownerId} onValueChange={(v) => patch({ ownerId: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All accounts</SelectItem>
-                  {owners.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.value} ({o.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-[170px]">
-              <Label className="text-xs">Direction</Label>
-              <Select value={filters.direction} onValueChange={(v) => patch({ direction: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Both directions</SelectItem>
-                  <SelectItem value="outbound">ROL'OS → channel</SelectItem>
-                  <SelectItem value="inbound">Channel → ROL'OS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-[210px]">
-              <Label className="text-xs">Action</Label>
-              <Select value={filters.action} onValueChange={(v) => patch({ action: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All actions</SelectItem>
-                  {actions.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>
-                      {a.value} ({a.count})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-
-            <div className="w-[150px]">
-              <Label className="text-xs">Outcome</Label>
-              <Select value={filters.outcome} onValueChange={(v) => patch({ outcome: v as RuApiLogFilters["outcome"] })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="success">Accepted</SelectItem>
-                  <SelectItem value="failure">Failed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-[160px]">
-              <Label className="text-xs">Window</Label>
-              <Select value={String(filters.days)} onValueChange={(v) => patch({ days: Number(v) })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
-                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm" onClick={exportFiltered} disabled={!rows.length}>
-                <Download className="mr-2 h-4 w-4" />
-                Export list
-              </Button>
-            </div>
-          </div>
-
-          {/* Booking lifecycle jump-offs. Counts come from the whole window, so a verb
-              with a handful of calls is reachable in one click instead of being buried
-              thousands of rows behind the availability and price pulls. */}
+        <CardContent className="space-y-3">
+          {/* 1. Primary toolbar — search on the left, window and actions on the right. */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Booking exchanges:</span>
-            {RU_BOOKING_CHIPS.map((chip) => {
-              const count = chip.inbound ? inboundCount : actionCounts.get(chip.key) ?? 0;
-              const active = chip.inbound
-                ? filters.direction === "inbound" && filters.action === "all"
-                : filters.action === chip.key;
-              return (
+            <div className="relative min-w-[260px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitSearch();
+                }}
+                onBlur={submitSearch}
+                className="h-9 pl-8 pr-8"
+                placeholder="Find a call by ResponseID, action, or free text"
+              />
+              {filters.search && (
                 <Button
-                  key={chip.key}
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  disabled={count === 0}
-                  className="h-7 text-xs"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Clear search"
+                  className="absolute right-0.5 top-1/2 h-8 w-8 -translate-y-1/2"
                   onClick={() => {
                     setSearchDraft("");
-                    if (chip.inbound) {
-                      patch({ search: "", action: "all", direction: active ? "all" : "inbound", bookingsOnly: false });
-                    } else {
-                      patch({
-                        search: "",
-                        direction: "all",
-                        bookingsOnly: false,
-                        action: active ? "all" : chip.key,
-                      });
-                    }
+                    patch({ search: "" });
                   }}
                 >
-                  {chip.label}
-                  <span className="ml-1.5 opacity-70">{count}</span>
+                  <X className="h-4 w-4" />
                 </Button>
-              );
-            })}
-            {RU_BOOKING_CHIPS.every((chip) => (chip.inbound ? inboundCount : actionCounts.get(chip.key) ?? 0) === 0) && (
-              <span className="text-xs text-muted-foreground">
-                none recorded in this window — widen the window
-              </span>
+              )}
+            </div>
+
+            <Select value={String(filters.days)} onValueChange={(v) => patch({ days: Number(v) })}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DAY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" size="sm" className="h-9" onClick={() => void refresh()} disabled={loading}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+            <Button variant="outline" size="sm" className="h-9" onClick={exportFiltered} disabled={!rows.length}>
+              <Download className="mr-2 h-4 w-4" />
+              Export list
+            </Button>
+          </div>
+
+          {/* 2. Quick filters — segmented pills for the three most-used dimensions. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <SegmentedFilter
+              label="Scope"
+              value={filters.bookingsOnly ? "bookings" : "all"}
+              options={[
+                { value: "all", label: "All" },
+                { value: "bookings", label: "Bookings only" },
+              ]}
+              onChange={(v) => patch({ bookingsOnly: v === "bookings" })}
+            />
+            <SegmentedFilter
+              label="Direction"
+              value={filters.direction}
+              options={[
+                { value: "all", label: "Both" },
+                { value: "outbound", label: "Outbound" },
+                { value: "inbound", label: "Inbound" },
+              ]}
+              onChange={(v) => patch({ direction: v })}
+            />
+            <SegmentedFilter
+              label="Outcome"
+              value={filters.outcome}
+              options={[
+                { value: "all", label: "All" },
+                { value: "success", label: "Success" },
+                { value: "failure", label: "Failed" },
+              ]}
+              onChange={(v) => patch({ outcome: v as RuApiLogFilters["outcome"] })}
+            />
+
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen} className="ml-auto">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8">
+                  <SlidersHorizontal className="mr-2 h-4 w-4" />
+                  More filters
+                  {advancedActive > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[11px]">
+                      {advancedActive}
+                    </Badge>
+                  )}
+                  <ChevronDown
+                    className={cn("ml-1 h-4 w-4 transition-transform", advancedOpen && "rotate-180")}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            </Collapsible>
+          </div>
+
+          {/* 3. Advanced filters — collapsed by default. */}
+          <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+            <CollapsibleContent>
+              <div className="rounded-md bg-muted/40 p-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Channel account</Label>
+                    <Select value={filters.ownerId} onValueChange={(v) => patch({ ownerId: v })}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {owners.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.value} ({o.count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Property</Label>
+                    <Select value={filters.propertyId} onValueChange={(v) => patch({ propertyId: v })}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All properties</SelectItem>
+                        <SelectItem value="account">Account-level only</SelectItem>
+                        {properties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Action</Label>
+                    <Select value={filters.action} onValueChange={(v) => patch({ action: v })}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All actions</SelectItem>
+                        {actions.map((a) => (
+                          <SelectItem key={a.value} value={a.value}>
+                            {a.value} ({a.count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Operation</Label>
+                    <Select value={filters.operation} onValueChange={(v) => patch({ operation: v })}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All operations</SelectItem>
+                        {operations.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.value} ({o.count})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {advancedActive > 0 && (
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => patch({ ownerId: "all", propertyId: "all", action: "all", operation: "all" })}
+                    >
+                      Clear these filters
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* 4. Activity summary — secondary stats, still click-to-filter. */}
+          <div className="rounded-md border border-border">
+            <div className="flex flex-wrap items-start gap-x-6 gap-y-3 p-3">
+              <div className="min-w-[220px]">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Bookings
+                </div>
+                <div className="flex flex-wrap gap-1">{bookingStats.map(renderStat)}</div>
+              </div>
+              <div className="min-w-[220px]">
+                <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Other exchanges
+                </div>
+                <div className="flex flex-wrap gap-1">{otherStats.map(renderStat)}</div>
+              </div>
+            </div>
+            {RU_BOOKING_CHIPS.every((chip) => statCount(chip) === 0) && (
+              <p className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
+                None recorded in this window — widen the window.
+              </p>
             )}
           </div>
 
-          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+          {/* 5. Results meta — quiet, right-aligned. */}
+          <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span>
               {stats.totalCount != null
                 ? `${stats.totalCount} exchanges match in window`
@@ -458,8 +517,11 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               showing the newest {stats.total}
               {stats.truncated ? " — load more for older" : ""}
             </span>
+            <span>·</span>
             <span>{stats.failures} failed (shown)</span>
+            <span>·</span>
             <span>{stats.withResponseId} with ResponseID (shown)</span>
+            <span>·</span>
             <span>avg {stats.avgMs} ms (shown)</span>
           </div>
 
@@ -477,9 +539,9 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               the selected window — try a wider window or clear the filters.
             </p>
           ) : (
-            <ScrollArea className="h-[560px] rounded-md border">
+            <ScrollArea className="h-[560px] rounded-md border border-border">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/60 text-xs uppercase text-muted-foreground">
+                <thead className="sticky top-0 bg-muted text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 text-left font-medium">When</th>
                     <th className="px-3 py-2 text-left font-medium">Action</th>
@@ -494,26 +556,31 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                   {rows.map((row) => (
                     <tr
                       key={row.id}
-                      className="cursor-pointer border-t hover:bg-muted/40"
+                      className={cn(
+                        "cursor-pointer border-t border-border/60 hover:bg-muted/50",
+                        !row.success && "bg-destructive/5",
+                      )}
                       onClick={() => void openDetail(row)}
                     >
-                      <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                      <td className="whitespace-nowrap px-3 py-1.5 text-xs text-muted-foreground">
                         {formatTimestamp(row.created_at)}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5">
                         <div className="font-medium">{row.action}</div>
                         {row.parent_action && (
                           <div className="text-xs text-muted-foreground">{row.parent_action}</div>
                         )}
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5">
                         {propertyNames.get(row.property_id ?? "") ??
                           row.ru_property_id ??
                           (row.ru_owner_id ? `Account ${row.ru_owner_id}` : "—")}
-
                       </td>
-                      <td className="px-3 py-2">
-                        <Badge variant={row.success ? "secondary" : "destructive"}>
+                      <td className="px-3 py-1.5">
+                        <Badge
+                          variant={row.success ? "secondary" : "destructive"}
+                          className={cn("text-[11px]", !row.success && "font-semibold")}
+                        >
                           {row.success ? `OK ${row.status_id ?? ""}`.trim() : `Failed ${row.status_id ?? ""}`.trim()}
                         </Badge>
                         {row.error_message && (
@@ -522,11 +589,31 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2 font-mono text-xs">{row.response_id ?? "—"}</td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
+                      <td className="px-3 py-1.5">
+                        {row.response_id ? (
+                          <span className="group inline-flex items-center gap-1">
+                            <span className="font-mono text-xs">{row.response_id}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Copy ResponseID"
+                              className="h-6 w-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void copy(row.response_id, "ResponseID");
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </span>
+                        ) : (
+                          <span className="font-mono text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">
                         {row.elapsed_ms != null ? `${row.elapsed_ms} ms` : "—"}
                       </td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">
+                      <td className="px-3 py-1.5 text-right text-xs text-muted-foreground">
                         {formatBytes(row.request_bytes)} / {formatBytes(row.response_bytes)}
                       </td>
                     </tr>
@@ -534,7 +621,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                 </tbody>
               </table>
               {hasMore && (
-                <div className="flex items-center justify-center gap-2 border-t p-3">
+                <div className="flex items-center justify-center gap-2 border-t border-border p-3">
                   <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
                     {loadingMore ? "Loading…" : "Load older exchanges"}
                   </Button>
@@ -551,6 +638,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
 
         </CardContent>
       </Card>
+
 
       <Sheet open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
         <SheetContent side="right" className="w-full sm:max-w-3xl">
