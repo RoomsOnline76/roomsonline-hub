@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3.23.8";
+import { releaseChannelBlocksForBooking } from "../_shared/ruReservationParsing.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 
 const corsHeaders = {
@@ -232,6 +233,16 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Failed to update booking. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Nights closed by a channel reservation are stamped with the booking id and are not
+    // touched by the "manual" restore below — release them or the dates stay blocked.
+    if (!isPartialCancel) {
+      try {
+        await releaseChannelBlocksForBooking(supabase, booking.id, "[guest-cancel-booking]");
+      } catch (e) {
+        console.error("Channel block release failed (non-critical):", e);
+      }
     }
 
     // Restore availability for ROL-native
