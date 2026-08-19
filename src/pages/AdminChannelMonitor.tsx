@@ -25,7 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
-import { RuCertChecklistCard } from "@/components/admin/channel-monitor/RuCertChecklistCard";
+
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
