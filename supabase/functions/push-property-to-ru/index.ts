@@ -43,6 +43,7 @@ import {
 } from '../_shared/rateResolution.ts';
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
+import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 
@@ -2286,7 +2287,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -4542,8 +4543,11 @@ Deno.serve(async (req) => {
             && !ari.availability_verification?.error
             && (ari.availability_verification?.mismatches?.length ?? 0) === 0
             && !ari.prices_verification?.error
+            && ari.prices_verification?.checked === true
             && (ari.prices_verification?.mismatches?.length ?? 0) === 0
-            && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
+            && (ari.prices_verification?.missing_dates?.length ?? 0) === 0
+            // A read-back that could not be performed is not a pass.
+            && ari.price_coverage_audit?.verdict !== 'unverified';
         });
 
         const failedUnitIds = unitResults.filter((u: any) => !u.success).map((u: any) => u.room_type_id);
