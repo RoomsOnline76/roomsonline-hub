@@ -218,6 +218,97 @@ async function resolveExistingBookingUnit(
   };
 }
 
+/**
+ * Reconcile the unit lines of a reservation that covers more than one unit.
+ *
+ * RU sends one `<StayInfo>` per booked unit inside a single reservation. ROL'OS keeps it as ONE
+ * booking (one guest, one reference, one total) with a `rolos_booking_rooms` line per unit, so the
+ * grid draws the stay on every unit row. Lines for units that dropped off a modification are
+ * removed and their nights released.
+ */
+async function syncRuStayUnits(
+  supabase: Db,
+  bookingId: string,
+  r: ParsedRuReservation,
+  primary: ResolvedRuUnit,
+  opts: RuIngestOptions,
+  blockNights: boolean,
+): Promise<void> {
+  const log = opts.logPrefix || '[ru-ingest]';
+  const stays = r.stays.length ? r.stays : [];
+  if (stays.length === 0) return;
+
+  const resolvedCache = new Map<string, ResolvedRuUnit>();
+  if (r.ruPropertyId) resolvedCache.set(String(r.ruPropertyId), primary);
+
+  const lines: Array<{ unit: ResolvedRuUnit; stay: typeof stays[number] }> = [];
+  for (const stay of stays) {
+    const key = String(stay.ruPropertyId ?? '');
+    let unit = key ? resolvedCache.get(key) : primary;
+    if (!unit) {
+      unit = await resolveRuUnit(supabase, stay.ruPropertyId);
+      if (key) resolvedCache.set(key, unit);
+    }
+    if (!unit?.propertyId) {
+      console.warn(`${log} No ROL'OS unit for stay listing ${stay.ruPropertyId ?? 'none'} — line skipped`);
+      continue;
+    }
+    lines.push({ unit, stay });
+  }
+  if (lines.length === 0) return;
+
+  // Physical unit anchors, so every booked unit shows a line on the dashboard grid.
+  const roomIds = [...new Set(lines.map((l) => l.unit.roomId).filter(Boolean) as string[])];
+  if (roomIds.length) {
+    await supabase.from('bookings').update({ rolos_room_ids: roomIds }).eq('id', bookingId);
+
+    for (const { unit, stay } of lines) {
+      if (!unit.roomId) continue;
+      const { error } = await supabase.from('rolos_booking_rooms').upsert(
+        {
+          booking_id: bookingId,
+          room_id: unit.roomId,
+          room_type_id: unit.roomTypeId,
+          rate_charged: stay.total || 0,
+          adults: stay.numGuests || 1,
+        },
+        { onConflict: 'booking_id,room_id' },
+      );
+      if (error) console.error(`${log} Unit line write failed for room ${unit.roomId}: ${error.message}`);
+    }
+
+    // Units removed by a modification lose their line.
+    const { data: staleLines } = await supabase
+      .from('rolos_booking_rooms')
+      .select('id, room_id')
+      .eq('booking_id', bookingId);
+    const stale = ((staleLines || []) as Array<{ id: string; room_id: string | null }>).filter(
+      (row) => row.room_id && !roomIds.includes(row.room_id),
+    );
+    if (stale.length) {
+      await supabase.from('rolos_booking_rooms').delete().in('id', stale.map((s) => s.id));
+    }
+  }
+
+  if (blockNights && !opts.skipAvailability) {
+    for (const { unit, stay } of lines) {
+      const from = stay.dateFrom || r.dateFrom;
+      const to = stay.dateTo || r.dateTo;
+      if (!from || !to) continue;
+      await applyRuAvailabilityBlock(
+        supabase,
+        unit.propertyId as string,
+        unit.mappingRoomTypeId,
+        from,
+        to,
+        true,
+        log,
+        bookingId,
+      );
+    }
+  }
+}
+
 export interface RuIngestOptions {
   /** Log prefix so cron and RLNM lines stay distinguishable. */
   logPrefix?: string;
@@ -236,6 +327,7 @@ export interface RuIngestOptions {
   /** Skip availability writes (certification dry runs). */
   skipAvailability?: boolean;
 }
+
 
 /**
  * Create / update / cancel the ROL'OS booking for one parsed RU reservation.
