@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GuestCheckInForm, type CheckInSubmission } from "@/components/pms/crm/GuestCheckInForm";
@@ -28,6 +27,13 @@ export default function GuestCheckIn() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    document.title = "Digital check-in | Rooms Online";
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute("content", "Complete your arrival details before you travel.");
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -72,11 +78,6 @@ export default function GuestCheckIn() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <Helmet>
-        <title>Digital check-in | Rooms Online</title>
-        <meta name="description" content="Complete your arrival details before you travel." />
-      </Helmet>
-
       {loading ? (
         <div className="flex items-center justify-center py-24 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading your booking…
