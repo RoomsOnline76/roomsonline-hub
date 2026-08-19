@@ -1,38 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, KeyRound, Loader2, ShieldCheck, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { onRuAccountsChanged } from "@/lib/ruAccountsSignal";
+import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
 
 import type { ChannelCostMonitorData } from "@/hooks/useChannelCostMonitor";
 
 type TabKey = "cost" | "accounts" | "cert";
 
-interface CertRunLite {
-  id: string;
-  suite: string | null;
-  status: string | null;
-  passed: number | null;
-  failed: number | null;
-  total: number | null;
-  started_at: string | null;
-  steps: unknown;
-}
 
-interface AccountLite {
-  id: string;
-  ru_owner_id: string | null;
-  ru_api_access_key: string | null;
-  ru_api_keys_verified_at: string | null;
-}
-
-interface CredLite {
-  ru_owner_id: string | number | null;
-  access_key: string | null;
-  verified_at: string | null;
-}
 
 
 /** Names the first step in a run that did not pass, so the operator sees the blocker directly. */
