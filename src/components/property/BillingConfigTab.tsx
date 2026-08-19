@@ -31,6 +31,7 @@ import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
 import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
 import { toast } from "sonner";
+import { markChannelStepsStale } from "@/lib/channelStepLedger";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -362,6 +363,9 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     persistBuilder(strategy, builder, billingStartDate, billingEnabled);
     if (builder.channel_manager_enabled !== savedChannelManager) {
       await runEntitlementFanOut(builder.channel_manager_enabled);
+      // Entitlement flipped — the channel ledger's entitlement grade is no longer trustworthy.
+      const ledgerTargets = isPortfolioScope ? scope.siblingPropertyIds : [propertyId];
+      await Promise.all(ledgerTargets.map((id) => markChannelStepsStale(id, ["entitlement", "connect"])));
     }
   };
 
