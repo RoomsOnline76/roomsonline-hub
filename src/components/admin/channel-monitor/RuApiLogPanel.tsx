@@ -679,7 +679,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                         {formatBytes(row.request_bytes)} / {formatBytes(row.response_bytes)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               {hasMore && (
