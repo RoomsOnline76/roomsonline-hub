@@ -382,6 +382,37 @@ const CalendarAccommodation = () => {
 
   const isPmsProperty = !!selectedPropertyData?.external_system;
   const isNativeRolosProperty = selectedPropertyData?.external_system === "roomsonline" && !!selectedPropertyData?.is_rol_property;
+
+  // ROL'OS Rate Plans is the sole author of rate identity for native properties,
+  // so the calendar's rate-type filter must come from it — not from the legacy
+  // wizard copy in amenities, which still holds retired ids.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!selectedProperty || !isNativeRolosProperty) {
+        setNativeRatePlans([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name")
+        .eq("property_id", selectedProperty)
+        .eq("is_active", true)
+        .order("sell_priority", { ascending: true, nullsFirst: false });
+      if (cancelled) return;
+      if (error) {
+        console.warn("[Calendar] rate plan load failed", error);
+        setNativeRatePlans([]);
+        return;
+      }
+      setNativeRatePlans((data || []).map((p) => ({ id: String(p.id), name: p.name || "Rate plan" })));
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProperty, isNativeRolosProperty]);
+
   const pmsPropertyCode = getPmsPropertyCode(selectedPropertyData);
   const hasPmsPropertyCode = !!pmsPropertyCode;
 
