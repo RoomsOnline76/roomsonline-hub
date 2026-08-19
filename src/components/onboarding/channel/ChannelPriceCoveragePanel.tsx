@@ -86,17 +86,20 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
           : `${short} unit(s) still need attention — details below`,
       );
       await load();
-      // A queued read lands seconds later; poll briefly so a pending line resolves itself
-      // instead of leaving the operator to click Re-check again.
-      for (const delay of [6000, 12000, 20000]) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        await load();
-      }
+      // A re-queued read lands seconds later. Poll in the background (button stays usable) so a
+      // pending line resolves itself instead of leaving the operator to click Re-check again.
+      void (async () => {
+        for (const delay of [6000, 12000, 20000]) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          await load();
+        }
+      })();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not check pricing coverage");
     } finally {
       setChecking(false);
     }
+
   }, [propertyId, load]);
 
   const pendingLine = pending.length > 0 && (
