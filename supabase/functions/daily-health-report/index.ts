@@ -1300,6 +1300,8 @@ Deno.serve(async (req) => {
             top_errors: ruWl.top_errors,
             rate_deferrals: ruWl.rate_deferrals,
             setup_gaps: ruWl.setup_gaps,
+            reconciled: ruWl.reconciled,
+
             blocked_outstanding: ruWl.blocked.outstanding,
             blocked_cleared: ruWl.blocked.cleared,
 
