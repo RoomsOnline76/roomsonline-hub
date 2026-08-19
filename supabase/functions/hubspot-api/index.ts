@@ -29,8 +29,12 @@ const requestSchema = z.object({
     "upsert_company",
     "upsert_contact",
     "create_or_update_deal",
+    "upsert_inquiry",
+    "enrich_contact",
+    "log_engagement",
     "sync_owner",
   ]),
+
   owner_id: z.string().uuid().optional(),
   portal_id: z.string().trim().min(1).max(64).optional(),
   access_token: z.string().trim().min(10).max(512).optional(),
