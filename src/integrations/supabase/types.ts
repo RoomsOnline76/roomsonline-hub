@@ -1414,6 +1414,63 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_booking_events: {
+        Row: {
+          action: string
+          booking_id: string | null
+          channel_listing_id: string | null
+          channel_owner_id: string | null
+          channel_reservation_id: string | null
+          created_at: string
+          details: Json
+          direction: string
+          id: string
+          outcome: string
+          property_id: string | null
+          reason: string | null
+          source: string | null
+          summary: string | null
+          trace_id: string | null
+          unit_id: string | null
+        }
+        Insert: {
+          action: string
+          booking_id?: string | null
+          channel_listing_id?: string | null
+          channel_owner_id?: string | null
+          channel_reservation_id?: string | null
+          created_at?: string
+          details?: Json
+          direction?: string
+          id?: string
+          outcome?: string
+          property_id?: string | null
+          reason?: string | null
+          source?: string | null
+          summary?: string | null
+          trace_id?: string | null
+          unit_id?: string | null
+        }
+        Update: {
+          action?: string
+          booking_id?: string | null
+          channel_listing_id?: string | null
+          channel_owner_id?: string | null
+          channel_reservation_id?: string | null
+          created_at?: string
+          details?: Json
+          direction?: string
+          id?: string
+          outcome?: string
+          property_id?: string | null
+          reason?: string | null
+          source?: string | null
+          summary?: string | null
+          trace_id?: string | null
+          unit_id?: string | null
+        }
+        Relationships: []
+      }
       channel_price_coverage_status: {
         Row: {
           channel: string

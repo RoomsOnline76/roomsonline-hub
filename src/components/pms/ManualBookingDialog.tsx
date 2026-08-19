@@ -580,7 +580,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     // A stay created here sells nights the channel still has open — close them straight away
     // instead of waiting for the next scheduled refresh.
     if (insertedData?.id) {
-      void pushBookingToChannel(insertedData.id, "created", { notify: false });
+      void pushBookingToChannel(insertedData.id, "created", { notify: false, source: "manual_booking_dialog" });
     }
 
     // 4. Send confirmation email (non-blocking)

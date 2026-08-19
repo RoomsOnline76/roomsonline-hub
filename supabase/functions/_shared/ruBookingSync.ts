@@ -35,6 +35,8 @@ export interface RuPushResult {
   code?: string;
   message?: string;
   method?: string;
+  /** Links the push to its raw request/response rows in the exchange log. */
+  traceId?: string;
 }
 
 /** True when this booking came from Rentals United and must be synced back. */
@@ -287,6 +289,7 @@ export async function cancelRuReservation(
       ok: false,
       code: 'RU_AUTH_UNAVAILABLE',
       message: 'No Rentals United sub-user API keys stored for this property — cannot cancel at the channel.',
+      traceId,
     };
   }
 
@@ -305,7 +308,7 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
-    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request' };
+    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
@@ -314,8 +317,8 @@ export async function cancelRuReservation(
       ...auth,
     }, logCtx);
     return cancelled.ok
-      ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation' }
-      : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
+      ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation', traceId }
+      : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message, traceId };
   }
 
   const result = await invokeRu(supabase, 'cancel_reservation', {
@@ -325,8 +328,8 @@ export async function cancelRuReservation(
     ...auth,
   }, logCtx);
   return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation' }
-    : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
+    ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation', traceId }
+    : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message, traceId };
 }
 
 
@@ -368,6 +371,7 @@ export async function modifyRuStay(
       code: 'RU_MODIFY_NOT_ALLOWED',
       message:
         'Rentals United only accepts stay modifications on confirmed reservations. Cancel/reject this request instead.',
+      traceId,
     };
   }
 
@@ -384,6 +388,7 @@ export async function modifyRuStay(
       ok: false,
       code: 'RU_AUTH_UNAVAILABLE',
       message: 'No Rentals United sub-user API keys stored for this property — cannot modify at the channel.',
+      traceId,
     };
   }
 
@@ -405,6 +410,7 @@ export async function modifyRuStay(
       ok: false,
       code: 'RU_PROPERTY_UNMAPPED',
       message: 'No Rentals United PropertyID mapped for this unit — push the property to RU first.',
+      traceId,
     };
   }
 
@@ -440,6 +446,6 @@ export async function modifyRuStay(
 
 
   return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay' }
-    : { ok: false, method: 'modify_stay', code: result.code, message: result.message };
+    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', traceId }
+    : { ok: false, method: 'modify_stay', code: result.code, message: result.message, traceId };
 }

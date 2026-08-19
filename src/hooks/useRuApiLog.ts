@@ -48,6 +48,8 @@ export interface RuApiLogFilters {
   action: string;
   /** High-level ROL'OS operation (`parent_action`), e.g. channel-cleanup:delete. */
   operation: string;
+  /** "all" | "outbound" | "inbound" — inbound rows are channel notifications posted to us. */
+  direction: string;
   /** Channel account (RU OwnerID) that the exchange was authenticated against. */
   ownerId: string;
   outcome: RuApiLogOutcome;
@@ -59,6 +61,7 @@ export interface RuApiLogFilters {
 
 export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
   propertyId: "all",
+  direction: "all",
   action: "all",
   operation: "all",
   ownerId: "all",
@@ -94,6 +97,7 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       // so it needs its own scope rather than disappearing behind "All properties".
       if (filters.propertyId === "account") query = query.is("property_id", null);
       else if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
+      if (filters.direction !== "all") query = query.eq("direction", filters.direction);
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
@@ -106,6 +110,7 @@ export function useRuApiLog(filters: RuApiLogFilters) {
     },
     [
       filters.propertyId,
+      filters.direction,
       filters.action,
       filters.operation,
       filters.ownerId,

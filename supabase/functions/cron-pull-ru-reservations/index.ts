@@ -3,6 +3,7 @@ import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
+import { recordChannelBookingEvent, type BookingEventAction } from '../_shared/channelBookingEvents.ts';
 import { readInvokeError } from '../_shared/functionInvokeError.ts';
 
 /**
@@ -273,6 +274,33 @@ Deno.serve(async (req) => {
               ? `Channel listing ${r.ruPropertyId} is not mapped to any ROL'OS unit`
               : result.error ?? result.note ?? `Ingest outcome: ${result.outcome}`,
           last_attempt_at: new Date().toISOString(),
+        });
+
+        // Inbound trail: a reconciliation pull is the channel telling us about a stay just as much
+        // as a live notification is, so it has to be visible in Diagnostics with its own source.
+        const trailAction: BookingEventAction = kind === 'cancelled'
+          ? 'cancelled'
+          : kind === 'request'
+            ? 'request'
+            : result.outcome === 'updated'
+              ? 'modified'
+              : 'confirmed';
+        await recordChannelBookingEvent(supabase, {
+          booking_id: result.bookingId ?? null,
+          property_id: result.propertyId ?? null,
+          direction: 'inbound',
+          action: trailAction,
+          source: 'reconcile_pull',
+          outcome: result.outcome === 'failed' || result.outcome === 'unmatched'
+            ? 'failed'
+            : result.outcome === 'skipped'
+              ? 'skipped'
+              : 'ingested',
+          reason: result.outcome,
+          channel_reservation_id: r.ruReservationId ?? null,
+          channel_listing_id: r.ruPropertyId ?? null,
+          summary: `Reconciliation pull: reservation ${result.outcome}`,
+          details: { kind, note: result.note ?? null, error: result.error ?? null },
         });
 
       } catch (resErr) {
