@@ -137,6 +137,24 @@ const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
 // Old tab names stay valid so health-report and wizard deep links keep working.
 const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
 
+/** Chip tone: ready / attention / failing / unknown. Presentation only. */
+type ChipTone = "ok" | "warn" | "bad" | "muted";
+
+const CHIP_TONE: Record<ChipTone, string> = {
+  ok: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  warn: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  bad: "border-destructive/40 bg-destructive/10 text-destructive",
+  muted: "border-border bg-muted text-muted-foreground",
+};
+
+const relativeAge = (iso: string) => {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+};
+
+
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
   const [params, setParams] = useSearchParams();
