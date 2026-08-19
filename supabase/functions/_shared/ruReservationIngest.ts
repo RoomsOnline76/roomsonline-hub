@@ -227,6 +227,23 @@ async function resolveExistingBookingUnit(
  * grid draws the stay on every unit row. Lines for units that dropped off a modification are
  * removed and their nights released.
  */
+/**
+ * One readable request line for the whole booking: the reservation-level note first, then each
+ * unit's own note tagged with its stay so a multi-unit booking never loses which unit asked what.
+ */
+function summariseRuComments(r: ParsedRuReservation): string | null {
+  const parts: string[] = [];
+  const reservationNote = (r.reservationComments || '').trim();
+  if (reservationNote) parts.push(reservationNote);
+  const multi = r.stays.length > 1;
+  for (const stay of r.stays) {
+    const note = (stay.comments || '').trim();
+    if (!note || note === reservationNote) continue;
+    parts.push(multi ? `${stay.dateFrom || 'unit'}: ${note}` : note);
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
 /** Split `total` across `parts` as evenly as possible, giving the remainder to the first units. */
 function shareOf(total: number, parts: number, index: number): number {
   if (parts <= 1) return total;
@@ -535,7 +552,8 @@ export async function ingestRuReservation(
   // unit mapping is what made outbound modifications fail with "PropertyID specified in Current
   // element doesn't match" once a stay had been moved between units.
   if (r.ruPropertyId) fields.channel_listing_id = String(r.ruPropertyId);
-  if (r.comments) fields.special_requests = r.comments;
+  const guestRequestSummary = summariseRuComments(r);
+  if (guestRequestSummary) fields.special_requests = guestRequestSummary;
 
   // Anchor the stay on the physical unit straight away: without this the grids have no
   // unit line to draw the channel request on until someone assigns it by hand.
@@ -571,7 +589,7 @@ export async function ingestRuReservation(
       hold_expires_at: holdExpiresAt.toISOString(),
       special_requests:
         `Rentals United request — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
-        (r.comments ? ` · ${r.comments}` : ''),
+        (guestRequestSummary ? ` · ${guestRequestSummary}` : ''),
       ...(currencyMeta ? { ai_metadata: currencyMeta } : {}),
     };
 
