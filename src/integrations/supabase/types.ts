@@ -3664,6 +3664,54 @@ export type Database = {
           },
         ]
       }
+      owner_integrations: {
+        Row: {
+          access_token: string | null
+          config: Json
+          created_at: string
+          enabled: boolean
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          owner_id: string
+          portal_id: string | null
+          refresh_token: string | null
+          service: string
+          sync_status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          owner_id: string
+          portal_id?: string | null
+          refresh_token?: string | null
+          service: string
+          sync_status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          config?: Json
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          owner_id?: string
+          portal_id?: string | null
+          refresh_token?: string | null
+          service?: string
+          sync_status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       owner_invoices: {
         Row: {
           created_at: string | null
