@@ -64,43 +64,29 @@ Deno.serve(async (req) => {
   const deadline = startedAt + RUN_BUDGET_MS;
   const details: Record<string, unknown>[] = [];
 
-  /** Release or re-block the nights a lead is holding. */
+  /**
+   * Release or re-block the nights a lead is holding.
+   *
+   * Uses the shared stamped helpers, so a release finds the nights by the booking that closed
+   * them (surviving a unit rename) and every re-block is traceable back to its stay.
+   */
   const applyAvailability = async (lead: LeadBooking, block: boolean) => {
-    let roomName: string | null = null;
-    if (lead.room_type_id) {
-      const { data: rt } = await supabase
-        .from('hostfully_room_types')
-        .select('name')
-        .eq('id', lead.room_type_id)
-        .maybeSingle();
-      roomName = rt?.name ?? null;
+    if (!block) {
+      const released = await releaseChannelBlocksForBooking(supabase, lead.id, '[ru-lead-lifecycle]');
+      if (released > 0) return;
     }
-    if (!roomName) {
-      console.warn(`[ru-lead-lifecycle] Lead ${lead.id}: no unit name — availability untouched`);
-      return;
-    }
-    const dates: string[] = [];
-    for (
-      let d = new Date(`${lead.check_in_date}T00:00:00Z`);
-      d < new Date(`${lead.check_out_date}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + 1)
-    ) {
-      dates.push(d.toISOString().slice(0, 10));
-    }
-    if (!dates.length) return;
-    const rows = dates.map((date) => ({
-      property_id: lead.property_id,
-      room_type: roomName,
-      date,
-      external_system: 'manual',
-      available_units: block ? 0 : 1,
-      is_stop_sell: block,
-    }));
-    const { error } = await supabase
-      .from('property_availability')
-      .upsert(rows, { onConflict: 'property_id,room_type,date,external_system', ignoreDuplicates: false });
-    if (error) console.error(`[ru-lead-lifecycle] Availability update failed: ${error.message}`);
+    await applyRuAvailabilityBlock(
+      supabase,
+      lead.property_id,
+      lead.room_type_id,
+      lead.check_in_date,
+      lead.check_out_date,
+      block,
+      '[ru-lead-lifecycle]',
+      lead.id,
+    );
   };
+
 
   /** Child auth payload for the RU sub-user that owns this property. */
   const resolveChildAuth = async (propertyId: string): Promise<Record<string, unknown> | null> => {
