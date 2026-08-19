@@ -4619,8 +4619,16 @@ Deno.serve(async (req) => {
           : []),
       ];
 
-      // Listing ids were just re-read from the channel — the pull step needs re-grading.
-      await markLedgerStaleForScope(admin, { propertyId: targetPropertyId }, ["pull_listings"], "listings_pulled");
+      // Listing ids were just re-read from the sub-account — that IS the pull verdict.
+      // Marking it stale here made the step un-completable: nothing else ever grades it.
+      await recordLedgerPassForScope(
+        admin,
+        { propertyId: targetPropertyId },
+        ["pull_listings"],
+        "listings_pulled",
+        "push_result",
+        { matched, unmatched },
+      );
 
       return json({
 
