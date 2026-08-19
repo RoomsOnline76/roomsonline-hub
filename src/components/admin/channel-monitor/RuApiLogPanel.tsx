@@ -20,7 +20,13 @@ import {
 
 interface RuApiLogPanelProps {
   properties: { id: string; name: string }[];
+  /**
+   * Deep link from the booking trail: a trace id (or verb) to look up immediately.
+   * Bumped `key` on the caller side is not needed — the value change drives the search.
+   */
+  searchTerm?: string;
 }
+
 
 const DAY_OPTIONS = [
   { value: "1", label: "Last 24 hours" },
