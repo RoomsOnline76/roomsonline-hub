@@ -338,7 +338,9 @@ export default function AdminChannelMonitor() {
           {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
           <TabsContent value="diagnostics" className="space-y-6">
             <ChannelCallQueuePanel />
+            <ChannelLedgerMetricsPanel />
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+
               <RuApiLogPanel properties={reservationProperties} />
             </Suspense>
           </TabsContent>
