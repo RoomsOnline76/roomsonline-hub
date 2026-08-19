@@ -11,7 +11,7 @@ import { refreshRuReservationById } from './ruReservationIngest.ts';
 type Db = any;
 
 /** Backoff between attempts, in minutes. Length also caps the number of retries. */
-export const RU_RETRY_BACKOFF_MINUTES = [1, 3, 10, 30, 120];
+export const RU_RETRY_BACKOFF_MINUTES = [0.5, 3, 10, 30, 120];
 
 export const MAX_RU_RETRY_ATTEMPTS = RU_RETRY_BACKOFF_MINUTES.length;
 
