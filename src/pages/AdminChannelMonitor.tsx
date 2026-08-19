@@ -367,90 +367,186 @@ export default function AdminChannelMonitor() {
 
         <ChannelRuStatusStrip data={data} onNavigate={(t) => setTab(t)} />
 
-        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="cost">Cost &amp; listings</TabsTrigger>
-            <TabsTrigger value="accounts">RU Accounts Manager</TabsTrigger>
-            <TabsTrigger value="cert">Certification</TabsTrigger>
-            <TabsTrigger value="reservations">Reservations</TabsTrigger>
-            <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
-          </TabsList>
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+          {/* Compact sticky rail: every testable surface is one click away. */}
+          <nav className="lg:sticky lg:top-4 lg:self-start">
+            <Card>
+              <CardContent className="space-y-1 p-2">
+                {visibleRail.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setTab(item.key)}
+                    aria-current={tab === item.key ? "page" : undefined}
+                    className={cn(
+                      "w-full rounded-md border px-3 py-2 text-left transition-colors",
+                      tab === item.key
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-transparent hover:bg-muted",
+                    )}
+                  >
+                    <span className="block text-sm font-medium">{item.title}</span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                      {item.tests}
+                    </span>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+          </nav>
 
-
-          <TabsContent value="cost" className="space-y-4">
-            {data.loading && data.properties.length === 0 ? (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-24 w-full" />
-                  ))}
+          <div className="min-w-0 space-y-4">
+            {tab === "cost" &&
+              (data.loading && data.properties.length === 0 ? (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[0, 1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-24 w-full" />
+                    ))}
+                  </div>
+                  <Skeleton className="h-64 w-full" />
                 </div>
-                <Skeleton className="h-64 w-full" />
-              </div>
-            ) : (
-              <>
-                <ChannelCostSummary data={data} />
-                <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
-                <ChannelPropertyTable
-                  rows={data.properties}
-                  fx={data.fx}
-                  busyPropertyId={busyId}
-                  busyUnitId={busyUnitId}
-                  onToggleUnit={handleToggleUnit}
-                  onArchive={(row) => setTarget({ row, mode: "archive" })}
-                  onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
-                  onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
-                />
+              ) : (
+                <>
+                  <ChannelCostSummary data={data} />
+                  <ChannelBillingSchedule schedule={data.schedule} currentMonth={currentMonth} fx={data.fx} />
+                  <ChannelPropertyTable
+                    rows={data.properties}
+                    fx={data.fx}
+                    busyPropertyId={busyId}
+                    busyUnitId={busyUnitId}
+                    onToggleUnit={handleToggleUnit}
+                    onArchive={(row) => setTarget({ row, mode: "archive" })}
+                    onReactivate={(row) => void runPropertyToggle(row, "reactivate")}
+                    onPurgeDuplicate={(row, unit) => setPurgeTarget({ row, unit })}
+                  />
+                  <ChannelReconciliationPanel
+                    billableListings={data.billableListings}
+                    onChanged={() => data.refresh()}
+                  />
+                  <ChannelArchiveLog events={data.events} />
+                </>
+              ))}
+
+            {tab === "accounts" && (
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <PortfolioRuAccountsTab />
+              </Suspense>
+            )}
+
+            {/* Listing/building binding evidence. */}
+            {tab === "binding" && (
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <RuBuildingsPanel />
                 <ChannelReconciliationPanel
                   billableListings={data.billableListings}
                   onChanged={() => data.refresh()}
                 />
-                <ChannelArchiveLog events={data.events} />
+              </Suspense>
+            )}
+
+            {tab === "mapping" && (
+              <>
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={() => openCert("coverage")}>
+                    Open certification coverage
+                  </Button>
+                </div>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuCoverageTab />
+                </Suspense>
               </>
             )}
 
-          </TabsContent>
+            {tab === "ari" && (
+              <>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center gap-2 p-3">
+                    <Select value={ariPropertyId} onValueChange={setAriPropertyId}>
+                      <SelectTrigger className="w-full sm:w-80">
+                        <SelectValue placeholder="Choose a property to test" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {reservationProperties.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" onClick={() => openCert("availability")}>
+                      Availability window
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => openCert("pricing")}>
+                      Pricing window
+                    </Button>
+                  </CardContent>
+                </Card>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuAvailabilityPlayground
+                    propertyId={ariPropertyId}
+                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
+                  />
+                  <RuPricingPlayground
+                    propertyId={ariPropertyId}
+                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
+                  />
+                </Suspense>
+              </>
+            )}
 
-          <TabsContent value="accounts">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <PortfolioRuAccountsTab />
-            </Suspense>
-          </TabsContent>
-
-          <TabsContent value="cert">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <ChannelCertificationTab />
-            </Suspense>
-          </TabsContent>
-
-          {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup live in the same console. */}
-          <TabsContent value="reservations">
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <RuReservationsPanel properties={reservationProperties} />
-            </Suspense>
-          </TabsContent>
-
-          {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
-          <TabsContent value="diagnostics" className="space-y-6">
-            <ChannelCallQueuePanel />
-            <ChannelLedgerMetricsPanel />
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <BookingSyncTrailPanel
-                properties={reservationProperties}
-                onInspectExchange={(term) => {
-                  setExchangeSearch(term);
-                  exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-              />
-            </Suspense>
-            <div ref={exchangeLogRef}>
+            {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup + sync trail. */}
+            {tab === "reservations" && (
               <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+                <RuReservationsPanel properties={reservationProperties} />
+                <BookingSyncTrailPanel
+                  properties={reservationProperties}
+                  onInspectExchange={(term) => {
+                    setExchangeSearch(term);
+                    setTab("cert");
+                    window.setTimeout(
+                      () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                      150,
+                    );
+                  }}
+                />
               </Suspense>
-            </div>
+            )}
 
-          </TabsContent>
-        </Tabs>
+            {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+            {tab === "cert" && (
+              <>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <ChannelCertificationTab initialTab={certSubTab} />
+                </Suspense>
+                <ChannelLedgerMetricsPanel />
+                <div ref={exchangeLogRef}>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+                  </Suspense>
+                </div>
+              </>
+            )}
+
+            {tab === "advanced" && (
+              <>
+                <ChannelCallQueuePanel />
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <RuCalendarVerifyPanel properties={reservationProperties} />
+                </Suspense>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm text-muted-foreground">
+                    <span>Sync error classification, currency, live notifications and content quality.</span>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/admin/integrations/rentals-united?tab=errors">Open channel diagnostics</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        </div>
+
 
       </div>
 
