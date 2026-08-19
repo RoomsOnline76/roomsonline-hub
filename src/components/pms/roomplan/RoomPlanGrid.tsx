@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
-import { RoomPlanBar, RoomPlanBooking } from "./RoomPlanBar";
+import { RoomPlanBar, RoomPlanBooking, RoomPlanCancelContext } from "./RoomPlanBar";
+import type { BookingUnitLine } from "@/hooks/useBookingRoomLines";
 import {
   ROOM_PLAN_COL_W,
   ROOM_PLAN_COL_W_COMPACT,
@@ -96,7 +97,9 @@ interface RoomPlanGridProps {
   onSelectBooking: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
   onModifyBooking?: (booking: RoomPlanBooking) => void;
-  onCancelBooking?: (booking: RoomPlanBooking) => void;
+  onCancelBooking?: (booking: RoomPlanBooking, context?: RoomPlanCancelContext) => void;
+  /** Active per-unit lines keyed by booking id — per-unit pax and cancel scope. */
+  unitLinesByBooking?: Map<string, BookingUnitLine[]>;
   onCreateBooking?: (payload: RoomPlanCreatePayload) => void;
   onMoveBooking?: (payload: RoomPlanMovePayload) => Promise<void> | void;
 }
@@ -156,7 +159,20 @@ export function RoomPlanGrid({
   onCancelBooking,
   onCreateBooking,
   onMoveBooking,
+  unitLinesByBooking,
 }: RoomPlanGridProps) {
+  /** The stay's line sitting in this row, so the bar shows that unit's party. */
+  const resolveUnitLine = useCallback(
+    (bookingId: string, roomId: string | null, roomTypeId: string) => {
+      const lines = unitLinesByBooking?.get(bookingId) || [];
+      if (lines.length < 2) return { line: lines[0] || null, count: lines.length };
+      const byRoom = roomId ? lines.find((l) => l.room_id === roomId) : undefined;
+      if (byRoom) return { line: byRoom, count: lines.length };
+      const byType = lines.filter((l) => !l.room_id && l.room_type_id === roomTypeId);
+      return { line: byType.length === 1 ? byType[0] : null, count: lines.length };
+    },
+    [unitLinesByBooking],
+  );
   const colWidth = compact ? ROOM_PLAN_COL_W_COMPACT : ROOM_PLAN_COL_W;
   const [pendingMove, setPendingMove] = useState<
     | (RoomPlanMovePayload & { fromLabel: string; toLabel: string; fromTypeLabel: string; toTypeLabel: string })
@@ -668,9 +684,13 @@ export function RoomPlanGrid({
                             />
                           )}
 
-                          {placed.map(({ booking, lane, geometry }) => (
+                          {placed.map(({ booking, lane, geometry }) => {
+                            const unit = resolveUnitLine(booking.id, row.roomId, row.roomTypeId);
+                            return (
                             <RoomPlanBar
                               key={booking.id}
+                              unitLine={unit.line}
+                              unitCount={unit.count}
                               booking={booking}
                               geometry={geometry}
                               colWidth={colWidth}
@@ -701,7 +721,9 @@ export function RoomPlanGrid({
                                       )
                               }
                             />
-                          ))}
+                            );
+                          })}
+
                         </div>
                       </div>
                     );

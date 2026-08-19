@@ -46,6 +46,23 @@ export interface RoomPlanBooking {
 }
 
 
+/** Which unit line a bar represents, so Cancel can target just that unit. */
+export interface RoomPlanCancelContext {
+  lineId: string;
+  roomLabel: string;
+  unitCount: number;
+}
+
+/** Occupancy of one unit line of a multi-unit stay. */
+export interface RoomPlanUnitLine {
+  id: string;
+  adults?: number | null;
+  children?: number | null;
+  teens?: number | null;
+  infants?: number | null;
+  pets?: number | null;
+}
+
 interface RoomPlanBarProps {
   booking: RoomPlanBooking;
   geometry: BarGeometry;
@@ -54,16 +71,28 @@ interface RoomPlanBarProps {
   roomLabel: string;
   propertyName?: string | null;
   dragging?: boolean;
+  /** The stay's line for this row — drives per-unit pax and per-unit cancel. */
+  unitLine?: RoomPlanUnitLine | null;
+  /** Total active unit lines on the booking (1 = ordinary single-unit stay). */
+  unitCount?: number;
   onOpen: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
   onModify?: (booking: RoomPlanBooking) => void;
-  onCancel?: (booking: RoomPlanBooking) => void;
+  onCancel?: (booking: RoomPlanBooking, context?: RoomPlanCancelContext) => void;
   onDragStart?: (booking: RoomPlanBooking, event: React.PointerEvent) => void;
   /** True when the click currently firing is the tail of a drag gesture. */
   wasDragGesture?: () => boolean;
 }
 
-const paxLine = (b: RoomPlanBooking) => {
+interface PaxSource {
+  adults?: number | null;
+  children?: number | null;
+  teens?: number | null;
+  infants?: number | null;
+  pets?: number | null;
+}
+
+const paxLine = (b: PaxSource) => {
   const parts: string[] = [];
   if (b.adults) parts.push(`${b.adults} adult${b.adults === 1 ? "" : "s"}`);
   if (b.teens) parts.push(`${b.teens} teen${b.teens === 1 ? "" : "s"}`);
@@ -72,6 +101,7 @@ const paxLine = (b: RoomPlanBooking) => {
   if (b.pets) parts.push(`${b.pets} pet${b.pets === 1 ? "" : "s"}`);
   return parts.join(" · ") || "No pax captured";
 };
+
 
 const isChannelBooking = (b: RoomPlanBooking) =>
   !!b.integration_type && b.integration_type !== "rolos" && b.integration_type !== "manual";
@@ -84,6 +114,8 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   roomLabel,
   propertyName,
   dragging,
+  unitLine,
+  unitCount,
   onOpen,
   onQuickAction,
   onModify,
@@ -95,6 +127,10 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   const draggable = isBookingDraggable(booking) && !!onDragStart;
   const needsAttention = !!booking.requires_intervention || !!booking.special_requests?.trim();
   const isLead = (booking.integration_type ?? "").endsWith("_lead");
+  const isMultiUnit = (unitCount || 1) > 1;
+  // A multi-unit stay must show this unit's own party, not the whole booking's.
+  const paxText = isMultiUnit && unitLine ? paxLine(unitLine) : paxLine(booking);
+
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent) => {
@@ -154,6 +190,8 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               <p className="text-[11px] text-slate-400">
                 {propertyName ? `${propertyName} · ` : ""}
                 {roomLabel}
+                {isMultiUnit && ` · 1 of ${unitCount} units`}
+
               </p>
             </div>
             <span className="shrink-0 rounded-full border border-slate-600 px-2 py-0.5 text-[10px] capitalize">
@@ -167,7 +205,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               {format(parseISO(booking.check_in_date), "EEE d MMM")} → {format(parseISO(booking.check_out_date), "EEE d MMM yyyy")}
               <span className="text-slate-400"> · {nights} night{nights === 1 ? "" : "s"}</span>
             </p>
-            <p>{paxLine(booking)}</p>
+            <p>{paxText}{isMultiUnit && unitLine ? " (this unit)" : ""}</p>
             <p>
               R{Number(booking.total_price || 0).toLocaleString()}
               <span className="text-slate-400"> · {(booking.payment_status || "unpaid").replace(/_/g, " ")}</span>
@@ -228,10 +266,18 @@ export const RoomPlanBar = memo(function RoomPlanBar({
                 size="sm"
                 variant="destructive"
                 className="h-6 px-2 text-[10px]"
-                onClick={() => onCancel(booking)}
+                onClick={() =>
+                  onCancel(
+                    booking,
+                    isMultiUnit && unitLine
+                      ? { lineId: unitLine.id, roomLabel, unitCount: unitCount || 1 }
+                      : undefined,
+                  )
+                }
               >
                 <XCircle className="mr-1 h-3 w-3" />Cancel
               </Button>
+
             )}
           </div>
         </div>

@@ -95,7 +95,8 @@ export function ViewRatesDialog({
         supabase
           .from("rolos_booking_rooms")
           .select("id, room_id, room_type_id, rate_plan_id, rate_charged, nightly_rate, rolos_room_types(name)")
-          .eq("booking_id", bookingId),
+          .eq("booking_id", bookingId)
+          .neq("status", "cancelled"),
       ]);
       if (cancelled) return;
 
