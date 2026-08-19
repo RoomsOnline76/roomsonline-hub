@@ -254,27 +254,64 @@ Deno.serve(async (req) => {
             await trail('ingested', 'detail_pull', 'Channel notification resolved via detail pull', refreshed.bookingId ?? null);
             continue;
           }
-          // RU is often not able to serve the reservation for the first minute or two after
-          // the callback. Park it for a timed retry instead of losing the stay.
-          if (notificationId) {
+          // The channel usually starts serving the reservation within seconds. Retry on the
+          // fast ladder in the background so the stay lands almost immediately, and only park
+          // it for the minute-scale sweep once that ladder is exhausted.
+          const reservationId = r.ruReservationId;
+          const parkForSweep = async (error: string | null, rateDeferred: boolean, ownerId: string | null) => {
+            if (!notificationId) return;
             const state = await scheduleRuNotificationRetry(supabase, notificationId, {
               attemptCount: 0,
-              error: refreshed.error ?? 'Detail pull could not resolve the reservation',
+              error: error ?? 'Detail pull could not resolve the reservation',
               state: unmappedListing ? 'unmapped' : undefined,
               // A rate-limited read says nothing about whether the reservation exists —
               // it must not consume one of the finite retry attempts.
-              freeAttempt: refreshed.rateDeferred === true,
-              ownerId: refreshed.resolvedOwnerId ?? null,
+              freeAttempt: rateDeferred,
+              ownerId,
             });
             console.warn(
-              `[ru-reservation-handler] Reservation ${r.ruReservationId} parked as ${state}: ${refreshed.error ?? 'detail pull unresolved'}`,
+              `[ru-reservation-handler] Reservation ${reservationId} parked as ${state}: ${error ?? 'detail pull unresolved'}`,
             );
             await trail(
               'queued',
-              refreshed.rateDeferred ? 'rate_deferred' : 'detail_pull_unresolved',
+              rateDeferred ? 'rate_deferred' : 'detail_pull_unresolved',
               `Channel notification parked as ${state} — will retry`,
             );
-          }
+          };
+
+          const fastLadder = async () => {
+            let last = refreshed;
+            for (const delay of FAST_RETRY_DELAYS_MS) {
+              await sleep(delay);
+              last = await refreshRuReservationById(supabase, reservationId, {
+                propertyId,
+                logPrefix: '[ru-reservation-handler][fast-retry]',
+                forceRequest: kind === 'request',
+                kind,
+                creator: r.creator,
+              });
+              if (last.outcome !== 'failed' && last.outcome !== 'unmatched') {
+                await markResolved('resolved', null, last.resolvedOwnerId ?? null);
+                await trail(
+                  'ingested',
+                  'fast_retry',
+                  'Channel notification resolved on fast retry',
+                  last.bookingId ?? null,
+                );
+                return;
+              }
+            }
+            await parkForSweep(last.error ?? null, last.rateDeferred === true, last.resolvedOwnerId ?? null);
+          };
+
+          const runLadder = fastLadder().catch((e: unknown) =>
+            console.error('[ru-reservation-handler] Fast retry ladder failed:', e),
+          );
+          // deno-lint-ignore no-explicit-any
+          const runtime = (globalThis as any).EdgeRuntime;
+          if (runtime?.waitUntil) runtime.waitUntil(runLadder);
+          else await runLadder;
+
         } else {
 
           await markResolved('failed', 'Notification carried no reservation id');
