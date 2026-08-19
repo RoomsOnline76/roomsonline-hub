@@ -2037,9 +2037,11 @@ interface RUListedUser {
   user_account_id: string;
   email: string;
   /**
-   * The sub-user's actual RU login (`<UserName>`). It can differ from `<Email>` — e.g.
-   * OwnerID 741765 logs in as connect@… while its contact email is rooms@…, so an
-   * email-only lookup would wrongly report "no sub-user for this login".
+   * The sub-user's actual RU login (`<UserName>`). It can differ from the `<Email>` in
+   * Pull_ListMyUsers_RQ, which lags the portal's contact email — OwnerID 741765 uses
+   * connect@… for both login and contact while the list still reports rooms@… as
+   * `<Email>`. An email-only lookup therefore wrongly reports "no sub-user for this
+   * login", so every owner lookup must match on `login_email` too.
    */
   login_email: string;
   first_name: string;
