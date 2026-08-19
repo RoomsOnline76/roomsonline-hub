@@ -275,18 +275,26 @@ Deno.serve(async (req) => {
     }
 
     // Keep the unified guest record in step with what the guest just told us.
+    // `preferences` is a JSON bag on the profile, so merge rather than replace.
     if (guestProfileId) {
+      const mergedPreferences = {
+        ...(guestPreferences || {}),
+        ...(s.dietary_requirements ? { dietary_requirements: s.dietary_requirements } : {}),
+        ...(s.accessibility_needs ? { accessibility_needs: s.accessibility_needs } : {}),
+        ...(s.preferences ? { notes: s.preferences } : {}),
+        ...(s.special_occasion ? { special_occasion: s.special_occasion } : {}),
+      };
       await admin
         .from("rolos_guest_profiles")
         .update({
           ...(s.nationality ? { nationality: s.nationality } : {}),
           ...(s.phone ? { phone: s.phone } : {}),
-          ...(s.dietary_requirements ? { dietary_requirements: s.dietary_requirements } : {}),
-          ...(s.preferences ? { preferences: s.preferences } : {}),
-          marketing_consent: s.marketing_consent ?? false,
+          preferences: mergedPreferences,
+          communication_preferences: { marketing_consent: s.marketing_consent ?? false },
         })
         .eq("id", guestProfileId);
     }
+
 
     // Optional outward projection — a note on the guest's CRM timeline.
     if (email) {
