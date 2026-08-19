@@ -264,7 +264,7 @@ const WIRING = [
 export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
   const failures = useMemo(() => runs.filter((r) => !r.success), [runs]);
 
-  const groups = useMemo(() => {
+  const allGroups = useMemo(() => {
     const map = new Map<string, { cls: Classification; count: number; last: RuErrorRun }>();
     failures.forEach((r) => {
       const cls = classifyRuError(r);
@@ -279,15 +279,21 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [failures]);
 
+  // Refusals and no-ops are recorded for the audit trail but are not defects.
+  const groups = useMemo(() => allGroups.filter((g) => g.cls.severity !== "expected"), [allGroups]);
+  const expectedGroups = useMemo(() => allGroups.filter((g) => g.cls.severity === "expected"), [allGroups]);
+  const expectedCount = expectedGroups.reduce((s, g) => s + g.count, 0);
+  const faultCount = groups.reduce((s, g) => s + g.count, 0);
+
   const blockers = groups.filter((g) => g.cls.severity === "blocker").reduce((s, g) => s + g.count, 0);
   const selfHealing = groups.filter((g) => g.cls.severity === "retryable").reduce((s, g) => s + g.count, 0);
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Failures (7d)</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-semibold">{failures.length}</div></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Faults (7d)</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-semibold">{faultCount}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Need manual fix</CardTitle></CardHeader>
@@ -297,7 +303,15 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Self-healing</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-semibold text-amber-600 dark:text-amber-400">{selfHealing}</div></CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Expected states</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-semibold">{expectedCount}</div>
+            <p className="text-[11px] text-muted-foreground mt-1">Wizard refusals, queued calls and no-ops — excluded from faults.</p>
+          </CardContent>
+        </Card>
       </div>
+
 
       <Card>
         <CardHeader>
