@@ -903,7 +903,10 @@ Deno.serve(async (req) => {
      * post-push listing read-back always came back "Invalid session" and a clean publish read
      * as a failure. Only the read-only resolver is reachable this way.
      */
-    const INTERNAL_SERVICE_ACTIONS = ["resolve_ru_property_ids"];
+    // `ledger_drain_recheck` is the background stale drain (Phase 4): local-only by
+    // construction — it can never probe the channel — so a cron may run it with the
+    // service-role key without opening any RU traffic.
+    const INTERNAL_SERVICE_ACTIONS = ["resolve_ru_property_ids", "ledger_drain_recheck"];
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
     /** A service-role JWT is also accepted, so a rotated key does not break system read-backs. */
@@ -2253,8 +2256,20 @@ Deno.serve(async (req) => {
      *   ledger_get         → pure read (no channel calls, no writes)
      *   ledger_mark_stale  → flag steps `stale` (no channel calls)
      *   ledger_recheck     → run the readiness scorer, persist passed/blocked/unknown
+     *
+     * Phase 4 adds one internal action:
+     *
+     *   ledger_drain_recheck → same as `ledger_recheck` but the channel probe is
+     *                          hard-wired off, so the background drain cannot start
+     *                          RU availability/price pulls even if asked to.
      */
-    const LEDGER_ACTIONS = ["ledger_seed", "ledger_get", "ledger_mark_stale", "ledger_recheck"];
+    const LEDGER_ACTIONS = [
+      "ledger_seed",
+      "ledger_get",
+      "ledger_mark_stale",
+      "ledger_recheck",
+      "ledger_drain_recheck",
+    ];
     if (LEDGER_ACTIONS.includes(action)) {
       const propertyId: string = body.property_id ?? "";
       if (!propertyId) {
@@ -2296,14 +2311,17 @@ Deno.serve(async (req) => {
           return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
         }
         await seedLedger(admin, propertyId);
-        const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+        // The drain is local-only by construction: it ignores any `probe_ari` in the body.
+        const probeAri = action === "ledger_drain_recheck" ? false : body.probe_ari !== false;
+        const report = await scoreProperty(prop, { probe_ari: probeAri });
         const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
         const written = await writeLedgerRows(admin, propertyId, rows);
         logLedgerEvent({
           propertyId,
-          event: "ledger_recheck",
+          event: action === "ledger_drain_recheck" ? "ledger_drain_recheck" : "ledger_recheck",
           detail: {
             ...written,
+            probe_ari: probeAri,
             statuses: rows.reduce<Record<string, number>>((acc, row) => {
               acc[row.status] = (acc[row.status] ?? 0) + 1;
               return acc;

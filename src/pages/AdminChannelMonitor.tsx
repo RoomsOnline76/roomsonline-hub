@@ -28,6 +28,8 @@ import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/Archiv
 import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
+import { ChannelLedgerMetricsPanel } from "@/components/admin/channel-monitor/ChannelLedgerMetricsPanel";
+
 
 import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
 
@@ -338,7 +340,9 @@ export default function AdminChannelMonitor() {
           {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
           <TabsContent value="diagnostics" className="space-y-6">
             <ChannelCallQueuePanel />
+            <ChannelLedgerMetricsPanel />
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+
               <RuApiLogPanel properties={reservationProperties} />
             </Suspense>
           </TabsContent>

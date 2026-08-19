@@ -28,6 +28,28 @@ export const CHANNEL_LEDGER_STEP_KEYS = [
 export type ChannelLedgerStepKey = (typeof CHANNEL_LEDGER_STEP_KEYS)[number];
 
 /**
+ * Steps whose verdict depends on the channel answering (publish state, currency,
+ * listing pull, sub-account identity). Only staff-triggered rechecks may probe these.
+ */
+export const CHANNEL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = [
+  "publish",
+  "currency",
+  "pull_listings",
+  "company_profile",
+  "keys",
+  "push_owner",
+  "connect",
+];
+
+/**
+ * Steps decided entirely from ROL'OS data. These are the only steps the Phase 4
+ * background drain re-checks: no channel call is ever needed to clear them.
+ */
+export const LOCAL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = CHANNEL_LEDGER_STEP_KEYS.filter(
+  (key) => !CHANNEL_CLASS_LEDGER_STEPS.includes(key),
+);
+
+/**
  * Is the ledger enabled? Any failure resolves to `false` so the production path is
  * unchanged when the settings row is absent or unreadable.
  */

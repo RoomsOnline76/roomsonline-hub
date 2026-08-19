@@ -1204,7 +1204,21 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     /** Login email of the distribution sub-account being verified. */
     subAccountEmail:
       (d?.identity?.account?.ru_login_email ?? d?.identity?.account?.owner_email ?? null) || null,
-    ariProbedAt: d?.ariAge ?? null,
+    /**
+     * When the ledger drives the wizard the scorecard never runs on mount, so the
+     * "last verified" stamp comes from the durable publish row instead of the 90s
+     * phase cache. That keeps the wizard independent of the phase TTL entirely.
+     */
+    ariProbedAt:
+      d?.ariAge ??
+      (ledgerActive
+        ? (() => {
+            const checked = ledgerByStep.get("publish")?.last_checked_at;
+            const at = checked ? Date.parse(checked) : NaN;
+            return Number.isFinite(at) ? at : null;
+          })()
+        : null),
+
     ariProbeRequested: probeAri,
     publishedOk,
     unpublishedUnits,
