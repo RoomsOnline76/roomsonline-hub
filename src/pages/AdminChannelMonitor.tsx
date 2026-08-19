@@ -46,6 +46,11 @@ const ChannelCertificationTab = lazy(() =>
 const RuReservationsPanel = lazy(() =>
   import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
 );
+const BookingSyncTrailPanel = lazy(() =>
+  import("@/components/admin/channel-monitor/BookingSyncTrailPanel").then((m) => ({
+    default: m.BookingSyncTrailPanel,
+  })),
+);
 const RuApiLogPanel = lazy(() =>
   import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
 );
@@ -341,6 +346,9 @@ export default function AdminChannelMonitor() {
           <TabsContent value="diagnostics" className="space-y-6">
             <ChannelCallQueuePanel />
             <ChannelLedgerMetricsPanel />
+            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+              <BookingSyncTrailPanel properties={reservationProperties} />
+            </Suspense>
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
 
               <RuApiLogPanel properties={reservationProperties} />
