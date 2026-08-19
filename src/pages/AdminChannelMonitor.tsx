@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -168,6 +169,7 @@ export default function AdminChannelMonitor() {
   const [purgeTarget, setPurgeTarget] = useState<{ row: ChannelPropertyRow; unit?: ChannelUnitRow } | null>(null);
   // Deep link between the booking trail (decision) and the exchange log (raw payload).
   const [exchangeSearch, setExchangeSearch] = useState("");
+  const [exchangeOpen, setExchangeOpen] = useState(false);
   const exchangeLogRef = useRef<HTMLElement | null>(null);
 
 
@@ -616,6 +618,7 @@ export default function AdminChannelMonitor() {
                   properties={reservationProperties}
                   onInspectExchange={(term) => {
                     setExchangeSearch(term);
+                    setExchangeOpen(true);
                     setTab("cert");
                     window.setTimeout(
                       () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
@@ -631,6 +634,24 @@ export default function AdminChannelMonitor() {
               <>
                 <RuCertChecklistCard />
 
+                <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
+                  <section className="space-y-2" ref={exchangeLogRef}>
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Exchange log (sync &amp; errors)
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${exchangeOpen ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                        <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+                      </Suspense>
+                    </CollapsibleContent>
+                  </section>
+                </Collapsible>
+
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Certification runs
@@ -642,21 +663,13 @@ export default function AdminChannelMonitor() {
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Onboarding ledger
+                    Channel step ledger
                   </h2>
                   <ChannelLedgerMetricsPanel />
                 </section>
-
-                <section className="space-y-2" ref={exchangeLogRef}>
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Sync &amp; error log
-                  </h2>
-                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
-                  </Suspense>
-                </section>
               </>
             )}
+
 
             {tab === "advanced" && (
               <>
