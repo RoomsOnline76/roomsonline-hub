@@ -30,6 +30,9 @@ interface Props {
     total_price: number;
     property_id?: string | null;
     room_type_id?: string | null;
+    /** Concurrency stamp — lets the save refuse to undo a newer channel modification. */
+    updated_at?: string | null;
+
   };
   /** Shows the channel-push notice for Rentals United reservations. */
   isRuBooking?: boolean;
@@ -256,9 +259,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         body: {
           booking_id: booking.id,
           modifications,
+          // Guards against undoing a Channel Manager modification that landed while this was open.
+          expected_updated_at: booking.updated_at ?? null,
           settlement: { raise_refund: raiseRefund, request_balance: requestBalance },
         },
       });
+
 
       if (error) throw new Error(await extractFunctionError(error, "Modification failed"));
       if (data && data.success === false) throw new Error(data.message || "Modification failed");

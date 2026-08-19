@@ -28,3 +28,8 @@ with fewer `StayInfo` blocks, `syncRuStayUnits` cancels ONLY the dropped unit li
 those units' nights; surviving units keep their blocks, and a unit that returns on a later
 modification is reinstated to `active`.
 
+
+## Channel modifications redraw the stay
+- A Rentals United modification rewrites the booking dates AND re-draws its blocked nights: the ingest releases the booking's own stamped channel blocks first when dates shift, then re-blocks the new range, so no nights stay blocked outside the stay.
+- `modify-booking` accepts `expected_updated_at`; a save from a screen older than the current row returns `STALE_BOOKING` (409) instead of undoing the channel change.
+- Dashboard/Rooms realtime refresh also invalidates availability overrides, room lines and rooms so the bar and the blocks repaint together.

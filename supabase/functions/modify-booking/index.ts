@@ -43,7 +43,15 @@ interface ModifyRequest {
     raise_refund?: boolean;
     request_balance?: boolean;
   };
+  /**
+   * The booking's `updated_at` as the operator's screen last saw it. A channel modification
+   * (an extended stay pulled from Rentals United) writes a newer row while a dialog is open;
+   * saving the stale form would silently undo the channel's change, which is exactly how an
+   * extended stay ended up back at its old departure date with the extra nights only blocked.
+   */
+  expected_updated_at?: string | null;
 }
+
 
 
 
@@ -333,6 +341,24 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ code: "NOT_FOUND", message: "Booking not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // S1b: Refuse a stale save. The channel writes modifications straight into the booking, so a
+    // form opened before that write would push the old dates back and leave the extra nights
+    // blocked without the stay covering them. The operator reloads and decides again.
+    const expected = body.expected_updated_at ? String(body.expected_updated_at) : null;
+    if (expected && booking.updated_at && new Date(booking.updated_at).getTime() > new Date(expected).getTime() + 1000) {
+      return new Response(
+        JSON.stringify({
+          code: "STALE_BOOKING",
+          success: false,
+          message:
+            "This reservation changed after you opened it (most likely a Channel Manager modification). Reload and try again.",
+          current_check_in_date: booking.check_in_date,
+          current_check_out_date: booking.check_out_date,
+        }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

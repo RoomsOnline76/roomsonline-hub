@@ -445,6 +445,20 @@ export async function ingestRuReservation(
     return { ...base, outcome: 'skipped', bookingId: existing?.id ?? null, note: 'Reservation carries no stay dates' };
   }
 
+  // A modification that moves or extends the stay must re-draw its footprint, not add to it.
+  // Releasing this booking's own stamped nights first means the block always matches the new
+  // dates exactly — no nights left blocked outside the stay, no gap inside it.
+  const datesShifted = Boolean(
+    existing && (existing.check_in_date !== r.dateFrom || existing.check_out_date !== r.dateTo),
+  );
+  if (datesShifted && existing && !opts.skipAvailability) {
+    await releaseChannelBlocksForBooking(supabase, existing.id, log);
+    console.log(
+      `${log} Stay dates moved ${existing.check_in_date}→${existing.check_out_date} to ${r.dateFrom}→${r.dateTo}; blocks re-drawn`,
+    );
+  }
+
+
   const creatorMapping = await resolveRuChannelCreator(supabase, r.creator);
   base.channelLabel = creatorMapping?.channelLabel ?? null;
 
