@@ -146,8 +146,13 @@ export default function AdminChannelMonitor() {
   const exchangeLogRef = useRef<HTMLDivElement | null>(null);
 
 
-  const rawTab = params.get("tab") as TabKey | null;
-  const tab: TabKey = rawTab && TAB_KEYS.includes(rawTab) ? rawTab : "cost";
+  const { isDev, isFearlessLeader } = useAuth();
+  const [certSubTab, setCertSubTab] = useState<string | undefined>(undefined);
+  const [ariPropertyId, setAriPropertyId] = useState<string>("");
+
+  const rawTab = params.get("tab");
+  const mapped = rawTab ? (LEGACY_TAB_MAP[rawTab] ?? (rawTab as TabKey)) : null;
+  const tab: TabKey = mapped && TAB_KEYS.includes(mapped) ? mapped : "cost";
 
   // Tab lives in the URL so health reports, the RU wizard and certification logs can deep-link.
   const setTab = useCallback(
