@@ -27,6 +27,7 @@ import {
   extractAllBlocks,
   extractTag,
   parseRuReservation,
+  releaseChannelBlocksForBooking,
   resolveRuUnit,
   type ParsedRuReservation,
   type ResolvedRuUnit,
@@ -218,6 +219,97 @@ async function resolveExistingBookingUnit(
   };
 }
 
+/**
+ * Reconcile the unit lines of a reservation that covers more than one unit.
+ *
+ * RU sends one `<StayInfo>` per booked unit inside a single reservation. ROL'OS keeps it as ONE
+ * booking (one guest, one reference, one total) with a `rolos_booking_rooms` line per unit, so the
+ * grid draws the stay on every unit row. Lines for units that dropped off a modification are
+ * removed and their nights released.
+ */
+async function syncRuStayUnits(
+  supabase: Db,
+  bookingId: string,
+  r: ParsedRuReservation,
+  primary: ResolvedRuUnit,
+  opts: RuIngestOptions,
+  blockNights: boolean,
+): Promise<void> {
+  const log = opts.logPrefix || '[ru-ingest]';
+  const stays = r.stays.length ? r.stays : [];
+  if (stays.length === 0) return;
+
+  const resolvedCache = new Map<string, ResolvedRuUnit>();
+  if (r.ruPropertyId) resolvedCache.set(String(r.ruPropertyId), primary);
+
+  const lines: Array<{ unit: ResolvedRuUnit; stay: typeof stays[number] }> = [];
+  for (const stay of stays) {
+    const key = String(stay.ruPropertyId ?? '');
+    let unit = key ? resolvedCache.get(key) : primary;
+    if (!unit) {
+      unit = await resolveRuUnit(supabase, stay.ruPropertyId);
+      if (key) resolvedCache.set(key, unit);
+    }
+    if (!unit?.propertyId) {
+      console.warn(`${log} No ROL'OS unit for stay listing ${stay.ruPropertyId ?? 'none'} — line skipped`);
+      continue;
+    }
+    lines.push({ unit, stay });
+  }
+  if (lines.length === 0) return;
+
+  // Physical unit anchors, so every booked unit shows a line on the dashboard grid.
+  const roomIds = [...new Set(lines.map((l) => l.unit.roomId).filter(Boolean) as string[])];
+  if (roomIds.length) {
+    await supabase.from('bookings').update({ rolos_room_ids: roomIds }).eq('id', bookingId);
+
+    for (const { unit, stay } of lines) {
+      if (!unit.roomId) continue;
+      const { error } = await supabase.from('rolos_booking_rooms').upsert(
+        {
+          booking_id: bookingId,
+          room_id: unit.roomId,
+          room_type_id: unit.roomTypeId,
+          rate_charged: stay.total || 0,
+          adults: stay.numGuests || 1,
+        },
+        { onConflict: 'booking_id,room_id' },
+      );
+      if (error) console.error(`${log} Unit line write failed for room ${unit.roomId}: ${error.message}`);
+    }
+
+    // Units removed by a modification lose their line.
+    const { data: staleLines } = await supabase
+      .from('rolos_booking_rooms')
+      .select('id, room_id')
+      .eq('booking_id', bookingId);
+    const stale = ((staleLines || []) as Array<{ id: string; room_id: string | null }>).filter(
+      (row) => row.room_id && !roomIds.includes(row.room_id),
+    );
+    if (stale.length) {
+      await supabase.from('rolos_booking_rooms').delete().in('id', stale.map((s) => s.id));
+    }
+  }
+
+  if (blockNights && !opts.skipAvailability) {
+    for (const { unit, stay } of lines) {
+      const from = stay.dateFrom || r.dateFrom;
+      const to = stay.dateTo || r.dateTo;
+      if (!from || !to) continue;
+      await applyRuAvailabilityBlock(
+        supabase,
+        unit.propertyId as string,
+        unit.mappingRoomTypeId,
+        from,
+        to,
+        true,
+        log,
+        bookingId,
+      );
+    }
+  }
+}
+
 export interface RuIngestOptions {
   /** Log prefix so cron and RLNM lines stay distinguishable. */
   logPrefix?: string;
@@ -236,6 +328,7 @@ export interface RuIngestOptions {
   /** Skip availability writes (certification dry runs). */
   skipAvailability?: boolean;
 }
+
 
 /**
  * Create / update / cancel the ROL'OS booking for one parsed RU reservation.
@@ -292,11 +385,17 @@ export async function ingestRuReservation(
           hold_released_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
-      const dateFrom = r.dateFrom || existing.check_in_date;
-      const dateTo = r.dateTo || existing.check_out_date;
-      if (dateFrom && dateTo && !opts.skipAvailability) {
-        await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, dateFrom, dateTo, false, log);
+      if (!opts.skipAvailability) {
+        // Release by stamp first: it clears every unit of a multi-unit stay and survives a
+        // unit rename or re-casing that would defeat the name-keyed release below.
+        const released = await releaseChannelBlocksForBooking(supabase, existing.id, log);
+        const dateFrom = r.dateFrom || existing.check_in_date;
+        const dateTo = r.dateTo || existing.check_out_date;
+        if (released === 0 && dateFrom && dateTo) {
+          await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, dateFrom, dateTo, false, log);
+        }
       }
+
       console.log(`${log} ✅ Cancelled booking for RU reservation ${r.ruReservationId}`);
       return { ...base, outcome: 'cancelled', bookingId: existing.id };
     }
@@ -358,8 +457,11 @@ export async function ingestRuReservation(
 
     if (existing) {
       await supabase.from('bookings').update(fields).eq('id', existing.id);
+      // A modification can add or drop units — reconcile the lines and their blocks.
+      await syncRuStayUnits(supabase, existing.id, r, unit, opts, true);
       return { ...base, outcome: 'updated', bookingId: existing.id };
     }
+
 
     const insertRow = {
       ...fields,
@@ -391,11 +493,17 @@ export async function ingestRuReservation(
       return { ...base, outcome: 'failed', error: error.message };
     }
 
-    if (!opts.skipAvailability && holdExpiresAt.getTime() > Date.now()) {
-      await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log);
+    const heldId = inserted?.id ?? null;
+    const holdLive = holdExpiresAt.getTime() > Date.now();
+    if (heldId) {
+      await syncRuStayUnits(supabase, heldId, r, unit, opts, holdLive);
+    }
+    if (!opts.skipAvailability && holdLive && !r.stays.length) {
+      await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log, heldId);
     }
     console.log(`${log} ✅ Held RU request ${r.ruReservationId} until ${holdExpiresAt.toISOString()}`);
-    return { ...base, outcome: 'held', bookingId: inserted?.id ?? null };
+    return { ...base, outcome: 'held', bookingId: heldId };
+
   }
 
   // ── Confirmed ──
@@ -449,9 +557,14 @@ export async function ingestRuReservation(
     }
   }
 
-  if (!opts.skipAvailability) {
-    await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log);
+  if (bookingId) {
+    // Multi-unit stays get a line and a block per unit; single-unit falls through below.
+    await syncRuStayUnits(supabase, bookingId, r, unit, opts, true);
   }
+  if (!opts.skipAvailability && !r.stays.length) {
+    await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log, bookingId);
+  }
+
   return { ...base, outcome, bookingId };
 }
 

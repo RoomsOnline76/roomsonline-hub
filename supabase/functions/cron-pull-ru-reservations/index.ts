@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { sweepStrandedChannelBlocks } from '../_shared/ruReservationParsing.ts';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
 import { classifyRuStatus, ingestRuReservation } from '../_shared/ruReservationIngest.ts';
@@ -195,8 +196,11 @@ Deno.serve(async (req) => {
     // ── Phase 2: Leads (same fan-out, best effort within the remaining budget) ──
     await pollLeads(scopes, dateFrom, dateTo);
 
+    // Safety net: nights still closed by a cancelled or released channel stay.
+    const strandedReleased = await sweepStrandedChannelBlocks(supabase, '[cron-pull-ru][blocks]');
+
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
-    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred }), {
+    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, stranded_blocks_released: strandedReleased }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

@@ -23,6 +23,21 @@ export function extractBlock(xml: string, tag: string): string {
   return m ? m[0] : '';
 }
 
+/** One `<StayInfo>` block: a single unit's slice of the reservation. */
+export interface ParsedRuStay {
+  ruPropertyId: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  arrivalTime: string | null;
+  numGuests: number;
+  units: number;
+  comments: string | null;
+  resapaId: string | null;
+  total: number;
+  alreadyPaid: number;
+  nightly: Array<{ date: string; price: number }>;
+}
+
 export interface ParsedRuReservation {
   ruReservationId: string | null;
   statusId: string | null;
@@ -45,51 +60,89 @@ export interface ParsedRuReservation {
   total: number;
   alreadyPaid: number;
   nightly: Array<{ date: string; price: number }>;
+  /**
+   * Every unit on the reservation. A guest can book two units in one go, and RU sends one
+   * `<StayInfo>` per unit — reading only the first silently dropped the rest.
+   */
+  stays: ParsedRuStay[];
 }
 
-/** Parse one RU <Reservation> block into the ROL'OS booking shape. */
-export function parseRuReservation(block: string): ParsedRuReservation {
-  const stay = extractBlock(block, 'StayInfo') || extractBlock(block, 'StayInfos') || block;
-  const customer = extractBlock(block, 'CustomerInfo') || block;
+/** Parse one `<StayInfo>` block. */
+function parseRuStay(stay: string, block: string): ParsedRuStay {
   const costs = extractBlock(stay, 'Costs');
-
-  const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
-  const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
-  const guestName = `${firstName} ${lastName}`.trim();
-
   const nightly = [...stay.matchAll(/<DayPrices\s+Date="([^"]+)"[^>]*>([\s\S]*?)<\/DayPrices>/gi)].map((m) => ({
     date: m[1],
     price: parseFloat(extractTag(m[2], 'Price') || extractTag(m[2], 'Rent') || '0'),
   }));
-
-  const total = parseFloat(
-    extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
-  );
-
   return {
-    ruReservationId: extractTag(block, 'ReservationID') || extractTag(block, 'LeadID'),
-    statusId: extractTag(block, 'StatusID') || extractTag(block, 'ReservationStatusID') || extractTag(block, 'Status'),
     ruPropertyId: extractTag(stay, 'PropertyID') || extractTag(block, 'PropID') || extractTag(block, 'PropertyID'),
     dateFrom: extractTag(stay, 'DateFrom'),
     dateTo: extractTag(stay, 'DateTo'),
     arrivalTime: extractTag(stay, 'ArrivalTime'),
     numGuests: parseInt(extractTag(stay, 'NumberOfGuests') || '1', 10),
     units: parseInt(extractTag(stay, 'Units') || '1', 10),
+    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
+    resapaId: extractTag(stay, 'ResapaID') || null,
+    total: parseFloat(
+      extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
+    ),
+    alreadyPaid: parseFloat(extractTag(costs, 'AlreadyPaid') || '0'),
+    nightly,
+  };
+}
+
+/** Parse one RU <Reservation> block into the ROL'OS booking shape. */
+export function parseRuReservation(block: string): ParsedRuReservation {
+  const stayBlocks = extractAllBlocks(block, 'StayInfo');
+  const stays = (stayBlocks.length ? stayBlocks : [extractBlock(block, 'StayInfos') || block]).map((s) =>
+    parseRuStay(s, block),
+  );
+  // Only keep slices that actually name a unit or dates — an empty <StayInfos /> parses to noise.
+  const realStays = stays.filter((s) => s.ruPropertyId || s.dateFrom);
+  const first = realStays[0] ?? stays[0];
+
+  const customer = extractBlock(block, 'CustomerInfo') || block;
+  const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
+  const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
+  const guestName = `${firstName} ${lastName}`.trim();
+
+  const dates = realStays.length ? realStays : [first];
+  const minDate = (key: 'dateFrom' | 'dateTo') =>
+    dates.map((s) => s[key]).filter(Boolean).sort()[0] ?? null;
+  const maxDate = (key: 'dateFrom' | 'dateTo') =>
+    dates.map((s) => s[key]).filter(Boolean).sort().slice(-1)[0] ?? null;
+
+  return {
+    ruReservationId: extractTag(block, 'ReservationID') || extractTag(block, 'LeadID'),
+    statusId: extractTag(block, 'StatusID') || extractTag(block, 'ReservationStatusID') || extractTag(block, 'Status'),
+    ruPropertyId: first.ruPropertyId,
+    // The booking spans every unit on the reservation: earliest arrival, latest departure.
+    dateFrom: minDate('dateFrom'),
+    dateTo: maxDate('dateTo'),
+    arrivalTime: first.arrivalTime,
+    numGuests: realStays.length
+      ? realStays.reduce((sum, s) => sum + (s.numGuests || 0), 0) || 1
+      : first.numGuests,
+    units: realStays.length || first.units,
     guestName: guestName || 'RU Guest',
     guestEmail: extractTag(customer, 'Email') || 'ru-notification@rentalsunited.com',
     guestPhone: extractTag(customer, 'MobilePhone') || extractTag(customer, 'Phone') || null,
     countryId: extractTag(customer, 'CountryID') || null,
     address: extractTag(customer, 'Address') || null,
     zipCode: extractTag(customer, 'ZipCode') || null,
-    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
-    resapaId: extractTag(stay, 'ResapaID') || null,
+    comments: first.comments,
+    resapaId: first.resapaId,
     creator: extractTag(block, 'Creator') || null,
     createdDate: extractTag(block, 'CreatedDate') || extractTag(block, 'LastMod') || null,
-    total,
-    alreadyPaid: parseFloat(extractTag(costs, 'AlreadyPaid') || '0'),
-    nightly,
+    total: realStays.length ? realStays.reduce((sum, s) => sum + (s.total || 0), 0) : first.total,
+    alreadyPaid: realStays.length
+      ? realStays.reduce((sum, s) => sum + (s.alreadyPaid || 0), 0)
+      : first.alreadyPaid,
+    nightly: first.nightly,
+    stays: realStays,
   };
 }
+
 
 /** Channel metadata kept in `modification_notes` (no dedicated columns exist). */
 export function buildRuChannelNotes(r: ParsedRuReservation, extra: Record<string, unknown> = {}) {
@@ -205,7 +258,39 @@ export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): 
 }
 
 
-/** Block (or release) the booked nights so the ROL booking engine cannot resell them. */
+/** Marker written into `blocked_reason` so a channel block can always be traced to its stay. */
+export const CHANNEL_BLOCK_LABEL = 'Channel Manager';
+export function channelBlockReason(bookingId: string | null | undefined): string {
+  return bookingId ? `channel_booking:${bookingId}` : 'channel_booking';
+}
+
+function eachNight(checkIn: string, checkOut: string): string[] {
+  const dates: string[] = [];
+  for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/** Real sellable inventory for a unit, so a release restores it instead of hardcoding 1. */
+async function resolveUnitInventory(supabase: Db, mappingRoomTypeId: string | null): Promise<number> {
+  if (!mappingRoomTypeId) return 1;
+  const { data } = await supabase
+    .from('hostfully_room_types')
+    .select("total_units")
+    .eq('id', mappingRoomTypeId)
+    .maybeSingle();
+  const candidate = Number(data?.total_units ?? 1);
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : 1;
+}
+
+/**
+ * Block (or release) the booked nights so the ROL booking engine cannot resell them.
+ *
+ * Every channel-written night is stamped with its booking (`blocked_reason`) and labelled as a
+ * Channel Manager block, so a later cancellation can release exactly its own nights even if the
+ * unit was since renamed or re-cased — and operator blocks (no stamp) are never touched.
+ */
 export async function applyRuAvailabilityBlock(
   supabase: Db,
   propertyId: string,
@@ -214,6 +299,7 @@ export async function applyRuAvailabilityBlock(
   checkOut: string,
   block: boolean,
   logPrefix = '[ru]',
+  bookingId: string | null = null,
 ) {
   try {
     let roomName: string | null = null;
@@ -224,34 +310,93 @@ export async function applyRuAvailabilityBlock(
         .eq('id', mappingRoomTypeId)
         .maybeSingle();
       roomName = rt?.name ?? null;
+      // Callers sometimes hold the canonical ROL'OS room type id instead of the channel
+      // mapping id — without this fallback the block or release silently did nothing.
+      if (!roomName) {
+        const { data: canonical } = await supabase
+          .from('rolos_room_types')
+          .select('name')
+          .eq('id', mappingRoomTypeId)
+          .maybeSingle();
+        roomName = canonical?.name ?? null;
+      }
     }
     if (!roomName) {
       console.warn(`${logPrefix} No unit name resolved — skipping availability ${block ? 'block' : 'release'}`);
       return;
     }
 
-    const dates: string[] = [];
-    for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
-      dates.push(d.toISOString().slice(0, 10));
-    }
+    const dates = eachNight(checkIn, checkOut);
     if (dates.length === 0) return;
+    const inventory = block ? 0 : await resolveUnitInventory(supabase, mappingRoomTypeId);
+    const stampedAt = new Date().toISOString();
 
+    // The table enforces uniqueness on (property_id, room_type, date) as well, so the conflict
+    // target must be the 3-column key — a 4-column target collides with it and the write is lost.
     const { error } = await supabase.from('property_availability').upsert(
       dates.map((date) => ({
         property_id: propertyId,
         room_type: roomName,
         date,
         external_system: 'manual',
-        available_units: block ? 0 : 1,
+        available_units: inventory,
         is_stop_sell: block,
+        blocked_by_label: block ? CHANNEL_BLOCK_LABEL : null,
+        blocked_reason: block ? channelBlockReason(bookingId) : null,
+        blocked_at: block ? stampedAt : null,
       })),
-      { onConflict: 'property_id,room_type,date,external_system', ignoreDuplicates: false },
+      { onConflict: 'property_id,room_type,date', ignoreDuplicates: false },
     );
     if (error) console.error(`${logPrefix} Availability ${block ? 'block' : 'release'} failed: ${error.message}`);
   } catch (e) {
     console.error(`${logPrefix} Availability sync error:`, e);
   }
 }
+
+/**
+ * Release every night this booking closed, found by its stamp rather than by unit name.
+ * A renamed or re-cased unit can no longer strand blocked nights.
+ */
+export async function releaseChannelBlocksForBooking(
+  supabase: Db,
+  bookingId: string,
+  logPrefix = '[ru]',
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('property_availability')
+      .select('id, property_id, room_type')
+      .eq('blocked_reason', channelBlockReason(bookingId));
+    if (error) {
+      console.error(`${logPrefix} Stamped block lookup failed: ${error.message}`);
+      return 0;
+    }
+    const rows = (data || []) as Array<{ id: string; property_id: string; room_type: string }>;
+    if (rows.length === 0) return 0;
+
+    const { error: upErr } = await supabase
+      .from('property_availability')
+      .update({
+        available_units: 1,
+        is_stop_sell: false,
+        blocked_by: null,
+        blocked_by_label: null,
+        blocked_reason: null,
+        blocked_at: null,
+      })
+      .in('id', rows.map((r) => r.id));
+    if (upErr) {
+      console.error(`${logPrefix} Stamped block release failed: ${upErr.message}`);
+      return 0;
+    }
+    console.log(`${logPrefix} Released ${rows.length} stamped channel night(s) for booking ${bookingId}`);
+    return rows.length;
+  } catch (e) {
+    console.error(`${logPrefix} Stamped block release error:`, e);
+    return 0;
+  }
+}
+
 
 /**
  * Single source of truth for RLNM envelope + status mapping.
@@ -352,3 +497,61 @@ export function classifyRuNotificationBlock(
   return classifyRuNotification(blockXml, statusId);
 }
 
+
+/**
+ * Nightly safety net: release any stamped channel night whose booking is cancelled, released or
+ * gone. Operator blocks carry no stamp and are never touched.
+ */
+export async function sweepStrandedChannelBlocks(supabase: Db, logPrefix = '[ru]'): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('property_availability')
+      .select('id, blocked_reason')
+      .eq('is_stop_sell', true)
+      .like('blocked_reason', 'channel_booking:%')
+      .limit(5000);
+    if (error) {
+      console.error(`${logPrefix} Stranded block scan failed: ${error.message}`);
+      return 0;
+    }
+    const rows = (data || []) as Array<{ id: string; blocked_reason: string }>;
+    if (rows.length === 0) return 0;
+
+    const bookingIds = [...new Set(rows.map((r) => r.blocked_reason.split(':')[1]).filter(Boolean))];
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, status, hold_released_at')
+      .in('id', bookingIds);
+    const live = new Set(
+      ((bookings || []) as Array<{ id: string; status: string | null; hold_released_at: string | null }>)
+        .filter((b) => b.status !== 'cancelled' && !b.hold_released_at)
+        .map((b) => b.id),
+    );
+
+    const strandedIds = rows
+      .filter((r) => !live.has(r.blocked_reason.split(':')[1] ?? ''))
+      .map((r) => r.id);
+    if (strandedIds.length === 0) return 0;
+
+    const { error: upErr } = await supabase
+      .from('property_availability')
+      .update({
+        available_units: 1,
+        is_stop_sell: false,
+        blocked_by: null,
+        blocked_by_label: null,
+        blocked_reason: null,
+        blocked_at: null,
+      })
+      .in('id', strandedIds);
+    if (upErr) {
+      console.error(`${logPrefix} Stranded block release failed: ${upErr.message}`);
+      return 0;
+    }
+    console.log(`${logPrefix} Released ${strandedIds.length} stranded channel night(s)`);
+    return strandedIds.length;
+  } catch (e) {
+    console.error(`${logPrefix} Stranded block sweep error:`, e);
+    return 0;
+  }
+}
