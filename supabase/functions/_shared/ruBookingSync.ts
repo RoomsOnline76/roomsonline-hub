@@ -223,6 +223,10 @@ async function invokeRu(
       trace_id: log?.traceId ?? null,
       parent_action: log?.parentAction ?? `ruBookingSync:${action}`,
       property_id: log?.propertyId ?? null,
+      // Reservation writes must survive the channel's one-identical-call-per-minute rule: a
+      // rate-limited cancel/modify is parked in the shared call queue and replayed instead of
+      // being dropped on the floor.
+      deferrable: true,
       ...payload,
     },
   });
