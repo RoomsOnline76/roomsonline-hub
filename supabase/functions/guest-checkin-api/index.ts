@@ -224,11 +224,14 @@ Deno.serve(async (req) => {
     if (email) {
       const { data: profile } = await admin
         .from("rolos_guest_profiles")
-        .select("id")
+        .select("id, preferences")
         .eq("email", email)
+        .eq("property_id", booking.property_id as string)
         .maybeSingle();
       guestProfileId = profile?.id ?? null;
+      guestPreferences = (profile?.preferences as Record<string, unknown> | null) ?? null;
     }
+
 
     const identity = await encrypt(s.identity_number);
     const dob = await encrypt(s.date_of_birth);
