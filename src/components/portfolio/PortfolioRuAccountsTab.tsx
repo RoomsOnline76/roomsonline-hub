@@ -1243,9 +1243,64 @@ export function PortfolioRuAccountsTab() {
                       );
                     })()}
 
-
-
-
+                    {(() => {
+                      const result = companyPushResults[acc.id];
+                      const lastPushed = acc.company_filled_at;
+                      return (
+                        <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-xs font-medium flex items-center gap-1.5">
+                              <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                              Company details
+                              {lastPushed && (
+                                <Badge variant="outline" className="text-[10px] text-muted-foreground font-normal">
+                                  Last pushed {new Date(lastPushed).toLocaleString()}
+                                </Badge>
+                              )}
+                            </p>
+                            <div className="flex items-center gap-1.5">
+                              {result && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  onClick={() =>
+                                    setCompanyPushResults((prev) => ({
+                                      ...prev,
+                                      [acc.id]: { ...prev[acc.id], open: !prev[acc.id].open },
+                                    }))
+                                  }
+                                >
+                                  {result.open ? "Hide response" : "View response"}
+                                </Button>
+                              )}
+                              <Button
+                                size="sm"
+                                className="h-7 text-xs"
+                                disabled={pushingCompany === acc.id || !acc.ru_owner_id}
+                                onClick={() => pushCompanyDetails(acc)}
+                                title="Required after creating a sub-user. Pushes company details to RU before any ARI or reservation calls."
+                              >
+                                {pushingCompany === acc.id ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Send className="h-3 w-3" />
+                                )}
+                                <span className="ml-1.5">Push Company Details</span>
+                              </Button>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Required after creating a sub-user. Pushes company details to RU before any ARI or reservation calls.
+                          </p>
+                          {result?.open && (
+                            <pre className="text-[10px] font-mono whitespace-pre-wrap break-all rounded bg-background border border-border p-2 max-h-48 overflow-auto">
+                              {result.raw}
+                            </pre>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
