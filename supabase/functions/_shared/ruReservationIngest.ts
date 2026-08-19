@@ -227,6 +227,31 @@ async function resolveExistingBookingUnit(
  * grid draws the stay on every unit row. Lines for units that dropped off a modification are
  * removed and their nights released.
  */
+/**
+ * One readable request line for the whole booking: the reservation-level note first, then each
+ * unit's own note tagged with its stay so a multi-unit booking never loses which unit asked what.
+ */
+function summariseRuComments(r: ParsedRuReservation): string | null {
+  const parts: string[] = [];
+  const reservationNote = (r.reservationComments || '').trim();
+  if (reservationNote) parts.push(reservationNote);
+  const multi = r.stays.length > 1;
+  for (const stay of r.stays) {
+    const note = (stay.comments || '').trim();
+    if (!note || note === reservationNote) continue;
+    parts.push(multi ? `${stay.dateFrom || 'unit'}: ${note}` : note);
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** Split `total` across `parts` as evenly as possible, giving the remainder to the first units. */
+function shareOf(total: number, parts: number, index: number): number {
+  if (parts <= 1) return total;
+  const base = Math.floor(total / parts);
+  const remainder = total - base * parts;
+  return base + (index < remainder ? 1 : 0);
+}
+
 async function syncRuStayUnits(
   supabase: Db,
   bookingId: string,
@@ -242,7 +267,7 @@ async function syncRuStayUnits(
   const resolvedCache = new Map<string, ResolvedRuUnit>();
   if (r.ruPropertyId) resolvedCache.set(String(r.ruPropertyId), primary);
 
-  const lines: Array<{ unit: ResolvedRuUnit; stay: typeof stays[number] }> = [];
+  const lines: Array<{ unit: ResolvedRuUnit; stay: typeof stays[number]; copy: number; copies: number }> = [];
   for (const stay of stays) {
     const key = String(stay.ruPropertyId ?? '');
     let unit = key ? resolvedCache.get(key) : primary;
@@ -254,24 +279,59 @@ async function syncRuStayUnits(
       console.warn(`${log} No ROL'OS unit for stay listing ${stay.ruPropertyId ?? 'none'} — line skipped`);
       continue;
     }
-    lines.push({ unit, stay });
+    // `Units` > 1 means the guest took several copies of the same unit type in one stay
+    // block. Each copy needs its own line, or the grid shows one unit holding everybody.
+    const copies = Math.max(1, stay.units || 1);
+    for (let i = 0; i < copies; i++) lines.push({ unit, stay, copy: i, copies });
   }
   if (lines.length === 0) return;
+
+  // Two lines can resolve to the same physical unit (repeated listing, or Units > 1). Give each
+  // its own sibling room of the same type so per-unit guests and notes stay separate instead of
+  // one line overwriting the other.
+  const takenRooms = new Set<string>();
+  for (const line of lines) {
+    const roomId = line.unit.roomId;
+    if (!roomId) continue;
+    if (!takenRooms.has(roomId)) {
+      takenRooms.add(roomId);
+      continue;
+    }
+    const { data: siblings } = await supabase
+      .from('rolos_rooms')
+      .select('id')
+      .eq('room_type_id', line.unit.roomTypeId)
+      .neq('status', 'out_of_service')
+      .order('room_number', { ascending: true });
+    const free = ((siblings || []) as Array<{ id: string }>).find((row) => !takenRooms.has(row.id));
+    if (free) {
+      line.unit = { ...line.unit, roomId: free.id };
+      takenRooms.add(free.id);
+    } else {
+      console.warn(`${log} No spare unit of type ${line.unit.roomTypeId} for an extra stay copy`);
+    }
+  }
 
   // Physical unit anchors, so every booked unit shows a line on the dashboard grid.
   const roomIds = [...new Set(lines.map((l) => l.unit.roomId).filter(Boolean) as string[])];
   if (roomIds.length) {
     await supabase.from('bookings').update({ rolos_room_ids: roomIds }).eq('id', bookingId);
 
-    for (const { unit, stay } of lines) {
+    for (const { unit, stay, copy, copies } of lines) {
       if (!unit.roomId) continue;
+      // Guests and money quoted for a multi-copy stay cover all of its units — spread them so
+      // each unit line carries its own share rather than the whole party.
+      const guests = shareOf(stay.numGuests || copies, copies, copy) || 1;
+      const rate = (stay.total || 0) / copies;
       const { error } = await supabase.from('rolos_booking_rooms').upsert(
         {
           booking_id: bookingId,
           room_id: unit.roomId,
           room_type_id: unit.roomTypeId,
-          rate_charged: stay.total || 0,
-          adults: stay.numGuests || 1,
+          rate_charged: rate,
+          adults: guests,
+          // The note the channel attached to THIS stay block belongs to this unit only.
+          guest_comments: stay.comments || null,
           // A unit that returns on a later modification is reinstated, not left cancelled.
           status: 'active',
           cancelled_at: null,
@@ -492,7 +552,8 @@ export async function ingestRuReservation(
   // unit mapping is what made outbound modifications fail with "PropertyID specified in Current
   // element doesn't match" once a stay had been moved between units.
   if (r.ruPropertyId) fields.channel_listing_id = String(r.ruPropertyId);
-  if (r.comments) fields.special_requests = r.comments;
+  const guestRequestSummary = summariseRuComments(r);
+  if (guestRequestSummary) fields.special_requests = guestRequestSummary;
 
   // Anchor the stay on the physical unit straight away: without this the grids have no
   // unit line to draw the channel request on until someone assigns it by hand.
@@ -528,7 +589,7 @@ export async function ingestRuReservation(
       hold_expires_at: holdExpiresAt.toISOString(),
       special_requests:
         `Rentals United request — dates held until ${holdExpiresAt.toISOString().slice(0, 10)}` +
-        (r.comments ? ` · ${r.comments}` : ''),
+        (guestRequestSummary ? ` · ${guestRequestSummary}` : ''),
       ...(currencyMeta ? { ai_metadata: currencyMeta } : {}),
     };
 

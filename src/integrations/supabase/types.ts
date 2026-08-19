@@ -9068,6 +9068,7 @@ export type Database = {
           cancelled_at: string | null
           children: number | null
           created_at: string | null
+          guest_comments: string | null
           id: string
           infants: number
           nightly_rate: number | null
@@ -9088,6 +9089,7 @@ export type Database = {
           cancelled_at?: string | null
           children?: number | null
           created_at?: string | null
+          guest_comments?: string | null
           id?: string
           infants?: number
           nightly_rate?: number | null
@@ -9108,6 +9110,7 @@ export type Database = {
           cancelled_at?: string | null
           children?: number | null
           created_at?: string | null
+          guest_comments?: string | null
           id?: string
           infants?: number
           nightly_rate?: number | null

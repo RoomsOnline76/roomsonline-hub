@@ -54,6 +54,13 @@ export interface ParsedRuReservation {
   address: string | null;
   zipCode: string | null;
   comments: string | null;
+  /**
+   * The reservation-level `<Comments>` — the note the guest wrote about the whole booking.
+   * It sits outside `<StayInfos>`, so it must be read from the envelope with the stay blocks
+   * removed; reading the block shallowly returns the first unit's note instead and the
+   * booking-wide request was lost.
+   */
+  reservationComments: string | null;
   resapaId: string | null;
   creator: string | null;
   createdDate: string | null;
@@ -81,7 +88,9 @@ function parseRuStay(stay: string, block: string): ParsedRuStay {
     arrivalTime: extractTag(stay, 'ArrivalTime'),
     numGuests: parseInt(extractTag(stay, 'NumberOfGuests') || '1', 10),
     units: parseInt(extractTag(stay, 'Units') || '1', 10),
-    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
+    // Strictly this unit's own note — no fallback to the reservation-level comment, which
+    // would stamp the same text on every unit and hide which unit it really belongs to.
+    comments: extractTag(stay, 'Comments') || null,
     resapaId: extractTag(stay, 'ResapaID') || null,
     total: parseFloat(
       extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
@@ -100,6 +109,9 @@ export function parseRuReservation(block: string): ParsedRuReservation {
   // Only keep slices that actually name a unit or dates — an empty <StayInfos /> parses to noise.
   const realStays = stays.filter((s) => s.ruPropertyId || s.dateFrom);
   const first = realStays[0] ?? stays[0];
+
+  // Envelope minus every stay: the only place the booking-wide comment can be read cleanly.
+  const envelopeOnly = block.replace(/<StayInfos?[^>]*>[\s\S]*?<\/StayInfos?>/gi, '');
 
   const customer = extractBlock(block, 'CustomerInfo') || block;
   const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
@@ -131,6 +143,7 @@ export function parseRuReservation(block: string): ParsedRuReservation {
     address: extractTag(customer, 'Address') || null,
     zipCode: extractTag(customer, 'ZipCode') || null,
     comments: first.comments,
+    reservationComments: extractTag(envelopeOnly, 'Comments'),
     resapaId: first.resapaId,
     creator: extractTag(block, 'Creator') || null,
     createdDate: extractTag(block, 'CreatedDate') || extractTag(block, 'LastMod') || null,
@@ -159,7 +172,18 @@ export function buildRuChannelNotes(r: ParsedRuReservation, extra: Record<string
     country_id: r.countryId,
     address: r.address,
     zip_code: r.zipCode,
-    guest_comments: r.comments,
+    guest_comments: r.reservationComments || r.comments,
+    reservation_comments: r.reservationComments,
+    /** One entry per booked unit, so a note is always traceable to the unit that carries it. */
+    unit_comments: r.stays
+      .filter((s) => s.comments || s.numGuests)
+      .map((s) => ({
+        ru_property_id: s.ruPropertyId,
+        date_from: s.dateFrom,
+        date_to: s.dateTo,
+        guests: s.numGuests,
+        comments: s.comments,
+      })),
     amount_already_paid: r.alreadyPaid,
     nightly_prices: r.nightly,
     synced_at: new Date().toISOString(),
