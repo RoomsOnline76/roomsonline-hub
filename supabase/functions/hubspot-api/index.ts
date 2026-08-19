@@ -339,6 +339,40 @@ Deno.serve(async (req) => {
       return ready ? { ...props, [TRADE_PROPERTY]: segment } : props;
     };
 
+    // Guest lifecycle marker (new / repeat / lapsed) — same soft-fail contract
+    // as the trade marker: never break a sync because a portal refuses it.
+    const lifecycleReady = new Map<string, boolean>();
+
+    const ensureLifecycleProperty = async (token: string): Promise<boolean> => {
+      const cached = lifecycleReady.get("contacts");
+      if (cached !== undefined) return cached;
+
+      const probe = await hubspot(token, `/crm/v3/properties/contacts/${LIFECYCLE_PROPERTY}`);
+      if (probe.ok) {
+        lifecycleReady.set("contacts", true);
+        return true;
+      }
+      const created = await hubspot(token, "/crm/v3/properties/contacts", {
+        method: "POST",
+        body: JSON.stringify({
+          name: LIFECYCLE_PROPERTY,
+          label: "Guest lifecycle",
+          type: "enumeration",
+          fieldType: "select",
+          groupName: "contactinformation",
+          options: [
+            { label: "New", value: "new", displayOrder: 0 },
+            { label: "Repeat", value: "repeat", displayOrder: 1 },
+            { label: "Lapsed", value: "lapsed", displayOrder: 2 },
+          ],
+        }),
+      });
+      const ready = created.ok || created.status === 409;
+      lifecycleReady.set("contacts", ready);
+      return ready;
+    };
+
+
     // ---- Deduped remote upserts (shared by single events and sweeps) -------
     const findContactId = async (token: string, email: string): Promise<string | null> => {
       const search = await hubspot(token, "/crm/v3/objects/contacts/search", {
