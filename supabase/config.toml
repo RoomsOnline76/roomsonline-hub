@@ -241,3 +241,6 @@ schedule = "30 3 * * *"
 [functions.cron-channel-reconcile]
 verify_jwt = false
 schedule = "10 3 * * *"
+
+[functions.cron-channel-ledger-drain]
+verify_jwt = false
