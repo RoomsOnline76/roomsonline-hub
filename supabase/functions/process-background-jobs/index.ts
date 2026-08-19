@@ -201,6 +201,7 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         change: (payload.change as ChannelBookingChange | undefined) ?? "unknown",
         previous: (payload.previous as Record<string, string | null> | null) ?? null,
         reason: (payload.reason as string | null) ?? null,
+        source: "background_job",
       });
       if (outcome.reservation === "failed") {
         throw new Error(outcome.message ?? outcome.code ?? "Channel refused the booking change");
