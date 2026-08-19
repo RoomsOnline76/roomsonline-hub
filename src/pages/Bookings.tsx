@@ -167,7 +167,7 @@ const Bookings = () => {
       // A cancellation that never reaches the channel keeps the nights closed there and the
       // reservation live: push it out and surface a rate-limit deferral.
       if (booking.source !== "pms") {
-        void pushBookingToChannel(booking.id, "cancelled", { reason: "Cancelled in ROL'OS" });
+        void pushBookingToChannel(booking.id, "cancelled", { reason: "Cancelled in ROL'OS", source: "bookings_list" });
       }
     } catch (error: any) {
       console.error("Error cancelling reservation:", error);

@@ -1763,6 +1763,7 @@ export default function PMSDashboard() {
       // the newly sold unit. The sync function does both and reports rate-limit deferrals.
       if (roomsChanged || typeChanged || roomTypeChanged || datesChanged) {
         void pushBookingToChannel(booking.id, datesChanged ? "dates" : "moved", {
+          source: "dashboard_move",
           previous: {
             room_type_id: booking.room_type_id ?? null,
             check_in_date: booking.check_in_date ?? null,
