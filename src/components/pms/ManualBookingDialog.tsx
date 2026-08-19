@@ -654,6 +654,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     onOpenChange(false);
     resetAll();
     onCreated();
+    if (insertedData?.id) onCreatedBooking?.(insertedData.id);
+
   };
 
   return (
