@@ -198,7 +198,9 @@ export function BookingDetailsGrid({
       const { data } = await supabase
         .from("rolos_booking_rooms")
         .select("id, room_id, room_type_id, rate_plan_id, adults, children, teens, infants, rate_charged")
-        .eq("booking_id", booking.id);
+        .eq("booking_id", booking.id)
+        // Units cancelled off a multi-unit stay stay on record but are no longer editable lines.
+        .neq("status", "cancelled");
 
       if (cancelled) return;
       const loaded: RoomLineRow[] = (data || []).map(r => ({
@@ -352,7 +354,8 @@ export function BookingDetailsGrid({
       const { data: existing } = await supabase
         .from("rolos_booking_rooms")
         .select("id")
-        .eq("booking_id", booking.id);
+        .eq("booking_id", booking.id)
+        .neq("status", "cancelled");
       const stale = (existing || []).map(r => r.id).filter(id => !keepIds.includes(id));
       if (stale.length) await supabase.from("rolos_booking_rooms").delete().in("id", stale);
 

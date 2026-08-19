@@ -1736,7 +1736,8 @@ export default function PMSDashboard() {
           const { data: lines } = await supabase
             .from("rolos_booking_rooms")
             .select("id, room_id")
-            .eq("booking_id", booking.id);
+            .eq("booking_id", booking.id)
+            .neq("status", "cancelled");
           const rows = (lines || []) as { id: string; room_id: string | null }[];
           const originRoomId = currentRooms[0] || null;
           // Single-line stays always retarget. Multi-room stays move the line that

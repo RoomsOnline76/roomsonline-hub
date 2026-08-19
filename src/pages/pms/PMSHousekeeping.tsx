@@ -202,6 +202,7 @@ export default function PMSHousekeeping() {
     const { data: bookingRoomLinks } = bookingIds.length
       ? await (supabase.from("rolos_booking_rooms") as any)
           .select("booking_id, room_id")
+          .neq("status", "cancelled")
           .in("booking_id", bookingIds)
       : { data: [] };
     const linkedRoomIdsByBooking = new Map<string, string[]>();
