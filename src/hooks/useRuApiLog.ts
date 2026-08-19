@@ -32,6 +32,12 @@ export interface RuApiLogRow {
   request_bytes: number | null;
   response_bytes: number | null;
   endpoint: string | null;
+  /**
+   * How far the exchange got: `completed` reached the channel, `rate_deferred` never left ROL'OS
+   * because the sliding-minute gate held it (replayed by the background drainer), `failed` is a
+   * genuine transport fault.
+   */
+  transport_status: string | null;
 }
 
 export interface RuApiLogDetail extends RuApiLogRow {
@@ -40,7 +46,21 @@ export interface RuApiLogDetail extends RuApiLogRow {
   expires_at: string;
 }
 
-export type RuApiLogOutcome = "all" | "success" | "failure";
+export type RuApiLogOutcome = "all" | "success" | "failure" | "deferred";
+
+export const RU_RATE_DEFERRED_TRANSPORT = "rate_deferred";
+
+/**
+ * Three outcomes, not two. A throttle deferral is bookkeeping — the request was never sent, so it
+ * must not read (or count) as a failed exchange during certification review.
+ */
+export function ruApiLogOutcomeOf(row: Pick<RuApiLogRow, "success" | "transport_status">):
+  | "success"
+  | "deferred"
+  | "failure" {
+  if (row.transport_status === RU_RATE_DEFERRED_TRANSPORT) return "deferred";
+  return row.success ? "success" : "failure";
+}
 
 export interface RuApiLogFilters {
   /** Property id, "all", or "account" for account-level calls with no property. */
