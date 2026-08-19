@@ -545,6 +545,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         amount: totalPrice,
         status: autoStatus,
         checkOut: format(form.check_out!, "yyyy-MM-dd"),
+        tradeOrDirect: crm.booker_is_guest === false ? "trade" : "direct",
       });
     }
 
