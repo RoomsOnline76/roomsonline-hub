@@ -718,7 +718,7 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
           owner_email: loginEmail,
           login_email: loginEmail,
-          contact_email: acct?.owner_email ?? null,
+          contact_email: acct?.owner_email ?? rosterEntry?.portal_contact_email ?? null,
           owner_label: accountLabel(ownerId),
           bound,
           has_keys: hasKeys,
