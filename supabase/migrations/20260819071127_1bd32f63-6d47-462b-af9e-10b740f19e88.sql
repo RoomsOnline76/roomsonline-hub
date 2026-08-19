@@ -1,0 +1,1 @@
+DELETE FROM public.ru_retired_accounts WHERE ru_owner_id = '741765';
