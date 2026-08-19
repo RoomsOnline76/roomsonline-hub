@@ -409,6 +409,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               options={[
                 { value: "all", label: "All" },
                 { value: "success", label: "Success" },
+                { value: "deferred", label: "Deferred" },
                 { value: "failure", label: "Failed" },
               ]}
               onChange={(v) => patch({ outcome: v as RuApiLogFilters["outcome"] })}
