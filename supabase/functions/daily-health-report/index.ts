@@ -1330,15 +1330,21 @@ Deno.serve(async (req) => {
     );
 
 
-    // Determine subject line
+    // Subject derives from the SAME effective status the body header shows — never "All Systems
+    // Operational" while a channel pipeline is failing.
+    const effective = computeEffectiveStatus(overallStatus, ruWl, criticalIssues.length);
     let subject: string;
-    if (criticalIssues.length > 0) {
-      subject = `🚨 ROL System Health Report - CRITICAL ISSUES - ${formatDate(now)}`;
-    } else if (failedCount > 0) {
-      subject = `⚠️ ROL System Health Report - ${failedCount} Issues Detected - ${formatDate(now)}`;
+    if (effective.status === 'failed') {
+      subject = `🚨 ROL System Health Report - ${criticalIssues.length > 0 ? 'CRITICAL ISSUES' : effective.label} - ${formatDate(now)}`;
+    } else if (effective.status === 'degraded') {
+      const detail = effective.failingActions.length > 0
+        ? effective.label
+        : `Degraded — ${failedCount} issue(s) detected`;
+      subject = `⚠️ ROL System Health Report - ${detail} - ${formatDate(now)}`;
     } else {
       subject = `✅ ROL System Health Report - All Systems Operational - ${formatDate(now)}`;
     }
+
 
     // Fetch sender email from api_keys (same pattern as booking emails)
     const { data: emailConfig } = await supabase
