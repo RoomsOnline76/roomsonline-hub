@@ -138,6 +138,9 @@ const PMSRooms = lazy(() => import("./pages/pms/PMSRooms"));
 const PMSRoomTypes = lazy(() => import("./pages/pms/PMSRoomTypes"));
 const PMSRatePlans = lazy(() => import("./pages/pms/PMSRatePlans"));
 const PMSGuests = lazy(() => import("./pages/pms/PMSGuests"));
+const PMSInquiries = lazy(() => import("./pages/pms/PMSInquiries"));
+const GuestCheckIn = lazy(() => import("./pages/GuestCheckIn"));
+const GuestFeedback = lazy(() => import("./pages/GuestFeedback"));
 const PMSHousekeeping = lazy(() => import("./pages/pms/PMSHousekeeping"));
 const PMSReports = lazy(() => import("./pages/pms/PMSReports"));
 const PMSBranding = lazy(() => import("./pages/pms/PMSBranding"));
@@ -311,6 +314,8 @@ const App = () => (
                         <Route path="/staff-login" element={<StaffLogin />} />
                         <Route path="/staff-login/:propertySlug" element={<StaffLogin />} />
                         <Route path="/my-booking" element={<GuestPortal />} />
+                        <Route path="/checkin" element={<GuestCheckIn />} />
+                        <Route path="/feedback" element={<GuestFeedback />} />
                         <Route path="/group-rooming/:token" element={<GroupRoomingPortal />} />
 
                         {/* ═══ HyperGuest certification portal (token-gated, public) ═══ */}
@@ -411,6 +416,7 @@ const App = () => (
                           <Route path="room-types" element={<PMSRoomTypes />} />
                           <Route path="rate-plans" element={<PMSRatePlans />} />
                           <Route path="guests" element={<PMSGuests />} />
+                          <Route path="inquiries" element={<PMSInquiries />} />
                           <Route path="housekeeping" element={<PMSHousekeeping />} />
                           <Route path="reports" element={<PMSReports />} />
                           <Route path="branding" element={<PMSBranding />} />

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import {
+  Inbox, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -73,6 +74,7 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Rooms", icon: BedDouble, href: "/pms/rooms", module: "rooms" },
       { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
+      { title: "Inquiries", icon: Inbox, href: "/pms/inquiries", module: "guests" },
       { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
     ],
