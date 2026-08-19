@@ -528,10 +528,10 @@ Deno.serve(async (req) => {
     }
 
     let contextContent = "";
-    let systemPrompt = GENERIC_SYSTEM_PROMPT;
+    let systemPrompt = GENERIC_SYSTEM_PROMPT + HUBSPOT_KNOWLEDGE;
 
     if (onboardingContext && typeof onboardingContext === "object") {
-      systemPrompt = ONBOARDING_SYSTEM_PROMPT;
+      systemPrompt = ONBOARDING_SYSTEM_PROMPT + HUBSPOT_ONBOARDING_NOTE;
       const oc = onboardingContext as Record<string, unknown>;
       const blockers = Array.isArray(oc.blockers) ? oc.blockers : [];
       contextContent = `\n\n--- ONBOARDING STATE ---\n`;
