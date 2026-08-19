@@ -127,6 +127,42 @@ async function sha256(input: string): Promise<string> {
     .join('');
 }
 
+/**
+ * Per-field fingerprints of a snapshot.
+ *
+ * The overall content hash proves *that* something changed; certification also asks which fields a
+ * delta carried. Hashing each field (and each unit field, keyed `unit:<id>.<column>`) lets the
+ * delta name the changed fields by diffing against the previous run's map — without ever storing
+ * property content in the log.
+ */
+async function fieldFingerprints(snapshot: StaticSnapshot): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const add = async (key: string, value: unknown) => {
+    out[key] = (await sha256(stableStringify(value))).slice(0, 16);
+  };
+  for (const col of PROPERTY_STATIC_COLUMNS) {
+    await add(`property.${col}`, snapshot.property?.[col] ?? null);
+  }
+  for (const unit of snapshot.units) {
+    const unitKey = String(unit.id ?? unit.name ?? 'unknown');
+    for (const col of UNIT_STATIC_COLUMNS) {
+      if (col === 'id') continue;
+      await add(`unit:${unitKey}.${col}`, unit[col] ?? null);
+    }
+  }
+  return out;
+}
+
+/** Field keys whose fingerprint differs between two runs (added and removed keys included). */
+function diffFingerprints(
+  previous: Record<string, string> | null,
+  current: Record<string, string>,
+): string[] {
+  if (!previous) return [];
+  const keys = new Set([...Object.keys(previous), ...Object.keys(current)]);
+  return [...keys].filter((k) => previous[k] !== current[k]).sort();
+}
+
 interface StaticSnapshot {
   property: Record<string, unknown> | null;
   units: Record<string, unknown>[];
@@ -164,7 +200,7 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
 async function lastStaticRun(
   supabase: any,
   propertyId: string,
-): Promise<{ hash: string | null; at: number | null }> {
+): Promise<{ hash: string | null; at: number | null; fields: Record<string, string> | null }> {
   const { data } = await supabase
     .from('ru_sync_runs')
     .select('created_at, details')
@@ -173,11 +209,14 @@ async function lastStaticRun(
     .order('created_at', { ascending: false })
     .limit(1);
   const row = (data ?? [])[0];
-  if (!row) return { hash: null, at: null };
-  const hash = (row.details as Record<string, unknown> | null)?.content_hash;
+  if (!row) return { hash: null, at: null, fields: null };
+  const details = row.details as Record<string, unknown> | null;
+  const hash = details?.content_hash;
+  const fields = details?.field_fingerprints;
   return {
     hash: typeof hash === 'string' ? hash : null,
     at: row.created_at ? new Date(row.created_at).getTime() : null,
+    fields: fields && typeof fields === 'object' ? (fields as Record<string, string>) : null,
   };
 }
 
@@ -209,6 +248,11 @@ export async function queueRuStaticDelta(
       stableStringify({ property: snapshot.property, units: snapshot.units }),
     );
     const previous = await lastStaticRun(supabase, propertyId);
+    const currentFields = await fieldFingerprints(snapshot);
+    // Named for the auditor: which fields this delta carries, and whether it is a targeted delta
+    // or the first/full push for this listing (no prior fingerprint map to diff against).
+    const changedFields = diffFingerprints(previous.fields, currentFields);
+    const pushType = previous.fields ? (options.force ? 'forced_full' : 'delta') : 'full';
 
     if (!options.force) {
       if (previous.hash && previous.hash === contentHash) {
@@ -268,6 +312,10 @@ export async function queueRuStaticDelta(
           trigger,
           content_hash: success ? storedHash : null,
           pushed_hash: contentHash,
+          push_type: pushType,
+          changed_fields: changedFields,
+          changed_field_count: changedFields.length,
+          field_fingerprints: success ? currentFields : previous.fields,
           forced: options.force === true,
           chunks,
           units,
