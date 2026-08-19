@@ -5860,16 +5860,15 @@ Deno.serve(async (req) => {
 
       // RU requires at least one LocationId on the sub-user (and on company details).
       const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
-      if (locationIds.length === 0) {
+      const NO_LOCATION_MESSAGE =
+        "No Channel Manager location could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then review this step again.";
+      if (locationIds.length === 0 && !isPlan) {
         return json({
           success: false,
-          error: {
-            code: "NO_RU_LOCATION",
-            message:
-              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
-          },
+          error: { code: "NO_RU_LOCATION", message: NO_LOCATION_MESSAGE },
         }, 422);
       }
+
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
