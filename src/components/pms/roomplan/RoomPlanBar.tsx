@@ -205,7 +205,7 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               {format(parseISO(booking.check_in_date), "EEE d MMM")} → {format(parseISO(booking.check_out_date), "EEE d MMM yyyy")}
               <span className="text-slate-400"> · {nights} night{nights === 1 ? "" : "s"}</span>
             </p>
-            <p>{paxLine(booking)}</p>
+            <p>{paxText}{isMultiUnit && unitLine ? " (this unit)" : ""}</p>
             <p>
               R{Number(booking.total_price || 0).toLocaleString()}
               <span className="text-slate-400"> · {(booking.payment_status || "unpaid").replace(/_/g, " ")}</span>
