@@ -240,6 +240,7 @@ Deno.serve(async (req) => {
           });
           if (refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched') {
             await markResolved('resolved', null, refreshed.resolvedOwnerId ?? null);
+            await trail('ingested', 'detail_pull', 'Channel notification resolved via detail pull', refreshed.bookingId ?? null);
             continue;
           }
           // RU is often not able to serve the reservation for the first minute or two after
@@ -257,10 +258,16 @@ Deno.serve(async (req) => {
             console.warn(
               `[ru-reservation-handler] Reservation ${r.ruReservationId} parked as ${state}: ${refreshed.error ?? 'detail pull unresolved'}`,
             );
+            await trail(
+              'queued',
+              refreshed.rateDeferred ? 'rate_deferred' : 'detail_pull_unresolved',
+              `Channel notification parked as ${state} — will retry`,
+            );
           }
         } else {
 
           await markResolved('failed', 'Notification carried no reservation id');
+          await trail('failed', 'no_reservation_id', 'Channel notification carried no reservation id');
         }
         console.warn(
           `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — detail pull unavailable, queued for reconciliation pull`,
@@ -282,8 +289,10 @@ Deno.serve(async (req) => {
       if (result.outcome === 'failed' || result.outcome === 'unmatched') {
         console.error(`[ru-reservation-handler] Ingest failed for ${r.ruReservationId}: ${result.error}`);
         await markResolved('failed', result.error ?? `Ingest outcome: ${result.outcome}`);
+        await trail('failed', result.outcome, `Channel notification could not be ingested — ${result.error ?? result.outcome}`);
       } else {
         await markResolved('resolved', null);
+        await trail('ingested', result.outcome, `Channel ${kind} reservation ingested`, result.bookingId ?? null);
       }
     }
 
