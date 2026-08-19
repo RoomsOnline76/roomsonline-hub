@@ -2036,11 +2036,18 @@ function extractUserAccountId(xml: string): string | null {
 interface RUListedUser {
   user_account_id: string;
   email: string;
+  /**
+   * The sub-user's actual RU login (`<UserName>`). It can differ from `<Email>` — e.g.
+   * OwnerID 741765 logs in as connect@… while its contact email is rooms@…, so an
+   * email-only lookup would wrongly report "no sub-user for this login".
+   */
+  login_email: string;
   first_name: string;
   last_name: string;
   owner_id: string;
   archived: boolean;
 }
+
 
 /**
  * OwnerIDs that must never be offered in the UI again (abandoned test sub-users we
