@@ -4103,13 +4103,24 @@ Deno.serve(async (req) => {
       if (account?.id) {
         await admin.from("ru_owner_accounts").update({ ru_api_keys_verified_at: stamp }).eq("id", account.id);
       }
-      // Terminal verification outcome either way — the keys step must be re-graded.
-      await markLedgerStaleForOwnerAccount(
-        admin,
-        { accountId: account?.id ?? null, ownerId },
-        ["keys", "company_profile"],
-        "keys_verified",
-      );
+      // An accepted verification IS the keys verdict — record it as passed so the
+      // step stops depending on a probe that never grades it. A rejection keeps the
+      // step open by marking it stale instead.
+      if (accepted) {
+        await recordLedgerPassForOwnerAccount(
+          admin,
+          { accountId: account?.id ?? null, ownerId },
+          ["keys"],
+          "keys_verified",
+        );
+      } else {
+        await markLedgerStaleForOwnerAccount(
+          admin,
+          { accountId: account?.id ?? null, ownerId },
+          ["keys"],
+          "keys_rejected",
+        );
+      }
       if (!accepted) {
         return json({
 
