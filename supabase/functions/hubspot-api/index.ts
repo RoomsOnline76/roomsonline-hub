@@ -548,42 +548,13 @@ Deno.serve(async (req) => {
           ...(body.company.description ? { description: body.company.description } : {}),
         };
 
-        // Search by name first so repeated saves update instead of duplicating.
-        const search = await hubspot(active.token, "/crm/v3/objects/companies/search", {
-          method: "POST",
-          body: JSON.stringify({
-            limit: 1,
-            properties: ["name"],
-            filterGroups: [
-              {
-                filters: [{ propertyName: "name", operator: "EQ", value: body.company.name }],
-              },
-            ],
-          }),
-        });
-
-        const existingId =
-          search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id;
-
-        const res = existingId
-          ? await hubspot(active.token, `/crm/v3/objects/companies/${existingId}`, {
-              method: "PATCH",
-              body: JSON.stringify({ properties: props }),
-            })
-          : await hubspot(active.token, "/crm/v3/objects/companies", {
-              method: "POST",
-              body: JSON.stringify({ properties: props }),
-            });
-
+        const res = await upsertCompanyRemote(active.token, props, body.company.name);
         if (!res.ok) {
           await markSync("error", `Company sync failed (${res.status})`);
           return fail("HubSpot company sync failed", res.status, { details: res.body });
         }
         await markSync("ok");
-        return ok({
-          company_id: (res.body as { id?: string })?.id ?? existingId ?? null,
-          created: !existingId,
-        });
+        return ok({ company_id: res.id, created: res.created });
       }
 
       case "upsert_contact": {
@@ -591,54 +562,27 @@ Deno.serve(async (req) => {
         if (active instanceof Response) return active;
         if (!body.contact) return fail("contact is required", 400);
 
-        const props: Json = {
+        const base: Json = {
           email: body.contact.email,
           ...(body.contact.firstname ? { firstname: body.contact.firstname } : {}),
           ...(body.contact.lastname ? { lastname: body.contact.lastname } : {}),
           ...(body.contact.phone ? { phone: body.contact.phone } : {}),
           ...(body.contact.country ? { country: body.contact.country } : {}),
         };
+        const props = await withTrade(
+          active.token,
+          "contacts",
+          base,
+          body.contact.trade_or_direct,
+        );
 
-        // HubSpot supports idempotent create; a 409 means it already exists.
-        let res = await hubspot(active.token, "/crm/v3/objects/contacts", {
-          method: "POST",
-          body: JSON.stringify({ properties: props }),
-        });
-        let contactId = (res.body as { id?: string })?.id ?? null;
-        let created = res.ok;
-
-        if (!res.ok && res.status === 409) {
-          const search = await hubspot(active.token, "/crm/v3/objects/contacts/search", {
-            method: "POST",
-            body: JSON.stringify({
-              limit: 1,
-              properties: ["email"],
-              filterGroups: [
-                {
-                  filters: [
-                    { propertyName: "email", operator: "EQ", value: body.contact.email },
-                  ],
-                },
-              ],
-            }),
-          });
-          contactId =
-            (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id ?? null;
-          created = false;
-          if (contactId) {
-            res = await hubspot(active.token, `/crm/v3/objects/contacts/${contactId}`, {
-              method: "PATCH",
-              body: JSON.stringify({ properties: props }),
-            });
-          }
-        }
-
+        const res = await upsertContactRemote(active.token, props, body.contact.email);
         if (!res.ok) {
           await markSync("error", `Contact sync failed (${res.status})`);
           return fail("HubSpot contact sync failed", res.status, { details: res.body });
         }
         await markSync("ok");
-        return ok({ contact_id: contactId, created });
+        return ok({ contact_id: res.id, created: res.status < 300 && res.created !== false });
       }
 
       case "create_or_update_deal": {
@@ -646,84 +590,29 @@ Deno.serve(async (req) => {
         if (active instanceof Response) return active;
         if (!body.deal) return fail("deal is required", 400);
 
-        const pipeline = (active.config.pipeline_id as string) || "default";
-        const props: Json = {
+        const base: Json = {
           dealname: body.deal.dealname,
-          pipeline,
+          pipeline: (active.config.pipeline_id as string) || "default",
           dealstage: resolveStage(body.deal.status, active.config),
           ...(body.deal.amount != null ? { amount: String(body.deal.amount) } : {}),
           ...(body.deal.closedate ? { closedate: body.deal.closedate } : {}),
         };
+        const props = await withTrade(active.token, "deals", base, body.deal.trade_or_direct);
 
-        // Reservation reference lives in the deal name so repeated pushes match.
-        const search = await hubspot(active.token, "/crm/v3/objects/deals/search", {
-          method: "POST",
-          body: JSON.stringify({
-            limit: 1,
-            properties: ["dealname"],
-            filterGroups: [
-              {
-                filters: [
-                  {
-                    propertyName: "dealname",
-                    operator: "CONTAINS_TOKEN",
-                    value: body.deal.booking_id,
-                  },
-                ],
-              },
-            ],
-          }),
-        });
-        const existingId =
-          search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id;
-
-        const res = existingId
-          ? await hubspot(active.token, `/crm/v3/objects/deals/${existingId}`, {
-              method: "PATCH",
-              body: JSON.stringify({ properties: props }),
-            })
-          : await hubspot(active.token, "/crm/v3/objects/deals", {
-              method: "POST",
-              body: JSON.stringify({ properties: props }),
-            });
-
+        const res = await upsertDealRemote(active.token, props, body.deal.booking_id);
         if (!res.ok) {
           await markSync("error", `Deal sync failed (${res.status})`);
           return fail("HubSpot deal sync failed", res.status, { details: res.body });
         }
 
-        const dealId = (res.body as { id?: string })?.id ?? existingId ?? null;
-
-        // Best-effort association with the guest contact.
-        if (dealId && body.deal.contact_email) {
-          const search2 = await hubspot(active.token, "/crm/v3/objects/contacts/search", {
-            method: "POST",
-            body: JSON.stringify({
-              limit: 1,
-              properties: ["email"],
-              filterGroups: [
-                {
-                  filters: [
-                    { propertyName: "email", operator: "EQ", value: body.deal.contact_email },
-                  ],
-                },
-              ],
-            }),
-          });
-          const contactId =
-            (search2.body as { results?: Array<{ id: string }> })?.results?.[0]?.id ?? null;
-          if (contactId) {
-            await hubspot(
-              active.token,
-              `/crm/v4/objects/deals/${dealId}/associations/default/contacts/${contactId}`,
-              { method: "PUT" },
-            );
-          }
+        if (res.id && body.deal.contact_email) {
+          await associateDealContact(active.token, res.id, body.deal.contact_email);
         }
 
         await markSync("ok");
-        return ok({ deal_id: dealId, created: !existingId });
+        return ok({ deal_id: res.id, created: res.created });
       }
+
 
       case "sync_owner": {
         const active = await requireActive();
