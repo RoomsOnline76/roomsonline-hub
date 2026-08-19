@@ -2099,10 +2099,12 @@ function extractUsers(xml: string): RUListedUser[] {
       first_name: match[2]?.trim() || '',
       last_name: match[3]?.trim() || '',
       email,
+      login_email: email,
       owner_id: ownerId,
       archived: isArchivedRuLogin(email, ownerId),
     });
   }
+
   return results;
 }
 
