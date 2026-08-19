@@ -53,11 +53,32 @@ export interface RuApiLogFilters {
   /** Channel account (RU OwnerID) that the exchange was authenticated against. */
   ownerId: string;
   outcome: RuApiLogOutcome;
-  /** Exact ResponseID lookup — the reference channel support asks for. */
-  responseId: string;
+  /**
+   * Free-text lookup across the whole retained window: a channel method name
+   * (`Push_CancelReservation_RQ`, or just `cancel`), a ResponseID, a trace id or an error message.
+   * Support escalations must never be narrowed by the other filters, so this wins on its own.
+   */
+  search: string;
+  /** Scope to the reservation/booking verbs in one click. */
+  bookingsOnly: boolean;
   /** Rolling window in days; 0 keeps everything retained. */
   days: number;
 }
+
+/** The channel verbs (and inbound notifications) that carry booking traffic. */
+export const RU_BOOKING_ACTIONS = [
+  "Push_PutConfirmedReservationMulti_RQ",
+  "Push_CancelReservation_RQ",
+  "Push_RejectRequest_RQ",
+  "Push_ModifyStay_RQ",
+  "Pull_ListReservations_RQ",
+  "Pull_GetReservationByID_RQ",
+  "Pull_GetLeads_RQ",
+  "RLNM_ReservationRequest",
+  "RLNM_ReservationConfirmed",
+  "RLNM_ReservationCancelled",
+  "RLNM_ReservationModified",
+];
 
 export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
   propertyId: "all",
@@ -66,9 +87,11 @@ export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
   operation: "all",
   ownerId: "all",
   outcome: "all",
-  responseId: "",
+  search: "",
+  bookingsOnly: false,
   days: 7,
 };
+
 
 const LIST_COLUMNS =
   "id, created_at, action, parent_action, trace_id, direction, property_id, unit_id, ru_property_id, ru_owner_id, ru_user_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, endpoint";
@@ -90,14 +113,26 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   /** Applies the active filters to a query builder so list and count stay in sync. */
   const applyFilters = useCallback(
     (query: any) => {
-      // A ResponseID lookup is a support escalation: it must never be narrowed by the other filters.
-      const responseId = filters.responseId.trim();
-      if (responseId) return query.ilike("response_id", `%${responseId}%`);
+      // A method / ResponseID / trace lookup is a support escalation: it must never be narrowed
+      // by the other filters, otherwise a verb with only a handful of calls stays invisible.
+      const search = filters.search.trim().replace(/[,()]/g, " ");
+      if (search) {
+        return query.or(
+          [
+            `action.ilike.%${search}%`,
+            `response_id.ilike.%${search}%`,
+            `trace_id.ilike.%${search}%`,
+            `parent_action.ilike.%${search}%`,
+            `error_message.ilike.%${search}%`,
+          ].join(","),
+        );
+      }
       // Account-level work (pull all listings, deletions) carries no property id,
       // so it needs its own scope rather than disappearing behind "All properties".
       if (filters.propertyId === "account") query = query.is("property_id", null);
       else if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
       if (filters.direction !== "all") query = query.eq("direction", filters.direction);
+      if (filters.bookingsOnly) query = query.in("action", RU_BOOKING_ACTIONS);
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
@@ -115,9 +150,11 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       filters.operation,
       filters.ownerId,
       filters.outcome,
-      filters.responseId,
+      filters.search,
+      filters.bookingsOnly,
       filters.days,
     ],
+
   );
 
 
