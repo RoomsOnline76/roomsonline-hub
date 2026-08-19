@@ -4983,8 +4983,10 @@ Deno.serve(async (req) => {
         && !u.availability_verification?.error
         && (u.availability_verification?.mismatches?.length ?? 0) === 0
         && !u.prices_verification?.error
+        && u.prices_verification?.checked === true
         && (u.prices_verification?.mismatches?.length ?? 0) === 0
         && (u.prices_verification?.missing_dates?.length ?? 0) === 0
+        && u.price_coverage_audit?.verdict !== 'unverified'
       );
       await supabase.from('ru_sync_runs').insert({
         batch_id: crypto.randomUUID(),
@@ -5135,8 +5137,11 @@ Deno.serve(async (req) => {
       && !pushExtras.availability_verification?.error
       && (pushExtras.availability_verification?.mismatches?.length ?? 0) === 0
       && !pushExtras.prices_verification?.error
+      && pushExtras.prices_verification?.checked === true
       && (pushExtras.prices_verification?.mismatches?.length ?? 0) === 0
-      && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0;
+      && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0
+      // An unperformed read-back is not evidence of coverage.
+      && pushExtras.price_coverage_audit?.verdict !== 'unverified';
     const exchangeLog = await summarizeRuExchanges(supabase, property_id, runStartedAtIso);
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),
