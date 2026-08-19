@@ -136,6 +136,9 @@ const OwnerAccount = () => {
               onChanged={() => void account.refresh()}
             />
 
+            <HubSpotIntegrationCard />
+
+
             <Tabs defaultValue="invoices">
               <TabsList className="flex-wrap">
                 <TabsTrigger value="invoices">Payments &amp; invoices</TabsTrigger>
