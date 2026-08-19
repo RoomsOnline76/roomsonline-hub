@@ -30,6 +30,26 @@ async function callFunction(name: string, body: Record<string, unknown>): Promis
   }
 }
 
+/** Same call, but the parsed body is needed to decide whether the work actually finished. */
+async function callFunctionJson(
+  name: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text().catch(() => "");
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    parsed = {};
+  }
+  return { status: response.status, body: parsed };
+}
+
 // deno-lint-disable-next-line no-explicit-any
 async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
   const payload = job.payload ?? {};
