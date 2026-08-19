@@ -5984,6 +5984,73 @@ export type Database = {
           },
         ]
       }
+      property_channel_step_status: {
+        Row: {
+          blocker_summary: string | null
+          created_at: string
+          details: Json | null
+          input_fingerprint: string | null
+          last_checked_at: string | null
+          passed_at: string | null
+          property_id: string
+          source: string | null
+          stale_at: string | null
+          status: string
+          step_key: string
+          updated_at: string
+        }
+        Insert: {
+          blocker_summary?: string | null
+          created_at?: string
+          details?: Json | null
+          input_fingerprint?: string | null
+          last_checked_at?: string | null
+          passed_at?: string | null
+          property_id: string
+          source?: string | null
+          stale_at?: string | null
+          status: string
+          step_key: string
+          updated_at?: string
+        }
+        Update: {
+          blocker_summary?: string | null
+          created_at?: string
+          details?: Json | null
+          input_fingerprint?: string | null
+          last_checked_at?: string | null
+          passed_at?: string | null
+          property_id?: string
+          source?: string | null
+          stale_at?: string | null
+          status?: string
+          step_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_channel_step_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_channel_step_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_channel_step_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_charges: {
         Row: {
           amount: number
