@@ -51,6 +51,10 @@ import PropertyContactDetails from "@/components/property/PropertyContactDetails
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import {
+  OwnerAccountConfirmDialog,
+  type OwnerAccountPlan,
+} from "@/components/onboarding/channel/OwnerAccountConfirmDialog";
 
 interface Props {
   propertyId: string;
@@ -187,6 +191,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const [editorSection, setEditorSection] = useState(requestedSection || "general");
   const [liveExpanded, setLiveExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Step 6 confirmation gate state.
+  const [ownerPlanOpen, setOwnerPlanOpen] = useState(false);
+  const [ownerPlanLoading, setOwnerPlanLoading] = useState(false);
+  const [ownerPlan, setOwnerPlan] = useState<OwnerAccountPlan | null>(null);
   const [pushErrors, setPushErrors] = useState<string[]>([]);
 
   /**
@@ -256,22 +264,68 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   );
 
 
-  const pushOwner = useCallback(async () => {
+  /**
+   * Step 6 — the distribution identity. This never creates anything directly: it asks the
+   * backend what WOULD be created (login, name, scope, new vs adopted) and stops for the
+   * operator to confirm. Cancelling routes back to the account panel to correct the record.
+   */
+  const openOwnerPlan = useCallback(async () => {
+    setOwnerPlanOpen(true);
+    setOwnerPlan(null);
+    setOwnerPlanLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "plan_owner_account", property_id: propertyId },
+      });
+      if (error || data?.success !== true || !data?.plan) {
+        toast.error(
+          data?.error?.message ?? error?.message ?? "Could not work out the distribution account details",
+        );
+        setOwnerPlanOpen(false);
+        return;
+      }
+      setOwnerPlan(data.plan as OwnerAccountPlan);
+    } finally {
+      setOwnerPlanLoading(false);
+    }
+  }, [propertyId]);
+
+  const confirmOwnerPlan = useCallback(async () => {
+    if (!ownerPlan?.login_email) return;
     setBusy("ensure_owner");
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "ensure_owner_account", property_id: propertyId },
+        body: {
+          action: "ensure_owner_account",
+          property_id: propertyId,
+          // Exactly what the operator saw and approved — never re-resolved.
+          confirmed_owner_email: ownerPlan.login_email,
+          confirmed_owner_name: [ownerPlan.contact_first_name, ownerPlan.contact_last_name]
+            .filter(Boolean)
+            .join(" ")
+            .trim() || undefined,
+        },
       });
       if (error || data?.success !== true) {
         toast.error(data?.error?.message ?? error?.message ?? "Could not create the distribution identity");
       } else {
-        toast.success("Distribution identity created");
+        setOwnerPlanOpen(false);
+        toast.success(data?.created === false ? "Distribution identity linked" : "Distribution identity created");
         await refresh();
       }
     } finally {
       setBusy(null);
     }
-  }, [propertyId, refresh]);
+  }, [ownerPlan, propertyId, refresh]);
+
+  /** Cancel = nothing was sent; land the operator on the record that needs correcting. */
+  const correctOwnerDetails = useCallback(() => {
+    setOwnerPlanOpen(false);
+    selectMacro("push_owner");
+    window.setTimeout(() => focusRequirementField("owner_email"), 300);
+    toast.info("Nothing was sent to the channel — correct the owner details, then review this step again.");
+  }, [selectMacro]);
+
 
   /**
    * Step 9 — pull whatever already exists under the sub-account and adopt those
@@ -579,7 +633,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       return {
         label: "Create distribution identity",
         disabled: gatedAction || busy === "ensure_owner",
-        run: () => void pushOwner(),
+        run: () => void openOwnerPlan(),
         reason,
       };
     }
@@ -684,7 +738,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     publishedOk,
 
     pullListings,
-    pushOwner,
+    openOwnerPlan,
     selectMacro,
     stages,
   ]);
@@ -1031,7 +1085,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               unpublishedUnits={unpublishedUnits}
               publishedOk={publishedOk}
               entitlementOn={billing.config?.channel_manager_enabled === true}
-              onPushOwner={pushOwner}
+              onPushOwner={openOwnerPlan}
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               listingsVerified={listingsVerified}
@@ -1080,8 +1134,19 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           )}
         </section>
       </div>
+
+      <OwnerAccountConfirmDialog
+        open={ownerPlanOpen}
+        plan={ownerPlan}
+        loading={ownerPlanLoading}
+        submitting={busy === "ensure_owner"}
+        onConfirm={() => void confirmOwnerPlan()}
+        onCorrect={correctOwnerDetails}
+        onClose={() => setOwnerPlanOpen(false)}
+      />
     </div>
   );
+
 }
 
 function ScoreChip({

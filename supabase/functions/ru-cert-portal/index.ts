@@ -5169,7 +5169,15 @@ Deno.serve(async (req) => {
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
     // `ensure_company_details` is the same atomic flow: it re-enters here, finds the
     // existing sub-user and (re)submits Push_FillCompanyDetails_RQ until it sticks.
-    if (action === "ensure_owner_account" || action === "ensure_company_details") {
+    // `plan_owner_account` is the read-only preview of the same resolution: it decides
+    // WHAT would be sent to the channel (login, name, scope, adopt vs create) and returns
+    // it for operator confirmation. It performs no channel writes and no local writes.
+    if (
+      action === "ensure_owner_account" ||
+      action === "ensure_company_details" ||
+      action === "plan_owner_account"
+    ) {
+      const isPlan = action === "plan_owner_account";
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
@@ -5177,15 +5185,30 @@ Deno.serve(async (req) => {
       }
 
       const flag = await readUserMgmtFlag();
-      if (!flag.enabled) {
+      if (!flag.enabled && !isPlan) {
         return json({
           success: false,
           error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab first." },
         }, 409);
       }
 
-      let ownerEmail: string | null = body.owner_email ?? null;
-      let ownerName: string = body.owner_name ?? "";
+      /**
+       * Operator-confirmed identity. Step 6 of the wizard previews the resolution, the
+       * operator confirms it, and the confirmed values come back here verbatim so nothing
+       * can drift between what was shown and what is created. Automated/server callers
+       * omit these and keep the original cascade.
+       */
+      const confirmedEmail = String(body.confirmed_owner_email ?? "").trim() || null;
+      const confirmedName = String(body.confirmed_owner_name ?? "").trim() || null;
+      let ownerEmail: string | null = confirmedEmail ?? body.owner_email ?? null;
+      let ownerName: string = confirmedName ?? body.owner_name ?? "";
+      // Where the login came from — reported so the operator can see which record they
+      // must edit when the previewed address is wrong.
+      let ownerEmailSource: string = confirmedEmail
+        ? "confirmed by the operator"
+        : ownerEmail
+          ? "supplied with the request"
+          : "unresolved";
 
       // Only the shared platform login (dev@) can never become a channel sub-user login —
       // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
@@ -5197,7 +5220,13 @@ Deno.serve(async (req) => {
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
 
-      if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+      let internalLoginRejected: string | null = null;
+      if (ownerEmail && isInternalLogin(ownerEmail)) {
+        internalLoginRejected = ownerEmail;
+        ownerEmail = null;
+        ownerEmailSource = "unresolved";
+      }
+
 
 
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
@@ -5213,7 +5242,10 @@ Deno.serve(async (req) => {
         const candidate = (pr as any)?.owner_email ?? null;
         if (candidate && !isInternalLogin(candidate)) {
           ownerEmail = candidate;
+          ownerEmailSource = "this property's owner email";
           ownerName = ownerName || ((pr as any)?.owner_name ?? pr?.name ?? "Property Owner");
+        } else if (candidate) {
+          internalLoginRejected = internalLoginRejected ?? candidate;
         }
       }
 
@@ -5228,6 +5260,7 @@ Deno.serve(async (req) => {
         // 2) Explicit portfolio owner email (admins copy it from a member property's owner).
         if (!ownerEmail && portfolioRow?.owner_email && !isInternalLogin(portfolioRow.owner_email)) {
           ownerEmail = portfolioRow.owner_email;
+          ownerEmailSource = "the portfolio's owner email";
           ownerName = ownerName || (portfolioRow.name ?? "Portfolio Owner");
         }
         ownerName = ownerName || (portfolioRow?.name ?? "Portfolio Owner");
@@ -5248,6 +5281,7 @@ Deno.serve(async (req) => {
           for (const s of (siblings ?? []) as any[]) {
             if (s?.owner_email && !isInternalLogin(s.owner_email)) {
               ownerEmail = s.owner_email;
+              ownerEmailSource = `a sibling property in this portfolio (${s.name ?? "unnamed"})`;
               ownerName = ownerName || (s.owner_name ?? s.name ?? "Property Owner");
               break;
             }
@@ -5265,6 +5299,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (prof?.email && !isInternalLogin(prof.email)) {
           ownerEmail = prof.email;
+          ownerEmailSource = "the portfolio owner's ROL'OS profile";
           ownerName = ownerName || (prof.full_name ?? portfolioRow.name ?? "Portfolio Owner");
         }
       }
@@ -5286,22 +5321,41 @@ Deno.serve(async (req) => {
         const row = ((existing ?? []) as any[]).find((r) => r?.owner_email);
         if (row) {
           ownerEmail = row.owner_email;
+          ownerEmailSource = "the distribution account already on file";
           ownerName = ownerName || row.owner_name || portfolioRow?.name || "Property Owner";
         }
       }
 
-      if (!ownerEmail) {
+      const NO_OWNER_EMAIL_MESSAGE = internalLoginRejected
+        ? `${internalLoginRejected} is a shared platform login and cannot become a distribution sub-account login. Set a real owner email on the property, then review this step again.`
+        : "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.";
 
+      if (!ownerEmail) {
+        // The preview never fails: it reports the blocker so the wizard can offer the
+        // correction route instead of a dead-end error toast.
+        if (isPlan) {
+          return json({
+            success: true,
+            plan: {
+              can_create: false,
+              blocked_reason: NO_OWNER_EMAIL_MESSAGE,
+              login_email: null,
+              login_source: "unresolved",
+              rejected_internal_login: internalLoginRejected,
+              scope: portfolioId ? "portfolio" : "property",
+              portfolio_id: portfolioId,
+              portfolio_name: portfolioRow?.name ?? null,
+              property_id: propertyId,
+              outcome: "blocked",
+            },
+          });
+        }
         return json({
           success: false,
-          error: {
-            code: "NO_OWNER_EMAIL",
-            message:
-              "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.",
-
-          },
+          error: { code: "NO_OWNER_EMAIL", message: NO_OWNER_EMAIL_MESSAGE },
         }, 422);
       }
+
 
 
       const contactNameParts = String(ownerName).trim().split(/\s+/);
@@ -5806,16 +5860,15 @@ Deno.serve(async (req) => {
 
       // RU requires at least one LocationId on the sub-user (and on company details).
       const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
-      if (locationIds.length === 0) {
+      const NO_LOCATION_MESSAGE =
+        "No Channel Manager location could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then review this step again.";
+      if (locationIds.length === 0 && !isPlan) {
         return json({
           success: false,
-          error: {
-            code: "NO_RU_LOCATION",
-            message:
-              "No Rentals United LocationId could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then retry.",
-          },
+          error: { code: "NO_RU_LOCATION", message: NO_LOCATION_MESSAGE },
         }, 422);
       }
+
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
@@ -5857,6 +5910,84 @@ Deno.serve(async (req) => {
 
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
+
+      /**
+       * Step 6 preview. Everything above is resolution only — nothing has been written
+       * locally and nothing has been sent to the channel yet, so this is the last safe
+       * point to hand the decision back to the operator.
+       */
+      if (isPlan) {
+        const nameParts = String(ownerName).trim().split(/\s+/);
+        const planUsers = await listRuUsers();
+        const boundOwnerId = usableRuId(existing.account?.ru_owner_id);
+        const rosterMatch = (boundOwnerId
+          ? planUsers.find((u) => usableRuId(u.owner_id) === boundOwnerId) ?? null
+          : null)
+          ?? matchByEmail(planUsers)
+          ?? matchByStoredIdentity(planUsers, existing.account as any);
+
+        let memberCount: number | null = null;
+        if (portfolioId) {
+          const { count } = await admin
+            .from("property_portfolio_members")
+            .select("property_id", { count: "exact", head: true })
+            .eq("portfolio_id", portfolioId);
+          memberCount = typeof count === "number" ? count : null;
+        }
+
+        let countryName: string | null = null;
+        if (propertyId) {
+          const { data: pr } = await admin
+            .from("properties")
+            .select("country")
+            .eq("id", propertyId)
+            .maybeSingle();
+          countryName = (pr as { country?: string | null } | null)?.country ?? null;
+        }
+
+        const adoptOwnerId = usableRuId(rosterMatch?.owner_id) || boundOwnerId;
+        const outcome = adoptOwnerId ? "adopt" : "create";
+        const warnings: string[] = [];
+        if (locationIds.length === 0) warnings.push(NO_LOCATION_MESSAGE);
+        if (internalLoginRejected) {
+          warnings.push(
+            `${internalLoginRejected} was skipped as a shared platform login — ${ownerEmail} is used instead.`,
+          );
+        }
+        const boundLogin = String((existing.account as any)?.ru_login_email ?? "").trim();
+        if (boundLogin && boundLogin.toLowerCase() !== String(ownerEmail).toLowerCase()) {
+          warnings.push(
+            `This property is already linked to a distribution sub-account whose login is ${boundLogin}. Confirming keeps that live account and re-uses it.`,
+          );
+        }
+
+        return json({
+          success: true,
+          plan: {
+            can_create: locationIds.length > 0,
+            blocked_reason: locationIds.length === 0 ? NO_LOCATION_MESSAGE : null,
+            outcome,
+            login_email: ownerEmail,
+            login_source: ownerEmailSource,
+            contact_first_name: nameParts[0] || "Property",
+            contact_last_name: nameParts.slice(1).join(" ") || "Owner",
+            company_name: portfolioRow?.name ?? ownerName ?? null,
+            country: countryName,
+            scope: portfolioId ? "portfolio" : "property",
+            portfolio_id: portfolioId,
+            portfolio_name: portfolioRow?.name ?? null,
+            portfolio_property_count: memberCount,
+            property_id: propertyId,
+            existing_owner_id: adoptOwnerId || null,
+            existing_login_email:
+              String(rosterMatch?.login_email ?? rosterMatch?.email ?? boundLogin ?? "").trim() || null,
+            location_ids: locationIds,
+            rejected_internal_login: internalLoginRejected,
+            warnings,
+          },
+        });
+      }
+
       // The RU identity is only stale when Rentals United no longer lists an owner that
       // matches the stored OwnerID (or, when we never stored one, the stored login email).
       // A login rename in the RU portal must NOT erase the OwnerID or the password.
