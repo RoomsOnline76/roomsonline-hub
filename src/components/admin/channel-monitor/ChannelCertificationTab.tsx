@@ -43,5 +43,5 @@ export function ChannelCertificationTab({ initialTab }: { initialTab?: string })
 
 
   if (!properties) return <Skeleton className="h-64 w-full" />;
-  return <RuCertificationConsole properties={properties} />;
+  return <RuCertificationConsole properties={properties} initialTab={initialTab} />;
 }
