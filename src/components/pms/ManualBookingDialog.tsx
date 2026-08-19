@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { useActivePackages } from "@/hooks/useActivePackages";
 import { ensureGuestProfile, rebuildGuestStats } from "@/lib/guestIdentity";
+import { syncBookingToHubSpot } from "@/lib/hubspotEvents";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
 import {
   BookerSegmentationFields,
