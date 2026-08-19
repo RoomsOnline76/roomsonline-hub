@@ -1846,6 +1846,7 @@ const CalendarAccommodation = () => {
   // PMS-aware helper to get availability for a room/date
   const getAvailability = (roomName: string, date: Date): { value: number | null; fromPms: boolean } => {
     const dateStr = format(date, "yyyy-MM-dd");
+    const booked = getBookedInfo(roomName, date)?.units ?? 0;
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
@@ -1855,13 +1856,21 @@ const CalendarAccommodation = () => {
         : pmsData.roomTypes.find((rt) => rt.roomTypeName === roomName);
       
       if (pmsRoom && pmsRoom.availabilityByDate[dateStr] !== undefined) {
-        return { value: pmsRoom.availabilityByDate[dateStr], fromPms: true };
+        const raw = pmsRoom.availabilityByDate[dateStr];
+        // Native ROL'OS units are published as fully open; own stays must reduce it.
+        if (typeof raw === "number" && booked > 0) {
+          const units = displayRoom?.units ?? 1;
+          const base = raw > units ? units : raw;
+          return { value: Math.max(0, base - booked), fromPms: true };
+        }
+        return { value: raw, fromPms: true };
       }
     }
     
     // No PMS data available - return null (values will be shown as "—")
     return { value: null, fromPms: false };
   };
+
 
   // PMS-aware helper to get rate for a room/rateType/date with occupancy support
   const getRate = (
