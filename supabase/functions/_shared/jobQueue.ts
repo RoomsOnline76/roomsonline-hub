@@ -18,7 +18,11 @@ export type JobType =
   | "channel_content_delta"
   | "booking_email"
   | "booking_balance_request"
-  | "booking_sync_status";
+  | "booking_sync_status"
+  /** Re-run the channel listing review after the channel's rate window closed the read. */
+  | "channel_listing_review"
+  /** Finish publishing the units a chunked push left outstanding. */
+  | "channel_publish_units";
 
 
 export interface EnqueueOptions {

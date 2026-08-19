@@ -30,6 +30,26 @@ async function callFunction(name: string, body: Record<string, unknown>): Promis
   }
 }
 
+/** Same call, but the parsed body is needed to decide whether the work actually finished. */
+async function callFunctionJson(
+  name: string,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${SERVICE_KEY}` },
+    body: JSON.stringify(body),
+  });
+  const text = await response.text().catch(() => "");
+  let parsed: Record<string, unknown> = {};
+  try {
+    parsed = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    parsed = {};
+  }
+  return { status: response.status, body: parsed };
+}
+
 // deno-lint-disable-next-line no-explicit-any
 async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
   const payload = job.payload ?? {};
@@ -105,6 +125,66 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         },
         { onConflict: "booking_id,external_system" },
       );
+      return;
+    }
+    /**
+     * The channel allows one identical read per sliding minute, so a listing review fired while
+     * that window is closed cannot answer immediately. It is parked here and replayed until the
+     * read lands — the wizard's "pull listings" step then passes on its own.
+     */
+    case "channel_listing_review": {
+      const propertyId = payload.property_id as string | undefined;
+      if (!propertyId) return;
+      const { status, body } = await callFunctionJson("ru-cert-portal", {
+        action: "resolve_ru_property_ids",
+        property_id: propertyId,
+      });
+      if (body?.pending === true) {
+        throw new Error("Channel rate window still closed — listing review will be retried");
+      }
+      if (status >= 400 || body?.success !== true) {
+        const err = body?.error as { message?: string } | undefined;
+        throw new Error(err?.message ?? `Listing review returned ${status}`);
+      }
+      return;
+    }
+
+    /**
+     * A chunked push answers as soon as its slice is done. Anything still outstanding is finished
+     * here so a rate-limited or time-boxed run never leaves units unpublished.
+     */
+    case "channel_publish_units": {
+      const propertyId = payload.property_id as string | undefined;
+      const unitIds = Array.isArray(payload.unit_ids) ? (payload.unit_ids as string[]) : [];
+      if (!propertyId || unitIds.length === 0) return;
+
+      const { status, body } = await callFunctionJson("push-property-to-ru", {
+        property_id: propertyId,
+        only_unit_ids: unitIds,
+        subscribe_rlnm: true,
+      });
+
+      const { data: units } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, rentalsunited_property_id")
+        .in("id", unitIds);
+      const outstanding = ((units ?? []) as Array<{ name: string | null; rentalsunited_property_id: string | null }>)
+        .filter((u) => !String(u.rentalsunited_property_id ?? "").trim())
+        .map((u) => String(u.name ?? "unit"));
+
+      if (outstanding.length > 0) {
+        const err = body?.error as { message?: string } | undefined;
+        throw new Error(
+          `${outstanding.length} unit(s) still unpublished (${outstanding.slice(0, 3).join(", ")})` +
+            (err?.message ? ` — ${err.message}` : status >= 400 ? ` — push returned ${status}` : ""),
+        );
+      }
+
+      // Everything is live: confirm the listings so the connect step can open.
+      await callFunctionJson("ru-cert-portal", {
+        action: "resolve_ru_property_ids",
+        property_id: propertyId,
+      });
       return;
     }
     default:

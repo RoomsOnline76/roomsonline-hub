@@ -284,6 +284,18 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "resolve_ru_property_ids", property_id: propertyId },
       });
+      /**
+       * The channel allows one identical read per sliding minute. When that window is closed the
+       * review is queued as background work instead of failing, so this is progress — not an error.
+       */
+      if (data?.pending === true) {
+        setReadBackPending(true);
+        toast.info("Reviewing your listings with the channel", {
+          description: "The channel is rate limited right now — this finishes on its own and you will be told when it lands.",
+          duration: 9000,
+        });
+        return;
+      }
       if (error || data?.success !== true) {
         const reason = error
           ? await extractFunctionError(error, "Could not list the sub-account's listings")
@@ -352,7 +364,19 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     setPushErrors([]);
     try {
       const data = await pushPropertyToRu(propertyId);
-      if (!data?.success) {
+      const outstanding = (data?.remaining_unit_ids ?? []).length;
+      if (!data?.success && outstanding > 0) {
+        /**
+         * The run stopped with units left (rate limit / worker budget). The backend queued the
+         * rest, so this is "still going" rather than a failure.
+         */
+        const pushedSoFar = (data?.units ?? []).filter((u) => u.success).length;
+        setReadBackPending(true);
+        toast.info(`${pushedSoFar} unit(s) published — finishing the rest in the background`, {
+          description: `${outstanding} unit(s) are queued and will be published automatically. You will be told when the listings are confirmed.`,
+          duration: 10000,
+        });
+      } else if (!data?.success) {
         const reasons = [...((data?.blockers as unknown[]) ?? []), ...((data?.gaps as unknown[]) ?? [])].map(String);
         const unitFailures = (data?.units ?? [])
           .filter((u) => u.success === false)
@@ -416,36 +440,60 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   /**
    * Manual retry for the read-back only — the push chains this itself, so this is the
    * escape hatch for when that read-back failed (rate limit, channel hiccup).
+   * `silent` is used by the background watcher so a still-closed rate window does not
+   * spam toasts while the queued review works itself out.
    */
-  const verifyListings = useCallback(async () => {
-    setBusy("verify_listings");
+  const verifyListings = useCallback(async (silent = false) => {
+    if (!silent) setBusy("verify_listings");
+    let stillPending = false;
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         body: { action: "resolve_ru_property_ids", property_id: propertyId },
       });
+      if (data?.pending === true) {
+        // Queued behind the channel's rate window — keep waiting rather than reporting a failure.
+        stillPending = true;
+        if (!silent) {
+          toast.info("Still waiting on the channel", {
+            description: "The listing review is queued and finishes on its own.",
+          });
+        }
+        return;
+      }
       if (error || data?.success !== true) {
         const reason = error
           ? await extractFunctionError(error, "Could not read the listings back")
           : data?.error?.message ?? "Could not read the listings back";
-        toast.error(reason);
+        if (!silent) toast.error(reason);
         return;
       }
 
       const matched = Array.isArray(data.matched) ? data.matched.length : 0;
-      toast.success(`${matched} listing(s) confirmed on the channel`);
+      const verified = data.listings_verified === true;
+      toast.success(
+        verified
+          ? "Listings confirmed — you can connect to the channel"
+          : `${matched} listing(s) confirmed on the channel`,
+        {
+          description: verified
+            ? `${data.listings_verified_units ?? matched}/${data.listings_expected_units ?? matched} unit(s) live on the channel.`
+            : undefined,
+          duration: 9000,
+        },
+      );
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not read the listings back");
+      if (!silent) toast.error(err instanceof Error ? err.message : "Could not read the listings back");
     } finally {
-      setReadBackPending(false);
-      setBusy(null);
+      setReadBackPending(stillPending);
+      if (!silent) setBusy(null);
     }
   }, [propertyId, refresh]);
 
   /**
-   * A deferred channel read-back must have a terminal state. Give the channel a
-   * short settling window, retry once automatically, then reveal the manual
-   * retry if that call is rate-limited or cannot confirm the listing.
+   * A deferred channel read/review must reach a terminal state without the operator babysitting
+   * it. The background job replays the read; this polls it a few times (spaced wider than the
+   * channel's sliding minute) and reports the outcome with a toast, then stops.
    */
   useEffect(() => {
     if (!readBackPending) return;
@@ -454,11 +502,21 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      void verifyListings();
-    }, 15_000);
+    let attempts = 0;
+    const timer = window.setInterval(() => {
+      attempts += 1;
+      if (attempts > 6) {
+        window.clearInterval(timer);
+        setReadBackPending(false);
+        toast.warning("The channel is still rate limiting the listing review", {
+          description: "It keeps retrying in the background — use “Recheck channel” in a few minutes.",
+        });
+        return;
+      }
+      void verifyListings(true);
+    }, 35_000);
 
-    return () => window.clearTimeout(timer);
+    return () => window.clearInterval(timer);
   }, [listingsVerified, readBackPending, verifyListings]);
 
 
@@ -1342,7 +1400,7 @@ function PublishedPane({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onVerifyListings}
+                onClick={() => onVerifyListings()}
                 disabled={locked || busy === "verify_listings"}
               >
                 {busy === "verify_listings" ? (

@@ -17,6 +17,7 @@ import {
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { markLedgerStaleForScope } from '../_shared/channelStepLedger.ts';
+import { enqueueJob } from '../_shared/jobQueue.ts';
 
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
@@ -4560,6 +4561,24 @@ Deno.serve(async (req) => {
             chunk: { size: chunkSize, pushed: filteredUnits.length, requested: requestedUnits.length, remaining_unit_ids: remainingUnitIds },
           },
         });
+
+        /**
+         * Units left over from this chunk are finished as background work, so a rate-limited or
+         * time-boxed run never leaves a property partially published. The client driver still
+         * resumes interactively; the job is the durable safety net behind it.
+         */
+        if (remainingUnitIds.length > 0 && !Array.isArray(only_unit_ids)) {
+          await enqueueJob(
+            supabase,
+            'channel_publish_units',
+            { property_id, unit_ids: remainingUnitIds },
+            {
+              dedupeKey: `channel_publish_units:${property_id}`,
+              delaySeconds: 70,
+              maxAttempts: 8,
+            },
+          );
+        }
 
         // The read-back follows the push automatically once the whole sequence is done.
         const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
