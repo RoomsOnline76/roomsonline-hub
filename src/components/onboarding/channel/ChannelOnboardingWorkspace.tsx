@@ -364,7 +364,19 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     setPushErrors([]);
     try {
       const data = await pushPropertyToRu(propertyId);
-      if (!data?.success) {
+      const outstanding = (data?.remaining_unit_ids ?? []).length;
+      if (!data?.success && outstanding > 0) {
+        /**
+         * The run stopped with units left (rate limit / worker budget). The backend queued the
+         * rest, so this is "still going" rather than a failure.
+         */
+        const pushedSoFar = (data?.units ?? []).filter((u) => u.success).length;
+        setReadBackPending(true);
+        toast.info(`${pushedSoFar} unit(s) published — finishing the rest in the background`, {
+          description: `${outstanding} unit(s) are queued and will be published automatically. You will be told when the listings are confirmed.`,
+          duration: 10000,
+        });
+      } else if (!data?.success) {
         const reasons = [...((data?.blockers as unknown[]) ?? []), ...((data?.gaps as unknown[]) ?? [])].map(String);
         const unitFailures = (data?.units ?? [])
           .filter((u) => u.success === false)
@@ -1388,7 +1400,7 @@ function PublishedPane({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onVerifyListings}
+                onClick={() => onVerifyListings()}
                 disabled={locked || busy === "verify_listings"}
               >
                 {busy === "verify_listings" ? (
