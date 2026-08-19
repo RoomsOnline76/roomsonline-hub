@@ -1542,6 +1542,7 @@ function PublishedPane({
           <p className="text-xs text-muted-foreground">
             Confirm the published currency matches what the Channel Manager reports. A mismatch blocks some OTAs.
           </p>
+          <RuCurrencyVerifyCard propertyId={propertyId} disabled={locked} />
           <RuCurrencyNotice propertyId={propertyId} />
         </div>
       )}
