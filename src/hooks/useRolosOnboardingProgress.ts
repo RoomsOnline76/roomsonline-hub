@@ -9,6 +9,7 @@ import {
   seedChannelLedger,
   recheckChannelLedger,
   ledgerStepComplete,
+  ledgerHasVerdict,
   type ChannelLedgerSnapshot,
   type ChannelLedgerStep,
   type ChannelLedgerStatus,
