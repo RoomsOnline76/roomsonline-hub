@@ -309,3 +309,67 @@ export async function writeLedgerRows(
   if (error) throw new Error(error.message);
   return { written: payload.length };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 — section dirty monitor (edge side).
+//
+// Channel writers (owner push, key capture, company profile, listing pull,
+// publish) know which macro steps their outcome invalidates but are scoped to an
+// owner account or portfolio rather than a single property. These helpers resolve
+// the affected properties and mark only those steps stale. They never throw and
+// never call the channel: bookkeeping must not be able to fail a push.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface LedgerStaleScope {
+  propertyId?: string | null;
+  portfolioId?: string | null;
+}
+
+/** Resolve the property ids a portfolio/property scope covers. */
+// deno-lint-ignore no-explicit-any
+async function resolveScopeProperties(admin: any, scope: LedgerStaleScope): Promise<string[]> {
+  const ids = new Set<string>();
+  if (scope.propertyId) ids.add(scope.propertyId);
+  if (scope.portfolioId) {
+    const { data } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", scope.portfolioId);
+    for (const row of data ?? []) if (row?.property_id) ids.add(row.property_id as string);
+  }
+  return [...ids];
+}
+
+/**
+ * Mark steps stale for every property in a scope. Safe to call from any writer:
+ * it resolves the flag first, swallows every failure and logs what it did.
+ */
+// deno-lint-ignore no-explicit-any
+export async function markLedgerStaleForScope(
+  admin: any,
+  scope: LedgerStaleScope,
+  stepKeys: string[],
+  event = "mark_stale_scope",
+): Promise<void> {
+  try {
+    if (!(await isChannelStepLedgerEnabled(admin))) return;
+    const propertyIds = await resolveScopeProperties(admin, scope);
+    if (propertyIds.length === 0) return;
+    let marked = 0;
+    for (const propertyId of propertyIds) {
+      const result = await markLedgerStale(admin, propertyId, stepKeys);
+      marked += result.marked;
+    }
+    logLedgerEvent({
+      propertyId: scope.propertyId ?? null,
+      event,
+      detail: { step_keys: stepKeys, properties: propertyIds.length, marked },
+    });
+  } catch (error) {
+    logLedgerEvent({
+      propertyId: scope.propertyId ?? null,
+      event: `${event}_error`,
+      detail: { message: error instanceof Error ? error.message : String(error) },
+    });
+  }
+}
