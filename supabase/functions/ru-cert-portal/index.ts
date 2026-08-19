@@ -5148,27 +5148,18 @@ Deno.serve(async (req) => {
       let ownerEmail: string | null = body.owner_email ?? null;
       let ownerName: string = body.owner_name ?? "";
 
-      // Logins Rentals United already holds outside our master account can never become
-      // a sub-user login: RU answers "Email already exists." (status 95) and the address is
-      // invisible in Pull_ListMyUsers, so it can never be adopted either — the create call
-      // dead-ends on a 409 forever. `connect@` is the RU master/portal login itself, so it
-      // is reserved alongside the shared platform mailboxes. Retired sub-account logins are
-      // NOT reserved here: some (rooms@) are also the live portfolio distribution login.
+      // Only the shared platform login (dev@) can never become a channel sub-user login —
+      // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
+      // info@ …) are valid owner / testing logins and are accepted.
       const INTERNAL_LOGIN_PREFIXES = ["dev@", "noreply@", "no-reply@"];
-      const RESERVED_LOGIN_EMAILS = new Set<string>(["connect@roomsonline.co.za"]);
       const isInternalLogin = (email: string | null | undefined) => {
         const e = String(email ?? "").trim().toLowerCase();
         if (!e) return true;
-        if (RESERVED_LOGIN_EMAILS.has(e)) return true;
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
 
-
-
-
-      // A reserved login supplied in the request is dropped too, so resolution falls
-      // through to the portfolio / owner-account candidates instead of dead-ending at RU.
       if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+
 
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
 
@@ -5787,13 +5778,21 @@ Deno.serve(async (req) => {
         }, 422);
       }
 
-      type RuUser = { user_account_id?: string; email?: string; owner_id?: string };
+      type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
         const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
         return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
       };
+      // A sub-user's RU login (`<UserName>`) can differ from its contact `<Email>` — e.g.
+      // OwnerID 741765 logs in as connect@… with rooms@… as contact — so both must match.
+      const sameEmail = (a: unknown, b: unknown) => {
+        const x = String(a ?? "").trim().toLowerCase();
+        const y = String(b ?? "").trim().toLowerCase();
+        return Boolean(x) && x === y;
+      };
       const matchByEmail = (users: RuUser[]) =>
-        users.find((u) => (u.email ?? "").trim().toLowerCase() === ownerEmail!.trim().toLowerCase()) ?? null;
+        users.find((u) => sameEmail(u.email, ownerEmail) || sameEmail(u.login_email, ownerEmail)) ?? null;
+
       const usableRuId = (value: unknown): string => {
         const normalized = String(value ?? "").trim();
         return normalized && normalized !== "0" ? normalized : "";
@@ -5809,7 +5808,9 @@ Deno.serve(async (req) => {
         return users.find((u) => {
           const ownerId = usableRuId(u.owner_id);
           if (wantedOwnerId && ownerId && ownerId === wantedOwnerId) return true;
-          return wantedEmails.includes((u.email ?? "").trim().toLowerCase());
+          return wantedEmails.includes((u.email ?? "").trim().toLowerCase())
+            || wantedEmails.includes((u.login_email ?? "").trim().toLowerCase());
+
         }) ?? null;
       };
 

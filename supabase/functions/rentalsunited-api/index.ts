@@ -2036,11 +2036,18 @@ function extractUserAccountId(xml: string): string | null {
 interface RUListedUser {
   user_account_id: string;
   email: string;
+  /**
+   * The sub-user's actual RU login (`<UserName>`). It can differ from `<Email>` — e.g.
+   * OwnerID 741765 logs in as connect@… while its contact email is rooms@…, so an
+   * email-only lookup would wrongly report "no sub-user for this login".
+   */
+  login_email: string;
   first_name: string;
   last_name: string;
   owner_id: string;
   archived: boolean;
 }
+
 
 /**
  * OwnerIDs that must never be offered in the UI again (abandoned test sub-users we
@@ -2066,15 +2073,18 @@ function extractUsers(xml: string): RUListedUser[] {
     const ownerId = m[1];
     const block = m[2];
     const val = (tag: string) => block.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'i'))?.[1]?.trim() ?? '';
-    const email = val('Email') || val('UserName');
+    const userName = val('UserName');
+    const email = val('Email') || userName;
     results.push({
       user_account_id: val('UserAccountId') || '',
       first_name: val('FirstName'),
       last_name: val('SurName') || val('LastName'),
       email,
+      login_email: userName || email,
       owner_id: ownerId,
       archived: isArchivedRuLogin(email, ownerId, block),
     });
+
   }
   if (results.length > 0) return results;
 
@@ -2089,10 +2099,12 @@ function extractUsers(xml: string): RUListedUser[] {
       first_name: match[2]?.trim() || '',
       last_name: match[3]?.trim() || '',
       email,
+      login_email: email,
       owner_id: ownerId,
       archived: isArchivedRuLogin(email, ownerId),
     });
   }
+
   return results;
 }
 
