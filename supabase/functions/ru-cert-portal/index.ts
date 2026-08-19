@@ -5169,7 +5169,15 @@ Deno.serve(async (req) => {
     // ── ensure_owner_account: Phase 1 sub-user (portfolio-first) ──
     // `ensure_company_details` is the same atomic flow: it re-enters here, finds the
     // existing sub-user and (re)submits Push_FillCompanyDetails_RQ until it sticks.
-    if (action === "ensure_owner_account" || action === "ensure_company_details") {
+    // `plan_owner_account` is the read-only preview of the same resolution: it decides
+    // WHAT would be sent to the channel (login, name, scope, adopt vs create) and returns
+    // it for operator confirmation. It performs no channel writes and no local writes.
+    if (
+      action === "ensure_owner_account" ||
+      action === "ensure_company_details" ||
+      action === "plan_owner_account"
+    ) {
+      const isPlan = action === "plan_owner_account";
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
@@ -5177,15 +5185,30 @@ Deno.serve(async (req) => {
       }
 
       const flag = await readUserMgmtFlag();
-      if (!flag.enabled) {
+      if (!flag.enabled && !isPlan) {
         return json({
           success: false,
           error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab first." },
         }, 409);
       }
 
-      let ownerEmail: string | null = body.owner_email ?? null;
-      let ownerName: string = body.owner_name ?? "";
+      /**
+       * Operator-confirmed identity. Step 6 of the wizard previews the resolution, the
+       * operator confirms it, and the confirmed values come back here verbatim so nothing
+       * can drift between what was shown and what is created. Automated/server callers
+       * omit these and keep the original cascade.
+       */
+      const confirmedEmail = String(body.confirmed_owner_email ?? "").trim() || null;
+      const confirmedName = String(body.confirmed_owner_name ?? "").trim() || null;
+      let ownerEmail: string | null = confirmedEmail ?? body.owner_email ?? null;
+      let ownerName: string = confirmedName ?? body.owner_name ?? "";
+      // Where the login came from — reported so the operator can see which record they
+      // must edit when the previewed address is wrong.
+      let ownerEmailSource: string = confirmedEmail
+        ? "confirmed by the operator"
+        : ownerEmail
+          ? "supplied with the request"
+          : "unresolved";
 
       // Only the shared platform login (dev@) can never become a channel sub-user login —
       // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
@@ -5197,7 +5220,13 @@ Deno.serve(async (req) => {
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
 
-      if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+      let internalLoginRejected: string | null = null;
+      if (ownerEmail && isInternalLogin(ownerEmail)) {
+        internalLoginRejected = ownerEmail;
+        ownerEmail = null;
+        ownerEmailSource = "unresolved";
+      }
+
 
 
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
