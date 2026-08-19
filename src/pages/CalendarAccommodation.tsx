@@ -1059,7 +1059,8 @@ const CalendarAccommodation = () => {
             
             ratesByDate[dateStr].push({
               rateTypeId: String(matchedId),
-              rateTypeName: matchedRateType?.name || room.name || 'Standard Rate',
+              // Never label a rate after the room — a room name is not a rate type.
+              rateTypeName: matchedRateType?.name || 'Standard Rate',
               priceType: orphanPriceType,
               roomAmount: orphanRateAmount,
               ...(isOrphanPerPerson ? {
