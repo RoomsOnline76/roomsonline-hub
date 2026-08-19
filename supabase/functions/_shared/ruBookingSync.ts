@@ -125,14 +125,14 @@ export async function resolveRuPropertyId(
     const { data: direct } = await supabase
       .from('hostfully_room_types')
       .select('rentalsunited_property_id')
-      .eq('id', booking.room_type_id)
+      .eq('id', roomTypeId)
       .maybeSingle();
     if (direct?.rentalsunited_property_id) return String(direct.rentalsunited_property_id);
 
     const { data: canonical } = await supabase
       .from('rolos_room_types')
       .select('name')
-      .eq('id', booking.room_type_id)
+      .eq('id', roomTypeId)
       .maybeSingle();
     if (canonical?.name) {
       const { data: units } = await supabase
