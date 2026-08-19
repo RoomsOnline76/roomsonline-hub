@@ -20,6 +20,16 @@ import { resumePendingRuDeltas } from "../_shared/ruPendingDeltas.ts";
 import { createRateResolver, describeCoverage } from "../_shared/rateResolution.ts";
 import { parseRuPricePoints, parseRuPriceSeasons } from "../_shared/ruPriceParsing.ts";
 import { fetchRetiredRuOwnerIds } from "../_shared/ruRetiredAccounts.ts";
+import {
+  isChannelStepLedgerEnabled,
+  logLedgerEvent,
+  seedLedger,
+  readLedger,
+  markLedgerStale,
+  writeLedgerRows,
+  mapReadinessToLedgerRows,
+  type ReadinessReportLike,
+} from "../_shared/channelStepLedger.ts";
 
 import { countRuOpenDays, parseRuAvailabilityDays } from "../_shared/ruAvailabilityParsing.ts";
 import { DEFAULT_LNM_CHANGE_TYPES, diffLnmSubscriptions, parseLnmSubscriptions } from "../_shared/ruLnm.ts";
@@ -985,6 +995,7 @@ Deno.serve(async (req) => {
       "property_ru_identity",
       "lnm_status",
       "resolve_ru_property_ids",
+      "ledger_get",
     ];
     if (!allowed) {
       if (!PROPERTY_SCOPED_READ_ACTIONS.includes(action) || !body.property_id) {
