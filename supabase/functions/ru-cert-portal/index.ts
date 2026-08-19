@@ -6703,11 +6703,29 @@ Deno.serve(async (req) => {
      * One row per listing (newest order wins) plus roll-up counters.
      */
     if (action === "mcq_report") {
-      const { data: props } = await admin
-        .from("properties")
-        .select("id, name, is_active, is_sandbox, rentalsunited_property_id")
-        .eq("is_active", true)
-        .order("name");
+      const retiredOwnerIds = await fetchRetiredRuOwnerIds();
+
+      // Only properties that actually hold a channel listing can be quality-checked. Resolving
+      // targets for every active property produced one wasted lookup per unpublished property.
+      const [{ data: propRows }, { data: publishedUnits }] = await Promise.all([
+        admin
+          .from("properties")
+          .select("id, name, is_active, is_sandbox, rentalsunited_property_id")
+          .eq("is_active", true)
+          .order("name"),
+        admin
+          .from("hostfully_room_types")
+          .select("property_id")
+          .not("rentalsunited_property_id", "is", null),
+      ]);
+
+      const publishedPropertyIds = new Set<string>(
+        ((publishedUnits ?? []) as Array<{ property_id?: string | null }>)
+          .map((u) => String(u.property_id ?? ""))
+          .filter(Boolean),
+      );
+      const props = ((propRows ?? []) as Array<{ id: string; name?: string | null; rentalsunited_property_id?: string | null }>)
+        .filter((p) => Boolean(p.rentalsunited_property_id) || publishedPropertyIds.has(p.id));
 
       const { data: orders } = await admin
         .from("ru_mcq_orders")
@@ -6721,11 +6739,17 @@ Deno.serve(async (req) => {
         if (!newestByListing.has(key)) newestByListing.set(key, o);
       }
 
-      const rows: Array<Record<string, unknown>> = [];
-      for (const p of (props ?? []) as Array<{ id: string; name?: string | null; rentalsunited_property_id?: string | null }>) {
+      /** property + unit name is the identity of a listing for reporting — never render it twice. */
+      const dedupeKey = (propertyId: string, label: string) =>
+        `${propertyId}::${label.trim().toLowerCase().replace(/\s+/g, " ")}`;
+      const byUnit = new Map<string, { row: Record<string, unknown>; orderedAt: number }>();
+
+      for (const p of props) {
         const { targets } = await resolveMcqTargets(admin, p.id, p, null);
         const { account } = await findOwnerAccount(admin, p.id, null, null);
         const ownerId = (account as { ru_owner_id?: unknown } | null)?.ru_owner_id ?? null;
+        // A retired sub-account's listings are dead: never report or offer to check them.
+        if (ownerId && retiredOwnerIds.has(String(ownerId).trim())) continue;
         for (const t of targets) {
           const order = newestByListing.get(t.ru_property_id) ?? null;
           const outcome = classifyMcqOrder(order);
@@ -6742,7 +6766,7 @@ Deno.serve(async (req) => {
                 : parseMcqFailingPoints(note?.result ?? null);
             } catch { /* non-JSON preview — no structured points */ }
           }
-          rows.push({
+          const row = {
             property_id: p.id,
             property_name: p.name ?? "Property",
             listing_label: t.label,
@@ -6754,9 +6778,20 @@ Deno.serve(async (req) => {
             ordered_at: order?.ordered_at ?? null,
             ru_response_id: ruResponseId,
             failing_points: failingPoints,
-          });
+          };
+          const key = dedupeKey(p.id, t.label ?? t.ru_property_id);
+          const orderedAt = order?.ordered_at ? new Date(order.ordered_at).getTime() : 0;
+          const existing = byUnit.get(key);
+          // Evidence wins: a listing with a stored order beats one without, newest order beats older.
+          if (!existing || orderedAt > existing.orderedAt) byUnit.set(key, { row, orderedAt });
         }
       }
+
+      const rows: Array<Record<string, unknown>> = [...byUnit.values()].map((v) => v.row);
+      rows.sort((a, b) =>
+        String(a.property_name).localeCompare(String(b.property_name)) ||
+        String(a.listing_label).localeCompare(String(b.listing_label))
+      );
 
       const counts = rows.reduce(
         (acc: Record<string, number>, r) => {
@@ -6769,6 +6804,7 @@ Deno.serve(async (req) => {
 
       return json({ success: true, counts, total: rows.length, rows });
     }
+
 
 
 
