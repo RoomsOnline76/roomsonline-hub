@@ -1035,6 +1035,7 @@ export type Database = {
           invoice_to_address: string | null
           invoice_to_name: string | null
           invoice_to_vat: string | null
+          is_trade: boolean
           last_modified_at: string | null
           lead_created_at: string | null
           market_segment: string | null
@@ -1131,6 +1132,7 @@ export type Database = {
           invoice_to_address?: string | null
           invoice_to_name?: string | null
           invoice_to_vat?: string | null
+          is_trade?: boolean
           last_modified_at?: string | null
           lead_created_at?: string | null
           market_segment?: string | null
@@ -1227,6 +1229,7 @@ export type Database = {
           invoice_to_address?: string | null
           invoice_to_name?: string | null
           invoice_to_vat?: string | null
+          is_trade?: boolean
           last_modified_at?: string | null
           lead_created_at?: string | null
           market_segment?: string | null
@@ -10537,6 +10540,7 @@ export type Database = {
           id: string
           is_archived: boolean
           is_blacklisted: boolean | null
+          is_trade: boolean
           last_stay_date: string | null
           nationality: string | null
           normalised_name: string | null
@@ -10564,6 +10568,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_blacklisted?: boolean | null
+          is_trade?: boolean
           last_stay_date?: string | null
           nationality?: string | null
           normalised_name?: string | null
@@ -10591,6 +10596,7 @@ export type Database = {
           id?: string
           is_archived?: boolean
           is_blacklisted?: boolean | null
+          is_trade?: boolean
           last_stay_date?: string | null
           nationality?: string | null
           normalised_name?: string | null
