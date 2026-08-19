@@ -311,7 +311,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         guest_name: initialValues.guestName || p.guest_name,
         guest_email: initialValues.guestEmail || p.guest_email,
         guest_phone: initialValues.guestPhone || p.guest_phone,
-        notes: initialValues.notes || p.notes,
+        special_requests: initialValues.notes || p.special_requests,
       }));
       if (initialValues.roomTypeId || initialValues.roomId) {
         setLines([newLine(initialValues.roomTypeId || "", initialValues.roomId || "")]);
