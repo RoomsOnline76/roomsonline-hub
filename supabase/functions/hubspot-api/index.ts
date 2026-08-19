@@ -72,10 +72,47 @@ const requestSchema = z.object({
       trade_or_direct: z.enum(["trade", "direct"]).optional(),
     })
     .optional(),
+  /** Native inquiry projected as a HubSpot deal in an "enquiry" stage. */
+  inquiry: z
+    .object({
+      inquiry_id: z.string().trim().min(1).max(120),
+      reference: z.string().trim().max(64).optional(),
+      stage: z.string().trim().max(64).optional(),
+      guest_name: z.string().trim().max(255).optional(),
+      guest_email: z.string().email().max(255).optional(),
+      guest_phone: z.string().trim().max(64).optional(),
+      property_name: z.string().trim().max(255).optional(),
+      estimated_value: z.number().nonnegative().optional(),
+      currency: z.string().trim().max(8).optional(),
+      check_in_date: z.string().trim().max(40).optional(),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
+      source: z.string().trim().max(64).optional(),
+    })
+    .optional(),
+  /** Segmentation / lifecycle enrichment for an existing guest contact. */
+  enrichment: z
+    .object({
+      email: z.string().email().max(255),
+      trade_or_direct: z.enum(["trade", "direct"]).optional(),
+      lifecycle: z.enum(["new", "repeat", "lapsed"]).optional(),
+      total_stays: z.number().int().nonnegative().optional(),
+      total_spent: z.number().nonnegative().optional(),
+      last_stay_date: z.string().trim().max(40).optional(),
+    })
+    .optional(),
+  /** Timeline note against a contact (check-in completed, feedback received). */
+  engagement: z
+    .object({
+      email: z.string().email().max(255),
+      title: z.string().trim().min(1).max(255),
+      body: z.string().trim().max(4000).optional(),
+    })
+    .optional(),
   /** Delta sweep window for `sync_owner` — ISO timestamp. */
   since: z.string().trim().max(40).optional(),
   limit: z.number().int().min(1).max(200).optional(),
 });
+
 
 
 type Json = Record<string, unknown>;
