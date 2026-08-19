@@ -371,6 +371,7 @@ export async function modifyRuStay(
       code: 'RU_MODIFY_NOT_ALLOWED',
       message:
         'Rentals United only accepts stay modifications on confirmed reservations. Cancel/reject this request instead.',
+      traceId,
     };
   }
 
@@ -387,6 +388,7 @@ export async function modifyRuStay(
       ok: false,
       code: 'RU_AUTH_UNAVAILABLE',
       message: 'No Rentals United sub-user API keys stored for this property — cannot modify at the channel.',
+      traceId,
     };
   }
 
@@ -408,6 +410,7 @@ export async function modifyRuStay(
       ok: false,
       code: 'RU_PROPERTY_UNMAPPED',
       message: 'No Rentals United PropertyID mapped for this unit — push the property to RU first.',
+      traceId,
     };
   }
 
