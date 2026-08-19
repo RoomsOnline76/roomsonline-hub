@@ -55,7 +55,9 @@ Currently failing pipelines: ${channelHealth.failing.length > 0 ? channelHealth.
 Recovered since last failure: ${channelHealth.recovered.length > 0 ? channelHealth.recovered.map(a => `${a.action} (last failed ${a.last_failure_at || 'unknown'})`).join('; ') : 'None'}
 Top channel errors: ${channelHealth.top_errors.length > 0 ? channelHealth.top_errors.map(e => `${e.action}: ${e.code} ×${e.count}${e.recovered ? ' (recovered)' : ''} — ${e.sample}`).join('; ') : 'None'}
 Rate-limit deferrals (held back and retried, NOT errors): ${channelHealth.rate_deferrals}
-Waiting on owner setup (configuration gaps, NOT defects): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Waiting on owner setup / account reconciliation (operational, NOT code defects — never call these bugs): ${channelHealth.setup_gaps.length > 0 ? channelHealth.setup_gaps.map(g => `${g.kind === 'account' ? '[account conflict] ' : ''}${g.reason} ×${g.count}${g.properties.length > 0 ? ` (${g.properties.join(', ')})` : ''}`).join('; ') : 'None'}
+Account conflicts RECENTLY RECONCILED (successes to note, do NOT recommend work): ${channelHealth.reconciled.length > 0 ? channelHealth.reconciled.map(r => `${r.reason} (stopped occurring)`).join('; ') : 'None'}
+
 Wizard-gate refusals STILL outstanding (work genuinely needed): ${channelHealth.blocked_outstanding.length > 0 ? channelHealth.blocked_outstanding.map(b => `${b.blocker} ×${b.count}${b.properties.length > 0 ? ` (${b.properties.join(', ')})` : ''}`).join('; ') : 'None'}
 Wizard-gate refusals ALREADY CLEARED (do NOT recommend these): ${channelHealth.blocked_cleared.length > 0 ? channelHealth.blocked_cleared.map(b => `${b.blocker}${b.cleared_at ? ` cleared ${b.cleared_at}` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
 
