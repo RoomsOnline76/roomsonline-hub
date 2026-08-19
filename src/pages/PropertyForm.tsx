@@ -229,6 +229,7 @@ import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
+import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 
 
 // Schema factory to handle conditional address validation
