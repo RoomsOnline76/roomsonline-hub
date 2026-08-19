@@ -2298,6 +2298,7 @@ Deno.serve(async (req) => {
       "ledger_seed",
       "ledger_get",
       "ledger_mark_stale",
+      "ledger_record",
       "ledger_recheck",
       "ledger_drain_recheck",
     ];
