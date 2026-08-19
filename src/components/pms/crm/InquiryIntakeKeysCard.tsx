@@ -55,7 +55,9 @@ export function InquiryIntakeKeysCard({ propertyId }: { propertyId: string | nul
     if (!propertyId) return;
     setCreating(true);
     const { data: auth } = await supabase.auth.getUser();
+    const publicKey = `rol_inq_${crypto.randomUUID().replace(/-/g, "")}`;
     const { error } = await supabase.from("rolos_inquiry_keys").insert({
+      key_public: publicKey,
       property_id: propertyId,
       label: label.trim() || "Website form",
       allowed_origins: origins
