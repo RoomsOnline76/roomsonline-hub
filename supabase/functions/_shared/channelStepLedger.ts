@@ -395,3 +395,54 @@ export async function markLedgerStaleForScope(
     });
   }
 }
+
+/**
+ * Record explicit `passed` verdicts for account-scoped steps.
+ *
+ * The readiness scorer only answers the local/probe steps, so steps like key
+ * capture, company profile, listing pull and manual sign-off never got a verdict
+ * and their seeded `pending` / `stale` rows held finished work open forever. The
+ * writers that actually complete those steps call this instead. Never throws:
+ * bookkeeping must not be able to fail a push.
+ */
+// deno-lint-ignore no-explicit-any
+export async function recordLedgerPassForScope(
+  admin: any,
+  scope: LedgerStaleScope,
+  stepKeys: string[],
+  event = "record_pass_scope",
+  source: ChannelLedgerSource = "push_result",
+  details?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    if (!(await isChannelStepLedgerEnabled(admin))) return;
+    const keys = stepKeys.filter((key) => (CHANNEL_LEDGER_STEP_KEYS as readonly string[]).includes(key));
+    if (keys.length === 0) return;
+    const propertyIds = await resolveScopeProperties(admin, scope);
+    if (propertyIds.length === 0) return;
+    for (const propertyId of propertyIds) {
+      await writeLedgerRows(
+        admin,
+        propertyId,
+        keys.map((step_key) => ({
+          step_key,
+          status: "passed" as ChannelLedgerStatus,
+          blocker_summary: null,
+          source,
+          details: { ...(details ?? {}), event },
+        })),
+      );
+    }
+    logLedgerEvent({
+      propertyId: scope.propertyId ?? null,
+      event,
+      detail: { step_keys: keys, properties: propertyIds.length, source },
+    });
+  } catch (error) {
+    logLedgerEvent({
+      propertyId: scope.propertyId ?? null,
+      event: `${event}_error`,
+      detail: { message: error instanceof Error ? error.message : String(error) },
+    });
+  }
+}
