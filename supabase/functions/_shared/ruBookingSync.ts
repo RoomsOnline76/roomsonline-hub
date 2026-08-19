@@ -201,9 +201,11 @@ async function invokeRu(
     traceId?: string | null;
     parentAction?: string | null;
   },
-): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string }> {
+): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null }> {
   const startedAt = Date.now();
-  const finish = async (result: { ok: boolean; deferred?: boolean; code?: string; message?: string }) => {
+  const finish = async (
+    result: { ok: boolean; deferred?: boolean; code?: string; message?: string; data?: Record<string, unknown> | null },
+  ) => {
     await logRuSyncRun(supabase, {
       action,
       propertyId: log?.propertyId ?? null,
@@ -252,7 +254,7 @@ async function invokeRu(
           : 'Channel rate limit reached — the change is queued and will reach the channel within a minute.',
       });
     }
-    return await finish({ ok: true });
+    return await finish({ ok: true, data: data as Record<string, unknown> });
   }
   return await finish({
     ok: false,
