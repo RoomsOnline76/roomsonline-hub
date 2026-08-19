@@ -44,6 +44,8 @@ export interface PriceCoverageResult {
 }
 
 const AUDIT_DAYS = 365;
+/** Nights at the very end of the window that may be unpriced without counting as a gap. */
+const TAIL_TOLERANCE_DAYS = 10;
 
 function addDays(iso: string, days: number): string {
   const d = new Date(iso + 'T00:00:00Z');
@@ -197,7 +199,9 @@ export async function auditChannelPriceCoverage(
 
   if (channelComplete) {
     result.verdict = 'verified';
-    result.gap_summary = null;
+    result.gap_summary = tailOnly && result.channel_priced_days < days
+      ? `The channel holds prices for ${result.channel_priced_days} of ${days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
+      : null;
   } else if (result.local_unpriced_days > 0) {
     result.verdict = 'local_incomplete';
     result.gap_summary = `${result.local_unpriced_days} night${result.local_unpriced_days === 1 ? '' : 's'} in the next year have no rate in ROL'OS — author them in Rate Manager and the channel will be updated automatically.`;
