@@ -5427,9 +5427,23 @@ Deno.serve(async (req) => {
             staleAfterEdit = newest > filledAt;
           }
         }
-        if (body.force !== true && !staleAfterEdit && companyState.satisfied) {
+        /**
+         * Save-time callers keep going even when the timestamp heuristic says nothing
+         * changed: `properties.updated_at` can lag or move for unrelated reasons, so the
+         * only honest test is comparing the composed payload with the one RU accepted
+         * (see `payloadUnchanged` below). Those callers must also stay quiet about setup
+         * gaps they cannot act on, hence `advisoryOnly`.
+         */
+        const advisoryOnly = body.force !== true && !staleAfterEdit && companyState.satisfied;
+        if (advisoryOnly && body.resend_if_changed !== true) {
           return { sent: true, skipped: true as const };
         }
+        /** Turn a blocking setup gap into a silent skip for save-time resends. */
+        const quiet = (result: { sent: boolean; error?: string; [k: string]: unknown }) =>
+          advisoryOnly && result.sent === false
+            ? { sent: true, skipped: true as const, blocked_reason: result.error ?? null }
+            : result;
+
 
 
         // Password sources, in order: this call, an admin-supplied password
