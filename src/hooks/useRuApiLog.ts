@@ -80,6 +80,23 @@ export const RU_BOOKING_ACTIONS = [
   "RLNM_ReservationModified",
 ];
 
+/** Booking lifecycle chips: the verbs an operator looks for first during certification. */
+export const RU_BOOKING_CHIPS: { key: string; label: string; inbound?: boolean }[] = [
+  { key: "Push_PutConfirmedReservationMulti_RQ", label: "Confirmed booking" },
+  { key: "Push_ModifyStay_RQ", label: "Modify stay" },
+  { key: "Push_CancelReservation_RQ", label: "Cancel" },
+  { key: "Push_RejectRequest_RQ", label: "Reject request" },
+  { key: "Pull_ListReservations_RQ", label: "Reservation poll" },
+  { key: "Pull_GetReservationByID_RQ", label: "Reservation by id" },
+  { key: "Pull_GetLeads_RQ", label: "Leads" },
+  { key: "__inbound__", label: "Inbound notifications", inbound: true },
+];
+
+export interface RuApiLogFacet {
+  value: string;
+  count: number;
+}
+
 export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
   propertyId: "all",
   direction: "all",
@@ -100,9 +117,10 @@ const PAGE_SIZE = 100;
 
 export function useRuApiLog(filters: RuApiLogFilters) {
   const [rows, setRows] = useState<RuApiLogRow[]>([]);
-  const [actions, setActions] = useState<string[]>([]);
-  const [operations, setOperations] = useState<string[]>([]);
-  const [owners, setOwners] = useState<string[]>([]);
+  const [actions, setActions] = useState<RuApiLogFacet[]>([]);
+  const [operations, setOperations] = useState<RuApiLogFacet[]>([]);
+  const [owners, setOwners] = useState<RuApiLogFacet[]>([]);
+  const [facetsLoading, setFacetsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
@@ -132,7 +150,13 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       if (filters.propertyId === "account") query = query.is("property_id", null);
       else if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
       if (filters.direction !== "all") query = query.eq("direction", filters.direction);
-      if (filters.bookingsOnly) query = query.in("action", RU_BOOKING_ACTIONS);
+      if (filters.bookingsOnly) {
+        // Inbound channel notifications are booking traffic whatever they are named,
+        // so they must never fall outside the booking view.
+        query = query.or(
+          [`action.in.(${RU_BOOKING_ACTIONS.join(",")})`, "direction.eq.inbound"].join(","),
+        );
+      }
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
@@ -182,24 +206,6 @@ export function useRuApiLog(filters: RuApiLogFilters) {
         setRows((prev) => (offset === 0 ? list : [...prev, ...list]));
         if (offset === 0 && typeof count === "number") setTotalCount(count);
         setHasMore(list.length === PAGE_SIZE);
-        setActions((prev) => {
-          const merged = new Set([...prev, ...list.map((r) => r.action).filter(Boolean)]);
-          return Array.from(merged).sort();
-        });
-        // Operations are grouped by their prefix (channel-cleanup, channel-reconcile…)
-        // so the picker stays short as new sub-steps are added.
-        setOperations((prev) => {
-          const merged = new Set([
-            ...prev,
-            ...list.map((r) => (r.parent_action || "").split(":")[0]).filter(Boolean),
-          ]);
-          return Array.from(merged).sort();
-        });
-        setOwners((prev) => {
-          const merged = new Set([...prev, ...list.map((r) => r.ru_owner_id || "").filter(Boolean)]);
-          return Array.from(merged).sort();
-        });
-
       } catch (err) {
         if (seq !== requestSeq.current) return;
         setError(err instanceof Error ? err.message : "Could not load the exchange log");
@@ -215,6 +221,55 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   );
 
   const load = useCallback(() => fetchPage(0), [fetchPage]);
+
+  /**
+   * Filter options come from the WHOLE retained window, not the loaded page. The newest
+   * hundred exchanges are almost entirely availability/price pulls, so a page-derived
+   * picker hides every rare booking verb and the log reads as if no history exists.
+   */
+  const loadFacets = useCallback(async () => {
+    setFacetsLoading(true);
+    try {
+      const { data, error: facetError } = await supabase.rpc("ru_api_log_facets", {
+        _days: filters.days,
+      });
+      if (facetError) throw facetError;
+      const rowsByKind = new Map<string, RuApiLogFacet[]>();
+      for (const row of (data ?? []) as { kind: string; value: string; count: number }[]) {
+        const list = rowsByKind.get(row.kind) ?? [];
+        list.push({ value: row.value, count: Number(row.count) || 0 });
+        rowsByKind.set(row.kind, list);
+      }
+      const sorted = (kind: string) =>
+        (rowsByKind.get(kind) ?? []).sort((a, b) => a.value.localeCompare(b.value));
+      setActions(sorted("action"));
+      setOperations(sorted("operation"));
+      setOwners(sorted("owner"));
+    } catch {
+      // A facet failure must not blank the log itself — the table still loads.
+      setActions([]);
+      setOperations([]);
+      setOwners([]);
+    } finally {
+      setFacetsLoading(false);
+    }
+  }, [filters.days]);
+
+  useEffect(() => {
+    void loadFacets();
+  }, [loadFacets]);
+
+  /** Window counts by action, for the booking chips and the option labels. */
+  const actionCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const facet of actions) map.set(facet.value, facet.count);
+    return map;
+  }, [actions]);
+
+  const inboundCount = useMemo(
+    () => actions.filter((a) => a.value.startsWith("RLNM_")).reduce((sum, a) => sum + a.count, 0),
+    [actions],
+  );
 
 
   useEffect(() => {
@@ -253,7 +308,13 @@ export function useRuApiLog(filters: RuApiLogFilters) {
     loadingMore,
     hasMore,
     error,
-    refresh: load,
+    actionCounts,
+    inboundCount,
+    facetsLoading,
+    refresh: () => {
+      void loadFacets();
+      return load();
+    },
     loadMore,
     loadDetail,
   };
