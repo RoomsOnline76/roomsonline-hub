@@ -384,11 +384,17 @@ export async function ingestRuReservation(
           hold_released_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
-      const dateFrom = r.dateFrom || existing.check_in_date;
-      const dateTo = r.dateTo || existing.check_out_date;
-      if (dateFrom && dateTo && !opts.skipAvailability) {
-        await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, dateFrom, dateTo, false, log);
+      if (!opts.skipAvailability) {
+        // Release by stamp first: it clears every unit of a multi-unit stay and survives a
+        // unit rename or re-casing that would defeat the name-keyed release below.
+        const released = await releaseChannelBlocksForBooking(supabase, existing.id, log);
+        const dateFrom = r.dateFrom || existing.check_in_date;
+        const dateTo = r.dateTo || existing.check_out_date;
+        if (released === 0 && dateFrom && dateTo) {
+          await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, dateFrom, dateTo, false, log);
+        }
       }
+
       console.log(`${log} ✅ Cancelled booking for RU reservation ${r.ruReservationId}`);
       return { ...base, outcome: 'cancelled', bookingId: existing.id };
     }
