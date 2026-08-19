@@ -235,7 +235,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
    */
   const phaseQuery = useQuery({
     queryKey: ["rolos-onboarding-phase", propertyId, probeAri],
-    enabled: !!propertyId,
+    // Ledger path: the scorecard only runs for an explicit channel recheck. Its
+    // absence degrades to local ROL'OS truth (advisory `unknown`), never a blocker.
+    enabled: !!propertyId && (!ledgerActive || probeAri),
+
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
