@@ -183,6 +183,21 @@ interface RoomData {
   availability: { [date: string]: number | AvailabilityData };
 }
 
+interface BookingOverlayRow {
+  id: string;
+  reference: string | null;
+  guestName: string;
+  status: string;
+  channel: string | null;
+}
+
+interface BookedCell {
+  units: number;
+  stays: BookingOverlayRow[];
+}
+
+
+
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -216,6 +231,9 @@ const CalendarAccommodation = () => {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [roomCategoryMap, setRoomCategoryMap] = useState<Map<string, string>>(new Map());
   const [canonicalRoomTypeMap, setCanonicalRoomTypeMap] = useState<Map<string, CanonicalRoomType>>(new Map());
+  const [bookedByRoom, setBookedByRoom] = useState<Map<string, Map<string, BookedCell>>>(new Map());
+
+
 
   const toggleOccupancyRow = (roomName: string, rateTypeId: string, occKey: string) => {
     const key = `${roomName}-${rateTypeId}-${occKey}`;
@@ -1507,6 +1525,124 @@ const CalendarAccommodation = () => {
     }
   }, [rateTypeOptions]);
 
+  // ── Bookings overlay ───────────────────────────────────────────────────────
+  // Native ROL'OS availability is published as "open" by the orchestrator, so
+  // confirmed/pending stays would otherwise be invisible here. Load the stays
+  // for the visible window and key them by unit name so every calendar row can
+  // show what is actually sold.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBookings = async () => {
+      if (!selectedProperty) {
+        setBookedByRoom(new Map());
+        return;
+      }
+
+      const dayCount = viewMode === "week" ? 9 : 31;
+      const windowStart = new Date(currentDate);
+      const windowEnd = new Date(currentDate);
+      windowEnd.setDate(windowEnd.getDate() + dayCount);
+      const startStr = format(windowStart, "yyyy-MM-dd");
+      const endStr = format(windowEnd, "yyyy-MM-dd");
+
+      try {
+        const [{ data: bookings }, { data: rolosRooms }, { data: hfRooms }] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select("id, rol_reference, guest_name, check_in_date, check_out_date, status, room_type_id, booking_channel, rolos_booking_rooms(room_type_id)")
+            .eq("property_id", selectedProperty)
+            .neq("status", "cancelled")
+            .lt("check_in_date", endStr)
+            .gt("check_out_date", startStr),
+          supabase.from("rolos_room_types").select("id, name").eq("property_id", selectedProperty),
+          supabase
+            .from("hostfully_room_types")
+            .select("id, name, linked_rolos_id")
+            .eq("property_id", selectedProperty),
+        ]);
+
+        if (cancelled) return;
+
+        // Any unit identifier (ROL'OS room type id, mirror id) → unit name.
+        const nameById = new Map<string, string>();
+        (rolosRooms || []).forEach((r) => {
+          if (r.id && r.name) nameById.set(String(r.id), String(r.name));
+        });
+        (hfRooms || []).forEach((r) => {
+          if (r.id && r.name) nameById.set(String(r.id), String(r.name));
+          if (r.linked_rolos_id && r.name) nameById.set(String(r.linked_rolos_id), String(r.name));
+        });
+
+        const next = new Map<string, Map<string, BookedCell>>();
+        const addNight = (roomName: string, dateStr: string, booking: BookingOverlayRow) => {
+          const key = roomName.trim().toLowerCase();
+          if (!next.has(key)) next.set(key, new Map());
+          const byDate = next.get(key)!;
+          const cell = byDate.get(dateStr) ?? { units: 0, stays: [] };
+          if (!cell.stays.some((s) => s.id === booking.id)) {
+            cell.units += 1;
+            cell.stays.push(booking);
+          }
+          byDate.set(dateStr, cell);
+        };
+
+        (bookings || []).forEach((booking: any) => {
+          const roomIds = new Set<string>();
+          if (booking.room_type_id) roomIds.add(String(booking.room_type_id));
+          (booking.rolos_booking_rooms || []).forEach((row: any) => {
+            if (row?.room_type_id) roomIds.add(String(row.room_type_id));
+          });
+
+          const overlayRow: BookingOverlayRow = {
+            id: booking.id,
+            reference: booking.rol_reference || null,
+            guestName: booking.guest_name || "Guest",
+            status: booking.status || "pending",
+            channel: booking.booking_channel || null,
+          };
+
+          const names = Array.from(roomIds)
+            .map((id) => nameById.get(id))
+            .filter(Boolean) as string[];
+          if (names.length === 0) return;
+
+          // Nights are [check-in, check-out).
+          const cursor = new Date(`${booking.check_in_date}T00:00:00`);
+          const last = new Date(`${booking.check_out_date}T00:00:00`);
+          while (cursor < last) {
+            const ds = format(cursor, "yyyy-MM-dd");
+            if (ds >= startStr && ds <= endStr) {
+              names.forEach((name) => addNight(name, ds, overlayRow));
+            }
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        });
+
+        setBookedByRoom(next);
+      } catch (err) {
+        console.error("Error loading calendar bookings:", err);
+        if (!cancelled) setBookedByRoom(new Map());
+      }
+    };
+
+    loadBookings();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProperty, currentDate, viewMode]);
+
+  const getBookedInfo = useCallback(
+    (roomName: string, date: Date): BookedCell | null => {
+      const byDate = bookedByRoom.get(roomName.trim().toLowerCase());
+      if (!byDate) return null;
+      return byDate.get(format(date, "yyyy-MM-dd")) ?? null;
+    },
+    [bookedByRoom],
+  );
+
+
+
   const fetchRoomTypes = async (propertyId: string) => {
     try {
       // Room types are now derived from selectedPropertyData.amenities.room_types
@@ -1710,6 +1846,7 @@ const CalendarAccommodation = () => {
   // PMS-aware helper to get availability for a room/date
   const getAvailability = (roomName: string, date: Date): { value: number | null; fromPms: boolean } => {
     const dateStr = format(date, "yyyy-MM-dd");
+    const booked = getBookedInfo(roomName, date)?.units ?? 0;
     
     // Check PMS data first
     if (pmsData.roomTypes.length > 0) {
@@ -1719,13 +1856,21 @@ const CalendarAccommodation = () => {
         : pmsData.roomTypes.find((rt) => rt.roomTypeName === roomName);
       
       if (pmsRoom && pmsRoom.availabilityByDate[dateStr] !== undefined) {
-        return { value: pmsRoom.availabilityByDate[dateStr], fromPms: true };
+        const raw = pmsRoom.availabilityByDate[dateStr];
+        // Native ROL'OS units are published as fully open; own stays must reduce it.
+        if (typeof raw === "number" && booked > 0) {
+          const units = displayRoom?.units ?? 1;
+          const base = raw > units ? units : raw;
+          return { value: Math.max(0, base - booked), fromPms: true };
+        }
+        return { value: raw, fromPms: true };
       }
     }
     
     // No PMS data available - return null (values will be shown as "—")
     return { value: null, fromPms: false };
   };
+
 
   // PMS-aware helper to get rate for a room/rateType/date with occupancy support
   const getRate = (
@@ -2565,6 +2710,32 @@ const CalendarAccommodation = () => {
                                     >
                                       <div className="flex flex-col items-center">
                                         <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                        {(() => {
+                                          const booked = getBookedInfo(room.name, date);
+                                          if (!booked || booked.units === 0) return null;
+                                          return (
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className="mt-0.5 w-full truncate rounded bg-primary px-1 text-[9px] font-semibold leading-tight text-primary-foreground">
+                                                  {booked.stays[0].guestName}
+                                                  {booked.units > 1 ? ` +${booked.units - 1}` : ""}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <div className="space-y-0.5">
+                                                  {booked.stays.map((stay) => (
+                                                    <p key={stay.id} className="text-xs">
+                                                      {stay.reference ? `${stay.reference} — ` : ""}
+                                                      {stay.guestName} ({stay.status}
+                                                      {stay.channel ? `, ${stay.channel}` : ""})
+                                                    </p>
+                                                  ))}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          );
+                                        })()}
+
                                         {hasRestrictions && (
                                           <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">
                                             {showStopSell && (
@@ -2961,6 +3132,32 @@ const CalendarAccommodation = () => {
                                     >
                                       <div className="flex flex-col items-center">
                                         <span className="font-semibold text-xs">{renderCellValue(avail.value, avail.fromPms)}</span>
+                                        {(() => {
+                                          const booked = getBookedInfo(room.name, date);
+                                          if (!booked || booked.units === 0) return null;
+                                          return (
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <span className="mt-0.5 w-full truncate rounded bg-primary px-1 text-[9px] font-semibold leading-tight text-primary-foreground">
+                                                  {booked.stays[0].guestName}
+                                                  {booked.units > 1 ? ` +${booked.units - 1}` : ""}
+                                                </span>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <div className="space-y-0.5">
+                                                  {booked.stays.map((stay) => (
+                                                    <p key={stay.id} className="text-xs">
+                                                      {stay.reference ? `${stay.reference} — ` : ""}
+                                                      {stay.guestName} ({stay.status}
+                                                      {stay.channel ? `, ${stay.channel}` : ""})
+                                                    </p>
+                                                  ))}
+                                                </div>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          );
+                                        })()}
+
                                         {hasRestrictions && (
                                           <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">
                                             {showStopSell && (
