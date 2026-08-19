@@ -54,6 +54,7 @@ import PropertyContactDetails from "@/components/property/PropertyContactDetails
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import { RuCurrencyVerifyCard } from "@/components/pms/channels/RuCurrencyVerifyCard";
 import {
   OwnerAccountConfirmDialog,
   type OwnerAccountPlan,
