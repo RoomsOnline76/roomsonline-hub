@@ -186,9 +186,10 @@ Deno.serve(async (req) => {
             logPrefix: '[ru-reservation-handler][detail]',
             forceRequest: kind === 'request',
             kind,
+            creator: r.creator,
           });
           if (refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched') {
-            await markResolved('resolved', null, null);
+            await markResolved('resolved', null, refreshed.resolvedOwnerId ?? null);
             continue;
           }
           // RU is often not able to serve the reservation for the first minute or two after
@@ -198,12 +199,17 @@ Deno.serve(async (req) => {
               attemptCount: 0,
               error: refreshed.error ?? 'Detail pull could not resolve the reservation',
               state: unmappedListing ? 'unmapped' : undefined,
+              // A rate-limited read says nothing about whether the reservation exists —
+              // it must not consume one of the finite retry attempts.
+              freeAttempt: refreshed.rateDeferred === true,
+              ownerId: refreshed.resolvedOwnerId ?? null,
             });
             console.warn(
               `[ru-reservation-handler] Reservation ${r.ruReservationId} parked as ${state}: ${refreshed.error ?? 'detail pull unresolved'}`,
             );
           }
         } else {
+
           await markResolved('failed', 'Notification carried no reservation id');
         }
         console.warn(

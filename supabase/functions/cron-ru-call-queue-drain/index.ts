@@ -12,6 +12,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readInvokeErrorBody } from '../_shared/ruInvokeBody.ts';
 import { RU_RATE_DEFERRED_CODE } from '../_shared/ruRateGate.ts';
+import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -131,11 +132,28 @@ Deno.serve(async (req) => {
     if (Date.now() < deadline) await new Promise((r) => setTimeout(r, SPACING_MS));
   }
 
+  // Reservation notifications that arrived without stay data are parked with a 1-minute
+  // backoff. Sweeping them here (this cron runs every ~40s) instead of only on the 30-minute
+  // reconciliation poll is what makes a fresh channel request appear on the board promptly.
+  let sweep = { considered: 0, resolved: 0, stillPending: 0, failed: 0 };
+  try {
+    sweep = await sweepRuNotificationRetries(supabase, {
+      limit: 10,
+      logPrefix: '[cron-ru-call-queue-drain][retry]',
+    });
+  } catch (e) {
+    console.warn(`[cron-ru-call-queue-drain] notification sweep failed: ${e instanceof Error ? e.message : e}`);
+  }
+
+  console.log(
+    `[cron-ru-call-queue-drain] notifications considered=${sweep.considered} resolved=${sweep.resolved} pending=${sweep.stillPending} failed=${sweep.failed}`,
+  );
+
   console.log(
     `[cron-ru-call-queue-drain] claimed=${summary.claimed} ok=${summary.succeeded} requeued=${summary.requeued} failed=${summary.failed}`,
   );
 
-  return new Response(JSON.stringify({ success: true, ...summary }), {
+  return new Response(JSON.stringify({ success: true, ...summary, notifications: sweep }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });

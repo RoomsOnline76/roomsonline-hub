@@ -15,6 +15,12 @@ export const RU_RETRY_BACKOFF_MINUTES = [1, 3, 10, 30, 120];
 
 export const MAX_RU_RETRY_ATTEMPTS = RU_RETRY_BACKOFF_MINUTES.length;
 
+/** The RU `Creator` login on the stored envelope — the best hint at the owning sub-account. */
+function creatorFromXml(xml: string | null): string | null {
+  const match = /<Creator>([^<]+)<\/Creator>/i.exec(xml || '');
+  return match ? match[1].trim() : null;
+}
+
 function nextAttemptAt(attemptCount: number): string {
   const minutes = RU_RETRY_BACKOFF_MINUTES[Math.min(attemptCount, MAX_RU_RETRY_ATTEMPTS - 1)];
   return new Date(Date.now() + minutes * 60_000).toISOString();
@@ -27,9 +33,17 @@ function nextAttemptAt(attemptCount: number): string {
 export async function scheduleRuNotificationRetry(
   supabase: Db,
   notificationId: string,
-  opts: { attemptCount?: number; error?: string | null; state?: 'failed' | 'unmapped' } = {},
+  opts: {
+    attemptCount?: number;
+    error?: string | null;
+    state?: 'failed' | 'unmapped';
+    /** Channel rate limit: the read told us nothing, so it must not burn a retry attempt. */
+    freeAttempt?: boolean;
+    /** Sub-account that was found to own the reservation, if the lookup got that far. */
+    ownerId?: string | null;
+  } = {},
 ): Promise<'retrying' | 'failed' | 'unmapped'> {
-  const attemptCount = (opts.attemptCount ?? 0) + 1;
+  const attemptCount = opts.freeAttempt ? (opts.attemptCount ?? 0) : (opts.attemptCount ?? 0) + 1;
   // An unmapped listing is a data problem — retrying the pull cannot fix it.
   const exhausted = attemptCount >= MAX_RU_RETRY_ATTEMPTS;
   const state: 'retrying' | 'failed' | 'unmapped' =
@@ -44,6 +58,7 @@ export async function scheduleRuNotificationRetry(
       attempt_count: attemptCount,
       next_attempt_at: state === 'retrying' ? nextAttemptAt(attemptCount) : null,
       last_attempt_at: new Date().toISOString(),
+      ...(opts.ownerId ? { resolved_owner_id: opts.ownerId } : {}),
     })
     .eq('id', notificationId);
 
@@ -71,7 +86,7 @@ export async function sweepRuNotificationRetries(
 
   const { data, error } = await supabase
     .from('ru_notifications')
-    .select('id, ru_reservation_id, property_id, attempt_count, event_type')
+    .select('id, ru_reservation_id, property_id, attempt_count, event_type, resolved_owner_id, raw_xml')
     .eq('resolution_state', 'retrying')
     .lte('next_attempt_at', new Date().toISOString())
     .order('next_attempt_at', { ascending: true })
@@ -88,6 +103,8 @@ export async function sweepRuNotificationRetries(
     property_id: string | null;
     attempt_count: number | null;
     event_type: string | null;
+    resolved_owner_id: string | null;
+    raw_xml: string | null;
   }[];
 
   for (const row of rows) {
@@ -106,6 +123,8 @@ export async function sweepRuNotificationRetries(
         propertyId: row.property_id,
         logPrefix: `${prefix}[${row.ru_reservation_id}]`,
         forceRequest: row.event_type === 'reservation_request',
+        ownerId: row.resolved_owner_id,
+        creator: creatorFromXml(row.raw_xml),
       });
       const resolved = refreshed.outcome !== 'failed' && refreshed.outcome !== 'unmatched';
       if (resolved) {
@@ -126,6 +145,8 @@ export async function sweepRuNotificationRetries(
       const state = await scheduleRuNotificationRetry(supabase, row.id, {
         attemptCount: row.attempt_count ?? 0,
         error: refreshed.error ?? `Ingest outcome: ${refreshed.outcome}`,
+        freeAttempt: refreshed.rateDeferred === true,
+        ownerId: refreshed.resolvedOwnerId ?? row.resolved_owner_id,
       });
       if (state === 'retrying') result.stillPending += 1;
       else result.failed += 1;
