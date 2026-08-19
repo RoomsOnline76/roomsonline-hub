@@ -1009,12 +1009,13 @@ Deno.serve(async (req) => {
         .slice(0, 8);
 
       const rateDeferrals = runs.filter(r => r.success === false && isRateDeferral(r)).length;
-      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isSetupGap(r));
+      const setupGapRuns = runs.filter(r => r.success === false && !isRateDeferral(r) && isNonFault(r));
 
-      const gapCounts = new Map<string, { count: number; propertyIds: Set<string> }>();
+      const gapCounts = new Map<string, { count: number; propertyIds: Set<string>; kind: 'setup' | 'account' }>();
       for (const r of setupGapRuns) {
         const reason = (r.error_message || 'Setup incomplete').slice(0, 120);
-        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>() };
+        const kind: 'setup' | 'account' = isAccountConflict(r) ? 'account' : 'setup';
+        const entry = gapCounts.get(reason) || { count: 0, propertyIds: new Set<string>(), kind };
         entry.count += 1;
         const pid = (r as { property_id?: string | null }).property_id;
         if (pid) entry.propertyIds.add(pid);
@@ -1033,10 +1034,31 @@ Deno.serve(async (req) => {
         .map(([reason, v]) => ({
           reason,
           count: v.count,
+          kind: v.kind,
           properties: [...v.propertyIds].map(id => gapNames.get(id) ?? id.slice(0, 8)).slice(0, 6),
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
+
+      /**
+       * Conflicts that were happening in the previous window and have stopped: the reconciliation
+       * worked, so the report says so instead of silently dropping the line.
+       */
+      const currentConflictReasons = new Set(
+        setupGapRuns.filter(isAccountConflict).map(r => (r.error_message || '').slice(0, 120)),
+      );
+      const priorConflictCounts = new Map<string, number>();
+      for (const r of priorRuns ?? []) {
+        if (r.success !== false || !isAccountConflict(r)) continue;
+        const reason = (r.error_message || 'Account conflict').slice(0, 120);
+        if (currentConflictReasons.has(reason)) continue;
+        priorConflictCounts.set(reason, (priorConflictCounts.get(reason) ?? 0) + 1);
+      }
+      const reconciled = [...priorConflictCounts.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+
 
 
       /**
