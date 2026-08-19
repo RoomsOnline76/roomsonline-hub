@@ -229,10 +229,18 @@ interface AvailabilityOverride {
 
 const normalizeRoomTypeName = (value: string | null | undefined) => value?.trim().toLowerCase() || "";
 
+/**
+ * A night closed by a channel reservation carries that booking's stamp. The stay is already drawn
+ * as its own booking bar, so painting the same night as a block too showed the odd hatching that
+ * appeared to sit next to (or on top of) channel bookings. Only operator/manual blocks are drawn.
+ */
+const isChannelBookingBlock = (o: AvailabilityOverride | undefined | null): boolean =>
+  !!o?.blocked_reason && String(o.blocked_reason).startsWith("channel_booking:");
+
 /** Single source of truth for "this night is blocked" — stop-sell flag OR zero units.
  * Room plan, week and month grids all read this so they cannot drift apart. */
 const isBlockedOverride = (o: AvailabilityOverride | undefined | null): boolean =>
-  !!o && (o.is_stop_sell === true || o.available_units === 0);
+  !!o && (o.is_stop_sell === true || o.available_units === 0) && !isChannelBookingBlock(o);
 
 const blockDetailOf = (o: AvailabilityOverride | undefined | null): BlockDetail => ({
   label: o?.blocked_by_label ?? null,
