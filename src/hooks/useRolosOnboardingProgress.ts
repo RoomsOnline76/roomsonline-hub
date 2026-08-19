@@ -1229,10 +1229,19 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     sendCompanyDetails,
 
     refresh,
+    recheckChannel,
+    /** Phase 3 — the ledger is driving this property's step verdicts. */
+    ledgerActive,
+    /** Steps whose data moved since the last check ("needs a quick refresh"). */
+    ledgerStaleSteps: macros.filter((m) => m.needsRefresh).map((m) => m.macro.key),
+    /** Steps waiting on channel confirmation; their last pass still counts. */
+    ledgerPendingSteps: macros.filter((m) => m.channelPending).map((m) => m.macro.key),
     // The channel scorecard is deliberately excluded from isLoading so the wizard paints
     // local truth first; its arrival is signalled through isFetching instead.
-    isLoading: readiness.isLoading || distribution.isLoading,
-    isFetching: readiness.isFetching || distribution.isFetching || phaseQuery.isFetching,
+    // A ledger hit must not flash a spinner: only the very first seed counts as loading.
+    isLoading: readiness.isLoading || distribution.isLoading || (ledgerEnabled && ledgerQuery.isLoading),
+    isFetching:
+      readiness.isFetching || distribution.isFetching || phaseQuery.isFetching || ledgerQuery.isFetching,
     distributionLoading: phaseQuery.isLoading,
     propertyName: String((d?.property as Record<string, unknown> | null)?.name ?? ""),
     ownerEmail: String((d?.property as Record<string, unknown> | null)?.owner_email ?? ""),
