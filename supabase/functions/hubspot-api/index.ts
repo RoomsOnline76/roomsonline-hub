@@ -245,6 +245,180 @@ Deno.serve(async (req) => {
       return { token, config: (row.config || {}) as Json };
     };
 
+    // ---- Trade vs Direct segmentation --------------------------------------
+    // Guests booked through an agent are "trade"; everyone else is "direct".
+    // The marker rides on a custom HubSpot property so owners can build lists
+    // from it. We create the property on first use and never fail a sync when
+    // the portal refuses it.
+    const tradePropertyReady = new Map<string, boolean>();
+
+    const ensureTradeProperty = async (
+      token: string,
+      objectType: "contacts" | "deals",
+    ): Promise<boolean> => {
+      const cached = tradePropertyReady.get(objectType);
+      if (cached !== undefined) return cached;
+
+      const probe = await hubspot(token, `/crm/v3/properties/${objectType}/${TRADE_PROPERTY}`);
+      if (probe.ok) {
+        tradePropertyReady.set(objectType, true);
+        return true;
+      }
+
+      const created = await hubspot(token, `/crm/v3/properties/${objectType}`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: TRADE_PROPERTY,
+          label: "Trade or Direct",
+          type: "enumeration",
+          fieldType: "select",
+          groupName: objectType === "contacts" ? "contactinformation" : "dealinformation",
+          options: [
+            { label: "Trade", value: "trade", displayOrder: 0 },
+            { label: "Direct", value: "direct", displayOrder: 1 },
+          ],
+        }),
+      });
+      // 409 means another sync already created it.
+      const ready = created.ok || created.status === 409;
+      tradePropertyReady.set(objectType, ready);
+      return ready;
+    };
+
+    const withTrade = async (
+      token: string,
+      objectType: "contacts" | "deals",
+      props: Json,
+      segment: "trade" | "direct" | undefined,
+    ): Promise<Json> => {
+      if (!segment) return props;
+      const ready = await ensureTradeProperty(token, objectType);
+      return ready ? { ...props, [TRADE_PROPERTY]: segment } : props;
+    };
+
+    // ---- Deduped remote upserts (shared by single events and sweeps) -------
+    const findContactId = async (token: string, email: string): Promise<string | null> => {
+      const search = await hubspot(token, "/crm/v3/objects/contacts/search", {
+        method: "POST",
+        body: JSON.stringify({
+          limit: 1,
+          properties: ["email"],
+          filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
+        }),
+      });
+      return (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id ?? null;
+    };
+
+    const upsertContactRemote = async (
+      token: string,
+      props: Json,
+      email: string,
+    ): Promise<{ ok: boolean; status: number; id: string | null; body: unknown }> => {
+      let res = await hubspot(token, "/crm/v3/objects/contacts", {
+        method: "POST",
+        body: JSON.stringify({ properties: props }),
+      });
+      let id = (res.body as { id?: string })?.id ?? null;
+      if (!res.ok && res.status === 409) {
+        id = await findContactId(token, email);
+        if (id) {
+          res = await hubspot(token, `/crm/v3/objects/contacts/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ properties: props }),
+          });
+        }
+      }
+      return { ok: res.ok, status: res.status, id, body: res.body };
+    };
+
+    const upsertDealRemote = async (
+      token: string,
+      props: Json,
+      bookingLabel: string,
+    ): Promise<{ ok: boolean; status: number; id: string | null; created: boolean; body: unknown }> => {
+      const search = await hubspot(token, "/crm/v3/objects/deals/search", {
+        method: "POST",
+        body: JSON.stringify({
+          limit: 1,
+          properties: ["dealname"],
+          filterGroups: [
+            {
+              filters: [
+                { propertyName: "dealname", operator: "CONTAINS_TOKEN", value: bookingLabel },
+              ],
+            },
+          ],
+        }),
+      });
+      const existingId =
+        (search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id) || null;
+
+      const res = existingId
+        ? await hubspot(token, `/crm/v3/objects/deals/${existingId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ properties: props }),
+          })
+        : await hubspot(token, "/crm/v3/objects/deals", {
+            method: "POST",
+            body: JSON.stringify({ properties: props }),
+          });
+
+      return {
+        ok: res.ok,
+        status: res.status,
+        id: (res.body as { id?: string })?.id ?? existingId,
+        created: !existingId,
+        body: res.body,
+      };
+    };
+
+    const upsertCompanyRemote = async (
+      token: string,
+      props: Json,
+      name: string,
+    ): Promise<{ ok: boolean; status: number; id: string | null; created: boolean; body: unknown }> => {
+      const search = await hubspot(token, "/crm/v3/objects/companies/search", {
+        method: "POST",
+        body: JSON.stringify({
+          limit: 1,
+          properties: ["name"],
+          filterGroups: [{ filters: [{ propertyName: "name", operator: "EQ", value: name }] }],
+        }),
+      });
+      const existingId =
+        (search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id) || null;
+
+      const res = existingId
+        ? await hubspot(token, `/crm/v3/objects/companies/${existingId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ properties: props }),
+          })
+        : await hubspot(token, "/crm/v3/objects/companies", {
+            method: "POST",
+            body: JSON.stringify({ properties: props }),
+          });
+
+      return {
+        ok: res.ok,
+        status: res.status,
+        id: (res.body as { id?: string })?.id ?? existingId,
+        created: !existingId,
+        body: res.body,
+      };
+    };
+
+    const associateDealContact = async (token: string, dealId: string, email: string) => {
+      const contactId = await findContactId(token, email);
+      if (!contactId) return;
+      await hubspot(
+        token,
+        `/crm/v4/objects/deals/${dealId}/associations/default/contacts/${contactId}`,
+        { method: "PUT" },
+      );
+    };
+
+
+
     // ---- Actions ------------------------------------------------------------
     switch (body.action) {
       case "get_status":
