@@ -598,12 +598,15 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {rows.map((row) => {
+                    // Three outcomes: a rate deferral never left ROL'OS, so it is amber, not red.
+                    const outcome = ruApiLogOutcomeOf(row);
+                    return (
                     <tr
                       key={row.id}
                       className={cn(
                         "cursor-pointer border-t border-border/60 hover:bg-muted/50",
-                        !row.success && "bg-destructive/5",
+                        outcome === "failure" && "bg-destructive/5",
                       )}
                       onClick={() => void openDetail(row)}
                     >
@@ -623,10 +626,24 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                       </td>
                       <td className="px-3 py-1.5">
                         <Badge
-                          variant={row.success ? "secondary" : "destructive"}
-                          className={cn("text-[11px]", !row.success && "font-semibold")}
+                          variant={outcome === "failure" ? "destructive" : "secondary"}
+                          className={cn(
+                            "text-[11px]",
+                            outcome === "failure" && "font-semibold",
+                            outcome === "deferred" &&
+                              "border-warning-border bg-warning-surface text-warning",
+                          )}
+                          title={
+                            outcome === "deferred"
+                              ? "Held by the channel's one-call-per-minute gate — never sent, replayed by the background drainer."
+                              : undefined
+                          }
                         >
-                          {row.success ? `OK ${row.status_id ?? ""}`.trim() : `Failed ${row.status_id ?? ""}`.trim()}
+                          {outcome === "success"
+                            ? `OK ${row.status_id ?? ""}`.trim()
+                            : outcome === "deferred"
+                              ? "Deferred"
+                              : `Failed ${row.status_id ?? ""}`.trim()}
                         </Badge>
                         {row.error_message && (
                           <div className="max-w-[280px] truncate text-xs text-muted-foreground">
