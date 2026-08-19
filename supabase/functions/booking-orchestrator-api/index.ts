@@ -286,6 +286,7 @@ async function resolveRolosRates(
             child_rate: plan.child_rate != null ? Number(plan.child_rate) : undefined,
             infant_rate: plan.infant_rate != null ? Number(plan.infant_rate) : undefined,
             rate_plan_id: plan.id,
+            rate_plan_name: plan.name || null,
           };
         }
       }
