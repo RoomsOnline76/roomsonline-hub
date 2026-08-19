@@ -496,6 +496,9 @@ export default function PropertyForm({
   >([]);
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
   const persistedOwnerEmailRef = useRef("");
+  /** Last persisted `properties` row — Phase 2 ledger diffing only. */
+  const loadedPropertyRowRef = useRef<Record<string, unknown> | null>(null);
+
 
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
