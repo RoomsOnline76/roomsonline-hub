@@ -4332,6 +4332,39 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
+    // ── push_confirmed_reservation (a stay created in ROL'OS handed to the channel) ──
+    if (action === 'push_confirmed_reservation') {
+      const stay = body.stay;
+      if (!stay?.ru_property_id || !stay?.date_from || !stay?.date_to) {
+        return await abortReservationVerb(
+          'missing_stay',
+          'stay { ru_property_id, date_from, date_to } is required',
+        );
+      }
+      const xml = buildPutConfirmedReservationXml(scopedCreds, stay, body.guest ?? {});
+      const compactRequestXml = compactXml(xml);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(
+        `[rentalsunited-api] push_confirmed_reservation (auth=${authMode}) response: ${response.substring(0, 500)}`,
+      );
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return ruErrorResponse(
+          status,
+          buildDiagnostics(compactRequestXml, status, 'push_confirmed_reservation', response),
+        );
+      }
+      const reservationId = response.match(/<ReservationID>([^<]+)<\/ReservationID>/i)?.[1]?.trim() ?? null;
+      return jsonResponse({
+        success: true,
+        auth_mode: authMode,
+        reservation_id: reservationId,
+        raw_xml: response,
+      });
+    }
+
+
+
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
