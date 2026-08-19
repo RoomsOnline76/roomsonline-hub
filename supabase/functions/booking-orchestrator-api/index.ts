@@ -513,8 +513,10 @@ async function resolveRolosRates(
       room_type_id: room.id,
       room_type_name: room.name,
       rate_types: [{
-        rate_type_id: "rolos-rate",
-        rate_type_name: "Standard Rate",
+        // Publish the real ROL'OS rate plan identity so consumers (calendar,
+        // widgets) label prices with the plan the operator actually authored.
+        rate_type_id: rolosPlan?.rate_plan_id ? String(rolosPlan.rate_plan_id) : "rolos-rate",
+        rate_type_name: rolosPlan?.rate_plan_name || "Standard Rate",
         price_type: priceTypeForModel(pricingModel),
         rates: dailyRates,
       }],
