@@ -1,92 +1,128 @@
 /**
- * Channel-mandatory field registry.
+ * Which mandatory channel fields did this property save change?
  *
- * Rentals United (and every other channel that inherits the same content-quality rules)
- * rejects a listing when any of these fields is empty. The property editor marks them with
- * a filled border so an owner can see, before running the onboarding wizard, exactly which
- * inputs the channel will hard-block on.
- *
- * Keys are property-editor field names, so the registry stays readable next to the form.
+ * `PropertyForm` writes one big `properties` row (plus nested `amenities`), so the only
+ * honest way to know what the channel owes is to diff the submitted payload against the
+ * row that was loaded. The labels here are operator language — they end up in the
+ * "sent to the Channel Manager" toast, so they must read as field names, not columns.
  */
 
-export interface ChannelMandatoryField {
-  /** Property editor field name. */
-  field: string;
-  /** Readiness check this field feeds, for cross-referencing wizard blockers. */
-  check: string;
-  /** Plain-language reason shown in tooltips / legends. */
-  reason: string;
+export type ChannelPushSection = "company" | "content" | "rates";
+
+export interface ChangedChannelField {
+  /** Dot path into the property payload (supports `amenities.*`). */
+  path: string;
+  /** Human-readable field name for toasts. */
+  label: string;
+  section: ChannelPushSection;
 }
 
-export const CHANNEL_MANDATORY_FIELDS: ChannelMandatoryField[] = [
-  { field: "name", check: "name_clean", reason: "Listing name — no emoji, special characters or ALL CAPS" },
-  { field: "description", check: "description_meets_cert", reason: "Description of at least 700 characters" },
-  { field: "address", check: "has_street", reason: "Street address is required by the channel" },
-  { field: "city", check: "has_detailed_location_id", reason: "City resolves the channel location ID" },
-  { field: "country", check: "has_detailed_location_id", reason: "Country resolves the channel location ID" },
-  { field: "postal_code", check: "has_zip_code", reason: "Postal code is required by the channel" },
-  { field: "latitude", check: "has_coordinates", reason: "Coordinates are required by the channel" },
-  { field: "longitude", check: "has_coordinates", reason: "Coordinates are required by the channel" },
-  { field: "check_in_from", check: "check_in_from", reason: "Check-in from time is required by the channel" },
-  { field: "check_out_until", check: "check_out_until", reason: "Check-out until time is required by the channel" },
-  { field: "max_guests", check: "can_sleep_max", reason: "CanSleepMax must be at least 1" },
-  { field: "arrival_instructions", check: "arrival_instructions", reason: "Arrival instructions must be populated" },
-  { field: "cancellation_policy", check: "has_cancellation_policies", reason: "At least one cancellation policy" },
-  { field: "payment_methods", check: "has_payment_methods", reason: "At least one payment method" },
-  { field: "ru_location_id", check: "ru_location_selected", reason: "Channel Manager location decides the listing location and currency — it must be picked explicitly, not guessed from coordinates" },
-  { field: "rep_nationality", check: "has_legal_rep", reason: "Legal representative nationality is required by the channel" },
-  { field: "rep_country_of_residence", check: "has_legal_rep", reason: "Legal representative country of residence is required by the channel" },
-  { field: "rep_first_name", check: "has_legal_rep", reason: "Legal representative first name is required by the channel" },
-  { field: "rep_last_name", check: "has_legal_rep", reason: "Legal representative last name is required by the channel" },
-  { field: "rep_email", check: "has_legal_rep", reason: "Legal representative email is required by the channel" },
-  { field: "room_name", check: "unit_name_clean", reason: "Unit name — no emoji, special characters or ALL CAPS" },
-  { field: "room_description", check: "unit_description", reason: "Unit description of at least 700 characters" },
-  { field: "floor", check: "has_floor", reason: "Floor is required for every unit" },
-  { field: "room_size", check: "has_space", reason: "Size in m² is required — blank or zero makes the channel receive an invented 50 m²" },
-  { field: "property_floor", check: "has_floor", reason: "Property floor — the channel fallback used when a unit has no floor of its own" },
-  { field: "property_size_sqm", check: "has_space", reason: "Property size in m² — the channel Space fallback used when a unit has no size of its own" },
-  { field: "bathrooms", check: "has_bathrooms", reason: "Every unit must have at least 1 bathroom" },
-  { field: "toilets", check: "has_toilets", reason: "Every unit must have at least 1 toilet; blank and zero are rejected" },
-  { field: "bed_configuration", check: "beds_meet_max_guests", reason: "Authored beds per bedroom — the channel needs at least one bedroom in the composition and enough beds to sleep the unit's full maximum occupancy" },
-  { field: "room_images", check: "meets_minimum_images", reason: "Each listing needs at least 10 channel-ready photos" },
-  { field: "hero_image", check: "has_main_image", reason: "One photo must be flagged as the main image — the channel rejects a listing without it" },
+interface FieldSpec {
+  path: string;
+  label: string;
+  section: ChannelPushSection;
+}
 
-  { field: "room_amenities", check: "meets_minimum_amenities", reason: "Each listing needs at least 10 mapped amenities" },
-  { field: "channel_property_type", check: "object_type_authored", reason: "Channel property type — an unmapped value publishes as an assumed Chalet" },
-  { field: "changeover_rules", check: "changeover_authored", reason: "Changeover rule — without it the channel receives an assumed arrival/departure any day" },
+const FIELD_SPECS: readonly FieldSpec[] = [
+  // ── Company / distribution account profile ──
+  { path: "amenities.registered_business_name", label: "business name", section: "company" },
+  { path: "amenities.registration_number", label: "registration number", section: "company" },
+  { path: "amenities.vat_number", label: "VAT number", section: "company" },
+  { path: "amenities.key_representative", label: "primary contact", section: "company" },
+  { path: "amenities.contact.owner", label: "contact person", section: "company" },
+  { path: "amenities.contact.email", label: "contact email", section: "company" },
+  { path: "amenities.contact.telephone", label: "telephone", section: "company" },
+  { path: "amenities.telephone", label: "telephone", section: "company" },
+  { path: "amenities.mobile_number", label: "mobile number", section: "company" },
+  { path: "amenities.postal_address", label: "postal address", section: "company" },
+  { path: "amenities.ru_company_profile", label: "distribution company profile", section: "company" },
+  { path: "owner_name", label: "owner name", section: "company" },
+  { path: "owner_email", label: "owner email", section: "company" },
+
+  // ── Listing content ──
+  { path: "name", label: "property name", section: "content" },
+  { path: "property_type", label: "property type", section: "content" },
+  { path: "description", label: "description", section: "content" },
+  { path: "short_description", label: "short description", section: "content" },
+  { path: "images", label: "photos", section: "content" },
+  { path: "hero_listing", label: "hero image", section: "content" },
+  { path: "ru_image_tags", label: "photo tags", section: "content" },
+  { path: "address", label: "street address", section: "content" },
+  { path: "city", label: "town", section: "content" },
+  { path: "country", label: "country", section: "content" },
+  { path: "postal_code", label: "postal code", section: "content" },
+  { path: "latitude", label: "map position", section: "content" },
+  { path: "longitude", label: "map position", section: "content" },
+  { path: "max_guests", label: "maximum guests", section: "content" },
+  { path: "bedrooms", label: "bedrooms", section: "content" },
+  { path: "bathrooms", label: "bathrooms", section: "content" },
+  { path: "amenities.address_details", label: "address details", section: "content" },
+  { path: "amenities.attraction_distances", label: "attraction distances", section: "content" },
+
+  // ── Rates & availability ──
+  { path: "amenities.seasons", label: "seasons", section: "rates" },
+  { path: "amenities.season_rates", label: "season rates", section: "rates" },
+  { path: "amenities.pms_rate_types", label: "rate types", section: "rates" },
+  { path: "amenities.charges", label: "charges", section: "rates" },
+  { path: "amenities.policies", label: "policies", section: "rates" },
+  { path: "amenities.currency", label: "currency", section: "rates" },
+  { path: "cancellation_master_mode", label: "cancellation policy", section: "rates" },
 ];
 
-const BY_FIELD = new Map(CHANNEL_MANDATORY_FIELDS.map((f) => [f.field, f]));
-
-export function isChannelMandatory(field: string): boolean {
-  return BY_FIELD.has(field);
+function readPath(source: Record<string, unknown> | null | undefined, path: string): unknown {
+  if (!source) return undefined;
+  let cursor: unknown = source;
+  for (const key of path.split(".")) {
+    if (cursor === null || typeof cursor !== "object") return undefined;
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+  return cursor;
 }
 
-export function channelMandatoryReason(field: string): string | null {
-  return BY_FIELD.get(field)?.reason ?? null;
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  const empty = (v: unknown) => v === null || v === undefined || v === "";
+  if (empty(a) && empty(b)) return true;
+  try {
+    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Solid-border treatment for a channel-mandatory input. Returns an empty string for fields
- * the channel does not require, so it can be spread into any `cn()` call unconditionally.
+ * Fields the channel cares about that actually changed in this save.
+ * A path missing from the submitted payload is never reported — the form simply did
+ * not author it this time.
  */
-export function channelMandatoryClass(field: string): string {
-  return isChannelMandatory(field) ? "channel-required" : "";
+export function deriveChangedChannelFields(
+  before: Record<string, unknown> | null | undefined,
+  after: Record<string, unknown> | null | undefined,
+): ChangedChannelField[] {
+  if (!before || !after) return [];
+  const seen = new Set<string>();
+  const changed: ChangedChannelField[] = [];
+  for (const spec of FIELD_SPECS) {
+    const nextValue = readPath(after, spec.path);
+    if (nextValue === undefined) continue;
+    if (sameValue(readPath(before, spec.path), nextValue)) continue;
+    const dedupeKey = `${spec.section}:${spec.label}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    changed.push({ path: spec.path, label: spec.label, section: spec.section });
+  }
+  return changed;
 }
 
-/**
- * Props for a channel-mandatory control: the solid border plus the satisfied flag that
- * softens it once a value is captured, so an owner can tell "still outstanding" from "done".
- */
-export function channelMandatoryProps(
-  field: string,
-  satisfied: boolean,
-): { className: string; "data-channel-satisfied": "1" | "0" } | Record<string, never> {
-  if (!isChannelMandatory(field)) return {};
-  return { className: "channel-required", "data-channel-satisfied": satisfied ? "1" : "0" };
+/** "business name, primary contact and telephone" */
+export function joinFieldLabels(fields: ChangedChannelField[]): string {
+  const labels = Array.from(new Set(fields.map((f) => f.label)));
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
+  return `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
 }
 
-/** Legend copy for tabs that carry channel-mandatory inputs. */
-export const CHANNEL_MANDATORY_LEGEND =
-  "Fields with a solid pink border are mandatory for the Channel Manager — the onboarding wizard blocks the first push until they are complete. The border fades once the value is captured.";
-
+export function sectionsOf(fields: ChangedChannelField[]): ChannelPushSection[] {
+  const order: ChannelPushSection[] = ["company", "content", "rates"];
+  return order.filter((section) => fields.some((f) => f.section === section));
+}
