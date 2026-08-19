@@ -290,7 +290,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setLines([newLine()]);
   }, [effectivePropertyId]);
 
-  // Apply Room Plan prefill after the property-reset effect above has run.
+  // Apply Room Plan / inquiry prefill after the property-reset effect above has run.
   useEffect(() => {
     if (!open || !initialValues) return;
     if (initialValues.propertyId) setSelectedPropertyId(initialValues.propertyId);
@@ -299,13 +299,31 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         ...p,
         check_in: initialValues.checkIn || p.check_in,
         check_out: initialValues.checkOut || p.check_out,
+        guest_name: initialValues.guestName || p.guest_name,
+        guest_email: initialValues.guestEmail || p.guest_email,
+        guest_phone: initialValues.guestPhone || p.guest_phone,
+        notes: initialValues.notes || p.notes,
       }));
       if (initialValues.roomTypeId || initialValues.roomId) {
         setLines([newLine(initialValues.roomTypeId || "", initialValues.roomId || "")]);
       }
+      if (initialValues.adults || initialValues.children) {
+        setLines(prev =>
+          prev.map((l, i) =>
+            i === 0
+              ? {
+                  ...l,
+                  adults: String(initialValues.adults ?? l.adults),
+                  children: String(initialValues.children ?? l.children),
+                }
+              : l,
+          ),
+        );
+      }
     }, 0);
     return () => clearTimeout(timer);
   }, [open, initialValues]);
+
 
   const nights = useMemo(() => {
     if (!form.check_in || !form.check_out) return 0;
