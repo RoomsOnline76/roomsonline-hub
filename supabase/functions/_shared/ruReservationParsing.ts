@@ -277,10 +277,10 @@ async function resolveUnitInventory(supabase: Db, mappingRoomTypeId: string | nu
   if (!mappingRoomTypeId) return 1;
   const { data } = await supabase
     .from('hostfully_room_types')
-    .select('quantity, units_count, total_units')
+    .select("total_units")
     .eq('id', mappingRoomTypeId)
     .maybeSingle();
-  const candidate = Number(data?.quantity ?? data?.units_count ?? data?.total_units ?? 1);
+  const candidate = Number(data?.total_units ?? 1);
   return Number.isFinite(candidate) && candidate > 0 ? candidate : 1;
 }
 
