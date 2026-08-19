@@ -553,9 +553,14 @@ export async function ingestRuReservation(
     }
   }
 
-  if (!opts.skipAvailability) {
-    await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log);
+  if (bookingId) {
+    // Multi-unit stays get a line and a block per unit; single-unit falls through below.
+    await syncRuStayUnits(supabase, bookingId, r, unit, opts, true);
   }
+  if (!opts.skipAvailability && !r.stays.length) {
+    await applyRuAvailabilityBlock(supabase, propertyId, unit.mappingRoomTypeId, r.dateFrom, r.dateTo, true, log, bookingId);
+  }
+
   return { ...base, outcome, bookingId };
 }
 
