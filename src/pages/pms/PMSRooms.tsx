@@ -133,6 +133,10 @@ export default function PMSRooms() {
         .lte("date", windowEnd);
       (data || []).forEach((row: any) => {
         if (!(row.is_stop_sell === true || row.available_units === 0)) return;
+        // Nights closed by a channel reservation are stamped with that booking id and are already
+        // drawn as the booking itself — showing them as blocks too duplicated the stay.
+        if (String(row.blocked_reason || "").startsWith("channel_booking:")) return;
+
         const key = stopSellKey(row.property_id, String(row.room_type || ""), row.date);
         set.add(key);
         details.set(key, {
