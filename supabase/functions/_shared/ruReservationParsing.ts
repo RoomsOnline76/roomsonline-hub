@@ -23,6 +23,21 @@ export function extractBlock(xml: string, tag: string): string {
   return m ? m[0] : '';
 }
 
+/** One `<StayInfo>` block: a single unit's slice of the reservation. */
+export interface ParsedRuStay {
+  ruPropertyId: string | null;
+  dateFrom: string | null;
+  dateTo: string | null;
+  arrivalTime: string | null;
+  numGuests: number;
+  units: number;
+  comments: string | null;
+  resapaId: string | null;
+  total: number;
+  alreadyPaid: number;
+  nightly: Array<{ date: string; price: number }>;
+}
+
 export interface ParsedRuReservation {
   ruReservationId: string | null;
   statusId: string | null;
@@ -45,51 +60,89 @@ export interface ParsedRuReservation {
   total: number;
   alreadyPaid: number;
   nightly: Array<{ date: string; price: number }>;
+  /**
+   * Every unit on the reservation. A guest can book two units in one go, and RU sends one
+   * `<StayInfo>` per unit — reading only the first silently dropped the rest.
+   */
+  stays: ParsedRuStay[];
 }
 
-/** Parse one RU <Reservation> block into the ROL'OS booking shape. */
-export function parseRuReservation(block: string): ParsedRuReservation {
-  const stay = extractBlock(block, 'StayInfo') || extractBlock(block, 'StayInfos') || block;
-  const customer = extractBlock(block, 'CustomerInfo') || block;
+/** Parse one `<StayInfo>` block. */
+function parseRuStay(stay: string, block: string): ParsedRuStay {
   const costs = extractBlock(stay, 'Costs');
-
-  const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
-  const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
-  const guestName = `${firstName} ${lastName}`.trim();
-
   const nightly = [...stay.matchAll(/<DayPrices\s+Date="([^"]+)"[^>]*>([\s\S]*?)<\/DayPrices>/gi)].map((m) => ({
     date: m[1],
     price: parseFloat(extractTag(m[2], 'Price') || extractTag(m[2], 'Rent') || '0'),
   }));
-
-  const total = parseFloat(
-    extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
-  );
-
   return {
-    ruReservationId: extractTag(block, 'ReservationID') || extractTag(block, 'LeadID'),
-    statusId: extractTag(block, 'StatusID') || extractTag(block, 'ReservationStatusID') || extractTag(block, 'Status'),
     ruPropertyId: extractTag(stay, 'PropertyID') || extractTag(block, 'PropID') || extractTag(block, 'PropertyID'),
     dateFrom: extractTag(stay, 'DateFrom'),
     dateTo: extractTag(stay, 'DateTo'),
     arrivalTime: extractTag(stay, 'ArrivalTime'),
     numGuests: parseInt(extractTag(stay, 'NumberOfGuests') || '1', 10),
     units: parseInt(extractTag(stay, 'Units') || '1', 10),
+    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
+    resapaId: extractTag(stay, 'ResapaID') || null,
+    total: parseFloat(
+      extractTag(costs, 'ClientPrice') || extractTag(costs, 'RUPrice') || extractTag(block, 'RUPrice') || '0',
+    ),
+    alreadyPaid: parseFloat(extractTag(costs, 'AlreadyPaid') || '0'),
+    nightly,
+  };
+}
+
+/** Parse one RU <Reservation> block into the ROL'OS booking shape. */
+export function parseRuReservation(block: string): ParsedRuReservation {
+  const stayBlocks = extractAllBlocks(block, 'StayInfo');
+  const stays = (stayBlocks.length ? stayBlocks : [extractBlock(block, 'StayInfos') || block]).map((s) =>
+    parseRuStay(s, block),
+  );
+  // Only keep slices that actually name a unit or dates — an empty <StayInfos /> parses to noise.
+  const realStays = stays.filter((s) => s.ruPropertyId || s.dateFrom);
+  const first = realStays[0] ?? stays[0];
+
+  const customer = extractBlock(block, 'CustomerInfo') || block;
+  const firstName = extractTag(customer, 'Name') || extractTag(customer, 'FirstName') || '';
+  const lastName = extractTag(customer, 'SurName') || extractTag(customer, 'LastName') || '';
+  const guestName = `${firstName} ${lastName}`.trim();
+
+  const dates = realStays.length ? realStays : [first];
+  const minDate = (key: 'dateFrom' | 'dateTo') =>
+    dates.map((s) => s[key]).filter(Boolean).sort()[0] ?? null;
+  const maxDate = (key: 'dateFrom' | 'dateTo') =>
+    dates.map((s) => s[key]).filter(Boolean).sort().slice(-1)[0] ?? null;
+
+  return {
+    ruReservationId: extractTag(block, 'ReservationID') || extractTag(block, 'LeadID'),
+    statusId: extractTag(block, 'StatusID') || extractTag(block, 'ReservationStatusID') || extractTag(block, 'Status'),
+    ruPropertyId: first.ruPropertyId,
+    // The booking spans every unit on the reservation: earliest arrival, latest departure.
+    dateFrom: minDate('dateFrom'),
+    dateTo: maxDate('dateTo'),
+    arrivalTime: first.arrivalTime,
+    numGuests: realStays.length
+      ? realStays.reduce((sum, s) => sum + (s.numGuests || 0), 0) || 1
+      : first.numGuests,
+    units: realStays.length || first.units,
     guestName: guestName || 'RU Guest',
     guestEmail: extractTag(customer, 'Email') || 'ru-notification@rentalsunited.com',
     guestPhone: extractTag(customer, 'MobilePhone') || extractTag(customer, 'Phone') || null,
     countryId: extractTag(customer, 'CountryID') || null,
     address: extractTag(customer, 'Address') || null,
     zipCode: extractTag(customer, 'ZipCode') || null,
-    comments: extractTag(stay, 'Comments') || extractTag(block, 'Comments') || null,
-    resapaId: extractTag(stay, 'ResapaID') || null,
+    comments: first.comments,
+    resapaId: first.resapaId,
     creator: extractTag(block, 'Creator') || null,
     createdDate: extractTag(block, 'CreatedDate') || extractTag(block, 'LastMod') || null,
-    total,
-    alreadyPaid: parseFloat(extractTag(costs, 'AlreadyPaid') || '0'),
-    nightly,
+    total: realStays.length ? realStays.reduce((sum, s) => sum + (s.total || 0), 0) : first.total,
+    alreadyPaid: realStays.length
+      ? realStays.reduce((sum, s) => sum + (s.alreadyPaid || 0), 0)
+      : first.alreadyPaid,
+    nightly: first.nightly,
+    stays: realStays,
   };
 }
+
 
 /** Channel metadata kept in `modification_notes` (no dedicated columns exist). */
 export function buildRuChannelNotes(r: ParsedRuReservation, extra: Record<string, unknown> = {}) {
