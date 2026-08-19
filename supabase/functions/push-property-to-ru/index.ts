@@ -17,6 +17,7 @@ import {
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { markLedgerStaleForScope } from '../_shared/channelStepLedger.ts';
+import { enqueueJob } from '../_shared/jobQueue.ts';
 
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
