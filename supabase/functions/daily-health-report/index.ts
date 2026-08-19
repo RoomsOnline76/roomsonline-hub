@@ -191,8 +191,14 @@ interface RuWlMetrics {
   recovered_actions: number;
   /** Calls the shared sliding-window gate deferred — compliance, not an outage. */
   rate_deferrals: number;
-  /** Owner-configuration gaps (no distribution account, no owner email, listing unmapped). */
-  setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+  /**
+   * Owner-configuration gaps (no distribution account, no owner email, listing unmapped) and
+   * account reconciliation conflicts (login already registered, listing owned elsewhere).
+   */
+  setup_gaps: Array<{ reason: string; count: number; properties: string[]; kind: 'setup' | 'account' }>;
+  /** Account conflicts seen in the previous window that have stopped appearing — cleared wins. */
+  reconciled: Array<{ reason: string; count: number }>;
+
   /** Background call queue: work parked by the rate gate and replayed by the drainer. */
   call_queue: { waiting: number; oldest_waiting_minutes: number | null; drained_24h: number; gave_up: number };
 }
