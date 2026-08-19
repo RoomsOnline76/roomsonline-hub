@@ -4561,6 +4561,24 @@ Deno.serve(async (req) => {
           },
         });
 
+        /**
+         * Units left over from this chunk are finished as background work, so a rate-limited or
+         * time-boxed run never leaves a property partially published. The client driver still
+         * resumes interactively; the job is the durable safety net behind it.
+         */
+        if (remainingUnitIds.length > 0 && !Array.isArray(only_unit_ids)) {
+          await enqueueJob(
+            supabase,
+            'channel_publish_units',
+            { property_id, unit_ids: remainingUnitIds },
+            {
+              dedupeKey: `channel_publish_units:${property_id}`,
+              delaySeconds: 70,
+              maxAttempts: 8,
+            },
+          );
+        }
+
         // The read-back follows the push automatically once the whole sequence is done.
         const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
         return new Response(
