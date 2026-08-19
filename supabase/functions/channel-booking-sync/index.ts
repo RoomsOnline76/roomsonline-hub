@@ -15,10 +15,12 @@ const CHANGES: ChannelBookingChange[] = [
   'dates',
   'pax',
   'price',
+  'deposit',
   'payment',
   'notes',
   'status',
   'cancelled',
+  'no_show',
   'deleted',
   'unknown',
 ];
@@ -62,6 +64,7 @@ Deno.serve(async (req) => {
       reason: typeof body?.reason === 'string' ? body.reason : null,
       cancel_type_id: Number.isFinite(Number(body?.cancel_type_id)) ? Number(body.cancel_type_id) : null,
       skip_ari: body?.skip_ari === true,
+      source: typeof body?.source === 'string' ? body.source : null,
     });
 
     return json({ success: result.reservation !== 'failed', ...result });

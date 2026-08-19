@@ -15,10 +15,13 @@ export type ChannelBookingChange =
   | "dates"
   | "pax"
   | "price"
+  | "deposit"
   | "payment"
   | "notes"
   | "status"
   | "cancelled"
+  | "no_show"
+  | "confirmed"
   | "deleted";
 
 export interface ChannelBookingSyncOptions {
@@ -31,6 +34,8 @@ export interface ChannelBookingSyncOptions {
   reason?: string | null;
   /** Show toasts for the channel outcome (default true). */
   notify?: boolean;
+  /** Which surface triggered the change — recorded on the Diagnostics booking trail. */
+  source?: string;
 }
 
 export interface ChannelBookingSyncOutcome {
@@ -47,10 +52,13 @@ const CHANGE_LABEL: Record<ChannelBookingChange, string> = {
   dates: "New dates",
   pax: "Guest count",
   price: "New price",
+  deposit: "Deposit",
   payment: "Payment",
   notes: "Notes",
   status: "Status",
   cancelled: "Cancellation",
+  no_show: "No-show",
+  confirmed: "Confirmation",
   deleted: "Cancellation",
 };
 
@@ -69,6 +77,7 @@ export async function pushBookingToChannel(
         change,
         previous: options.previous ?? null,
         reason: options.reason ?? null,
+        source: options.source ?? "client",
       },
     });
 
