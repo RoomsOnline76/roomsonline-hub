@@ -53,6 +53,43 @@ const formatTimestamp = (iso: string) =>
     second: "2-digit",
   });
 
+/** Compact pill group used for the most-used log dimensions. Presentation only. */
+function SegmentedFilter({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+      <div className="inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => onChange(o.value)}
+            className={cn(
+              "rounded-[5px] px-2.5 py-1 text-xs transition-colors",
+              value === o.value
+                ? "bg-background font-medium text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 /**
  * Support console for the durable exchange log.
  *
