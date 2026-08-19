@@ -5267,7 +5267,8 @@ Deno.serve(async (req) => {
           error: {
             code: "NO_OWNER_EMAIL",
             message:
-              "No usable owner email found for the distribution account. Set an owner email on the property (the shared dev@ platform login cannot be used).",
+              "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.",
+
           },
         }, 422);
       }
