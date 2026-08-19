@@ -131,7 +131,7 @@ export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
 
 
 const LIST_COLUMNS =
-  "id, created_at, action, parent_action, trace_id, direction, property_id, unit_id, ru_property_id, ru_owner_id, ru_user_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, endpoint";
+  "id, created_at, action, parent_action, trace_id, direction, property_id, unit_id, ru_property_id, ru_owner_id, ru_user_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, endpoint, transport_status";
 
 const PAGE_SIZE = 100;
 
