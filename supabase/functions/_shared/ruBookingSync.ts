@@ -321,7 +321,7 @@ export async function cancelRuReservation(
     ...auth,
   }, logCtx);
   return result.ok
-    ? { ok: true, method: 'cancel_reservation' }
+    ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation' }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
 }
 
