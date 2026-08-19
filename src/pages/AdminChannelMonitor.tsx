@@ -359,6 +359,75 @@ export default function AdminChannelMonitor() {
     [isDev, isFearlessLeader],
   );
 
+  // Every chip below reads state the page already has in memory — no extra queries.
+  const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string }>>(() => {
+    const loading = data.loading || railStatus.loading;
+    const live = data.properties.filter((p) => p.state === "live").length;
+    const withoutFootprint = data.subAccountPropertiesWithoutFootprint;
+    const neverPushed = data.properties.filter((p) => p.neverPushed).length;
+    const lastPush = data.properties
+      .map((p) => p.lastPushAt)
+      .filter((v): v is string => !!v)
+      .sort()
+      .pop();
+    const run = railStatus.latestRun;
+    const keys = railStatus.keys;
+
+    if (loading) {
+      const pending = { tone: "muted" as ChipTone, label: "Checking…" };
+      return {
+        accounts: pending,
+        cost: pending,
+        binding: pending,
+        mapping: pending,
+        ari: pending,
+        reservations: pending,
+        cert: pending,
+        advanced: { tone: "muted", label: "Engineers only" },
+      };
+    }
+
+    return {
+      accounts:
+        keys.total > 0 && keys.verified === keys.total
+          ? { tone: "ok", label: `${keys.verified}/${keys.total} keys verified` }
+          : {
+              tone: keys.withKeys < keys.total ? "bad" : "warn",
+              label: keys.total === 0 ? "No sub-accounts" : `${keys.total - keys.verified} key(s) unverified`,
+            },
+      cost: { tone: "muted", label: `${data.billableListings} listings billable` },
+      binding:
+        withoutFootprint === 0
+          ? { tone: "ok", label: "All bound" }
+          : { tone: "warn", label: `${withoutFootprint} without footprint` },
+      mapping:
+        data.duplicateListings === 0 && neverPushed === 0
+          ? { tone: "ok", label: "Mappings complete" }
+          : {
+              tone: data.duplicateListings > 0 ? "bad" : "warn",
+              label:
+                data.duplicateListings > 0
+                  ? `${data.duplicateListings} duplicate listing(s)`
+                  : `${neverPushed} never pushed`,
+            },
+      ari: lastPush
+        ? { tone: "ok", label: `ARI pushed ${relativeAge(lastPush)}` }
+        : { tone: "warn", label: "No ARI push yet" },
+      reservations:
+        live > 0
+          ? { tone: "ok", label: `${live} live on channel` }
+          : { tone: "warn", label: "Nothing live to test" },
+      cert: run
+        ? {
+            tone: run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "warn",
+            label: `${run.passed ?? 0}/${run.total ?? 0} ${run.status ?? "pending"}`,
+          }
+        : { tone: "warn", label: "No cert run yet" },
+      advanced: { tone: "muted", label: "Engineers only" },
+    };
+  }, [data, railStatus]);
+
+
   // Deep-open the certification console on a specific sub-tab from another rail item.
   const openCert = useCallback(
     (subTab: string) => {
