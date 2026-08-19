@@ -1387,6 +1387,12 @@ function PublishedPane({
         </div>
       )}
 
+      {macroKey === "company_profile" && (
+        <HubSpotIntegrationCard />
+      )}
+
+
+
       {macroKey === "pull_listings" && (
         <div className="space-y-3 rounded-lg border p-4">
           <p className="text-sm font-medium">Pull listings (if any)</p>
