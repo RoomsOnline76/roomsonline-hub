@@ -364,7 +364,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     if (builder.channel_manager_enabled !== savedChannelManager) {
       await runEntitlementFanOut(builder.channel_manager_enabled);
       // Entitlement flipped — the channel ledger's entitlement grade is no longer trustworthy.
-      const ledgerTargets = isPortfolioScope ? scope.siblingPropertyIds : [propertyId];
+      const ledgerTargets = [...new Set([propertyId, ...(isPortfolioScope ? scope.siblingPropertyIds : [])])];
       await Promise.all(ledgerTargets.map((id) => markChannelStepsStale(id, ["entitlement", "connect"])));
     }
   };
