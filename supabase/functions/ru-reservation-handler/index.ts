@@ -318,11 +318,13 @@ Deno.serve(async (req) => {
           await trail('failed', 'no_reservation_id', 'Channel notification carried no reservation id');
         }
         console.warn(
-          `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — detail pull unavailable, queued for reconciliation pull`,
+          `[ru-reservation-handler] Incomplete notification (reservation ${r.ruReservationId}, RU property ${r.ruPropertyId || 'none'}) — detail pull retrying in background`,
         );
-        // Unmapped upstream listings are a data problem, not something a wider pull fixes.
-        if (!unmappedListing) needsReconcile = true;
+        // Unmapped upstream listings are a data problem, not something a wider pull fixes, and a
+        // reservation with an id is already being retried by the fast ladder.
+        if (!unmappedListing && !r.ruReservationId) needsReconcile = true;
         continue;
+
       }
 
 
