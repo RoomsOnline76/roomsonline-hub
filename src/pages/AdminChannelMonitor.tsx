@@ -629,15 +629,32 @@ export default function AdminChannelMonitor() {
             {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
             {tab === "cert" && (
               <>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <ChannelCertificationTab initialTab={certSubTab} />
-                </Suspense>
-                <ChannelLedgerMetricsPanel />
-                <div ref={exchangeLogRef}>
+                <RuCertChecklistCard />
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Certification runs
+                  </h2>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <ChannelCertificationTab initialTab={certSubTab} />
+                  </Suspense>
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Onboarding ledger
+                  </h2>
+                  <ChannelLedgerMetricsPanel />
+                </section>
+
+                <section className="space-y-2" ref={exchangeLogRef}>
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Sync &amp; error log
+                  </h2>
                   <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                     <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
                   </Suspense>
-                </div>
+                </section>
               </>
             )}
 
