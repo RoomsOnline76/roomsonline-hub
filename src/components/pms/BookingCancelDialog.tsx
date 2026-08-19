@@ -29,6 +29,11 @@ interface Props {
   isRuBooking?: boolean;
   /** True for unconfirmed RU requests — these are rejected rather than cancelled. */
   isRuLead?: boolean;
+  /** Set when the operator clicked Cancel on one unit of a multi-unit stay. */
+  unitLineId?: string | null;
+  unitLabel?: string | null;
+  /** Total units on the stay — a scope choice only appears when above 1. */
+  unitCount?: number;
   onDone: () => void;
 }
 
@@ -39,12 +44,18 @@ export function BookingCancelDialog({
   guestName,
   isRuBooking = false,
   isRuLead = false,
+  unitLineId = null,
+  unitLabel = null,
+  unitCount = 1,
   onDone,
 }: Props) {
   const [reason, setReason] = useState("");
   const [cancelledBy, setCancelledBy] = useState<"1" | "2">("2");
   const [category, setCategory] = useState<CancellationReasonCategory>("guest_request");
   const [busy, setBusy] = useState(false);
+  const canScope = !!unitLineId && unitCount > 1;
+  const [scope, setScope] = useState<"unit" | "booking">(canScope ? "unit" : "booking");
+  const unitOnly = canScope && scope === "unit";
 
   const submit = async () => {
     if (reason.trim().length < 3) {
@@ -59,6 +70,7 @@ export function BookingCancelDialog({
           reason: reason.trim(),
           reason_category: category,
           cancel_type_id: Number(cancelledBy),
+          ...(unitOnly ? { cancel_room_line_ids: [unitLineId] } : {}),
         },
       });
       if (error) throw new Error(await extractFunctionError(error, "Cancellation failed"));
@@ -83,10 +95,12 @@ export function BookingCancelDialog({
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <XCircle className="h-4 w-4 text-destructive" />
-            {isRuLead ? "Reject request" : "Cancel booking"} — {guestName}
+            {unitOnly ? "Cancel one unit" : isRuLead ? "Reject request" : "Cancel booking"} — {guestName}
           </AlertDialogTitle>
           <AlertDialogDescription>
-            {isRuBooking
+            {unitOnly
+              ? `Only ${unitLabel || "this unit"} is removed from the stay. The remaining ${unitCount - 1} unit${unitCount - 1 === 1 ? "" : "s"} stay booked and the total is re-calculated.`
+              : isRuBooking
               ? isRuLead
                 ? "This request came from ROL'OS Channels. It will be rejected at the channel first; the hold and calendar block are released only once the channel accepts."
                 : "This reservation came from ROL'OS Channels. It will be cancelled at the channel first — if the channel refuses, nothing changes here."
@@ -95,6 +109,21 @@ export function BookingCancelDialog({
         </AlertDialogHeader>
 
         <div className="space-y-3">
+          {canScope && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">What should be cancelled?</Label>
+              <Select value={scope} onValueChange={(v) => setScope(v as "unit" | "booking")}>
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unit">Just {unitLabel || "this unit"}</SelectItem>
+                  <SelectItem value="booking">The whole booking ({unitCount} units)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {isRuBooking && !isRuLead && (
             <div className="space-y-1.5">
               <Label className="text-xs">Cancelled by</Label>
@@ -157,7 +186,7 @@ export function BookingCancelDialog({
           </Button>
           <Button variant="destructive" onClick={submit} disabled={busy}>
             {busy && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
-            {isRuLead ? "Reject request" : "Cancel booking"}
+            {unitOnly ? "Cancel this unit" : isRuLead ? "Reject request" : "Cancel booking"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
