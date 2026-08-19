@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
   const deadline = Date.now() + RUN_BUDGET_MS;
-  const summary = { claimed: 0, succeeded: 0, requeued: 0, failed: 0 };
+  const summary = { claimed: 0, succeeded: 0, requeued: 0, failed: 0, noOp: 0 };
 
   for (let i = 0; i < MAX_CALLS_PER_RUN; i++) {
     if (Date.now() > deadline) break;
