@@ -9,6 +9,8 @@ import {
 
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 import { scheduleRuNotificationRetry, sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { logRuInboundNotification, newRuTraceId } from '../_shared/ruApiLog.ts';
+import { recordChannelBookingEvent, type BookingEventAction, type BookingEventOutcome } from '../_shared/channelBookingEvents.ts';
 
 /**
  * RU Reservation Live Notification Mechanism (RLNM) Handler
@@ -38,6 +40,21 @@ type NotificationEvent =
   | 'reservation_modified'
   | 'reservation_cancelled'
   | 'reservation_request';
+
+/** The trail's action vocabulary for an inbound notification. */
+const TRAIL_ACTION_BY_KIND: Record<RuNotificationKind, BookingEventAction> = {
+  confirmed: 'confirmed',
+  modified: 'modified',
+  cancelled: 'cancelled',
+  request: 'request',
+};
+
+const RU_VERB_BY_KIND: Record<RuNotificationKind, string> = {
+  confirmed: 'RLNM_ReservationConfirmed',
+  modified: 'RLNM_ReservationModified',
+  cancelled: 'RLNM_ReservationCancelled',
+  request: 'RLNM_ReservationRequest',
+};
 
 const EVENT_BY_KIND: Record<RuNotificationKind, NotificationEvent> = {
   confirmed: 'reservation_confirmed',
@@ -160,6 +177,39 @@ Deno.serve(async (req) => {
         .select('id')
         .maybeSingle();
       const notificationId = notification?.id as string | undefined;
+
+      // Both directions now land in the exchange log: this is the exact body the channel posted.
+      const traceId = newRuTraceId();
+      await logRuInboundNotification(supabase, {
+        trace_id: traceId,
+        parent_action: `ru-reservation-handler:${kind}`,
+        action: RU_VERB_BY_KIND[kind],
+        property_id: propertyId,
+        unit_id: unit.unitId ?? null,
+        ru_property_id: r.ruPropertyId ?? null,
+        body_xml: raw,
+        success: !unmappedListing,
+        error_reason: unmappedListing
+          ? `unmapped_listing: channel listing ${r.ruPropertyId} is not mapped to any ROL'OS unit`
+          : null,
+      });
+
+      const trail = (outcome: BookingEventOutcome, reason: string | null, summary: string, bookingId?: string | null) =>
+        recordChannelBookingEvent(supabase, {
+          booking_id: bookingId ?? null,
+          property_id: propertyId,
+          unit_id: unit.unitId ?? null,
+          direction: 'inbound',
+          action: TRAIL_ACTION_BY_KIND[kind],
+          source: 'rlnm',
+          outcome,
+          reason,
+          channel_reservation_id: r.ruReservationId ?? null,
+          channel_listing_id: r.ruPropertyId ?? null,
+          trace_id: traceId,
+          summary,
+          details: { kind, event_type: eventType, date_from: r.dateFrom ?? null, date_to: r.dateTo ?? null },
+        });
 
       const markResolved = async (state: 'resolved' | 'failed' | 'unmapped', error: string | null, ownerId?: string | null) => {
         if (!notificationId) return;
