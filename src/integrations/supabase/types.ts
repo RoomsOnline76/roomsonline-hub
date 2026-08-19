@@ -9064,6 +9064,8 @@ export type Database = {
         Row: {
           adults: number
           booking_id: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
           children: number | null
           created_at: string | null
           id: string
@@ -9076,11 +9078,14 @@ export type Database = {
           room_id: string | null
           room_type_id: string | null
           second_guest_name: string | null
+          status: string
           teens: number
         }
         Insert: {
           adults?: number
           booking_id: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           children?: number | null
           created_at?: string | null
           id?: string
@@ -9093,11 +9098,14 @@ export type Database = {
           room_id?: string | null
           room_type_id?: string | null
           second_guest_name?: string | null
+          status?: string
           teens?: number
         }
         Update: {
           adults?: number
           booking_id?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
           children?: number | null
           created_at?: string | null
           id?: string
@@ -9110,6 +9118,7 @@ export type Database = {
           room_id?: string | null
           room_type_id?: string | null
           second_guest_name?: string | null
+          status?: string
           teens?: number
         }
         Relationships: [
