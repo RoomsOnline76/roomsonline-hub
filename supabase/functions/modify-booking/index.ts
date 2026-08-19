@@ -6,11 +6,10 @@ import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
-  getRateResolutionMode,
   logRateParity,
-  pickServedRate,
   type ParityRow,
 } from "../_shared/rateParity.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
