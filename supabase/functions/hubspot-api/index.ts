@@ -619,12 +619,17 @@ Deno.serve(async (req) => {
         if (active instanceof Response) return active;
 
         // Soft sync: verify the portal, then push the owner's properties as
-        // companies and their recent reservations as contacts + deals.
+        // companies and their reservations as contacts + deals. When `since`
+        // is supplied only records changed after that moment are pushed, which
+        // is what the scheduled delta sweep uses.
         const probe = await hubspot(active.token, "/crm/v3/objects/companies?limit=1");
         if (!probe.ok) {
           await markSync("error", `Sync failed (${probe.status})`);
           return fail("HubSpot sync failed", probe.status, { details: probe.body });
         }
+
+        const since = body.since ?? null;
+        const cap = body.limit ?? 50;
 
         const { data: links } = await admin
           .from("property_owners")
@@ -637,74 +642,100 @@ Deno.serve(async (req) => {
         let deals = 0;
 
         if (propertyIds.length) {
-          const { data: props } = await admin
+          const propQuery = admin
             .from("properties")
-            .select("id, name, city, country")
+            .select("id, name, city, country, updated_at")
             .in("id", propertyIds)
             .eq("is_active", true);
+          if (since) propQuery.gt("updated_at", since);
+          const { data: props } = await propQuery;
 
-          for (const p of (props || []) as Array<{ id: string; name: string; city: string | null; country: string | null }>) {
-            const res = await hubspot(active.token, "/crm/v3/objects/companies", {
-              method: "POST",
-              body: JSON.stringify({
-                properties: {
-                  name: p.name,
-                  ...(p.city ? { city: p.city } : {}),
-                  ...(p.country ? { country: p.country } : {}),
-                },
-              }),
-            });
+          for (const p of (props || []) as Array<{
+            id: string;
+            name: string;
+            city: string | null;
+            country: string | null;
+          }>) {
+            const res = await upsertCompanyRemote(
+              active.token,
+              {
+                name: p.name,
+                ...(p.city ? { city: p.city } : {}),
+                ...(p.country ? { country: p.country } : {}),
+              },
+              p.name,
+            );
             if (res.ok) companies += 1;
           }
 
-          const { data: bookings } = await admin
+          const bookingQuery = admin
             .from("bookings")
-            .select("id, guest_name, guest_email, guest_phone, total_price, status, check_out_date, booking_reference")
+            .select(
+              "id, guest_name, guest_email, guest_phone, guest_country, total_price, currency, status, check_out_date, booking_reference, is_trade, updated_at",
+            )
             .in("property_id", propertyIds)
-            .order("created_at", { ascending: false })
-            .limit(50);
+            .order("updated_at", { ascending: false })
+            .limit(cap);
+          if (since) bookingQuery.gt("updated_at", since);
+          const { data: bookings } = await bookingQuery;
 
           for (const b of (bookings || []) as Array<Record<string, unknown>>) {
+            const segment: "trade" | "direct" = b.is_trade ? "trade" : "direct";
             const email = (b.guest_email as string | null)?.trim();
             const name = ((b.guest_name as string | null) || "").trim();
             const parts = name.split(/\s+/);
+
             if (email) {
-              const res = await hubspot(active.token, "/crm/v3/objects/contacts", {
-                method: "POST",
-                body: JSON.stringify({
-                  properties: {
-                    email,
-                    ...(parts[0] ? { firstname: parts[0] } : {}),
-                    ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
-                    ...(b.guest_phone ? { phone: b.guest_phone } : {}),
-                  },
-                }),
-              });
+              const contactProps = await withTrade(
+                active.token,
+                "contacts",
+                {
+                  email,
+                  ...(parts[0] ? { firstname: parts[0] } : {}),
+                  ...(parts.length > 1 ? { lastname: parts.slice(1).join(" ") } : {}),
+                  ...(b.guest_phone ? { phone: b.guest_phone } : {}),
+                  ...(b.guest_country ? { country: b.guest_country } : {}),
+                },
+                segment,
+              );
+              const res = await upsertContactRemote(active.token, contactProps, email);
               if (res.ok) contacts += 1;
             }
 
             const label = (b.booking_reference as string | null) || (b.id as string);
-            const res = await hubspot(active.token, "/crm/v3/objects/deals", {
-              method: "POST",
-              body: JSON.stringify({
-                properties: {
-                  dealname: `${label}${name ? ` · ${name}` : ""}`,
-                  pipeline: (active.config.pipeline_id as string) || "default",
-                  dealstage: resolveStage(b.status as string | undefined, active.config),
-                  ...(b.total_price != null ? { amount: String(b.total_price) } : {}),
-                  ...(b.check_out_date
-                    ? { closedate: new Date(b.check_out_date as string).toISOString() }
-                    : {}),
-                },
-              }),
-            });
-            if (res.ok) deals += 1;
+            const dealProps = await withTrade(
+              active.token,
+              "deals",
+              {
+                dealname: `${label}${name ? ` · ${name}` : ""}`,
+                pipeline: (active.config.pipeline_id as string) || "default",
+                dealstage: resolveStage(b.status as string | undefined, active.config),
+                ...(b.total_price != null ? { amount: String(b.total_price) } : {}),
+                ...(b.check_out_date
+                  ? { closedate: new Date(b.check_out_date as string).toISOString() }
+                  : {}),
+              },
+              segment,
+            );
+            const res = await upsertDealRemote(active.token, dealProps, label);
+            if (res.ok) {
+              deals += 1;
+              if (res.id && email) await associateDealContact(active.token, res.id, email);
+            }
           }
         }
 
         await markSync("ok");
-        return ok({ synced: true, companies, contacts, deals, properties: propertyIds.length });
+        return ok({
+          synced: true,
+          delta_since: since,
+          companies,
+          contacts,
+          deals,
+          properties: propertyIds.length,
+        });
       }
+
 
     }
 
