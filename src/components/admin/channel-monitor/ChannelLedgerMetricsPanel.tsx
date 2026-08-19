@@ -19,6 +19,21 @@ import {
 
 const STATUS_ORDER: ChannelLedgerStatus[] = ["passed", "stale", "blocked", "unknown", "pending"];
 
+/** Plain-language meaning of each ledger verdict, shown as a legend and on hover. */
+const STATUS_HELP: Record<ChannelLedgerStatus, string> = {
+  passed:
+    "Graded and good. The wizard trusts this verdict and will not re-grade the step until something the step depends on changes.",
+  stale:
+    "It passed before, but data it depends on changed since (rates, rooms, images, company details). It needs a re-grade — local steps get one automatically on the next background drain, channel steps need “Recheck channel”.",
+  blocked:
+    "Graded and failed: something is genuinely missing or rejected, so go-live is held here until it is fixed.",
+  unknown:
+    "We tried to grade it but could not reach a verdict — usually a rate-limited or empty channel read. It is deliberately not treated as a failure; it is simply retried later.",
+  pending:
+    "A row exists but has never been graded yet. Seeding creates one row per step per property up front, so every step a property has not reached (or that no one has rechecked against the channel) sits here. High pending on channel steps is normal — those only grade when staff press “Recheck channel”.",
+};
+
+
 interface DrainRun {
   id: string;
   created_at: string;
