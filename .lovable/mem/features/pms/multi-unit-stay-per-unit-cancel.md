@@ -33,3 +33,15 @@ modification is reinstated to `active`.
 - A Rentals United modification rewrites the booking dates AND re-draws its blocked nights: the ingest releases the booking's own stamped channel blocks first when dates shift, then re-blocks the new range, so no nights stay blocked outside the stay.
 - `modify-booking` accepts `expected_updated_at`; a save from a screen older than the current row returns `STALE_BOOKING` (409) instead of undoing the channel change.
 - Dashboard/Rooms realtime refresh also invalidates availability overrides, room lines and rooms so the bar and the blocks repaint together.
+
+## Per-unit guests and notes
+- Rentals United sends the booking-wide request as the `<Reservation>`-level `<Comments>` and a
+  separate note inside each `<StayInfo>`. Parse them apart: read the reservation note from the
+  envelope with the stay blocks stripped out, and never let a stay fall back to it — that stamped
+  the same text on every unit.
+- Each unit line stores its own note in `rolos_booking_rooms.guest_comments`; `bookings.special_requests`
+  keeps the reservation note plus every unit note tagged by arrival date.
+- A stay block with `Units` > 1 becomes that many lines, each on a distinct sibling unit of the same
+  room type, with guests and rate split evenly (remainder to the first units). Two stay blocks that
+  resolve to the same physical unit are also re-anchored to spare siblings, otherwise the upsert on
+  `(booking_id, room_id)` collapsed them and one line's pax overwrote the other's.
