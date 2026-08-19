@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
-import { markChannelStepsStale } from "@/lib/channelStepLedger";
+import {
+  markChannelStepsStale,
+  isChannelStepLedgerEnabled,
+  fetchChannelLedger,
+  seedChannelLedger,
+  recheckChannelLedger,
+  ledgerStepComplete,
+  type ChannelLedgerSnapshot,
+  type ChannelLedgerStep,
+} from "@/lib/channelStepLedger";
+
 
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 import { useAuth } from "@/hooks/useAuth";
