@@ -51,6 +51,10 @@ import PropertyContactDetails from "@/components/property/PropertyContactDetails
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import {
+  OwnerAccountConfirmDialog,
+  type OwnerAccountPlan,
+} from "@/components/onboarding/channel/OwnerAccountConfirmDialog";
 
 interface Props {
   propertyId: string;
@@ -187,6 +191,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const [editorSection, setEditorSection] = useState(requestedSection || "general");
   const [liveExpanded, setLiveExpanded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  // Step 6 confirmation gate state.
+  const [ownerPlanOpen, setOwnerPlanOpen] = useState(false);
+  const [ownerPlanLoading, setOwnerPlanLoading] = useState(false);
+  const [ownerPlan, setOwnerPlan] = useState<OwnerAccountPlan | null>(null);
   const [pushErrors, setPushErrors] = useState<string[]>([]);
 
   /**
@@ -625,7 +633,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
       return {
         label: "Create distribution identity",
         disabled: gatedAction || busy === "ensure_owner",
-        run: () => void pushOwner(),
+        run: () => void openOwnerPlan(),
         reason,
       };
     }
@@ -730,7 +738,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     publishedOk,
 
     pullListings,
-    pushOwner,
+    openOwnerPlan,
     selectMacro,
     stages,
   ]);
@@ -1077,7 +1085,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               unpublishedUnits={unpublishedUnits}
               publishedOk={publishedOk}
               entitlementOn={billing.config?.channel_manager_enabled === true}
-              onPushOwner={pushOwner}
+              onPushOwner={openOwnerPlan}
               subAccountEmail={subAccountEmail}
               onPublish={publishListing}
               listingsVerified={listingsVerified}
