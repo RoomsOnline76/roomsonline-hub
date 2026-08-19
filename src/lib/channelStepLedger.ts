@@ -328,7 +328,7 @@ export async function fetchChannelLedgerBatch(
   if (!propertyIds.length) return result;
   const { data, error } = await supabase
     .from("property_channel_step_status")
-    .select("property_id, step_key, status, passed_at, stale_at")
+    .select("property_id, step_key, status, passed_at, stale_at, last_checked_at")
     .in("property_id", propertyIds as string[]);
   if (error) return result;
 
@@ -342,7 +342,10 @@ export async function fetchChannelLedgerBatch(
 
   for (const id of propertyIds) {
     const steps = byProperty.get(id) ?? [];
-    if (!steps.length) {
+    // Rows that were seeded but never graded carry no verdict at all. Treating them
+    // as "seeded" would report a finished property as 0% — it counts as unseeded so
+    // the caller grades it instead of trusting empty bookkeeping.
+    if (!steps.some((step) => ledgerHasVerdict(step))) {
       result.set(id, { seeded: false, allComplete: false, percent: 0, needsChannelProbe: true });
       continue;
     }
