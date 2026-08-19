@@ -347,12 +347,20 @@ export default function AdminChannelMonitor() {
             <ChannelCallQueuePanel />
             <ChannelLedgerMetricsPanel />
             <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-              <BookingSyncTrailPanel properties={reservationProperties} />
+              <BookingSyncTrailPanel
+                properties={reservationProperties}
+                onInspectExchange={(term) => {
+                  setExchangeSearch(term);
+                  exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              />
             </Suspense>
-            <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+            <div ref={exchangeLogRef}>
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
+              </Suspense>
+            </div>
 
-              <RuApiLogPanel properties={reservationProperties} />
-            </Suspense>
           </TabsContent>
         </Tabs>
 
