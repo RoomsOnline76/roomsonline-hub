@@ -16,6 +16,8 @@ const corsHeaders = {
 
 const HUBSPOT_BASE = "https://api.hubapi.com";
 const SERVICE = "hubspot";
+/** Custom HubSpot property carrying the Trade / Direct segmentation marker. */
+const TRADE_PROPERTY = "rol_trade_or_direct";
 
 const requestSchema = z.object({
   action: z.enum([
