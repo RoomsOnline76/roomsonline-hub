@@ -576,6 +576,12 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setSaving(false);
     toast.success(`Booking created as "${autoStatus}"${validLines.length > 1 ? ` · ${validLines.length} rooms` : ""}`);
 
+    // A stay created here sells nights the channel still has open — close them straight away
+    // instead of waiting for the next scheduled refresh.
+    if (insertedData?.id) {
+      void pushBookingToChannel(insertedData.id, "created", { notify: false });
+    }
+
     // 4. Send confirmation email (non-blocking)
     if (insertedData?.id) {
       try {
