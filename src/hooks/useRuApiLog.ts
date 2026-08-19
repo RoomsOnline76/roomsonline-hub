@@ -113,14 +113,26 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   /** Applies the active filters to a query builder so list and count stay in sync. */
   const applyFilters = useCallback(
     (query: any) => {
-      // A ResponseID lookup is a support escalation: it must never be narrowed by the other filters.
-      const responseId = filters.responseId.trim();
-      if (responseId) return query.ilike("response_id", `%${responseId}%`);
+      // A method / ResponseID / trace lookup is a support escalation: it must never be narrowed
+      // by the other filters, otherwise a verb with only a handful of calls stays invisible.
+      const search = filters.search.trim().replace(/[,()]/g, " ");
+      if (search) {
+        return query.or(
+          [
+            `action.ilike.%${search}%`,
+            `response_id.ilike.%${search}%`,
+            `trace_id.ilike.%${search}%`,
+            `parent_action.ilike.%${search}%`,
+            `error_message.ilike.%${search}%`,
+          ].join(","),
+        );
+      }
       // Account-level work (pull all listings, deletions) carries no property id,
       // so it needs its own scope rather than disappearing behind "All properties".
       if (filters.propertyId === "account") query = query.is("property_id", null);
       else if (filters.propertyId !== "all") query = query.eq("property_id", filters.propertyId);
       if (filters.direction !== "all") query = query.eq("direction", filters.direction);
+      if (filters.bookingsOnly) query = query.in("action", RU_BOOKING_ACTIONS);
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
@@ -138,9 +150,11 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       filters.operation,
       filters.ownerId,
       filters.outcome,
-      filters.responseId,
+      filters.search,
+      filters.bookingsOnly,
       filters.days,
     ],
+
   );
 
 
