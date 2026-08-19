@@ -490,7 +490,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       status: autoStatus,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
-      deposit_amount: (form.payment_status === "paid" || !form.deposit_amount) ? null : parseFloat(form.deposit_amount),
+      // Deposit is optional. Blank (or paid in full) means "no deposit" — store 0,
+      // since the column is NOT NULL and null would reject the insert.
+      deposit_amount: (form.payment_status === "paid" || !form.deposit_amount)
+        ? 0
+        : (Number.isFinite(parseFloat(form.deposit_amount)) ? parseFloat(form.deposit_amount) : 0),
       special_requests: form.special_requests || null,
       internal_notes: form.internal_notes || null,
       booking_channel: form.booking_channel || "direct",
