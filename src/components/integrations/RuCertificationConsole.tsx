@@ -409,7 +409,14 @@ const PHASE_LABELS: Record<string, string> = {
   discounts: "discount ladder",
 };
 
-export function RuCertificationConsole({ properties }: { properties: PropertyLite[] }) {
+export function RuCertificationConsole({
+  properties,
+  initialTab,
+}: {
+  properties: PropertyLite[];
+  /** Optional deep-open target sub-tab. Omitted = today's default ("runs"). */
+  initialTab?: string;
+}) {
   const [suite, setSuite] = useState("read_only");
   const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
   const [propertyId, setPropertyId] = useState<string>("none");
