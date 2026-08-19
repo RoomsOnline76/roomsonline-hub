@@ -5974,7 +5974,8 @@ Deno.serve(async (req) => {
                 error: {
                   code: "RU_EMAIL_IN_USE",
                   message:
-                    `Rentals United reports ${ownerEmail} is already registered, but it is not under our master account (it may belong to another RU account or a pending invite). Use a different owner email, or ask RU support to move/release this login.`,
+                    `The channel provider reports ${ownerEmail} is already registered, but it is not listed under our master account (it may be the master/portal login itself, another provider account, or a pending invite). Set a different owner email on the property, reuse the portfolio's existing distribution login, or ask provider support to release it.`,
+
                 },
                 preview: preview(created, 2000),
               }, 409);
