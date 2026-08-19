@@ -632,6 +632,32 @@ Deno.serve(async (req) => {
       );
     }
 
+    // The booking card reads the room line, so a reprice that only moved the booking total would
+    // leave the line contradicting it. Single-room stays are kept in step here.
+    const effectiveNewTotal = updateData.total_price ?? null;
+    if (effectiveNewTotal !== null) {
+      const { data: lines } = await supabase
+        .from("rolos_booking_rooms")
+        .select("id")
+        .eq("booking_id", booking_id);
+      if (Array.isArray(lines) && lines.length === 1) {
+        const nights = countNights(
+          modifications.check_in_date || booking.check_in_date,
+          modifications.check_out_date || booking.check_out_date,
+        );
+        await supabase
+          .from("rolos_booking_rooms")
+          .update({
+            rate_charged: Number(effectiveNewTotal),
+            nightly_rate: repricedNightly ??
+              (nights > 0 ? Math.round((Number(effectiveNewTotal) / nights) * 100) / 100 : null),
+          })
+          .eq("id", lines[0].id);
+      }
+    }
+
+
+
     // S8b: Price/date/pax changes move the revenue figure — recalculate the
     // commission so pulse, reports and payouts follow the new total instead of
     // keeping the pre-modification amount.
