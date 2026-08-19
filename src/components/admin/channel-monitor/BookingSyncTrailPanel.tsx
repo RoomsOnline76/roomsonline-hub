@@ -320,6 +320,3 @@ export function BookingSyncTrailPanel({ properties, onInspectExchange }: Booking
     </Collapsible>
   );
 }
-
-  );
-}
