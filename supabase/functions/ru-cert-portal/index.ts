@@ -5910,6 +5910,84 @@ Deno.serve(async (req) => {
 
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
+
+      /**
+       * Step 6 preview. Everything above is resolution only — nothing has been written
+       * locally and nothing has been sent to the channel yet, so this is the last safe
+       * point to hand the decision back to the operator.
+       */
+      if (isPlan) {
+        const nameParts = String(ownerName).trim().split(/\s+/);
+        const planUsers = await listRuUsers();
+        const boundOwnerId = usableRuId(existing.account?.ru_owner_id);
+        const rosterMatch = (boundOwnerId
+          ? planUsers.find((u) => usableRuId(u.owner_id) === boundOwnerId) ?? null
+          : null)
+          ?? matchByEmail(planUsers)
+          ?? matchByStoredIdentity(planUsers, existing.account as any);
+
+        let memberCount: number | null = null;
+        if (portfolioId) {
+          const { count } = await admin
+            .from("property_portfolio_members")
+            .select("property_id", { count: "exact", head: true })
+            .eq("portfolio_id", portfolioId);
+          memberCount = typeof count === "number" ? count : null;
+        }
+
+        let countryName: string | null = null;
+        if (propertyId) {
+          const { data: pr } = await admin
+            .from("properties")
+            .select("country")
+            .eq("id", propertyId)
+            .maybeSingle();
+          countryName = (pr as { country?: string | null } | null)?.country ?? null;
+        }
+
+        const adoptOwnerId = usableRuId(rosterMatch?.owner_id) || boundOwnerId;
+        const outcome = adoptOwnerId ? "adopt" : "create";
+        const warnings: string[] = [];
+        if (locationIds.length === 0) warnings.push(NO_LOCATION_MESSAGE);
+        if (internalLoginRejected) {
+          warnings.push(
+            `${internalLoginRejected} was skipped as a shared platform login — ${ownerEmail} is used instead.`,
+          );
+        }
+        const boundLogin = String((existing.account as any)?.ru_login_email ?? "").trim();
+        if (boundLogin && boundLogin.toLowerCase() !== String(ownerEmail).toLowerCase()) {
+          warnings.push(
+            `This property is already linked to a distribution sub-account whose login is ${boundLogin}. Confirming keeps that live account and re-uses it.`,
+          );
+        }
+
+        return json({
+          success: true,
+          plan: {
+            can_create: locationIds.length > 0,
+            blocked_reason: locationIds.length === 0 ? NO_LOCATION_MESSAGE : null,
+            outcome,
+            login_email: ownerEmail,
+            login_source: ownerEmailSource,
+            contact_first_name: nameParts[0] || "Property",
+            contact_last_name: nameParts.slice(1).join(" ") || "Owner",
+            company_name: portfolioRow?.name ?? ownerName ?? null,
+            country: countryName,
+            scope: portfolioId ? "portfolio" : "property",
+            portfolio_id: portfolioId,
+            portfolio_name: portfolioRow?.name ?? null,
+            portfolio_property_count: memberCount,
+            property_id: propertyId,
+            existing_owner_id: adoptOwnerId || null,
+            existing_login_email:
+              String(rosterMatch?.login_email ?? rosterMatch?.email ?? boundLogin ?? "").trim() || null,
+            location_ids: locationIds,
+            rejected_internal_login: internalLoginRejected,
+            warnings,
+          },
+        });
+      }
+
       // The RU identity is only stale when Rentals United no longer lists an owner that
       // matches the stored OwnerID (or, when we never stored one, the stored login email).
       // A login rename in the RU portal must NOT erase the OwnerID or the password.
