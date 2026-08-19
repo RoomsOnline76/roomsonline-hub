@@ -5365,15 +5365,9 @@ Deno.serve(async (req) => {
       // Resolve an RU LocationId for a free-text name (used for CountryId).
       const locationIdByName = async (name: string): Promise<number | null> => {
         if (!name) return null;
-        // Live lookup first, but RU rate-limits repeated Pull_GetLocationByName_RQ calls
-        // with the same parameters, so never let a throttled answer fail the push.
-        const { data } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "get_location_by_name", location_name: name },
-        });
-        const id = Number((data as any)?.location_id ?? (data as any)?.locations?.[0]?.id);
-        if (Number.isFinite(id) && id > 1) return id;
-
-        // Fallback: the cached RU location register.
+        // The cached RU location register first: RU rate-limits repeated
+        // Pull_GetLocationByName_RQ calls with the same parameters, and a save-time delta
+        // check must never burn a channel call to resolve a country that never moves.
         const { data: loc } = await admin
           .from("ru_locations")
           .select("id")
@@ -5381,7 +5375,13 @@ Deno.serve(async (req) => {
           .limit(1)
           .maybeSingle();
         const cached = Number((loc as { id?: number } | null)?.id);
-        return Number.isFinite(cached) && cached > 1 ? cached : null;
+        if (Number.isFinite(cached) && cached > 1) return cached;
+
+        const { data } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "get_location_by_name", location_name: name },
+        });
+        const id = Number((data as any)?.location_id ?? (data as any)?.locations?.[0]?.id);
+        return Number.isFinite(id) && id > 1 ? id : null;
       };
 
 
@@ -5530,14 +5530,14 @@ Deno.serve(async (req) => {
          * prerequisite: report the setup gap instead of burning a doomed call.
          */
         if (!hasChildKeys) {
-          return {
+          return quiet({
             sent: false,
             needs_password: true,
             needs_api_keys: true,
             setup_gap: true,
             error:
               "Waiting on owner setup: this distribution sub-account has no verified API key pair on file, and Rentals United requires the sub-user's own AccessKey + SecretKey to write company details. Generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.",
-          };
+          });
         }
 
 
@@ -5669,7 +5669,7 @@ Deno.serve(async (req) => {
           propertyProfile = { ...mergedPortfolioProfile, ...(propertyProfile ?? {}) };
         }
 
-        if (!companyName) return { sent: false, error: "No company/portfolio name to submit" };
+        if (!companyName) return quiet({ sent: false, error: "No company/portfolio name to submit" });
 
         // Last resort: the country id RU already accepted for this account.
         const previousCountryId = Number(
@@ -5679,7 +5679,7 @@ Deno.serve(async (req) => {
           (await locationIdByName(country || "South Africa")) ??
           (Number.isFinite(previousCountryId) && previousCountryId > 1 ? previousCountryId : null);
         if (!countryId) {
-          return { sent: false, error: `Could not resolve a Rentals United CountryId for "${country || "South Africa"}"` };
+          return quiet({ sent: false, error: `Could not resolve a Rentals United CountryId for "${country || "South Africa"}"` });
         }
 
 
@@ -5802,14 +5802,35 @@ Deno.serve(async (req) => {
         if (!cleanPhone || cleanPhone === "+27000000000") incomplete.push("contact phone");
         if (!String(c.birth_date ?? "").trim()) incomplete.push("contact date of birth");
         if (incomplete.length > 0) {
-          return {
+          return quiet({
             sent: false,
             error:
               `Complete Company Information first — Rentals United would otherwise store placeholder data. Missing/placeholder: ${incomplete.join(", ")}. ` +
               "Fill these on the property's Identity & Location → Company Information card, then retry.",
-          };
+          });
         }
 
+
+        /**
+         * True delta: only write to the channel when the composed profile differs from the
+         * one RU last accepted. This is what makes a save-time resend cheap AND reliable —
+         * it no longer depends on `properties.updated_at` moving.
+         */
+        const stableJson = (value: unknown): string => {
+          if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+          if (value && typeof value === "object") {
+            const entries = Object.entries(value as Record<string, unknown>)
+              .filter(([, v]) => v !== undefined)
+              .sort(([a], [b]) => a.localeCompare(b));
+            return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableJson(v)}`).join(",")}}`;
+          }
+          return JSON.stringify(value ?? null);
+        };
+        const previousPayload = (account.company_payload ?? null) as Record<string, unknown> | null;
+        const payloadUnchanged = Boolean(previousPayload) && stableJson(previousPayload) === stableJson(c);
+        if (body.force !== true && companyState.satisfied && payloadUnchanged) {
+          return { sent: true, skipped: true as const, unchanged: true as const };
+        }
 
         // Retry transient RU/network failures — Phase 1 must not be left half-done.
         let filled: any = null;
