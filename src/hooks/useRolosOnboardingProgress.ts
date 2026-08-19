@@ -1012,13 +1012,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     async (opts?: { probeAri?: boolean }) => {
       readiness.refresh();
       if (opts?.probeAri) setProbeAri(true);
+      // Ledger path: re-grade the durable rows without touching the channel unless
+      // the caller explicitly asked for a probe (staff "Recheck channel").
+      if (ledgerActive && propertyId) {
+        await recheckChannelLedger(propertyId, { allowChannelProbe: opts?.probeAri === true });
+        await queryClient.invalidateQueries({ queryKey: ["channel-step-ledger", propertyId] });
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] }),
         queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-phase", propertyId] }),
       ]);
     },
-    [propertyId, queryClient],
+    [ledgerActive, propertyId, queryClient],
   );
+
+  /** Staff / platform action: the only path allowed to hit the channel. */
+  const recheckChannel = useCallback(() => refresh({ probeAri: true }), [refresh]);
+
 
 
   const writeChannelReadiness = useCallback(
