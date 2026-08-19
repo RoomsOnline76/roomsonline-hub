@@ -122,7 +122,7 @@ const newLine = (roomTypeId = "", roomId = ""): RoomLine => ({
   price_override: "",
 });
 
-export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, getRateForPropertyDate, portfolioOptions, initialValues }: ManualBookingDialogProps) {
+export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes, rooms, ratePlans, onCreated, getRateForDate, getRateForPropertyDate, portfolioOptions, initialValues, onCreatedBooking }: ManualBookingDialogProps) {
   const [saving, setSaving] = useState(false);
   const portfolioMode = !!(portfolioOptions && portfolioOptions.length > 0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(propertyId || "");
