@@ -258,7 +258,39 @@ export async function resolveRuUnit(supabase: Db, ruPropertyId: string | null): 
 }
 
 
-/** Block (or release) the booked nights so the ROL booking engine cannot resell them. */
+/** Marker written into `blocked_reason` so a channel block can always be traced to its stay. */
+export const CHANNEL_BLOCK_LABEL = 'Channel Manager';
+export function channelBlockReason(bookingId: string | null | undefined): string {
+  return bookingId ? `channel_booking:${bookingId}` : 'channel_booking';
+}
+
+function eachNight(checkIn: string, checkOut: string): string[] {
+  const dates: string[] = [];
+  for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/** Real sellable inventory for a unit, so a release restores it instead of hardcoding 1. */
+async function resolveUnitInventory(supabase: Db, mappingRoomTypeId: string | null): Promise<number> {
+  if (!mappingRoomTypeId) return 1;
+  const { data } = await supabase
+    .from('hostfully_room_types')
+    .select('quantity, units_count, total_units')
+    .eq('id', mappingRoomTypeId)
+    .maybeSingle();
+  const candidate = Number(data?.quantity ?? data?.units_count ?? data?.total_units ?? 1);
+  return Number.isFinite(candidate) && candidate > 0 ? candidate : 1;
+}
+
+/**
+ * Block (or release) the booked nights so the ROL booking engine cannot resell them.
+ *
+ * Every channel-written night is stamped with its booking (`blocked_reason`) and labelled as a
+ * Channel Manager block, so a later cancellation can release exactly its own nights even if the
+ * unit was since renamed or re-cased — and operator blocks (no stamp) are never touched.
+ */
 export async function applyRuAvailabilityBlock(
   supabase: Db,
   propertyId: string,
@@ -267,6 +299,7 @@ export async function applyRuAvailabilityBlock(
   checkOut: string,
   block: boolean,
   logPrefix = '[ru]',
+  bookingId: string | null = null,
 ) {
   try {
     let roomName: string | null = null;
@@ -283,28 +316,77 @@ export async function applyRuAvailabilityBlock(
       return;
     }
 
-    const dates: string[] = [];
-    for (let d = new Date(`${checkIn}T00:00:00Z`); d < new Date(`${checkOut}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
-      dates.push(d.toISOString().slice(0, 10));
-    }
+    const dates = eachNight(checkIn, checkOut);
     if (dates.length === 0) return;
+    const inventory = block ? 0 : await resolveUnitInventory(supabase, mappingRoomTypeId);
+    const stampedAt = new Date().toISOString();
 
+    // The table enforces uniqueness on (property_id, room_type, date) as well, so the conflict
+    // target must be the 3-column key — a 4-column target collides with it and the write is lost.
     const { error } = await supabase.from('property_availability').upsert(
       dates.map((date) => ({
         property_id: propertyId,
         room_type: roomName,
         date,
         external_system: 'manual',
-        available_units: block ? 0 : 1,
+        available_units: inventory,
         is_stop_sell: block,
+        blocked_by_label: block ? CHANNEL_BLOCK_LABEL : null,
+        blocked_reason: block ? channelBlockReason(bookingId) : null,
+        blocked_at: block ? stampedAt : null,
       })),
-      { onConflict: 'property_id,room_type,date,external_system', ignoreDuplicates: false },
+      { onConflict: 'property_id,room_type,date', ignoreDuplicates: false },
     );
     if (error) console.error(`${logPrefix} Availability ${block ? 'block' : 'release'} failed: ${error.message}`);
   } catch (e) {
     console.error(`${logPrefix} Availability sync error:`, e);
   }
 }
+
+/**
+ * Release every night this booking closed, found by its stamp rather than by unit name.
+ * A renamed or re-cased unit can no longer strand blocked nights.
+ */
+export async function releaseChannelBlocksForBooking(
+  supabase: Db,
+  bookingId: string,
+  logPrefix = '[ru]',
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('property_availability')
+      .select('id, property_id, room_type')
+      .eq('blocked_reason', channelBlockReason(bookingId));
+    if (error) {
+      console.error(`${logPrefix} Stamped block lookup failed: ${error.message}`);
+      return 0;
+    }
+    const rows = (data || []) as Array<{ id: string; property_id: string; room_type: string }>;
+    if (rows.length === 0) return 0;
+
+    const { error: upErr } = await supabase
+      .from('property_availability')
+      .update({
+        available_units: 1,
+        is_stop_sell: false,
+        blocked_by: null,
+        blocked_by_label: null,
+        blocked_reason: null,
+        blocked_at: null,
+      })
+      .in('id', rows.map((r) => r.id));
+    if (upErr) {
+      console.error(`${logPrefix} Stamped block release failed: ${upErr.message}`);
+      return 0;
+    }
+    console.log(`${logPrefix} Released ${rows.length} stamped channel night(s) for booking ${bookingId}`);
+    return rows.length;
+  } catch (e) {
+    console.error(`${logPrefix} Stamped block release error:`, e);
+    return 0;
+  }
+}
+
 
 /**
  * Single source of truth for RLNM envelope + status mapping.
