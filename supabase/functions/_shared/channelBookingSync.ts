@@ -15,6 +15,7 @@
  * and answers `queued`, which is reported back as `deferred` so the UI can say so.
  */
 import { queueRuAriDelta } from './ruAriDelta.ts';
+import { bookingActionFromChange, recordChannelBookingEvent } from './channelBookingEvents.ts';
 import {
   cancelRuReservation,
   isRuBooking,
@@ -32,10 +33,12 @@ export type ChannelBookingChange =
   | 'dates'
   | 'pax'
   | 'price'
+  | 'deposit'
   | 'payment'
   | 'notes'
   | 'status'
   | 'cancelled'
+  | 'no_show'
   | 'deleted'
   | 'unknown';
 
@@ -55,6 +58,8 @@ export interface ChannelBookingSyncRequest {
   cancel_type_id?: number | null;
   /** Skip the availability/rates delta (the caller already queued it). */
   skip_ari?: boolean;
+  /** Where the action was triggered — recorded on the diagnostics trail. */
+  source?: string | null;
 }
 
 export interface ChannelBookingSyncResult {
@@ -120,7 +125,7 @@ function isAbsentAtChannel(message?: string | null): boolean {
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'no_show', 'rejected', 'declined']);
 
 /** Changes that carry no information the channel's reservation record holds. */
-const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes'];
+const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
 
 function guestCount(row: Record<string, unknown>): number | null {
   const total = (Number(row.adults ?? 0) || 0) + (Number(row.children ?? 0) || 0) +
@@ -150,13 +155,25 @@ export async function syncBookingToChannel(
     result.reservation = 'skipped';
     result.reservation_reason = error?.message ?? 'booking_not_found';
     result.ari_reason = 'booking_not_found';
+    await recordChannelBookingEvent(supabase, {
+      booking_id: request.booking_id,
+      direction: 'outbound',
+      action: bookingActionFromChange(change),
+      source: request.source ?? 'channel_booking_sync',
+      outcome: 'skipped',
+      reason: 'booking_not_found',
+      summary: 'Booking could not be read — nothing sent to the channel',
+      details: { change },
+    });
     return result;
   }
 
   const row = booking as Record<string, unknown>;
   const propertyId = String(row.property_id ?? '');
   const status = String(row.status ?? '').toLowerCase();
-  const cancelled = change === 'cancelled' || change === 'deleted' || CANCELLED_STATUSES.has(status);
+  const cancelled = change === 'cancelled' || change === 'no_show' || change === 'deleted' ||
+    CANCELLED_STATUSES.has(status);
+  let traceId: string | null = null;
 
   // ── 1. Reservation-level push (channel-sourced bookings only) ──
   if (!isRuBooking(row)) {
@@ -171,6 +188,7 @@ export async function syncBookingToChannel(
       cancelTypeId: request.cancel_type_id ?? undefined,
     });
     result.reservation_method = push.method ?? null;
+    traceId = push.traceId ?? null;
     if (push.ok) {
       result.reservation = push.deferred ? 'queued' : 'pushed';
       result.deferred = result.deferred || push.deferred === true;
@@ -215,6 +233,7 @@ export async function syncBookingToChannel(
         },
       );
       result.reservation_method = push.method ?? null;
+      traceId = push.traceId ?? null;
       if (push.ok) {
         result.reservation = push.deferred ? 'queued' : 'pushed';
         result.deferred = result.deferred || push.deferred === true;
@@ -286,5 +305,51 @@ export async function syncBookingToChannel(
     }
   }
 
+  await recordChannelBookingEvent(supabase, {
+    booking_id: String(row.id),
+    property_id: propertyId || null,
+    unit_id: (row.room_type_id as string | null) ?? null,
+    direction: 'outbound',
+    action: bookingActionFromChange(change, status),
+    source: request.source ?? 'channel_booking_sync',
+    outcome: result.reservation === 'pushed'
+      ? 'pushed'
+      : result.reservation === 'queued'
+        ? 'queued'
+        : result.reservation === 'failed'
+          ? 'failed'
+          : 'skipped',
+    reason: result.reservation_reason ?? result.code ?? null,
+    channel_reservation_id: (row.external_reservation_id as string | null) ?? null,
+    channel_listing_id: (row.channel_listing_id as string | null) ?? null,
+    trace_id: traceId,
+    summary: describeOutcome(change, result),
+    details: {
+      change,
+      reservation: result.reservation,
+      reservation_method: result.reservation_method ?? null,
+      ari: result.ari,
+      ari_reason: result.ari_reason ?? null,
+      deferred: result.deferred,
+      message: result.message ?? null,
+      status,
+    },
+  });
+
   return result;
+}
+
+/** One human line an operator can read without opening the payload. */
+function describeOutcome(change: ChannelBookingChange, result: ChannelBookingSyncResult): string {
+  const label = change.replace(/_/g, ' ');
+  switch (result.reservation) {
+    case 'pushed':
+      return `${label}: sent to the channel (${result.reservation_method ?? 'reservation'})`;
+    case 'queued':
+      return `${label}: rate-limited, parked in the channel queue`;
+    case 'failed':
+      return `${label}: channel rejected the change — ${result.message ?? result.code ?? 'unknown error'}`;
+    default:
+      return `${label}: no reservation push (${result.reservation_reason ?? 'not applicable'}); availability ${result.ari}`;
+  }
 }
