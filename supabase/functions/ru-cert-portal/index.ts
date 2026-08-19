@@ -5148,27 +5148,18 @@ Deno.serve(async (req) => {
       let ownerEmail: string | null = body.owner_email ?? null;
       let ownerName: string = body.owner_name ?? "";
 
-      // Logins Rentals United already holds outside our master account can never become
-      // a sub-user login: RU answers "Email already exists." (status 95) and the address is
-      // invisible in Pull_ListMyUsers, so it can never be adopted either — the create call
-      // dead-ends on a 409 forever. `connect@` is the RU master/portal login itself, so it
-      // is reserved alongside the shared platform mailboxes. Retired sub-account logins are
-      // NOT reserved here: some (rooms@) are also the live portfolio distribution login.
+      // Only the shared platform login (dev@) can never become a channel sub-user login —
+      // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
+      // info@ …) are valid owner / testing logins and are accepted.
       const INTERNAL_LOGIN_PREFIXES = ["dev@", "noreply@", "no-reply@"];
-      const RESERVED_LOGIN_EMAILS = new Set<string>(["connect@roomsonline.co.za"]);
       const isInternalLogin = (email: string | null | undefined) => {
         const e = String(email ?? "").trim().toLowerCase();
         if (!e) return true;
-        if (RESERVED_LOGIN_EMAILS.has(e)) return true;
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
 
-
-
-
-      // A reserved login supplied in the request is dropped too, so resolution falls
-      // through to the portfolio / owner-account candidates instead of dead-ending at RU.
       if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+
 
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
 
