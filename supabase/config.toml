@@ -242,5 +242,7 @@ schedule = "30 3 * * *"
 verify_jwt = false
 schedule = "10 3 * * *"
 
+# Clears stale LOCAL channel-ledger steps in the background. Never calls the channel.
 [functions.cron-channel-ledger-drain]
 verify_jwt = false
+schedule = "*/5 * * * *"
