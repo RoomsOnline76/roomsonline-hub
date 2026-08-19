@@ -105,6 +105,11 @@ async function resolveCurrentListing(
   }
 }
 
+/** The channel has no such reservation — retrying can never make it appear. */
+function isAbsentAtChannel(message?: string | null): boolean {
+  return /reservation does not exist|no such reservation/i.test(String(message ?? ''));
+}
+
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'no_show', 'rejected', 'declined']);
 
 /** Changes that carry no information the channel's reservation record holds. */
@@ -162,6 +167,10 @@ export async function syncBookingToChannel(
     if (push.ok) {
       result.reservation = push.deferred ? 'queued' : 'pushed';
       result.deferred = result.deferred || push.deferred === true;
+    } else if (isAbsentAtChannel(push.message)) {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'reservation_absent_at_channel';
+      result.message = push.message ?? null;
     } else {
       result.reservation = 'failed';
       result.code = push.code ?? null;
@@ -195,6 +204,10 @@ export async function syncBookingToChannel(
     if (push.ok) {
       result.reservation = push.deferred ? 'queued' : 'pushed';
       result.deferred = result.deferred || push.deferred === true;
+    } else if (isAbsentAtChannel(push.message)) {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'reservation_absent_at_channel';
+      result.message = push.message ?? null;
     } else {
       result.reservation = 'failed';
       result.code = push.code ?? null;
