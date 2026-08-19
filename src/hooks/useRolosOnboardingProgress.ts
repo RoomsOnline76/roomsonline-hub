@@ -833,8 +833,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         fieldItems.filter((i) => i.tier === "mandatory").length + mandatoryStateChecks.length;
       const mandatoryDone = mandatoryTotal - mandatoryOutstanding - stateOutstanding;
       const score = mandatoryTotal === 0 ? 100 : Math.round((mandatoryDone / mandatoryTotal) * 100);
-      const complete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+      const localComplete = mandatoryOutstanding === 0 && stateOutstanding === 0;
+
+      /**
+       * Phase 3 ledger overlay. The durable row decides the step when the ledger is
+       * live: `passed` completes it, `blocked` holds it open with the recorded
+       * blockers, and `stale` / `unknown` keep the last successful verdict so a
+       * throttled channel read can never un-complete finished work.
+       */
+      const ledgerRow = ledgerActive ? ledgerByStep.get(macro.key) : undefined;
+      const ledgerStatus = ledgerRow?.status;
+      const ledgerBlockers = ledgerRow?.status === "blocked"
+        ? String(ledgerRow.blocker_summary ?? "")
+            .split("·")
+            .map((part) => part.trim())
+            .filter(Boolean)
+        : [];
+      const complete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
+      const needsRefresh = ledgerStatus === "stale";
+      const channelPending = ledgerStatus === "unknown" && !!ledgerRow?.passed_at;
       completeByKey.set(macro.key, complete);
+
 
       /**
        * Only real prerequisites gate an action — not "the step above is not
