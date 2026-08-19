@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { cancelRuReservation, isRuBooking, isRuLead } from "../_shared/ruBookingSync.ts";
+import { releaseChannelBlocksForBooking } from "../_shared/ruReservationParsing.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { CANCELLATION_REASON_CATEGORIES } from "../_shared/revenueStatuses.ts";
 
@@ -375,6 +376,44 @@ Deno.serve(async (req) => {
         }),
         { status: 207, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // S6a: Nights a channel reservation closed are stamped with the booking id, not written by
+    // the local "manual" restore below. Without releasing them a cancelled channel stay left the
+    // dates blocked on the grid, so release them here for the units that were actually cancelled.
+    try {
+      if (isUnitCancel) {
+        const cancelledTypeIds = [
+          ...new Set(
+            activeLines
+              .filter((l) => lineIdsToCancel.includes(l.id))
+              .map((l) => l.room_type_id)
+              .filter((id): id is string => !!id),
+          ),
+        ];
+        const names: string[] = [];
+        for (const typeId of cancelledTypeIds) {
+          const { data: rolos } = await supabase
+            .from("rolos_room_types")
+            .select("name")
+            .eq("id", typeId)
+            .maybeSingle();
+          if (rolos?.name) names.push(rolos.name);
+          const { data: mapped } = await supabase
+            .from("hostfully_room_types")
+            .select("name")
+            .eq("id", typeId)
+            .maybeSingle();
+          if (mapped?.name) names.push(mapped.name);
+        }
+        if (names.length) {
+          await releaseChannelBlocksForBooking(supabase, booking_id, "[cancel-booking]", names);
+        }
+      } else {
+        await releaseChannelBlocksForBooking(supabase, booking_id, "[cancel-booking]");
+      }
+    } catch (blockErr) {
+      console.error("Channel block release failed (non-critical):", blockErr);
     }
 
     // S6: For ROL-native properties, restore availability

@@ -385,6 +385,8 @@ export async function releaseChannelBlocksForBooking(
   supabase: Db,
   bookingId: string,
   logPrefix = '[ru]',
+  /** Limit the release to these unit names — used when only one unit of a stay is cancelled. */
+  onlyRoomTypes?: string[] | null,
 ): Promise<number> {
   try {
     const { data, error } = await supabase
@@ -395,7 +397,11 @@ export async function releaseChannelBlocksForBooking(
       console.error(`${logPrefix} Stamped block lookup failed: ${error.message}`);
       return 0;
     }
-    const rows = (data || []) as Array<{ id: string; property_id: string; room_type: string }>;
+    let rows = (data || []) as Array<{ id: string; property_id: string; room_type: string }>;
+    if (onlyRoomTypes?.length) {
+      const wanted = new Set(onlyRoomTypes.map((n) => (n || '').trim().toLowerCase()));
+      rows = rows.filter((r) => wanted.has((r.room_type || '').trim().toLowerCase()));
+    }
     if (rows.length === 0) return 0;
 
     const { error: upErr } = await supabase
