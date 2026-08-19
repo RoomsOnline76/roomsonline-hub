@@ -238,7 +238,6 @@ export default function AdminRentalsUnited() {
 
           <TabsTrigger value="reservations">Reservations</TabsTrigger>
           <TabsTrigger value="coverage">Coverage</TabsTrigger>
-          <TabsTrigger value="cert">Certification &amp; compliance</TabsTrigger>
         </TabsList>
 
 
