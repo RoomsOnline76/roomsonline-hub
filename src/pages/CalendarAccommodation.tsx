@@ -1507,6 +1507,124 @@ const CalendarAccommodation = () => {
     }
   }, [rateTypeOptions]);
 
+  // ── Bookings overlay ───────────────────────────────────────────────────────
+  // Native ROL'OS availability is published as "open" by the orchestrator, so
+  // confirmed/pending stays would otherwise be invisible here. Load the stays
+  // for the visible window and key them by unit name so every calendar row can
+  // show what is actually sold.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBookings = async () => {
+      if (!selectedProperty) {
+        setBookedByRoom(new Map());
+        return;
+      }
+
+      const dayCount = viewMode === "week" ? 9 : 31;
+      const windowStart = new Date(currentDate);
+      const windowEnd = new Date(currentDate);
+      windowEnd.setDate(windowEnd.getDate() + dayCount);
+      const startStr = format(windowStart, "yyyy-MM-dd");
+      const endStr = format(windowEnd, "yyyy-MM-dd");
+
+      try {
+        const [{ data: bookings }, { data: rolosRooms }, { data: hfRooms }] = await Promise.all([
+          supabase
+            .from("bookings")
+            .select("id, rol_reference, guest_name, check_in_date, check_out_date, status, room_type_id, booking_channel, rolos_booking_rooms(room_type_id)")
+            .eq("property_id", selectedProperty)
+            .neq("status", "cancelled")
+            .lt("check_in_date", endStr)
+            .gt("check_out_date", startStr),
+          supabase.from("rolos_room_types").select("id, name").eq("property_id", selectedProperty),
+          supabase
+            .from("hostfully_room_types")
+            .select("id, name, linked_rolos_id")
+            .eq("property_id", selectedProperty),
+        ]);
+
+        if (cancelled) return;
+
+        // Any unit identifier (ROL'OS room type id, mirror id) → unit name.
+        const nameById = new Map<string, string>();
+        (rolosRooms || []).forEach((r) => {
+          if (r.id && r.name) nameById.set(String(r.id), String(r.name));
+        });
+        (hfRooms || []).forEach((r) => {
+          if (r.id && r.name) nameById.set(String(r.id), String(r.name));
+          if (r.linked_rolos_id && r.name) nameById.set(String(r.linked_rolos_id), String(r.name));
+        });
+
+        const next = new Map<string, Map<string, BookedCell>>();
+        const addNight = (roomName: string, dateStr: string, booking: BookingOverlayRow) => {
+          const key = roomName.trim().toLowerCase();
+          if (!next.has(key)) next.set(key, new Map());
+          const byDate = next.get(key)!;
+          const cell = byDate.get(dateStr) ?? { units: 0, stays: [] };
+          if (!cell.stays.some((s) => s.id === booking.id)) {
+            cell.units += 1;
+            cell.stays.push(booking);
+          }
+          byDate.set(dateStr, cell);
+        };
+
+        (bookings || []).forEach((booking: any) => {
+          const roomIds = new Set<string>();
+          if (booking.room_type_id) roomIds.add(String(booking.room_type_id));
+          (booking.rolos_booking_rooms || []).forEach((row: any) => {
+            if (row?.room_type_id) roomIds.add(String(row.room_type_id));
+          });
+
+          const overlayRow: BookingOverlayRow = {
+            id: booking.id,
+            reference: booking.rol_reference || null,
+            guestName: booking.guest_name || "Guest",
+            status: booking.status || "pending",
+            channel: booking.booking_channel || null,
+          };
+
+          const names = Array.from(roomIds)
+            .map((id) => nameById.get(id))
+            .filter(Boolean) as string[];
+          if (names.length === 0) return;
+
+          // Nights are [check-in, check-out).
+          const cursor = new Date(`${booking.check_in_date}T00:00:00`);
+          const last = new Date(`${booking.check_out_date}T00:00:00`);
+          while (cursor < last) {
+            const ds = format(cursor, "yyyy-MM-dd");
+            if (ds >= startStr && ds <= endStr) {
+              names.forEach((name) => addNight(name, ds, overlayRow));
+            }
+            cursor.setDate(cursor.getDate() + 1);
+          }
+        });
+
+        setBookedByRoom(next);
+      } catch (err) {
+        console.error("Error loading calendar bookings:", err);
+        if (!cancelled) setBookedByRoom(new Map());
+      }
+    };
+
+    loadBookings();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProperty, currentDate, viewMode]);
+
+  const getBookedInfo = useCallback(
+    (roomName: string, date: Date): BookedCell | null => {
+      const byDate = bookedByRoom.get(roomName.trim().toLowerCase());
+      if (!byDate) return null;
+      return byDate.get(format(date, "yyyy-MM-dd")) ?? null;
+    },
+    [bookedByRoom],
+  );
+
+
+
   const fetchRoomTypes = async (propertyId: string) => {
     try {
       // Room types are now derived from selectedPropertyData.amenities.room_types
