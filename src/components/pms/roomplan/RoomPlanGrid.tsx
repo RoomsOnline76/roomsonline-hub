@@ -112,11 +112,23 @@ interface PlanRow {
   bookings: RoomPlanBooking[];
 }
 
-const bookingBelongsToType = (booking: RoomPlanBooking, type: RoomPlanRoomType, typeRooms: RoomPlanRoom[]) => {
+const bookingBelongsToType = (
+  booking: RoomPlanBooking,
+  type: RoomPlanRoomType,
+  typeRooms: RoomPlanRoom[],
+  placedRoomIds?: Set<string>
+) => {
+  const assigned = booking.rolos_room_ids || [];
+  // Once a stay sits in known units, those units are the only place it may draw.
+  // A stale room_type_id must not paint a second bar under another type — that
+  // reads as a cloned reservation after a drag between units.
+  if (placedRoomIds && assigned.some((roomId) => placedRoomIds.has(roomId))) {
+    return assigned.some((roomId) => typeRooms.some((room) => room.id === roomId));
+  }
   if (booking.room_type_id && (booking.room_type_id === type.id || booking.room_type_id === type.linked_overview_id)) return true;
   // Multi-room stays carry one line per unit; each line's room type gets a bar.
   if (booking.line_room_type_ids?.some((id) => id === type.id || id === type.linked_overview_id)) return true;
-  return !!booking.rolos_room_ids?.some((roomId) => typeRooms.some((room) => room.id === roomId));
+  return !!assigned.some((roomId) => typeRooms.some((room) => room.id === roomId));
 };
 
 
