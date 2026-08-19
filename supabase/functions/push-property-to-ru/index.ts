@@ -45,6 +45,27 @@ import {
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
+
+/**
+ * Field-scoped push metadata for an ARI exchange.
+ *
+ * Certification asks not only that a refresh happened but what it carried. `changed_fields` names
+ * the RU fields inside the payload, `fingerprint` identifies the exact payload so two runs can be
+ * told apart (or proven identical) from the exchange log alone.
+ */
+async function ariPushMeta(
+  pushType: string,
+  changedFields: string[],
+  payload: unknown,
+): Promise<{ push_type: string; changed_fields: string[]; fingerprint: string }> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+  const fingerprint = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 32);
+  return { push_type: pushType, changed_fields: changedFields, fingerprint };
+}
+
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import { loadPropertyDistances } from '../_shared/ruDistances.ts';
 import {
@@ -2340,9 +2361,14 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       bookedNights = sold.dates;
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
 
+      const availMeta = await ariPushMeta(
+        'ari_availability',
+        ['availability.units', 'availability.changeover', 'availability.min_stay'],
+        availEntries,
+      );
       const availAttempt = await invokeRuWithRetry(
         supabase,
-        { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...childAuth },
+        { action: 'push_availability', ru_property_id: ruPropertyId, availability: availEntries, ...availMeta, ...childAuth },
         { label: `push_availability ${ruPropertyId}` },
       );
       result.availability_attempts = availAttempt.attempts;
@@ -2369,7 +2395,17 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
           console.log(`[pushARI] Retrying availability without ${reservedDates.size} reserved day(s) for RU ${ruPropertyId}`);
           const retryAttempt = await invokeRuWithRetry(
             supabase,
-            { action: 'push_availability', ru_property_id: ruPropertyId, availability: retryEntries, ...childAuth },
+            {
+              action: 'push_availability',
+              ru_property_id: ruPropertyId,
+              availability: retryEntries,
+              ...(await ariPushMeta(
+                'ari_availability_reserved_split',
+                ['availability.units', 'availability.changeover', 'availability.min_stay'],
+                retryEntries,
+              )),
+              ...childAuth,
+            },
             { label: `push_availability(reserved-split) ${ruPropertyId}` },
           );
           result.availability_attempts = (result.availability_attempts ?? 0) + retryAttempt.attempts;
@@ -2556,14 +2592,26 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       }
       let priceAttempt = await invokeRuWithRetry(
         supabase,
-        { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[0] ?? outboundPrices, ...childAuth },
+        {
+          action: 'push_prices',
+          ru_property_id: ruPropertyId,
+          prices: priceChunks[0] ?? outboundPrices,
+          ...(await ariPushMeta('ari_prices', ['prices.season_rates', 'prices.currency'], priceChunks[0] ?? outboundPrices)),
+          ...childAuth,
+        },
         { label: `push_prices ${ruPropertyId}` },
       );
       result.prices_attempts = priceAttempt.attempts;
       for (let c = 1; c < priceChunks.length && priceAttempt.ok; c++) {
         const next = await invokeRuWithRetry(
           supabase,
-          { action: 'push_prices', ru_property_id: ruPropertyId, prices: priceChunks[c], ...childAuth },
+          {
+            action: 'push_prices',
+            ru_property_id: ruPropertyId,
+            prices: priceChunks[c],
+            ...(await ariPushMeta('ari_prices_chunk', ['prices.season_rates', 'prices.currency'], priceChunks[c])),
+            ...childAuth,
+          },
           { label: `push_prices ${ruPropertyId} chunk ${c + 1}` },
         );
         result.prices_attempts = (result.prices_attempts ?? 0) + next.attempts;
