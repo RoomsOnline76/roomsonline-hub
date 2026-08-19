@@ -4514,7 +4514,11 @@ Deno.serve(async (req) => {
           : []),
       ];
 
+      // Listing ids were just re-read from the channel — the pull step needs re-grading.
+      await markLedgerStaleForScope(admin, { propertyId: targetPropertyId }, ["pull_listings"], "listings_pulled");
+
       return json({
+
         success: true,
         ru_owner_id: ownerId,
         ru_owner_label: subAccountLabel,
