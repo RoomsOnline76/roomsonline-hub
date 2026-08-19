@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   DEFAULT_RU_API_LOG_FILTERS,
+  RU_BOOKING_CHIPS,
   useRuApiLog,
   type RuApiLogDetail,
   type RuApiLogFilters,
@@ -75,8 +76,22 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
 
 
 
-  const { rows, actions, operations, owners, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
-    useRuApiLog(filters);
+  const {
+    rows,
+    actions,
+    operations,
+    owners,
+    actionCounts,
+    inboundCount,
+    stats,
+    loading,
+    loadingMore,
+    hasMore,
+    error,
+    refresh,
+    loadMore,
+    loadDetail,
+  } = useRuApiLog(filters);
 
 
 
@@ -288,8 +303,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                 <SelectContent>
                   <SelectItem value="all">All operations</SelectItem>
                   {operations.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.value} ({o.count})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -305,8 +320,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                 <SelectContent>
                   <SelectItem value="all">All accounts</SelectItem>
                   {owners.map((o) => (
-                    <SelectItem key={o} value={o}>
-                      {o}
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.value} ({o.count})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -336,8 +351,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                 <SelectContent>
                   <SelectItem value="all">All actions</SelectItem>
                   {actions.map((a) => (
-                    <SelectItem key={a} value={a}>
-                      {a}
+                    <SelectItem key={a.value} value={a.value}>
+                      {a.value} ({a.count})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -387,15 +402,63 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
             </div>
           </div>
 
+          {/* Booking lifecycle jump-offs. Counts come from the whole window, so a verb
+              with a handful of calls is reachable in one click instead of being buried
+              thousands of rows behind the availability and price pulls. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground">Booking exchanges:</span>
+            {RU_BOOKING_CHIPS.map((chip) => {
+              const count = chip.inbound ? inboundCount : actionCounts.get(chip.key) ?? 0;
+              const active = chip.inbound
+                ? filters.direction === "inbound" && filters.action === "all"
+                : filters.action === chip.key;
+              return (
+                <Button
+                  key={chip.key}
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  disabled={count === 0}
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setSearchDraft("");
+                    if (chip.inbound) {
+                      patch({ search: "", action: "all", direction: active ? "all" : "inbound", bookingsOnly: false });
+                    } else {
+                      patch({
+                        search: "",
+                        direction: "all",
+                        bookingsOnly: false,
+                        action: active ? "all" : chip.key,
+                      });
+                    }
+                  }}
+                >
+                  {chip.label}
+                  <span className="ml-1.5 opacity-70">{count}</span>
+                </Button>
+              );
+            })}
+            {RU_BOOKING_CHIPS.every((chip) => (chip.inbound ? inboundCount : actionCounts.get(chip.key) ?? 0) === 0) && (
+              <span className="text-xs text-muted-foreground">
+                none recorded in this window — widen the window
+              </span>
+            )}
+          </div>
+
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
             <span>
-              {stats.total} exchanges loaded
-              {stats.totalCount != null ? ` of ${stats.totalCount} in window` : ""}
+              {stats.totalCount != null
+                ? `${stats.totalCount} exchanges match in window`
+                : "Counting matches…"}
             </span>
-
-            <span>{stats.failures} failed</span>
-            <span>{stats.withResponseId} with ResponseID</span>
-            <span>avg {stats.avgMs} ms</span>
+            <span>·</span>
+            <span>
+              showing the newest {stats.total}
+              {stats.truncated ? " — load more for older" : ""}
+            </span>
+            <span>{stats.failures} failed (shown)</span>
+            <span>{stats.withResponseId} with ResponseID (shown)</span>
+            <span>avg {stats.avgMs} ms (shown)</span>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -408,7 +471,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
             </div>
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No exchanges match these filters.
+              No exchanges match these filters. Nothing was recorded for this combination in
+              the selected window — try a wider window or clear the filters.
             </p>
           ) : (
             <ScrollArea className="h-[560px] rounded-md border">
