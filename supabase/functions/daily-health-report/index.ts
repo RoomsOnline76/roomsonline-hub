@@ -28,7 +28,9 @@ async function generateAIDigest(
     recovered: Array<{ action: string; last_failure_at: string | null }>;
     top_errors: Array<{ action: string; code: string; count: number; sample: string; recovered: boolean }>;
     rate_deferrals: number;
-    setup_gaps: Array<{ reason: string; count: number; properties: string[] }>;
+    setup_gaps: Array<{ reason: string; count: number; properties: string[]; kind?: 'setup' | 'account' }>;
+    reconciled: Array<{ reason: string; count: number }>;
+
     blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
     blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
   } | null,
