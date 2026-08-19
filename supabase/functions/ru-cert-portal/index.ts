@@ -5242,7 +5242,10 @@ Deno.serve(async (req) => {
         const candidate = (pr as any)?.owner_email ?? null;
         if (candidate && !isInternalLogin(candidate)) {
           ownerEmail = candidate;
+          ownerEmailSource = "this property's owner email";
           ownerName = ownerName || ((pr as any)?.owner_name ?? pr?.name ?? "Property Owner");
+        } else if (candidate) {
+          internalLoginRejected = internalLoginRejected ?? candidate;
         }
       }
 
