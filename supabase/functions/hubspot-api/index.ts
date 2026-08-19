@@ -1,0 +1,566 @@
+// ============================================================================
+// HUBSPOT API v1.0 — owner-scoped CRM add-on (free, optional, isolated)
+//
+// This function is the ONLY place HubSpot credentials are read or used.
+// It is NOT a PMS adapter: it never touches availability, rates, pms_mappings
+// or any booking/calendar surface. Tokens never leave this function.
+// ============================================================================
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3.23.8";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+const HUBSPOT_BASE = "https://api.hubapi.com";
+const SERVICE = "hubspot";
+
+const requestSchema = z.object({
+  action: z.enum([
+    "get_status",
+    "save_credentials",
+    "set_enabled",
+    "disconnect",
+    "test_connection",
+    "upsert_company",
+    "upsert_contact",
+    "create_or_update_deal",
+    "sync_owner",
+  ]),
+  owner_id: z.string().uuid().optional(),
+  portal_id: z.string().trim().min(1).max(64).optional(),
+  access_token: z.string().trim().min(10).max(512).optional(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.unknown()).optional(),
+  company: z
+    .object({
+      name: z.string().trim().min(1).max(255),
+      domain: z.string().trim().max(255).optional(),
+      phone: z.string().trim().max(64).optional(),
+      city: z.string().trim().max(120).optional(),
+      country: z.string().trim().max(120).optional(),
+      description: z.string().trim().max(2000).optional(),
+    })
+    .optional(),
+  contact: z
+    .object({
+      email: z.string().email().max(255),
+      firstname: z.string().trim().max(120).optional(),
+      lastname: z.string().trim().max(120).optional(),
+      phone: z.string().trim().max(64).optional(),
+      country: z.string().trim().max(120).optional(),
+    })
+    .optional(),
+  deal: z
+    .object({
+      booking_id: z.string().trim().min(1).max(120),
+      dealname: z.string().trim().min(1).max(255),
+      amount: z.number().nonnegative().optional(),
+      currency: z.string().trim().max(8).optional(),
+      status: z.string().trim().max(64).optional(),
+      closedate: z.string().trim().max(40).optional(),
+      contact_email: z.string().email().max(255).optional(),
+    })
+    .optional(),
+});
+
+type Json = Record<string, unknown>;
+
+const ok = (data: Json) =>
+  new Response(JSON.stringify({ success: true, data }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const fail = (error: string, status = 400, extra: Json = {}) =>
+  new Response(JSON.stringify({ success: false, error, ...extra }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+/** Map an internal reservation status onto a HubSpot default pipeline stage. */
+const DEAL_STAGE_MAP: Record<string, string> = {
+  enquiry: "appointmentscheduled",
+  pending: "appointmentscheduled",
+  provisional: "qualifiedtobuy",
+  confirmed: "contractsent",
+  checked_in: "closedwon",
+  checked_out: "closedwon",
+  completed: "closedwon",
+  cancelled: "closedlost",
+  no_show: "closedlost",
+};
+
+function resolveStage(status: string | undefined, config: Json): string {
+  const overrides = (config?.deal_stages as Record<string, string> | undefined) || {};
+  const key = (status || "confirmed").toLowerCase();
+  return overrides[key] || DEAL_STAGE_MAP[key] || "appointmentscheduled";
+}
+
+interface OwnerIntegration {
+  id: string;
+  owner_id: string;
+  enabled: boolean;
+  portal_id: string | null;
+  access_token: string | null;
+  sync_status: string;
+  last_sync_at: string | null;
+  last_error: string | null;
+  config: Json;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  try {
+    const parsed = requestSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return fail("Invalid request", 400, { details: parsed.error.flatten().fieldErrors });
+    }
+    const body = parsed.data;
+
+    // ---- Identity -----------------------------------------------------------
+    // Owner-scoped actions require a signed-in caller. Server-to-server sync
+    // calls (service-role key) may pass owner_id explicitly.
+    const authHeader = req.headers.get("Authorization") || "";
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const isServiceCall = bearer === serviceKey;
+
+    let ownerId: string | null = null;
+    let isStaff = false;
+
+    if (isServiceCall) {
+      ownerId = body.owner_id ?? null;
+    } else {
+      if (!bearer) return fail("Authentication required", 401);
+      const { data: userData, error: userErr } = await admin.auth.getUser(bearer);
+      if (userErr || !userData?.user) return fail("Invalid session", 401);
+      const callerId = userData.user.id;
+
+      const { data: roles } = await admin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", callerId);
+      isStaff = (roles || []).some((r: { role: string }) =>
+        ["admin", "dev", "fearless_leader"].includes(r.role),
+      );
+      ownerId = isStaff && body.owner_id ? body.owner_id : callerId;
+    }
+
+    if (!ownerId) return fail("owner_id is required", 400);
+
+    // ---- Load the owner row -------------------------------------------------
+    const { data: rowRaw, error: rowErr } = await admin
+      .from("owner_integrations")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .eq("service", SERVICE)
+      .maybeSingle();
+    if (rowErr) return fail(`Could not read integration: ${rowErr.message}`, 500);
+
+    const row = rowRaw as (OwnerIntegration & { access_token: string | null }) | null;
+
+    const statusPayload = (r: typeof row) => ({
+      owner_id: ownerId,
+      service: SERVICE,
+      enabled: r?.enabled ?? false,
+      connected: Boolean(r?.access_token),
+      portal_id: r?.portal_id ?? null,
+      sync_status: r?.sync_status ?? "pending",
+      last_sync_at: r?.last_sync_at ?? null,
+      last_error: r?.last_error ?? null,
+      config: r?.config ?? {},
+    });
+
+    const decryptToken = async (): Promise<string | null> => {
+      if (!row?.access_token) return null;
+      const { data, error } = await admin.rpc("decrypt_sensitive_text", {
+        encrypted_data: row.access_token,
+      });
+      if (error) {
+        console.error("[hubspot-api] token decrypt failed:", error.message);
+        return null;
+      }
+      return (data as string) || null;
+    };
+
+    const hubspot = async (
+      token: string,
+      path: string,
+      init: RequestInit = {},
+    ): Promise<{ ok: boolean; status: number; body: unknown }> => {
+      const res = await fetch(`${HUBSPOT_BASE}${path}`, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          ...(init.headers as Record<string, string> | undefined),
+        },
+      });
+      const text = await res.text();
+      let payload: unknown = text;
+      try {
+        payload = text ? JSON.parse(text) : null;
+      } catch {
+        /* keep raw text */
+      }
+      if (!res.ok) {
+        console.error(`[hubspot-api] ${path} failed [${res.status}]: ${text.slice(0, 500)}`);
+      }
+      return { ok: res.ok, status: res.status, body: payload };
+    };
+
+    const markSync = async (status: "ok" | "error", error?: string) => {
+      await admin
+        .from("owner_integrations")
+        .update({
+          sync_status: status,
+          last_sync_at: new Date().toISOString(),
+          last_error: status === "error" ? (error || "Unknown error").slice(0, 500) : null,
+        })
+        .eq("owner_id", ownerId)
+        .eq("service", SERVICE);
+    };
+
+    /** Guard used by every sync action: enabled + credentials present. */
+    const requireActive = async (): Promise<
+      { token: string; config: Json } | Response
+    > => {
+      if (!row?.enabled) return fail("HubSpot is not enabled for this owner", 409, { skipped: true });
+      const token = await decryptToken();
+      if (!token) return fail("HubSpot credentials are missing", 409, { skipped: true });
+      return { token, config: (row.config || {}) as Json };
+    };
+
+    // ---- Actions ------------------------------------------------------------
+    switch (body.action) {
+      case "get_status":
+        return ok(statusPayload(row));
+
+      case "save_credentials": {
+        if (!body.access_token) return fail("access_token is required", 400);
+
+        // Verify before persisting — never store a token we cannot use.
+        const probe = await hubspot(body.access_token, "/crm/v3/objects/companies?limit=1");
+        if (!probe.ok) {
+          return ok({
+            ...statusPayload(row),
+            tested: true,
+            test_ok: false,
+            status: probe.status,
+            message:
+              probe.status === 401 || probe.status === 403
+                ? "HubSpot rejected that token. Check the Private App token and its CRM scopes."
+                : `HubSpot returned ${probe.status}.`,
+          });
+        }
+
+        const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", {
+          plaintext: body.access_token,
+        });
+        if (encErr) return fail(`Could not store credentials: ${encErr.message}`, 500);
+
+        const payload = {
+          owner_id: ownerId,
+          service: SERVICE,
+          enabled: true,
+          portal_id: body.portal_id ?? row?.portal_id ?? null,
+          access_token: enc,
+          sync_status: "ok",
+          last_error: null,
+          config: { ...(row?.config || {}), ...(body.config || {}) },
+        };
+
+        const { data: saved, error: saveErr } = await admin
+          .from("owner_integrations")
+          .upsert(payload, { onConflict: "owner_id,service" })
+          .select("*")
+          .single();
+        if (saveErr) return fail(`Could not save integration: ${saveErr.message}`, 500);
+
+        return ok({ ...statusPayload(saved as typeof row), tested: true, test_ok: true });
+      }
+
+      case "set_enabled": {
+        const enabled = body.enabled === true;
+        if (enabled && !row?.access_token) {
+          return fail("Add and test a HubSpot token before enabling", 409);
+        }
+        const { data: saved, error } = await admin
+          .from("owner_integrations")
+          .upsert(
+            {
+              owner_id: ownerId,
+              service: SERVICE,
+              enabled,
+              config: { ...(row?.config || {}), ...(body.config || {}) },
+            },
+            { onConflict: "owner_id,service" },
+          )
+          .select("*")
+          .single();
+        if (error) return fail(`Could not update integration: ${error.message}`, 500);
+        return ok(statusPayload(saved as typeof row));
+      }
+
+      case "disconnect": {
+        const { data: saved, error } = await admin
+          .from("owner_integrations")
+          .upsert(
+            {
+              owner_id: ownerId,
+              service: SERVICE,
+              enabled: false,
+              access_token: null,
+              refresh_token: null,
+              portal_id: null,
+              sync_status: "pending",
+              last_error: null,
+            },
+            { onConflict: "owner_id,service" },
+          )
+          .select("*")
+          .single();
+        if (error) return fail(`Could not disconnect: ${error.message}`, 500);
+        return ok(statusPayload(saved as typeof row));
+      }
+
+      case "test_connection": {
+        const token = body.access_token || (await decryptToken());
+        if (!token) return fail("No HubSpot token on file", 409);
+        const probe = await hubspot(token, "/crm/v3/objects/companies?limit=1");
+        if (!probe.ok) {
+          if (row) await markSync("error", `Connection test failed (${probe.status})`);
+          return ok({
+            test_ok: false,
+            status: probe.status,
+            message:
+              probe.status === 401 || probe.status === 403
+                ? "HubSpot rejected the token. Check its CRM scopes."
+                : `HubSpot returned ${probe.status}.`,
+            details: probe.body,
+          });
+        }
+        if (row) await markSync("ok");
+        return ok({ test_ok: true, status: probe.status });
+      }
+
+      case "upsert_company": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.company) return fail("company is required", 400);
+
+        const props: Json = {
+          name: body.company.name,
+          ...(body.company.domain ? { domain: body.company.domain } : {}),
+          ...(body.company.phone ? { phone: body.company.phone } : {}),
+          ...(body.company.city ? { city: body.company.city } : {}),
+          ...(body.company.country ? { country: body.company.country } : {}),
+          ...(body.company.description ? { description: body.company.description } : {}),
+        };
+
+        // Search by name first so repeated saves update instead of duplicating.
+        const search = await hubspot(active.token, "/crm/v3/objects/companies/search", {
+          method: "POST",
+          body: JSON.stringify({
+            limit: 1,
+            properties: ["name"],
+            filterGroups: [
+              {
+                filters: [{ propertyName: "name", operator: "EQ", value: body.company.name }],
+              },
+            ],
+          }),
+        });
+
+        const existingId =
+          search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id;
+
+        const res = existingId
+          ? await hubspot(active.token, `/crm/v3/objects/companies/${existingId}`, {
+              method: "PATCH",
+              body: JSON.stringify({ properties: props }),
+            })
+          : await hubspot(active.token, "/crm/v3/objects/companies", {
+              method: "POST",
+              body: JSON.stringify({ properties: props }),
+            });
+
+        if (!res.ok) {
+          await markSync("error", `Company sync failed (${res.status})`);
+          return fail("HubSpot company sync failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({
+          company_id: (res.body as { id?: string })?.id ?? existingId ?? null,
+          created: !existingId,
+        });
+      }
+
+      case "upsert_contact": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.contact) return fail("contact is required", 400);
+
+        const props: Json = {
+          email: body.contact.email,
+          ...(body.contact.firstname ? { firstname: body.contact.firstname } : {}),
+          ...(body.contact.lastname ? { lastname: body.contact.lastname } : {}),
+          ...(body.contact.phone ? { phone: body.contact.phone } : {}),
+          ...(body.contact.country ? { country: body.contact.country } : {}),
+        };
+
+        // HubSpot supports idempotent create; a 409 means it already exists.
+        let res = await hubspot(active.token, "/crm/v3/objects/contacts", {
+          method: "POST",
+          body: JSON.stringify({ properties: props }),
+        });
+        let contactId = (res.body as { id?: string })?.id ?? null;
+        let created = res.ok;
+
+        if (!res.ok && res.status === 409) {
+          const search = await hubspot(active.token, "/crm/v3/objects/contacts/search", {
+            method: "POST",
+            body: JSON.stringify({
+              limit: 1,
+              properties: ["email"],
+              filterGroups: [
+                {
+                  filters: [
+                    { propertyName: "email", operator: "EQ", value: body.contact.email },
+                  ],
+                },
+              ],
+            }),
+          });
+          contactId =
+            (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id ?? null;
+          created = false;
+          if (contactId) {
+            res = await hubspot(active.token, `/crm/v3/objects/contacts/${contactId}`, {
+              method: "PATCH",
+              body: JSON.stringify({ properties: props }),
+            });
+          }
+        }
+
+        if (!res.ok) {
+          await markSync("error", `Contact sync failed (${res.status})`);
+          return fail("HubSpot contact sync failed", res.status, { details: res.body });
+        }
+        await markSync("ok");
+        return ok({ contact_id: contactId, created });
+      }
+
+      case "create_or_update_deal": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.deal) return fail("deal is required", 400);
+
+        const pipeline = (active.config.pipeline_id as string) || "default";
+        const props: Json = {
+          dealname: body.deal.dealname,
+          pipeline,
+          dealstage: resolveStage(body.deal.status, active.config),
+          ...(body.deal.amount != null ? { amount: String(body.deal.amount) } : {}),
+          ...(body.deal.closedate ? { closedate: body.deal.closedate } : {}),
+        };
+
+        // Reservation reference lives in the deal name so repeated pushes match.
+        const search = await hubspot(active.token, "/crm/v3/objects/deals/search", {
+          method: "POST",
+          body: JSON.stringify({
+            limit: 1,
+            properties: ["dealname"],
+            filterGroups: [
+              {
+                filters: [
+                  {
+                    propertyName: "dealname",
+                    operator: "CONTAINS_TOKEN",
+                    value: body.deal.booking_id,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+        const existingId =
+          search.ok && (search.body as { results?: Array<{ id: string }> })?.results?.[0]?.id;
+
+        const res = existingId
+          ? await hubspot(active.token, `/crm/v3/objects/deals/${existingId}`, {
+              method: "PATCH",
+              body: JSON.stringify({ properties: props }),
+            })
+          : await hubspot(active.token, "/crm/v3/objects/deals", {
+              method: "POST",
+              body: JSON.stringify({ properties: props }),
+            });
+
+        if (!res.ok) {
+          await markSync("error", `Deal sync failed (${res.status})`);
+          return fail("HubSpot deal sync failed", res.status, { details: res.body });
+        }
+
+        const dealId = (res.body as { id?: string })?.id ?? existingId ?? null;
+
+        // Best-effort association with the guest contact.
+        if (dealId && body.deal.contact_email) {
+          const search2 = await hubspot(active.token, "/crm/v3/objects/contacts/search", {
+            method: "POST",
+            body: JSON.stringify({
+              limit: 1,
+              properties: ["email"],
+              filterGroups: [
+                {
+                  filters: [
+                    { propertyName: "email", operator: "EQ", value: body.deal.contact_email },
+                  ],
+                },
+              ],
+            }),
+          });
+          const contactId =
+            (search2.body as { results?: Array<{ id: string }> })?.results?.[0]?.id ?? null;
+          if (contactId) {
+            await hubspot(
+              active.token,
+              `/crm/v4/objects/deals/${dealId}/associations/default/contacts/${contactId}`,
+              { method: "PUT" },
+            );
+          }
+        }
+
+        await markSync("ok");
+        return ok({ deal_id: dealId, created: !existingId });
+      }
+
+      case "sync_owner": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+
+        // Soft sync: verify the token and confirm the portal is reachable.
+        const probe = await hubspot(active.token, "/crm/v3/objects/companies?limit=1");
+        if (!probe.ok) {
+          await markSync("error", `Sync failed (${probe.status})`);
+          return fail("HubSpot sync failed", probe.status, { details: probe.body });
+        }
+        await markSync("ok");
+        return ok({ synced: true, status: probe.status });
+      }
+    }
+
+    return fail(`Unknown action: ${body.action}`, 400);
+  } catch (err) {
+    console.error("[hubspot-api] Error:", err);
+    return fail(err instanceof Error ? err.message : "Internal error", 500);
+  }
+});
