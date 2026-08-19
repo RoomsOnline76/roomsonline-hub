@@ -194,6 +194,7 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const ledgerEnabled = ledgerFlagQuery.data === true;
 
   const seededOnce = useRef<string | null>(null);
+  const gradedOnce = useRef<string | null>(null);
   const ledgerQuery = useQuery({
     queryKey: ["channel-step-ledger", propertyId],
     enabled: !!propertyId && ledgerEnabled,
@@ -201,18 +202,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<ChannelLedgerSnapshot | null> => {
       const id = propertyId as string;
-      const snapshot = await fetchChannelLedger(id);
+      let snapshot = await fetchChannelLedger(id);
       if (!snapshot?.enabled) return snapshot;
-      if (snapshot.steps.length > 0) return snapshot;
-      // Seed exactly once per property — a repeat mount must never re-seed.
-      if (seededOnce.current === id) return snapshot;
-      seededOnce.current = id;
-      return (await seedChannelLedger(id)) ?? snapshot;
+      if (snapshot.steps.length === 0) {
+        // Seed exactly once per property — a repeat mount must never re-seed.
+        if (seededOnce.current === id) return snapshot;
+        seededOnce.current = id;
+        snapshot = (await seedChannelLedger(id)) ?? snapshot;
+      }
+      /**
+       * Seeding only creates `pending` rows. Until something grades them the ledger
+       * holds no verdicts, so grade once (local only — never a channel probe) so the
+       * first visit records real verdicts instead of 14 empty rows.
+       */
+      const hasVerdict = snapshot.steps.some((step) => ledgerHasVerdict(step));
+      if (!hasVerdict && gradedOnce.current !== id) {
+        gradedOnce.current = id;
+        snapshot = (await recheckChannelLedger(id, { allowChannelProbe: false })) ?? snapshot;
+      }
+      return snapshot;
     },
   });
 
   const ledgerSteps = ledgerQuery.data?.steps ?? [];
-  const ledgerActive = ledgerEnabled && ledgerQuery.data?.enabled === true && ledgerSteps.length > 0;
+  /**
+   * The ledger only drives the wizard once it actually holds a verdict. Ungraded
+   * `pending` rows must not switch the wizard off its local grading path.
+   */
+  const ledgerActive =
+    ledgerEnabled &&
+    ledgerQuery.data?.enabled === true &&
+    ledgerSteps.some((step) => ledgerHasVerdict(step));
   const ledgerByStep = useMemo(() => {
     const map = new Map<string, ChannelLedgerStep>();
     for (const step of ledgerSteps) map.set(String(step.step_key), step);
