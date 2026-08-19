@@ -615,14 +615,16 @@ Deno.serve(async (req) => {
       const ownerIds = Array.from(roster.keys());
 
 
-      // One canonical way to name a sub-account everywhere it is reported.
+      // One canonical way to name a sub-account everywhere it is reported. The
+      // account IS its portal login: our local `owner_email` is the PROPERTY owner's
+      // address and the roster's `<Email>` can lag behind a login rename, so neither
+      // may be printed as a second "contact" — that made OwnerID 741765 read as
+      // connect@ "(contact rooms@)" when its contact address is also connect@.
       const accountLabel = (ownerId: string) => {
         const r = roster.get(ownerId);
         const acct = boundByOwner.get(ownerId);
         const login = acct?.login_email || r?.portal_email || credByOwner.get(ownerId) || null;
-        const contact = acct?.owner_email || r?.portal_contact_email || null;
-        const base = `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
-        return contact && contact !== login ? `${base} (contact ${contact})` : base;
+        return `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
       };
 
 
@@ -718,7 +720,10 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
           owner_email: loginEmail,
           login_email: loginEmail,
-          contact_email: acct?.owner_email ?? rosterEntry?.portal_contact_email ?? null,
+          // Contact address of the SUB-ACCOUNT — defaults to its login, since a
+          // stale roster `<Email>` is not a different address, just an old one.
+          contact_email:
+            acct?.login_email ?? rosterEntry?.portal_email ?? rosterEntry?.portal_contact_email ?? null,
           owner_label: accountLabel(ownerId),
           bound,
           has_keys: hasKeys,
