@@ -1579,7 +1579,7 @@ const CalendarAccommodation = () => {
     }
     
     return rateTypes;
-  }, [pmsData, selectedPropertyData]);
+  }, [pmsData, selectedPropertyData, isNativeRolosProperty, nativeRatePlans]);
 
   // Set only rate types with data as selected when rateTypeOptions changes
   useEffect(() => {
