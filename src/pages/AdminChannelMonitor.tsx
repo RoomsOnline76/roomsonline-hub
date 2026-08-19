@@ -157,6 +157,8 @@ const relativeAge = (iso: string) => {
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
+  // Shared readiness snapshot (also feeding the status strip) — no extra queries.
+  const railStatus = useChannelRailStatus();
   const [params, setParams] = useSearchParams();
   const [target, setTarget] = useState<{ row: ChannelPropertyRow; mode: "archive" | "reactivate" } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
