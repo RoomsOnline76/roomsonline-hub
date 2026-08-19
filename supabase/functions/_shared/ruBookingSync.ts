@@ -29,6 +29,8 @@ export interface RuBookingRef {
 
 export interface RuPushResult {
   ok: boolean;
+  /** True when the channel's rate window parked the call — it will complete from the queue. */
+  deferred?: boolean;
   /** Machine code for the caller to surface: RU_CANCEL_NOT_ALLOWED, RU_ERROR, … */
   code?: string;
   message?: string;
@@ -197,9 +199,9 @@ async function invokeRu(
     traceId?: string | null;
     parentAction?: string | null;
   },
-): Promise<{ ok: boolean; code?: string; message?: string }> {
+): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string }> {
   const startedAt = Date.now();
-  const finish = async (result: { ok: boolean; code?: string; message?: string }) => {
+  const finish = async (result: { ok: boolean; deferred?: boolean; code?: string; message?: string }) => {
     await logRuSyncRun(supabase, {
       action,
       propertyId: log?.propertyId ?? null,
@@ -208,7 +210,7 @@ async function invokeRu(
       errorCode: result.code ?? null,
       errorMessage: result.message ?? null,
       elapsedMs: Date.now() - startedAt,
-      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null },
+      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null, deferred: result.deferred === true },
     });
     return result;
   };
@@ -230,6 +232,18 @@ async function invokeRu(
         ok: false,
         code: 'RU_MASTER_AUTH_REFUSED',
         message: 'Rentals United answered on master credentials — refused to apply the change.',
+      });
+    }
+    // A 202 from the channel API means the call was parked in the shared queue behind the
+    // one-identical-call-per-minute rule. That is a success in flight, not a delivered push.
+    if (data.queued === true) {
+      return await finish({
+        ok: true,
+        deferred: true,
+        code: 'RU_QUEUED',
+        message: typeof data.message === 'string'
+          ? data.message
+          : 'Channel rate limit reached — the change is queued and will reach the channel within a minute.',
       });
     }
     return await finish({ ok: true });
@@ -296,7 +310,7 @@ export async function cancelRuReservation(
       ...auth,
     }, logCtx);
     return cancelled.ok
-      ? { ok: true, method: 'cancel_reservation' }
+      ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation' }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
   }
 
@@ -323,6 +337,17 @@ export async function modifyRuStay(
     client_price?: number | null;
     already_paid?: number | null;
     arrival_time?: string | null;
+  },
+  /**
+   * State the reservation currently has AT THE CHANNEL. Supply this whenever the local record has
+   * already been rewritten (a unit move, a date change saved before the push) — otherwise RU is
+   * told the new state is also the current state and rejects or misapplies the modification.
+   */
+  current?: {
+    room_type_id?: string | null;
+    ru_property_id?: string | null;
+    date_from?: string | null;
+    date_to?: string | null;
   },
 ): Promise<RuPushResult> {
   const traceId = newRuTraceId();
@@ -359,6 +384,11 @@ export async function modifyRuStay(
   }
 
   const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+  const currentRuPropertyId = current?.ru_property_id
+    ? String(current.ru_property_id)
+    : current?.room_type_id
+      ? await resolveRuPropertyId(supabase, booking, current.room_type_id)
+      : null;
   if (!ruPropertyId) {
     await logRuNotAttempted(supabase, {
       trace_id: traceId,
@@ -377,9 +407,9 @@ export async function modifyRuStay(
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
-      ru_property_id: ruPropertyId,
-      date_from: booking.check_in_date,
-      date_to: booking.check_out_date,
+      ru_property_id: currentRuPropertyId || ruPropertyId,
+      date_from: current?.date_from || booking.check_in_date,
+      date_to: current?.date_to || booking.check_out_date,
     },
     modify_stay: {
       ru_property_id: ruPropertyId,
@@ -396,11 +426,16 @@ export async function modifyRuStay(
     ruPropertyId,
     traceId,
     parentAction: 'ruBookingSync:modify',
-    details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
+    details: {
+      booking_id: booking.id,
+      reservation_id: String(booking.external_reservation_id),
+      from_ru_property_id: currentRuPropertyId || ruPropertyId,
+      to_ru_property_id: ruPropertyId,
+    },
   });
 
 
   return result.ok
-    ? { ok: true, method: 'modify_stay' }
+    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay' }
     : { ok: false, method: 'modify_stay', code: result.code, message: result.message };
 }
