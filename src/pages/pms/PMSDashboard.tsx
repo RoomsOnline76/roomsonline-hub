@@ -1713,12 +1713,17 @@ export default function PMSDashboard() {
       const currentRooms = booking.rolos_room_ids || [];
       const nextRooms = roomId ? [roomId] : [];
       const roomsChanged = currentRooms.join(",") !== nextRooms.join(",");
-      // Moving across room types must re-type the stay, or the old type keeps
-      // showing the night as sold and the new one keeps selling it.
-      if (roomsChanged || roomTypeChanged) {
+      // The unit the stay lands on owns the truth about its room type. Deriving the
+      // type from the target unit (not from the row it was dropped on) stops the
+      // stay from being typed to one room type while sitting in another unit —
+      // that mismatch draws the bar twice (once per type) and reads as a clone.
+      const targetRoom = roomId ? rooms.find((r) => r.id === roomId) : null;
+      const canonicalTypeId = targetRoom?.room_type_id || roomTypeId || booking.room_type_id || null;
+      const typeChanged = !!canonicalTypeId && canonicalTypeId !== booking.room_type_id;
+      if (roomsChanged || typeChanged || roomTypeChanged) {
         const update: Record<string, unknown> = {};
         if (roomsChanged) update.rolos_room_ids = nextRooms.length ? nextRooms : null;
-        if (roomTypeChanged && roomTypeId) update.room_type_id = roomTypeId;
+        if (canonicalTypeId) update.room_type_id = canonicalTypeId;
         const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
         if (error) throw error;
 
@@ -1731,13 +1736,17 @@ export default function PMSDashboard() {
             .eq("booking_id", booking.id);
           const rows = (lines || []) as { id: string; room_id: string | null }[];
           const originRoomId = currentRooms[0] || null;
+          // Single-line stays always retarget. Multi-room stays move the line that
+          // held the origin unit, else the first line with no unit yet.
           const targetLine =
             rows.length === 1
               ? rows[0]
-              : rows.find((r) => originRoomId && r.room_id === originRoomId);
+              : rows.find((r) => originRoomId && r.room_id === originRoomId) ||
+                rows.find((r) => !r.room_id) ||
+                null;
           if (targetLine) {
             const lineUpdate: Record<string, unknown> = { room_id: roomId };
-            if (roomTypeId) lineUpdate.room_type_id = roomTypeId;
+            if (canonicalTypeId) lineUpdate.room_type_id = canonicalTypeId;
             const { error: lineError } = await supabase
               .from("rolos_booking_rooms")
               .update(lineUpdate)
