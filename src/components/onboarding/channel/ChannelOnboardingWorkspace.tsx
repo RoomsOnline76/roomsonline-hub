@@ -1134,8 +1134,19 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           )}
         </section>
       </div>
+
+      <OwnerAccountConfirmDialog
+        open={ownerPlanOpen}
+        plan={ownerPlan}
+        loading={ownerPlanLoading}
+        submitting={busy === "ensure_owner"}
+        onConfirm={() => void confirmOwnerPlan()}
+        onCorrect={correctOwnerDetails}
+        onClose={() => setOwnerPlanOpen(false)}
+      />
     </div>
   );
+
 }
 
 function ScoreChip({
