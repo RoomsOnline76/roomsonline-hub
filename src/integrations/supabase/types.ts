@@ -16650,6 +16650,14 @@ export type Database = {
         Args: { _property_id: string; _room_type_id: string }
         Returns: number
       }
+      ru_api_log_facets: {
+        Args: { _days?: number }
+        Returns: {
+          count: number
+          kind: string
+          value: string
+        }[]
+      }
       ru_claim_queued_call: {
         Args: never
         Returns: {
