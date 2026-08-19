@@ -319,12 +319,25 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   const loadMore = useCallback(() => fetchPage(rows.length), [fetchPage, rows.length]);
 
   const stats = useMemo(() => {
-    const failures = rows.filter((r) => !r.success).length;
+    // Three buckets: deferrals are throttle bookkeeping and are counted separately so the
+    // failure number only ever reflects real transport faults.
+    const deferred = rows.filter((r) => ruApiLogOutcomeOf(r) === "deferred").length;
+    const failures = rows.filter((r) => ruApiLogOutcomeOf(r) === "failure").length;
+    const completed = rows.length - deferred - failures;
     const withResponseId = rows.filter((r) => !!r.response_id).length;
     const avgMs = rows.length
       ? Math.round(rows.reduce((sum, r) => sum + (r.elapsed_ms ?? 0), 0) / rows.length)
       : 0;
-    return { total: rows.length, failures, withResponseId, avgMs, truncated: hasMore, totalCount };
+    return {
+      total: rows.length,
+      completed,
+      deferred,
+      failures,
+      withResponseId,
+      avgMs,
+      truncated: hasMore,
+      totalCount,
+    };
   }, [rows, hasMore, totalCount]);
 
   return {
