@@ -48,6 +48,7 @@ import { focusRequirementField, focusUnitCard } from "@/lib/requirementFocus";
 import { pushPropertyToRu } from "@/lib/ruPushDriver";
 import { extractFunctionError } from "@/lib/functionError";
 import { OnboardingTobiPanel } from "@/components/onboarding/OnboardingTobiPanel";
+import { HubSpotIntegrationCard } from "@/components/integrations/HubSpotIntegrationCard";
 import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
