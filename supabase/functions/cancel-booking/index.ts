@@ -15,6 +15,8 @@ interface CancelRequest {
   /** Structured category used for cancellation analytics. */
   reason_category?: string;
   cancel_rooms?: number[]; // Optional: specific room indices to cancel
+  /** Per-unit cancellation: ids of `rolos_booking_rooms` lines to drop. */
+  cancel_room_line_ids?: string[];
   /** RU CancelTypeID: 1 = property provider (default), 2 = guest. */
   cancel_type_id?: number;
 }
@@ -58,6 +60,7 @@ Deno.serve(async (req) => {
 
     const body: CancelRequest = await req.json();
     const { booking_id, reason, reason_category, cancel_rooms, cancel_type_id } = body;
+    const requestedLineIds = (body.cancel_room_line_ids || []).filter((id) => typeof id === "string" && id);
 
 
     if (!booking_id) {
@@ -100,13 +103,49 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property?.external_system || "none";
     const isRolNative = property?.is_rol_property || externalSystem === "none";
-    const isPartialCancel = cancel_rooms && cancel_rooms.length > 0;
+    // Per-unit cancellation: only a partial cancel while at least one line survives.
+    // Loading the lines first keeps "cancel the last unit" identical to cancelling the stay.
+    let activeLines: {
+      id: string;
+      room_id: string | null;
+      room_type_id: string | null;
+      adults: number | null;
+      children: number | null;
+      teens: number | null;
+      infants: number | null;
+      pets: number | null;
+      rate_charged: number | null;
+    }[] = [];
+    let lineIdsToCancel: string[] = [];
+    if (requestedLineIds.length > 0) {
+      const { data: lines } = await supabase
+        .from("rolos_booking_rooms")
+        .select("id, room_id, room_type_id, adults, children, teens, infants, pets, rate_charged, status")
+        .eq("booking_id", booking_id);
+      activeLines = ((lines || []) as (typeof activeLines[number] & { status: string | null })[])
+        .filter((l) => (l.status || "active") !== "cancelled");
+      lineIdsToCancel = requestedLineIds.filter((id) => activeLines.some((l) => l.id === id));
+      if (lineIdsToCancel.length === 0) {
+        return new Response(
+          JSON.stringify({
+            code: "LINE_NOT_FOUND",
+            message: "Those units are not part of this booking (or are already cancelled).",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+    const remainingLines = activeLines.filter((l) => !lineIdsToCancel.includes(l.id));
+    const isUnitCancel = lineIdsToCancel.length > 0 && remainingLines.length > 0;
+    const isPartialCancel = isUnitCancel || (cancel_rooms && cancel_rooms.length > 0);
 
     // S3a: Rentals United bookings live on ROL'OS-native properties, so they are routed by
     // booking origin, not by the property's PMS. RU must accept the cancel BEFORE we touch
     // the local record — many channels answer status 178 ("cancel it in the sales channel").
     let ruMethod: string | null = null;
-    if (isRuBooking(booking)) {
+    // A channel reservation cannot be partially withdrawn — dropping one unit is a local
+    // change only, so never send a full cancel to the channel here.
+    if (isRuBooking(booking) && !isUnitCancel) {
       const ruResult = await cancelRuReservation(supabase, booking, {
         reason,
         cancelTypeId: cancel_type_id,
@@ -154,7 +193,7 @@ Deno.serve(async (req) => {
 
 
     // For external PMS, attempt to cancel in PMS first
-    if (!isRolNative && externalSystem !== "none" && booking.external_reservation_id) {
+    if (!isRolNative && externalSystem !== "none" && booking.external_reservation_id && !isUnitCancel) {
       // Check PMS tracker for cancel capability
       const { data: tracker } = await supabase
         .from("pms_tracker_status")
@@ -245,19 +284,77 @@ Deno.serve(async (req) => {
       modified_by: user.id,
     };
 
-    if (isPartialCancel) {
-      // Cancel specific rooms only
-      const rooms = booking.rooms && Array.isArray(booking.rooms) ? [...booking.rooms] : [];
-      for (const idx of cancel_rooms) {
-        if (rooms[idx]) {
-          rooms[idx] = { ...rooms[idx], status: "CANCELLED" };
-        }
+    if (isUnitCancel) {
+      // Drop the chosen unit lines and re-derive the stay from what is left, so pax and
+      // total stop reporting the whole party on the remaining units.
+      const { error: lineError } = await supabase
+        .from("rolos_booking_rooms")
+        .update({
+          status: "cancelled",
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: reason,
+        })
+        .in("id", lineIdsToCancel);
+
+      if (lineError) {
+        return new Response(
+          JSON.stringify({
+            code: "UNIT_CANCEL_FAILED",
+            message: lineError.message || "Could not cancel that unit",
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
-      const allCancelled = rooms.every((r: any) => r.status === "CANCELLED");
-      updateData.rooms = rooms;
-      if (allCancelled) {
-        updateData.status = "cancelled";
+
+      const sum = (key: "adults" | "children" | "teens" | "infants" | "pets") =>
+        remainingLines.reduce((t, l) => t + Number(l[key] || 0), 0);
+      const remainingPax = sum("adults") + sum("children") + sum("teens") + sum("infants");
+      if (remainingPax > 0) {
+        updateData.adults = sum("adults");
+        updateData.children = sum("children");
+        updateData.teens = sum("teens");
+        updateData.infants = sum("infants");
+        updateData.pets = sum("pets");
       }
+
+      const cancelledValue = activeLines
+        .filter((l) => lineIdsToCancel.includes(l.id))
+        .reduce((t, l) => t + Number(l.rate_charged || 0), 0);
+      if (cancelledValue > 0) {
+        updateData.total_price = Math.max(0, Number(booking.total_price || 0) - cancelledValue);
+      }
+
+      const cancelledRoomIds = activeLines
+        .filter((l) => lineIdsToCancel.includes(l.id))
+        .map((l) => l.room_id)
+        .filter((id): id is string => !!id);
+      const keptRoomIds = (booking.rolos_room_ids || []).filter(
+        (id: string) => !cancelledRoomIds.includes(id),
+      );
+      updateData.rolos_room_ids = keptRoomIds;
+
+      // The stay's headline room type must still point at a live line.
+      if (!remainingLines.some((l) => l.room_type_id === booking.room_type_id)) {
+        const nextType = remainingLines.find((l) => l.room_type_id)?.room_type_id;
+        if (nextType) updateData.room_type_id = nextType;
+      }
+
+      const notes = Array.isArray(booking.modification_notes) ? booking.modification_notes : [];
+      updateData.modification_notes = [
+        ...notes,
+        {
+          type: "unit_cancelled",
+          at: new Date().toISOString(),
+          by: user.id,
+          reason,
+          cancelled_line_ids: lineIdsToCancel,
+          cancelled_room_ids: cancelledRoomIds,
+          units_remaining: remainingLines.length,
+        },
+      ];
+    } else if (isPartialCancel) {
+      // Legacy index-based path kept for callers that still send cancel_rooms.
+      updateData.status = booking.status;
     } else {
       // Cancel entire booking
       updateData.status = "cancelled";
@@ -428,8 +525,13 @@ Deno.serve(async (req) => {
           reason,
           partial: isPartialCancel,
           cancelled_rooms: cancel_rooms,
+          cancelled_line_ids: lineIdsToCancel,
         },
-        options: { dedupeKey: `email:cancellation:${booking_id}` },
+        options: {
+          dedupeKey: isUnitCancel
+            ? `email:cancellation:${booking_id}:${lineIdsToCancel.join("-")}`
+            : `email:cancellation:${booking_id}`,
+        },
       },
     ]);
     kickWorker();
@@ -438,8 +540,10 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: isPartialCancel
-          ? `${cancel_rooms.length} room(s) cancelled successfully`
+        message: isUnitCancel
+          ? `Unit cancelled — ${remainingLines.length} unit${remainingLines.length === 1 ? "" : "s"} still booked`
+          : isPartialCancel
+          ? `${(cancel_rooms || []).length} room(s) cancelled successfully`
           : ruMethod
             ? "Booking cancelled and withdrawn at the Channel Manager"
             : "Booking cancelled successfully",
