@@ -5326,18 +5326,36 @@ Deno.serve(async (req) => {
         }
       }
 
-      if (!ownerEmail) {
+      const NO_OWNER_EMAIL_MESSAGE = internalLoginRejected
+        ? `${internalLoginRejected} is a shared platform login and cannot become a distribution sub-account login. Set a real owner email on the property, then review this step again.`
+        : "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.";
 
+      if (!ownerEmail) {
+        // The preview never fails: it reports the blocker so the wizard can offer the
+        // correction route instead of a dead-end error toast.
+        if (isPlan) {
+          return json({
+            success: true,
+            plan: {
+              can_create: false,
+              blocked_reason: NO_OWNER_EMAIL_MESSAGE,
+              login_email: null,
+              login_source: "unresolved",
+              rejected_internal_login: internalLoginRejected,
+              scope: portfolioId ? "portfolio" : "property",
+              portfolio_id: portfolioId,
+              portfolio_name: portfolioRow?.name ?? null,
+              property_id: propertyId,
+              outcome: "blocked",
+            },
+          });
+        }
         return json({
           success: false,
-          error: {
-            code: "NO_OWNER_EMAIL",
-            message:
-              "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.",
-
-          },
+          error: { code: "NO_OWNER_EMAIL", message: NO_OWNER_EMAIL_MESSAGE },
         }, 422);
       }
+
 
 
       const contactNameParts = String(ownerName).trim().split(/\s+/);
