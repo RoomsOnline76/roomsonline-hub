@@ -532,12 +532,18 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                 </tbody>
               </table>
               {hasMore && (
-                <div className="flex justify-center border-t p-3">
+                <div className="flex items-center justify-center gap-2 border-t p-3">
                   <Button variant="outline" size="sm" onClick={loadMore} disabled={loadingMore}>
                     {loadingMore ? "Loading…" : "Load older exchanges"}
                   </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {stats.totalCount != null
+                      ? `${Math.max(stats.totalCount - stats.total, 0)} older still to load`
+                      : ""}
+                  </span>
                 </div>
               )}
+
             </ScrollArea>
           )}
 
