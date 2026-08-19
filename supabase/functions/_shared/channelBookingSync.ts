@@ -190,49 +190,51 @@ export async function syncBookingToChannel(
   } else {
     const current = await resolveCurrentListing(supabase, row);
     if (current.absent) {
+      // The channel has no record of this reservation, so there is nothing to modify. The
+      // availability delta below still runs: the nights are ours to close either way.
       result.reservation = 'skipped';
       result.reservation_reason = 'reservation_absent_at_channel';
-      return await finishAri(supabase, request, result, propertyId, change);
-    }
-    const push = await modifyRuStay(
-      supabase,
-      row as never,
-      {
-        date_from: String(row.check_in_date ?? '') || null,
-        date_to: String(row.check_out_date ?? '') || null,
-        number_of_guests: guestCount(row),
-        client_price: row.total_price != null ? Number(row.total_price) : null,
-        already_paid: row.amount_paid != null ? Number(row.amount_paid) : null,
-      },
-      {
-        room_type_id: request.previous?.room_type_id ?? null,
-        // The listing recorded at ingestion is what the channel holds; the local unit mapping may
-        // already have been rewritten by the move we are pushing.
-        ru_property_id: current.listing,
-        date_from: request.previous?.check_in_date ?? null,
-        date_to: request.previous?.check_out_date ?? null,
-      },
-    );
-    result.reservation_method = push.method ?? null;
-    if (push.ok) {
-      result.reservation = push.deferred ? 'queued' : 'pushed';
-      result.deferred = result.deferred || push.deferred === true;
-    } else if (isAbsentAtChannel(push.message)) {
-      result.reservation = 'skipped';
-      result.reservation_reason = 'reservation_absent_at_channel';
-      result.message = push.message ?? null;
     } else {
-      result.reservation = 'failed';
-      result.code = push.code ?? null;
-      result.message = push.message ?? null;
-    }
+      const push = await modifyRuStay(
+        supabase,
+        row as never,
+        {
+          date_from: String(row.check_in_date ?? '') || null,
+          date_to: String(row.check_out_date ?? '') || null,
+          number_of_guests: guestCount(row),
+          client_price: row.total_price != null ? Number(row.total_price) : null,
+          already_paid: row.amount_paid != null ? Number(row.amount_paid) : null,
+        },
+        {
+          room_type_id: request.previous?.room_type_id ?? null,
+          // The listing recorded at ingestion is what the channel holds; the local unit mapping
+          // may already have been rewritten by the move we are pushing.
+          ru_property_id: current.listing,
+          date_from: request.previous?.check_in_date ?? null,
+          date_to: request.previous?.check_out_date ?? null,
+        },
+      );
+      result.reservation_method = push.method ?? null;
+      if (push.ok) {
+        result.reservation = push.deferred ? 'queued' : 'pushed';
+        result.deferred = result.deferred || push.deferred === true;
+      } else if (isAbsentAtChannel(push.message)) {
+        result.reservation = 'skipped';
+        result.reservation_reason = 'reservation_absent_at_channel';
+        result.message = push.message ?? null;
+      } else {
+        result.reservation = 'failed';
+        result.code = push.code ?? null;
+        result.message = push.message ?? null;
+      }
 
-    // A delivered move means the channel now holds the new listing; keep our record of "current"
-    // in step so the next modification does not aim at the listing the stay left.
-    if (push.ok && !push.deferred) {
-      const landed = await resolveRuPropertyId(supabase, row as never);
-      if (landed && landed !== row.channel_listing_id) {
-        await supabase.from('bookings').update({ channel_listing_id: landed }).eq('id', String(row.id));
+      // A delivered move means the channel now holds the new listing; keep our record of
+      // "current" in step so the next modification does not aim at the listing the stay left.
+      if (push.ok && !push.deferred) {
+        const landed = await resolveRuPropertyId(supabase, row as never);
+        if (landed && landed !== row.channel_listing_id) {
+          await supabase.from('bookings').update({ channel_listing_id: landed }).eq('id', String(row.id));
+        }
       }
     }
   }
