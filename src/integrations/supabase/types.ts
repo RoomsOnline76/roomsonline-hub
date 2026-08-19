@@ -1414,6 +1414,106 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_price_coverage_status: {
+        Row: {
+          channel: string
+          channel_listing_id: string | null
+          channel_priced_days: number | null
+          channel_seasons: number | null
+          channel_zero_priced_days: number | null
+          created_at: string
+          details: Json
+          error_message: string | null
+          expected_days: number | null
+          first_gap_date: string | null
+          gap_summary: string | null
+          id: string
+          last_audit_at: string
+          last_repush_at: string | null
+          local_unpriced_days: number | null
+          property_id: string
+          repush_attempts: number
+          room_type_id: string | null
+          unit_name: string | null
+          updated_at: string
+          verdict: string
+          window_from: string | null
+          window_to: string | null
+        }
+        Insert: {
+          channel?: string
+          channel_listing_id?: string | null
+          channel_priced_days?: number | null
+          channel_seasons?: number | null
+          channel_zero_priced_days?: number | null
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          expected_days?: number | null
+          first_gap_date?: string | null
+          gap_summary?: string | null
+          id?: string
+          last_audit_at?: string
+          last_repush_at?: string | null
+          local_unpriced_days?: number | null
+          property_id: string
+          repush_attempts?: number
+          room_type_id?: string | null
+          unit_name?: string | null
+          updated_at?: string
+          verdict?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Update: {
+          channel?: string
+          channel_listing_id?: string | null
+          channel_priced_days?: number | null
+          channel_seasons?: number | null
+          channel_zero_priced_days?: number | null
+          created_at?: string
+          details?: Json
+          error_message?: string | null
+          expected_days?: number | null
+          first_gap_date?: string | null
+          gap_summary?: string | null
+          id?: string
+          last_audit_at?: string
+          last_repush_at?: string | null
+          local_unpriced_days?: number | null
+          property_id?: string
+          repush_attempts?: number
+          room_type_id?: string | null
+          unit_name?: string | null
+          updated_at?: string
+          verdict?: string
+          window_from?: string | null
+          window_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_price_coverage_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "channel_price_coverage_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_price_coverage_status_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_reconciliation_runs: {
         Row: {
           alert_error: string | null

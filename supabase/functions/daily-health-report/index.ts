@@ -1045,6 +1045,41 @@ Deno.serve(async (req) => {
         .slice(0, 5);
 
       /**
+       * Units whose channel pricing is short because ROL'OS itself has unpriced nights. That is an
+       * owner authoring gap, never a code defect, so it joins the setup-gap list.
+       */
+      try {
+        const { data: coverageGaps } = await supabase
+          .from('channel_price_coverage_status')
+          .select('property_id, unit_name, verdict, local_unpriced_days, gap_summary')
+          .in('verdict', ['local_incomplete', 'channel_short'])
+          .limit(50);
+        const byVerdict = new Map<string, { count: number; ids: Set<string> }>();
+        for (const row of (coverageGaps ?? []) as Array<Record<string, unknown>>) {
+          const label = row.verdict === 'local_incomplete'
+            ? 'Units have unpriced nights in the next year (author rates in Rate Plans)'
+            : 'Channel holds fewer priced nights than ROL\'OS — rates being re-sent';
+          const entry = byVerdict.get(label) ?? { count: 0, ids: new Set<string>() };
+          entry.count += 1;
+          entry.ids.add(String(row.property_id));
+          byVerdict.set(label, entry);
+        }
+        if (byVerdict.size > 0) {
+          const coverageIds = [...new Set([...byVerdict.values()].flatMap(v => [...v.ids]))].slice(0, 50);
+          const { data: coverageProps } = await supabase.from('properties').select('id, name').in('id', coverageIds);
+          const nameById = new Map((coverageProps ?? []).map((p: any) => [p.id as string, p.name as string]));
+          for (const [reason, v] of byVerdict.entries()) {
+            setupGaps.push({
+              reason,
+              count: v.count,
+              kind: 'setup' as const,
+              properties: [...v.ids].map(id => nameById.get(id) ?? id.slice(0, 8)).slice(0, 6),
+            });
+          }
+        }
+      } catch (_e) { /* evidence only */ }
+
+      /**
        * Conflicts that were happening in the previous window and have stopped: the reconciliation
        * worked, so the report says so instead of silently dropping the line.
        */

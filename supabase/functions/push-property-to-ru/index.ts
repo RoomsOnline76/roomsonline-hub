@@ -43,6 +43,7 @@ import {
 } from '../_shared/rateResolution.ts';
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
+import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 
@@ -2286,7 +2287,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
@@ -2649,6 +2650,26 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         const priceVerification = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
         result.prices_verification = priceVerification;
         console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
+
+        // Independent coverage audit: derive the answer from the channel's own stored prices for the
+        // next year, not from the seasons we just sent. A read that could not be performed stays
+        // `unverified` instead of quietly passing.
+        try {
+          const coverage = await auditChannelPriceCoverage(supabase, {
+            propertyId: property.id,
+            ruPropertyId,
+            unitName: unit?.name ?? null,
+            roomTypeId: unit?.id ?? null,
+            childAuth,
+          });
+          result.price_coverage_audit = coverage;
+          result.prices_year_verified = coverage.verdict === 'verified';
+          await persistPriceCoverage(supabase, coverage, { details: { trigger: 'post_push' } });
+          console.log(`[pushARI] Price coverage audit RU ${ruPropertyId}: ${coverage.verdict} (${coverage.channel_priced_days}/${coverage.expected_days} nights priced at the channel)`);
+        } catch (coverageErr) {
+          console.warn('[pushARI] Price coverage audit failed:', coverageErr);
+        }
+
         try {
           await supabase.from('sync_logs').insert({
             property_id: property.id,
@@ -4522,8 +4543,11 @@ Deno.serve(async (req) => {
             && !ari.availability_verification?.error
             && (ari.availability_verification?.mismatches?.length ?? 0) === 0
             && !ari.prices_verification?.error
+            && ari.prices_verification?.checked === true
             && (ari.prices_verification?.mismatches?.length ?? 0) === 0
-            && (ari.prices_verification?.missing_dates?.length ?? 0) === 0;
+            && (ari.prices_verification?.missing_dates?.length ?? 0) === 0
+            // A read-back that could not be performed is not a pass.
+            && ari.price_coverage_audit?.verdict !== 'unverified';
         });
 
         const failedUnitIds = unitResults.filter((u: any) => !u.success).map((u: any) => u.room_type_id);
@@ -4959,8 +4983,10 @@ Deno.serve(async (req) => {
         && !u.availability_verification?.error
         && (u.availability_verification?.mismatches?.length ?? 0) === 0
         && !u.prices_verification?.error
+        && u.prices_verification?.checked === true
         && (u.prices_verification?.mismatches?.length ?? 0) === 0
         && (u.prices_verification?.missing_dates?.length ?? 0) === 0
+        && u.price_coverage_audit?.verdict !== 'unverified'
       );
       await supabase.from('ru_sync_runs').insert({
         batch_id: crypto.randomUUID(),
@@ -5111,8 +5137,11 @@ Deno.serve(async (req) => {
       && !pushExtras.availability_verification?.error
       && (pushExtras.availability_verification?.mismatches?.length ?? 0) === 0
       && !pushExtras.prices_verification?.error
+      && pushExtras.prices_verification?.checked === true
       && (pushExtras.prices_verification?.mismatches?.length ?? 0) === 0
-      && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0;
+      && (pushExtras.prices_verification?.missing_dates?.length ?? 0) === 0
+      // An unperformed read-back is not evidence of coverage.
+      && pushExtras.price_coverage_audit?.verdict !== 'unverified';
     const exchangeLog = await summarizeRuExchanges(supabase, property_id, runStartedAtIso);
     await supabase.from('ru_sync_runs').insert({
       batch_id: crypto.randomUUID(),

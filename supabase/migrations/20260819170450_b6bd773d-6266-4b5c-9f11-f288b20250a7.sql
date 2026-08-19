@@ -1,0 +1,2 @@
+ALTER POLICY "Admins manage channel price coverage" ON public.channel_price_coverage_status TO authenticated;
+ALTER POLICY "Property members view channel price coverage" ON public.channel_price_coverage_status TO authenticated;

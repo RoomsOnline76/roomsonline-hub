@@ -19,6 +19,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { ChannelPriceCoveragePanel } from "./ChannelPriceCoveragePanel";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -910,6 +911,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           check has regressed. Distribution keeps running — review the flagged steps below when convenient.
         </div>
       )}
+
+      <ChannelPriceCoveragePanel propertyId={propertyId} variant={variant} />
 
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <nav className="space-y-4" aria-label="Go-live stages">
