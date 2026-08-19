@@ -451,6 +451,8 @@ export default function PMSDashboard() {
   } | null>(null);
   const [modifyTarget, setModifyTarget] = useState<BookingRow | null>(null);
   const [cancelTarget, setCancelTarget] = useState<BookingRow | null>(null);
+  // Set when Cancel was pressed on one bar of a multi-unit stay.
+  const [cancelUnit, setCancelUnit] = useState<{ lineId: string; roomLabel: string; unitCount: number } | null>(null);
   // Room Plan drag interactions are pointer-based — mobile keeps the stacked grid.
   useEffect(() => {
     if (isMobile) setViewMode((current) => (current === "roomplan" ? "month" : current));
@@ -707,7 +709,7 @@ export default function PMSDashboard() {
 
   // Per-unit booking lines: needed so a multi-room stay draws one bar per room.
   const bookingIdsForLines = useMemo(() => bookingsRaw.map((b) => b.id), [bookingsRaw]);
-  const { roomTypeIdsByBooking, roomIdsByBooking } = useBookingRoomLines(bookingIdsForLines);
+  const { roomTypeIdsByBooking, roomIdsByBooking, linesByBooking } = useBookingRoomLines(bookingIdsForLines);
 
   const bookingsWithLines: BookingRow[] = useMemo(
     () => bookingsRaw.map((b) => {
@@ -2235,7 +2237,8 @@ export default function PMSDashboard() {
                           onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                           onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                           onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
-                          onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                          onCancelBooking={(b, ctx) => { setCancelUnit(ctx ?? null); setCancelTarget(b as unknown as BookingRow); }}
+                          unitLinesByBooking={linesByBooking}
                           onCreateBooking={(payload) => handleRoomPlanCreate({ ...payload, propertyId: prop.id })}
                           onMoveBooking={handleRoomPlanMove}
                         />
@@ -2263,7 +2266,8 @@ export default function PMSDashboard() {
                   onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                   onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
                   onModifyBooking={(b) => setModifyTarget(b as unknown as BookingRow)}
-                  onCancelBooking={(b) => setCancelTarget(b as unknown as BookingRow)}
+                  onCancelBooking={(b, ctx) => { setCancelUnit(ctx ?? null); setCancelTarget(b as unknown as BookingRow); }}
+                          unitLinesByBooking={linesByBooking}
                   onCreateBooking={handleRoomPlanCreate}
                   onMoveBooking={handleRoomPlanMove}
                 />
@@ -2461,12 +2465,15 @@ export default function PMSDashboard() {
         <BookingCancelDialog
           key={`cancel-${cancelTarget.id}`}
           open={!!cancelTarget}
-          onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+          onOpenChange={(open) => { if (!open) { setCancelTarget(null); setCancelUnit(null); } }}
           bookingId={cancelTarget.id}
           guestName={cancelTarget.guest_name}
           isRuBooking={isRuSourcedBooking(cancelTarget)}
           isRuLead={isRuLeadOrigin(cancelTarget)}
-          onDone={() => { setCancelTarget(null); refreshBookingQueries(); }}
+          unitLineId={cancelUnit?.lineId ?? null}
+          unitLabel={cancelUnit?.roomLabel ?? null}
+          unitCount={cancelUnit?.unitCount ?? 1}
+          onDone={() => { setCancelTarget(null); setCancelUnit(null); refreshBookingQueries(); }}
         />
       )}
 
