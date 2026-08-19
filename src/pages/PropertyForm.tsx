@@ -4011,11 +4011,33 @@ export default function PropertyForm({
         void queueChannelRatesSync(savedPropertyId, "property_save_seasons");
         // Company information is authored here but lives on the distribution account —
         // re-push it when this save is newer than the last accepted company push.
-        void supabase.functions
-          .invoke("ru-cert-portal", {
-            body: { action: "ensure_company_details", property_id: savedPropertyId, resend_if_changed: true },
-          })
-          .catch(() => {/* advisory: the wizard's company step reports the real state */});
+        // Awaited, not fire-and-forget: the request used to be cancellable by the very
+        // navigation/refresh that follows a save, which is why company edits could reach the
+        // database and never the channel. The outcome is now visible too.
+        try {
+          const { data: companyPush, error: companyPushError } = await supabase.functions.invoke(
+            "ru-cert-portal",
+            {
+              body: { action: "ensure_company_details", property_id: savedPropertyId, resend_if_changed: true },
+            },
+          );
+          const pushed = companyPush?.success === true && companyPush?.skipped !== true;
+          const reason = companyPush?.error?.message ?? companyPushError?.message ?? null;
+          if (pushed) {
+            toast({
+              title: "Company profile updated",
+              description: `Company information was sent to the ${CHANNEL_MANAGER_LABEL}.`,
+            });
+          } else if (!companyPush?.skipped && reason) {
+            toast({
+              title: `Company profile not sent to the ${CHANNEL_MANAGER_LABEL}`,
+              description: reason,
+              variant: "destructive",
+            });
+          }
+        } catch (companyErr) {
+          console.warn("[PropertyForm] company details resend failed:", companyErr);
+        }
       }
 
       // Stay on current page after save - don't navigate away for edits
