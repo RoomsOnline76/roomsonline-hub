@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
   );
 
   console.log(
-    `[cron-ru-call-queue-drain] claimed=${summary.claimed} ok=${summary.succeeded} requeued=${summary.requeued} failed=${summary.failed}`,
+    `[cron-ru-call-queue-drain] claimed=${summary.claimed} ok=${summary.succeeded} requeued=${summary.requeued} no_op=${summary.noOp} failed=${summary.failed}`,
   );
 
   return new Response(JSON.stringify({ success: true, ...summary, notifications: sweep }), {
