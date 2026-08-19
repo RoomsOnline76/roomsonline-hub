@@ -721,7 +721,9 @@ export function RoomPlanGrid({
                                       )
                               }
                             />
-                          ))}
+                            );
+                          })}
+
                         </div>
                       </div>
                     );
