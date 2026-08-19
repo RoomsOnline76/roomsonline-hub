@@ -487,3 +487,61 @@ export function classifyRuNotificationBlock(
   return classifyRuNotification(blockXml, statusId);
 }
 
+
+/**
+ * Nightly safety net: release any stamped channel night whose booking is cancelled, released or
+ * gone. Operator blocks carry no stamp and are never touched.
+ */
+export async function sweepStrandedChannelBlocks(supabase: Db, logPrefix = '[ru]'): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('property_availability')
+      .select('id, blocked_reason')
+      .eq('is_stop_sell', true)
+      .like('blocked_reason', 'channel_booking:%')
+      .limit(5000);
+    if (error) {
+      console.error(`${logPrefix} Stranded block scan failed: ${error.message}`);
+      return 0;
+    }
+    const rows = (data || []) as Array<{ id: string; blocked_reason: string }>;
+    if (rows.length === 0) return 0;
+
+    const bookingIds = [...new Set(rows.map((r) => r.blocked_reason.split(':')[1]).filter(Boolean))];
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, status, hold_released_at')
+      .in('id', bookingIds);
+    const live = new Set(
+      ((bookings || []) as Array<{ id: string; status: string | null; hold_released_at: string | null }>)
+        .filter((b) => b.status !== 'cancelled' && !b.hold_released_at)
+        .map((b) => b.id),
+    );
+
+    const strandedIds = rows
+      .filter((r) => !live.has(r.blocked_reason.split(':')[1] ?? ''))
+      .map((r) => r.id);
+    if (strandedIds.length === 0) return 0;
+
+    const { error: upErr } = await supabase
+      .from('property_availability')
+      .update({
+        available_units: 1,
+        is_stop_sell: false,
+        blocked_by: null,
+        blocked_by_label: null,
+        blocked_reason: null,
+        blocked_at: null,
+      })
+      .in('id', strandedIds);
+    if (upErr) {
+      console.error(`${logPrefix} Stranded block release failed: ${upErr.message}`);
+      return 0;
+    }
+    console.log(`${logPrefix} Released ${strandedIds.length} stranded channel night(s)`);
+    return strandedIds.length;
+  } catch (e) {
+    console.error(`${logPrefix} Stranded block sweep error:`, e);
+    return 0;
+  }
+}
