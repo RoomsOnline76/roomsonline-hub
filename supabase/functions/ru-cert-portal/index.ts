@@ -5148,18 +5148,30 @@ Deno.serve(async (req) => {
       let ownerEmail: string | null = body.owner_email ?? null;
       let ownerName: string = body.owner_name ?? "";
 
-      // Only the shared platform login (dev@) can never become a channel sub-user login —
-      // Rentals United already holds it globally. Other ROL mailboxes (connect@, rooms@,
-      // info@ …) are valid owner / testing logins and are accepted.
+      // Logins Rentals United already holds outside our master account can never become
+      // a sub-user login: RU answers "Email already exists." (status 95) and the address is
+      // invisible in Pull_ListMyUsers, so it can never be adopted either — the create call
+      // dead-ends on a 409 forever. `connect@` is the RU master/portal login itself, so it
+      // is reserved alongside the shared platform mailboxes. Retired sub-account logins are
+      // NOT reserved here: some (rooms@) are also the live portfolio distribution login.
       const INTERNAL_LOGIN_PREFIXES = ["dev@", "noreply@", "no-reply@"];
+      const RESERVED_LOGIN_EMAILS = new Set<string>(["connect@roomsonline.co.za"]);
       const isInternalLogin = (email: string | null | undefined) => {
         const e = String(email ?? "").trim().toLowerCase();
         if (!e) return true;
+        if (RESERVED_LOGIN_EMAILS.has(e)) return true;
         return INTERNAL_LOGIN_PREFIXES.some((p) => e.startsWith(p));
       };
 
 
+
+
+      // A reserved login supplied in the request is dropped too, so resolution falls
+      // through to the portfolio / owner-account candidates instead of dead-ending at RU.
+      if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
+
 
       // 1) The property's own owner email is the authority.
       if (!ownerEmail && propertyId) {
@@ -5255,7 +5267,8 @@ Deno.serve(async (req) => {
           error: {
             code: "NO_OWNER_EMAIL",
             message:
-              "No usable owner email found for the distribution account. Set an owner email on the property (the shared dev@ platform login cannot be used).",
+              "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.",
+
           },
         }, 422);
       }
@@ -5962,7 +5975,8 @@ Deno.serve(async (req) => {
                 error: {
                   code: "RU_EMAIL_IN_USE",
                   message:
-                    `Rentals United reports ${ownerEmail} is already registered, but it is not under our master account (it may belong to another RU account or a pending invite). Use a different owner email, or ask RU support to move/release this login.`,
+                    `The channel provider reports ${ownerEmail} is already registered, but it is not listed under our master account (it may be the master/portal login itself, another provider account, or a pending invite). Set a different owner email on the property, reuse the portfolio's existing distribution login, or ask provider support to release it.`,
+
                 },
                 preview: preview(created, 2000),
               }, 409);
