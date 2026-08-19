@@ -5260,6 +5260,7 @@ Deno.serve(async (req) => {
         // 2) Explicit portfolio owner email (admins copy it from a member property's owner).
         if (!ownerEmail && portfolioRow?.owner_email && !isInternalLogin(portfolioRow.owner_email)) {
           ownerEmail = portfolioRow.owner_email;
+          ownerEmailSource = "the portfolio's owner email";
           ownerName = ownerName || (portfolioRow.name ?? "Portfolio Owner");
         }
         ownerName = ownerName || (portfolioRow?.name ?? "Portfolio Owner");
@@ -5280,6 +5281,7 @@ Deno.serve(async (req) => {
           for (const s of (siblings ?? []) as any[]) {
             if (s?.owner_email && !isInternalLogin(s.owner_email)) {
               ownerEmail = s.owner_email;
+              ownerEmailSource = `a sibling property in this portfolio (${s.name ?? "unnamed"})`;
               ownerName = ownerName || (s.owner_name ?? s.name ?? "Property Owner");
               break;
             }
@@ -5297,6 +5299,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (prof?.email && !isInternalLogin(prof.email)) {
           ownerEmail = prof.email;
+          ownerEmailSource = "the portfolio owner's ROL'OS profile";
           ownerName = ownerName || (prof.full_name ?? portfolioRow.name ?? "Portfolio Owner");
         }
       }
@@ -5318,6 +5321,7 @@ Deno.serve(async (req) => {
         const row = ((existing ?? []) as any[]).find((r) => r?.owner_email);
         if (row) {
           ownerEmail = row.owner_email;
+          ownerEmailSource = "the distribution account already on file";
           ownerName = ownerName || row.owner_name || portfolioRow?.name || "Property Owner";
         }
       }
