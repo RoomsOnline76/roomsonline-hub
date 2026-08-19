@@ -18,6 +18,9 @@ const HUBSPOT_BASE = "https://api.hubapi.com";
 const SERVICE = "hubspot";
 /** Custom HubSpot property carrying the Trade / Direct segmentation marker. */
 const TRADE_PROPERTY = "rol_trade_or_direct";
+/** Custom HubSpot property carrying the guest lifecycle marker. */
+const LIFECYCLE_PROPERTY = "rol_guest_lifecycle";
+
 
 const requestSchema = z.object({
   action: z.enum([
