@@ -869,7 +869,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
        * blockers, and `stale` / `unknown` keep the last successful verdict so a
        * throttled channel read can never un-complete finished work.
        */
-      const ledgerRow = ledgerActive ? ledgerByStep.get(macro.key) : undefined;
+      const rawLedgerRow = ledgerActive ? ledgerByStep.get(macro.key) : undefined;
+      // An ungraded `pending` row is bookkeeping, not a verdict — it must never
+      // un-complete a step the local data already proves finished.
+      const ledgerRow = ledgerHasVerdict(rawLedgerRow) ? rawLedgerRow : undefined;
       const ledgerStatus = ledgerRow?.status;
       const ledgerBlockers = ledgerRow?.status === "blocked"
         ? String(ledgerRow.blocker_summary ?? "")
