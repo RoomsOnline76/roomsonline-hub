@@ -21,3 +21,10 @@ stay offers "Just this unit" vs "The whole booking".
 - the booking is re-derived from surviving lines: pax sums, `total_price` minus the cancelled
   lines' `rate_charged`, `rolos_room_ids` pruned, `room_type_id` retargeted, and a
   `unit_cancelled` entry appended to `modification_notes`.
+
+Inbound channel modifications mirror the same rule: when Rentals United sends a reservation
+with fewer `StayInfo` blocks, `syncRuStayUnits` cancels ONLY the dropped unit lines (status
+`cancelled`, never deleted, reason "Unit withdrawn via Rentals United") and releases just
+those units' nights; surviving units keep their blocks, and a unit that returns on a later
+modification is reinstated to `active`.
+
