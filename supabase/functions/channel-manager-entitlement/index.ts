@@ -554,7 +554,12 @@ Deno.serve(async (req) => {
 
       // Roster straight from the channel: accounts ROL'OS never bound still hold
       // listings (and still bill), so reading only our own table under-reports.
-      type RosterEntry = { owner_id: string; portal_email: string | null; portal_name: string | null };
+      type RosterEntry = {
+        owner_id: string;
+        portal_email: string | null;
+        portal_contact_email: string | null;
+        portal_name: string | null;
+      };
       const roster = new Map<string, RosterEntry>();
       let rosterError: string | null = null;
       {
@@ -564,7 +569,13 @@ Deno.serve(async (req) => {
         const ures = (usersRes || {}) as {
           success?: boolean;
           error?: { message?: string } | string;
-          users?: Array<{ owner_id?: string; email?: string; first_name?: string; last_name?: string }>;
+          users?: Array<{
+            owner_id?: string;
+            email?: string;
+            login_email?: string;
+            first_name?: string;
+            last_name?: string;
+          }>;
         };
         if (usersErr || ures.success === false) {
           rosterError =
@@ -576,16 +587,27 @@ Deno.serve(async (req) => {
             const oid = String(u.owner_id || "").trim();
             if (!oid || retiredOwnerIds.has(oid)) continue;
             const name = [u.first_name, u.last_name].filter(Boolean).join(" ").trim();
-            roster.set(oid, { owner_id: oid, portal_email: u.email || null, portal_name: name || null });
+            // The portal LOGIN (`<UserName>`) is the account's identity. The roster's
+            // `<Email>` is only the contact address and can lag behind it (OwnerID
+            // 741765 logs in as connect@ while the list still reports rooms@), so
+            // naming an account by `<Email>` prints the wrong login.
+            roster.set(oid, {
+              owner_id: oid,
+              portal_email: u.login_email || u.email || null,
+              portal_contact_email: u.email || null,
+              portal_name: name || null,
+            });
           }
         }
       }
+
       for (const ownerId of boundByOwner.keys()) {
         if (!roster.has(ownerId) && !retiredOwnerIds.has(ownerId)) {
           const acct = boundByOwner.get(ownerId)!;
           roster.set(ownerId, {
             owner_id: ownerId,
             portal_email: acct.login_email || acct.owner_email,
+            portal_contact_email: acct.owner_email ?? null,
             portal_name: null,
           });
         }
@@ -598,10 +620,11 @@ Deno.serve(async (req) => {
         const r = roster.get(ownerId);
         const acct = boundByOwner.get(ownerId);
         const login = acct?.login_email || r?.portal_email || credByOwner.get(ownerId) || null;
-        const contact = acct?.owner_email || null;
+        const contact = acct?.owner_email || r?.portal_contact_email || null;
         const base = `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
         return contact && contact !== login ? `${base} (contact ${contact})` : base;
       };
+
 
       const accountResults: Array<{
         owner_id: string;
@@ -695,7 +718,7 @@ Deno.serve(async (req) => {
           owner_id: ownerId,
           owner_email: loginEmail,
           login_email: loginEmail,
-          contact_email: acct?.owner_email ?? null,
+          contact_email: acct?.owner_email ?? rosterEntry?.portal_contact_email ?? null,
           owner_label: accountLabel(ownerId),
           bound,
           has_keys: hasKeys,
