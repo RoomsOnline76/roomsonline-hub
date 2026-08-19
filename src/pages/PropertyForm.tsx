@@ -4026,11 +4026,11 @@ export default function PropertyForm({
           if (pushed) {
             toast({
               title: "Company profile updated",
-              description: `Company information was sent to the ${CHANNEL_MANAGER_LABEL}.`,
+              description: `Company information was sent to the ${CHANNEL_MANAGER}.`,
             });
           } else if (!companyPush?.skipped && reason) {
             toast({
-              title: `Company profile not sent to the ${CHANNEL_MANAGER_LABEL}`,
+              title: `Company profile not sent to the ${CHANNEL_MANAGER}`,
               description: reason,
               variant: "destructive",
             });
