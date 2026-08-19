@@ -17,6 +17,8 @@ import {
   MapPin,
   Image as ImageIcon,
   ShieldCheck,
+  Users,
+  ArrowUpRight,
 } from "lucide-react";
 
 const fadeUp = {
@@ -32,6 +34,14 @@ const INTEGRATIONS = [
     desc: "The complete PMS experience. All 40+ API actions, housekeeping, folios, night audit, guest CRM, channel management, and revenue analytics.",
     features: ["All API actions", "Real-time sync", "Housekeeping", "Folios", "Night audit", "Guest CRM"],
     badge: "Recommended",
+  },
+  {
+    name: "HubSpot CRM",
+    status: "Owner CRM Add-on — Free",
+    icon: Users,
+    desc: "Project your guests, trade partners, bookings and enquiries into HubSpot as contacts, companies and deals. Opt-in per owner, encrypted tokens, delta sync every 15 minutes.",
+    features: ["Contacts & companies", "Booking deals", "Enquiry pipeline", "Trade/Direct segmentation", "15-min delta sync"],
+    badge: "Included Free",
   },
   {
     name: "Hostfully",
@@ -102,6 +112,34 @@ export default function ConnectIntegrations() {
             ROL'OS uses an adapter pattern that normalises data from any PMS into a unified API.
             One integration, consistent output — regardless of the system behind it.
           </motion.p>
+        </div>
+      </section>
+
+      {/* HubSpot spotlight */}
+      <section className="pb-8 sm:pb-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="rounded-2xl border bg-card p-6 sm:p-8 flex flex-col lg:flex-row lg:items-center gap-6">
+            <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl sm:text-2xl font-bold">ROL'OS + HubSpot</h2>
+                <span className="rounded-full bg-primary/10 text-primary text-xs font-medium px-2.5 py-1">
+                  Included free
+                </span>
+              </div>
+              <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">
+                A CRM is only as good as the data behind it. ROL'OS knows every stay, every enquiry and every rand
+                a guest has spent — the HubSpot add-on turns that into contacts, companies and deals that segment themselves.
+              </p>
+            </div>
+            <Button asChild size="lg" className="shrink-0">
+              <Link to={connectPath("/connect/hubspot")}>
+                Explore the CRM module <ArrowUpRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
         </div>
       </section>
 
