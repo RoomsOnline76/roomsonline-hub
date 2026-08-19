@@ -336,6 +336,20 @@ export default function AdminChannelMonitor() {
     [data.properties],
   );
 
+  const visibleRail = useMemo(
+    () => RAIL.filter((item) => !item.devOnly || isDev || isFearlessLeader),
+    [isDev, isFearlessLeader],
+  );
+
+  // Deep-open the certification console on a specific sub-tab from another rail item.
+  const openCert = useCallback(
+    (subTab: string) => {
+      setCertSubTab(subTab);
+      setTab("cert");
+    },
+    [setTab],
+  );
+
   return (
     <AppLayout>
       <div className="container mx-auto space-y-4 px-4 py-6">
