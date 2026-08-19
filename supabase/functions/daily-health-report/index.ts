@@ -448,13 +448,15 @@ function generateEmailHtml(
         Background call queue: ${ruWl.call_queue.waiting} waiting${ruWl.call_queue.oldest_waiting_minutes !== null ? ` (oldest ${ruWl.call_queue.oldest_waiting_minutes} min)` : ''},
         ${ruWl.call_queue.drained_24h} completed in 24h${ruWl.call_queue.gave_up > 0 ? `, ${ruWl.call_queue.gave_up} gave up after all retries` : ''}. Queued work is pending, not failed.
       </p>` : ''}
-      ${ruWl.setup_gaps.length > 0 ? `
+      ${(ruWl.setup_gaps.length > 0 || ruWl.reconciled.length > 0) ? `
       <div style="margin-top:10px;background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;">
-        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup (not a fault)</strong>
+        <strong style="font-size:12px;color:#92400e;">Waiting on owner setup / account reconciliation (not a fault)</strong>
         <ul style="margin:6px 0 0 0;padding-left:18px;color:#78350f;font-size:12px;">
-          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.setup_gaps.map(g => `<li style="margin-bottom:3px;">${g.kind === 'account' ? '<em>Account conflict</em> — ' : ''}${g.reason} — ×${g.count}${g.properties.length > 0 ? ` · ${g.properties.join(', ')}` : ''}</li>`).join('')}
+          ${ruWl.reconciled.map(r => `<li style="margin-bottom:3px;color:#15803d;">Reconciled — ${r.reason} (no longer occurring)</li>`).join('')}
         </ul>
       </div>` : ''}
+
       ${(ruWl.blocked.outstanding.length > 0 || ruWl.blocked.cleared.length > 0) ? `
       <div style="margin-top:10px;background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;">
         <strong style="font-size:12px;color:#334155;">Pushes refused by the Channel wizard gate (not pipeline errors)</strong>
