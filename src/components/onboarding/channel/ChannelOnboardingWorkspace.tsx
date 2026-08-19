@@ -20,6 +20,7 @@ import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ChannelPriceCoveragePanel } from "./ChannelPriceCoveragePanel";
+import { recordChannelStepPass } from "@/lib/channelStepLedger";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -613,7 +614,11 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         },
       });
       if (error) toast.error(error.message);
-      else toast.success("Channel Manager enabled — connect channels below");
+      else {
+        toast.success("Channel Manager enabled — connect channels below");
+        // Entitlement is a stored fact, not a probe result — record the verdict.
+        await recordChannelStepPass(propertyId, ["entitlement"], "local");
+      }
       await refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not enable Channel Manager");

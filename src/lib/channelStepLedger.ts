@@ -282,14 +282,38 @@ export function recheckChannelLedger(
 }
 
 /**
+ * Record a confirmed `passed` verdict for account-scoped steps (company profile
+ * accepted, listings pulled, verification signed off). Fire-and-forget: a failure
+ * to write bookkeeping must never fail the action that already succeeded.
+ */
+export async function recordChannelStepPass(
+  propertyId: string | null | undefined,
+  stepKeys: readonly (ChannelLedgerStepKey | string)[],
+  source: "push_result" | "manual_signoff" | "local" = "push_result",
+): Promise<void> {
+  if (!propertyId) return;
+  const keys = [...new Set(stepKeys.filter((key) => VALID_STEPS.has(key)))];
+  if (keys.length === 0) return;
+  try {
+    if (!(await isChannelStepLedgerEnabled())) return;
+    await supabase.functions.invoke("ru-cert-portal", {
+      body: { action: "ledger_record", property_id: propertyId, step_keys: keys, source },
+    });
+  } catch (err) {
+    console.warn("[channel-ledger] record pass failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
  * Has this row ever been graded? A seeded `pending` row that was never checked
- * carries NO verdict — it must fall back to the locally computed truth instead of
+ * carries NO verdict — and neither does a `stale` / `unknown` row that never
+ * recorded a pass. Both must fall back to the locally computed truth instead of
  * vetoing a step the property has genuinely finished.
  */
 export function ledgerHasVerdict(step: ChannelLedgerStep | undefined | null): boolean {
   if (!step) return false;
-  if (step.status === "pending") return !!step.passed_at || !!step.last_checked_at;
-  return true;
+  if (step.status === "passed" || step.status === "blocked") return true;
+  return !!step.passed_at;
 }
 
 /** Does this ledger row still count as complete? A prior pass survives stale/unknown. */
@@ -300,6 +324,7 @@ export function ledgerStepComplete(step: ChannelLedgerStep | undefined | null): 
   // stale / unknown / pending keep the last successful verdict visible.
   return !!step.passed_at;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 5 — portfolio read path. The Onboarding list reuses stored verdicts so a

@@ -27,6 +27,7 @@ import {
   readLedger,
   markLedgerStale,
   markLedgerStaleForScope,
+  recordLedgerPassForScope,
   writeLedgerRows,
   mapReadinessToLedgerRows,
   type ReadinessReportLike,
@@ -97,6 +98,35 @@ async function markLedgerStaleForOwnerAccount(
     console.warn("[channel-ledger] owner-account stale marking skipped:", error);
   }
 }
+
+/**
+ * Record a `passed` verdict for account-scoped steps (keys, company profile,
+ * owner push). Without this the seeded rows for those steps never carry a verdict
+ * and a stale flag can hold finished work open indefinitely. Never throws.
+ */
+// deno-lint-ignore no-explicit-any
+async function recordLedgerPassForOwnerAccount(
+  admin: any,
+  ref: { accountId?: string | null; ownerId?: string | null },
+  stepKeys: string[],
+  event: string,
+): Promise<void> {
+  try {
+    let query = admin.from("ru_owner_accounts").select("portfolio_id, property_id");
+    query = ref.accountId ? query.eq("id", ref.accountId) : query.eq("ru_owner_id", ref.ownerId ?? "");
+    const { data } = await query.limit(1).maybeSingle();
+    if (!data) return;
+    await recordLedgerPassForScope(
+      admin,
+      { propertyId: data.property_id ?? null, portfolioId: data.portfolio_id ?? null },
+      stepKeys,
+      event,
+    );
+  } catch (error) {
+    console.warn("[channel-ledger] owner-account pass recording skipped:", error);
+  }
+}
+
 
 
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
@@ -2268,6 +2298,7 @@ Deno.serve(async (req) => {
       "ledger_seed",
       "ledger_get",
       "ledger_mark_stale",
+      "ledger_record",
       "ledger_recheck",
       "ledger_drain_recheck",
     ];
@@ -2301,6 +2332,25 @@ Deno.serve(async (req) => {
           logLedgerEvent({ propertyId, event: "ledger_mark_stale", detail: { ...marked, step_keys: keys } });
           return json({ success: true, enabled: true, ...marked, steps: await readLedger(admin, propertyId) });
         }
+
+        /**
+         * ledger_record — the caller completed an account-scoped step (company profile
+         * accepted, listings pulled, verification signed off) and records that verdict.
+         * No channel call: the caller already has the confirmed outcome.
+         */
+        if (action === "ledger_record") {
+          const keys: string[] = Array.isArray(body.step_keys) ? body.step_keys : [];
+          const source = typeof body.source === "string" ? body.source : "push_result";
+          await recordLedgerPassForScope(
+            admin,
+            { propertyId },
+            keys,
+            "ledger_record",
+            source as "push_result" | "manual_signoff" | "local",
+          );
+          return json({ success: true, enabled: true, steps: await readLedger(admin, propertyId) });
+        }
+
 
         // ledger_recheck — the only ledger action that may touch the channel.
         const { data: prop } = await admin
@@ -3923,7 +3973,14 @@ Deno.serve(async (req) => {
       const company = await provisionCompanyAfterKeyVerification();
       // Verified keys mean this account can be monitored — subscribe it now.
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
-      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys", "company_profile"], "keys_saved");
+      // Keys were stored AND verified here — that is the verdict for step 7. Only the
+      // company profile still needs re-confirming against the new credentials.
+      await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
+      if (!company.pushed) {
+        await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
+      } else {
+        await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved_company");
+      }
       return json({
 
         success: true,
@@ -4073,13 +4130,24 @@ Deno.serve(async (req) => {
       if (account?.id) {
         await admin.from("ru_owner_accounts").update({ ru_api_keys_verified_at: stamp }).eq("id", account.id);
       }
-      // Terminal verification outcome either way — the keys step must be re-graded.
-      await markLedgerStaleForOwnerAccount(
-        admin,
-        { accountId: account?.id ?? null, ownerId },
-        ["keys", "company_profile"],
-        "keys_verified",
-      );
+      // An accepted verification IS the keys verdict — record it as passed so the
+      // step stops depending on a probe that never grades it. A rejection keeps the
+      // step open by marking it stale instead.
+      if (accepted) {
+        await recordLedgerPassForOwnerAccount(
+          admin,
+          { accountId: account?.id ?? null, ownerId },
+          ["keys"],
+          "keys_verified",
+        );
+      } else {
+        await markLedgerStaleForOwnerAccount(
+          admin,
+          { accountId: account?.id ?? null, ownerId },
+          ["keys"],
+          "keys_rejected",
+        );
+      }
       if (!accepted) {
         return json({
 
@@ -4571,8 +4639,16 @@ Deno.serve(async (req) => {
           : []),
       ];
 
-      // Listing ids were just re-read from the channel — the pull step needs re-grading.
-      await markLedgerStaleForScope(admin, { propertyId: targetPropertyId }, ["pull_listings"], "listings_pulled");
+      // Listing ids were just re-read from the sub-account — that IS the pull verdict.
+      // Marking it stale here made the step un-completable: nothing else ever grades it.
+      await recordLedgerPassForScope(
+        admin,
+        { propertyId: targetPropertyId },
+        ["pull_listings"],
+        "listings_pulled",
+        "push_result",
+        { matched, unmatched },
+      );
 
       return json({
 
@@ -6304,13 +6380,22 @@ Deno.serve(async (req) => {
         .eq("id", (saved as any)?.id)
         .maybeSingle();
 
-      // Owner push / company profile outcome landed — both steps need re-grading.
-      await markLedgerStaleForScope(
-        admin,
-        { propertyId: propertyId || null, portfolioId },
-        action === "ensure_company_details" ? ["company_profile"] : ["push_owner", "company_profile"],
-        action,
-      );
+      /**
+       * The channel accepted the profile (and, on the create/adopt path, the owner):
+       * record those verdicts instead of flagging them stale. A profile the channel
+       * did not accept stays stale so the wizard asks for a re-send.
+       */
+      const ownerScope = { propertyId: propertyId || null, portfolioId };
+      const passedSteps = [
+        ...(action === "ensure_company_details" ? [] : ["push_owner"]),
+        ...(companyResult.sent ? ["company_profile"] : []),
+      ];
+      if (passedSteps.length > 0) {
+        await recordLedgerPassForScope(admin, ownerScope, passedSteps, action, "push_result");
+      }
+      if (!companyResult.sent) {
+        await markLedgerStaleForScope(admin, ownerScope, ["company_profile"], `${action}_company_pending`);
+      }
 
       return json({
 

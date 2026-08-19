@@ -4,6 +4,7 @@ import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
 import {
   markChannelStepsStale,
+  recordChannelStepPass,
   isChannelStepLedgerEnabled,
   fetchChannelLedger,
   seedChannelLedger,
@@ -1101,8 +1102,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         signed_off_by: allTicked ? actorLabel ?? null : null,
         signed_off_at: allTicked ? new Date().toISOString() : null,
       });
+      if (allTicked) await recordChannelStepPass(propertyId, ["signoff"], "manual_signoff");
     },
-    [lockedSignoffItems, signoff.checks, writeChannelReadiness],
+    [lockedSignoffItems, propertyId, signoff.checks, writeChannelReadiness],
   );
 
   /** Tick or clear every verification item at once. */
@@ -1126,8 +1128,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         signed_off_at: signedOff ? at : null,
         note: note ?? null,
       });
+      if (signedOff) await recordChannelStepPass(propertyId, ["signoff"], "manual_signoff");
     },
-    [lockedSignoffItems, writeChannelReadiness],
+    [lockedSignoffItems, propertyId, writeChannelReadiness],
   );
 
   /**
@@ -1152,6 +1155,8 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         const pushed = !error && data?.success === true && data?.company_details_pushed === true;
         if (pushed) {
           setCompanyAuto({ status: "idle", error: null });
+          // Confirmed acceptance by the channel is the company-profile verdict.
+          await recordChannelStepPass(propertyId, ["company_profile"], "push_result");
           await refresh();
           return { pushed: true, error: null };
         }
@@ -1211,9 +1216,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           auth_mode: outcome.authMode ?? null,
         },
       });
-
+      // The pull ran against the bound sub-account — record the verdict so the step
+      // stays green instead of waiting for a probe that never grades it.
+      await recordChannelStepPass(propertyId, ["pull_listings"], "push_result");
     },
-    [writeChannelReadiness],
+    [propertyId, writeChannelReadiness],
   );
 
   return {
