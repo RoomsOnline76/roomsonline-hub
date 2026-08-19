@@ -72,8 +72,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
     setFilters((prev) => ({ ...prev, search: term }));
   }, [searchTerm]);
 
-  const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+
+
 
   const { rows, actions, operations, owners, stats, loading, loadingMore, hasMore, error, refresh, loadMore, loadDetail } =
     useRuApiLog(filters);
