@@ -36,16 +36,35 @@ interface VerifyResult {
 
 interface Props {
   propertyId: string;
-  /** True when `ru_currency_state` already holds a verified answer. */
-  verified: boolean;
   disabled?: boolean;
 }
 
-export function RuCurrencyVerifyCard({ propertyId, verified, disabled }: Props) {
+export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
+  /** null while unknown, so the auto-verify below never fires against a verified property. */
+  const [verified, setVerified] = useState<boolean | null>(null);
   const autoRan = useRef<string | null>(null);
+
+  const loadState = useCallback(async () => {
+    const { data } = await supabase
+      .from("ru_currency_state")
+      .select("verified_at, published_currency_iso, ru_reported_currency_iso")
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    const row = data as { verified_at: string | null; published_currency_iso: string | null; ru_reported_currency_iso: string | null } | null;
+    setVerified(
+      !!row?.verified_at &&
+        (!row.ru_reported_currency_iso ||
+          !row.published_currency_iso ||
+          row.ru_reported_currency_iso === row.published_currency_iso),
+    );
+  }, [propertyId]);
+
+  useEffect(() => {
+    void loadState();
+  }, [loadState]);
 
   const verify = useCallback(
     async (auto: boolean) => {
@@ -78,6 +97,7 @@ export function RuCurrencyVerifyCard({ propertyId, verified, disabled }: Props) 
         }
 
         // Re-grade the step from the row that was just written.
+        await loadState();
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", propertyId] }),
           queryClient.invalidateQueries({ queryKey: ["channel-step-ledger", propertyId] }),
@@ -88,13 +108,13 @@ export function RuCurrencyVerifyCard({ propertyId, verified, disabled }: Props) 
         setRunning(false);
       }
     },
-    [propertyId, queryClient],
+    [propertyId, queryClient, loadState],
   );
 
   // Auto-verify once per property when nothing has been recorded — this is a read-back, so it is
   // safe to run unattended and it is what the operator would click anyway.
   useEffect(() => {
-    if (verified || disabled) return;
+    if (verified !== false || disabled) return;
     if (autoRan.current === propertyId) return;
     autoRan.current = propertyId;
     void verify(true);
