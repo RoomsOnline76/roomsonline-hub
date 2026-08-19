@@ -168,7 +168,7 @@ export default function AdminChannelMonitor() {
   const [purgeTarget, setPurgeTarget] = useState<{ row: ChannelPropertyRow; unit?: ChannelUnitRow } | null>(null);
   // Deep link between the booking trail (decision) and the exchange log (raw payload).
   const [exchangeSearch, setExchangeSearch] = useState("");
-  const exchangeLogRef = useRef<HTMLDivElement | null>(null);
+  const exchangeLogRef = useRef<HTMLElement | null>(null);
 
 
   const { isDev, isFearlessLeader } = useAuth();
