@@ -78,13 +78,21 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
         body: { property_ids: [propertyId] },
       });
       if (error) throw error;
-      const summary = (data as { summary?: Record<string, number> } | null)?.summary ?? {};
+      const payload = (data as { summary?: Record<string, number>; audited?: number } | null) ?? {};
+      const summary = payload.summary ?? {};
+      const audited = Number(payload.audited ?? 0);
       const short = (summary.channel_short ?? 0) + (summary.local_incomplete ?? 0);
-      toast.success(
-        short === 0
-          ? "The channel holds a priced year for every unit"
-          : `${short} unit(s) still need attention — details below`,
-      );
+      // Auditing nothing is not a pass. Reporting it as one is what made the banner and the
+      // toast disagree: the toast said green while no verdict was ever written.
+      if (audited === 0) {
+        toast.info("Nothing to audit yet — no channel listing is published for this property");
+      } else {
+        toast.success(
+          short === 0
+            ? "The channel holds a priced year for every unit"
+            : `${short} unit(s) still need attention — details below`,
+        );
+      }
       await load();
       // A re-queued read lands seconds later. Poll in the background (button stays usable) so a
       // pending line resolves itself instead of leaving the operator to click Re-check again.

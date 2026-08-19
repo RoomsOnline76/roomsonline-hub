@@ -44,6 +44,8 @@ export interface PriceCoverageResult {
 }
 
 const AUDIT_DAYS = 365;
+/** Nights at the very end of the window that may be unpriced without counting as a gap. */
+const TAIL_TOLERANCE_DAYS = 10;
 
 function addDays(iso: string, days: number): string {
   const d = new Date(iso + 'T00:00:00Z');
@@ -152,8 +154,14 @@ export async function auditChannelPriceCoverage(
   result.channel_zero_priced_days = zeroPriced;
 
   // First missing night and how long the gap runs.
+  let lastMissingIndex = -1;
+  let firstMissingIndex = -1;
   for (let i = 0; i < days; i++) {
     const iso = addDays(from, i);
+    if (!priced.has(iso)) {
+      if (firstMissingIndex < 0) firstMissingIndex = i;
+      lastMissingIndex = i;
+    }
     if (priced.has(iso)) {
       if (result.first_gap_date) break;
       continue;
@@ -162,7 +170,13 @@ export async function auditChannelPriceCoverage(
     result.gap_length += 1;
   }
 
-  const channelComplete = result.channel_priced_days >= days;
+  // The channel's own year rolls a few nights behind ours: rates are held to the end of the last
+  // authored season, so the final handful of nights in a 365-day window are routinely unpriced with
+  // nothing wrong locally. Treating that tail as a gap made the wizard warning impossible to clear —
+  // a re-check would pass the read and still paint amber. Only real gaps inside the window count.
+  const tailOnly =
+    firstMissingIndex >= 0 && firstMissingIndex >= days - TAIL_TOLERANCE_DAYS && lastMissingIndex === days - 1;
+  const channelComplete = result.channel_priced_days >= days || tailOnly;
 
   // Local truth: only consulted when the channel is short, because a complete channel year needs
   // no repair regardless of how ROL'OS authored it.
@@ -185,7 +199,9 @@ export async function auditChannelPriceCoverage(
 
   if (channelComplete) {
     result.verdict = 'verified';
-    result.gap_summary = null;
+    result.gap_summary = tailOnly && result.channel_priced_days < days
+      ? `The channel holds prices for ${result.channel_priced_days} of ${days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
+      : null;
   } else if (result.local_unpriced_days > 0) {
     result.verdict = 'local_incomplete';
     result.gap_summary = `${result.local_unpriced_days} night${result.local_unpriced_days === 1 ? '' : 's'} in the next year have no rate in ROL'OS — author them in Rate Manager and the channel will be updated automatically.`;

@@ -54,6 +54,7 @@ import PropertyContactDetails from "@/components/property/PropertyContactDetails
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
+import { RuCurrencyVerifyCard } from "@/components/pms/channels/RuCurrencyVerifyCard";
 import {
   OwnerAccountConfirmDialog,
   type OwnerAccountPlan,
@@ -1542,6 +1543,7 @@ function PublishedPane({
           <p className="text-xs text-muted-foreground">
             Confirm the published currency matches what the Channel Manager reports. A mismatch blocks some OTAs.
           </p>
+          <RuCurrencyVerifyCard propertyId={propertyId} disabled={locked} />
           <RuCurrencyNotice propertyId={propertyId} />
         </div>
       )}

@@ -44,20 +44,29 @@ Deno.serve(async (req) => {
     // no body — full run
   }
 
+  // An explicit scope is an operator asking about THESE properties (wizard "Re-check").
+  // The cron-wide trading / push-enabled filters must not silently drop them: a test clone or a
+  // not-yet-trading property that already has channel listings still has a priced year to audit,
+  // and skipping it returned "audited: 0", which the wizard could only read as "never checked".
+  const isScopedRun = scopeIds.length > 0;
+
   try {
-    const [{ data: props }, { data: units }] = await Promise.all([
-      admin
-        .from('properties')
-        .select('id, name, rentalsunited_property_id, ru_push_enabled, is_active, is_trading')
-        .eq('is_active', true)
-        .eq('ru_push_enabled', true)
-        .not('rentalsunited_property_id', 'is', null),
-      admin
-        .from('hostfully_room_types')
-        .select('id, name, property_id, rentalsunited_property_id, is_active, properties!inner(id, name, is_active, is_trading, ru_push_enabled)')
-        .eq('is_active', true)
-        .not('rentalsunited_property_id', 'is', null),
-    ]);
+    const propQuery = admin
+      .from('properties')
+      .select('id, name, rentalsunited_property_id, ru_push_enabled, is_active, is_trading')
+      .not('rentalsunited_property_id', 'is', null);
+    const unitQuery = admin
+      .from('hostfully_room_types')
+      .select('id, name, property_id, rentalsunited_property_id, is_active, properties!inner(id, name, is_active, is_trading, ru_push_enabled)')
+      .eq('is_active', true)
+      .not('rentalsunited_property_id', 'is', null);
+    if (isScopedRun) {
+      propQuery.in('id', scopeIds);
+      unitQuery.in('property_id', scopeIds);
+    } else {
+      propQuery.eq('is_active', true).eq('ru_push_enabled', true);
+    }
+    const [{ data: props }, { data: units }] = await Promise.all([propQuery, unitQuery]);
 
     const targets: UnitTarget[] = [];
     const seen = new Set<string>();
@@ -70,7 +79,8 @@ Deno.serve(async (req) => {
 
     for (const row of (units ?? []) as any[]) {
       const p = row.properties;
-      if (!p || p.is_active === false || p.is_trading === false || p.ru_push_enabled !== true) continue;
+      if (!p) continue;
+      if (!isScopedRun && (p.is_active === false || p.is_trading === false || p.ru_push_enabled !== true)) continue;
       if (scopeIds.length && !scopeIds.includes(p.id)) continue;
       push({
         property_id: p.id,
@@ -81,7 +91,7 @@ Deno.serve(async (req) => {
       });
     }
     for (const p of (props ?? []) as any[]) {
-      if (p.is_trading === false) continue;
+      if (!isScopedRun && p.is_trading === false) continue;
       if (scopeIds.length && !scopeIds.includes(p.id)) continue;
       push({
         property_id: p.id,
