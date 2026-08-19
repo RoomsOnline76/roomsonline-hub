@@ -48,6 +48,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
+import {
+  fetchChannelLedgerBatch,
+  isChannelStepLedgerEnabled,
+  seedChannelLedger,
+  type PropertyLedgerVerdict,
+} from "@/lib/channelStepLedger";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, addDays, isBefore } from "date-fns";
@@ -680,7 +686,29 @@ export default function AdminOnboarding() {
 
       // Background refinement: probe live channel readiness per ROL'OS property and
       // patch just that row. Small concurrency keeps the channel rate limiter happy.
-      const probeQueue = [...rolosIds];
+      const patchRow = (propertyId: string, pass: boolean | null, percent: number | null) => {
+        const inputs = channelInputsById.get(propertyId);
+        if (!inputs) return;
+        const channel = channelQueueProgress({
+          ...inputs,
+          ruMandatoryPass: pass,
+          ruMandatoryPercent: percent,
+        });
+        setPropertyRows((prev) =>
+          prev.map((row) =>
+            row.id === propertyId
+              ? {
+                  ...row,
+                  channelStage: channel.stage,
+                  channelPercent: channel.percent,
+                  channelLabel: channel.label,
+                  channelHint: channel.hint,
+                }
+              : row,
+          ),
+        );
+      };
+
       const runProbe = async (propertyId: string) => {
         try {
           const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
@@ -693,35 +721,44 @@ export default function AdminOnboarding() {
             // the live availability verdict is unavailable, not failing.
             liveProbeDegraded: listed && data?.availability_source !== "channel",
           });
-          const inputs = channelInputsById.get(propertyId);
-          if (!inputs) return;
-          const channel = channelQueueProgress({
-            ...inputs,
-            ruMandatoryPass: summary.known ? summary.pass : null,
-            ruMandatoryPercent: summary.known ? summary.percent : null,
-          });
-          setPropertyRows((prev) =>
-            prev.map((row) =>
-              row.id === propertyId
-                ? {
-                    ...row,
-                    channelStage: channel.stage,
-                    channelPercent: channel.percent,
-                    channelLabel: channel.label,
-                    channelHint: channel.hint,
-                  }
-                : row,
-            ),
-          );
+          patchRow(propertyId, summary.known ? summary.pass : null, summary.known ? summary.percent : null);
         } catch {
           // Leave unknown — the local verdict stands.
         }
       };
-      void Promise.all(
-        Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
-          for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
-        }),
-      );
+
+      // Ledger-first: a property whose stored step verdicts already pass renders
+      // straight from the ledger and never re-tests the channel on page load.
+      const buildProbeQueue = async (): Promise<string[]> => {
+        if (!rolosIds.length) return [];
+        if (!(await isChannelStepLedgerEnabled())) return [...rolosIds];
+        const ledger = await fetchChannelLedgerBatch(rolosIds);
+        const queue: string[] = [];
+        const toSeed: string[] = [];
+        for (const propertyId of rolosIds) {
+          const verdict: PropertyLedgerVerdict | undefined = ledger.get(propertyId);
+          if (!verdict?.seeded) {
+            toSeed.push(propertyId);
+            queue.push(propertyId);
+            continue;
+          }
+          patchRow(propertyId, verdict.allComplete, verdict.percent);
+          // Only genuinely unknown or dirty channel-class steps cost a probe.
+          if (verdict.needsChannelProbe) queue.push(propertyId);
+        }
+        // Seed lazily so the next visit already has verdicts to reuse.
+        void Promise.all(toSeed.slice(0, 10).map((id) => seedChannelLedger(id)));
+        return queue;
+      };
+
+      void (async () => {
+        const probeQueue = await buildProbeQueue();
+        await Promise.all(
+          Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
+            for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
+          }),
+        );
+      })();
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
       setLoading(false);

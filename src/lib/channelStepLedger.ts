@@ -289,3 +289,67 @@ export function ledgerStepComplete(step: ChannelLedgerStep | undefined | null): 
   // stale / unknown / pending keep the last successful verdict visible.
   return !!step.passed_at;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 5 — portfolio read path. The Onboarding list reuses stored verdicts so a
+// property that already passed does not re-test the channel on every page visit.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PropertyLedgerVerdict {
+  /** Any ledger rows at all for this property? */
+  seeded: boolean;
+  /** Every step complete (a prior pass survives stale/unknown). */
+  allComplete: boolean;
+  /** 0-100 over the canonical step list. */
+  percent: number;
+  /** A channel-class step needs a live probe (never graded, blocked or dirty). */
+  needsChannelProbe: boolean;
+}
+
+/**
+ * One batched read of `property_channel_step_status` for many properties.
+ * Pure read: never calls the channel, never writes.
+ */
+export async function fetchChannelLedgerBatch(
+  propertyIds: readonly string[],
+): Promise<Map<string, PropertyLedgerVerdict>> {
+  const result = new Map<string, PropertyLedgerVerdict>();
+  if (!propertyIds.length) return result;
+  const { data, error } = await supabase
+    .from("property_channel_step_status")
+    .select("property_id, step_key, status, passed_at, stale_at")
+    .in("property_id", propertyIds as string[]);
+  if (error) return result;
+
+  const byProperty = new Map<string, ChannelLedgerStep[]>();
+  for (const row of (data ?? []) as ChannelLedgerStep[] & { property_id: string }[]) {
+    const id = String((row as unknown as { property_id: string }).property_id);
+    const list = byProperty.get(id) ?? [];
+    list.push(row as ChannelLedgerStep);
+    byProperty.set(id, list);
+  }
+
+  for (const id of propertyIds) {
+    const steps = byProperty.get(id) ?? [];
+    if (!steps.length) {
+      result.set(id, { seeded: false, allComplete: false, percent: 0, needsChannelProbe: true });
+      continue;
+    }
+    const byKey = new Map(steps.map((s) => [String(s.step_key), s]));
+    const complete = CHANNEL_LEDGER_STEP_KEYS.filter((key) => ledgerStepComplete(byKey.get(key)));
+    const needsChannelProbe = CHANNEL_CLASS_LEDGER_STEPS.some((key) => {
+      const step = byKey.get(key);
+      if (!step) return true;
+      if (step.status === "passed") return false;
+      // stale / unknown / pending / blocked all warrant a live look.
+      return true;
+    });
+    result.set(id, {
+      seeded: true,
+      allComplete: complete.length === CHANNEL_LEDGER_STEP_KEYS.length,
+      percent: Math.round((complete.length / CHANNEL_LEDGER_STEP_KEYS.length) * 100),
+      needsChannelProbe,
+    });
+  }
+  return result;
+}
