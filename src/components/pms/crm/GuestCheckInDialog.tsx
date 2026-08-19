@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { GuestCheckInForm, type CheckInSubmission } from "./GuestCheckInForm";
 import { Loader2, Link2, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { resolveBrandedUrl } from "@/lib/brandedUrl";
+import { PUBLIC_DOMAIN } from "@/lib/config";
 
 interface GuestCheckInDialogProps {
   open: boolean;
@@ -92,7 +92,7 @@ export function GuestCheckInDialog({
       toast.error(payload?.error || "Could not create a guest link");
       return;
     }
-    setGuestLink(resolveBrandedUrl(payload.path));
+    setGuestLink(`${PUBLIC_DOMAIN}${payload.path}`);
   }, [bookingId]);
 
   return (
