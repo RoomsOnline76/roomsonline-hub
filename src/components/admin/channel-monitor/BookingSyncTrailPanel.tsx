@@ -65,16 +65,21 @@ const ACTION_LABEL: Record<string, string> = {
 
 interface BookingSyncTrailPanelProps {
   properties: Array<{ id: string; name: string }>;
+  /** Opens the exchange log on a trace id / verb so the raw XML sits next to the decision row. */
+  onInspectExchange?: (term: string) => void;
 }
 
-export function BookingSyncTrailPanel({ properties }: BookingSyncTrailPanelProps) {
+export function BookingSyncTrailPanel({ properties, onInspectExchange }: BookingSyncTrailPanelProps) {
+  const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<TrailRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [direction, setDirection] = useState<string>("all");
   const [action, setAction] = useState<string>("all");
   const [outcome, setOutcome] = useState<string>("all");
   const [propertyId, setPropertyId] = useState<string>("all");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [search, setSearch] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -96,6 +101,19 @@ export function BookingSyncTrailPanel({ properties }: BookingSyncTrailPanelProps
       if (action !== "all") query = query.eq("action", action);
       if (outcome !== "all") query = query.eq("outcome", outcome);
       if (propertyId !== "all") query = query.eq("property_id", propertyId);
+      const term = search.trim().replace(/[,()]/g, " ");
+      if (term) {
+        query = query.or(
+          [
+            `summary.ilike.%${term}%`,
+            `reason.ilike.%${term}%`,
+            `action.ilike.%${term}%`,
+            `source.ilike.%${term}%`,
+            `channel_reservation_id.ilike.%${term}%`,
+            `trace_id.ilike.%${term}%`,
+          ].join(","),
+        );
+      }
 
       const { data, error: queryError } = await query.returns<TrailRow[]>();
       if (queryError) throw queryError;
@@ -106,11 +124,14 @@ export function BookingSyncTrailPanel({ properties }: BookingSyncTrailPanelProps
     } finally {
       setLoading(false);
     }
-  }, [direction, action, outcome, propertyId]);
+  }, [direction, action, outcome, propertyId, search]);
 
+  // Nothing is fetched until the trail is first expanded — the diagnostics tab stays light.
   useEffect(() => {
+    if (!open) return;
     void load();
-  }, [load]);
+  }, [open, load]);
+
 
   const propertyName = useMemo(() => {
     const map = new Map(properties.map((p) => [p.id, p.name]));
