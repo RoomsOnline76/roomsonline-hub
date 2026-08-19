@@ -1,34 +1,37 @@
-# Fonteinhutte go-live: steps show as not passed
+# Step 6 (Push owner): confirm the sub-account details before creating
 
-## What is happening
+Today "Create or link distribution identity" fires straight into the channel: the wizard invokes the create/ensure action, which resolves the login email and owner name server-side from a cascade of sources (property owner email, portfolio owner email, sibling properties, linked profile, an already-bound account) and then either adopts an existing sub-user or creates a new one — with no chance for the operator to see or correct what will be used. That is how a wrong login (an internal ROL mailbox, an outdated owner email) ends up permanently attached to a live distribution account.
 
-The Onboarding list says 92% for Fonteinhutte, but opening the property shows 0/14 steps and every step circle grey.
+Step 6 must stop and ask first.
 
-Verified findings:
+## What the operator will see
 
-- The step ledger for this property holds only 7 graded verdicts (identity, location, rooms, media, commercial, publish, currency all `passed`). The other 7 rows (push owner, keys, company profile, sub-account verification, pull listings, enable channel manager, connect) are still `pending` from the initial seed with no verdict at all.
-- Those 7 ungraded steps are "channel class" steps. The background drain and the wizard's own refresh both re-grade local-class steps only, so those rows can never receive a verdict without a live channel probe — they stay verdictless indefinitely.
-- As soon as the ledger reports even one verdict, the wizard treats the ledger as authoritative and switches OFF its local grading inputs (the activation-readiness call and the channel scorecard). The fallback path for verdictless steps then has no field data to judge, so those steps read as not passed, and a stage with no field items scores 100% while nothing inside it is marked complete — exactly the mix in the screenshot.
-- Whether the page shows 0/14 or 13/14 depends on which query lands first: a fresh load where readiness resolves before the ledger still shows 13/14. So the display is a race, not a data loss — nothing about the property regressed.
+Clicking the step 6 action no longer creates anything. It opens a confirmation card showing exactly what will be sent to the channel:
 
-## What to change
+- **Sub-account login** — the email that becomes the portal login, plus which source it came from (this property's owner email, the portfolio's owner email, a sibling property, or an existing bound account).
+- **Contact name** — first and last name as they will be submitted.
+- **Scope** — whether the account is created for the whole portfolio (and which properties inherit it) or for this property alone.
+- **Company/portfolio name and country** used for the account's location.
+- **Outcome** — plainly stated: "A new sub-account will be created" or "An existing sub-account will be adopted and linked (OwnerID …, login …)".
+- Any warning the resolution produced: no usable owner email, the resolved address is an internal/shared login, or the login differs from the bound account's current login.
 
-1. Never turn off local grading because of the ledger. Keep the cheap local/activation readiness always on; the ledger overlays a step only where it holds a real verdict. Only the expensive live channel scorecard stays opt-in (explicit "Recheck channel").
-2. Never let a verdictless or unknown channel-class step read as failed. With no channel evidence, such a step keeps its last pass, or shows as advisory "awaiting channel confirmation" — it must not un-complete work and must not drop the counter.
-3. Progress must not regress. The header counter and percentage take the better of the stored verdicts and the locally computed truth, so a property at 13/14 can never paint 0/14 while data is still arriving.
-4. Grade what is locally decidable. Keys stored/verified, push owner (sub-owner id present), company profile pushed, manual sign-off, listing pull recorded, and channel-manager entitlement are all ROL'OS database facts. Move them out of the "channel probe only" class so the drain and the wizard refresh record real verdicts for them instead of leaving permanent `pending` rows.
-5. One-off backfill: re-grade the existing seeded-but-ungraded rows across properties (Fonteinhutte first) so stored state matches reality immediately.
-6. Align the list page with the wizard so 92% on the list and the property header cannot disagree: both read the same verdict-plus-local-truth combination.
+Two choices:
+
+- **Confirm and create** — proceeds with exactly the previewed values (they are passed back with the request, so nothing can drift between preview and creation).
+- **Cancel / Correct details** — closes the dialog, creates nothing, and drops the operator into account editing: the distribution account panel on this step with the owner email field focused, so the correction is made where the value actually lives. After saving, step 6 is re-previewed.
+
+When the preview cannot produce a usable login, "Confirm and create" is disabled and only the correction route is offered, with the reason stated.
 
 ## Technical notes
 
-- `src/hooks/useRolosOnboardingProgress.ts`: stop passing `backendChecks: !ledgerActive` / `channelChecks: !ledgerActive` to `usePropertyReadiness`; keep backend checks on unconditionally and gate only the channel scorecard. Keep the existing `ledgerHasVerdict` overlay, and make `overall` use max(ledger complete, local complete) per macro.
-- `src/config/channelStepLedger.ts`: move `push_owner`, `keys`, `company_profile`, `pull_listings` (recorded pull), `entitlement` and `signoff` from `CHANNEL_CLASS_LEDGER_STEPS` into the local class; leave `publish`, `currency` and `connect` as channel class.
-- `supabase/functions/ru-cert-portal`: ensure `ledger_recheck` / `ledger_drain_recheck` persist verdicts for the newly local-class steps without a channel call, and keep writing `unknown` (not `blocked`) when a channel read is throttled or skipped.
-- No schema change required; a backfill call to the drain action covers existing rows.
+- `supabase/functions/ru-cert-portal/index.ts`: add a read-only `plan_owner_account` action that reuses the existing `ensure_owner_account` resolution (owner email cascade, internal-login filter, name split, portfolio scope, portfolio member count, country/location resolution, existing-account and RU roster match) and returns the resolved values plus `outcome: "create" | "adopt"`, the matched OwnerID/login when adopting, `source` of the email, and any blocking reason. It performs no channel writes.
+- `ensure_owner_account` gains an explicit confirmation contract: when called from the wizard it must carry `confirmed_owner_email` (and optional `confirmed_owner_name`); those values are used verbatim instead of re-running the cascade, and a mismatch against what the cascade would resolve is reported rather than silently overridden. Existing server-side/automated callers keep working unchanged.
+- `src/components/onboarding/channel/ChannelOnboardingWorkspace.tsx`: `pushOwner` becomes a two-phase flow — fetch the plan, render it in a confirmation dialog, and only invoke `ensure_owner_account` on confirm with the previewed values. The `nextAction` label for `push_owner` becomes "Review distribution identity". Cancel routes back to the account panel and focuses the owner email field.
+- Wording follows the channel vocabulary rules (distribution sub-account / Channel Manager), never the vendor name.
+- No schema change.
 
 ## Verification
 
-- Open Fonteinhutte's go-live page repeatedly (cold and warm cache) and confirm the header stays at its real count and never paints 0/14.
-- Confirm the ledger rows for Fonteinhutte hold verdicts for all locally decidable steps after the backfill.
-- Confirm the Onboarding list percentage and the property header agree.
+- Step 6 on a property with a valid owner email: the dialog names that login and "new sub-account"; cancelling leaves the channel untouched (no new row in the accounts table, no OwnerID assigned).
+- Step 6 where the portfolio already holds a live account: the dialog says it will adopt and shows that account's OwnerID and login.
+- Step 6 with only an internal/shared login available: confirm is blocked, the reason is shown, and the correction route lands on the owner email field.
