@@ -28,6 +28,8 @@ export interface HubSpotGuestEvent {
   status?: string | null;
   checkOut?: string | null;
   propertyName?: string | null;
+  /** Trade = booked through an agent, Direct = booked by the guest. */
+  tradeOrDirect?: "trade" | "direct";
 }
 
 /** New or updated reservation → HubSpot contact + deal. */
@@ -45,6 +47,7 @@ export function syncBookingToHubSpot(event: HubSpotGuestEvent): void {
           lastname: rest.join(" ") || undefined,
           phone: event.guestPhone || undefined,
           country: event.guestCountry || undefined,
+          trade_or_direct: event.tradeOrDirect,
         },
       });
     }
@@ -61,6 +64,7 @@ export function syncBookingToHubSpot(event: HubSpotGuestEvent): void {
         status: event.status || undefined,
         closedate: event.checkOut ? new Date(event.checkOut).toISOString() : undefined,
         contact_email: email || undefined,
+        trade_or_direct: event.tradeOrDirect,
       },
     });
   })();
