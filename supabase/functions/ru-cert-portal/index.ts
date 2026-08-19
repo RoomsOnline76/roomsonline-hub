@@ -5808,7 +5808,9 @@ Deno.serve(async (req) => {
         return users.find((u) => {
           const ownerId = usableRuId(u.owner_id);
           if (wantedOwnerId && ownerId && ownerId === wantedOwnerId) return true;
-          return wantedEmails.includes((u.email ?? "").trim().toLowerCase());
+          return wantedEmails.includes((u.email ?? "").trim().toLowerCase())
+            || wantedEmails.includes((u.login_email ?? "").trim().toLowerCase());
+
         }) ?? null;
       };
 
