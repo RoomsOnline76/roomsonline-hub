@@ -499,19 +499,34 @@ async function attemptGetReservationById(
       ...(scope.ownerId ? { owner_id: scope.ownerId } : {}),
     },
   });
-  if (error) return { reservation: null, rawXml: null, error: error.message };
+  if (error) {
+    const detail = await readInvokeError(error, 'Reservation lookup failed');
+    return {
+      reservation: null,
+      rawXml: null,
+      error: detail.message,
+      rateDeferred: isRateDeferral(detail.errorCode, detail.message, detail.httpStatus),
+    };
+  }
   const res = (data || {}) as {
     success?: boolean;
-    error?: string | { message?: string };
+    error?: string | { message?: string; code?: string };
     reservation?: ParsedRuReservation | null;
     raw_xml?: string;
   };
   if (res.success === false) {
     const msg = typeof res.error === 'string' ? res.error : res.error?.message;
-    return { reservation: null, rawXml: res.raw_xml ?? null, error: msg || 'Rentals United rejected the reservation lookup' };
+    const code = typeof res.error === 'string' ? null : res.error?.code ?? null;
+    return {
+      reservation: null,
+      rawXml: res.raw_xml ?? null,
+      error: msg || 'Rentals United rejected the reservation lookup',
+      rateDeferred: isRateDeferral(code, msg ?? null, null),
+    };
   }
   return { reservation: res.reservation ?? null, rawXml: res.raw_xml ?? null, error: null };
 }
+
 
 /**
  * List-based fallback for one account: leads are not always retrievable by id, and a
