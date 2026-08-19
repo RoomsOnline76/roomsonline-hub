@@ -37,10 +37,10 @@ const VERDICT_LABEL: Record<CoverageRow["verdict"], string> = {
 
 interface Props {
   propertyId: string;
-  variant?: "admin" | "owner";
+  variant?: "admin" | "pms" | "owner";
 }
 
-export function ChannelPriceCoveragePanel({ propertyId, variant = "owner" }: Props) {
+export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props) {
   const [rows, setRows] = useState<CoverageRow[]>([]);
   const [checking, setChecking] = useState(false);
 
