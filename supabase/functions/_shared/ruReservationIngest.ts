@@ -463,7 +463,27 @@ interface RuDetailLookup {
   error: string | null;
   /** RU sub-account that answered with the reservation (null = master). */
   resolvedOwnerId?: string | null;
+  /**
+   * The channel refused with its sliding-minute rate limit. That is "unknown", never
+   * "does not exist" — the caller must park the notification for another attempt.
+   */
+  rateDeferred?: boolean;
+  /**
+   * The channel answered with the reservation but WITHOUT stay data (`<StayInfos />`
+   * empty — normal for a fresh request/lead). Useless for a booking write, but it proves
+   * which account owns the reservation, so the listing pass starts there.
+   */
+  partial?: ParsedRuReservation | null;
 }
+
+/** True when a failure is the channel's sliding-minute rate limit rather than a miss. */
+function isRateDeferral(errorCode: string | null, message: string | null, httpStatus: number | null): boolean {
+  if (errorCode === 'RU_RATE_DEFERRED') return true;
+  if (httpStatus === 429) return true;
+  const m = (message || '').toLowerCase();
+  return m.includes('ru_rate_deferred') || m.includes('rate limit') || m.includes('same parameters');
+}
+
 
 /** One `Pull_GetReservationByID_RQ` attempt against a single account scope. */
 async function attemptGetReservationById(
