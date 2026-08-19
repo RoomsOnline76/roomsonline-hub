@@ -88,6 +88,12 @@ export interface MacroProgress {
   locked: boolean;
   /** Plain-English reason the step's action cannot run yet. */
   actionBlockedReason?: string;
+  /** Phase 3 ledger row status, when the step ledger is driving this step. */
+  ledgerStatus?: ChannelLedgerStatus;
+  /** Ledger says the underlying data moved — the step wants a quick refresh. */
+  needsRefresh?: boolean;
+  /** Channel confirmation is pending; the last successful check still counts. */
+  channelPending?: boolean;
   outstandingLabels: string[];
 }
 
@@ -905,15 +911,23 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         complete,
         locked: !!actionBlockedReason,
         actionBlockedReason,
-        outstandingLabels: [
-          ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
-          ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
-        ],
+        ledgerStatus,
+        needsRefresh,
+        channelPending,
+        outstandingLabels: complete
+          ? []
+          : [
+              ...new Set([
+                ...fieldItems.filter((i) => !i.satisfied && i.tier === "mandatory").map((i) => i.label),
+                ...mandatoryStateChecks.filter((c) => !c.ok && !c.unknown).map((c) => c.label),
+                ...ledgerBlockers,
+              ]),
+            ],
       });
     }
 
     return result;
-  }, [readiness.items, stateChecks]);
+  }, [readiness.items, stateChecks, ledgerActive, ledgerByStep]);
 
 
   /**
