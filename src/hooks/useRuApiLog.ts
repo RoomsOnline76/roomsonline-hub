@@ -180,7 +180,16 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
-      if (filters.outcome !== "all") query = query.eq("success", filters.outcome === "success");
+      if (filters.outcome === "success") {
+        query = query.eq("success", true);
+      } else if (filters.outcome === "deferred") {
+        query = query.eq("transport_status", RU_RATE_DEFERRED_TRANSPORT);
+      } else if (filters.outcome === "failure") {
+        // Genuine faults only — a rate deferral never reached the channel.
+        query = query
+          .eq("success", false)
+          .or(`transport_status.is.null,transport_status.neq.${RU_RATE_DEFERRED_TRANSPORT}`);
+      }
       if (filters.days > 0) {
         const since = new Date(Date.now() - filters.days * 86_400_000).toISOString();
         query = query.gte("created_at", since);
