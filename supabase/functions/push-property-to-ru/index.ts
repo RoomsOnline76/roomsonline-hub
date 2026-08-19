@@ -2649,6 +2649,26 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
         const priceVerification = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
         result.prices_verification = priceVerification;
         console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
+
+        // Independent coverage audit: derive the answer from the channel's own stored prices for the
+        // next year, not from the seasons we just sent. A read that could not be performed stays
+        // `unverified` instead of quietly passing.
+        try {
+          const coverage = await auditChannelPriceCoverage(supabase, {
+            propertyId: property.id,
+            ruPropertyId,
+            unitName: unit?.name ?? null,
+            roomTypeId: unit?.id ?? null,
+            childAuth,
+          });
+          result.price_coverage_audit = coverage;
+          result.prices_year_verified = coverage.verdict === 'verified';
+          await persistPriceCoverage(supabase, coverage, { details: { trigger: 'post_push' } });
+          console.log(`[pushARI] Price coverage audit RU ${ruPropertyId}: ${coverage.verdict} (${coverage.channel_priced_days}/${coverage.expected_days} nights priced at the channel)`);
+        } catch (coverageErr) {
+          console.warn('[pushARI] Price coverage audit failed:', coverageErr);
+        }
+
         try {
           await supabase.from('sync_logs').insert({
             property_id: property.id,
