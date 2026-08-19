@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import {
   DEFAULT_RU_API_LOG_FILTERS,
   RU_BOOKING_CHIPS,
+  ruApiLogOutcomeOf,
   useRuApiLog,
   type RuApiLogDetail,
   type RuApiLogFilters,
@@ -222,6 +223,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
       "response_id",
       "status_id",
       "http_status",
+      "outcome",
       "success",
       "elapsed_ms",
       "error",
@@ -236,6 +238,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
         r.response_id ?? "",
         r.status_id ?? "",
         r.http_status ?? "",
+        ruApiLogOutcomeOf(r),
         r.success ? "yes" : "no",
         r.elapsed_ms ?? "",
         (r.error_message ?? "").replace(/[",\n]/g, " "),
@@ -406,6 +409,7 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               options={[
                 { value: "all", label: "All" },
                 { value: "success", label: "Success" },
+                { value: "deferred", label: "Deferred" },
                 { value: "failure", label: "Failed" },
               ]}
               onChange={(v) => patch({ outcome: v as RuApiLogFilters["outcome"] })}
@@ -557,6 +561,10 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
             <span>·</span>
             <span>{stats.failures} failed (shown)</span>
             <span>·</span>
+            <span title="Held locally by the one-call-per-minute channel gate and replayed by the background drainer — never sent, never a fault.">
+              {stats.deferred} deferred (shown)
+            </span>
+            <span>·</span>
             <span>{stats.withResponseId} with ResponseID (shown)</span>
             <span>·</span>
             <span>avg {stats.avgMs} ms (shown)</span>
@@ -590,12 +598,15 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {rows.map((row) => {
+                    // Three outcomes: a rate deferral never left ROL'OS, so it is amber, not red.
+                    const outcome = ruApiLogOutcomeOf(row);
+                    return (
                     <tr
                       key={row.id}
                       className={cn(
                         "cursor-pointer border-t border-border/60 hover:bg-muted/50",
-                        !row.success && "bg-destructive/5",
+                        outcome === "failure" && "bg-destructive/5",
                       )}
                       onClick={() => void openDetail(row)}
                     >
@@ -615,10 +626,24 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                       </td>
                       <td className="px-3 py-1.5">
                         <Badge
-                          variant={row.success ? "secondary" : "destructive"}
-                          className={cn("text-[11px]", !row.success && "font-semibold")}
+                          variant={outcome === "failure" ? "destructive" : "secondary"}
+                          className={cn(
+                            "text-[11px]",
+                            outcome === "failure" && "font-semibold",
+                            outcome === "deferred" &&
+                              "border-warning-border bg-warning-surface text-warning",
+                          )}
+                          title={
+                            outcome === "deferred"
+                              ? "Held by the channel's one-call-per-minute gate — never sent, replayed by the background drainer."
+                              : undefined
+                          }
                         >
-                          {row.success ? `OK ${row.status_id ?? ""}`.trim() : `Failed ${row.status_id ?? ""}`.trim()}
+                          {outcome === "success"
+                            ? `OK ${row.status_id ?? ""}`.trim()
+                            : outcome === "deferred"
+                              ? "Deferred"
+                              : `Failed ${row.status_id ?? ""}`.trim()}
                         </Badge>
                         {row.error_message && (
                           <div className="max-w-[280px] truncate text-xs text-muted-foreground">
@@ -654,7 +679,8 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
                         {formatBytes(row.request_bytes)} / {formatBytes(row.response_bytes)}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
               {hasMore && (
@@ -690,6 +716,14 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               </SheetHeader>
 
               <div className="mt-4 space-y-4">
+                {ruApiLogOutcomeOf(detail) === "deferred" && (
+                  <div className="rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning">
+                    Deferred, not failed: the channel allows one call per method with the same
+                    parameters per minute, so ROL'OS held this request locally instead of sending it.
+                    No request reached the channel; the work was parked in the background queue and
+                    replayed on the next slot.
+                  </div>
+                )}
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <div>
                     <span className="text-muted-foreground">ResponseID: </span>

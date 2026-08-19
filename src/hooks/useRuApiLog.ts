@@ -32,6 +32,12 @@ export interface RuApiLogRow {
   request_bytes: number | null;
   response_bytes: number | null;
   endpoint: string | null;
+  /**
+   * How far the exchange got: `completed` reached the channel, `rate_deferred` never left ROL'OS
+   * because the sliding-minute gate held it (replayed by the background drainer), `failed` is a
+   * genuine transport fault.
+   */
+  transport_status: string | null;
 }
 
 export interface RuApiLogDetail extends RuApiLogRow {
@@ -40,7 +46,21 @@ export interface RuApiLogDetail extends RuApiLogRow {
   expires_at: string;
 }
 
-export type RuApiLogOutcome = "all" | "success" | "failure";
+export type RuApiLogOutcome = "all" | "success" | "failure" | "deferred";
+
+export const RU_RATE_DEFERRED_TRANSPORT = "rate_deferred";
+
+/**
+ * Three outcomes, not two. A throttle deferral is bookkeeping — the request was never sent, so it
+ * must not read (or count) as a failed exchange during certification review.
+ */
+export function ruApiLogOutcomeOf(row: Pick<RuApiLogRow, "success" | "transport_status">):
+  | "success"
+  | "deferred"
+  | "failure" {
+  if (row.transport_status === RU_RATE_DEFERRED_TRANSPORT) return "deferred";
+  return row.success ? "success" : "failure";
+}
 
 export interface RuApiLogFilters {
   /** Property id, "all", or "account" for account-level calls with no property. */
@@ -111,7 +131,7 @@ export const DEFAULT_RU_API_LOG_FILTERS: RuApiLogFilters = {
 
 
 const LIST_COLUMNS =
-  "id, created_at, action, parent_action, trace_id, direction, property_id, unit_id, ru_property_id, ru_owner_id, ru_user_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, endpoint";
+  "id, created_at, action, parent_action, trace_id, direction, property_id, unit_id, ru_property_id, ru_owner_id, ru_user_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, endpoint, transport_status";
 
 const PAGE_SIZE = 100;
 
@@ -160,7 +180,16 @@ export function useRuApiLog(filters: RuApiLogFilters) {
       if (filters.action !== "all") query = query.eq("action", filters.action);
       if (filters.operation !== "all") query = query.ilike("parent_action", `${filters.operation}%`);
       if (filters.ownerId !== "all") query = query.eq("ru_owner_id", filters.ownerId);
-      if (filters.outcome !== "all") query = query.eq("success", filters.outcome === "success");
+      if (filters.outcome === "success") {
+        query = query.eq("success", true);
+      } else if (filters.outcome === "deferred") {
+        query = query.eq("transport_status", RU_RATE_DEFERRED_TRANSPORT);
+      } else if (filters.outcome === "failure") {
+        // Genuine faults only — a rate deferral never reached the channel.
+        query = query
+          .eq("success", false)
+          .or(`transport_status.is.null,transport_status.neq.${RU_RATE_DEFERRED_TRANSPORT}`);
+      }
       if (filters.days > 0) {
         const since = new Date(Date.now() - filters.days * 86_400_000).toISOString();
         query = query.gte("created_at", since);
@@ -290,12 +319,25 @@ export function useRuApiLog(filters: RuApiLogFilters) {
   const loadMore = useCallback(() => fetchPage(rows.length), [fetchPage, rows.length]);
 
   const stats = useMemo(() => {
-    const failures = rows.filter((r) => !r.success).length;
+    // Three buckets: deferrals are throttle bookkeeping and are counted separately so the
+    // failure number only ever reflects real transport faults.
+    const deferred = rows.filter((r) => ruApiLogOutcomeOf(r) === "deferred").length;
+    const failures = rows.filter((r) => ruApiLogOutcomeOf(r) === "failure").length;
+    const completed = rows.length - deferred - failures;
     const withResponseId = rows.filter((r) => !!r.response_id).length;
     const avgMs = rows.length
       ? Math.round(rows.reduce((sum, r) => sum + (r.elapsed_ms ?? 0), 0) / rows.length)
       : 0;
-    return { total: rows.length, failures, withResponseId, avgMs, truncated: hasMore, totalCount };
+    return {
+      total: rows.length,
+      completed,
+      deferred,
+      failures,
+      withResponseId,
+      avgMs,
+      truncated: hasMore,
+      totalCount,
+    };
   }, [rows, hasMore, totalCount]);
 
   return {

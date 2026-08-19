@@ -49,6 +49,17 @@ function isPermanent(message: string | null | undefined): boolean {
   );
 }
 
+/**
+ * Terminal, but not a defect: the channel says the work is already unnecessary (e.g. cancelling a
+ * reservation it never had). These land as `no_op` so certification review and the health report
+ * stop reading them as unhealed failures.
+ */
+function isNoOp(message: string | null | undefined): boolean {
+  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)/i.test(
+    String(message ?? ''),
+  );
+}
+
 async function invokeErrorMessage(error: unknown): Promise<string> {
   const body = await readInvokeErrorBody(error);
   const nested = body?.error as { message?: string } | string | undefined;
@@ -67,7 +78,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
   const deadline = Date.now() + RUN_BUDGET_MS;
-  const summary = { claimed: 0, succeeded: 0, requeued: 0, failed: 0 };
+  const summary = { claimed: 0, succeeded: 0, requeued: 0, failed: 0, noOp: 0 };
 
   for (let i = 0; i < MAX_CALLS_PER_RUN; i++) {
     if (Date.now() > deadline) break;
@@ -108,15 +119,17 @@ Deno.serve(async (req) => {
         .eq('id', row.id);
     } else {
       const deferred = isDeferral(failure);
-      const giveUp = !deferred && (isPermanent(failure) || row.attempts >= row.max_attempts);
-      if (giveUp) summary.failed++;
+      const noOp = !deferred && isNoOp(failure);
+      const giveUp = !deferred && !noOp && (isPermanent(failure) || row.attempts >= row.max_attempts);
+      if (noOp) summary.noOp++;
+      else if (giveUp) summary.failed++;
       else summary.requeued++;
       await supabase
         .from('ru_call_queue')
         .update({
-          status: giveUp ? 'failed' : 'pending',
+          status: noOp ? 'no_op' : giveUp ? 'failed' : 'pending',
           last_error: failure,
-          completed_at: giveUp ? nowIso : null,
+          completed_at: noOp || giveUp ? nowIso : null,
           claimed_at: null,
           not_before: new Date(
             Date.now() + (deferred ? 65_000 : BACKOFF_MS[Math.min(row.attempts, BACKOFF_MS.length) - 1] ?? 60_000),
@@ -150,7 +163,7 @@ Deno.serve(async (req) => {
   );
 
   console.log(
-    `[cron-ru-call-queue-drain] claimed=${summary.claimed} ok=${summary.succeeded} requeued=${summary.requeued} failed=${summary.failed}`,
+    `[cron-ru-call-queue-drain] claimed=${summary.claimed} ok=${summary.succeeded} requeued=${summary.requeued} no_op=${summary.noOp} failed=${summary.failed}`,
   );
 
   return new Response(JSON.stringify({ success: true, ...summary, notifications: sweep }), {
