@@ -84,6 +84,7 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
       "Revenue management, yield rules & rate strategies",
       "Reviews & reputation monitoring",
       "Guest CRM & segmentation",
+      "HubSpot CRM add-on — free, opt-in",
       "Portfolio analytics & Revenue Pulse",
       "TOBI assistant for you and your guests",
       "Branded guest email & messaging",

@@ -121,6 +121,7 @@ const DevTaskTracker = lazy(() => import("./pages/DevTaskTracker"));
 const ConnectHome = lazy(() => import("./pages/connect/ConnectHome"));
 const ConnectFeatures = lazy(() => import("./pages/connect/ConnectFeatures"));
 const ConnectIntegrations = lazy(() => import("./pages/connect/ConnectIntegrations"));
+const ConnectHubSpot = lazy(() => import("./pages/connect/ConnectHubSpot"));
 const ConnectPricing = lazy(() => import("./pages/connect/ConnectPricing"));
 const ConnectDocs = lazy(() => import("./pages/connect/ConnectDocs"));
 const ConnectQuickstart = lazy(() => import("./pages/connect/ConnectQuickstart"));
@@ -168,6 +169,8 @@ function connectChildRoutes(): ReactElement[] {
     <Route key="idx" index element={<ConnectHome />} />,
     <Route key="feat" path="features" element={<ConnectFeatures />} />,
     <Route key="integ" path="integrations" element={<ConnectIntegrations />} />,
+    <Route key="hubspot" path="integrations/hubspot" element={<ConnectHubSpot />} />,
+    <Route key="hubspot-alias" path="hubspot" element={<ConnectHubSpot />} />,
     <Route key="price" path="pricing" element={<ConnectPricing />} />,
     <Route key="docs" path="docs" element={<ConnectDocs />} />,
     <Route key="qs" path="docs/quickstart" element={<ConnectQuickstart />} />,

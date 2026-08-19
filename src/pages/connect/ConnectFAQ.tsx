@@ -70,6 +70,14 @@ const FAQ_CATEGORIES = [
         a: "The API is a standard REST endpoint accepting JSON POST requests. We provide code examples in cURL, JavaScript, and PHP. Any language that can make HTTP requests will work.",
       },
       {
+        q: "Can I connect HubSpot as my CRM?",
+        a: "Yes — and it is free. The HubSpot add-on is opt-in per owner and covers your whole portfolio. Guests become contacts with real stay history and lifetime spend, trade partners become companies, bookings become deals, and website enquiries land in a pipeline. Your token is encrypted server-side, verified before it is saved, and a delta sweep keeps HubSpot current every 15 minutes.",
+      },
+      {
+        q: "Do I need HubSpot to get CRM features in ROL'OS?",
+        a: "No. Guest profiles, enquiry pipelines, digital check-in, post-departure feedback and Trade/Direct segmentation are all native ROL'OS features. HubSpot is an optional projection for teams who already work in HubSpot.",
+      },
+      {
         q: "Can I white-label the booking experience?",
         a: "Absolutely. ROL'OS supports full white-labeling: custom logos, color palettes, email templates, and domain configuration. Enterprise plans include dedicated branded instances.",
       },

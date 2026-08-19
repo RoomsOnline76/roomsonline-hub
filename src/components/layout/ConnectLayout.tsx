@@ -10,6 +10,7 @@ import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
 const NAV_LINKS = [
   { label: "Features", href: connectPath("/connect/features") },
   { label: "Integrations", href: connectPath("/connect/integrations") },
+  { label: "HubSpot CRM", href: connectPath("/connect/hubspot") },
   { label: "Pricing", href: connectPath("/connect/pricing") },
   { label: "Docs", href: connectPath("/connect/docs") },
   { label: "FAQ", href: connectPath("/connect/faq") },
@@ -108,6 +109,7 @@ export function ConnectLayout() {
                 <li><Link to={connectPath("/connect/features")} className="hover:text-foreground transition-colors">Features</Link></li>
                 <li><Link to={connectPath("/connect/pricing")} className="hover:text-foreground transition-colors">Pricing</Link></li>
                 <li><Link to={connectPath("/connect/integrations")} className="hover:text-foreground transition-colors">Integrations</Link></li>
+                <li><Link to={connectPath("/connect/hubspot")} className="hover:text-foreground transition-colors">HubSpot CRM</Link></li>
               </ul>
             </div>
             <div>

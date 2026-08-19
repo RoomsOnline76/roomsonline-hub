@@ -42,6 +42,7 @@ const FEATURE_SECTIONS = [
       { icon: Zap, title: "REST API", desc: "50+ endpoints covering every PMS operation — including static content, cancellation & reservation policies, payment methods, and contact details." },
       { icon: Home, title: "Embeddable Widgets", desc: "Booking bars, availability calendars, and Smart Book buttons for any website." },
       { icon: Shield, title: "White-Label", desc: "Full branding control: logos, colours, email templates, and custom domains. It looks like yours." },
+      { icon: Users, title: "Guest CRM & HubSpot", desc: "Native guest profiles, enquiry pipeline and segmentation — plus a free optional HubSpot add-on that projects guests, trade partners and bookings into your portal." },
     ],
   },
 ];
