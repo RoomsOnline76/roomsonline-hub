@@ -6061,7 +6061,16 @@ Deno.serve(async (req) => {
         .eq("id", (saved as any)?.id)
         .maybeSingle();
 
+      // Owner push / company profile outcome landed — both steps need re-grading.
+      await markLedgerStaleForScope(
+        admin,
+        { propertyId: propertyId || null, portfolioId },
+        action === "ensure_company_details" ? ["company_profile"] : ["push_owner", "company_profile"],
+        action,
+      );
+
       return json({
+
         success: true,
         created: !adopted,
         adopted,
