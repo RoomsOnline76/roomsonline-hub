@@ -1257,6 +1257,8 @@ Deno.serve(async (req) => {
         distribution_accounts: ownerCount ?? 0,
         blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
+        reconciled,
+
         call_queue: {
           waiting: waitingRows.length,
           oldest_waiting_minutes: oldestWaiting,
