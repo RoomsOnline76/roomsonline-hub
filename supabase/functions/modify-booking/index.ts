@@ -478,11 +478,32 @@ Deno.serve(async (req) => {
       modifications.check_out_date !== undefined;
 
     let newTotalPrice: number | null = null;
+    let repricedPlanId: string | null = null;
+    let repricedNightly: number | null = null;
 
     if (isRolNative && paxOrDatesChanged) {
-      newTotalPrice = await recalculateRolPrice(supabase, booking, modifications);
-      console.log("Recalculated ROL price:", newTotalPrice, "from old:", booking.total_price);
+      const repriced = await recalculateRolPrice(supabase, booking, modifications);
+      if (repriced) {
+        newTotalPrice = repriced.total;
+        repricedPlanId = repriced.rate_plan_id;
+        repricedNightly = repriced.nightly;
+        console.log(
+          `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
+        );
+      } else if (modifications.total_price === undefined) {
+        // No plan and no operator price means we would leave a stale total behind — refuse
+        // rather than silently keeping the old amount on a stay of a different length.
+        return new Response(
+          JSON.stringify({
+            code: "NO_RATE_FOR_STAY",
+            message:
+              "No active rate plan prices this unit, so the stay cannot be repriced. Author a rate in ROL'OS Rate Plans or set the total manually.",
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
+
 
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
