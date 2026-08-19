@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import {
   DEFAULT_RU_API_LOG_FILTERS,
   RU_BOOKING_CHIPS,
+  ruApiLogOutcomeOf,
   useRuApiLog,
   type RuApiLogDetail,
   type RuApiLogFilters,
