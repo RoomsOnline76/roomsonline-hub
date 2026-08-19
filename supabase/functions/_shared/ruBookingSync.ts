@@ -11,6 +11,7 @@
  * misapplies) reservation writes made with master credentials.
  */
 import { findOwnerAccount } from './ruPhaseGate.ts';
+import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -179,7 +180,13 @@ async function invokeRu(
   supabase: Db,
   action: string,
   payload: Record<string, unknown>,
-  log?: { propertyId?: string | null; ruPropertyId?: string | null; details?: Record<string, unknown> },
+  log?: {
+    propertyId?: string | null;
+    ruPropertyId?: string | null;
+    details?: Record<string, unknown>;
+    traceId?: string | null;
+    parentAction?: string | null;
+  },
 ): Promise<{ ok: boolean; code?: string; message?: string }> {
   const startedAt = Date.now();
   const finish = async (result: { ok: boolean; code?: string; message?: string }) => {
@@ -191,13 +198,21 @@ async function invokeRu(
       errorCode: result.code ?? null,
       errorMessage: result.message ?? null,
       elapsedMs: Date.now() - startedAt,
-      details: log?.details ?? {},
+      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null },
     });
     return result;
   };
 
   const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-    body: { action, ...payload },
+    body: {
+      action,
+      // Correlates this exchange with the booking operation that caused it, so a cancel/reject
+      // can be retrieved from `ru_api_log` by trace instead of guessed at by timestamp.
+      trace_id: log?.traceId ?? null,
+      parent_action: log?.parentAction ?? `ruBookingSync:${action}`,
+      property_id: log?.propertyId ?? null,
+      ...payload,
+    },
   });
   if (!error && data?.success) {
     if (data.auth_mode === 'master') {
@@ -227,8 +242,19 @@ export async function cancelRuReservation(
   booking: RuBookingRef,
   opts: { reason: string; cancelTypeId?: number },
 ): Promise<RuPushResult> {
+  const traceId = newRuTraceId();
+  const reservationId = String(booking.external_reservation_id);
   const auth = await resolveRuChildAuth(supabase, booking.property_id);
   if (!auth) {
+    // A refusal here never reaches RU, so it would otherwise leave no trace in the exchange log —
+    // which is what made cancel/reject look unimplemented during certification review.
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:cancel',
+      property_id: booking.property_id,
+      action: isRuLead(booking) ? 'Push_RejectRequest_RQ' : 'Push_CancelReservation_RQ',
+      error_reason: 'no_subuser_keys: no Rentals United sub-user API keys stored for this property',
+    });
     return {
       ok: false,
       code: 'RU_AUTH_UNAVAILABLE',
@@ -236,10 +262,14 @@ export async function cancelRuReservation(
     };
   }
 
-  const reservationId = String(booking.external_reservation_id);
   const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
 
-  const logCtx = { propertyId: booking.property_id, details: { booking_id: booking.id, reservation_id: reservationId } };
+  const logCtx = {
+    propertyId: booking.property_id,
+    traceId,
+    parentAction: 'ruBookingSync:cancel',
+    details: { booking_id: booking.id, reservation_id: reservationId },
+  };
 
   if (isRuLead(booking)) {
     const rejected = await invokeRu(supabase, 'reject_request', {
@@ -285,7 +315,15 @@ export async function modifyRuStay(
     arrival_time?: string | null;
   },
 ): Promise<RuPushResult> {
+  const traceId = newRuTraceId();
   if (isRuLead(booking)) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:modify',
+      property_id: booking.property_id,
+      action: 'Push_ModifyStay_RQ',
+      error_reason: 'unconfirmed_request: Rentals United accepts stay modifications on confirmed reservations only',
+    });
     return {
       ok: false,
       code: 'RU_MODIFY_NOT_ALLOWED',
@@ -296,6 +334,13 @@ export async function modifyRuStay(
 
   const auth = await resolveRuChildAuth(supabase, booking.property_id);
   if (!auth) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:modify',
+      property_id: booking.property_id,
+      action: 'Push_ModifyStay_RQ',
+      error_reason: 'no_subuser_keys: no Rentals United sub-user API keys stored for this property',
+    });
     return {
       ok: false,
       code: 'RU_AUTH_UNAVAILABLE',
@@ -305,6 +350,13 @@ export async function modifyRuStay(
 
   const ruPropertyId = await resolveRuPropertyId(supabase, booking);
   if (!ruPropertyId) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:modify',
+      property_id: booking.property_id,
+      action: 'Push_ModifyStay_RQ',
+      error_reason: 'unmapped_listing: no Rentals United PropertyID mapped for this unit',
+    });
     return {
       ok: false,
       code: 'RU_PROPERTY_UNMAPPED',
@@ -332,6 +384,8 @@ export async function modifyRuStay(
   }, {
     propertyId: booking.property_id,
     ruPropertyId,
+    traceId,
+    parentAction: 'ruBookingSync:modify',
     details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
   });
 
