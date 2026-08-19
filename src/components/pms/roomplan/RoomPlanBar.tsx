@@ -46,6 +46,23 @@ export interface RoomPlanBooking {
 }
 
 
+/** Which unit line a bar represents, so Cancel can target just that unit. */
+export interface RoomPlanCancelContext {
+  lineId: string;
+  roomLabel: string;
+  unitCount: number;
+}
+
+/** Occupancy of one unit line of a multi-unit stay. */
+export interface RoomPlanUnitLine {
+  id: string;
+  adults?: number | null;
+  children?: number | null;
+  teens?: number | null;
+  infants?: number | null;
+  pets?: number | null;
+}
+
 interface RoomPlanBarProps {
   booking: RoomPlanBooking;
   geometry: BarGeometry;
@@ -54,16 +71,28 @@ interface RoomPlanBarProps {
   roomLabel: string;
   propertyName?: string | null;
   dragging?: boolean;
+  /** The stay's line for this row — drives per-unit pax and per-unit cancel. */
+  unitLine?: RoomPlanUnitLine | null;
+  /** Total active unit lines on the booking (1 = ordinary single-unit stay). */
+  unitCount?: number;
   onOpen: (booking: RoomPlanBooking) => void;
   onQuickAction?: (booking: RoomPlanBooking, action: "check_in" | "check_out") => void;
   onModify?: (booking: RoomPlanBooking) => void;
-  onCancel?: (booking: RoomPlanBooking) => void;
+  onCancel?: (booking: RoomPlanBooking, context?: RoomPlanCancelContext) => void;
   onDragStart?: (booking: RoomPlanBooking, event: React.PointerEvent) => void;
   /** True when the click currently firing is the tail of a drag gesture. */
   wasDragGesture?: () => boolean;
 }
 
-const paxLine = (b: RoomPlanBooking) => {
+interface PaxSource {
+  adults?: number | null;
+  children?: number | null;
+  teens?: number | null;
+  infants?: number | null;
+  pets?: number | null;
+}
+
+const paxLine = (b: PaxSource) => {
   const parts: string[] = [];
   if (b.adults) parts.push(`${b.adults} adult${b.adults === 1 ? "" : "s"}`);
   if (b.teens) parts.push(`${b.teens} teen${b.teens === 1 ? "" : "s"}`);
@@ -72,6 +101,7 @@ const paxLine = (b: RoomPlanBooking) => {
   if (b.pets) parts.push(`${b.pets} pet${b.pets === 1 ? "" : "s"}`);
   return parts.join(" · ") || "No pax captured";
 };
+
 
 const isChannelBooking = (b: RoomPlanBooking) =>
   !!b.integration_type && b.integration_type !== "rolos" && b.integration_type !== "manual";
