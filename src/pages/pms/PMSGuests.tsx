@@ -28,6 +28,7 @@ interface Guest {
   nationality?: string | null;
   notes?: string | null;
   total_stays: number;
+  is_trade?: boolean | null;
   /** Legacy alias, kept in sync with total_received. */
   total_spent: number;
   /** Money actually paid on live bookings. */
@@ -137,7 +138,7 @@ export default function PMSGuests() {
     try {
       let q = supabase
         .from("rolos_guest_profiles")
-        .select("id, full_name, email, phone, nationality, notes, total_stays, total_spent, total_received, total_outstanding, total_cancelled_value, cancelled_stays, is_archived, tags, is_blacklisted, last_stay_date, property_id")
+        .select("id, full_name, email, phone, nationality, notes, is_trade, total_stays, total_spent, total_received, total_outstanding, total_cancelled_value, cancelled_stays, is_archived, tags, is_blacklisted, last_stay_date, property_id")
         .order("last_stay_date", { ascending: false, nullsFirst: false })
         .limit(1000);
 
@@ -449,6 +450,7 @@ export default function PMSGuests() {
                               )}
                             </div>
                             {(guest.total_stays || 0) > 1 && <Badge variant="secondary" className="text-xs">Repeat</Badge>}
+                            <Badge variant="outline" className="text-xs">{guest.is_trade ? "Trade" : "Direct"}</Badge>
                             {guest.tags?.map(tag => <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>)}
                             {guest.is_blacklisted && <Badge variant="destructive" className="text-xs">Blacklisted</Badge>}
                             {guest.is_archived && <Badge variant="outline" className="text-xs text-muted-foreground">Archived</Badge>}
