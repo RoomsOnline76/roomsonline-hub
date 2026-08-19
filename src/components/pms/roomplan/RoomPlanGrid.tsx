@@ -112,11 +112,23 @@ interface PlanRow {
   bookings: RoomPlanBooking[];
 }
 
-const bookingBelongsToType = (booking: RoomPlanBooking, type: RoomPlanRoomType, typeRooms: RoomPlanRoom[]) => {
+const bookingBelongsToType = (
+  booking: RoomPlanBooking,
+  type: RoomPlanRoomType,
+  typeRooms: RoomPlanRoom[],
+  placedRoomIds?: Set<string>
+) => {
+  const assigned = booking.rolos_room_ids || [];
+  // Once a stay sits in known units, those units are the only place it may draw.
+  // A stale room_type_id must not paint a second bar under another type — that
+  // reads as a cloned reservation after a drag between units.
+  if (placedRoomIds && assigned.some((roomId) => placedRoomIds.has(roomId))) {
+    return assigned.some((roomId) => typeRooms.some((room) => room.id === roomId));
+  }
   if (booking.room_type_id && (booking.room_type_id === type.id || booking.room_type_id === type.linked_overview_id)) return true;
   // Multi-room stays carry one line per unit; each line's room type gets a bar.
   if (booking.line_room_type_ids?.some((id) => id === type.id || id === type.linked_overview_id)) return true;
-  return !!booking.rolos_room_ids?.some((roomId) => typeRooms.some((room) => room.id === roomId));
+  return !!assigned.some((roomId) => typeRooms.some((room) => room.id === roomId));
 };
 
 
@@ -189,11 +201,22 @@ export function RoomPlanGrid({
   );
 
 
+  // Every unit currently on screen — used to keep a placed stay on its own unit only.
+  const placedRoomIds = useMemo(() => {
+    const ids = new Set<string>();
+    roomTypes.forEach((type) =>
+      (roomsByType.get(type.id) || []).forEach((room) => {
+        if (room.status !== "out_of_service") ids.add(room.id);
+      })
+    );
+    return ids;
+  }, [roomTypes, roomsByType]);
+
   // Rows, grouped per room type: an "Unassigned" row plus one row per unit.
   const groups = useMemo(() => {
     return roomTypes.map((type) => {
       const typeRooms = (roomsByType.get(type.id) || []).filter((room) => room.status !== "out_of_service");
-      const typeBookings = bookings.filter((booking) => bookingBelongsToType(booking, type, typeRooms));
+      const typeBookings = bookings.filter((booking) => bookingBelongsToType(booking, type, typeRooms, placedRoomIds));
       const rows: PlanRow[] = [];
 
       const assignedIds = new Set<string>();
@@ -234,7 +257,7 @@ export function RoomPlanGrid({
 
       return { type, rows, bookingCount: typeBookings.length, unitCount: typeRooms.length };
     });
-  }, [roomTypes, roomsByType, bookings]);
+  }, [roomTypes, roomsByType, bookings, placedRoomIds]);
 
   const rowByKey = useMemo(() => {
     const map = new Map<string, PlanRow>();
