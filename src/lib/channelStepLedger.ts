@@ -281,6 +281,17 @@ export function recheckChannelLedger(
   });
 }
 
+/**
+ * Has this row ever been graded? A seeded `pending` row that was never checked
+ * carries NO verdict — it must fall back to the locally computed truth instead of
+ * vetoing a step the property has genuinely finished.
+ */
+export function ledgerHasVerdict(step: ChannelLedgerStep | undefined | null): boolean {
+  if (!step) return false;
+  if (step.status === "pending") return !!step.passed_at || !!step.last_checked_at;
+  return true;
+}
+
 /** Does this ledger row still count as complete? A prior pass survives stale/unknown. */
 export function ledgerStepComplete(step: ChannelLedgerStep | undefined | null): boolean {
   if (!step) return false;
