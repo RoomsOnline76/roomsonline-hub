@@ -4054,8 +4054,16 @@ Deno.serve(async (req) => {
       if (account?.id) {
         await admin.from("ru_owner_accounts").update({ ru_api_keys_verified_at: stamp }).eq("id", account.id);
       }
+      // Terminal verification outcome either way — the keys step must be re-graded.
+      await markLedgerStaleForOwnerAccount(
+        admin,
+        { accountId: account?.id ?? null, ownerId },
+        ["keys", "company_profile"],
+        "keys_verified",
+      );
       if (!accepted) {
         return json({
+
           success: false,
           verified: false,
           error: {
