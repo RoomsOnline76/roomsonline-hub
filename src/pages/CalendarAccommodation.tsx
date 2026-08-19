@@ -1487,6 +1487,37 @@ const CalendarAccommodation = () => {
   const rateTypeOptions = React.useMemo(() => {
     const rateTypes: { id: string; label: string; hasRates: boolean }[] = [];
     const seenNames = new Set<string>();
+
+    const rateTypeHasRates = (rateTypeId: string) => {
+      let hasRates = false;
+      pmsData.roomTypes.forEach((room) => {
+        Object.values(room.ratesByDate).forEach((dateRates) => {
+          dateRates.forEach((rate) => {
+            if (String(rate.rateTypeId) !== rateTypeId) return;
+            const hasValues =
+              (rate.roomAmount != null && rate.roomAmount > 0) ||
+              (rate.adultAmounts && Object.values(rate.adultAmounts).some((v) => v != null && v > 0)) ||
+              (rate.teenAmount != null && rate.teenAmount > 0) ||
+              (rate.childAmount != null && rate.childAmount > 0) ||
+              (rate.infantAmount != null && rate.infantAmount > 0);
+            if (hasValues) hasRates = true;
+          });
+        });
+      });
+      return hasRates;
+    };
+
+    // Native ROL'OS: rate plans are the single source of truth. De-duplicate
+    // strictly by plan id so no room name or retired wizard id can appear.
+    if (isNativeRolosProperty && nativeRatePlans.length > 0) {
+      return nativeRatePlans.map((plan) => ({
+        id: plan.id,
+        label: plan.name,
+        hasRates: rateTypeHasRates(plan.id),
+      }));
+    }
+    
+
     
     // Only use property's saved pms_rate_types to match Property Form when they map to actual PMS data.
     if (selectedPropertyData?.amenities?.pms_rate_types) {
