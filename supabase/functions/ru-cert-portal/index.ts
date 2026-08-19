@@ -26,6 +26,7 @@ import {
   seedLedger,
   readLedger,
   markLedgerStale,
+  markLedgerStaleForScope,
   writeLedgerRows,
   mapReadinessToLedgerRows,
   type ReadinessReportLike,
@@ -65,6 +66,37 @@ const corsHeaders = {
 
 type StepStatus = "passed" | "failed" | "skipped";
 type CertScope = "account" | "property";
+
+/**
+ * Phase 2 ledger bookkeeping for account-scoped writers.
+ *
+ * Key capture, owner push and company profile are recorded against an RU sub-account,
+ * not a property — resolve the account's scope (portfolio or single property) and mark
+ * the affected macro steps stale for every property it covers. Never throws.
+ */
+// deno-lint-ignore no-explicit-any
+async function markLedgerStaleForOwnerAccount(
+  admin: any,
+  ref: { accountId?: string | null; ownerId?: string | null },
+  stepKeys: string[],
+  event: string,
+): Promise<void> {
+  try {
+    let query = admin.from("ru_owner_accounts").select("portfolio_id, property_id");
+    query = ref.accountId ? query.eq("id", ref.accountId) : query.eq("ru_owner_id", ref.ownerId ?? "");
+    const { data } = await query.limit(1).maybeSingle();
+    if (!data) return;
+    await markLedgerStaleForScope(
+      admin,
+      { propertyId: data.property_id ?? null, portfolioId: data.portfolio_id ?? null },
+      stepKeys,
+      event,
+    );
+  } catch (error) {
+    console.warn("[channel-ledger] owner-account stale marking skipped:", error);
+  }
+}
+
 
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
 const RUN_COOLDOWN_SECONDS = 60;
@@ -3872,7 +3904,9 @@ Deno.serve(async (req) => {
       const company = await provisionCompanyAfterKeyVerification();
       // Verified keys mean this account can be monitored — subscribe it now.
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
+      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys", "company_profile"], "keys_saved");
       return json({
+
         success: true,
         verified: true,
         ru_owner_id: ownerId,
@@ -4020,8 +4054,16 @@ Deno.serve(async (req) => {
       if (account?.id) {
         await admin.from("ru_owner_accounts").update({ ru_api_keys_verified_at: stamp }).eq("id", account.id);
       }
+      // Terminal verification outcome either way — the keys step must be re-graded.
+      await markLedgerStaleForOwnerAccount(
+        admin,
+        { accountId: account?.id ?? null, ownerId },
+        ["keys", "company_profile"],
+        "keys_verified",
+      );
       if (!accepted) {
         return json({
+
           success: false,
           verified: false,
           error: {
@@ -4472,7 +4514,11 @@ Deno.serve(async (req) => {
           : []),
       ];
 
+      // Listing ids were just re-read from the channel — the pull step needs re-grading.
+      await markLedgerStaleForScope(admin, { propertyId: targetPropertyId }, ["pull_listings"], "listings_pulled");
+
       return json({
+
         success: true,
         ru_owner_id: ownerId,
         ru_owner_label: subAccountLabel,
@@ -6015,7 +6061,16 @@ Deno.serve(async (req) => {
         .eq("id", (saved as any)?.id)
         .maybeSingle();
 
+      // Owner push / company profile outcome landed — both steps need re-grading.
+      await markLedgerStaleForScope(
+        admin,
+        { propertyId: propertyId || null, portfolioId },
+        action === "ensure_company_details" ? ["company_profile"] : ["push_owner", "company_profile"],
+        action,
+      );
+
       return json({
+
         success: true,
         created: !adopted,
         adopted,

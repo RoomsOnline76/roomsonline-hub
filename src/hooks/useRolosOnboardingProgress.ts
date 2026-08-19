@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { calculateBedCapacity } from "@/lib/bedConfig";
 import { supabase } from "@/integrations/supabase/client";
+import { markChannelStepsStale } from "@/lib/channelStepLedger";
+
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
@@ -939,7 +941,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
         .from("property_onboarding_roadmap")
         .upsert({ property_id: propertyId, roadmap: next as never }, { onConflict: "property_id" });
       if (error) throw error;
+      // Phase 2 ledger — the manual verification checklist moved; nothing else did.
+      void markChannelStepsStale(propertyId, ["signoff"]);
       await refresh();
+
     },
     [d?.roadmap, propertyId, refresh],
   );

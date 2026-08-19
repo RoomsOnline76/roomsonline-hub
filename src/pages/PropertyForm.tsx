@@ -67,6 +67,8 @@ import { PortfolioCommonsCard } from "@/components/property/PortfolioCommonsCard
 import { runAutoShare } from "@/lib/portfolioCommons";
 import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
+import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
+
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
 import { GooglePlaceIdPastePopover } from "@/components/property/GooglePlaceIdPastePopover";
@@ -496,6 +498,9 @@ export default function PropertyForm({
   >([]);
   const [linkedOwnerSearch, setLinkedOwnerSearch] = useState("");
   const persistedOwnerEmailRef = useRef("");
+  /** Last persisted `properties` row — Phase 2 ledger diffing only. */
+  const loadedPropertyRowRef = useRef<Record<string, unknown> | null>(null);
+
 
   const [ownerHostfullyCredential, setOwnerHostfullyCredential] = useState<any>(null);
   const [loadingOwnerCredential, setLoadingOwnerCredential] = useState(false);
@@ -2305,6 +2310,8 @@ export default function PropertyForm({
           // Store the actual property UUID for database operations
           setPropertyId(data.id);
           persistedOwnerEmailRef.current = String(data.owner_email || "").trim().toLowerCase();
+          loadedPropertyRowRef.current = data as unknown as Record<string, unknown>;
+
 
           // Check if Experience Engine is enabled
           supabase
@@ -3975,6 +3982,19 @@ export default function PropertyForm({
       }
 
       persistedOwnerEmailRef.current = nextOwnerEmail;
+
+      // Phase 2 ledger — mark only the sections this save actually changed as stale.
+      // Fire-and-forget bookkeeping: it never blocks or fails the save.
+      const changedSteps = derivePropertyStepsFromChanges(
+        loadedPropertyRowRef.current,
+        propertyData as unknown as Record<string, unknown>,
+      );
+      loadedPropertyRowRef.current = {
+        ...(loadedPropertyRowRef.current ?? {}),
+        ...(propertyData as unknown as Record<string, unknown>),
+      };
+      if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
+
 
       toast({
         title: "Success",

@@ -16,6 +16,8 @@ import {
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { markLedgerStaleForScope } from '../_shared/channelStepLedger.ts';
+
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
@@ -136,7 +138,11 @@ async function verifyListingsAfterPush(
    */
   callerAuthHeader?: string | null,
 ): Promise<ListingVerification> {
+  // Phase 2 ledger: a successful push invalidates the publish and currency grades.
+  // Bookkeeping only — never allowed to affect the push outcome.
+  await markLedgerStaleForScope(supabase, { propertyId }, ["publish", "currency"], "push_succeeded");
   try {
+
     let attempt = 0;
     // deno-lint-ignore no-explicit-any
     let data: any = null;
