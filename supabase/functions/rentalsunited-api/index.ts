@@ -1938,6 +1938,8 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
   reject_request: 'Push_RejectRequest_RQ',
   cancel_reservation: 'Push_CancelReservation_RQ',
   modify_stay: 'Push_ModifyStay_RQ',
+  push_confirmed_reservation: 'Push_PutConfirmedReservationMulti_RQ',
+
   push_property: 'Push_PutProperty_RQ',
   push_availability: 'Push_PutAvbUnits_RQ',
   push_prices: 'Push_PutPrices_RQ',
