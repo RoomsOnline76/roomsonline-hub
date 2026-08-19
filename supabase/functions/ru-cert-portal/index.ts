@@ -5166,7 +5166,12 @@ Deno.serve(async (req) => {
 
 
 
+      // A reserved login supplied in the request is dropped too, so resolution falls
+      // through to the portfolio / owner-account candidates instead of dead-ending at RU.
+      if (ownerEmail && isInternalLogin(ownerEmail)) ownerEmail = null;
+
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
+
 
       // 1) The property's own owner email is the authority.
       if (!ownerEmail && propertyId) {
