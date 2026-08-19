@@ -269,7 +269,7 @@ async function resolveRolosRates(
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
