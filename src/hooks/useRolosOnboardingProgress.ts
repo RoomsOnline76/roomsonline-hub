@@ -159,7 +159,55 @@ const ARI_GROUPS = ["Availability 365d", "Pricing 365d"];
 export function useRolosOnboardingProgress(propertyId?: string | null) {
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
-  const readiness = usePropertyReadiness(propertyId);
+
+  /**
+   * Phase 3 — channel step ledger.
+   *
+   * When the rollout flag is on and the property has seeded rows, the wizard reads
+   * its step verdicts from `property_channel_step_status` instead of re-grading on
+   * mount. With the flag off every query below behaves exactly as it did before.
+   */
+  const ledgerFlagQuery = useQuery({
+    queryKey: ["channel-step-ledger-enabled"],
+    queryFn: isChannelStepLedgerEnabled,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const ledgerEnabled = ledgerFlagQuery.data === true;
+
+  const seededOnce = useRef<string | null>(null);
+  const ledgerQuery = useQuery({
+    queryKey: ["channel-step-ledger", propertyId],
+    enabled: !!propertyId && ledgerEnabled,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<ChannelLedgerSnapshot | null> => {
+      const id = propertyId as string;
+      const snapshot = await fetchChannelLedger(id);
+      if (!snapshot?.enabled) return snapshot;
+      if (snapshot.steps.length > 0) return snapshot;
+      // Seed exactly once per property — a repeat mount must never re-seed.
+      if (seededOnce.current === id) return snapshot;
+      seededOnce.current = id;
+      return (await seedChannelLedger(id)) ?? snapshot;
+    },
+  });
+
+  const ledgerSteps = ledgerQuery.data?.steps ?? [];
+  const ledgerActive = ledgerEnabled && ledgerQuery.data?.enabled === true && ledgerSteps.length > 0;
+  const ledgerByStep = useMemo(() => {
+    const map = new Map<string, ChannelLedgerStep>();
+    for (const step of ledgerSteps) map.set(String(step.step_key), step);
+    return map;
+  }, [ledgerSteps]);
+
+  const readiness = usePropertyReadiness(propertyId, {
+    // On the ledger path the durable rows already hold the server verdicts, so the
+    // wizard does not re-grade (no `check-activation-readiness`, no channel report).
+    backendChecks: !ledgerActive,
+    channelChecks: !ledgerActive,
+  });
+
   const { config: billing } = useBillingConfig(propertyId ?? undefined);
   /**
    * Live channel probes are expensive and rate limited. They run on an explicit
