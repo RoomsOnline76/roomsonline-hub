@@ -4368,6 +4368,18 @@ Deno.serve(async (req) => {
       );
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
+        // Status 56: the listing we hold locally is not (or no longer) at the channel. Retrying
+        // cannot fix a stale mapping — say so plainly so the operator republishes the unit.
+        if (status.id === '56') {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_LISTING_MISSING',
+              message: `The channel has no listing ${stay.ru_property_id} for this unit — republish the unit to the channel, then resend the stay.`,
+              ru_status_id: status.id,
+            },
+          });
+        }
         return ruErrorResponse(
           status,
           buildDiagnostics(compactRequestXml, status, 'push_confirmed_reservation', response),

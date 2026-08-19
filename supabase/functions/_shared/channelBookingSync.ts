@@ -205,12 +205,17 @@ export async function syncBookingToChannel(
             })
             .eq('id', String(row.id));
         }
-      } else if (push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE') {
+      } else if (
+        push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE' ||
+        push.code === 'RU_LISTING_MISSING'
+      ) {
         // Not a fault: this unit simply is not distributed through the channel.
         result.reservation = 'skipped';
-        result.reservation_reason = push.code === 'RU_PROPERTY_UNMAPPED'
-          ? 'unit_not_listed_on_channel'
-          : 'no_channel_credentials';
+        result.reservation_reason = push.code === 'RU_AUTH_UNAVAILABLE'
+          ? 'no_channel_credentials'
+          : push.code === 'RU_LISTING_MISSING'
+            ? 'listing_missing_at_channel'
+            : 'unit_not_listed_on_channel';
         result.message = push.message ?? null;
       } else {
         result.reservation = 'failed';
