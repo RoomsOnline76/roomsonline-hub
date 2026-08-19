@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
         parent_action: `ru-reservation-handler:${kind}`,
         action: RU_VERB_BY_KIND[kind],
         property_id: propertyId,
-        unit_id: unit.unitId ?? null,
+        unit_id: unit.roomTypeId ?? null,
         ru_property_id: r.ruPropertyId ?? null,
         body_xml: raw,
         success: !unmappedListing,
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         recordChannelBookingEvent(supabase, {
           booking_id: bookingId ?? null,
           property_id: propertyId,
-          unit_id: unit.unitId ?? null,
+          unit_id: unit.roomTypeId ?? null,
           direction: 'inbound',
           action: TRAIL_ACTION_BY_KIND[kind],
           source: 'rlnm',
