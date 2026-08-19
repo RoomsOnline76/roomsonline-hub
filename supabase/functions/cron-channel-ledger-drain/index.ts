@@ -55,13 +55,31 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: stale, error: readError } = await admin
-    .from('property_channel_step_status')
-    .select('property_id, step_key, stale_at')
-    .eq('status', 'stale')
-    .in('step_key', LOCAL_CLASS_LEDGER_STEPS)
-    .order('stale_at', { ascending: true, nullsFirst: true })
-    .limit(400);
+  /**
+   * Two candidate classes:
+   *  - `stale`   → a save invalidated a previously graded step.
+   *  - `pending` never checked → a seeded row that carries no verdict at all. Left
+   *    ungraded these rows are useless bookkeeping, so they get their first verdict here.
+   */
+  const [staleRes, ungradedRes] = await Promise.all([
+    admin
+      .from('property_channel_step_status')
+      .select('property_id, step_key, stale_at')
+      .eq('status', 'stale')
+      .in('step_key', LOCAL_CLASS_LEDGER_STEPS)
+      .order('stale_at', { ascending: true, nullsFirst: true })
+      .limit(400),
+    admin
+      .from('property_channel_step_status')
+      .select('property_id, step_key, stale_at')
+      .eq('status', 'pending')
+      .is('last_checked_at', null)
+      .in('step_key', LOCAL_CLASS_LEDGER_STEPS)
+      .limit(400),
+  ]);
+
+  const readError = staleRes.error ?? ungradedRes.error;
+  const stale = [...(staleRes.data ?? []), ...(ungradedRes.data ?? [])];
 
   if (readError) {
     logLedgerEvent({ event: 'drain_error', detail: { message: readError.message } });
@@ -71,7 +89,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  // One recheck per property covers every stale local step it owns.
+  // One recheck per property covers every stale/ungraded local step it owns.
   const byProperty = new Map<string, string[]>();
   for (const row of (stale ?? []) as StaleRow[]) {
     if (!row.property_id) continue;
