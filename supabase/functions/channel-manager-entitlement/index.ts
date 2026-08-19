@@ -1393,18 +1393,20 @@ Deno.serve(async (req) => {
       const startedAt = Date.now();
       const BUDGET_MS = 12 * 60 * 1000;
 
-      // 1. One presence read for the whole run.
-      const snapshot = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
+      // 1. One presence read for the whole run (empty answers confirmed twice).
+      const snapshot = await pullOwnerListingsConfirmed(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
       if (snapshot.error) {
         return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
       }
-      // A blank account read is unverified, not empty. Removing/releasing against it
-      // would delete the account's real inventory, so the batch refuses to run.
-      if (snapshot.listings.length === 0) {
+      // A single blank read is unverified — but two agreeing reads mean the account
+      // genuinely holds nothing, so every target is already gone and its local id
+      // can be released instead of the run refusing forever.
+      if (snapshot.listings.length === 0 && !snapshot.confirmedEmpty) {
         return deferred(
           "The channel account answered with no listings at all — nothing was verified, so no cleanup was run",
         );
       }
+
       const heldNow = new Map<string, boolean>(); // listing id → still sellable
       for (const l of snapshot.listings) {
         heldNow.set(String(l.id), !(l.is_archived === true || l.is_active === false));
