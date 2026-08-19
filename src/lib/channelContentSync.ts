@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { channelLedgerStepsForTrigger, markChannelStepsStale } from "@/lib/channelStepLedger";
+
 
 /**
  * Outcome of a delta. `reason: "gate_pending"` means the change is real and still owed to the
