@@ -607,6 +607,12 @@ Deno.serve(async (req) => {
     } else if (newTotalPrice !== null) {
       updateData.total_price = newTotalPrice;
     }
+    // Stamp the plan that priced the stay so the next modification does not have to guess again.
+    if (repricedPlanId && !booking.rolos_rate_plan_id) {
+      updateData.rolos_rate_plan_id = repricedPlanId;
+    }
+
+
 
 
     const { error: updateError } = await supabase
