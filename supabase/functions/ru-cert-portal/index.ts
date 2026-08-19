@@ -4297,17 +4297,35 @@ Deno.serve(async (req) => {
       }
 
       const subAccountLabel = `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`;
-      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+      let { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
         body: { action: "list_properties", owner_id: Number(ownerId) },
       });
       // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
-      const listedBody = listed ?? (await readInvokeErrorBody(listErr));
+      let listedBody = listed ?? (await readInvokeErrorBody(listErr));
       /**
        * A rate-limited read answers 202 { success: true, queued: true } with no property
        * list. Treating that as "the account is empty" is what wiped listing verification
        * and reported an empty sub-account, so an unresolved read is a deferral.
        */
-      const queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
+      let queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
+
+      /**
+       * Second chance through the rate gate: asking non-deferrably makes the gate wait out the
+       * remainder of the sliding window instead of parking the read, so most reviews pass here.
+       */
+      if (queuedRead && (listedBody?.success === true || listedBody?.error?.code === "RU_RATE_DEFERRED")) {
+        const retry = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "list_properties", owner_id: Number(ownerId), deferrable: false },
+        });
+        const retryBody = retry.data ?? (await readInvokeErrorBody(retry.error));
+        if (retryBody?.success === true && Array.isArray(retryBody?.properties)) {
+          listed = retryBody;
+          listErr = null;
+          listedBody = retryBody;
+          queuedRead = false;
+        }
+      }
+
       if (listErr || listedBody?.success !== true || queuedRead) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
         // never be reported as "the sub-account was empty".
@@ -4320,6 +4338,28 @@ Deno.serve(async (req) => {
             : null)
           ?? listErr?.message ?? "Rentals United did not return a property list";
         const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
+
+        /**
+         * A rate deferral is not a failure of the review — it only means the read must happen a
+         * little later. Park the review as background work and answer 202 pending so the wizard
+         * keeps its step "in progress" and the operator is told when it lands.
+         */
+        if (code === "RU_RATE_DEFERRED") {
+          await enqueueJob(admin, "channel_listing_review", { property_id: targetPropertyId }, {
+            dedupeKey: `channel_listing_review:${targetPropertyId}`,
+            delaySeconds: Math.max(30, Math.ceil((retryMs || 60000) / 1000)),
+            maxAttempts: 8,
+          });
+          return json({
+            success: true,
+            pending: true,
+            ru_owner_id: ownerId,
+            ru_owner_label: subAccountLabel,
+            retry_after_ms: retryMs > 0 ? retryMs : 60000,
+            message: `The channel is rate limited right now — the listing review for ${subAccountLabel} will finish in the background.`,
+          }, 202);
+        }
+
         return json({
           success: false,
           ru_owner_id: ownerId,
@@ -4329,9 +4369,7 @@ Deno.serve(async (req) => {
             code,
             message: code === "RU_CHILD_AUTH_REQUIRED"
               ? `API keys are required for ${subAccountLabel} before its listings can be pulled. ${detail}`
-              : code === "RU_RATE_DEFERRED"
-                ? `Channel rate limit — retry in ${Math.ceil((retryMs || 60000) / 1000)}s (sub-account ${subAccountLabel}).`
-                : `${detail} (sub-account ${subAccountLabel})`,
+              : `${detail} (sub-account ${subAccountLabel})`,
           },
         }, 422);
       }
