@@ -8,7 +8,7 @@ export interface ReconAccount {
   login_email?: string | null;
   /** Contact address stored against the account, when it differs from the login. */
   contact_email?: string | null;
-  /** Canonical one-line label: login · OwnerID (contact …). */
+  /** Canonical one-line label: `login · OwnerID`. The login IS the account identity. */
   owner_label?: string;
   /** True when ROL'OS has this sub-account bound to a portfolio/property. */
   bound?: boolean;
