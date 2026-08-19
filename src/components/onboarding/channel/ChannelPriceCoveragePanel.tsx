@@ -59,7 +59,17 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
     void load();
   }, [load]);
 
-  const problems = useMemo(() => rows.filter((r) => r.verdict !== "verified"), [rows]);
+  /**
+   * Only real pricing gaps warrant a warning. An `unverified` row means the channel read was
+   * rate-deferred and re-queued — we have not been able to look yet, which is not something the
+   * owner can act on and must never be presented as "needs attention".
+   */
+  const gaps = useMemo(
+    () => rows.filter((r) => r.verdict === "channel_short" || r.verdict === "local_incomplete"),
+    [rows],
+  );
+  const pending = useMemo(() => rows.filter((r) => r.verdict === "unverified"), [rows]);
+  const confirmed = useMemo(() => rows.filter((r) => r.verdict === "verified"), [rows]);
 
   const recheck = useCallback(async () => {
     setChecking(true);
@@ -76,6 +86,12 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
           : `${short} unit(s) still need attention — details below`,
       );
       await load();
+      // A queued read lands seconds later; poll briefly so a pending line resolves itself
+      // instead of leaving the operator to click Re-check again.
+      for (const delay of [6000, 12000, 20000]) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        await load();
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not check pricing coverage");
     } finally {
@@ -83,28 +99,52 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
     }
   }, [propertyId, load]);
 
+  const pendingLine = pending.length > 0 && (
+    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+      <CalendarClock className="h-3.5 w-3.5" />
+      Still confirming the priced year for {pending.length} unit{pending.length === 1 ? "" : "s"} — the
+      channel read is queued and retries on its own.
+    </p>
+  );
+
+  const recheckButton = (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-7 shrink-0 text-xs"
+      onClick={() => void recheck()}
+      disabled={checking}
+    >
+      {checking ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
+      Re-check
+    </Button>
+  );
+
   if (rows.length === 0) {
     return (
       <div className="flex items-center justify-between rounded-md border px-3 py-2 text-xs text-muted-foreground">
         <span>Pricing coverage for the year ahead has not been checked yet.</span>
-        <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => void recheck()} disabled={checking}>
-          {checking ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
-          Check now
-        </Button>
+        {recheckButton}
       </div>
     );
   }
 
-  if (problems.length === 0) {
+  if (gaps.length === 0) {
     return (
-      <div className="flex items-center justify-between rounded-md border px-3 py-2 text-xs text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <CalendarClock className="h-3.5 w-3.5" />
-          Every unit has a priced year on the channel.
-        </span>
-        <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void recheck()} disabled={checking}>
-          {checking ? <Loader2 className="h-3 w-3 animate-spin" /> : "Re-check"}
-        </Button>
+      <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs text-muted-foreground">
+        <div className="space-y-1">
+          {confirmed.length > 0 && (
+            <span className="flex items-center gap-2">
+              <CalendarClock className="h-3.5 w-3.5" />
+              {pending.length === 0
+                ? "Every unit has a priced year on the channel."
+                : `${confirmed.length} unit${confirmed.length === 1 ? " has" : "s have"} a confirmed priced year on the channel.`}
+            </span>
+          )}
+          {pendingLine}
+        </div>
+        {recheckButton}
       </div>
     );
   }
@@ -117,8 +157,8 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-xs font-medium">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-          Pricing for the year ahead needs attention on {problems.length} unit
-          {problems.length === 1 ? "" : "s"}
+          Pricing for the year ahead needs attention on {gaps.length} unit
+          {gaps.length === 1 ? "" : "s"}
         </p>
         <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => void recheck()} disabled={checking}>
           {checking ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
@@ -126,7 +166,7 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
         </Button>
       </div>
       <ul className="space-y-1.5">
-        {problems.map((row) => (
+        {gaps.map((row) => (
           <li key={row.id} className="flex flex-wrap items-center gap-2 text-[11px] text-foreground">
             <Badge variant="outline" className="text-[10px]">
               {VERDICT_LABEL[row.verdict]}
@@ -144,6 +184,7 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "pms" }: Props
           </li>
         ))}
       </ul>
+      {pendingLine}
     </div>
   );
 }
