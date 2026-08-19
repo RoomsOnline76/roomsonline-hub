@@ -1,38 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { AlertTriangle, ArrowRight, CheckCircle2, KeyRound, Loader2, ShieldCheck, Upload } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { onRuAccountsChanged } from "@/lib/ruAccountsSignal";
+import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
 
 import type { ChannelCostMonitorData } from "@/hooks/useChannelCostMonitor";
 
 type TabKey = "cost" | "accounts" | "cert";
 
-interface CertRunLite {
-  id: string;
-  suite: string | null;
-  status: string | null;
-  passed: number | null;
-  failed: number | null;
-  total: number | null;
-  started_at: string | null;
-  steps: unknown;
-}
 
-interface AccountLite {
-  id: string;
-  ru_owner_id: string | null;
-  ru_api_access_key: string | null;
-  ru_api_keys_verified_at: string | null;
-}
-
-interface CredLite {
-  ru_owner_id: string | number | null;
-  access_key: string | null;
-  verified_at: string | null;
-}
 
 
 /** Names the first step in a run that did not pass, so the operator sees the blocker directly. */
@@ -62,56 +39,9 @@ interface Props {
  * tab and offers the single action that clears whichever one is currently blocking.
  */
 export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
-  const [accounts, setAccounts] = useState<AccountLite[]>([]);
-  const [creds, setCreds] = useState<CredLite[]>([]);
+  // Same three reads as before, now shared with the left-rail status chips.
+  const { loading, keys, latestRun } = useChannelRailStatus();
 
-  const [runs, setRuns] = useState<CertRunLite[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [accRes, credRes, runRes] = await Promise.all([
-      supabase.from("ru_owner_accounts").select("id, ru_owner_id, ru_api_access_key, ru_api_keys_verified_at"),
-      supabase.from("ru_api_credentials").select("ru_owner_id, access_key, verified_at"),
-      supabase
-        .from("ru_cert_runs")
-        .select("id, suite, status, passed, failed, total, started_at, steps")
-        .order("created_at", { ascending: false })
-        .limit(12),
-    ]);
-    setAccounts((accRes.data ?? []) as AccountLite[]);
-    setCreds((credRes.data ?? []) as CredLite[]);
-    setRuns((runRes.data ?? []) as CertRunLite[]);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // Storing / verifying / rebinding keys happens on the Accounts tab; without this the
-  // banner would keep reporting the state it read when the page first mounted.
-  useEffect(() => onRuAccountsChanged(() => void load()), [load]);
-
-
-  // Sub-user keys are normally stored in the credentials table keyed by OwnerID; only
-  // older accounts carry them inline, so both sources count towards readiness.
-  const keys = useMemo(() => {
-    const credByOwner = new Map(creds.map((c) => [String(c.ru_owner_id ?? ""), c]));
-    let withKeys = 0;
-    let verified = 0;
-    for (const a of accounts) {
-      const cred = credByOwner.get(String(a.ru_owner_id ?? ""));
-      const hasKey = !!a.ru_api_access_key || !!cred?.access_key;
-      const isVerified = !!a.ru_api_keys_verified_at || !!cred?.verified_at;
-      if (hasKey) withKeys += 1;
-      if (hasKey && isVerified) verified += 1;
-    }
-    return { total: accounts.length, withKeys, verified };
-  }, [accounts, creds]);
-
-
-  const latestRun = runs[0] ?? null;
   const problem = useMemo(() => (latestRun ? firstProblemStep(latestRun.steps) : null), [latestRun]);
 
   const live = data.properties.filter((p) => p.state === "live").length;

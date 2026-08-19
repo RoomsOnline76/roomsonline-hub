@@ -23,6 +23,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
+import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
+import { RuCertChecklistCard } from "@/components/admin/channel-monitor/RuCertChecklistCard";
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
@@ -137,8 +139,28 @@ const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
 // Old tab names stay valid so health-report and wizard deep links keep working.
 const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
 
+/** Chip tone: ready / attention / failing / unknown. Presentation only. */
+type ChipTone = "ok" | "warn" | "bad" | "muted";
+
+const CHIP_TONE: Record<ChipTone, string> = {
+  ok: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  warn: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  bad: "border-destructive/40 bg-destructive/10 text-destructive",
+  muted: "border-border bg-muted text-muted-foreground",
+};
+
+const relativeAge = (iso: string) => {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+};
+
+
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
+  // Shared readiness snapshot (also feeding the status strip) — no extra queries.
+  const railStatus = useChannelRailStatus();
   const [params, setParams] = useSearchParams();
   const [target, setTarget] = useState<{ row: ChannelPropertyRow; mode: "archive" | "reactivate" } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -146,7 +168,7 @@ export default function AdminChannelMonitor() {
   const [purgeTarget, setPurgeTarget] = useState<{ row: ChannelPropertyRow; unit?: ChannelUnitRow } | null>(null);
   // Deep link between the booking trail (decision) and the exchange log (raw payload).
   const [exchangeSearch, setExchangeSearch] = useState("");
-  const exchangeLogRef = useRef<HTMLDivElement | null>(null);
+  const exchangeLogRef = useRef<HTMLElement | null>(null);
 
 
   const { isDev, isFearlessLeader } = useAuth();
@@ -341,6 +363,75 @@ export default function AdminChannelMonitor() {
     [isDev, isFearlessLeader],
   );
 
+  // Every chip below reads state the page already has in memory — no extra queries.
+  const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string }>>(() => {
+    const loading = data.loading || railStatus.loading;
+    const live = data.properties.filter((p) => p.state === "live").length;
+    const withoutFootprint = data.subAccountPropertiesWithoutFootprint;
+    const neverPushed = data.properties.filter((p) => p.neverPushed).length;
+    const lastPush = data.properties
+      .map((p) => p.lastPushAt)
+      .filter((v): v is string => !!v)
+      .sort()
+      .pop();
+    const run = railStatus.latestRun;
+    const keys = railStatus.keys;
+
+    if (loading) {
+      const pending = { tone: "muted" as ChipTone, label: "Checking…" };
+      return {
+        accounts: pending,
+        cost: pending,
+        binding: pending,
+        mapping: pending,
+        ari: pending,
+        reservations: pending,
+        cert: pending,
+        advanced: { tone: "muted", label: "Engineers only" },
+      };
+    }
+
+    return {
+      accounts:
+        keys.total > 0 && keys.verified === keys.total
+          ? { tone: "ok", label: `${keys.verified}/${keys.total} keys verified` }
+          : {
+              tone: keys.withKeys < keys.total ? "bad" : "warn",
+              label: keys.total === 0 ? "No sub-accounts" : `${keys.total - keys.verified} key(s) unverified`,
+            },
+      cost: { tone: "muted", label: `${data.billableListings} listings billable` },
+      binding:
+        withoutFootprint === 0
+          ? { tone: "ok", label: "All bound" }
+          : { tone: "warn", label: `${withoutFootprint} without footprint` },
+      mapping:
+        data.duplicateListings === 0 && neverPushed === 0
+          ? { tone: "ok", label: "Mappings complete" }
+          : {
+              tone: data.duplicateListings > 0 ? "bad" : "warn",
+              label:
+                data.duplicateListings > 0
+                  ? `${data.duplicateListings} duplicate listing(s)`
+                  : `${neverPushed} never pushed`,
+            },
+      ari: lastPush
+        ? { tone: "ok", label: `ARI pushed ${relativeAge(lastPush)}` }
+        : { tone: "warn", label: "No ARI push yet" },
+      reservations:
+        live > 0
+          ? { tone: "ok", label: `${live} live on channel` }
+          : { tone: "warn", label: "Nothing live to test" },
+      cert: run
+        ? {
+            tone: run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "warn",
+            label: `${run.passed ?? 0}/${run.total ?? 0} ${run.status ?? "pending"}`,
+          }
+        : { tone: "warn", label: "No cert run yet" },
+      advanced: { tone: "muted", label: "Engineers only" },
+    };
+  }, [data, railStatus]);
+
+
   // Deep-open the certification console on a specific sub-tab from another rail item.
   const openCert = useCallback(
     (subTab: string) => {
@@ -400,7 +491,15 @@ export default function AdminChannelMonitor() {
                     )}
                   >
                     <span className="block text-sm font-medium">{item.title}</span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                    <span
+                      className={cn(
+                        "mt-1 inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                        CHIP_TONE[railChips[item.key].tone],
+                      )}
+                    >
+                      {railChips[item.key].label}
+                    </span>
+                    <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                       {item.tests}
                     </span>
                   </button>
@@ -530,15 +629,32 @@ export default function AdminChannelMonitor() {
             {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
             {tab === "cert" && (
               <>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <ChannelCertificationTab initialTab={certSubTab} />
-                </Suspense>
-                <ChannelLedgerMetricsPanel />
-                <div ref={exchangeLogRef}>
+                <RuCertChecklistCard />
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Certification runs
+                  </h2>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <ChannelCertificationTab initialTab={certSubTab} />
+                  </Suspense>
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Onboarding ledger
+                  </h2>
+                  <ChannelLedgerMetricsPanel />
+                </section>
+
+                <section className="space-y-2" ref={exchangeLogRef}>
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Sync &amp; error log
+                  </h2>
                   <Suspense fallback={<Skeleton className="h-64 w-full" />}>
                     <RuApiLogPanel properties={reservationProperties} searchTerm={exchangeSearch} />
                   </Suspense>
-                </div>
+                </section>
               </>
             )}
 
