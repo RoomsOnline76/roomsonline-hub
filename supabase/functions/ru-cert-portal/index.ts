@@ -5783,8 +5783,10 @@ Deno.serve(async (req) => {
         const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
         return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
       };
-      // A sub-user's RU login (`<UserName>`) can differ from its contact `<Email>` — e.g.
-      // OwnerID 741765 logs in as connect@… with rooms@… as contact — so both must match.
+      // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
+      // Pull_ListMyUsers_RQ (that list can lag the portal's contact email), so a lookup
+      // must match on either. OwnerID 741765's login and contact are both
+      // connect@roomsonline.co.za; the list still reports rooms@… as its `<Email>`.
       const sameEmail = (a: unknown, b: unknown) => {
         const x = String(a ?? "").trim().toLowerCase();
         const y = String(b ?? "").trim().toLowerCase();
@@ -5854,7 +5856,10 @@ Deno.serve(async (req) => {
       } else if (currentRuUser) {
         // Same RU account, possibly renamed in the portal: re-align the stored login
         // email (and OwnerID) without touching the retained password.
-        const ruEmail = String(currentRuUser.email ?? "").trim();
+        // `ru_login_email` must hold the RU *login* (`<UserName>`), which is what
+        // Push_FillCompanyDetails_RQ authenticates with. Never overwrite it with the
+        // contact `<Email>` — the two can differ (OwnerID 741765).
+        const ruEmail = String(currentRuUser.login_email ?? currentRuUser.email ?? "").trim();
         const patch: Record<string, unknown> = {};
         if (ruEmail && ruEmail.toLowerCase() !== String((existing.account as any)?.ru_login_email ?? "").trim().toLowerCase()) {
           patch.ru_login_email = ruEmail;
