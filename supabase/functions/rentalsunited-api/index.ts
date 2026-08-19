@@ -803,6 +803,60 @@ function buildCancelReservationXml(creds: RUCredentials, reservationId: string, 
 }
 
 /**
+ * Push_PutConfirmedReservationMulti_RQ — hand a stay that was created in ROL'OS to the channel so
+ * the channel stops selling those nights and the reservation is visible in the portal.
+ * RU answers with its own ReservationID, which we store as the booking's channel reservation id.
+ */
+function buildPutConfirmedReservationXml(
+  creds: RUCredentials,
+  stay: {
+    ru_property_id: string | number;
+    date_from: string;
+    date_to: string;
+    number_of_guests?: number | null;
+    client_price?: number | null;
+    already_paid?: number | null;
+  },
+  guest: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    comments?: string | null;
+  },
+): string {
+  const day = (value: string) => escapeXml(String(value).slice(0, 10));
+  const money = (value: unknown) => Number(value ?? 0).toFixed(2);
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_PutConfirmedReservationMulti_RQ>
+  ${buildAuthXml(creds)}
+  <Reservation>
+    <StayInfos>
+      <StayInfo>
+        <PropertyID>${escapeXml(String(stay.ru_property_id))}</PropertyID>
+        <DateFrom>${day(stay.date_from)}</DateFrom>
+        <DateTo>${day(stay.date_to)}</DateTo>
+        <NumberOfGuests>${Math.max(1, Math.round(Number(stay.number_of_guests ?? 1)))}</NumberOfGuests>
+        <Costs>
+          <RUPrice>${money(stay.client_price)}</RUPrice>
+          <ClientPrice>${money(stay.client_price)}</ClientPrice>
+          <AlreadyPaid>${money(stay.already_paid)}</AlreadyPaid>
+        </Costs>
+      </StayInfo>
+    </StayInfos>
+    <CustomerInfo>
+      <Name>${escapeXml(guest.first_name?.trim() || 'Guest')}</Name>
+      <SurName>${escapeXml(guest.last_name?.trim() || 'Booking')}</SurName>
+      <Email>${escapeXml(guest.email?.trim() || '')}</Email>
+      <Phone>${escapeXml(guest.phone?.trim() || '')}</Phone>
+    </CustomerInfo>${guest.comments ? `
+    <Comments>${escapeXml(guest.comments)}</Comments>` : ''}
+  </Reservation>
+</Push_PutConfirmedReservationMulti_RQ>`;
+}
+
+
+/**
  * Push_ModifyStay_RQ — RU requires BOTH the current state and the new state.
  * Only works on confirmed reservations (StatusID 1).
  */
