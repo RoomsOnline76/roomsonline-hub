@@ -18,6 +18,8 @@
  */
 
 import { loadCurrencyState, revertAmount } from './ruCurrency.ts';
+import { readInvokeError } from './functionInvokeError.ts';
+
 import {
   applyRuAvailabilityBlock,
   buildRuChannelNotes,
