@@ -290,6 +290,33 @@ async function pullOwnerListings(
 }
 
 /**
+ * A blank account read used to be treated as "unverified" forever, which made the
+ * last listing on an account impossible to clean up: the removal succeeded, the
+ * account then legitimately answered empty, and every retry refused to run.
+ * An empty answer is only trusted when two consecutive successful reads agree.
+ */
+async function pullOwnerListingsConfirmed(
+  admin: ReturnType<typeof createClient>,
+  ownerId: string,
+  ctx: ChannelLogCtx,
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean; confirmedEmpty: boolean }> {
+  const first = await pullOwnerListings(admin, ownerId, ctx);
+  if (first.error) return { ...first, confirmedEmpty: false };
+  if (first.listings.length > 0) return { ...first, confirmedEmpty: false };
+  const second = await pullOwnerListings(admin, ownerId, ctx);
+  if (second.error) {
+    return {
+      listings: [],
+      error: `The channel account answered with no listings — the confirming read could not be completed (${second.error})`,
+      deferred: second.deferred,
+      confirmedEmpty: false,
+    };
+  }
+  if (second.listings.length > 0) return { ...second, confirmedEmpty: false };
+  return { listings: [], error: null, deferred: false, confirmedEmpty: true };
+}
+
+/**
  * Is this listing id still returned by the account? Archived listings stay in
  * the feed, so "present" here means present in any form — that is the state a
  * cleanup has to actually change.
@@ -299,17 +326,14 @@ async function verifyListingPresence(
   args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
 ): Promise<{ present: boolean | null; archived: boolean; error: string | null; deferred?: boolean }> {
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
-  const { listings, error, deferred } = await pullOwnerListings(admin, args.ownerId, args.ctx);
+  const { listings, error, deferred } = await pullOwnerListingsConfirmed(admin, args.ownerId, args.ctx);
   if (error) return { present: null, archived: false, error, deferred };
-  // An empty answer is not evidence a listing was removed — treat it as unread so
-  // a local id is never released on the back of a blank read.
+  // Two agreeing successful reads: the account really holds nothing, so the
+  // listing is genuinely absent and the local id can be released.
   if (listings.length === 0) {
-    return {
-      present: null,
-      archived: false,
-      error: "The channel account answered with no listings at all — nothing was verified, try again shortly",
-    };
+    return { present: false, archived: false, error: null, deferred: false };
   }
+
   const hit = listings.find((l) => String(l.id) === args.listingId);
   // RU never hard-deletes: a removed listing stays in the feed either flagged
   // archived (NLA) or simply switched inactive (Active="false"). Both mean it
