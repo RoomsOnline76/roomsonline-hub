@@ -57,9 +57,21 @@ const formatTimestamp = (iso: string) =>
  * response that were exchanged. The ResponseID lookup therefore ignores every other filter, and
  * each exchange can be exported as a bundle to attach to a support ticket.
  */
-export function RuApiLogPanel({ properties }: RuApiLogPanelProps) {
+export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
   const [filters, setFilters] = useState<RuApiLogFilters>(DEFAULT_RU_API_LOG_FILTERS);
-  const [responseIdDraft, setResponseIdDraft] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // A deep link from the booking trail lands as a search term; mirror it into the box so the
+  // operator can see (and clear) what is being looked up.
+  useEffect(() => {
+    const term = (searchTerm ?? "").trim();
+    if (!term) return;
+    setSearchDraft(term);
+    setFilters((prev) => ({ ...prev, search: term }));
+  }, [searchTerm]);
+
   const [detail, setDetail] = useState<RuApiLogDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
