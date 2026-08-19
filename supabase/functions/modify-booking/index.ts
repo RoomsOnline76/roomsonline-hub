@@ -67,52 +67,160 @@ function dateRange(checkIn: string, checkOut: string): string[] {
   return dates;
 }
 
-// Recalculate total price for ROL-native bookings based on rate plan pricing model
+interface ResolvedPlan {
+  id: string;
+  pricing_model: string | null;
+  base_rate: number | null;
+}
+
+/**
+ * The rate plan that prices this stay.
+ *
+ * A stay created before Rate Plans owned pricing (or by a surface that never stamped the plan)
+ * carries no `rolos_rate_plan_id`. Silently skipping the recalculation in that case froze the
+ * total across every date change, so the plan is resolved from the unit's own plan links —
+ * primary-sell first, then sell priority — and stamped back onto the booking by the caller.
+ */
+async function resolveBookingRatePlan(supabase: any, booking: any): Promise<ResolvedPlan | null> {
+  if (booking.rolos_rate_plan_id) {
+    const { data } = await supabase
+      .from("rolos_rate_plans")
+      .select("id, pricing_model, base_rate")
+      .eq("id", booking.rolos_rate_plan_id)
+      .maybeSingle();
+    if (data) return data as ResolvedPlan;
+  }
+
+  if (!booking.property_id) return null;
+
+  const { data: plans } = await supabase
+    .from("rolos_rate_plans")
+    .select("id, pricing_model, base_rate, is_primary_sell, sell_priority")
+    .eq("property_id", booking.property_id)
+    .eq("is_active", true)
+    .is("deleted_at", null);
+
+  const candidates = (plans ?? []) as any[];
+  if (candidates.length === 0) return null;
+
+  let allowed = candidates;
+  const roomTypeId = booking.room_type_id ? String(booking.room_type_id) : null;
+  if (roomTypeId) {
+    const { data: links } = await supabase
+      .from("rolos_rate_plan_room_types")
+      .select("rate_plan_id, is_active")
+      .eq("room_type_id", roomTypeId);
+    const linked = new Set(
+      ((links ?? []) as any[]).filter((l) => l.is_active !== false).map((l) => String(l.rate_plan_id)),
+    );
+    const scoped = candidates.filter((p) => linked.has(String(p.id)));
+    if (scoped.length > 0) allowed = scoped;
+  }
+
+  allowed.sort((a, b) => {
+    if (!!a.is_primary_sell !== !!b.is_primary_sell) return a.is_primary_sell ? -1 : 1;
+    return (Number(a.sell_priority) || 999) - (Number(b.sell_priority) || 999);
+  });
+
+  const chosen = allowed[0];
+  return chosen ? { id: String(chosen.id), pricing_model: chosen.pricing_model, base_rate: chosen.base_rate } : null;
+}
+
+/**
+ * Reprice a ROL'OS-native stay from the authoritative Rate Plans hierarchy.
+ *
+ * Nights are resolved one by one (daily override → plan season rate → calendar season →
+ * relational season → rack), so a stay that spans a season boundary is priced correctly instead
+ * of taking a single season's rate for the whole stay.
+ */
 async function recalculateRolPrice(
   supabase: any,
   booking: any,
   modifications: ModifyRequest["modifications"]
-): Promise<number | null> {
-  const ratePlanId = booking.rolos_rate_plan_id;
-  if (!ratePlanId) return null;
-
-  // Fetch rate plan
-  const { data: ratePlan } = await supabase
-    .from("rolos_rate_plans")
-    .select("pricing_model, base_rate")
-    .eq("id", ratePlanId)
-    .single();
-
-  if (!ratePlan) return null;
+): Promise<{ total: number; rate_plan_id: string; nightly: number | null; source: string | null } | null> {
+  const plan = await resolveBookingRatePlan(supabase, booking);
+  if (!plan) return null;
 
   const checkIn = modifications.check_in_date || booking.check_in_date;
   const checkOut = modifications.check_out_date || booking.check_out_date;
   const nights = countNights(checkIn, checkOut);
-  const adults = modifications.adults ?? booking.adults;
+  const adults = modifications.adults ?? booking.adults ?? 1;
   const children = modifications.children ?? (booking.children || 0);
   const teens = modifications.teens ?? (booking.teens || 0);
-  const baseRate = ratePlan.base_rate || 0;
+  const model = canonicalPricingModel(plan.pricing_model);
+  const baseRate = Number(plan.base_rate) || 0;
+  const roomTypeId = booking.room_type_id ? String(booking.room_type_id) : null;
+  const roomCount = Array.isArray(booking.rooms) && booking.rooms.length > 0 ? booking.rooms.length : 1;
 
-  // Try to get season-specific pricing
-  const roomTypeId = booking.room_type_id;
-  let seasonRate = baseRate;
-  let extraAdultRate = 0;
-  let extraChildRate = 0;
+  let nightlyRates: number[] = [];
+  let extraAdultRate: number | undefined;
+  let source: string | null = null;
 
-  if (roomTypeId) {
-    const { data: seasonPrices } = await supabase
-      .from("rolos_rate_prices")
-      .select("base_rate, extra_adult_rate, extra_child_rate, season:rolos_rate_seasons!inner(start_date, end_date, day_of_week_multipliers)")
-      .eq("room_type_id", roomTypeId)
-      .lte("season.start_date", checkIn)
-      .gte("season.end_date", checkOut);
-
-    if (seasonPrices && seasonPrices.length > 0) {
-      seasonRate = seasonPrices[0].base_rate || baseRate;
-      extraAdultRate = seasonPrices[0].extra_adult_rate || 0;
-      extraChildRate = seasonPrices[0].extra_child_rate || 0;
+  if (booking.property_id) {
+    try {
+      const resolver = await createRateResolver(supabase, booking.property_id, {
+        window: { from: checkIn, to: checkOut },
+      });
+      const unit =
+        resolver.units.find((u) => roomTypeId && String(u.linked_rolos_id ?? "") === roomTypeId) ??
+        resolver.units.find((u) => roomTypeId && String(u.id) === roomTypeId) ??
+        resolver.units[0];
+      if (unit) {
+        const days = resolver.resolveDays(unit, checkIn, addDays(checkOut, -1));
+        const priced = days.filter((d) => Number(d.price) > 0);
+        if (priced.length > 0) {
+          nightlyRates = days.map((d) => (Number(d.price) > 0 ? Number(d.price) : baseRate));
+          extraAdultRate = days[0]?.extra_guest_price ?? undefined;
+          source = days[0]?.source ?? null;
+        }
+      }
+    } catch (e) {
+      console.warn("[modify-booking] rate resolve failed:", (e as Error).message);
     }
   }
+
+  if (nightlyRates.length !== nights) {
+    // Nothing seasonal covers the stay — the plan's rack rate is the authority.
+    nightlyRates = Array.from({ length: nights }, () => baseRate);
+    source = source ?? "rack_rate";
+  }
+
+  if (nightlyRates.every((r) => !(r > 0))) return null;
+
+  const total = stayTotalForModel(model, {
+    nightlyRates,
+    adults,
+    teens,
+    children,
+    units: roomCount,
+    extraAdultRate,
+  });
+
+  const rounded = Math.round((Number(total) || 0) * 100) / 100;
+  if (!(rounded > 0)) return null;
+
+  const nightly = nights > 0 ? Math.round((rounded / nights) * 100) / 100 : null;
+
+  try {
+    const parityRows: ParityRow[] = [{
+      property_id: booking.property_id,
+      room_type_id: roomTypeId,
+      rate_plan_id: plan.id,
+      stay_date: checkIn,
+      resolved_rate: rounded,
+      resolved_tier: source,
+      legacy_rate: Number(booking.total_price ?? 0),
+      legacy_tier: "modify_booking_previous_total",
+      notes: { nights, pricing_model: model, metric: "stay_total" },
+    }];
+    await logRateParity(supabase, "modify-booking", parityRows);
+  } catch (_e) {
+    // Parity logging must never block a reprice.
+  }
+
+  return { total: rounded, rate_plan_id: plan.id, nightly, source };
+}
+
 
   const model = canonicalPricingModel(ratePlan.pricing_model);
 
