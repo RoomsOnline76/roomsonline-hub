@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
   // The cron-wide trading / push-enabled filters must not silently drop them: a test clone or a
   // not-yet-trading property that already has channel listings still has a priced year to audit,
   // and skipping it returned "audited: 0", which the wizard could only read as "never checked".
-  const scoped = scopeIds.length > 0;
+  const isScopedRun = scopeIds.length > 0;
 
   try {
     const propQuery = admin
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       .select('id, name, property_id, rentalsunited_property_id, is_active, properties!inner(id, name, is_active, is_trading, ru_push_enabled)')
       .eq('is_active', true)
       .not('rentalsunited_property_id', 'is', null);
-    if (scoped) {
+    if (isScopedRun) {
       propQuery.in('id', scopeIds);
       unitQuery.in('property_id', scopeIds);
     } else {
@@ -79,7 +79,8 @@ Deno.serve(async (req) => {
 
     for (const row of (units ?? []) as any[]) {
       const p = row.properties;
-      if (!p || p.is_active === false || p.is_trading === false || p.ru_push_enabled !== true) continue;
+      if (!p) continue;
+      if (!isScopedRun && (p.is_active === false || p.is_trading === false || p.ru_push_enabled !== true)) continue;
       if (scopeIds.length && !scopeIds.includes(p.id)) continue;
       push({
         property_id: p.id,
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
       });
     }
     for (const p of (props ?? []) as any[]) {
-      if (p.is_trading === false) continue;
+      if (!isScopedRun && p.is_trading === false) continue;
       if (scopeIds.length && !scopeIds.includes(p.id)) continue;
       push({
         property_id: p.id,
