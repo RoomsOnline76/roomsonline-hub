@@ -25,7 +25,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 import { useChannelCostMonitor, type ChannelPropertyRow, type ChannelUnitRow } from "@/hooks/useChannelCostMonitor";
 import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
-import { RuCertChecklistCard } from "@/components/admin/channel-monitor/RuCertChecklistCard";
+
 import { ChannelCostSummary } from "@/components/admin/channel-monitor/ChannelCostSummary";
 import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/ChannelBillingSchedule";
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
@@ -632,8 +632,6 @@ export default function AdminChannelMonitor() {
             {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
             {tab === "cert" && (
               <>
-                <RuCertChecklistCard />
-
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
