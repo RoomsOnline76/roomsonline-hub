@@ -310,6 +310,16 @@ export async function applyRuAvailabilityBlock(
         .eq('id', mappingRoomTypeId)
         .maybeSingle();
       roomName = rt?.name ?? null;
+      // Callers sometimes hold the canonical ROL'OS room type id instead of the channel
+      // mapping id — without this fallback the block or release silently did nothing.
+      if (!roomName) {
+        const { data: canonical } = await supabase
+          .from('rolos_room_types')
+          .select('name')
+          .eq('id', mappingRoomTypeId)
+          .maybeSingle();
+        roomName = canonical?.name ?? null;
+      }
     }
     if (!roomName) {
       console.warn(`${logPrefix} No unit name resolved — skipping availability ${block ? 'block' : 'release'}`);
