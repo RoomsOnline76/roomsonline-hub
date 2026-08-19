@@ -716,6 +716,14 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
               </SheetHeader>
 
               <div className="mt-4 space-y-4">
+                {ruApiLogOutcomeOf(detail) === "deferred" && (
+                  <div className="rounded-md border border-warning-border bg-warning-surface p-3 text-sm text-warning">
+                    Deferred, not failed: the channel allows one call per method with the same
+                    parameters per minute, so ROL'OS held this request locally instead of sending it.
+                    No request reached the channel; the work was parked in the background queue and
+                    replayed on the next slot.
+                  </div>
+                )}
                 <div className="grid gap-2 text-sm sm:grid-cols-2">
                   <div>
                     <span className="text-muted-foreground">ResponseID: </span>
