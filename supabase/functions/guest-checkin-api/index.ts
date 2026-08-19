@@ -221,6 +221,8 @@ Deno.serve(async (req) => {
     const email = normaliseEmail(s.email) || normaliseEmail(booking.guest_email as string);
 
     let guestProfileId: string | null = null;
+    let guestPreferences: Record<string, unknown> | null = null;
+
     if (email) {
       const { data: profile } = await admin
         .from("rolos_guest_profiles")
