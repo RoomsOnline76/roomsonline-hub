@@ -105,32 +105,68 @@ export function ChannelLedgerMetricsPanel() {
         ) : tally.rows === 0 ? (
           <p className="text-sm text-muted-foreground">No ledger rows yet — nothing has been seeded.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {([
-              ["Local steps", tally.local],
-              ["Channel steps", tally.channel],
-            ] as const).map(([label, counts]) => (
-              <div key={label} className="rounded-md border p-3">
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {STATUS_ORDER.map((status) => (
-                    <Badge
-                      key={status}
-                      variant={status === "passed" ? "secondary" : "outline"}
-                      className="text-[11px] tabular-nums"
-                    >
-                      {status} {counts[status] ?? 0}
-                    </Badge>
-                  ))}
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([
+                [
+                  "Local steps",
+                  tally.local,
+                  "Steps we can grade from our own database — property details, rooms, rates, images, policies. Graded on save and by the background drain, never by calling the Channel Manager.",
+                ],
+                [
+                  "Channel steps",
+                  tally.channel,
+                  "Steps that can only be confirmed by reading the Channel Manager back — account keys, listing IDs, published units, availability and price coverage. These only grade when staff press “Recheck channel”, which is why most of them sit at pending.",
+                ],
+              ] as const).map(([label, counts, blurb]) => (
+                <div key={label} className="rounded-md border p-3">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{blurb}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {STATUS_ORDER.map((status) => (
+                      <Badge
+                        key={status}
+                        variant={status === "passed" ? "secondary" : "outline"}
+                        className="text-[11px] tabular-nums"
+                        title={STATUS_HELP[status]}
+                      >
+                        {status} {counts[status] ?? 0}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                What each verdict means
+              </p>
+              <dl className="mt-2 space-y-2 text-xs">
+                {STATUS_ORDER.map((status) => (
+                  <div key={status} className="sm:flex sm:gap-2">
+                    <dt className="min-w-[70px] font-medium capitalize">{status}</dt>
+                    <dd className="text-muted-foreground">{STATUS_HELP[status]}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Counts are step rows, not properties: each property contributes one row per step, so a
+                portfolio of 7 properties across 5 channel steps shows up to 35 channel rows.
+              </p>
+            </div>
+          </>
         )}
 
         <div>
-          <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
             Last background drains (local only, no channel calls)
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            The drain re-grades local steps that went stale and clears them, so the wizard opens on a
+            fresh verdict without spending a channel call. “Rechecked” is properties visited,
+            “cleared” is stale steps returned to passed, “blocked” is steps that genuinely failed, and
+            “unknown” is steps it could not decide and will revisit.
           </p>
           {drains.isLoading ? (
             <Skeleton className="h-16 w-full" />
@@ -141,6 +177,7 @@ export function ChannelLedgerMetricsPanel() {
           ) : (
             <ul className="space-y-1 text-xs">
               {(drains.data ?? []).map((run) => (
+
                 <li key={run.id} className="flex flex-wrap items-center gap-2 rounded border px-2 py-1.5">
                   <span className="tabular-nums text-muted-foreground">
                     {new Date(run.created_at).toLocaleString()}
