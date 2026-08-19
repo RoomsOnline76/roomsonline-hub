@@ -272,24 +272,63 @@ async function syncRuStayUnits(
           room_type_id: unit.roomTypeId,
           rate_charged: stay.total || 0,
           adults: stay.numGuests || 1,
+          // A unit that returns on a later modification is reinstated, not left cancelled.
+          status: 'active',
+          cancelled_at: null,
+          cancellation_reason: null,
         },
         { onConflict: 'booking_id,room_id' },
       );
       if (error) console.error(`${log} Unit line write failed for room ${unit.roomId}: ${error.message}`);
     }
 
-    // Units removed by a modification lose their line.
+    // Units the channel dropped off a modification are cancelled per unit — the rest of the
+    // stay stays live. The lines are kept (never deleted) so the cancellation is auditable.
     const { data: staleLines } = await supabase
       .from('rolos_booking_rooms')
-      .select('id, room_id')
+      .select('id, room_id, room_type_id, status')
       .eq('booking_id', bookingId);
-    const stale = ((staleLines || []) as Array<{ id: string; room_id: string | null }>).filter(
-      (row) => row.room_id && !roomIds.includes(row.room_id),
-    );
+    const stale = (
+      (staleLines || []) as Array<{
+        id: string;
+        room_id: string | null;
+        room_type_id: string | null;
+        status: string | null;
+      }>
+    ).filter((row) => row.room_id && !roomIds.includes(row.room_id) && row.status !== 'cancelled');
+
     if (stale.length) {
-      await supabase.from('rolos_booking_rooms').delete().in('id', stale.map((s) => s.id));
+      const { error: cancelErr } = await supabase
+        .from('rolos_booking_rooms')
+        .update({
+          status: 'cancelled',
+          cancelled_at: new Date().toISOString(),
+          cancellation_reason: `Unit withdrawn via Rentals United (${opts.source})`,
+        })
+        .in('id', stale.map((s) => s.id));
+      if (cancelErr) {
+        console.error(`${log} Per-unit cancel failed: ${cancelErr.message}`);
+      } else if (!opts.skipAvailability && primary.propertyId) {
+        // Release only the withdrawn units' nights; the surviving units keep their blocks.
+        for (const row of stale) {
+          const from = r.dateFrom;
+          const to = r.dateTo;
+          if (!from || !to || !row.room_type_id) continue;
+          await applyRuAvailabilityBlock(
+            supabase,
+            primary.propertyId as string,
+            row.room_type_id,
+            from,
+            to,
+            false,
+            log,
+            bookingId,
+          );
+        }
+      }
     }
   }
+
 
   if (blockNights && !opts.skipAvailability) {
     for (const { unit, stay } of lines) {
