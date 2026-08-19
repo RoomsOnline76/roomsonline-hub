@@ -183,6 +183,21 @@ interface RoomData {
   availability: { [date: string]: number | AvailabilityData };
 }
 
+interface BookingOverlayRow {
+  id: string;
+  reference: string | null;
+  guestName: string;
+  status: string;
+  channel: string | null;
+}
+
+interface BookedCell {
+  units: number;
+  stays: BookingOverlayRow[];
+}
+
+
+
 const CalendarAccommodation = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
