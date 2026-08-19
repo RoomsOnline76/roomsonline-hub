@@ -561,6 +561,10 @@ export function RuApiLogPanel({ properties, searchTerm }: RuApiLogPanelProps) {
             <span>·</span>
             <span>{stats.failures} failed (shown)</span>
             <span>·</span>
+            <span title="Held locally by the one-call-per-minute channel gate and replayed by the background drainer — never sent, never a fault.">
+              {stats.deferred} deferred (shown)
+            </span>
+            <span>·</span>
             <span>{stats.withResponseId} with ResponseID (shown)</span>
             <span>·</span>
             <span>avg {stats.avgMs} ms (shown)</span>
