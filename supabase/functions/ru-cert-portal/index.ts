@@ -3953,7 +3953,14 @@ Deno.serve(async (req) => {
       const company = await provisionCompanyAfterKeyVerification();
       // Verified keys mean this account can be monitored — subscribe it now.
       autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
-      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys", "company_profile"], "keys_saved");
+      // Keys were stored AND verified here — that is the verdict for step 7. Only the
+      // company profile still needs re-confirming against the new credentials.
+      await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
+      if (!company.pushed) {
+        await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
+      } else {
+        await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved_company");
+      }
       return json({
 
         success: true,
