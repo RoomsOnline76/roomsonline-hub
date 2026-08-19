@@ -607,6 +607,7 @@ Deno.serve(async (req) => {
           roster.set(ownerId, {
             owner_id: ownerId,
             portal_email: acct.login_email || acct.owner_email,
+            portal_contact_email: acct.owner_email ?? null,
             portal_name: null,
           });
         }
@@ -619,10 +620,11 @@ Deno.serve(async (req) => {
         const r = roster.get(ownerId);
         const acct = boundByOwner.get(ownerId);
         const login = acct?.login_email || r?.portal_email || credByOwner.get(ownerId) || null;
-        const contact = acct?.owner_email || null;
+        const contact = acct?.owner_email || r?.portal_contact_email || null;
         const base = `${login || r?.portal_name || "Unnamed sub-account"} · OwnerID ${ownerId}`;
         return contact && contact !== login ? `${base} (contact ${contact})` : base;
       };
+
 
       const accountResults: Array<{
         owner_id: string;
