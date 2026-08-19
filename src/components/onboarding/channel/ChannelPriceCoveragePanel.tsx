@@ -52,7 +52,7 @@ export function ChannelPriceCoveragePanel({ propertyId, variant = "owner" }: Pro
       )
       .eq("property_id", propertyId)
       .order("unit_name", { ascending: true });
-    setRows(((data ?? []) as CoverageRow[]) ?? []);
+    setRows((data ?? []) as CoverageRow[]);
   }, [propertyId]);
 
   useEffect(() => {
