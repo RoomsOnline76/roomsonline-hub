@@ -82,7 +82,7 @@ export default function PMSInquiries() {
       const [types, rooms, plans] = await Promise.all([
         supabase
           .from("rolos_room_types")
-          .select("id, name, base_occupancy, max_occupancy, base_rate")
+          .select("id, name, base_occupancy, max_occupancy, default_rate")
           .eq("property_id", propertyId as string)
           .eq("is_active", true),
         supabase
