@@ -1,5 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { applyRuAvailabilityBlock, releaseChannelBlocksForBooking } from '../_shared/ruReservationParsing.ts';
+
 
 /**
  * Rentals United lead lifecycle worker.
