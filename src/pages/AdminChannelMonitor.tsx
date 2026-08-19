@@ -55,8 +55,84 @@ const RuApiLogPanel = lazy(() =>
   import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
 );
 
-type TabKey = "cost" | "accounts" | "cert" | "reservations" | "diagnostics";
-const TAB_KEYS: TabKey[] = ["cost", "accounts", "cert", "reservations", "diagnostics"];
+const RuBuildingsPanel = lazy(() =>
+  import("@/components/integrations/RuBuildingsPanel").then((m) => ({ default: m.RuBuildingsPanel })),
+);
+const RuCoverageTab = lazy(() =>
+  import("@/components/integrations/RuCoverageTab").then((m) => ({ default: m.RuCoverageTab })),
+);
+const RuAvailabilityPlayground = lazy(() =>
+  import("@/components/integrations/RuAvailabilityPlayground").then((m) => ({
+    default: m.RuAvailabilityPlayground,
+  })),
+);
+const RuPricingPlayground = lazy(() =>
+  import("@/components/integrations/RuPricingPlayground").then((m) => ({ default: m.RuPricingPlayground })),
+);
+const RuCalendarVerifyPanel = lazy(() =>
+  import("@/components/integrations/RuCalendarVerifyPanel").then((m) => ({
+    default: m.RuCalendarVerifyPanel,
+  })),
+);
+
+/** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
+type TabKey =
+  | "accounts"
+  | "cost"
+  | "binding"
+  | "mapping"
+  | "ari"
+  | "reservations"
+  | "cert"
+  | "advanced";
+
+const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
+  {
+    key: "accounts",
+    title: "Accounts & Company",
+    tests: "Create / archive sub-users and push company details required for cert.",
+  },
+  {
+    key: "cost",
+    title: "Cost Monitor",
+    tests: "Confirms billable listing counts and forecast spend per sub-account.",
+  },
+  {
+    key: "binding",
+    title: "Property Binding",
+    tests: "Verifies each property is bound to the correct channel listing and building.",
+  },
+  {
+    key: "mapping",
+    title: "Room & Rate Mapping",
+    tests: "Checks room types and rate plans map to live channel listings.",
+  },
+  {
+    key: "ari",
+    title: "ARI Live Lab",
+    tests: "Runs live availability and pricing reads against the channel for a chosen property.",
+  },
+  {
+    key: "reservations",
+    title: "Reservation Round-Trip",
+    tests: "Creates, modifies and cancels reservations end-to-end and shows the sync trail.",
+  },
+  {
+    key: "cert",
+    title: "Cert Status & Logs",
+    tests: "Full certification console with run history and the searchable RU exchange log.",
+  },
+  {
+    key: "advanced",
+    title: "Advanced (Dev only)",
+    tests: "Queue, retries and low-level channel plumbing for engineers.",
+    devOnly: true,
+  },
+];
+
+const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
+// Old tab names stay valid so health-report and wizard deep links keep working.
+const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
 
 export default function AdminChannelMonitor() {
   const data = useChannelCostMonitor();
