@@ -155,7 +155,7 @@ export function RuMcqReportPanel() {
             <Skeleton className="h-10 w-full" />
           </div>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No published listings to check yet.</p>
+          <p className="text-sm text-muted-foreground">Nothing is published to the channel yet.</p>
         ) : (
           <div className="space-y-2">
             {rows.map((row) => (
