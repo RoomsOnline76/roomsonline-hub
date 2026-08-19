@@ -257,7 +257,7 @@ export function RoomPlanGrid({
 
       return { type, rows, bookingCount: typeBookings.length, unitCount: typeRooms.length };
     });
-  }, [roomTypes, roomsByType, bookings]);
+  }, [roomTypes, roomsByType, bookings, placedRoomIds]);
 
   const rowByKey = useMemo(() => {
     const map = new Map<string, PlanRow>();
