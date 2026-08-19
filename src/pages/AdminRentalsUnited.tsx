@@ -313,24 +313,6 @@ export default function AdminRentalsUnited() {
           <RuCoverageTab />
         </TabsContent>
 
-        <TabsContent value="cert">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Certification moved</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <p>
-                Certification, compliance runs and the channel sub-accounts now live in one console
-                together with listing cost and activation, so a run and its fix are on the same page.
-              </p>
-              <Button asChild size="sm">
-                <Link to="/admin/channel-monitor?tab=cert">Open the certification console</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-
 
 
         <TabsContent value="sync" className="space-y-6">
