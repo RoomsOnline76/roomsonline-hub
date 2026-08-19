@@ -21,7 +21,7 @@ import {
 } from '../_shared/ruDistances.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { logRuExchange, newRuTraceId, type RuApiLogContext } from '../_shared/ruApiLog.ts';
+import { logRuExchange, logRuNotAttempted, newRuTraceId, type RuApiLogContext, type RuTransportStatus } from '../_shared/ruApiLog.ts';
 import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall } from '../_shared/ruRateGate.ts';
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
 
@@ -281,6 +281,10 @@ interface RequestBody {
   parent_action?: string;
   unit_id?: string;
   ru_user_id?: string | number;
+  /** Which PMS fields drove this push (audit evidence for a field-scoped delta). */
+  changed_fields?: string[];
+  push_type?: 'delta' | 'full';
+  fingerprint?: string;
 
   // Push payloads
   property?: RUPropertyPayload;
@@ -445,6 +449,8 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   let httpStatus: number | null = null;
   let responseText: string | null = null;
   let errorMessage: string | null = null;
+  let transportStatus: RuTransportStatus | null = null;
+  let errorReason: string | null = null;
 
   // The channel allows one request per method with the same parameters per sliding minute.
   // Claim the shared slot (waiting out a short remainder) before spending the call — a deferral
@@ -463,6 +469,9 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
         success: false,
         elapsed_ms: Date.now() - startedAt,
         error_message: `${RU_RATE_DEFERRED_CODE}: ${gateErr.message}`,
+        // The call never left ROLOS — say so explicitly instead of leaving a silent null response.
+        transport_status: 'rate_deferred',
+        error_reason: `channel_rate_limit: ${gateErr.message}`,
       });
     }
     throw gateErr;
@@ -487,8 +496,27 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
     return responseText;
   } catch (err) {
     errorMessage = errorMessage ?? (err instanceof Error ? err.message : String(err));
+    // Distinguish "RU never answered" from "RU answered with something unusable" — an auditor must
+    // never see an unexplained empty response.
+    if (responseText === null) {
+      transportStatus = /timeout|timed out|abort|deadline/i.test(errorMessage) ? 'timeout' : 'transport_error';
+      errorReason = `${transportStatus}: ${errorMessage}`;
+    }
     throw err;
   } finally {
+    if (!transportStatus) {
+      const body = (responseText ?? '').trim();
+      if (!body) {
+        transportStatus = 'empty_response';
+        errorReason = `empty_response: HTTP ${httpStatus ?? 'unknown'} with an empty body`;
+      } else if (!/<\s*[A-Za-z?]/.test(body)) {
+        transportStatus = 'non_xml_response';
+        errorReason = `non_xml_body: HTTP ${httpStatus ?? 'unknown'} — ${body.slice(0, 160)}`;
+      } else {
+        transportStatus = 'completed';
+        errorReason = errorMessage ? `channel_error: ${errorMessage}` : null;
+      }
+    }
     await logRuExchange(getLogClient(), {
       ...(context ?? {}),
       action: context?.parent_action ?? 'ru_api_call',
@@ -499,6 +527,8 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
       success: !errorMessage,
       elapsed_ms: Date.now() - startedAt,
       error_message: errorMessage,
+      transport_status: transportStatus,
+      error_reason: errorReason,
     });
   }
 }
@@ -1845,6 +1875,25 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
 
 ]);
 
+/**
+ * The RU verb behind a ROLOS action, used when an exchange has to be logged BEFORE the request
+ * XML exists (a pre-transport abort). Auditors search the log by RU verb, so a "never attempted"
+ * cancel must appear under `Push_CancelReservation_RQ`, not under an internal action name.
+ */
+const RU_VERB_BY_ACTION: Record<string, string> = {
+  reject_request: 'Push_RejectRequest_RQ',
+  cancel_reservation: 'Push_CancelReservation_RQ',
+  modify_stay: 'Push_ModifyStay_RQ',
+  push_property: 'Push_PutProperty_RQ',
+  push_availability: 'Push_PutAvbUnits_RQ',
+  push_prices: 'Push_PutPrices_RQ',
+  push_prices_fsp: 'Push_PutPrices_RQ',
+  list_reservations: 'Pull_ListReservations_RQ',
+  get_leads: 'Pull_GetLeads_RQ',
+  fill_company_details: 'Push_FillCompanyDetails_RQ',
+  create_user: 'Push_CreateUser_RQ',
+};
+
 
 
 /**
@@ -2203,6 +2252,11 @@ Deno.serve(async (req) => {
       ru_property_id: ru_property_id ?? null,
       ru_owner_id: body.owner_id ?? null,
       ru_user_id: body.ru_user_id ?? null,
+      // Field-scoped delta provenance: certification requires proof that a specific PMS change
+      // (name, capacity, min stay, price period…) is what triggered this exchange.
+      changed_fields: Array.isArray(body.changed_fields) ? body.changed_fields.map(String) : null,
+      push_type: body.push_type ?? null,
+      fingerprint: body.fingerprint ?? null,
     });
 
     console.log(`[rentalsunited-api] Action: ${action}, test_mode: ${test_mode}`);
@@ -2531,6 +2585,13 @@ Deno.serve(async (req) => {
       body.owner_id != null &&
       String(body.owner_id).trim() !== ''
     ) {
+      // Certification evidence: a cancel/reject/push that never left ROLOS must still be
+      // retrievable, otherwise "no log row" is indistinguishable from "it worked".
+      await logRuNotAttempted(getLogClient(), {
+        ...(ruLogContext.getStore() ?? {}),
+        action: RU_VERB_BY_ACTION[action] ?? `rentalsunited-api:${action}`,
+        error_reason: `no_subuser_keys: ${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
+      });
       return jsonResponse({
         success: false,
         auth_mode: 'master',
@@ -3653,6 +3714,12 @@ Deno.serve(async (req) => {
       // child's. Child UserName/Password is the only valid path; never add a parent fallback.
       const childAuth = await resolveChildAuth(body);
       if (!childAuth) {
+        await logRuNotAttempted(getLogClient(), {
+          ...(ruLogContext.getStore() ?? {}),
+          action: 'Push_FillCompanyDetails_RQ',
+          ru_owner_id: ownerId,
+          error_reason: `no_subuser_login: ${CHILD_AUTH_REQUIRED_MESSAGE}`,
+        });
         return jsonResponse({
           success: false,
           error: {
@@ -3662,23 +3729,65 @@ Deno.serve(async (req) => {
         }, 422);
       }
       const xml = buildFillCompanyDetailsXml(creds, body.company as RUCompanyPayload, ownerId, childAuth);
-      const response = await callRentalsUnited(creds, xml);
-      const { ok, status } = handleRUStatus(response);
-      console.log(
-        `[rentalsunited-api] FillCompanyDetails (auth=${childAuthMode(childAuth)}, owner=${ownerId}) ok=${ok} response: ${response.substring(0, 500)}`,
-      );
+
+      // The company profile is a certification gate, and RU answers it with transient faults often
+      // enough that a single attempt leaves the account stuck at "pending". Retry the transient
+      // classes only (rate limit, upstream 5xx, timeout); a validation or credential rejection is
+      // final and must surface immediately.
+      const COMPANY_RETRY_BACKOFF_MS = [2_000, 6_000];
+      const transientCompanyStatus = (id: string, message: string): boolean => {
+        if (id && ['-6', '3', '99'].includes(id)) return true;
+        return /rate limit|timeout|timed out|temporar|try again|internal server|service unavailable|502|503|504/i
+          .test(message ?? '');
+      };
+
+      let response = '';
+      let status: { id: string; message: string } = { id: '', message: '' };
+      let ok = false;
+      let attempts = 0;
+      let lastTransportError: string | null = null;
+
+      for (let attempt = 1; attempt <= COMPANY_RETRY_BACKOFF_MS.length + 1; attempt++) {
+        attempts = attempt;
+        try {
+          response = await callRentalsUnited(creds, xml);
+          lastTransportError = null;
+          ({ ok, status } = handleRUStatus(response));
+        } catch (callErr) {
+          // A rate deferral is handled by the outer queue/replay path — never swallow it here.
+          if (callErr instanceof RuRateDeferredError) throw callErr;
+          ok = false;
+          lastTransportError = callErr instanceof Error ? callErr.message : String(callErr);
+          status = { id: '', message: lastTransportError };
+        }
+        console.log(
+          `[rentalsunited-api] FillCompanyDetails attempt ${attempt} (auth=${childAuthMode(childAuth)}, owner=${ownerId}) ok=${ok} status=${status.id || 'n/a'} ${(response || lastTransportError || '').substring(0, 300)}`,
+        );
+        if (ok) break;
+        const retryable = lastTransportError !== null || transientCompanyStatus(status.id, status.message);
+        const wait = COMPANY_RETRY_BACKOFF_MS[attempt - 1];
+        if (!retryable || wait === undefined) break;
+        console.warn(`[rentalsunited-api] FillCompanyDetails transient failure — retrying in ${wait}ms`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+
       if (ok) {
         return jsonResponse({
           success: true,
           message: 'Company details filled successfully',
           auth_mode: childAuthMode(childAuth),
           owner_id: String(ownerId),
+          attempts,
           raw_xml: response,
         });
       }
       return ruErrorResponse(
-        status,
-        buildDiagnostics(maskXml(xml), status, 'fill_company_details', response),
+        { ...status, message: status.message || 'Company details push failed' },
+        {
+          ...buildDiagnostics(maskXml(xml), status, 'fill_company_details', response),
+          attempts,
+          transport_error: lastTransportError,
+        },
       );
 
     }
@@ -4083,24 +4192,45 @@ Deno.serve(async (req) => {
     }
 
 
+    // Every abort below the reservation verbs must leave a labelled "never attempted" row: the
+    // certification auditor reads the exchange log, and a silent early return there is exactly
+    // what made cancel/reject look unimplemented.
+    const abortReservationVerb = async (reason: string, message: string) => {
+      await logRuNotAttempted(getLogClient(), {
+        ...(ruLogContext.getStore() ?? {}),
+        action: RU_VERB_BY_ACTION[action] ?? `rentalsunited-api:${action}`,
+        error_reason: reason,
+        error_message: message,
+      });
+      return errorResponse('MISSING_PARAM', message);
+    };
+
     // ── reject_request (preferred way to decline / cancel an unpaid RU request) ──
     if (action === 'reject_request') {
       const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
-      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      if (!reservationId) {
+        return await abortReservationVerb('missing_reservation_id', 'reservation_id is required');
+      }
       const xml = buildRejectRequestXml(scopedCreds, reservationId, body.reject_reason ?? '');
+      const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] reject_request (auth=${authMode}) response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+      if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'reject_request', response));
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
 
     // ── cancel_reservation (confirmed reservations; also a reject fallback) ──
     if (action === 'cancel_reservation') {
       const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
-      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      if (!reservationId) {
+        return await abortReservationVerb('missing_reservation_id', 'reservation_id is required');
+      }
       const cancelTypeId = Number(body.cancel_type_id) === 2 ? 2 : 1;
       const xml = buildCancelReservationXml(scopedCreds, reservationId, cancelTypeId);
+      const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] cancel_reservation (auth=${authMode}) response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
         // Status 178: the reservation originated in an external system (the sales channel)
@@ -4116,7 +4246,7 @@ Deno.serve(async (req) => {
             },
           });
         }
-        return ruErrorResponse(status);
+        return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'cancel_reservation', response));
       }
       return jsonResponse({ success: true, auth_mode: authMode, cancel_type_id: cancelTypeId, raw_xml: response });
     }
@@ -4124,11 +4254,13 @@ Deno.serve(async (req) => {
     // ── modify_stay (dates / property / guests / price on a CONFIRMED reservation) ──
     if (action === 'modify_stay') {
       const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
-      if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
+      if (!reservationId) {
+        return await abortReservationVerb('missing_reservation_id', 'reservation_id is required');
+      }
       const current = body.current_stay;
       if (!current?.ru_property_id || !current?.date_from || !current?.date_to) {
-        return errorResponse(
-          'MISSING_PARAM',
+        return await abortReservationVerb(
+          'missing_current_stay',
           'current_stay { ru_property_id, date_from, date_to } is required — RU needs the current state of the stay',
         );
       }

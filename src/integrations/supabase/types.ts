@@ -13519,16 +13519,20 @@ export type Database = {
       ru_api_log: {
         Row: {
           action: string
+          changed_fields: string[] | null
           created_at: string
           direction: string
           elapsed_ms: number | null
           endpoint: string | null
           error_message: string | null
+          error_reason: string | null
           expires_at: string
+          fingerprint: string | null
           http_status: number | null
           id: string
           parent_action: string | null
           property_id: string | null
+          push_type: string | null
           request_bytes: number | null
           request_xml: string | null
           response_bytes: number | null
@@ -13541,20 +13545,25 @@ export type Database = {
           status_message: string | null
           success: boolean
           trace_id: string | null
+          transport_status: string | null
           unit_id: string | null
         }
         Insert: {
           action: string
+          changed_fields?: string[] | null
           created_at?: string
           direction?: string
           elapsed_ms?: number | null
           endpoint?: string | null
           error_message?: string | null
+          error_reason?: string | null
           expires_at?: string
+          fingerprint?: string | null
           http_status?: number | null
           id?: string
           parent_action?: string | null
           property_id?: string | null
+          push_type?: string | null
           request_bytes?: number | null
           request_xml?: string | null
           response_bytes?: number | null
@@ -13567,20 +13576,25 @@ export type Database = {
           status_message?: string | null
           success?: boolean
           trace_id?: string | null
+          transport_status?: string | null
           unit_id?: string | null
         }
         Update: {
           action?: string
+          changed_fields?: string[] | null
           created_at?: string
           direction?: string
           elapsed_ms?: number | null
           endpoint?: string | null
           error_message?: string | null
+          error_reason?: string | null
           expires_at?: string
+          fingerprint?: string | null
           http_status?: number | null
           id?: string
           parent_action?: string | null
           property_id?: string | null
+          push_type?: string | null
           request_bytes?: number | null
           request_xml?: string | null
           response_bytes?: number | null
@@ -13593,6 +13607,7 @@ export type Database = {
           status_message?: string | null
           success?: boolean
           trace_id?: string | null
+          transport_status?: string | null
           unit_id?: string | null
         }
         Relationships: [
