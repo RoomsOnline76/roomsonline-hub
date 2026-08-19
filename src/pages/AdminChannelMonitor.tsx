@@ -65,6 +65,10 @@ export default function AdminChannelMonitor() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [busyUnitId, setBusyUnitId] = useState<string | null>(null);
   const [purgeTarget, setPurgeTarget] = useState<{ row: ChannelPropertyRow; unit?: ChannelUnitRow } | null>(null);
+  // Deep link between the booking trail (decision) and the exchange log (raw payload).
+  const [exchangeSearch, setExchangeSearch] = useState("");
+  const exchangeLogRef = useRef<HTMLDivElement | null>(null);
+
 
   const rawTab = params.get("tab") as TabKey | null;
   const tab: TabKey = rawTab && TAB_KEYS.includes(rawTab) ? rawTab : "cost";
