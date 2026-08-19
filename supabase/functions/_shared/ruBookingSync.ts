@@ -384,6 +384,8 @@ export async function modifyRuStay(
   }, {
     propertyId: booking.property_id,
     ruPropertyId,
+    traceId,
+    parentAction: 'ruBookingSync:modify',
     details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
   });
 
