@@ -166,6 +166,9 @@ verify_jwt = false
 [functions.cancel-booking]
 verify_jwt = false
 
+[functions.channel-booking-sync]
+verify_jwt = false
+
 [functions.pms-night-audit]
 verify_jwt = false
 schedule = "0 0 * * *"

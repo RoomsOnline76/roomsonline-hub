@@ -44,6 +44,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
+import { pushBookingToChannel } from "@/lib/channelBookingSync";
 import { useAuth } from "@/hooks/useAuth";
 import { applyAdminScope } from "@/lib/adminScope";
 import { toast } from "sonner";
@@ -162,6 +163,12 @@ const Bookings = () => {
       ));
       
       toast.success("Reservation cancelled successfully");
+
+      // A cancellation that never reaches the channel keeps the nights closed there and the
+      // reservation live: push it out and surface a rate-limit deferral.
+      if (booking.source !== "pms") {
+        void pushBookingToChannel(booking.id, "cancelled", { reason: "Cancelled in ROL'OS" });
+      }
     } catch (error: any) {
       console.error("Error cancelling reservation:", error);
       toast.error(`Failed to cancel: ${error.message}`);

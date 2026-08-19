@@ -9,6 +9,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { claimJobs, completeJob, failJob, type BackgroundJob } from "../_shared/jobQueue.ts";
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 import { queueRuStaticDelta } from "../_shared/ruStaticDelta.ts";
+import { syncBookingToChannel, type ChannelBookingChange } from "../_shared/channelBookingSync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -185,6 +186,26 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         action: "resolve_ru_property_ids",
         property_id: propertyId,
       });
+      return;
+    }
+    /**
+     * Enqueued by the `bookings` / `rolos_booking_rooms` trigger, so a booking change reaches the
+     * channel no matter which screen wrote it. Retried with backoff: a channel refusal or a rate
+     * deferral simply runs again.
+     */
+    case "channel_booking_sync": {
+      const bookingId = payload.booking_id as string | undefined;
+      if (!bookingId) return;
+      const outcome = await syncBookingToChannel(supabase, {
+        booking_id: bookingId,
+        change: (payload.change as ChannelBookingChange | undefined) ?? "unknown",
+        previous: (payload.previous as Record<string, string | null> | null) ?? null,
+        reason: (payload.reason as string | null) ?? null,
+      });
+      if (outcome.reservation === "failed") {
+        throw new Error(outcome.message ?? outcome.code ?? "Channel refused the booking change");
+      }
+      if (outcome.ari === "failed") throw new Error(outcome.ari_reason ?? "Channel ARI delta failed");
       return;
     }
     default:

@@ -29,6 +29,8 @@ export interface RuBookingRef {
 
 export interface RuPushResult {
   ok: boolean;
+  /** True when the channel's rate window parked the call — it will complete from the queue. */
+  deferred?: boolean;
   /** Machine code for the caller to surface: RU_CANCEL_NOT_ALLOWED, RU_ERROR, … */
   code?: string;
   message?: string;
@@ -105,24 +107,34 @@ export async function resolveRuChildAuth(
   return null;
 }
 
-/** Resolve the RU PropertyID (unit-level where mapped) backing this booking. */
+/**
+ * Resolve the RU PropertyID (unit-level where mapped) backing this booking.
+ *
+ * `roomTypeOverride` lets a caller resolve the listing for a room type the booking no longer
+ * carries — needed when a stay is moved between units, because RU's modify verb has to name the
+ * listing the reservation currently sits on *and* the listing it moves to.
+ */
 export async function resolveRuPropertyId(
   supabase: Db,
   booking: RuBookingRef,
+  roomTypeOverride?: string | null,
 ): Promise<string | null> {
+  const roomTypeId = roomTypeOverride !== undefined && roomTypeOverride !== null
+    ? roomTypeOverride
+    : booking.room_type_id;
   // Unit-level mapping: the booking's canonical room type name → hostfully_room_types row.
-  if (booking.room_type_id) {
+  if (roomTypeId) {
     const { data: direct } = await supabase
       .from('hostfully_room_types')
       .select('rentalsunited_property_id')
-      .eq('id', booking.room_type_id)
+      .eq('id', roomTypeId)
       .maybeSingle();
     if (direct?.rentalsunited_property_id) return String(direct.rentalsunited_property_id);
 
     const { data: canonical } = await supabase
       .from('rolos_room_types')
       .select('name')
-      .eq('id', booking.room_type_id)
+      .eq('id', roomTypeId)
       .maybeSingle();
     if (canonical?.name) {
       const { data: units } = await supabase
@@ -187,9 +199,9 @@ async function invokeRu(
     traceId?: string | null;
     parentAction?: string | null;
   },
-): Promise<{ ok: boolean; code?: string; message?: string }> {
+): Promise<{ ok: boolean; deferred?: boolean; code?: string; message?: string }> {
   const startedAt = Date.now();
-  const finish = async (result: { ok: boolean; code?: string; message?: string }) => {
+  const finish = async (result: { ok: boolean; deferred?: boolean; code?: string; message?: string }) => {
     await logRuSyncRun(supabase, {
       action,
       propertyId: log?.propertyId ?? null,
@@ -198,7 +210,7 @@ async function invokeRu(
       errorCode: result.code ?? null,
       errorMessage: result.message ?? null,
       elapsedMs: Date.now() - startedAt,
-      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null },
+      details: { ...(log?.details ?? {}), trace_id: log?.traceId ?? null, deferred: result.deferred === true },
     });
     return result;
   };
@@ -211,6 +223,10 @@ async function invokeRu(
       trace_id: log?.traceId ?? null,
       parent_action: log?.parentAction ?? `ruBookingSync:${action}`,
       property_id: log?.propertyId ?? null,
+      // Reservation writes must survive the channel's one-identical-call-per-minute rule: a
+      // rate-limited cancel/modify is parked in the shared call queue and replayed instead of
+      // being dropped on the floor.
+      deferrable: true,
       ...payload,
     },
   });
@@ -220,6 +236,18 @@ async function invokeRu(
         ok: false,
         code: 'RU_MASTER_AUTH_REFUSED',
         message: 'Rentals United answered on master credentials — refused to apply the change.',
+      });
+    }
+    // A 202 from the channel API means the call was parked in the shared queue behind the
+    // one-identical-call-per-minute rule. That is a success in flight, not a delivered push.
+    if (data.queued === true) {
+      return await finish({
+        ok: true,
+        deferred: true,
+        code: 'RU_QUEUED',
+        message: typeof data.message === 'string'
+          ? data.message
+          : 'Channel rate limit reached — the change is queued and will reach the channel within a minute.',
       });
     }
     return await finish({ ok: true });
@@ -277,7 +305,7 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
-    if (rejected.ok) return { ok: true, method: 'reject_request' };
+    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request' };
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
@@ -286,7 +314,7 @@ export async function cancelRuReservation(
       ...auth,
     }, logCtx);
     return cancelled.ok
-      ? { ok: true, method: 'cancel_reservation' }
+      ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation' }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message };
   }
 
@@ -297,7 +325,7 @@ export async function cancelRuReservation(
     ...auth,
   }, logCtx);
   return result.ok
-    ? { ok: true, method: 'cancel_reservation' }
+    ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation' }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message };
 }
 
@@ -313,6 +341,17 @@ export async function modifyRuStay(
     client_price?: number | null;
     already_paid?: number | null;
     arrival_time?: string | null;
+  },
+  /**
+   * State the reservation currently has AT THE CHANNEL. Supply this whenever the local record has
+   * already been rewritten (a unit move, a date change saved before the push) — otherwise RU is
+   * told the new state is also the current state and rejects or misapplies the modification.
+   */
+  current?: {
+    room_type_id?: string | null;
+    ru_property_id?: string | null;
+    date_from?: string | null;
+    date_to?: string | null;
   },
 ): Promise<RuPushResult> {
   const traceId = newRuTraceId();
@@ -349,6 +388,11 @@ export async function modifyRuStay(
   }
 
   const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+  const currentRuPropertyId = current?.ru_property_id
+    ? String(current.ru_property_id)
+    : current?.room_type_id
+      ? await resolveRuPropertyId(supabase, booking, current.room_type_id)
+      : null;
   if (!ruPropertyId) {
     await logRuNotAttempted(supabase, {
       trace_id: traceId,
@@ -367,9 +411,9 @@ export async function modifyRuStay(
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
-      ru_property_id: ruPropertyId,
-      date_from: booking.check_in_date,
-      date_to: booking.check_out_date,
+      ru_property_id: currentRuPropertyId || ruPropertyId,
+      date_from: current?.date_from || booking.check_in_date,
+      date_to: current?.date_to || booking.check_out_date,
     },
     modify_stay: {
       ru_property_id: ruPropertyId,
@@ -386,11 +430,16 @@ export async function modifyRuStay(
     ruPropertyId,
     traceId,
     parentAction: 'ruBookingSync:modify',
-    details: { booking_id: booking.id, reservation_id: String(booking.external_reservation_id) },
+    details: {
+      booking_id: booking.id,
+      reservation_id: String(booking.external_reservation_id),
+      from_ru_property_id: currentRuPropertyId || ruPropertyId,
+      to_ru_property_id: ruPropertyId,
+    },
   });
 
 
   return result.ok
-    ? { ok: true, method: 'modify_stay' }
+    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay' }
     : { ok: false, method: 'modify_stay', code: result.code, message: result.message };
 }
