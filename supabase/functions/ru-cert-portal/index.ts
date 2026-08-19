@@ -99,6 +99,35 @@ async function markLedgerStaleForOwnerAccount(
   }
 }
 
+/**
+ * Record a `passed` verdict for account-scoped steps (keys, company profile,
+ * owner push). Without this the seeded rows for those steps never carry a verdict
+ * and a stale flag can hold finished work open indefinitely. Never throws.
+ */
+// deno-lint-ignore no-explicit-any
+async function recordLedgerPassForOwnerAccount(
+  admin: any,
+  ref: { accountId?: string | null; ownerId?: string | null },
+  stepKeys: string[],
+  event: string,
+): Promise<void> {
+  try {
+    let query = admin.from("ru_owner_accounts").select("portfolio_id, property_id");
+    query = ref.accountId ? query.eq("id", ref.accountId) : query.eq("ru_owner_id", ref.ownerId ?? "");
+    const { data } = await query.limit(1).maybeSingle();
+    if (!data) return;
+    await recordLedgerPassForScope(
+      admin,
+      { propertyId: data.property_id ?? null, portfolioId: data.portfolio_id ?? null },
+      stepKeys,
+      event,
+    );
+  } catch (error) {
+    console.warn("[channel-ledger] owner-account pass recording skipped:", error);
+  }
+}
+
+
 
 /** Minimum seconds between certification runs (RU allows ~1 call per sliding minute). */
 const RUN_COOLDOWN_SECONDS = 60;
