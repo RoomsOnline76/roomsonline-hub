@@ -135,3 +135,84 @@ export async function pushChangedChannelFields(
     });
   }
 }
+
+/**
+ * Confirmed rates & availability push for a rate plan change (new season, new/changed season
+ * rate, removed season, plan activated/retired/deleted, plan copied).
+ *
+ * Rate edits always force the delta: the shared helper debounces rates pushes for five minutes
+ * per property, which would otherwise silently drop the very change the operator just made.
+ *
+ * Never blocks the caller's own save toast and never turns a channel failure into a save
+ * failure — the toast lifecycle resolves in the background.
+ */
+export async function pushRatePlanRates(
+  propertyId: string | null | undefined,
+  trigger:
+    | "rate_plan_create"
+    | "rate_plan_update"
+    | "rate_plan_toggle"
+    | "rate_plan_delete"
+    | "rate_plan_copy",
+  options: { label?: string } = {},
+): Promise<void> {
+  if (!propertyId) return;
+  const label = options.label ?? "Rates";
+  const toastId = `ru-rates-${propertyId}`;
+  const sinceIso = new Date(Date.now() - 5_000).toISOString();
+
+  toast.loading(`Sending ${label.toLowerCase()} to the ${CHANNEL_MANAGER}…`, { id: toastId });
+
+  const outcome = await queueChannelRatesSync(propertyId, trigger, { force: true });
+  if (outcome?.error) {
+    toast.error(`${CHANNEL_MANAGER} update rejected`, { id: toastId, description: outcome.error });
+    return;
+  }
+  if (outcome?.queued === false && outcome?.reason === "not_connected") {
+    // Not distributed to the channel — nothing is owed, so stay quiet.
+    toast.dismiss(toastId);
+    return;
+  }
+
+  const { verdict, reason } = await confirmChannelPush({ propertyId, section: "rates", sinceIso });
+  if (verdict === "delivered") {
+    toast.success(`${label} sent to the ${CHANNEL_MANAGER}`, {
+      id: toastId,
+      description: "Delivery confirmed.",
+    });
+    return;
+  }
+  if (verdict === "failed") {
+    toast.error(`${CHANNEL_MANAGER} update rejected`, {
+      id: toastId,
+      description: reason ?? "No reason returned",
+    });
+    return;
+  }
+  if (verdict === "not_owed") {
+    toast.dismiss(toastId);
+    return;
+  }
+
+  toast.info(`${label} queued for the ${CHANNEL_MANAGER}`, {
+    id: toastId,
+    description: `Will be delivered automatically${reason ? ` — ${reason}` : ""}.`,
+  });
+
+  // Parked behind the readiness gate: the backend re-arms it. Keep watching so the eventual
+  // delivery is reported instead of landing silently minutes later.
+  const late = await confirmChannelPush({
+    propertyId,
+    section: "rates",
+    sinceIso,
+    timeoutMs: 300_000,
+    intervalMs: 15_000,
+  });
+  if (late.verdict === "delivered") {
+    toast.success(`${label} sent to the ${CHANNEL_MANAGER}`, {
+      id: toastId,
+      description: "Delivery confirmed after the readiness gate cleared.",
+    });
+  }
+}
+
