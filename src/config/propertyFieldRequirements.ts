@@ -319,7 +319,7 @@ const channelCheck = (subject: RequirementSubject, key: string): boolean | undef
 
 const KITCHEN_RE = /kitchen|kitchenette|self[-\s]?cater|scullery/i;
 /** Channel composition ids that represent a kitchen / kitchenette / studio kitchen. */
-export const KITCHEN_CHANNEL_IDS = [94, 101, 157, 517];
+export const KITCHEN_CHANNEL_IDS = [94, 101, 102, 135, 157, 517, 1262];
 const KITCHEN_ID_RE = new RegExp(`^ru:(${KITCHEN_CHANNEL_IDS.join("|")})$`, "i");
 
 /**

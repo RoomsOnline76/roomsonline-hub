@@ -847,11 +847,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
   // (a single room holding every bed is rejected during content review).
   const RU_BEDROOM_ROOM_IDS = [257, 372, 517];
   const RU_KITCHEN_ROOM_IDS = [94, 101, 517];
+  // Any kitchen flavour in the dictionary counts as "a kitchen is declared": Kitchen (101,
+  // published as "Separate kitchen"), kitchen in the living room (94), modern kitchen (102),
+  // fully equipped kitchen (135), kitchenette (157), kitchen corner (517), full kitchen (1262).
+  const RU_KITCHEN_AMENITY_IDS = [94, 101, 102, 135, 157, 517, 1262];
   const bedroomBlocks = rooms.filter((r) => RU_BEDROOM_ROOM_IDS.includes(Number(r.room_id)));
   const bedroomsWithBeds = bedroomBlocks.filter((r) =>
     (r.amenities || []).some((a: any) => RU_BED_AMENITY_IDS.includes(Number(a.id)) && (a.count || 1) > 0)).length;
   const hasKitchenRoom = rooms.some((r) => RU_KITCHEN_ROOM_IDS.includes(Number(r.room_id)))
-    || (amenities || []).some((a: any) => [94, 101].includes(Number(a?.id)));
+    || (amenities || []).some((a: any) => RU_KITCHEN_AMENITY_IDS.includes(Number(a?.id)));
   const hasBathroomRoom = rooms.some((r) => Number(r.room_id) === 81)
     || (amenities || []).some((a: any) => Number(a?.id) === 81 && (a.count || 0) > 0);
   // Distribution: every bedroom block must hold a bed, and the blocks must cover the
