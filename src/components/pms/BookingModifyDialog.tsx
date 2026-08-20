@@ -69,7 +69,6 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [busy, setBusy] = useState(false);
   /** What has actually been received — drives the refund / balance preview. */
   const [amountPaid, setAmountPaid] = useState<number | null>(null);
-  const [raiseRefund, setRaiseRefund] = useState(true);
   const [overpaymentMode, setOverpaymentMode] = useState<"refund" | "credit" | "guest_choice">("guest_choice");
 
   const [requestBalance, setRequestBalance] = useState(true);
