@@ -544,15 +544,25 @@ export async function verifyAndRecordCurrency(
     childAuth?: Record<string, unknown>;
     ownerScope?: string;
     decision?: CurrencyDecision | null;
+    /**
+     * Currency already read back for this listing by the caller. The channel allows one
+     * identical read per sliding minute, so re-reading here was deferred and the verdict was
+     * never persisted — a visibly "verified" run left no `ru_currency_state` row and the
+     * wizard gate stayed open. Reuse the caller's answer instead.
+     */
+    knownIso?: string | null;
   },
 ): Promise<{ ru_reported_iso: string | null; matches: boolean; error?: string }> {
   const childAuth = opts.childAuth ?? {};
   const ownerScope = opts.ownerScope || ruOwnerScopeKey(childAuth);
   const expected = (opts.decision?.published_iso || opts.authoredIso || 'ZAR').toUpperCase();
-  const readback = await verifyRuPropertyCurrency(supabase, opts.ruPropertyId, childAuth);
+  const readback = opts.knownIso
+    ? { iso: opts.knownIso, error: undefined as string | undefined }
+    : await verifyRuPropertyCurrency(supabase, opts.ruPropertyId, childAuth);
   if (!readback.iso) {
     return { ru_reported_iso: null, matches: false, error: readback.error };
   }
+
   const iso = readback.iso.toUpperCase();
   await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, iso, 'ru_readback');
 
