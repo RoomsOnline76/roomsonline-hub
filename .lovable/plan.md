@@ -1,29 +1,24 @@
-# Make the HubSpot CRM add-on discoverable
+# Fix: extending a checked-in channel booking falsely warns "overbooked"
 
-## Where it lives today (verified)
+## What is happening
 
-- The only place to configure HubSpot is the **ROL Account** page (`/admin/account`), where the HubSpot card is rendered near the bottom of the page.
-- There is **no** HubSpot entry in the desktop side menu, the PMS sidebar, or either mobile bottom nav.
-- The backend stores the connection per **owner**, keyed on `owner_id` + service in `owner_integrations`. There is currently no per-property HubSpot setting at all — one HubSpot portal serves the whole owner account, and all its properties' guests/reservations feed into it.
-- `/integrations/hubspot` exists only as a public marketing page on the Connect site, not as a configuration screen.
+When a channel-sourced stay is edited, the calendar in the modify dialog treats the stay's **own** channel block as somebody else's booking, so extending it trips the availability warning even though the nights belong to that same reservation.
 
-So the answer to "where do I configure it for the property" is: today you can't per property — it's an account-level connection, reachable only via ROL Account, which is why it feels invisible.
+Confirmed on the live data for RU Test Clone B: the stop-sell rows for room type `Elf` on 22 and 23 Aug 2026 carry `blocked_reason = channel_booking:<id of ROL-700-0006>` — i.e. the block written for the very booking being modified. The stay-exclusion logic in the availability snapshot only skips rows from the `bookings` table; it does not skip block rows tagged with that booking's own id. The database guard itself is correct (it excludes the booking under edit and skips channel-sourced stays), so this is purely a false client-side warning.
 
-## What to build
+## Changes
 
-1. **Dedicated settings screen** — add a HubSpot CRM page inside the PMS shell at `/pms/crm-hubspot`, rendering the existing HubSpot card (connect token, test, sync now, pause, disconnect) plus a short line stating the connection covers every property on the account.
-2. **Side menu entry** — add "HubSpot CRM" under the PMS sidebar Settings group (owner-visible), and a matching entry in the main workspace side menu under Insights/Workspace so it is findable outside the PMS shell.
-3. **Mobile access** — expose it in the PMS mobile bottom nav overflow sheet and the main mobile nav overflow, using the same nav config entries so nothing is duplicated by hand.
-4. **Pointer from the property editor** — in Property Setup / edit property, add a quiet line in the integrations area: "Guest & reservation CRM sync is configured once for your account — open HubSpot CRM", linking to the new page. No per-property toggle unless you want one.
-5. **Keep ROL Account working** — the existing card stays where it is; both surfaces read the same owner state.
+1. **Availability snapshot (`src/lib/unitAvailability.ts`)**
+   - When `excludeBookingId` is set, ignore `property_availability` rows whose `blocked_reason` references that booking (pattern `channel_booking:<id>`, plus any `booking:<id>` variant), so the stay's own held nights stay selectable.
+   - Keep every other block (property blocks, other channel bookings, maintenance) exactly as today.
 
-## Optional (say the word)
+2. **Modify dialog (`src/components/pms/BookingModifyDialog.tsx`)**
+   - Also exclude the stay's own nights (original check-in → check-out) from the clash test, as a safety net for blocks written without an identifiable booking tag.
+   - When a genuine clash remains, keep the current message and the privileged override with reason.
 
-If you do want per-property control, we can add a per-property "include in CRM sync" switch that the sync sweep and the projection layer respect, defaulting to on. That is a schema + sync change, so it is excluded above.
+3. **Verification**
+   - Re-check that extending ROL-700-0006 from 22–24 Aug to a longer stay no longer raises the warning, while a real double-booking on the same room type still does.
 
-## Technical notes
+## Notes
 
-- New page `src/pages/pms/PMSHubSpot.tsx` reusing `HubSpotIntegrationCard` (`bare` variant where appropriate) and `useOwnerIntegration("hubspot")`; no new backend calls.
-- Route added inside the PMS shell route block in `src/App.tsx` next to `integrations`.
-- Nav entries added to `src/config/navigation.ts` and the PMS sidebar group array in `src/components/layout/PMSSidebar.tsx`; mobile surfaces pick them up from the same config.
-- Wording follows the channel-vocabulary rule for channel vendors; HubSpot is named directly because it is the owner's own CRM, consistent with the existing card copy.
+No schema or edge-function changes are needed; the guard trigger and `modify-booking` conflict rules stay as they are.
