@@ -91,26 +91,50 @@ Deno.serve(async (req) => {
 
     console.log(`Geocoding address: ${fullAddress}`);
 
-    // Call Google Maps Geocoding API
-    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${googleMapsApiKey}`;
-    
-    const geocodeResponse = await fetch(geocodeUrl);
-    const geocodeData = await geocodeResponse.json();
+    // Call Google Maps Geocoding API, trying each candidate key
+    let geocodeData: any = null;
+    let lastStatus = "UNKNOWN";
+    let lastMessage = "";
 
-    if (geocodeData.status !== "OK" || !geocodeData.results?.length) {
-      console.error("Geocoding failed:", geocodeData.status, geocodeData.error_message);
+    for (const key of candidateKeys) {
+      const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(fullAddress)}&key=${key}`;
+      const geocodeResponse = await fetch(geocodeUrl);
+      const data = await geocodeResponse.json();
+
+      if (data.status === "OK" && data.results?.length) {
+        geocodeData = data;
+        break;
+      }
+
+      lastStatus = data.status ?? "UNKNOWN";
+      lastMessage = data.error_message ?? "";
+      console.error(`Geocoding attempt failed: ${lastStatus} ${lastMessage}`);
+
+      // Only a key/permission problem is worth retrying with another key.
+      if (lastStatus !== "REQUEST_DENIED") break;
+    }
+
+    if (!geocodeData) {
+      const hint =
+        lastStatus === "REQUEST_DENIED"
+          ? "The Google Maps key is referrer-restricted or the Geocoding API is not enabled for it. Add a server key (no HTTP referrer restriction, Geocoding API enabled) as GOOGLE_MAPS_GEOCODING_KEY."
+          : lastStatus === "ZERO_RESULTS"
+            ? "Google could not match this address. Check the street, city and country."
+            : lastMessage;
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Geocoding failed: ${geocodeData.status}`,
+          error: `Geocoding failed: ${lastStatus}`,
+          hint,
           address: fullAddress,
         }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
 
     const location = geocodeData.results[0].geometry.location;
     const latitude = location.lat;
