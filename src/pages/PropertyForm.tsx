@@ -953,7 +953,7 @@ export default function PropertyForm({
 
   // Room types state with full data structure - starts empty for new properties
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
-  const persistedRoomTypesRef = useRef<any[]>([]);
+  const persistedRoomTypesRef = useRef<unknown[]>([]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>("");
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
 
