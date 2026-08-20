@@ -359,7 +359,8 @@ export async function runBookingReadbackTest(
       // That is a channel permission boundary, not a defect in our push — so instead of failing
       // the suite we fall back to reading a real channel reservation back and comparing it with
       // what we hold locally, which is the evidence the read-back check actually exists for.
-      const cannotCreate = /does not exist|status 56/i.test(push.message ?? '');
+      const cannotCreate = push.code === 'RU_LISTING_MISSING' ||
+        /does not exist|status 56|has no listing/i.test(push.message ?? '');
       await record({
         name: 'Send the stay to the channel',
         ru_method: 'Push_PutConfirmedReservationMulti_RQ',
