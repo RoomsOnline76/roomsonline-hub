@@ -91,7 +91,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [checkOut, setCheckOut] = useState(booking.check_out_date);
   const [adults, setAdults] = useState(String(booking.adults ?? 1));
   const [children, setChildren] = useState(String(booking.children ?? 0));
+  /* The editable figure is ACCOMMODATION, never the guest total. `total_price` on the
+   * booking already includes mandatory extras, so seeding the field from it and saving
+   * it back is what used to make fees compound on every edit. The stored accommodation
+   * comes from the booking's charge snapshot as soon as it loads. */
   const [totalPrice, setTotalPrice] = useState(String(booking.total_price ?? 0));
+  const [storedAccommodation, setStoredAccommodation] = useState<number>(Number(booking.total_price ?? 0));
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   /** What has actually been received — drives the refund / balance preview. */
@@ -211,7 +216,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     (async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("amount_paid, payment_status, total_price")
+        .select("amount_paid, payment_status, total_price, charges_breakdown")
         .eq("id", booking.id)
         .maybeSingle();
       if (!mounted || !data) return;
@@ -220,6 +225,15 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         String(data.payment_status ?? "").toLowerCase(),
       );
       setAmountPaid(stored > 0 ? stored : paidFlag ? Number(data.total_price ?? 0) : 0);
+
+      const snap = (data.charges_breakdown ?? null) as { accommodation?: number } | null;
+      const snapAccommodation = Number(snap?.accommodation ?? 0);
+      if (snapAccommodation > 0) {
+        setStoredAccommodation(snapAccommodation);
+        setTotalPrice((current) =>
+          Number(current) === Number(data.total_price ?? 0) ? String(snapAccommodation) : current,
+        );
+      }
     })();
     return () => {
       mounted = false;
@@ -239,10 +253,10 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   /** Pro-rata fallback: the booking's own nightly average applied to the new stay. */
   const averageQuote = useMemo(() => {
     if (originalNights <= 0 || nights <= 0) return null;
-    const perNight = Number(booking.total_price || 0) / originalNights;
+    const perNight = storedAccommodation / originalNights;
     if (!perNight) return null;
     return Math.round(perNight * nights * 100) / 100;
-  }, [booking.total_price, originalNights, nights]);
+  }, [storedAccommodation, originalNights, nights]);
 
   // Re-price whenever the stay or the guest count moves.
   useEffect(() => {
@@ -332,7 +346,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                 check_out_date: checkOut,
                 adults: Number(adults) || 0,
                 children: Number(children) || 0,
-                total_price: accommodation,
+                accommodation_total: accommodation,
               },
             },
           });
@@ -446,7 +460,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       if (Number(children) !== (booking.children ?? 0)) modifications.children = Number(children);
       // Always carry the corrected figure so the channel push and settlement
       // loop see the re-priced total, not the stale one.
-      if (Number(totalPrice) !== Number(booking.total_price)) modifications.total_price = Number(totalPrice);
+      if (Number(totalPrice) !== storedAccommodation) {
+        modifications.accommodation_total = Number(totalPrice);
+      }
       // Deliberate overbooking is stamped on the stay so the database guard lets
       // the new dates through and the decision stays auditable.
       if (stayClash && mayOverbook && overbookReason.trim()) {
@@ -613,7 +629,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Total (ZAR)</Label>
+            <Label className="text-xs">Accommodation (ZAR)</Label>
             <Input
               type="number"
               min={0}
@@ -625,7 +641,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             />
             <div className="flex items-center justify-between gap-2">
               <p className="text-[11px] text-muted-foreground">
-                Current: R{Number(booking.total_price || 0).toLocaleString()}
+                Current accommodation: R{storedAccommodation.toLocaleString()}
               </p>
               {quoting && (
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">

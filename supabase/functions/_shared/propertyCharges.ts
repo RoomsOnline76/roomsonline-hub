@@ -53,11 +53,17 @@ export interface ChargeContext {
   adults: number;
   children: number;
   infants: number;
+  /**
+   * Guests already covered by the room rate across the whole stay (sum of the
+   * booked units' base occupancy). Per-person charges only bill guests above it.
+   */
+  baseOccupancy?: number | null;
   /** Booking room type id plus any aliases (per-line ids, external PMS ids). */
   roomTypeIds?: string[];
   rateTypeId?: string | null;
   currency?: string;
 }
+
 
 export interface QuoteLine {
   chargeId: string;
@@ -139,6 +145,20 @@ function computeAmount(
   if (charge.applies_to_children) persons += ctx.children;
   if (charge.applies_to_infants) persons += ctx.infants;
 
+  /* Guests the room rate already covers. An explicit setting on the charge wins;
+   * otherwise the booked units' base occupancy decides. Without either, every
+   * guest is billed (old behaviour). */
+  const included = Math.max(
+    0,
+    charge.guests_included != null
+      ? Number(charge.guests_included) || 0
+      : Number(ctx.baseOccupancy ?? 0) || 0,
+  );
+  const billablePersons = Math.max(0, persons - included);
+  const personNote = included > 0
+    ? `${billablePersons} of ${persons} guests (${included} included)`
+    : `${persons} guests`;
+
   let amount = 0;
   let breakdown = "";
 
@@ -156,13 +176,14 @@ function computeAmount(
       breakdown = `${fmt(base, currency)} × ${ctx.rooms} rooms × ${ctx.nights} nights`;
       break;
     case "per_person":
-      amount = base * persons;
-      breakdown = `${fmt(base, currency)} × ${persons} guests`;
+      amount = base * billablePersons;
+      breakdown = `${fmt(base, currency)} × ${personNote}`;
       break;
     case "per_person_per_night":
-      amount = base * persons * ctx.nights;
-      breakdown = `${fmt(base, currency)} × ${persons} guests × ${ctx.nights} nights`;
+      amount = base * billablePersons * ctx.nights;
+      breakdown = `${fmt(base, currency)} × ${personNote} × ${ctx.nights} nights`;
       break;
+
     case "percentage_of_accommodation": {
       amount = ctx.accommodation * (base / 100);
       const minCap = charge.min_cap != null ? Number(charge.min_cap) : null;
@@ -274,10 +295,13 @@ export interface BookingChargeInput {
   children?: number | null;
   infants?: number | null;
   rooms?: number | null;
+  /** Guests covered by the rate across the booked units. */
+  baseOccupancy?: number | null;
   roomTypeIds?: (string | null | undefined)[];
   rateTypeId?: string | null;
   currency?: string | null;
 }
+
 
 export function nightsBetween(checkIn: string, checkOut: string): number {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime();
@@ -301,6 +325,8 @@ export async function quoteBookingCharges(supabase: any, input: BookingChargeInp
     adults: Math.max(0, Number(input.adults ?? 1) || 0),
     children: Math.max(0, Number(input.children ?? 0) || 0),
     infants: Math.max(0, Number(input.infants ?? 0) || 0),
+    baseOccupancy: input.baseOccupancy ?? null,
+
     roomTypeIds: (input.roomTypeIds || []).filter((id): id is string => !!id),
     rateTypeId: input.rateTypeId || null,
     currency: input.currency || "ZAR",
@@ -490,20 +516,25 @@ export interface BookingChargeStayContext {
   accommodation: number;
   rooms: number;
   roomTypeIds: string[];
+  /** Ids of the active room lines, in load order — used to write accommodation back. */
+  lineIds: string[];
+  /** Guests the booked units' rates already cover (sum of base occupancy). */
+  baseOccupancy: number;
 }
 
 /**
  * Resolve the accommodation base and room scope for a booking.
  *
  * Accommodation is the room revenue only — never the guest total. Preference
- * order: active room lines, then the last stored breakdown, then total_price
- * minus the extras that breakdown recorded.
+ * order: active room lines, then the last stored breakdown. `total_price` is the
+ * guest total and is deliberately not used as a base: reading it back would bill
+ * extras on top of extras on every edit.
  */
 // deno-lint-ignore no-explicit-any
 export async function resolveBookingChargeContext(supabase: any, booking: any): Promise<BookingChargeStayContext> {
   const { data: lines } = await supabase
     .from("rolos_booking_rooms")
-    .select("room_type_id, rate_charged, status")
+    .select("id, room_type_id, rate_charged, status")
     .eq("booking_id", booking.id);
 
   const active = (lines || []).filter((l: PropertyChargeRow) => (l.status ?? "active") === "active");
@@ -511,23 +542,38 @@ export async function resolveBookingChargeContext(supabase: any, booking: any): 
 
   const snapshot = (booking.charges_breakdown || {}) as Record<string, unknown>;
   const snapAccommodation = Number(snapshot.accommodation) || 0;
-  const snapExtras = Number(snapshot.extras_total) || 0;
-  const total = Number(booking.total_price) || 0;
 
-  const accommodation = lineTotal > 0
-    ? lineTotal
-    : snapAccommodation > 0
-      ? snapAccommodation
-      : round2(Math.max(0, total - snapExtras));
+  const accommodation = lineTotal > 0 ? lineTotal : snapAccommodation;
 
   const roomTypeIds = [
     ...active.map((l: PropertyChargeRow) => l.room_type_id),
     booking.room_type_id,
   ].filter((id: unknown): id is string => typeof id === "string" && !!id);
 
+  /* Base occupancy: how many guests the booked units include in their rate. One
+   * line = one unit, so the allowances add up across a multi-unit stay. */
+  let baseOccupancy = 0;
+  const lineTypeIds = active
+    .map((l: PropertyChargeRow) => l.room_type_id)
+    .filter((id: unknown): id is string => typeof id === "string" && !!id);
+  const lookupIds = lineTypeIds.length ? lineTypeIds : (booking.room_type_id ? [booking.room_type_id] : []);
+  if (lookupIds.length) {
+    const { data: types } = await supabase
+      .from("rolos_room_types")
+      .select("id, base_occupancy")
+      .in("id", [...new Set(lookupIds)]);
+    const byId = new Map<string, number>(
+      (types || []).map((t: PropertyChargeRow) => [String(t.id), Number(t.base_occupancy) || 0]),
+    );
+    baseOccupancy = lookupIds.reduce((s: number, id: string) => s + (byId.get(id) ?? 0), 0);
+  }
+
   return {
     accommodation: round2(accommodation),
     rooms: Math.max(1, active.length || (booking.rolos_room_ids?.length ?? 0) || 1),
     roomTypeIds: [...new Set(roomTypeIds)],
+    lineIds: active.map((l: PropertyChargeRow) => String(l.id)),
+    baseOccupancy,
   };
+
 }

@@ -132,7 +132,12 @@ export function BookingDetailsGrid({
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
-  const [account, setAccount] = useState({ extras: 0, payments: 0 });
+  const [account, setAccount] = useState({ extras: 0, payments: 0, deposits: 0 });
+  /* The price field edits ACCOMMODATION. `bookings.total_price` is the guest total
+   * (accommodation + mandatory extras), so seeding the field from it and saving it back
+   * is what made extras compound on every edit. The reconciled charge snapshot — and
+   * failing that the room lines — carry the real accommodation basis. */
+  const [storedAccommodation, setStoredAccommodation] = useState<number>(Number(booking.total_price ?? 0));
 
   const [form, setForm] = useState({
     guest_name: booking.guest_name || "",
@@ -242,27 +247,59 @@ export function BookingDetailsGrid({
       setLines(loaded.length ? loaded : [{ ...blankLine(), adults: String(booking.adults ?? 1), rate_charged: String(booking.total_price ?? 0) }]);
       setLinesLoaded(true);
 
-      // Account: folio extras + payments
+      /* Accommodation basis: the reconciled snapshot first, then the sum of the room
+       * lines. Both are accommodation-only, unlike `total_price`. */
+      const { data: snapRow } = await supabase
+        .from("bookings")
+        .select("charges_breakdown")
+        .eq("id", booking.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const snap = (snapRow?.charges_breakdown ?? null) as { accommodation?: number } | null;
+      const lineSum = loaded.reduce((a, l) => a + (parseFloat(l.rate_charged) || 0), 0);
+      const basis = Number(snap?.accommodation ?? 0) > 0 ? Number(snap!.accommodation) : lineSum;
+      if (basis > 0) {
+        setStoredAccommodation(basis);
+        set("total_price", String(basis));
+      }
+
+      /* Extras come from the reconciled booking charges, which the modification service
+       * rewrites on every edit. Folio transactions lag behind and double up. */
+      const { data: charges } = await supabase
+        .from("rolos_booking_charges")
+        .select("amount, is_refundable, category")
+        .eq("booking_id", booking.id);
+      if (cancelled) return;
+      let extras = 0;
+      let deposits = 0;
+      for (const c of charges || []) {
+        const amt = Number(c.amount) || 0;
+        if (c.is_refundable) deposits += amt;
+        else extras += amt;
+      }
+
+      // Payments still live on the folio.
       const { data: folio } = await supabase
         .from("rolos_folios")
         .select("id")
         .eq("booking_id", booking.id)
         .maybeSingle();
-      if (cancelled || !folio?.id) return;
-      const { data: txns } = await supabase
-        .from("rolos_folio_transactions")
-        .select("transaction_type, amount")
-        .eq("folio_id", folio.id);
-      if (cancelled) return;
-      let extras = 0;
       let payments = 0;
-      for (const t of txns || []) {
-        const amt = Number(t.amount) || 0;
-        const type = (t.transaction_type || "").toLowerCase();
-        if (type === "payment" || type === "refund") payments += type === "refund" ? -amt : amt;
-        else if (type !== "accommodation") extras += amt;
+      if (folio?.id) {
+        const { data: txns } = await supabase
+          .from("rolos_folio_transactions")
+          .select("transaction_type, amount")
+          .eq("folio_id", folio.id);
+        if (cancelled) return;
+        for (const t of txns || []) {
+          const amt = Number(t.amount) || 0;
+          const type = (t.transaction_type || "").toLowerCase();
+          if (type === "payment") payments += amt;
+          else if (type === "refund") payments -= amt;
+        }
       }
-      setAccount({ extras, payments });
+      if (cancelled) return;
+      setAccount({ extras, payments, deposits });
     })();
     return () => { cancelled = true; };
   }, [booking.id, booking.rolos_room_ids, booking.adults, booking.children, booking.teens, booking.infants, booking.total_price, rooms]);
@@ -308,7 +345,12 @@ export function BookingDetailsGrid({
       occ.children !== (booking.children ?? 0) ||
       occ.teens !== (booking.teens ?? 0) ||
       occ.infants !== (booking.infants ?? 0);
-    const routedToService = datesChanged || paxChanged;
+    /* A price change also belongs to the service: it re-prices the extras on the new
+     * accommodation basis and re-quotes the channel. Writing it locally would leave the
+     * fees priced off the previous figure. */
+    const priceChanged = accommodation !== storedAccommodation;
+    const routedToService = datesChanged || paxChanged || priceChanged;
+
 
     if (routedToService) {
       const modifications: Record<string, unknown> = {
@@ -321,7 +363,7 @@ export function BookingDetailsGrid({
         modifications.check_in_date = form.check_in_date;
         modifications.check_out_date = form.check_out_date;
       }
-      if (accommodation !== Number(booking.total_price ?? 0)) modifications.total_price = accommodation;
+      if (accommodation !== storedAccommodation) modifications.accommodation_total = accommodation;
 
       const { data, error } = await supabase.functions.invoke("modify-booking", {
         body: { booking_id: booking.id, modifications },
@@ -696,6 +738,11 @@ export function BookingDetailsGrid({
           <div className="flex justify-between"><span className="text-muted-foreground">Accommodation</span><span className="font-medium">{money(accommodation)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Extras</span><span className="font-medium">{money(account.extras)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Payments</span><span className="font-medium">-{money(account.payments)}</span></div>
+          {account.deposits > 0 && (
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>Refundable deposit (held separately)</span><span>{money(account.deposits)}</span>
+            </div>
+          )}
           <Separator />
           <div className="flex justify-between text-base">
             <span className="font-semibold">Balance</span>
@@ -725,7 +772,7 @@ export function BookingDetailsGrid({
         )}
 
         <div>
-          <Label className="text-[11px]">Booking Total (ZAR)</Label>
+          <Label className="text-[11px]">Accommodation (ZAR)</Label>
           <Input className="h-8" type="number" min={0} value={form.total_price} onChange={e => set("total_price", e.target.value)} />
         </div>
         <div>

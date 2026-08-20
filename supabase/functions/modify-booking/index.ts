@@ -35,7 +35,9 @@ interface ModifyRequest {
     rooms?: any[];
     special_requests?: string;
     note?: string;
-    /** Operator-set totals (also pushed to RU as ClientPrice / AlreadyPaid). */
+    /** Operator-set ACCOMMODATION total for the stay (extras are priced on top). */
+    accommodation_total?: number;
+    /** Legacy name for accommodation_total — still accepted from older clients. */
     total_price?: number;
     /** Deliberate overbooking: reason recorded on the stay, required by the DB availability guard. */
     overbook_override_reason?: string;
@@ -344,6 +346,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    /* An operator-typed amount is always the ACCOMMODATION figure, never the guest
+     * total. `accommodation_total` says so plainly; `total_price` is the old field
+     * name and is still accepted so older clients keep working. Extras are always
+     * priced on top of this number — reading a guest total back in here is what
+     * used to make fees compound on every edit. */
+    const operatorAccommodation =
+      modifications.accommodation_total !== undefined
+        ? Number(modifications.accommodation_total)
+        : modifications.total_price !== undefined
+          ? Number(modifications.total_price)
+          : undefined;
+
+
     // S1: Fetch booking with property info
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
@@ -403,8 +418,8 @@ Deno.serve(async (req) => {
       let accommodation = context.accommodation;
       let repricedFrom: string | null = null;
 
-      if (modifications.total_price !== undefined) {
-        accommodation = Number(modifications.total_price);
+      if (operatorAccommodation !== undefined && Number.isFinite(operatorAccommodation)) {
+        accommodation = operatorAccommodation;
         repricedFrom = "operator";
       } else if (isRolNative && previewPaxOrDates) {
         const repriced = await recalculateRolPrice(supabase, booking, modifications);
@@ -424,7 +439,9 @@ Deno.serve(async (req) => {
         children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
         infants: modifications.infants ?? booking.infants,
         rooms: context.rooms,
+        baseOccupancy: context.baseOccupancy,
         roomTypeIds: context.roomTypeIds,
+
         currency: booking.currency,
       });
 
@@ -599,7 +616,7 @@ Deno.serve(async (req) => {
         console.log(
           `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
         );
-      } else if (modifications.total_price === undefined) {
+      } else if (operatorAccommodation === undefined) {
         // No plan and no operator price means we would leave a stale total behind — refuse
         // rather than silently keeping the old amount on a stay of a different length.
         return new Response(
@@ -623,8 +640,8 @@ Deno.serve(async (req) => {
      * ROL'OS-native edit skips it entirely and goes straight to the reconcile that has to run
      * anyway. */
     const chargeContext = await resolveBookingChargeContext(supabase, booking);
-    const newAccommodation = modifications.total_price !== undefined
-      ? Number(modifications.total_price)
+    const newAccommodation = operatorAccommodation !== undefined && Number.isFinite(operatorAccommodation)
+      ? operatorAccommodation
       : newTotalPrice !== null
         ? Number(newTotalPrice)
         : chargeContext.accommodation;
@@ -639,7 +656,9 @@ Deno.serve(async (req) => {
       children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
       infants: modifications.infants ?? booking.infants,
       rooms: chargeContext.rooms,
+      baseOccupancy: chargeContext.baseOccupancy,
       roomTypeIds: chargeContext.roomTypeIds,
+
       currency: booking.currency,
     };
 
@@ -819,29 +838,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The booking card reads the room line, so a reprice that only moved the booking total would
-    // leave the line contradicting it. Single-room stays are kept in step here — the line carries
-    // accommodation, never the guest total.
+    /* The booking card and the next re-price both read the room lines, so a line left
+     * on an old figure would contradict the booking and become the accommodation base
+     * on the following edit. Every active line is written to match the accommodation
+     * total — apportioned evenly across a multi-unit stay, remainder on the first line.
+     * Lines carry accommodation only, never the guest total. */
     {
       const { data: lines } = await supabase
         .from("rolos_booking_rooms")
-        .select("id")
+        .select("id, status")
         .eq("booking_id", booking_id);
-      if (Array.isArray(lines) && lines.length === 1) {
+      const active = (Array.isArray(lines) ? lines : []).filter(
+        (l: { status?: string | null }) => (l.status ?? "active") === "active",
+      );
+      if (active.length > 0) {
         const nights = countNights(
           modifications.check_in_date || booking.check_in_date,
           modifications.check_out_date || booking.check_out_date,
         );
-        await supabase
-          .from("rolos_booking_rooms")
-          .update({
-            rate_charged: newAccommodation,
-            nightly_rate: repricedNightly ??
-              (nights > 0 ? Math.round((newAccommodation / nights) * 100) / 100 : null),
-          })
-          .eq("id", lines[0].id);
+        const per = Math.round((newAccommodation / active.length) * 100) / 100;
+        const remainder = Math.round((newAccommodation - per * active.length) * 100) / 100;
+        for (let i = 0; i < active.length; i++) {
+          const share = i === 0 ? Math.round((per + remainder) * 100) / 100 : per;
+          await supabase
+            .from("rolos_booking_rooms")
+            .update({
+              rate_charged: share,
+              nightly_rate: active.length === 1 && repricedNightly != null
+                ? repricedNightly
+                : nights > 0
+                  ? Math.round((share / nights) * 100) / 100
+                  : null,
+            })
+            .eq("id", active[i].id);
+        }
       }
     }
+
 
 
 
