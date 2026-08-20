@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -334,15 +334,17 @@ const Dashboard = () => {
       const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null;
       const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null;
       
-      // Fetch internal bookings
+      // Fetch internal bookings — scoped by STAY date (arrival), not capture date,
+      // so bulk historical imports never pile onto their import day.
       let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      if (fromDate) internalQuery = internalQuery.gte("created_at", fromDate);
-      if (toDate) internalQuery = internalQuery.lte("created_at", toDate + "T23:59:59");
+      if (fromDate) internalQuery = internalQuery.gte("check_in_date", fromDate);
+      if (toDate) internalQuery = internalQuery.lte("check_in_date", toDate);
       
       // Fetch PMS reservations
       let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
-      if (fromDate) pmsQuery = pmsQuery.gte("created_at", fromDate);
-      if (toDate) pmsQuery = pmsQuery.lte("created_at", toDate + "T23:59:59");
+      if (fromDate) pmsQuery = pmsQuery.gte("arrival_date", fromDate);
+      if (toDate) pmsQuery = pmsQuery.lte("arrival_date", toDate);
+
       
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
@@ -379,11 +381,12 @@ const Dashboard = () => {
       
       // Fetch internal bookings
       let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      internalQuery = internalQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      internalQuery = internalQuery.gte("check_in_date", fromDate).lte("check_in_date", toDate);
       
       // Fetch PMS reservations
       let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
-      pmsQuery = pmsQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      pmsQuery = pmsQuery.gte("arrival_date", fromDate).lte("arrival_date", toDate);
+
       
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
@@ -793,7 +796,18 @@ const Dashboard = () => {
     return { forecast, upper80, lower80, upper95, lower95 };
   };
 
+  /**
+   * Revenue and volume belong to the STAY (arrival) date, never the capture date.
+   * Bulk imports create hundreds of historical bookings on a single day, which
+   * previously produced a single absurd revenue spike on the import day.
+   */
+  const stayDateOf = useCallback((b: { check_in_date?: string | null; created_at?: string | null }) => {
+    const raw = b.check_in_date || b.created_at;
+    return raw ? new Date(raw) : null;
+  }, []);
+
   const chartData = useMemo(() => {
+
     if (!dateRange?.from || !dateRange?.to) return [];
     
     interface ChartDataPoint {
@@ -855,7 +869,9 @@ const Dashboard = () => {
       
       // Aggregate current bookings
       bookings.forEach(b => {
-        const monthKey = format(new Date(b.created_at), "yyyy-MM");
+        const sd = stayDateOf(b);
+        if (!sd) return;
+        const monthKey = format(sd, "yyyy-MM");
         const entry = monthsMap.get(monthKey);
         if (entry) {
           if (b.status !== "cancelled") {
@@ -870,7 +886,8 @@ const Dashboard = () => {
       // Aggregate previous year bookings
       if (comparePrevYear) {
         prevYearBookings.forEach(b => {
-          const bookingDate = new Date(b.created_at);
+          const bookingDate = stayDateOf(b);
+          if (!bookingDate) return;
           // Map to current year month
           const currentYearDate = new Date(bookingDate);
           currentYearDate.setFullYear(currentYearDate.getFullYear() + 1);
@@ -902,7 +919,7 @@ const Dashboard = () => {
         const isFuture = current > today;
         
         const dayBookings = bookings.filter(b => 
-          format(new Date(b.created_at), "yyyy-MM-dd") === dateStr
+          { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === dateStr; }
         );
         
         const entry: ChartDataPoint = {
@@ -920,7 +937,7 @@ const Dashboard = () => {
           const prevYearDate = subYears(current, 1);
           const prevDateStr = format(prevYearDate, "yyyy-MM-dd");
           const prevDayBookings = prevYearBookings.filter(b => 
-            format(new Date(b.created_at), "yyyy-MM-dd") === prevDateStr
+            { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === prevDateStr; }
           );
           
           entry.prevBookings = prevDayBookings.filter(b => b.status !== "cancelled").length;
@@ -1082,7 +1099,7 @@ const Dashboard = () => {
     }
     
     return data;
-  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth]);
+  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth, stayDateOf]);
 
   return (
     <AppLayout>
@@ -1553,7 +1570,7 @@ const Dashboard = () => {
                 let displayBookings = filteredBookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
                 if (drillDownDate) {
                   displayBookings = displayBookings.filter(b => {
-                    const bookingDate = new Date(b.created_at || '');
+                    const bookingDate = stayDateOf(b) || new Date();
                     const matchDate = shouldAggregateByMonth
                       ? format(bookingDate, "MMM yyyy") === drillDownDate
                       : format(bookingDate, "MMM d") === drillDownDate;
