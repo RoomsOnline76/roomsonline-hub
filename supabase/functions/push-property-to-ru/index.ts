@@ -1867,12 +1867,21 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
       primaryRoom?.check_in_instructions,
       amenities as Record<string, unknown>,
     ),
-    check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
-    check_in_to: houseRules.check_in_to || '22:00',
-    check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
-    check_in_times_are_default:
-      !(houseRules.check_in_from || primaryRoom?.check_in_time) ||
-      !(houseRules.check_out_to || primaryRoom?.check_out_time),
+    ...(() => {
+      const t = resolveCheckInOut(
+        amenities as Record<string, unknown>,
+        primaryRoom?.check_in_time,
+        primaryRoom?.check_out_time,
+      );
+      return {
+        check_in_from: t.check_in_from,
+        check_in_to: t.check_in_to,
+        check_out_until: t.check_out_until,
+        check_in_times_are_default: t.is_default,
+        check_in_times_source: t.source,
+        check_in_times_violation: t.violation,
+      };
+    })(),
     check_in_place: 'at_the_apartment',
     unmapped_bed_labels: unmappedBedLabels,
   };
