@@ -3334,7 +3334,20 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
   );
 }
 
+/**
+ * Which channel delta each lifecycle step represents. A check-in confirms the stay at the channel
+ * (and accepts a held request), a check-out and cancellation release the nights.
+ */
+const LIFECYCLE_CHANNEL_CHANGE: Record<string, ChannelBookingChange | undefined> = {
+  check_in: "confirmed",
+  check_out: "status",
+  mark_paid: "payment",
+  cancel: "cancelled",
+  no_show: "no_show",
+};
+
 // ──────────── Booking Detail Component (Tabbed Lifecycle) ────────────
+
 
 function BookingDetail({
   booking,
