@@ -1706,17 +1706,30 @@ Deno.serve(async (req) => {
       name: string;
       rentalsunited_property_id?: string | null;
     }, opts: { probe_ari?: boolean } = {}) => {
-      const { data, error } = await admin.functions.invoke("push-property-to-ru", {
-        body: { property_id: p.id, dry_run: true },
-      });
+      // A cold/loaded worker occasionally drops the first dry-run invoke (the tail of a
+      // portfolio-wide sweep used to report a false "payload could not be built"), so the
+      // build is retried once before it is scored as a real content gap.
+      let data: any = null;
+      let error: { message?: string } | null = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const res = await admin.functions.invoke("push-property-to-ru", {
+          body: { property_id: p.id, dry_run: true },
+        });
+        data = res.data;
+        error = res.error;
+        if (!error) break;
+        console.warn(`[scoreProperty] dry run for "${p.name}" attempt ${attempt}/2 failed: ${error.message}`);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+      }
       if (error) {
+        const reason = error.message ? ` (${error.message})` : "";
         return {
           property_id: p.id,
           name: p.name,
           ok: false,
           blocked: true,
           error: error.message,
-          gaps: ["Dry run failed — Rentals United payload could not be built"],
+          gaps: [`Dry run could not be completed — retry the check${reason}`],
           checks: [],
           groups: [],
           score: 0,
@@ -1724,6 +1737,7 @@ Deno.serve(async (req) => {
           checks_passed: 0,
         };
       }
+
 
       const units: RuUnitInput[] = data?.units ?? [
         { name: p.name, validation: data?.validation ?? {} },
