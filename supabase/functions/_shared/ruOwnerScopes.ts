@@ -74,6 +74,10 @@ export async function resolveRuOwnerScopes(
 
   let children: RuOwnerScope[] = [];
   const skipped: string[] = [];
+  // Retired sub-accounts must never be read, pushed to or counted — and every call addressed to
+  // one burns a sliding-minute slot that a live account (or an operator's reservation write) needs.
+  const retired = await fetchRetiredRuOwnerIds();
+  const retiredSkipped: string[] = [];
   // One OwnerID = one account, however many local rows point at it. Fanning out
   // per row would read (and rate-limit) the same sub-account twice.
   const seenOwners = new Set<string>();
@@ -86,6 +90,10 @@ export async function resolveRuOwnerScopes(
     const ownerId = String(a.ru_owner_id).trim();
     if (!ownerId || seenOwners.has(ownerId)) continue;
     seenOwners.add(ownerId);
+    if (retired.has(ownerId)) {
+      retiredSkipped.push(ownerId);
+      continue;
+    }
     const hasKeys = withKeys.has(ownerId) || !!a.ru_api_access_key;
     const label = `${a.ru_login_email ?? a.owner_email ?? 'sub-user'} (OwnerID ${ownerId})`;
     if (!hasKeys) {
