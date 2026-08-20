@@ -22,6 +22,8 @@ export interface RuCalendarDay {
   units: number | null;
   min_stay: number | null;
   max_stay: number | null;
+  /** ROL'OS internal changeover code (0=none, 1=arrival only, 2=departure only, 3=both) —
+   *  RU's wire value (1..4) is translated on parse via `fromWireChangeover`. */
   changeover: number | null;
   blocked: boolean;
   /** Confirmed reservations RU holds for that day — such days cannot be re-opened by a push. */
