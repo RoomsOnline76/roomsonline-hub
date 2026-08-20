@@ -78,3 +78,49 @@ describe("newly mandatory field edits", () => {
     });
   }
 });
+
+describe("unit photo changes", () => {
+  const base = {
+    amenities: {
+      room_types: [
+        { id: "u1", name: "Elf", images: ["a.jpg"] },
+        { id: "u2", name: "Leervis", images: ["b.jpg"] },
+      ],
+    },
+  };
+
+  it("reports a photo added to a unit", () => {
+    const after = {
+      amenities: {
+        room_types: [
+          { id: "u1", name: "Elf", images: ["a.jpg", "new.jpg"] },
+          { id: "u2", name: "Leervis", images: ["b.jpg"] },
+        ],
+      },
+    };
+    const labels = deriveChangedChannelFields(base, after).map((f) => f.label);
+    expect(labels).toContain("unit photos");
+  });
+
+  it("reports a photo removed from a unit", () => {
+    const after = {
+      amenities: { room_types: [{ id: "u1", name: "Elf", images: [] }, { id: "u2", name: "Leervis", images: ["b.jpg"] }] },
+    };
+    expect(deriveChangedChannelFields(base, after).map((f) => f.label)).toContain("unit photos");
+  });
+
+  it("stays silent when unit photos are untouched", () => {
+    expect(deriveChangedChannelFields(base, JSON.parse(JSON.stringify(base))).map((f) => f.label)).not.toContain(
+      "unit photos",
+    );
+  });
+
+  it("reports property photos and the main photo", () => {
+    const labels = deriveChangedChannelFields(
+      { images: ["a.jpg"], main_image: "a.jpg" },
+      { images: ["a.jpg", "b.jpg"], main_image: "b.jpg" },
+    ).map((f) => f.label);
+    expect(labels).toContain("property photos");
+    expect(labels).toContain("main photo");
+  });
+});
