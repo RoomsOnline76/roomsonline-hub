@@ -1580,8 +1580,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
   const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
-  const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
-  const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
+  // Charges tab is the only authority for the deposit (see ruDeposits.ts).
+  const securityDeposit = resolveRuSecurityDeposit(charges, primaryRoom?.id);
+  const cleaningPrice = resolveRuCleaningFee(charges, primaryRoom?.id) ?? toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
   // Building-level rooms: RU counts the bed amenities inside every Bedroom (257) block
   // and rejects the listing ("Add sufficient amount of beds") when they cover less than
   // half of CanSleepMax. Emit the real bed_configuration of every room type instead of a
