@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get('RENTALS_UNITED_API_KEY') ?? '';
   const secret = Deno.env.get('RENTALS_UNITED_API_SECRET') ?? '';
   const endpoint = Deno.env.get('RENTALS_UNITED_ENDPOINT') || 'https://rm.rentalsunited.com/api/Handler.ashx';
-  const auth = `<Authentication><UserName>${key}</UserName><Password>${secret}</Password></Authentication>`;
+  const auth = `<Authentication><AccessKey>${key}</AccessKey><SecretKey>${secret}</SecretKey></Authentication>`;
 
   const body = await req.json().catch(() => ({}));
   const names: string[] = body.requests ?? [
