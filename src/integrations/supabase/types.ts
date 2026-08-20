@@ -6296,6 +6296,7 @@ export type Database = {
           currency: string | null
           description: string | null
           display_order: number | null
+          guests_included: number | null
           id: string
           internal_code: string | null
           is_active: boolean | null
@@ -6330,6 +6331,7 @@ export type Database = {
           currency?: string | null
           description?: string | null
           display_order?: number | null
+          guests_included?: number | null
           id?: string
           internal_code?: string | null
           is_active?: boolean | null
@@ -6364,6 +6366,7 @@ export type Database = {
           currency?: string | null
           description?: string | null
           display_order?: number | null
+          guests_included?: number | null
           id?: string
           internal_code?: string | null
           is_active?: boolean | null
