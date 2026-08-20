@@ -3320,6 +3320,8 @@ Deno.serve(async (req) => {
           });
 
           // Persist the property-level state from the first listing the sub-user can see.
+          // Reuse the iso we just read: a second identical read inside the same minute is
+          // rate-deferred, which used to leave the verdict unrecorded (green UI, open gate).
           if (!primaryVerification && iso && !onMaster) {
             primaryVerification = await verifyAndRecordCurrency(supabase, {
               propertyId: p.id,
@@ -3329,8 +3331,10 @@ Deno.serve(async (req) => {
               childAuth,
               ownerScope: String(ownerId),
               decision: null,
+              knownIso: iso,
             });
           }
+
           await new Promise(r => setTimeout(r, 400));
         }
 
