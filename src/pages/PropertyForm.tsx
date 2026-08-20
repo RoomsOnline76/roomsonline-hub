@@ -3541,8 +3541,11 @@ export default function PropertyForm({
       // This triggers the bidirectional sync to rolos_room_types
       if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
         try {
-          // Upsert room types to hostfully_room_types with ALL fields
+          // Upsert room types to hostfully_room_types with ALL fields.
+          // Two units in one save must never resolve to the same row.
+          const claimedRoomIds = new Set<string>();
           for (const room of roomTypes) {
+
             // Find matching rate type to get baseRate — check linkedRateTypes first, then wizard-rate pattern
             const roomId = room.id || "";
             let baseRate = room.base_rate || room.baseRate || null;
