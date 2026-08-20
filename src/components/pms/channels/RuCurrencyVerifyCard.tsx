@@ -37,6 +37,7 @@ interface VerifyResult {
   retry_after_ms?: number;
   state_persisted?: boolean;
   gate_passed?: boolean;
+  used_existing_verdict?: boolean;
   error?: string | null;
 }
 
@@ -105,6 +106,8 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
             setDeferredUntil(null);
             void verifyRef.current?.(true);
           }, waitMs + 1_000);
+        } else if (row.used_existing_verdict && row.state_persisted && row.gate_passed) {
+          if (!auto) toast.info("The previous verified currency remains confirmed; the channel supplied no newer answer.");
         } else if (mismatched.length > 0) {
           toast.warning(
             `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,

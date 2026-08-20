@@ -3329,6 +3329,7 @@ Deno.serve(async (req) => {
         const agreed = answered.length > 0 && answered.every((l) => l.matches);
         let persistenceError: string | null = null;
         let gatePassed = false;
+        let usedExistingVerdict = false;
         if (agreed) {
           const evidence = answered[0];
           try {
@@ -3365,6 +3366,22 @@ Deno.serve(async (req) => {
             persistenceError = error instanceof Error ? error.message : 'Currency verdict persistence failed';
             console.error(`[push-property-to-ru] currency verdict persistence failed for ${p.id}:`, persistenceError);
           }
+        } else if (
+          answered.length === 0
+          && state?.verified_at
+          && String(state.ru_reported_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase()
+          && String(state.published_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase()
+        ) {
+          // RU sometimes returns an empty currency payload (rather than its explicit deferred
+          // marker) for an identical read inside the sliding minute. Never downgrade a durable,
+          // matching verdict because the immediate repeat supplied no new evidence.
+          primaryVerification = {
+            ru_reported_iso: String(state.ru_reported_currency_iso).toUpperCase(),
+            matches: true,
+            persisted: true,
+          };
+          gatePassed = true;
+          usedExistingVerdict = true;
         }
 
         const strays = listings.filter(l => l.on_master_account);
@@ -3399,8 +3416,9 @@ Deno.serve(async (req) => {
           matches: listings.length > 0 && listings.every(l => l.matches),
           state_persisted: primaryVerification?.persisted === true,
           gate_passed: gatePassed,
+          used_existing_verdict: usedExistingVerdict,
           success: gatePassed,
-          error: reason,
+          error: usedExistingVerdict ? null : reason,
         });
 
 
