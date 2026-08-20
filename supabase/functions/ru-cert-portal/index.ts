@@ -3602,10 +3602,15 @@ Deno.serve(async (req) => {
         (p: { ru_push_enabled: boolean | null }) => p.ru_push_enabled === true,
       );
 
+      // Scored in small parallel batches: a long serial sweep used to exhaust the worker's
+      // wall clock, so the last few properties failed their dry run for no content reason.
       const results: unknown[] = [];
-      for (const p of candidates) {
-        results.push(await scoreProperty(p));
+      const BATCH = 3;
+      for (let i = 0; i < candidates.length; i += BATCH) {
+        const batch = candidates.slice(i, i + BATCH);
+        results.push(...(await Promise.all(batch.map((p) => scoreProperty(p)))));
       }
+
 
       return json({ success: true, properties: results });
     }
