@@ -34,6 +34,10 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
   isFieldPopulatedByPMS,
   getPMSFieldClass,
 }) => {
+  // The channel refuses check-out later than check-in from, so flag it while authoring.
+  const checkInToIssue = stayTimeIssueFor(formData, "check_in_to");
+  const checkOutIssue = stayTimeIssueFor(formData, "check_out_to");
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
       <div className="lg:col-span-3 space-y-3">
