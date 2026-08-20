@@ -448,7 +448,10 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         });
       });
       setAccountFootprint({
-        subAccounts: ruAccounts.length,
+        // Count distinct OwnerIDs: one sub-account is one account even if several
+        // local rows (portfolio + property scope) point at it.
+        subAccounts: ownerIds.length,
+
         subAccountProperties: footprintSubAccountIds.size,
         subAccountPropertiesWithoutFootprint:
           subAccountPropertyIds.size - footprintSubAccountIds.size,
