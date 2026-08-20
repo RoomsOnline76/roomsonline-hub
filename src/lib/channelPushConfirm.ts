@@ -40,7 +40,7 @@ const RATE_LIMIT_PATTERN = /rate.?limit|too many|deferred|429|queued|throttl/i;
 
 interface SyncRunRow {
   action: string | null;
-  details: { reason?: string | null } | null;
+  details: { reason?: string | null; blockers?: string[] | null } | null;
   success: boolean | null;
   error_code: string | null;
   error_message: string | null;
@@ -86,7 +86,15 @@ export async function confirmChannelPush(options: {
     for (const row of ((data ?? []) as SyncRunRow[])) {
       const action = String(row.action ?? "");
       sawAny = true;
-      const reason = row.error_message ?? row.details?.reason ?? row.error_code ?? null;
+      const blockers = Array.isArray(row.details?.blockers)
+        ? row.details!.blockers!.filter((b) => typeof b === "string" && b.trim().length > 0)
+        : [];
+      const baseReason = row.error_message ?? row.details?.reason ?? row.error_code ?? null;
+      // A parked delta is only actionable if the operator is told which readiness blockers
+      // are holding it — carry them into the reason text verbatim.
+      const reason = blockers.length > 0
+        ? `${baseReason ? `${baseReason} — ` : ""}blocked by: ${Array.from(new Set(blockers)).join("; ")}`
+        : baseReason;
       if (actions.skipped.includes(action)) {
         return { verdict: "not_owed", reason };
       }
