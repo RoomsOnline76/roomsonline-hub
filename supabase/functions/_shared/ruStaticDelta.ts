@@ -89,6 +89,9 @@ const PROPERTY_STATIC_COLUMNS = [
   'ru_image_tags',
   'short_description',
   'cancellation_master_mode',
+  // The channel LocationID is part of the pushed listing: without it here, a location-only
+  // edit hashed identical to the previous run and the delta was skipped as "unchanged".
+  'ru_location_id',
   'ru_push_enabled',
   'rentalsunited_property_id',
 ] as const;
