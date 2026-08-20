@@ -16,9 +16,32 @@
 type Db = any;
 
 const SETTLED_STATUSES = ["complete", "completed", "paid", "success"];
-const PAID_PAYMENT_STATUSES = ["paid", "complete", "completed", "success"];
+const PAID_PAYMENT_STATUSES = ["paid", "complete", "completed", "success", "paid_externally"];
 
 export const round2 = (n: number): number => Math.round((Number(n) || 0) * 100) / 100;
+
+/** How an overpayment is handled once the stay is repriced downwards. */
+export type OverpaymentMode = "refund" | "credit" | "guest_choice";
+
+/**
+ * What the booking's payment_status must read once total and received are known. Keeps the card,
+ * the invoice and accounts from disagreeing after a stay is lengthened or shortened.
+ */
+export function derivePaymentStatus(
+  current: string | null | undefined,
+  total: number,
+  paid: number,
+  source: ResolvedPayment["source"],
+): string {
+  const cur = String(current ?? "").toLowerCase();
+  // Refund states are owned by the Refund Register — never overwrite them here.
+  if (["refunded", "partially_refunded"].includes(cur)) return cur;
+  if (source === "channel" && paid + 0.01 >= total) return cur === "paid_externally" ? cur : "paid_externally";
+  if (paid <= 0.01) return total > 0.01 ? "unpaid" : cur || "unpaid";
+  if (paid + 0.01 >= total) return "paid";
+  return "partially_paid";
+}
+
 
 export interface ResolvedPayment {
   amount: number;
