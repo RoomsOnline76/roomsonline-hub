@@ -73,6 +73,9 @@ export async function resolveRuOwnerScopes(
 
   let children: RuOwnerScope[] = [];
   const skipped: string[] = [];
+  // One OwnerID = one account, however many local rows point at it. Fanning out
+  // per row would read (and rate-limit) the same sub-account twice.
+  const seenOwners = new Set<string>();
   for (const a of (accounts ?? []) as {
     ru_owner_id: string;
     owner_email: string | null;
@@ -80,7 +83,8 @@ export async function resolveRuOwnerScopes(
     ru_api_access_key: string | null;
   }[]) {
     const ownerId = String(a.ru_owner_id).trim();
-    if (!ownerId) continue;
+    if (!ownerId || seenOwners.has(ownerId)) continue;
+    seenOwners.add(ownerId);
     const hasKeys = withKeys.has(ownerId) || !!a.ru_api_access_key;
     const label = `${a.ru_login_email ?? a.owner_email ?? 'sub-user'} (OwnerID ${ownerId})`;
     if (!hasKeys) {
@@ -91,6 +95,7 @@ export async function resolveRuOwnerScopes(
     }
     children.push({ ownerId, label, payload: { owner_id: ownerId } });
   }
+
 
   children.sort((a, b) => (lastSeen.get(a.ownerId!) ?? 0) - (lastSeen.get(b.ownerId!) ?? 0));
 
