@@ -266,15 +266,31 @@ export async function evaluatePhases(
     p2Blockers.push("Readiness could not be scored — run the readiness scorecard.");
   } else if ((opts.readinessGaps ?? []).length > 0) {
     // Show EVERY mandatory gap — a truncated list made owners fix 12 items and get blocked again.
+    // Gaps that repeat identically across units come from an inherited property value
+    // (coordinates, address, policies): report them once, property-level, instead of once per
+    // unit — four copies of "Latitude / longitude are missing" told nobody where to fix it.
+    const perText = new Map<string, string[]>();
+    const plain: string[] = [];
     for (const g of opts.readinessGaps!) {
       if (typeof g === "string") {
-        p2Blockers.push(g);
+        plain.push(g);
+        continue;
+      }
+      const text = g.check ?? g.detail ?? g.label ?? "Readiness check failed";
+      const units = perText.get(text) ?? [];
+      if (g.unit) units.push(g.unit);
+      perText.set(text, units);
+    }
+    p2Blockers.push(...plain);
+    for (const [text, units] of perText) {
+      if (units.length <= 1) {
+        p2Blockers.push(units[0] ? `${units[0]}: ${text}` : text);
       } else {
-        const text = g.check ?? g.detail ?? g.label ?? "Readiness check failed";
-        p2Blockers.push(g.unit ? `${g.unit}: ${text}` : text);
+        p2Blockers.push(text);
       }
     }
   }
+
 
   const { data: inventoryRuns } = await admin
     .from("ru_sync_runs")
