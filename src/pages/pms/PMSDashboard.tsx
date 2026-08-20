@@ -3403,8 +3403,34 @@ function BookingDetail({
   });
   // Track whether the user has manually edited the total so we don't overwrite it on date changes.
   const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
+  /* The editable figure is ACCOMMODATION. `bookings.total_price` is the guest total
+   * (accommodation + mandatory extras), so editing and saving that number back would
+   * make the extras compound on every save. The charge snapshot holds the real
+   * accommodation basis; until it loads the guest total is the best guess. */
+  const [storedAccommodation, setStoredAccommodation] = useState<number>(booking.total_price || 0);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("bookings")
+        .select("total_price, charges_breakdown")
+        .eq("id", booking.id)
+        .maybeSingle();
+      if (!mounted || !data) return;
+      const snap = (data.charges_breakdown ?? null) as { accommodation?: number } | null;
+      const accommodation = Number(snap?.accommodation ?? 0);
+      if (accommodation <= 0) return;
+      setStoredAccommodation(accommodation);
+      setForm((prev) =>
+        Number(prev.total_price) === Number(data.total_price ?? 0)
+          ? { ...prev, total_price: String(accommodation) }
+          : prev,
+      );
+    })();
+    return () => { mounted = false; };
+  }, [booking.id]);
   const originalNights = Math.max(1, differenceInDays(parseISO(booking.check_out_date), parseISO(booking.check_in_date)));
-  const originalNightlyRate = (booking.total_price || 0) / originalNights;
+  const originalNightlyRate = storedAccommodation / originalNights;
 
   const update = (key: string, value: string) => {
     setForm(p => {
@@ -3446,7 +3472,9 @@ function BookingDetail({
     if ((parseInt(form.teens) || 0) !== (booking.teens ?? 0)) stayModifications.teens = parseInt(form.teens) || 0;
     if ((parseInt(form.infants) || 0) !== (booking.infants ?? 0)) stayModifications.infants = parseInt(form.infants) || 0;
     if ((parseInt(form.pets) || 0) !== (booking.pets ?? 0)) stayModifications.pets = parseInt(form.pets) || 0;
-    if ((parseFloat(form.total_price) || 0) !== (booking.total_price ?? 0)) stayModifications.total_price = parseFloat(form.total_price) || 0;
+    if ((parseFloat(form.total_price) || 0) !== storedAccommodation) {
+      stayModifications.accommodation_total = parseFloat(form.total_price) || 0;
+    }
     if (form.status !== booking.status) stayModifications.status = form.status;
 
     const localOnly = {
@@ -3743,7 +3771,7 @@ function BookingDetail({
             onChange={e => setReassignPrice(e.target.value)}
             placeholder="Leave as-is or override"
           />
-          <p className="text-[10px] text-muted-foreground mt-1">Original: R{booking.total_price.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground mt-1">Original accommodation: R{storedAccommodation.toLocaleString()}</p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" onClick={handleReassignCheckIn} disabled={reassignRoomIds.length === 0 || !!actionLoading}>
