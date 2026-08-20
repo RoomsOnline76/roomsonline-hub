@@ -317,9 +317,12 @@ export async function queueRuStaticDelta(
     }
 
     const startedAt = Date.now();
+    // Send only what moved: unit-only changes are scoped to those units.
+    const scopeUnitIds = options.force ? null : scopeUnitIdsFromChanges(changedFields);
     const { success, errorMessage, errorCode, blockers, chunks, units } = await pushStaticContent(
       supabase,
       propertyId,
+      scopeUnitIds,
     );
     const gatePending = !success && !!errorCode && RU_GATE_ERROR_CODES.includes(errorCode);
 
