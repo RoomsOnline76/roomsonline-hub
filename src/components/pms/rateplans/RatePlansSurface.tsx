@@ -261,7 +261,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         return;
       }
       toast.success(`Rate plan "${plan.name}" deleted`);
-      void queueChannelRatesSync(plan.property_id, "rate_plan_delete");
+      void pushRatePlanRates(plan.property_id, "rate_plan_delete", { label: "Rates" });
       fetchData();
     };
 
