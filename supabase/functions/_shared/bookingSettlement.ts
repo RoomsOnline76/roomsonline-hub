@@ -255,12 +255,15 @@ export async function applyBookingSettlement(
   supabase: Db,
   booking: {
     id: string;
+    property_id?: string | null;
     guest_name?: string | null;
     guest_email?: string | null;
     payment_status?: string | null;
     amount_paid?: number | null;
     amount_paid_source?: string | null;
     booking_channel?: string | null;
+    deposit_amount?: number | null;
+    credit_held?: number | null;
   },
   params: {
     oldTotal: number;
@@ -268,13 +271,28 @@ export async function applyBookingSettlement(
     raiseRefund: boolean;
     requestBalance: boolean;
     reasonNote?: string | null;
+    /** refund = raise for approval, credit = retain on account, guest_choice = let the guest pick. */
+    overpaymentMode?: OverpaymentMode;
   },
 ): Promise<SettlementResult> {
   const newTotal = round2(params.newTotal);
   const received = await resolveAmountPaid(supabase, { ...booking, total_price: params.oldTotal }, params.oldTotal);
-  const delta = round2(newTotal - received.amount);
+  const heldCredit = round2(Number(booking.credit_held ?? 0));
+  // Credit already sitting on the stay counts towards the new total before anything is asked of
+  // the guest — that is the whole point of retaining it.
+  const appliedCredit = heldCredit > 0 ? Math.min(heldCredit, Math.max(0, round2(newTotal - received.amount))) : 0;
+  const delta = round2(newTotal - received.amount - appliedCredit);
   const balanceDue = delta > 0.01 ? delta : 0;
   const overpaid = delta < -0.01 ? round2(Math.abs(delta)) : 0;
+  const mode: OverpaymentMode = params.overpaymentMode ??
+    (params.raiseRefund ? "guest_choice" : "credit");
+
+  const paymentStatus = derivePaymentStatus(
+    booking.payment_status,
+    newTotal,
+    received.amount + appliedCredit,
+    received.source,
+  );
 
   const result: SettlementResult = {
     amount_paid: received.amount,
@@ -289,37 +307,57 @@ export async function applyBookingSettlement(
     balance_token: null,
     credit_token: null,
     credit_requested: false,
+    overpayment_mode: overpaid > 0 ? mode : null,
+    credit_held: round2(heldCredit - appliedCredit),
+    payment_status: paymentStatus,
   };
 
+  const reason = params.reasonNote?.trim()
+    ? `Booking modified — ${params.reasonNote.trim()}`
+    : "Booking modified: the new total is lower than the amount received.";
+
+  if (overpaid > 0 && received.amount > 0) {
+    if (mode === "credit") {
+      const outcome = await retainOnAccount(supabase, booking, overpaid, reason);
+      if (outcome.ok) {
+        result.credit_held = round2(result.credit_held + overpaid);
+      } else {
+        result.refund_error = outcome.error;
+      }
+    } else if (mode === "refund") {
+      const outcome = await raisePendingRefund(supabase, booking, overpaid, reason, false);
+      result.refund_raised = outcome.ok;
+      result.refund_error = outcome.error;
+    } else {
+      // The guest decides: hold the difference as credit for the stay, or take the refund now. The
+      // refund is recorded straight away but held out of the approval queue until they answer.
+      const creditToken = await createGuestToken(supabase, booking, "settlement");
+      const outcome = await raisePendingRefund(supabase, booking, overpaid, reason, !!creditToken);
+      result.refund_raised = outcome.ok;
+      result.refund_error = outcome.error;
+      result.credit_token = creditToken;
+      result.credit_requested = outcome.ok && !!creditToken;
+    }
+  }
+
+  // One write: total-derived paid, balance, credit and payment status never disagree.
   await supabase
     .from("bookings")
     .update({
       amount_paid: received.amount,
       amount_paid_source: received.source === "none" ? null : received.source,
       balance_due: balanceDue,
+      credit_held: result.credit_held,
+      payment_status: paymentStatus,
     })
     .eq("id", booking.id);
-
-  if (overpaid > 0 && params.raiseRefund && received.amount > 0) {
-    const reason = params.reasonNote?.trim()
-      ? `Booking modified — ${params.reasonNote.trim()}`
-      : "Booking modified: the new total is lower than the amount received.";
-
-    // The guest decides: hold the difference as credit for the stay, or take the refund now. The
-    // refund is recorded straight away but held out of the approval queue until they answer.
-    const creditToken = await createGuestToken(supabase, booking, "settlement");
-    const outcome = await raisePendingRefund(supabase, booking, overpaid, reason, !!creditToken);
-    result.refund_raised = outcome.ok;
-    result.refund_error = outcome.error;
-    result.credit_token = creditToken;
-    result.credit_requested = outcome.ok && !!creditToken;
-  }
 
   if (balanceDue > 0 && params.requestBalance) {
     const token = await createGuestToken(supabase, booking, "balance");
     result.balance_token = token;
     result.balance_requested = !!token;
   }
+
 
   return result;
 }
