@@ -845,7 +845,7 @@ export function PortfolioRuAccountsTab() {
 
       return { acc, scopeLabel, scopeName, linked };
     });
-  }, [accounts, members, portfolioById, propById, properties]);
+  }, [uniqueAccounts, members, portfolioById, propById, properties]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
