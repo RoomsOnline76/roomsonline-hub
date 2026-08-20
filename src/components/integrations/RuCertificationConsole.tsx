@@ -630,10 +630,25 @@ export function RuCertificationConsole({
 
   const loadReadiness = useCallback(async () => {
     setReadinessLoading(true);
-    const res = await callPortal<{ properties: ReadinessRow[] }>("wl_readiness");
-    if (res) setReadiness(res.properties ?? []);
+    setReadiness([]);
+    // The sweep is paged server-side (one small batch per invocation) so a long portfolio
+    // can never run a worker out of time and report a false payload failure.
+    let offset: number | null = 0;
+    const rows: ReadinessRow[] = [];
+    let guard = 0;
+    while (offset !== null && guard++ < 50) {
+      const res = await callPortal<{ properties: ReadinessRow[]; next_offset: number | null }>(
+        "wl_readiness",
+        { offset },
+      );
+      if (!res) break;
+      rows.push(...(res.properties ?? []));
+      setReadiness([...rows]);
+      offset = res.next_offset ?? null;
+    }
     setReadinessLoading(false);
   }, []);
+
 
   const loadDiscounts = useCallback(async () => {
     if (propertyId === "none") { setDiscounts([]); return; }
