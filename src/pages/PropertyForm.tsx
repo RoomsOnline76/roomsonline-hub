@@ -4019,6 +4019,7 @@ export default function PropertyForm({
       // fire-and-forget geocode meant every address edit was parked and only delivered later
       // by the re-arm. Await it on a short budget: if it is slow or fails, the save proceeds
       // exactly as before and the delta parks as it used to.
+      let geocodedCoords: { latitude: number; longitude: number } | null = null;
       if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
         const GEOCODE_BUDGET_MS = 8_000;
         try {
@@ -4042,11 +4043,12 @@ export default function PropertyForm({
             setLongitude(geocodeResult.longitude);
             // The edge function already wrote the coordinates onto the row; keep the local
             // snapshot in step so the next save does not see a phantom change.
+            geocodedCoords = { latitude: geocodeResult.latitude, longitude: geocodeResult.longitude };
             loadedPropertyRowRef.current = {
               ...(loadedPropertyRowRef.current ?? {}),
-              latitude: geocodeResult.latitude,
-              longitude: geocodeResult.longitude,
+              ...geocodedCoords,
             };
+
             toast({
               title: "Location Updated",
               description: `Map pin set to: ${geocodeResult.formatted_address ?? `${geocodeResult.latitude}, ${geocodeResult.longitude}`}`,
