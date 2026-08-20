@@ -1046,7 +1046,39 @@ export default function PropertyForm({
     const timestamp = new Date().toISOString();
     const roomName = String(room.name || "").trim();
     const normalizedRoomName = roomName.toLowerCase();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
+
+    // Resolve one canonical row before mutating anything. Updating by name used
+    // to deactivate every same-name mirror, including the row holding the live
+    // channel listing when an old duplicate was toggled.
+    const { data: canonicalRows, error: canonicalReadError } = propertyId
+      ? await supabase
+          .from("hostfully_room_types")
+          .select("id, name, linked_rolos_id, rentalsunited_property_id, created_at, is_active")
+          .eq("property_id", propertyId)
+      : { data: [], error: null };
+    if (canonicalReadError) {
+      toast({ title: "Error", description: "Could not verify this unit's identity", variant: "destructive" });
+      return;
+    }
+    const target = resolvePersistedRoomIdentity(
+      (canonicalRows || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        isActive: row.is_active,
+        listingId: row.rentalsunited_property_id,
+        createdAt: row.created_at,
+      })),
+      { id: roomId, name: roomName },
+      new Set(),
+    );
+
+    if (!newActive && target?.listingId) {
+      toast({
+        title: "Unit kept active",
+        description: `${roomName} has live channel listing ${target.listingId}. Release or archive that listing from Channels before deactivating the unit.`,
+      });
+      return;
+    }
 
     setRoomTypes((prev) => prev.map((r) => (r.id === roomId ? { ...r, is_active: newActive } : r)));
 
@@ -1054,13 +1086,11 @@ export default function PropertyForm({
     let canonicalUpdates = 0;
     let amenitiesSynced = false;
 
-    const updateCanonicalByName = async (table: "hostfully_room_types" | "rolos_room_types") => {
-      if (!propertyId || !roomName) return 0;
+    const updateCanonicalById = async (table: "hostfully_room_types" | "rolos_room_types", id: string) => {
       const { data, error } = await supabase
         .from(table as any)
         .update({ is_active: newActive, updated_at: timestamp } as any)
-        .eq("property_id", propertyId)
-        .ilike("name", roomName)
+        .eq("id", id)
         .select("id");
 
       if (error) {
@@ -1071,33 +1101,11 @@ export default function PropertyForm({
       return data?.length || 0;
     };
 
-    const updateCanonicalById = async (table: "hostfully_room_types" | "rolos_room_types") => {
-      const { data, error } = await supabase
-        .from(table as any)
-        .update({ is_active: newActive, updated_at: timestamp } as any)
-        .eq("id", roomId)
-        .select("id");
-
-      if (error) {
-        syncErrors.push({ source: table, error });
-        return 0;
-      }
-
-      return data?.length || 0;
-    };
-
-    if (propertyId && roomName) {
-      const [hostfullyCount, rolosCount] = await Promise.all([
-        updateCanonicalByName("hostfully_room_types"),
-        updateCanonicalByName("rolos_room_types"),
-      ]);
-      canonicalUpdates += hostfullyCount + rolosCount;
-    }
-
-    if (canonicalUpdates === 0 && isUuid) {
-      canonicalUpdates += await updateCanonicalById("hostfully_room_types");
-      if (canonicalUpdates === 0) {
-        canonicalUpdates += await updateCanonicalById("rolos_room_types");
+    if (target) {
+      canonicalUpdates += await updateCanonicalById("hostfully_room_types", target.id);
+      const linkedRolosId = (canonicalRows || []).find((row) => row.id === target.id)?.linked_rolos_id;
+      if (linkedRolosId) {
+        canonicalUpdates += await updateCanonicalById("rolos_room_types", linkedRolosId);
       }
     }
 
@@ -1113,13 +1121,14 @@ export default function PropertyForm({
       } else {
         const amenities = (propData?.amenities as any) || {};
         const currentRoomTypes = Array.isArray(amenities.room_types) ? amenities.room_types : [];
+        const sameNameRows = currentRoomTypes.filter(
+          (rt: any) => normalizeRoomIdentityName(rt?.name) === normalizedRoomName,
+        );
         const updatedRoomTypes = currentRoomTypes.map((rt: any) => {
-          const sameId = String(rt?.id) === String(roomId);
-          const sameName =
-            String(rt?.name || "")
-              .trim()
-              .toLowerCase() === normalizedRoomName;
-          return sameId || sameName ? { ...rt, is_active: newActive } : rt;
+          const sameId = String(rt?.id) === String(roomId) || String(rt?.id) === String(target?.id);
+          const unambiguousLegacyName = !rt?.id && sameNameRows.length === 1 &&
+            normalizeRoomIdentityName(rt?.name) === normalizedRoomName;
+          return sameId || unambiguousLegacyName ? { ...rt, is_active: newActive } : rt;
         });
 
         const { error: amenityError } = await supabase
