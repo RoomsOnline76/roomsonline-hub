@@ -200,14 +200,15 @@ export async function enqueueRuCall(
  *
  * A failed reservation write is parked in the queue keyed by method+parameters — exactly the key
  * the inline attempt needs. The drainer's replay then claims the sliding-minute slot and the
- * person waiting gets `RU_RATE_DEFERRED`. Superseding the parked row (and releasing its slot claim
- * when it has not run yet) hands the window back to the interactive attempt.
+ * person waiting gets `RU_RATE_DEFERRED` for a call that is already being made on their behalf.
+ * Superseding the parked row stops that competition; the slot claim itself is left alone because a
+ * previously attempted row really did spend a call at the channel.
  *
  * Returns the number of parked rows taken over.
  */
 export async function supersedeQueuedRuCalls(
   supabase: any,
-  args: { action: string; reservationId: string; releaseSlot?: boolean },
+  args: { action: string; reservationId: string },
 ): Promise<number> {
   try {
     const { data, error } = await supabase
@@ -221,17 +222,13 @@ export async function supersedeQueuedRuCalls(
       .eq('action', args.action)
       .eq('status', 'pending')
       .contains('payload', { reservation_id: args.reservationId })
-      .select('id, method_key');
+      .select('id');
     if (error) throw error;
-    const rows = (data ?? []) as { id: string; method_key: string }[];
-    if (rows.length && args.releaseSlot !== false) {
-      // The parked row never reached the channel, so its slot claim is not owed to RU.
-      await supabase
-        .from('ru_method_rate_limits')
-        .delete()
-        .in('method_key', rows.map((r) => r.method_key));
-    }
-    return rows.length;
+    return ((data ?? []) as { id: string }[]).length;
+  } catch (e) {
+    // Never block a real channel call on this bookkeeping.
+    console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
+    return 0;
   } catch (e) {
     // Never block a real channel call on this bookkeeping.
     console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
