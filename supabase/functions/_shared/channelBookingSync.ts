@@ -269,12 +269,14 @@ export async function syncBookingToChannel(
             .update({ integration_type: 'rentalsunited' })
             .eq('id', String(row.id));
         }
-      } else if (push.code === 'RU_RATE_DEFERRED') {
-        // A rate limit is never a fault: the accept is parked and retried, so report it deferred
-        // and leave the booking as a request until the channel actually accepts it.
+      } else if (push.queued === true || push.code === 'RU_RATE_DEFERRED') {
+        // A parked acceptance is work in flight, not a refusal. Leave the booking as a request
+        // until the drainer records delivery, but give the drawer a truthful pending state now.
         result.reservation = 'queued';
         result.deferred = true;
-        result.reservation_reason = 'channel_rate_limit';
+        result.reservation_reason = push.code === 'RU_CONFIRM_QUEUED'
+          ? 'channel_acceptance_pending'
+          : 'channel_rate_limit';
         result.message = push.message ?? null;
       } else if (push.code === 'RU_AUTH_UNAVAILABLE' || push.code === 'RU_RESERVATION_UNKNOWN') {
         result.reservation = 'skipped';
@@ -325,6 +327,11 @@ export async function syncBookingToChannel(
       if (push.ok) {
         result.reservation = push.deferred ? 'queued' : 'pushed';
         result.deferred = result.deferred || push.deferred === true;
+      } else if (push.queued === true) {
+        result.reservation = 'queued';
+        result.deferred = true;
+        result.reservation_reason = 'channel_acceptance_pending';
+        result.message = push.message ?? null;
       } else if (isAbsentAtChannel(push.message)) {
         result.reservation = 'skipped';
         result.reservation_reason = 'reservation_absent_at_channel';
