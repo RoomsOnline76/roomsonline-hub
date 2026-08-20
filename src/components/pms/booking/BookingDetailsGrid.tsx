@@ -16,6 +16,8 @@ import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
+import { extractFunctionError } from "@/lib/functionError";
+
 
 
 export interface BookingDetailsGridBooking {
