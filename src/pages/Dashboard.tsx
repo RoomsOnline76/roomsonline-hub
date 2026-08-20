@@ -334,15 +334,17 @@ const Dashboard = () => {
       const fromDate = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : null;
       const toDate = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : null;
       
-      // Fetch internal bookings
+      // Fetch internal bookings — scoped by STAY date (arrival), not capture date,
+      // so bulk historical imports never pile onto their import day.
       let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      if (fromDate) internalQuery = internalQuery.gte("created_at", fromDate);
-      if (toDate) internalQuery = internalQuery.lte("created_at", toDate + "T23:59:59");
+      if (fromDate) internalQuery = internalQuery.gte("check_in_date", fromDate);
+      if (toDate) internalQuery = internalQuery.lte("check_in_date", toDate);
       
       // Fetch PMS reservations
       let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
-      if (fromDate) pmsQuery = pmsQuery.gte("created_at", fromDate);
-      if (toDate) pmsQuery = pmsQuery.lte("created_at", toDate + "T23:59:59");
+      if (fromDate) pmsQuery = pmsQuery.gte("arrival_date", fromDate);
+      if (toDate) pmsQuery = pmsQuery.lte("arrival_date", toDate);
+
       
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
