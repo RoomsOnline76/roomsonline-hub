@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { AlertCircle, CheckCircle2, Loader2, PlugZap, RefreshCw, Repeat, Search } from "lucide-react";
+import { RuBookingReadbackCard } from "./RuBookingReadbackCard";
 
 /**
  * Rentals United reservation ingestion diagnostics.
@@ -362,6 +363,8 @@ export function RuReservationsPanel({ properties }: { properties: PropertyOption
       </Card>
 
 
+
+      <RuBookingReadbackCard propertyId={propertyId} />
 
       <Card>
         <CardHeader className="pb-3 flex flex-row items-start justify-between gap-3">
