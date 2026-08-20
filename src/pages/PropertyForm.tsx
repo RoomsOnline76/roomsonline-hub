@@ -70,6 +70,7 @@ import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelCon
 import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
+import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -1045,7 +1046,39 @@ export default function PropertyForm({
     const timestamp = new Date().toISOString();
     const roomName = String(room.name || "").trim();
     const normalizedRoomName = roomName.toLowerCase();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(roomId);
+
+    // Resolve one canonical row before mutating anything. Updating by name used
+    // to deactivate every same-name mirror, including the row holding the live
+    // channel listing when an old duplicate was toggled.
+    const { data: canonicalRows, error: canonicalReadError } = propertyId
+      ? await supabase
+          .from("hostfully_room_types")
+          .select("id, name, linked_rolos_id, rentalsunited_property_id, created_at, is_active")
+          .eq("property_id", propertyId)
+      : { data: [], error: null };
+    if (canonicalReadError) {
+      toast({ title: "Error", description: "Could not verify this unit's identity", variant: "destructive" });
+      return;
+    }
+    const target = resolvePersistedRoomIdentity(
+      (canonicalRows || []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        isActive: row.is_active,
+        listingId: row.rentalsunited_property_id,
+        createdAt: row.created_at,
+      })),
+      { id: roomId, name: roomName },
+      new Set(),
+    );
+
+    if (!newActive && target?.listingId) {
+      toast({
+        title: "Unit kept active",
+        description: `${roomName} has live channel listing ${target.listingId}. Release or archive that listing from Channels before deactivating the unit.`,
+      });
+      return;
+    }
 
     setRoomTypes((prev) => prev.map((r) => (r.id === roomId ? { ...r, is_active: newActive } : r)));
 
@@ -1053,13 +1086,11 @@ export default function PropertyForm({
     let canonicalUpdates = 0;
     let amenitiesSynced = false;
 
-    const updateCanonicalByName = async (table: "hostfully_room_types" | "rolos_room_types") => {
-      if (!propertyId || !roomName) return 0;
+    const updateCanonicalById = async (table: "hostfully_room_types" | "rolos_room_types", id: string) => {
       const { data, error } = await supabase
         .from(table as any)
         .update({ is_active: newActive, updated_at: timestamp } as any)
-        .eq("property_id", propertyId)
-        .ilike("name", roomName)
+        .eq("id", id)
         .select("id");
 
       if (error) {
@@ -1070,33 +1101,11 @@ export default function PropertyForm({
       return data?.length || 0;
     };
 
-    const updateCanonicalById = async (table: "hostfully_room_types" | "rolos_room_types") => {
-      const { data, error } = await supabase
-        .from(table as any)
-        .update({ is_active: newActive, updated_at: timestamp } as any)
-        .eq("id", roomId)
-        .select("id");
-
-      if (error) {
-        syncErrors.push({ source: table, error });
-        return 0;
-      }
-
-      return data?.length || 0;
-    };
-
-    if (propertyId && roomName) {
-      const [hostfullyCount, rolosCount] = await Promise.all([
-        updateCanonicalByName("hostfully_room_types"),
-        updateCanonicalByName("rolos_room_types"),
-      ]);
-      canonicalUpdates += hostfullyCount + rolosCount;
-    }
-
-    if (canonicalUpdates === 0 && isUuid) {
-      canonicalUpdates += await updateCanonicalById("hostfully_room_types");
-      if (canonicalUpdates === 0) {
-        canonicalUpdates += await updateCanonicalById("rolos_room_types");
+    if (target) {
+      canonicalUpdates += await updateCanonicalById("hostfully_room_types", target.id);
+      const linkedRolosId = (canonicalRows || []).find((row) => row.id === target.id)?.linked_rolos_id;
+      if (linkedRolosId) {
+        canonicalUpdates += await updateCanonicalById("rolos_room_types", linkedRolosId);
       }
     }
 
@@ -1112,13 +1121,14 @@ export default function PropertyForm({
       } else {
         const amenities = (propData?.amenities as any) || {};
         const currentRoomTypes = Array.isArray(amenities.room_types) ? amenities.room_types : [];
+        const sameNameRows = currentRoomTypes.filter(
+          (rt: any) => normalizeRoomIdentityName(rt?.name) === normalizedRoomName,
+        );
         const updatedRoomTypes = currentRoomTypes.map((rt: any) => {
-          const sameId = String(rt?.id) === String(roomId);
-          const sameName =
-            String(rt?.name || "")
-              .trim()
-              .toLowerCase() === normalizedRoomName;
-          return sameId || sameName ? { ...rt, is_active: newActive } : rt;
+          const sameId = String(rt?.id) === String(roomId) || String(rt?.id) === String(target?.id);
+          const unambiguousLegacyName = !rt?.id && sameNameRows.length === 1 &&
+            normalizeRoomIdentityName(rt?.name) === normalizedRoomName;
+          return sameId || unambiguousLegacyName ? { ...rt, is_active: newActive } : rt;
         });
 
         const { error: amenityError } = await supabase
@@ -3613,26 +3623,35 @@ export default function PropertyForm({
             // The unit's own id is stable across renames, so it wins whenever the row still
             // exists. The normalised-name match stays as the fallback for units the editor has
             // never persisted (no id yet), and it also absorbs case/whitespace variants.
-            const normalizeRoomName = (value: unknown) => String(value ?? "").trim().toLowerCase();
-            const normalizedName = normalizeRoomName(room.name);
+            const normalizedName = normalizeRoomIdentityName(room.name);
             const { data: existingRoomRows } = await supabase
               .from("hostfully_room_types")
               .select("id, name, rentalsunited_property_id, created_at, is_active")
               .eq("property_id", savedPropertyId);
             const allRows = (existingRoomRows || []) as any[];
             const available = allRows.filter((r: any) => !claimedRoomIds.has(r.id));
-            const byId =
-              room.id && room.id.length === 36
-                ? available.find((r: any) => r.id === room.id) ?? null
-                : null;
-            const nameMatches = available.filter((r: any) => normalizeRoomName(r.name) === normalizedName);
+            const resolvedIdentity = resolvePersistedRoomIdentity(
+              allRows.map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                isActive: r.is_active,
+                listingId: r.rentalsunited_property_id,
+                createdAt: r.created_at,
+              })),
+              { id: room.id, name: room.name },
+              claimedRoomIds,
+            );
+            const byId = resolvedIdentity?.id === room.id ? resolvedIdentity : null;
+            const nameMatches = resolvedIdentity && normalizeRoomIdentityName(resolvedIdentity.name) === normalizedName
+              ? [resolvedIdentity]
+              : [];
             const preferListed = (a: any, b: any) =>
               (b.rentalsunited_property_id ? 1 : 0) - (a.rentalsunited_property_id ? 1 : 0) ||
               String(a.created_at).localeCompare(String(b.created_at));
             // Renamed outside the editor (import, bulk edit): a unit about to be inserted while a
             // published row on this property no longer appears in the editor is that same unit
             // under a new name. Adopt it — inserting would strand its listing and create a second.
-            const editorNames = new Set(roomTypes.map((r: any) => normalizeRoomName(r.name)).filter(Boolean));
+            const editorNames = new Set(roomTypes.map((r: any) => normalizeRoomIdentityName(r.name)).filter(Boolean));
             const editorIds = new Set(
               roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36),
             );
@@ -3644,7 +3663,7 @@ export default function PropertyForm({
                         r.is_active !== false &&
                         !!String(r.rentalsunited_property_id ?? "").trim() &&
                         !editorIds.has(r.id) &&
-                        !editorNames.has(normalizeRoomName(r.name)),
+                        !editorNames.has(normalizeRoomIdentityName(r.name)),
                     )
                     .sort(preferListed)
                 : [];

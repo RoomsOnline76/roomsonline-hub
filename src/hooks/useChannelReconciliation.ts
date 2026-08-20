@@ -121,6 +121,13 @@ export interface ReconFootprint {
   archived_on_channel: number;
 }
 
+export interface ReconRecoverableUnit {
+  record_id: string;
+  property_id: string;
+  name: string;
+  listing_id: string;
+}
+
 /** A sub-account holding live listings although it is not the monitored account. */
 export interface ReconOwnerViolation {
   owner_id: string;
@@ -185,6 +192,7 @@ export interface ChannelReconciliation {
   footprint?: ReconFootprint[];
   untracked_unit_count?: number;
   inactive_units_holding_listings?: number;
+  recoverable_inactive_units?: ReconRecoverableUnit[];
   allowed_owner_ids?: string[];
   owner_violations?: ReconOwnerViolation[];
   unverifiable_accounts?: ReconUnverifiableAccount[];
@@ -281,6 +289,7 @@ export function useChannelReconciliation() {
         footprint: payload.footprint || [],
         untracked_unit_count: payload.untracked_unit_count ?? 0,
         inactive_units_holding_listings: payload.inactive_units_holding_listings ?? 0,
+        recoverable_inactive_units: payload.recoverable_inactive_units || [],
         allowed_owner_ids: payload.allowed_owner_ids || [],
         owner_violations: payload.owner_violations || [],
         unverifiable_accounts: payload.unverifiable_accounts || [],
@@ -427,6 +436,20 @@ export function useChannelReconciliation() {
     if (payload.success === false && payload.status !== "resumable") {
       throw new Error(payload.error?.message || payload.message || "The channel push did not complete");
     }
+    await reconcile({ keepFailures: true });
+  }, [reconcile]);
+
+  const restoreLocalUnit = useCallback(async (recordId: string) => {
+    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+      body: {
+        scope: "restore_local_unit",
+        entity_id: recordId,
+        reason: "Authored unit restored during channel reconciliation",
+      },
+    });
+    if (fnError) throw new Error((await readFunctionError(fnError)) || fnError.message);
+    const payload = (data || {}) as { success?: boolean; error?: string };
+    if (payload.success === false) throw new Error(payload.error || "Could not restore the unit");
     await reconcile({ keepFailures: true });
   }, [reconcile]);
 
@@ -671,6 +694,7 @@ export function useChannelReconciliation() {
     clearStale,
     repointListing,
     publishMissingUnits,
+    restoreLocalUnit,
     clearConflict,
     cleanupAll,
     cleanup,
