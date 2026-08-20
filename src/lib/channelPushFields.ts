@@ -75,6 +75,11 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "amenities.facilities", label: "amenities", section: "content" },
   { path: "amenities.breakfast_options", label: "breakfast options", section: "content" },
   { path: "amenities.house_rules", label: "house rules", section: "content" },
+  // Check-in / check-out times ship inside the arrival block; the channel rejects a listing
+  // whose check-out is later than its check-in from, so an edit must always be reported.
+  { path: "amenities.house_rules.check_in_from", label: "check-in / check-out times", section: "content" },
+  { path: "amenities.house_rules.check_in_to", label: "check-in / check-out times", section: "content" },
+  { path: "amenities.house_rules.check_out_to", label: "check-in / check-out times", section: "content" },
   { path: "amenities.room_types", label: "units", section: "content" },
   // Mandatory composition / space values the channel review checks. Without these the
   // save-time diff said "nothing changed" while the wizard still failed on them.
@@ -114,8 +119,9 @@ export const MANDATORY_CHECK_PATHS: Readonly<Record<string, readonly string[]>> 
   can_sleep_max_ok: ["max_guests", "amenities.room_types"],
   has_description: ["description"],
   description_meets_cert: ["description"],
-  has_check_in_from: ["amenities.house_rules"],
-  has_check_out_until: ["amenities.house_rules"],
+  has_check_in_from: ["amenities.house_rules", "amenities.room_types"],
+  has_check_out_until: ["amenities.house_rules", "amenities.room_types"],
+  check_in_times_valid: ["amenities.house_rules", "amenities.room_types"],
   has_arrival_instructions: ["amenities.house_rules", "amenities.policies"],
   has_space: ["amenities.property_size_sqm", "amenities.room_types"],
   has_floor: ["amenities.property_floor", "amenities.room_types"],

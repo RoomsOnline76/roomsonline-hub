@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Check, X, Cloud } from "lucide-react";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 import { markerFlags } from "@/lib/fieldMarkers";
+import { stayTimeIssueFor } from "@/lib/stayTimes";
 import { cn } from "@/lib/utils";
 
 export interface HouseRulesCardProps {
@@ -34,6 +35,10 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
   isFieldPopulatedByPMS,
   getPMSFieldClass,
 }) => {
+  // The channel refuses check-out later than check-in from, so flag it while authoring.
+  const checkInToIssue = stayTimeIssueFor(formData, "check_in_to");
+  const checkOutIssue = stayTimeIssueFor(formData, "check_out_to");
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
       <div className="lg:col-span-3 space-y-3">
@@ -168,9 +173,16 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                   value={formData.check_in_to}
                   onChange={(e) => handleInputChange("check_in_to", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))}
+                  className={cn(
+                    "h-6 text-xs flex-1",
+                    getPMSFieldClass("check_in_to", selectedPMS),
+                    checkInToIssue && "border-destructive",
+                  )}
                 />
               </div>
+              {checkInToIssue && (
+                <p className="text-[10px] text-destructive leading-tight">{checkInToIssue}</p>
+              )}
             </CardContent>
           </Card>
 
@@ -197,10 +209,18 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                   value={formData.check_out_to}
                   onChange={(e) => handleInputChange("check_out_to", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS), channelMandatoryClass("check_out_until"))}
+                  className={cn(
+                    "h-6 text-xs flex-1",
+                    getPMSFieldClass("check_out_to", selectedPMS),
+                    channelMandatoryClass("check_out_until"),
+                    checkOutIssue && "border-destructive",
+                  )}
                   {...markerFlags(!!(formData.check_out_to || "").trim())}
                 />
               </div>
+              {checkOutIssue && (
+                <p className="text-[10px] text-destructive leading-tight">{checkOutIssue}</p>
+              )}
             </CardContent>
           </Card>
 

@@ -979,8 +979,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_check_in_from: timeRe.test(checkInFrom),
     has_check_out_until: timeRe.test(checkOutUntil),
     check_in_from: checkInFrom || null,
+    check_in_to: String(payload.check_in_to || '').trim() || null,
     check_out_until: checkOutUntil || null,
     check_in_times_are_default: payload.check_in_times_are_default === true,
+    check_in_times_source: payload.check_in_times_source ?? null,
+    // RU refuses listings where check-out is later than check-in from. A violating trio
+    // must never publish: it lands the listing in a state RU's own editor rejects.
+    check_in_times_violation: payload.check_in_times_violation ?? null,
+    check_in_times_valid: !payload.check_in_times_violation,
+
     // Photos (certification dimensions).
     images_meeting_cert_size: certSized,
     images_measured_count: Math.max(0, images.length - unverified),
@@ -1276,7 +1283,85 @@ function resolveArrivalContact(
   };
 }
 
-/** RU <HowToArrive>: unit instructions win, then house rules, then the policies block. */
+/**
+ * CHECK-IN / CHECK-OUT TIMES — RU's <CheckInOut> block.
+ *
+ * RU enforces a rule its own UI states as "Check-out time must not be later than the
+ * check-in time from": CheckOutUntil <= CheckInFrom. Pushing a violating trio leaves the
+ * listing in a state RU refuses to edit, so we resolve, normalise and validate here and
+ * report a violation instead of publishing values the channel will reject.
+ *
+ * Source order: unit-authored time, then property house rules, then our fallback.
+ */
+const RU_CHECK_IN_DEFAULTS = { from: '14:00', to: '22:00', out: '10:00' } as const;
+
+/** Accepts `9:00`, `09:00:00`, `09h00` → `09:00`. Returns null when unusable. */
+function normaliseTimeOfDay(value: unknown): string | null {
+  const raw = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\d{1,2})\s*[:h.]?\s*(\d{2})?/);
+  if (!m) return null;
+  const hours = Number(m[1]);
+  const minutes = Number(m[2] ?? '0');
+  if (!Number.isFinite(hours) || hours < 0 || hours > 23) return null;
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function minutesOfDay(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+interface RuCheckInOut {
+  check_in_from: string;
+  check_in_to: string;
+  check_out_until: string;
+  /** Which layer supplied the times, for the push report. */
+  source: 'unit' | 'property' | 'default';
+  /** True when any of the three fell back to our default rather than authored data. */
+  is_default: boolean;
+  /** Set when the authored trio breaks a channel rule — the unit must not be pushed. */
+  violation: string | null;
+}
+
+function resolveCheckInOut(
+  amenities: Record<string, unknown>,
+  unitCheckIn?: unknown,
+  unitCheckOut?: unknown,
+): RuCheckInOut {
+  const houseRules = ((amenities as any)?.house_rules || {}) as Record<string, unknown>;
+
+  const unitFrom = normaliseTimeOfDay(unitCheckIn);
+  const unitOut = normaliseTimeOfDay(unitCheckOut);
+  const propFrom = normaliseTimeOfDay(houseRules.check_in_from);
+  const propTo = normaliseTimeOfDay(houseRules.check_in_to);
+  const propOut = normaliseTimeOfDay(houseRules.check_out_to ?? houseRules.check_out_until);
+
+  const from = unitFrom ?? propFrom;
+  const to = propTo;
+  const out = unitOut ?? propOut;
+
+  const source: RuCheckInOut['source'] = unitFrom || unitOut ? 'unit' : propFrom || propTo || propOut ? 'property' : 'default';
+  const resolved: RuCheckInOut = {
+    check_in_from: from ?? RU_CHECK_IN_DEFAULTS.from,
+    check_in_to: to ?? RU_CHECK_IN_DEFAULTS.to,
+    check_out_until: out ?? RU_CHECK_IN_DEFAULTS.out,
+    source,
+    is_default: !from || !to || !out,
+    violation: null,
+  };
+
+  // Only authored values can be a violation — our defaults are always compliant.
+  if (from && to && minutesOfDay(to) <= minutesOfDay(from)) {
+    resolved.violation = `Check-in window is invalid: "to" (${to}) must be later than "from" (${from}).`;
+  } else if (from && out && minutesOfDay(out) > minutesOfDay(from)) {
+    resolved.violation = `Check-out time (${out}) must not be later than the check-in from time (${from}) — the channel refuses this combination.`;
+  }
+  return resolved;
+}
+
+
 function resolveArrivalInstructions(unitInstructions: unknown, amenities: Record<string, unknown>): string {
   const houseRules = ((amenities as any)?.house_rules || {}) as Record<string, unknown>;
   const policies = ((amenities as any)?.policies || {}) as Record<string, unknown>;
@@ -1481,12 +1566,11 @@ function buildUnitPayload(
 
   const houseRules = (amenities as any)?.house_rules || {};
   const contact = (amenities as any)?.contact || {};
-  const checkInFrom = houseRules.check_in_from || unit.check_in_time || '14:00';
-  const checkInTo = houseRules.check_in_to || '22:00';
-  const checkOutUntil = houseRules.check_out_to || unit.check_out_time || '10:00';
-  // Report when the times being pushed are our fallbacks rather than authored values.
-  const checkInTimesAreDefault =
-    !(houseRules.check_in_from || unit.check_in_time) || !(houseRules.check_out_to || unit.check_out_time);
+  const checkTimes = resolveCheckInOut(
+    amenities as Record<string, unknown>,
+    unit.check_in_time,
+    unit.check_out_time,
+  );
 
   const banking = (amenities as any)?.banking || {};
   const depositPercent = toFiniteNumber(banking.deposit_percentage ?? banking.prepayment_percentage);
@@ -1649,10 +1733,12 @@ function buildUnitPayload(
       unit.check_in_instructions,
       amenities as Record<string, unknown>,
     ),
-    check_in_from: checkInFrom,
-    check_in_to: checkInTo,
-    check_out_until: checkOutUntil,
-    check_in_times_are_default: checkInTimesAreDefault,
+    check_in_from: checkTimes.check_in_from,
+    check_in_to: checkTimes.check_in_to,
+    check_out_until: checkTimes.check_out_until,
+    check_in_times_are_default: checkTimes.is_default,
+    check_in_times_source: checkTimes.source,
+    check_in_times_violation: checkTimes.violation,
     check_in_place: 'at_the_apartment',
     building_id: buildingId,
     object_type_id: undefined as number | undefined, // populated by orchestrator after push_building
@@ -1788,12 +1874,21 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
       primaryRoom?.check_in_instructions,
       amenities as Record<string, unknown>,
     ),
-    check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
-    check_in_to: houseRules.check_in_to || '22:00',
-    check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
-    check_in_times_are_default:
-      !(houseRules.check_in_from || primaryRoom?.check_in_time) ||
-      !(houseRules.check_out_to || primaryRoom?.check_out_time),
+    ...(() => {
+      const t = resolveCheckInOut(
+        amenities as Record<string, unknown>,
+        primaryRoom?.check_in_time,
+        primaryRoom?.check_out_time,
+      );
+      return {
+        check_in_from: t.check_in_from,
+        check_in_to: t.check_in_to,
+        check_out_until: t.check_out_until,
+        check_in_times_are_default: t.is_default,
+        check_in_times_source: t.source,
+        check_in_times_violation: t.violation,
+      };
+    })(),
     check_in_place: 'at_the_apartment',
     unmapped_bed_labels: unmappedBedLabels,
   };
@@ -4651,7 +4746,13 @@ Deno.serve(async (req) => {
               has_check_out_until: everyFlag('has_check_out_until'),
               check_in_times_are_default: units.some(u => (u.validation as any).check_in_times_are_default === true),
               check_in_from: (units[0]?.validation as any)?.check_in_from ?? null,
+              check_in_to: (units[0]?.validation as any)?.check_in_to ?? null,
               check_out_until: (units[0]?.validation as any)?.check_out_until ?? null,
+              check_in_times_source: (units[0]?.validation as any)?.check_in_times_source ?? null,
+              // Any unit breaking the channel time rule blocks the whole listing set.
+              check_in_times_violation:
+                units.map(u => (u.validation as any)?.check_in_times_violation).find(Boolean) ?? null,
+              check_in_times_valid: units.every(u => !(u.validation as any)?.check_in_times_violation),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

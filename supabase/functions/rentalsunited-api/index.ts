@@ -1007,11 +1007,27 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       ${buildOptionalNode('HowToArrive', prop.arrival_how_to_arrive)}
     </ArrivalInstructions>`;
 
-  // Build CheckInOut block
+  // Build CheckInOut block. RU rejects the listing when CheckOutUntil > CheckInFrom or when
+  // CheckInTo is not after CheckInFrom, so pad the values and clamp them here as the last gate.
+  const padTime = (value: unknown, fallback: string): string => {
+    const raw = String(value ?? '').trim();
+    const m = raw.match(/^(\d{1,2})\s*[:h.]?\s*(\d{2})?/);
+    if (!m) return fallback;
+    const h = Number(m[1]);
+    const mi = Number(m[2] ?? '0');
+    if (!Number.isFinite(h) || h < 0 || h > 23 || !Number.isFinite(mi) || mi < 0 || mi > 59) return fallback;
+    return `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}`;
+  };
+  const mins = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  const ciFrom = padTime(prop.check_in_from, '14:00');
+  let ciTo = padTime(prop.check_in_to, '22:00');
+  let coUntil = padTime(prop.check_out_until, '10:00');
+  if (mins(ciTo) <= mins(ciFrom)) ciTo = '23:59';
+  if (mins(coUntil) > mins(ciFrom)) coUntil = ciFrom;
   const checkInOutXml = `<CheckInOut>
-      <CheckInFrom>${prop.check_in_from || '14:00'}</CheckInFrom>
-      <CheckInTo>${prop.check_in_to || '22:00'}</CheckInTo>
-      <CheckOutUntil>${prop.check_out_until || '10:00'}</CheckOutUntil>
+      <CheckInFrom>${ciFrom}</CheckInFrom>
+      <CheckInTo>${ciTo}</CheckInTo>
+      <CheckOutUntil>${coUntil}</CheckOutUntil>
       <Place>${escapeXml(prop.check_in_place || 'at_the_apartment')}</Place>
     </CheckInOut>`;
 
