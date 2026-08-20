@@ -56,6 +56,7 @@ import {
 } from "../_shared/ruDiscounts.ts";
 import { parseRuReservation } from "../_shared/ruReservationParsing.ts";
 import { fetchRuReservationById, ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
+import { runBookingReadbackTest } from "../_shared/ruBookingReadback.ts";
 import { enqueueJob } from "../_shared/jobQueue.ts";
 
 
@@ -2936,6 +2937,149 @@ Deno.serve(async (req) => {
         passed,
       });
     }
+
+
+    /**
+     * ── booking_readback_test: prove the channel really holds what we pushed.
+     *
+     * The live booking path pushes and trusts the channel's success status — reading every
+     * reservation back would double our call volume against a one-call-per-minute limit. This
+     * opt-in test is the proof instead: a synthetic far-future stay is handed to the channel,
+     * then each change kind (dates, guest count, price) is pushed and read back, and finally
+     * cancelled and read back. Paced at one call per sliding minute, so it runs as a background
+     * task and streams its steps into `ru_cert_runs` (suite `booking_readback`).
+     */
+    if (action === "booking_readback_test") {
+      const propertyId: string = body.property_id ?? "";
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+
+      const { data: prop } = await admin
+        .from("properties")
+        .select("id, name")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
+      }
+
+      // One read-back run at a time: the test itself is the heaviest caller we have.
+      const { data: active } = await admin
+        .from("ru_cert_runs")
+        .select("id, started_at")
+        .eq("suite", "booking_readback")
+        .eq("status", "running")
+        .gte("started_at", new Date(Date.now() - 30 * 60_000).toISOString())
+        .limit(1)
+        .maybeSingle();
+      if (active) {
+        return json({
+          success: false,
+          run_id: active.id,
+          error: {
+            code: "READBACK_IN_PROGRESS",
+            message: "A booking read-back test is already running — it paces itself at one channel call per minute.",
+          },
+        }, 409);
+      }
+
+      const { data: created, error: runErr } = await admin
+        .from("ru_cert_runs")
+        .insert({
+          status: "running",
+          suite: "booking_readback",
+          property_id: propertyId,
+          triggered_by: user.id,
+          total: 12,
+        })
+        .select("id")
+        .single();
+      if (runErr) throw runErr;
+
+      const runId = created.id as string;
+
+      const execute = async () => {
+        try {
+          const outcome = await runBookingReadbackTest(admin, {
+            propertyId,
+            onStep: async (steps) => {
+              await admin
+                .from("ru_cert_runs")
+                .update({
+                  steps,
+                  passed: steps.filter((s) => s.status === "passed").length,
+                  failed: steps.filter((s) => s.status === "failed").length,
+                  total: steps.length,
+                })
+                .eq("id", runId);
+            },
+          });
+
+          await admin
+            .from("ru_cert_runs")
+            .update({
+              status: outcome.failed === 0 && outcome.passed > 0 ? "passed" : "failed",
+              finished_at: new Date().toISOString(),
+              steps: outcome.steps,
+              passed: outcome.passed,
+              failed: outcome.failed,
+              total: outcome.steps.length,
+              ru_property_id: outcome.ru_property_id,
+            })
+            .eq("id", runId);
+
+          await admin.from("ru_sync_runs").insert({
+            batch_id: crypto.randomUUID(),
+            property_id: propertyId,
+            action: "booking_readback_test",
+            success: outcome.failed === 0 && outcome.passed > 0,
+            error_code: outcome.failed === 0 ? null : "RU_BOOKING_READBACK_MISMATCH",
+            error_message: outcome.failed === 0
+              ? null
+              : outcome.steps.filter((s) => s.status === "failed").map((s) => `${s.name}: ${s.detail ?? ""}`).join(" | "),
+            ru_property_id: outcome.ru_property_id,
+            details: { run_id: runId, ru_reservation_id: outcome.ru_reservation_id, steps: outcome.steps },
+          });
+        } catch (err) {
+          await admin
+            .from("ru_cert_runs")
+            .update({
+              status: "failed",
+              finished_at: new Date().toISOString(),
+              steps: [{
+                step: 0,
+                name: "Read-back test aborted",
+                ru_method: "—",
+                mandatory: true,
+                scope: "property",
+                status: "failed",
+                duration_ms: 0,
+                detail: err instanceof Error ? err.message : "Unknown error",
+              }],
+              failed: 1,
+            })
+            .eq("id", runId);
+        }
+      };
+
+      // Long-running by design (one channel call per sliding minute) — never hold the request open.
+      // deno-lint-ignore no-explicit-any
+      const runtime = (globalThis as any).EdgeRuntime;
+      if (runtime?.waitUntil) runtime.waitUntil(execute());
+      else void execute();
+
+      return json({
+        success: true,
+        action,
+        run_id: runId,
+        property: { id: prop.id, name: prop.name },
+        message:
+          "Read-back test started. It paces itself at one channel call per minute, so allow roughly 12 minutes; steps appear as they complete.",
+      });
+    }
+
+
 
 
     /**
