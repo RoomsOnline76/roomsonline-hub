@@ -355,7 +355,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           if (seq === extrasSeq.current) setExtrasBusy(false);
         }
       })();
-    }, 400);
+      // Long enough that typing a total does not fire a round-trip per keystroke: each edit
+      // cancelled the previous quote mid-flight and the save then queued behind them.
+    }, 700);
 
     return () => clearTimeout(timer);
   }, [open, booking.id, checkIn, checkOut, adults, children, totalPrice, nights]);

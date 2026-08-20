@@ -614,27 +614,40 @@ Deno.serve(async (req) => {
     }
 
 
-    // S6a: The channel is quoted the guest total (accommodation + mandatory extras), so the
-    // extras have to be priced for the new stay before the channel write goes out.
-    const preContext = await resolveBookingChargeContext(supabase, booking);
-    const preAccommodation = modifications.total_price !== undefined
+    /* S6a: One pricing context for the whole request.
+     *
+     * The charge context and the new accommodation figure were previously resolved twice — once to
+     * quote the channel and again to reconcile the folio — which is a second full read of charges,
+     * room lines and rate context for no new information. Resolve them once here and share them.
+     * The dry-run quote is only needed when a channel actually has to be told a price, so a
+     * ROL'OS-native edit skips it entirely and goes straight to the reconcile that has to run
+     * anyway. */
+    const chargeContext = await resolveBookingChargeContext(supabase, booking);
+    const newAccommodation = modifications.total_price !== undefined
       ? Number(modifications.total_price)
       : newTotalPrice !== null
         ? Number(newTotalPrice)
-        : preContext.accommodation;
-    const preQuote = await quoteBookingCharges(supabase, {
+        : chargeContext.accommodation;
+
+    const quoteInput = {
       bookingId: booking.id,
       propertyId: booking.property_id,
-      accommodation: preAccommodation,
+      accommodation: newAccommodation,
       checkIn: modifications.check_in_date || booking.check_in_date,
       checkOut: modifications.check_out_date || booking.check_out_date,
       adults: modifications.adults ?? booking.adults,
       children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
       infants: modifications.infants ?? booking.infants,
-      rooms: preContext.rooms,
-      roomTypeIds: preContext.roomTypeIds,
+      rooms: chargeContext.rooms,
+      roomTypeIds: chargeContext.roomTypeIds,
       currency: booking.currency,
-    });
+    };
+
+    // The channel is quoted the guest total (accommodation + mandatory extras), so the extras have
+    // to be priced before the channel write goes out — but only for reservations the channel owns.
+    const preQuote = isRuBooking(booking)
+      ? await quoteBookingCharges(supabase, quoteInput)
+      : null;
 
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
@@ -650,7 +663,7 @@ Deno.serve(async (req) => {
         date_from: modifications.check_in_date ?? null,
         date_to: modifications.check_out_date ?? null,
         number_of_guests: guests > 0 ? guests : null,
-        client_price: preQuote.guestTotal || null,
+        client_price: preQuote?.guestTotal || null,
         already_paid: modifications.already_paid ?? null,
         arrival_time: modifications.arrival_time ?? null,
       });
@@ -760,31 +773,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Accommodation for the new stay: operator override wins, then the reprice, then
-    // whatever the current room lines / stored breakdown say. This figure is the room
-    // revenue only — extras are added on top below.
-    const currentContext = await resolveBookingChargeContext(supabase, booking);
-    const newAccommodation = modifications.total_price !== undefined
-      ? Number(modifications.total_price)
-      : newTotalPrice !== null
-        ? Number(newTotalPrice)
-        : currentContext.accommodation;
-
-    // Extras follow the stay: per-night / per-person / percentage charges are recomputed
-    // for the new dates and pax, and their folio lines corrected in place.
-    const chargeQuote = await reconcileBookingCharges(supabase, {
-      bookingId: booking_id,
-      propertyId: booking.property_id,
-      accommodation: newAccommodation,
-      checkIn: modifications.check_in_date || booking.check_in_date,
-      checkOut: modifications.check_out_date || booking.check_out_date,
-      adults: modifications.adults ?? booking.adults,
-      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
-      infants: modifications.infants ?? booking.infants,
-      rooms: currentContext.rooms,
-      roomTypeIds: currentContext.roomTypeIds,
-      currency: booking.currency,
-    });
+    /* Extras follow the stay: per-night / per-person / percentage charges are recomputed for the new
+     * dates and pax, and their folio lines corrected in place. Accommodation and the charge context
+     * were resolved once at S6a (operator override wins, then the reprice, then the current room
+     * lines) and are reused here rather than re-read. */
+    const chargeQuote = await reconcileBookingCharges(supabase, quoteInput);
 
     // One guest total: accommodation plus mandatory extras. Refundable deposits are
     // itemised separately and never folded into the total.
@@ -905,13 +898,36 @@ Deno.serve(async (req) => {
             options: { dedupeKey: `sync:${booking_id}:${externalSystem}:modify` },
           }]
         : []),
-      {
-        // Shifted dates change both the old and the new nights: the channel window must be
-        // refreshed. One job per property collapses a burst of edits into a single push.
-        type: "channel_ari_delta" as const,
-        payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
-        options: { dedupeKey: `ari:${booking.property_id}` },
-      },
+      /* Shifted dates change both the old and the new nights, so the channel window must be
+       * refreshed either way. A reservation the channel owns was already modified above, so it only
+       * needs the availability delta. A ROL'OS-native stay on a distributed unit has no reservation
+       * at the channel yet — that is why edits to it never reached the channel at all — so it goes
+       * through the full booking sync, which registers it as a confirmed reservation, pushes the
+       * change and queues the same delta. One job per booking / property collapses a burst of
+       * edits into a single push. */
+      ...(isRuBooking(booking)
+        ? [{
+            type: "channel_ari_delta" as const,
+            payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
+            options: { dedupeKey: `ari:${booking.property_id}` },
+          }]
+        : [{
+            type: "channel_booking_sync" as const,
+            payload: {
+              booking_id,
+              change: (modifications.check_in_date || modifications.check_out_date)
+                ? "dates"
+                : paxOrDatesChanged
+                  ? "pax"
+                  : "price",
+              previous: {
+                room_type_id: booking.room_type_id ?? null,
+                check_in_date: booking.check_in_date ?? null,
+                check_out_date: booking.check_out_date ?? null,
+              },
+            },
+            options: { dedupeKey: `channel_booking:${booking_id}` },
+          }]),
       {
         type: "booking_email" as const,
         payload: {

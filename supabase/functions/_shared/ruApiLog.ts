@@ -103,6 +103,21 @@ function extractStatus(xml: string | null | undefined): { id: string | null; mes
   };
 }
 
+/**
+ * Channel StatusIDs that mean "the channel accepted this".
+ * 0 = success, 5 = partial success (per-range notifs, documented for Push_PutPrices_RQ).
+ * Everything else is a refusal — "Property does not exist" (56), "You can only modify stay in
+ * confirmed reservation" (106) and friends arrive over a perfectly healthy HTTP 200, so judging the
+ * exchange by transport alone paints real refusals green in the monitor.
+ */
+const RU_ACCEPTED_STATUS_IDS = new Set(['0', '5']);
+
+/** True when the channel answered with a refusal status, whatever the HTTP layer thought. */
+function channelRefused(statusId: string | null): boolean {
+  if (statusId === null) return false;
+  return !RU_ACCEPTED_STATUS_IDS.has(String(statusId).trim());
+}
+
 const asText = (value: unknown): string | null =>
   value === null || value === undefined || value === '' ? null : String(value);
 
@@ -167,6 +182,13 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
     const response_xml = redactRuXml(entry.response_xml);
     const status = extractStatus(entry.response_xml);
     const transport = classifyTransport(entry);
+    const effectiveStatusId = entry.status_id ?? status.id;
+    const refused = channelRefused(effectiveStatusId);
+    // A refusal carried over HTTP 200 is still a failed exchange.
+    const success = entry.success === true && !refused;
+    const refusalReason = refused
+      ? `channel_error: StatusID ${effectiveStatusId} — ${entry.status_message ?? status.message ?? 'the channel refused the request'}`
+      : null;
 
     // supabase-js returns errors instead of throwing — surface them to the function console so a
     // silent logging outage (missing grant, schema drift) can never hide behind an empty table.
@@ -188,14 +210,14 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
       request_bytes: request_xml ? request_xml.length : null,
       response_bytes: response_xml ? response_xml.length : null,
       response_id: entry.response_id ?? extractResponseId(entry.response_xml),
-      status_id: entry.status_id ?? status.id,
+      status_id: effectiveStatusId,
       status_message: entry.status_message ?? status.message,
       http_status: entry.http_status ?? null,
-      success: entry.success,
+      success,
       elapsed_ms: entry.elapsed_ms ?? null,
-      error_message: entry.error_message ?? null,
+      error_message: entry.error_message ?? (refused ? (entry.status_message ?? status.message ?? null) : null),
       transport_status: transport.status,
-      error_reason: transport.status === 'completed' && entry.success ? null : transport.reason,
+      error_reason: transport.status === 'completed' && success ? null : (refusalReason ?? transport.reason),
       changed_fields: entry.changed_fields && entry.changed_fields.length > 0 ? entry.changed_fields : null,
       push_type: entry.push_type ?? null,
       fingerprint: entry.fingerprint ?? null,
