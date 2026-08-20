@@ -3008,6 +3008,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
                       <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
@@ -3015,7 +3016,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {isStart && (
+                        {showLabel && (
                           <>
                             <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
                             {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
@@ -3060,6 +3061,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                   {dayBookings.map(b => {
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
                       <button
                         key={b.id}
@@ -3068,7 +3070,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                         title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
                       >
-                        {isStart && (
+                        {showLabel && (
                           <>
                             <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
                             {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
@@ -3118,6 +3120,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+              const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
                 <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
@@ -3125,7 +3128,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {isStart && (
+                  {showLabel && (
                     <>
                       <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
 
@@ -3233,6 +3236,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, dates);
                     return (
                       <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
@@ -3240,7 +3244,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {isStart && (
+                        {showLabel && (
                           <>
                             <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
                             {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
@@ -3295,6 +3299,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+              const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
                 <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
@@ -3302,7 +3307,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {isStart && (
+                  {showLabel && (
                     <>
                       <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
 
