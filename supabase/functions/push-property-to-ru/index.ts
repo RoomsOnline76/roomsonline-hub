@@ -1609,8 +1609,30 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const seenUrls = new Set<string>();
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
   allImages = restampRuImages(allImages);
+  // Bed count is derived from the bedroom blocks only — measure it before the bathroom /
+  // WC / kitchen composition blocks are appended.
   const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
   const numberOfBeds = totalBeds;
+
+  // Single-listing path: composition falls back to the property-wide values, but the
+  // primary room type's own bathrooms / toilets / kitchen win when set.
+  const singleComp = resolveUnitComposition(property, primaryRoom);
+  const singleAmenities = mapAmenities(property.amenities);
+  {
+    const push = (id: number, count: number) => {
+      if (count <= 0) return;
+      const existing = singleAmenities.find((a: any) => a.id === id);
+      if (existing) existing.count = Math.max(existing.count, count);
+      else singleAmenities.push({ id, count } as any);
+    };
+    push(81, singleComp.bathrooms);
+    push(37, singleComp.toilets);
+    if (singleComp.separateKitchen) push(101, 1);
+  }
+  // RU renders the Composition panel from these blocks, so bathrooms and toilets need one
+  // block each (with a real child amenity — an empty list is read as id:0 and rejected).
+  rooms.push(...compositionRoomBlocks(singleComp, singleAmenities));
+
   return {
     name: property.name,
     property_type_id: objectTypeId,
