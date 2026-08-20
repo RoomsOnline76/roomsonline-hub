@@ -67,6 +67,7 @@ export function RestrictionsManagerDialog({
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["restriction-spans", scopeKey, futureOnly ? from : "all", to],
     enabled: open && propertyIds.length > 0,
+    staleTime: 0,
     queryFn: async () => {
       const nightsQuery = supabase
         .from("property_availability")
