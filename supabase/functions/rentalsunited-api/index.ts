@@ -1914,6 +1914,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_reservation_by_id',
   'get_leads',
   'reject_request',
+  'confirm_request',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -1953,6 +1954,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_reservation_by_id',
   'get_leads',
   'reject_request',
+  'confirm_request',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -1971,6 +1973,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
  */
 const RU_VERB_BY_ACTION: Record<string, string> = {
   reject_request: 'Push_RejectRequest_RQ',
+  confirm_request: 'Push_ConfirmRequest_RQ',
   cancel_reservation: 'Push_CancelReservation_RQ',
   modify_stay: 'Push_ModifyStay_RQ',
   push_confirmed_reservation: 'Push_PutConfirmedReservationMulti_RQ',
