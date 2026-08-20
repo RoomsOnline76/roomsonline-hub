@@ -102,6 +102,7 @@ const UNIT_STATIC_COLUMNS = [
   'name',
   'description',
   'max_guests',
+  'min_guests',
   'bedrooms',
   'bathrooms',
   'beds',
@@ -111,8 +112,12 @@ const UNIT_STATIC_COLUMNS = [
   'check_in_time',
   'check_out_time',
   'cancellation_policy',
+  'house_rules',
   'room_size',
+  'room_size_unit',
   'address_street',
+  'address_city',
+  'address_country',
   'address_postal_code',
   'latitude',
   'longitude',
@@ -120,8 +125,15 @@ const UNIT_STATIC_COLUMNS = [
   'ru_image_tags',
   'check_in_instructions',
   'cleaning_fee',
+  'extra_guest_fee',
   'security_deposit',
   'tax_rate',
+  'currency',
+  // Rooms-to-Sell: the unit inventory count is part of the pushed listing, so a change to
+  // it must not hash as "unchanged".
+  'total_units',
+  // Per-unit floor / toilet values live here for PMS-sourced units.
+  'raw_data',
   'rentalsunited_property_id',
   'is_active',
 ] as const;

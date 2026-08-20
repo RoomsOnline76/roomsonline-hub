@@ -75,6 +75,12 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "amenities.breakfast_options", label: "breakfast options", section: "content" },
   { path: "amenities.house_rules", label: "house rules", section: "content" },
   { path: "amenities.room_types", label: "units", section: "content" },
+  // Mandatory composition / space values the channel review checks. Without these the
+  // save-time diff said "nothing changed" while the wizard still failed on them.
+  { path: "toilets", label: "toilets", section: "content" },
+  { path: "separate_kitchen", label: "kitchen", section: "content" },
+  { path: "amenities.property_floor", label: "floor", section: "content" },
+  { path: "amenities.property_size_sqm", label: "property size", section: "content" },
 
   // ── Rates & availability ──
   { path: "amenities.seasons", label: "seasons", section: "rates" },
@@ -85,7 +91,64 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "amenities.policies", label: "policies", section: "rates" },
   { path: "amenities.currency", label: "currency", section: "rates" },
   { path: "cancellation_master_mode", label: "cancellation policy", section: "rates" },
+  { path: "amenities.cancellation_policies", label: "cancellation policy", section: "rates" },
+  { path: "amenities.payment_methods", label: "payment methods", section: "rates" },
+  // Changeover decides which days guests may arrive or depart; it ships with availability.
+  { path: "amenities.changeover", label: "changeover rule", section: "rates" },
+  { path: "amenities.changeover_rules", label: "changeover rule", section: "rates" },
+  { path: "amenities.changeover_by_unit", label: "changeover rule", section: "rates" },
 ];
+
+/**
+ * Mandatory readiness check (`_shared/ruReadiness` keys) → the payload path(s) whose change
+ * must be reported at save time. This is the single audit table: a mandatory check with no
+ * path here would be a requirement the operator can edit without the channel hearing about it.
+ */
+export const MANDATORY_CHECK_PATHS: Readonly<Record<string, readonly string[]>> = {
+  has_name: ["name"],
+  name_clean: ["name"],
+  has_object_type_id: ["property_type", "amenities.room_types"],
+  object_type_authored: ["property_type", "amenities.room_types"],
+  currency_authored: ["amenities.currency"],
+  can_sleep_max_ok: ["max_guests", "amenities.room_types"],
+  has_description: ["description"],
+  description_meets_cert: ["description"],
+  has_check_in_from: ["amenities.house_rules"],
+  has_check_out_until: ["amenities.house_rules"],
+  has_arrival_instructions: ["amenities.house_rules", "amenities.policies"],
+  has_space: ["amenities.property_size_sqm", "amenities.room_types"],
+  has_floor: ["amenities.property_floor", "amenities.room_types"],
+  meets_minimum_amenities: ["amenities.facilities"],
+  has_rooms: ["bedrooms", "amenities.room_types"],
+  rooms_have_amenities: ["amenities.room_types"],
+  beds_cover_half: ["amenities.room_types"],
+  beds_meet_max_guests: ["amenities.room_types", "max_guests"],
+  has_bedroom: ["bedrooms", "amenities.room_types"],
+  has_kitchen: ["separate_kitchen", "amenities.facilities"],
+  has_bathroom_room: ["bathrooms", "amenities.room_types"],
+  has_bathrooms: ["bathrooms"],
+  has_toilets: ["toilets"],
+  beds_distributed: ["amenities.room_types"],
+  beds_authored: ["amenities.room_types"],
+  changeover_authored: ["amenities.changeover", "amenities.changeover_by_unit"],
+  meets_minimum_images: ["images"],
+  images_meet_size: ["images"],
+  images_meet_cert_size: ["images"],
+  has_main_image: ["images", "hero_listing"],
+  has_street: ["address"],
+  has_zip_code: ["postal_code"],
+  has_detailed_location_id: ["ru_location_id", "latitude", "longitude"],
+  ru_location_selected: ["ru_location_id"],
+  has_coordinates: ["latitude", "longitude"],
+  has_payment_methods: ["amenities.payment_methods"],
+  payment_methods_authored: ["amenities.payment_methods"],
+  has_cancellation_policies: ["amenities.cancellation_policies", "cancellation_master_mode"],
+  cancellation_policies_authored: ["amenities.cancellation_policies", "cancellation_master_mode"],
+};
+
+/** Every path the changed-field diff watches — used by the coverage test. */
+export const TRACKED_PATHS: readonly string[] = FIELD_SPECS.map((spec) => spec.path);
+
 
 function readPath(source: Record<string, unknown> | null | undefined, path: string): unknown {
   if (!source) return undefined;
