@@ -325,6 +325,8 @@ export async function quoteBookingCharges(supabase: any, input: BookingChargeInp
     adults: Math.max(0, Number(input.adults ?? 1) || 0),
     children: Math.max(0, Number(input.children ?? 0) || 0),
     infants: Math.max(0, Number(input.infants ?? 0) || 0),
+    baseOccupancy: input.baseOccupancy ?? null,
+
     roomTypeIds: (input.roomTypeIds || []).filter((id): id is string => !!id),
     rateTypeId: input.rateTypeId || null,
     currency: input.currency || "ZAR",
