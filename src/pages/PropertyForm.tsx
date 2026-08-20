@@ -204,6 +204,7 @@ import {
   RU_TAG_MAIN,
   findMainImageUrl,
   setMainImageUrl,
+  moveImageFirst,
 } from "@/lib/ruImageTags";
 
 
@@ -6710,7 +6711,9 @@ export default function PropertyForm({
                               <button
                                 type="button"
                                 onClick={() => {
+                                  // Main is always the first photo: tag it and move it to the front.
                                   setImageTags((prev) => setMainImageUrl(prev, uploadedImages, imageUrl));
+                                  setUploadedImages((prev) => moveImageFirst(prev, imageUrl));
                                   setIsDirty(true);
                                 }}
                                 className="absolute top-1 left-1 bg-muted-foreground/60 hover:bg-primary rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"

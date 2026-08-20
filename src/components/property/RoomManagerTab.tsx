@@ -34,7 +34,7 @@ import { ruToken } from "@/lib/ruAmenities";
 import { hasSeparateKitchen, withSeparateKitchen } from "@/lib/ruKitchen";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
-import { findMainImageUrl, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
+import { findMainImageUrl, moveImageFirst, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration, authoredBedroomCount } from "@/lib/bedConfig";
@@ -1758,11 +1758,10 @@ export function RoomManagerTab({
                         onClick={() => {
                           const currentRoom = roomTypes.find((r) => r.id === selectedRoomType);
                           const map = normalizeRuImageTagMap(currentRoom?.ruImageTags);
-                          updateRoomTypeField(
-                            selectedRoomType,
-                            "ruImageTags",
-                            setMainImageUrl(map, ensureArray(currentRoom?.images) as string[], imageUrl),
-                          );
+                          const images = ensureArray(currentRoom?.images) as string[];
+                          // Main is always the first photo: tag it and move it to the front.
+                          updateRoomTypeField(selectedRoomType, "ruImageTags", setMainImageUrl(map, images, imageUrl));
+                          updateRoomTypeField(selectedRoomType, "images", moveImageFirst(images, imageUrl));
                         }}
                         className="absolute top-2 left-2 bg-muted-foreground/60 hover:bg-primary rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Set as main room image"
