@@ -155,14 +155,12 @@ export function BulkStopSellDialog({
           if (error) throw error;
           toast.success(`Blocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
         } else {
+          // Unblocking clears only the block itself — any min stay / max stay / lead-day rule
+          // on those same nights stays exactly where it was.
           for (const pid of targetPropertyIds) {
-            const { error } = await supabase
-              .from("property_availability")
-              .delete()
-              .eq("property_id", pid)
-              .in("room_type", selectedRoomTypes)
-              .in("date", dates);
-            if (error) throw error;
+            for (const roomType of selectedRoomTypes) {
+              await clearNights(pid, roomType, dates, "block");
+            }
           }
           toast.success(`Unblocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
         }
