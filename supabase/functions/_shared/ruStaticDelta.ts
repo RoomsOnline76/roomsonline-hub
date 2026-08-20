@@ -169,11 +169,35 @@ function diffFingerprints(
   return [...keys].filter((k) => previous[k] !== current[k]).sort();
 }
 
+/**
+ * Unit ids this delta can be limited to.
+ *
+ * Property-level fields (name, description, address, amenities, images, occupancy) are copied into
+ * every listing's payload, so any `property.*` change must push all listings. When *only* unit
+ * fields moved, the push is scoped to those units — a one-unit edit on an eleven-unit property
+ * then costs one channel write instead of eleven.
+ */
+function scopeUnitIdsFromChanges(changedFields: string[]): string[] | null {
+  if (changedFields.length === 0) return null;
+  if (changedFields.some((k) => k.startsWith('property.'))) return null;
+  const ids = new Set<string>();
+  for (const key of changedFields) {
+    const match = /^unit:([^.]+)\./.exec(key);
+    if (!match) return null;
+    ids.add(match[1]);
+  }
+  return ids.size > 0 ? [...ids] : null;
+}
+
 interface StaticSnapshot {
   property: Record<string, unknown> | null;
   units: Record<string, unknown>[];
   ruConnected: boolean;
   pushEnabled: boolean;
+  /** True when the property has a live listing (building id or any active unit id). */
+  listed: boolean;
+  gateCode: string | null;
+  gateMessage: string | null;
 }
 
 async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSnapshot> {
@@ -194,12 +218,16 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
 
   const unitRows = (units ?? []) as Record<string, unknown>[];
   const listedUnit = unitRows.some((u) => !!u.rentalsunited_property_id);
+  const listed = Boolean(property?.rentalsunited_property_id) || listedUnit;
   const gate = await evaluateRuOperationalSync(supabase, propertyId);
   return {
     property: (property ?? null) as Record<string, unknown> | null,
     units: unitRows,
-    ruConnected: gate.allowed && (Boolean(property?.rentalsunited_property_id) || listedUnit),
+    listed,
+    ruConnected: gate.allowed && listed,
     pushEnabled: gate.allowed,
+    gateCode: gate.allowed ? null : (gate.code ?? null),
+    gateMessage: gate.allowed ? null : (gate.message ?? null),
   };
 }
 
