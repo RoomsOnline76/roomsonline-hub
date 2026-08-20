@@ -115,7 +115,7 @@ export async function verifyRuPropertyCurrency(
   supabase: any,
   ruPropertyId: number,
   childAuth: Record<string, unknown> = {},
-): Promise<{ iso: string | null; currency_id: number | null; error?: string }> {
+): Promise<{ iso: string | null; currency_id: number | null; error?: string; deferred?: boolean; retry_after_ms?: number }> {
   if (!ruPropertyId || ruPropertyId <= 0) return { iso: null, currency_id: null, error: 'no ru_property_id' };
   try {
     // Batch verification fans out many invocations; a single transport blip (worker boot
@@ -132,8 +132,25 @@ export async function verifyRuPropertyCurrency(
       await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
     }
     if (error || !data?.success) {
-      return { iso: null, currency_id: null, error: error?.message || data?.error?.message || 'Pull_GetProperty failed' };
+      // The channel allows one identical read per sliding minute. A verification run fired
+      // immediately after a successful one is HELD, not refused — it must never be reported
+      // as "no currency" (which reads as a failed verification).
+      const body = error ? await readInvokeErrorBody(error) : null;
+      const errObj = ((body?.error ?? data?.error) ?? null) as { code?: string; message?: string; retry_after_ms?: number } | null;
+      const code = String(errObj?.code ?? '');
+      const msg = String(errObj?.message ?? error?.message ?? '');
+      if (/RU_RATE_DEFERRED/i.test(code) || /rate limit|less than a minute ago/i.test(msg)) {
+        return {
+          iso: null,
+          currency_id: null,
+          deferred: true,
+          retry_after_ms: Number(errObj?.retry_after_ms) || 60_000,
+          error: 'RU_RATE_DEFERRED: the channel allows one identical read per minute — verification is queued.',
+        };
+      }
+      return { iso: null, currency_id: null, error: msg || data?.error?.message || 'Pull_GetProperty failed' };
     }
+
 
     // RU reports the listing currency as an ISO attribute on <Property Currency="USD">,
     // not as a <CurrencyID> element — read the attribute first, then fall back.
