@@ -58,12 +58,17 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "bathrooms", label: "bathrooms", section: "content" },
   { path: "amenities.address_details", label: "address details", section: "content" },
   { path: "amenities.attraction_distances", label: "attraction distances", section: "content" },
+  { path: "amenities.facilities", label: "amenities", section: "content" },
+  { path: "amenities.breakfast_options", label: "breakfast options", section: "content" },
+  { path: "amenities.house_rules", label: "house rules", section: "content" },
+  { path: "amenities.room_types", label: "units", section: "content" },
 
   // ── Rates & availability ──
   { path: "amenities.seasons", label: "seasons", section: "rates" },
   { path: "amenities.season_rates", label: "season rates", section: "rates" },
   { path: "amenities.pms_rate_types", label: "rate types", section: "rates" },
   { path: "amenities.charges", label: "charges", section: "rates" },
+  { path: "amenities.banking.security_deposit", label: "security deposit", section: "rates" },
   { path: "amenities.policies", label: "policies", section: "rates" },
   { path: "amenities.currency", label: "currency", section: "rates" },
   { path: "cancellation_master_mode", label: "cancellation policy", section: "rates" },
