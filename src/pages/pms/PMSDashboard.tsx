@@ -389,7 +389,7 @@ function BookingBarLabel({ booking, textClass, halfStart }: { booking: BookingRo
     <span
       className={cn(
         "pointer-events-none absolute inset-y-0.5 z-[2] flex items-center gap-1 px-1 whitespace-nowrap",
-        halfStart ? "left-1/2" : "left-0",
+        halfStart ? "left-1/4" : "left-0",
       )}
     >
       <span className={cn("text-[9px] font-medium leading-none", textClass)}>{booking.guest_name}</span>
@@ -3047,8 +3047,8 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                         <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
-                        isStart ? "left-1/2 rol-bar-half-in" : "left-0",
-                        isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
+                        isStart ? "left-1/4 rol-bar-half-in" : "left-0",
+                        isEnd ? "right-[-25%] rol-bar-half-out" : "right-0"
                       )}>
                       </button>
                         {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
@@ -3152,8 +3152,8 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
                   <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
-                  isStart ? "left-1/2 rol-bar-half-in" : "left-0",
-                  isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
+                  isStart ? "left-1/4 rol-bar-half-in" : "left-0",
+                  isEnd ? "right-[-25%] rol-bar-half-out" : "right-0"
                 )}>
                 </button>
                   {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
@@ -3264,8 +3264,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                         <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
-                        isStart ? "left-1/2 rol-bar-half-in" : "left-0",
-                        isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
+                        isStart ? "left-1/4 rol-bar-half-in" : "left-0",
+                        isEnd ? "right-[-25%] rol-bar-half-out" : "right-0"
                       )}>
                       </button>
                         {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
@@ -3324,8 +3324,8 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
                   <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
-                  isStart ? "left-1/2 rol-bar-half-in" : "left-0",
-                  isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
+                  isStart ? "left-1/4 rol-bar-half-in" : "left-0",
+                  isEnd ? "right-[-25%] rol-bar-half-out" : "right-0"
                 )}>
                 </button>
                   {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
