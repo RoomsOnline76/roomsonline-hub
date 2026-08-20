@@ -344,3 +344,15 @@ export function resolvePrimaryRuTag(tags: number[] | undefined, isMain: boolean)
 export function resolveSecondaryRuTags(tags: number[] | undefined, primary: number): number[] {
   return [...new Set(tags || [])].filter((id) => id !== primary && id !== RU_TAG_MAIN);
 }
+
+/**
+ * Gallery order with `url` first.
+ *
+ * The channel always treats the first photo as the main one, so flagging an image Main
+ * must also move it to position 1 — otherwise the tag and the pushed order disagree.
+ */
+export function moveImageFirst(urls: string[], url: string): string[] {
+  const list = (urls || []).filter(Boolean);
+  if (!url || !list.includes(url)) return list;
+  return [url, ...list.filter((u) => u !== url)];
+}
