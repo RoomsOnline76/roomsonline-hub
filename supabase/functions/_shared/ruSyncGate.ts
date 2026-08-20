@@ -102,7 +102,7 @@ export async function evaluateRuOperationalSync(
   return { allowed: true };
 }
 
-/** OwnerIDs that have at least one property with an explicit wizard-passed push. */
+/** OwnerIDs with at least one connected property that is not on hold. */
 export async function ownerIdsWithOperationalSync(
   admin: { from: (table: string) => any },
 ): Promise<Set<string>> {
