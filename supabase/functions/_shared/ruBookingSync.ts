@@ -804,19 +804,16 @@ export async function modifyRuStay(
 
 
   return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', confirmedLead, traceId }
-    : {
-        ok: false,
-        // A rate deferral is queued at priority 1, not lost — say "landing" instead of "failed".
+    ? {
+        ok: true,
+        deferred: result.deferred === true,
+        // Parked at priority 1 in the call queue: in flight, not delivered yet.
         queued: result.deferred === true,
         method: 'modify_stay',
-        code: result.deferred === true ? 'RU_MODIFY_QUEUED' : result.code,
-        message: result.deferred === true
-          ? 'The channel is applying this change now (it was queued behind the channel\u2019s one-call-per-minute limit).'
-          : result.message,
         confirmedLead,
         traceId,
-      };
+      }
+    : { ok: false, method: 'modify_stay', code: result.code, message: result.message, confirmedLead, traceId };
 }
 
 
