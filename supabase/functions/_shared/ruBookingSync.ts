@@ -463,6 +463,11 @@ export async function cancelRuReservation(
  *
  * On success the booking is promoted locally from `rentalsunited_lead` to `rentalsunited` so
  * every later push takes the confirmed path.
+ *
+ * Caveat measured live on 2026-08-20: this account's channel API exposes no working accept verb
+ * (`Push_ConfirmRequest_RQ` → "not implemented method"; `Push_ConfirmReservation_RQ` → Status 28).
+ * When that is the case the call fails loudly and the stay change is refused rather than degrading
+ * into a calendar-only block — accept the request in the channel portal first.
  */
 export async function confirmRuRequest(
   supabase: Db,

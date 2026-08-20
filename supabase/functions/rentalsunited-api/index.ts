@@ -1918,7 +1918,6 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_leads',
   'reject_request',
   'confirm_request',
-  'probe_verb',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -1959,7 +1958,6 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_leads',
   'reject_request',
   'confirm_request',
-  'probe_verb',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -4448,19 +4446,6 @@ Deno.serve(async (req) => {
 
 
 
-
-    // ── probe_verb (temporary capability probe: is a reservation verb implemented?) ──
-    if (action === 'probe_verb') {
-      const verb = String(body.verb ?? '').replace(/[^A-Za-z_]/g, '');
-      if (!verb) return errorResponse('MISSING_PARAM', 'verb is required');
-      const xml = `<?xml version="1.0" encoding="utf-8"?>
-<${verb}>
-  ${buildAuthXml(scopedCreds)}
-  <ReservationID>${escapeXml(String(body.reservation_id ?? '1'))}</ReservationID>
-</${verb}>`;
-      const response = await callRentalsUnited(scopedCreds, xml);
-      return jsonResponse({ success: true, verb, raw_xml: response.substring(0, 600) });
-    }
 
     // Unknown action
     return errorResponse('UNKNOWN_ACTION', `Action "${action}" is not supported`);
