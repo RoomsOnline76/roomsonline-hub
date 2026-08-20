@@ -485,6 +485,48 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             )}
           </div>
 
+          {(extrasBusy || (extras && (extras.lines.length > 0 || extras.deposit_total > 0))) && (
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Accommodation</span>
+                <span className="tabular-nums">{money(Number(totalPrice || 0))}</span>
+              </div>
+
+              {extrasBusy && !extras && (
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />Pricing extras for the new stay
+                </p>
+              )}
+
+              {extras?.lines.map((line, i) => (
+                <div key={`${line.name}-${i}`} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">
+                    {line.name}
+                    {line.breakdown && (
+                      <span className="block text-[10px] opacity-70">{line.breakdown}</span>
+                    )}
+                    {line.is_refundable && (
+                      <span className="block text-[10px] opacity-70">Refundable — not part of the total</span>
+                    )}
+                  </span>
+                  <span className="tabular-nums">{money(line.amount)}</span>
+                </div>
+              ))}
+
+              {extras && (
+                <div className="flex items-center justify-between border-t pt-2 text-sm font-medium">
+                  <span>Guest total</span>
+                  <span className="tabular-nums">{money(extras.guest_total)}</span>
+                </div>
+              )}
+              {extras && extras.deposit_total > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Plus {money(extras.deposit_total)} refundable deposit, held separately.
+                </p>
+              )}
+            </div>
+          )}
+
           {amountPaid !== null && amountPaid > 0 && (
             <div className="rounded-md border p-3 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
