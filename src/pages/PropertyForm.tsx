@@ -204,6 +204,7 @@ import {
   RU_TAG_MAIN,
   findMainImageUrl,
   setMainImageUrl,
+  moveImageFirst,
 } from "@/lib/ruImageTags";
 
 
