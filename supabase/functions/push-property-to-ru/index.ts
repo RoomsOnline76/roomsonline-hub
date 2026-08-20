@@ -261,9 +261,28 @@ const PROPERTY_TYPE_MAP: Record<string, number> = {
  * wrong type, so the static map is authoritative here.
  */
 
-/** Resolve a ROL'OS type slug to an RU ObjectTypeID. */
+/** Resolve a ROL'OS type slug to an RU ObjectTypeID (listing kind: Apartment, Villa, …). */
 function resolveRuTypeId(slug: string): number | undefined {
   return PROPERTY_TYPE_MAP[slug];
+}
+
+/**
+ * RU `PropertyTypeID` is NOT the listing kind — it is the bedroom LAYOUT
+ * (`Pull_ListPropTypes_RQ`: 1=Studio, 2=One Bedroom, 3=Two Bedroom, …). Sending the listing
+ * kind here is what made an Apartment publish as a studio-style "All Suite" in RU.
+ * Verified against the live `ru_property_types` cache.
+ */
+const RU_LAYOUT_TYPE_BY_BEDROOMS: Record<number, number> = {
+  0: 1, 1: 2, 2: 3, 3: 4, 4: 12, 5: 11, 6: 26, 7: 27, 8: 28, 9: 29, 10: 30,
+  11: 34, 12: 35, 13: 36, 14: 37, 15: 38, 16: 39, 17: 40, 18: 41, 19: 42, 20: 43,
+  21: 44, 22: 45, 23: 46, 24: 47, 25: 48, 26: 49, 27: 50, 28: 51, 29: 52, 30: 53,
+  31: 54, 32: 55,
+};
+
+/** Bedroom count → RU PropertyTypeID (layout). Anything above the dictionary clamps to 32. */
+function resolveRuLayoutTypeId(bedrooms: unknown): number {
+  const count = Math.max(0, Math.floor(Number(bedrooms) || 0));
+  return RU_LAYOUT_TYPE_BY_BEDROOMS[Math.min(count, 32)] ?? 1;
 }
 
 
