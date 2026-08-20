@@ -577,15 +577,8 @@ export async function confirmRuRequest(
     };
   }
 
-    return {
-      ok: false,
-      method: 'confirm_request',
-      code: result.code || 'RU_CONFIRM_REQUEST_FAILED',
-      message: raw ||
-        'The channel did not accept this request. Accept it in the channel portal, then resend the change.',
-      traceId,
-    };
-  }
+
+
 
   await supabase
     .from('bookings')
