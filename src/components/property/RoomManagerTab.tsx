@@ -34,7 +34,7 @@ import { ruToken } from "@/lib/ruAmenities";
 import { hasSeparateKitchen, withSeparateKitchen } from "@/lib/ruKitchen";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
-import { findMainImageUrl, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
+import { findMainImageUrl, moveImageFirst, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
 
 import { getRoomUrl } from "@/lib/config";
 import { parseBedConfiguration, BED_TYPES, BedEntry, calculateBedCapacity, sleepsPerBed, formatBedConfiguration, authoredBedroomCount } from "@/lib/bedConfig";
