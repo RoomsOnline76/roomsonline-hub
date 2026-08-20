@@ -534,6 +534,28 @@ Deno.serve(async (req) => {
     }
 
 
+    // S6a: The channel is quoted the guest total (accommodation + mandatory extras), so the
+    // extras have to be priced for the new stay before the channel write goes out.
+    const preContext = await resolveBookingChargeContext(supabase, booking);
+    const preAccommodation = modifications.total_price !== undefined
+      ? Number(modifications.total_price)
+      : newTotalPrice !== null
+        ? Number(newTotalPrice)
+        : preContext.accommodation;
+    const preQuote = await quoteBookingCharges(supabase, {
+      bookingId: booking.id,
+      propertyId: booking.property_id,
+      accommodation: preAccommodation,
+      checkIn: modifications.check_in_date || booking.check_in_date,
+      checkOut: modifications.check_out_date || booking.check_out_date,
+      adults: modifications.adults ?? booking.adults,
+      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+      infants: modifications.infants ?? booking.infants,
+      rooms: preContext.rooms,
+      roomTypeIds: preContext.roomTypeIds,
+      currency: booking.currency,
+    });
+
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
     let ruModified = false;
@@ -548,10 +570,11 @@ Deno.serve(async (req) => {
         date_from: modifications.check_in_date ?? null,
         date_to: modifications.check_out_date ?? null,
         number_of_guests: guests > 0 ? guests : null,
-        client_price: modifications.total_price ?? newTotalPrice ?? null,
+        client_price: preQuote.guestTotal || null,
         already_paid: modifications.already_paid ?? null,
         arrival_time: modifications.arrival_time ?? null,
       });
+
 
       if (!ruResult.ok) {
         // Queued (not rejected): the channel owes this method another slot in its sliding minute
