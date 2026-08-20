@@ -54,6 +54,9 @@ export async function pushChangedChannelFields(
   activeConfirmations.set(propertyId, confirmation);
   const delivered: string[] = [];
   const deferred: string[] = [];
+  // Sections whose delta parked: keep watching so the eventual background delivery is
+  // reported instead of landing silently minutes later.
+  const parked: { section: ChannelPushSection; labels: string; sinceIso: string }[] = [];
   const failed: string[] = [];
   const reasons: string[] = [];
 
@@ -85,6 +88,7 @@ export async function pushChangedChannelFields(
       reasons.push(reason ?? "No reason returned");
     } else {
       deferred.push(labels);
+      parked.push({ section, labels, sinceIso });
       if (reason) reasons.push(reason);
     }
   }
@@ -107,6 +111,27 @@ export async function pushChangedChannelFields(
     notify({
       title: `Sent to the ${CHANNEL_MANAGER}`,
       description: `${delivered.join(", ")} — delivery confirmed.`,
+    });
+  }
+
+  // Parked deltas are re-armed by the backend once readiness clears (typically well inside a
+  // few minutes). Watch that longer window in the background and close the loop with a toast.
+  if (parked.length === 0) return;
+  const late: string[] = [];
+  for (const item of parked) {
+    const { verdict } = await confirmChannelPush({
+      propertyId,
+      section: item.section,
+      sinceIso: item.sinceIso,
+      timeoutMs: 300_000,
+      intervalMs: 15_000,
+    });
+    if (verdict === "delivered") late.push(item.labels);
+  }
+  if (late.length > 0) {
+    notify({
+      title: `Sent to the ${CHANNEL_MANAGER}`,
+      description: `${late.join(", ")} — delivery confirmed after the readiness gate cleared.`,
     });
   }
 }
