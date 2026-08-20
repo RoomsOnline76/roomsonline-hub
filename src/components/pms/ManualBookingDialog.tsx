@@ -688,7 +688,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         };
       });
       const { error: lineError } = await supabase.from("rolos_booking_rooms").insert(lineRows as never);
-      if (lineError) console.warn("Room line insert failed:", lineError);
+      if (lineError) {
+        console.warn("Room line insert failed:", lineError);
+        toast.error(friendlyBookingError(lineError.message, "Room lines not saved"));
+        void refreshAvailability();
+      }
 
       // Post charges + the accommodation / F&B split immediately so the folio is
       // correct from creation instead of waiting for the night audit.
