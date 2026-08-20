@@ -5455,6 +5455,9 @@ export type Database = {
           review_sentiment: Json | null
           ru_archived: boolean
           ru_archived_at: string | null
+          ru_hold_reason: string | null
+          ru_hold_set_at: string | null
+          ru_hold_set_by: string | null
           ru_image_tags: Json
           ru_listings_expected_units: number | null
           ru_listings_unmatched: Json
@@ -5570,6 +5573,9 @@ export type Database = {
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
+          ru_hold_reason?: string | null
+          ru_hold_set_at?: string | null
+          ru_hold_set_by?: string | null
           ru_image_tags?: Json
           ru_listings_expected_units?: number | null
           ru_listings_unmatched?: Json
@@ -5685,6 +5691,9 @@ export type Database = {
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
+          ru_hold_reason?: string | null
+          ru_hold_set_at?: string | null
+          ru_hold_set_by?: string | null
           ru_image_tags?: Json
           ru_listings_expected_units?: number | null
           ru_listings_unmatched?: Json
