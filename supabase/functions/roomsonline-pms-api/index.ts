@@ -402,9 +402,12 @@ Deno.serve(async (req) => {
 
     const mergedHeaders = { ...corsHeaders, ...rateCheck.headers, "Content-Type": "application/json" };
 
-    let result: Response;
+    // Every action runs inside a deadline: the platform kills an idle request at
+    // 150s with an opaque 504, so we answer with a clear timeout error before that.
+    const dispatch = async (): Promise<Response> => {
+      let result: Response;
 
-    switch (action) {
+      switch (action) {
       case "get_capabilities":
         result = handleGetCapabilities();
         break;
@@ -587,6 +590,39 @@ Deno.serve(async (req) => {
           { headers: { ...mergedHeaders }, status: 400 }
         );
       }
+      }
+
+      return result;
+    };
+
+    const ACTION_DEADLINE_MS = 110_000;
+    let timer: number | undefined;
+    let result: Response;
+    try {
+      result = await Promise.race([
+        dispatch(),
+        new Promise<Response>((_resolve, reject) => {
+          timer = setTimeout(() => reject(new Error("ACTION_TIMEOUT")), ACTION_DEADLINE_MS);
+        }),
+      ]);
+    } catch (raceError) {
+      if (raceError instanceof Error && raceError.message === "ACTION_TIMEOUT") {
+        const elapsedT = Date.now() - startTime;
+        logApiRequest(supabase, propertyId, action, 504, elapsedT, req, "TIMEOUT");
+        return new Response(
+          JSON.stringify(
+            createErrorResponse(
+              "TIMEOUT",
+              `Action "${action}" did not finish within ${Math.round(ACTION_DEADLINE_MS / 1000)}s. Narrow the date range or retry.`,
+              action
+            )
+          ),
+          { headers: { ...mergedHeaders }, status: 504 }
+        );
+      }
+      throw raceError;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
 
     // Log and return with rate limit headers
