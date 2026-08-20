@@ -14,6 +14,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
 import { fetchLiveRates } from "@/lib/pmsLiveAvailability";
+import { useAuth } from "@/hooks/useAuth";
+import { useUnitAvailability } from "@/hooks/useUnitAvailability";
+import {
+  blockedNightsFor,
+  disabledDaysFrom,
+  blockedDaysFrom,
+  findBlockedInRange,
+  canOverbook,
+  type BlockedNight,
+} from "@/lib/unitAvailability";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -103,6 +113,84 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [extras, setExtras] = useState<ExtrasQuote | null>(null);
   const [extrasBusy, setExtrasBusy] = useState(false);
   const extrasSeq = useRef(0);
+
+  /* ── Availability & capacity guard ──────────────────────────────────────
+     The stay being edited is excluded from the occupancy map, so its own nights
+     stay selectable while every other live stay blocks the calendar. */
+  const { userRole } = useAuth();
+  const mayOverbook = canOverbook(userRole);
+  const [overbookReason, setOverbookReason] = useState("");
+  const [assignedRoomIds, setAssignedRoomIds] = useState<string[]>([]);
+  const [lineRoomTypeIds, setLineRoomTypeIds] = useState<string[]>([]);
+  const { availability, refresh: refreshAvailability } = useUnitAvailability(booking.property_id, {
+    enabled: open,
+    excludeBookingId: booking.id,
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    setOverbookReason("");
+    let mounted = true;
+    (async () => {
+      const { data } = await supabase
+        .from("rolos_booking_rooms")
+        .select("room_id, room_type_id, status")
+        .eq("booking_id", booking.id);
+      if (!mounted) return;
+      const live = (data ?? []).filter((l) => (l.status ?? "active") !== "cancelled");
+      setAssignedRoomIds(live.map((l) => l.room_id).filter(Boolean) as string[]);
+      setLineRoomTypeIds(
+        live.map((l) => l.room_type_id).filter(Boolean) as string[],
+      );
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [open, booking.id]);
+
+  /** Nights unavailable for the units / types this stay occupies. */
+  const blockedNights = useMemo(() => {
+    const merged = new Map<string, BlockedNight>();
+    const typeIds = lineRoomTypeIds.length
+      ? lineRoomTypeIds
+      : booking.room_type_id
+        ? [booking.room_type_id]
+        : [];
+    const pairs: Array<[string | null, string | null]> = assignedRoomIds.length
+      ? assignedRoomIds.map((roomId, i) => [typeIds[i] ?? typeIds[0] ?? null, roomId])
+      : typeIds.map((t) => [t, null]);
+    for (const [typeId, roomId] of pairs) {
+      for (const [iso, info] of blockedNightsFor(availability, typeId, roomId)) {
+        if (!merged.has(iso)) merged.set(iso, info);
+      }
+    }
+    return merged;
+  }, [availability, assignedRoomIds, lineRoomTypeIds, booking.room_type_id]);
+
+  const disabledStayDays = useMemo(() => disabledDaysFrom(blockedNights), [blockedNights]);
+  const blockedStayDays = useMemo(() => blockedDaysFrom(blockedNights), [blockedNights]);
+
+  const stayClash = useMemo(() => {
+    if (!checkIn || !checkOut || checkOut <= checkIn) return null;
+    return findBlockedInRange(blockedNights, checkIn, checkOut);
+  }, [blockedNights, checkIn, checkOut]);
+
+  /** Sleeping capacity of the booked units, summed across the stay's lines. */
+  const stayCapacity = useMemo(() => {
+    const typeIds = lineRoomTypeIds.length
+      ? lineRoomTypeIds
+      : booking.room_type_id
+        ? [booking.room_type_id]
+        : [];
+    if (typeIds.length === 0) return null;
+    let total = 0;
+    for (const t of typeIds) {
+      const cap = availability.capacity.get(t);
+      if (!cap || cap <= 0) return null; // capacity unknown — do not restrict
+      total += cap;
+    }
+    return total > 0 ? total : null;
+  }, [availability, lineRoomTypeIds, booking.room_type_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -311,10 +399,41 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     [],
   );
 
+  /** Keeps the guest count inside the booked units' sleeping capacity. */
+  const clampGuests = useCallback(
+    (field: "adults" | "children", raw: string): string => {
+      if (!stayCapacity) return raw;
+      const value = parseInt(raw);
+      if (Number.isNaN(value)) return raw;
+      const other = field === "adults" ? Number(children) || 0 : Number(adults) || 0;
+      const limit = Math.max(field === "adults" ? 1 : 0, stayCapacity - other);
+      if (value > limit) {
+        toast.error(`The booked units sleep ${stayCapacity} guest${stayCapacity === 1 ? "" : "s"}.`);
+        return String(limit);
+      }
+      return raw;
+    },
+    [stayCapacity, adults, children],
+  );
+
   const submit = async () => {
     if (nights <= 0) {
       toast.error("Check-out must be after check-in.");
       return;
+    }
+    if (stayCapacity && (Number(adults) || 0) + (Number(children) || 0) > stayCapacity) {
+      toast.error(`The booked units sleep ${stayCapacity} guest${stayCapacity === 1 ? "" : "s"} — add a room or reduce the guests.`);
+      return;
+    }
+    if (stayClash) {
+      if (!mayOverbook) {
+        toast.error(`${format(parseISO(stayClash.iso), "d MMM")} is not available — ${stayClash.reason}.`);
+        return;
+      }
+      if (!overbookReason.trim()) {
+        toast.error("Add a reason for the overbooking before saving.");
+        return;
+      }
     }
     setBusy(true);
     try {
@@ -326,6 +445,11 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       // Always carry the corrected figure so the channel push and settlement
       // loop see the re-priced total, not the stale one.
       if (Number(totalPrice) !== Number(booking.total_price)) modifications.total_price = Number(totalPrice);
+      // Deliberate overbooking is stamped on the stay so the database guard lets
+      // the new dates through and the decision stays auditable.
+      if (stayClash && mayOverbook && overbookReason.trim()) {
+        modifications.overbook_override_reason = overbookReason.trim();
+      }
 
       const changedKeys = Object.keys(modifications).filter((k) => k !== "note");
       if (changedKeys.length === 0) {
@@ -371,7 +495,13 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       onOpenChange(false);
       onDone();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Modification failed");
+      const message = err instanceof Error ? err.message : "Modification failed";
+      toast.error(
+        message.includes("UNIT_ALREADY_BOOKED")
+          ? "Another reservation already holds this unit for the new dates."
+          : message.replace(/^[A-Z_]+:\s*/, ""),
+      );
+      void refreshAvailability();
     } finally {
       setBusy(false);
     }
@@ -402,8 +532,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               to={selectedTo}
               onChange={({ fromDate, toDate }) => onRangeSelect({ from: fromDate, to: toDate } as any)}
               placeholder="Pick the stay"
-              modifiers={{ originalStay: originalRangeDays }}
-              modifiersClassNames={{ originalStay: "ring-1 ring-inset ring-border" }}
+              disabledDays={mayOverbook ? undefined : disabledStayDays}
+              modifiers={{ originalStay: originalRangeDays, rolBlocked: blockedStayDays }}
+              modifiersClassNames={{
+                originalStay: "ring-1 ring-inset ring-border",
+                rolBlocked: "line-through text-muted-foreground opacity-60",
+              }}
               header={
                 <div className="border-b px-3 py-2 space-y-1">
                   <p className="text-[11px] text-muted-foreground">
@@ -428,18 +562,53 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                 </span>
               )}
             </div>
+            {stayClash && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 space-y-2">
+                <p className="text-xs font-medium text-destructive">
+                  {format(parseISO(stayClash.iso), "d MMM yyyy")} is already taken — {stayClash.reason}.
+                </p>
+                {mayOverbook && (
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Reason for overbooking (required to continue)</Label>
+                    <Input
+                      className="h-8"
+                      value={overbookReason}
+                      onChange={(e) => setOverbookReason(e.target.value)}
+                      placeholder="e.g. guest moving units on arrival"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Adults</Label>
-              <Input type="number" min={1} value={adults} onChange={(e) => setAdults(e.target.value)} />
+              <Input
+                type="number"
+                min={1}
+                max={stayCapacity ? Math.max(1, stayCapacity - (Number(children) || 0)) : undefined}
+                value={adults}
+                onChange={(e) => setAdults(clampGuests("adults", e.target.value))}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Children</Label>
-              <Input type="number" min={0} value={children} onChange={(e) => setChildren(e.target.value)} />
+              <Input
+                type="number"
+                min={0}
+                max={stayCapacity ? Math.max(0, stayCapacity - (Number(adults) || 0)) : undefined}
+                value={children}
+                onChange={(e) => setChildren(clampGuests("children", e.target.value))}
+              />
             </div>
           </div>
+          {stayCapacity && (
+            <p className={cn("text-[11px]", (Number(adults) || 0) + (Number(children) || 0) > stayCapacity ? "font-medium text-destructive" : "text-muted-foreground")}>
+              Booked unit{assignedRoomIds.length === 1 ? "" : "s"} sleep {stayCapacity} guest{stayCapacity === 1 ? "" : "s"}
+            </p>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-xs">Total (ZAR)</Label>
