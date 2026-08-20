@@ -948,7 +948,7 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     name_clean: nameCheck.clean,
     name_issues: nameCheck.reasons,
     name_issue_detail: nameCheck.detail,
-    has_object_type_id: ((payload.object_type_id ?? payload.property_type_id) || 0) > 0,
+    has_object_type_id: ((payload.object_type_id ?? payload.listing_type_id) || 0) > 0,
     // Guessed values that used to publish silently. Each is now a blocker in the scorer.
     object_type_is_default: payload.object_type_is_default === true,
     object_type_source: payload.object_type_source ?? null,
