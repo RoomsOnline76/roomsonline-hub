@@ -56,6 +56,8 @@ interface PropertyLite {
   slug: string | null;
   external_system: string | null;
   ru_push_enabled: boolean | null;
+  ru_hold_reason: string | null;
+  ru_hold_set_at: string | null;
   rentalsunited_property_id: string | null;
 }
 
@@ -97,7 +99,7 @@ export default function AdminRentalsUnited() {
         .limit(500),
       supabase
         .from("properties")
-        .select("id, name, slug, external_system, ru_push_enabled, rentalsunited_property_id")
+        .select("id, name, slug, external_system, ru_push_enabled, ru_hold_reason, ru_hold_set_at, rentalsunited_property_id")
         .eq("is_active", true)
         .order("name"),
     ]);
@@ -177,18 +179,56 @@ export default function AdminRentalsUnited() {
     }
   }, [enabledProperties, onboardingPropertyId]);
 
+  /**
+   * Distribution is the default state. Putting a property on hold is deliberate and must
+   * carry a reason, so a listing that stops syncing always explains itself.
+   */
   const togglePush = async (id: string, next: boolean) => {
-    const { error } = await supabase
-      .from("properties")
-      .update({ ru_push_enabled: next })
-      .eq("id", id);
+    let reason: string | null = null;
+    if (!next) {
+      const answer = window.prompt(
+        "Why is channel distribution going on hold for this property?\n(e.g. owner off-boarding, listing under repair)",
+      );
+      if (answer === null) return;
+      reason = answer.trim();
+      if (!reason) {
+        toast.error("A hold needs a reason.");
+        return;
+      }
+    }
+    const { data: authData } = await supabase.auth.getUser();
+    const patch = next
+      ? { ru_push_enabled: true, ru_hold_reason: null, ru_hold_set_at: null, ru_hold_set_by: null }
+      : {
+          ru_push_enabled: false,
+          ru_hold_reason: reason,
+          ru_hold_set_at: new Date().toISOString(),
+          ru_hold_set_by: authData?.user?.id ?? null,
+        };
+    const { error } = await supabase.from("properties").update(patch).eq("id", id);
     if (error) {
       toast.error(error.message);
       return;
     }
     setStickyIds((prev) => new Set(prev).add(id));
-    setProperties((prev) => prev.map((p) => (p.id === id ? { ...p, ru_push_enabled: next } : p)));
-    toast.success(next ? "RU push enabled" : "RU push disabled — property stays listed");
+    setProperties((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? { ...p, ru_push_enabled: next, ru_hold_reason: patch.ru_hold_reason, ru_hold_set_at: patch.ru_hold_set_at }
+          : p,
+      ),
+    );
+    if (next) {
+      // Lifting a hold must deliver whatever was parked while it was on, with no manual re-push.
+      void supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "property_readiness", property_id: id, probe_ari: false },
+      });
+    }
+    toast.success(
+      next
+        ? "Distribution resumed — parked changes will be delivered automatically"
+        : "Distribution on hold — saves will be parked until it is lifted",
+    );
   };
 
   const toggleScope = (id: string) =>
@@ -381,7 +421,7 @@ export default function AdminRentalsUnited() {
                           <Check className={`h-4 w-4 mr-2 ${runScopeIds.includes(p.id) ? "opacity-100" : "opacity-0"}`} />
                           <span className="truncate">{p.name}</span>
                           {!p.ru_push_enabled && (
-                            <Badge variant="outline" className="ml-auto text-[10px]">paused</Badge>
+                            <Badge variant="outline" className="ml-auto text-[10px]">on hold</Badge>
                           )}
                         </CommandItem>
                       ))}
@@ -447,12 +487,13 @@ export default function AdminRentalsUnited() {
             <div>
               <CardTitle>Auto-managed properties</CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Switching a property off pauses its RU sync but keeps it here — re-enable it any time to ramp up.
+                Connected properties distribute automatically. Putting one on hold needs a reason and parks its
+                changes until the hold is lifted.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <Badge variant="outline" className="text-xs">
-                {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} enabled
+                {ruProperties.filter((p) => p.ru_push_enabled).length}/{ruProperties.length} distributing
               </Badge>
               <Popover open={addOpen} onOpenChange={setAddOpen}>
                 <PopoverTrigger asChild>
@@ -493,7 +534,7 @@ export default function AdminRentalsUnited() {
                 <TableRow>
                   <TableHead>Property</TableHead>
                   <TableHead>PMS</TableHead>
-                  <TableHead>RU push</TableHead>
+                  <TableHead>Distribution</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -508,7 +549,9 @@ export default function AdminRentalsUnited() {
                           onCheckedChange={(v) => togglePush(p.id, v)}
                         />
                         <Label className="text-xs text-muted-foreground">
-                          {p.ru_push_enabled ? "Enabled" : "Paused"}
+                          {p.ru_push_enabled
+                            ? "Distributing"
+                            : `On hold${p.ru_hold_reason ? ` — ${p.ru_hold_reason}` : ""}`}
                         </Label>
                       </div>
                     </TableCell>

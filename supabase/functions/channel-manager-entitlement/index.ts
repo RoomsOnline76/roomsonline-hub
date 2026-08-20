@@ -1908,7 +1908,13 @@ Deno.serve(async (req) => {
         } else {
         await admin
           .from("properties")
-          .update({ ru_archived: false, ru_archived_at: null, ru_push_enabled: true })
+          .update({
+            ru_archived: false,
+            ru_archived_at: null,
+            ru_push_enabled: true,
+            ru_hold_reason: null,
+            ru_hold_set_at: null,
+          })
           .eq("id", unit.property_id);
 
         if (unitStatus !== "ru_failed") {
@@ -2065,8 +2071,10 @@ Deno.serve(async (req) => {
         .update({
           ru_archived: archive,
           ru_archived_at: archive ? new Date().toISOString() : null,
-          // Archiving stops further ARI pushes; re-activating resumes them.
+          // Archiving is an explicit hold on distribution; re-activating lifts it.
           ru_push_enabled: !archive,
+          ru_hold_reason: archive ? "Listing archived at the Channel Manager" : null,
+          ru_hold_set_at: archive ? new Date().toISOString() : null,
 
         })
         .eq("id", p.id);

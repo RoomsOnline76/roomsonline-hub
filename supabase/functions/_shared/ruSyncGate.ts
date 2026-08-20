@@ -2,14 +2,19 @@
  * Operational RU push/pull gate.
  *
  * Dashboard edits (bookings, cancels, mods, blockouts) always write locally.
- * They must not reach Rentals United until the Channel wizard has a clear pass:
- * bound owner + key/secret, company details sent, push explicitly enabled,
- * and a live listing.
+ * A property is distributed as soon as it is genuinely connected: bound owner +
+ * key/secret, company details sent, and a live listing. There is no separate
+ * "switch pushes on" step — distribution is the default state.
+ *
+ * The only way a connected property stops syncing is an explicit hold, which
+ * carries a reason so the refusal always explains itself.
  */
 
 import { ruCompanyDetailsSatisfied } from "./ruCompanyDetails.ts";
 
 export const RU_WIZARD_SYNC_CODE = "WIZARD_SYNC_NOT_READY";
+/** Deliberate, recorded hold on channel distribution for this property. */
+export const RU_ON_HOLD_CODE = "RU_ON_HOLD";
 
 export interface RuSyncGateResult {
   allowed: boolean;
@@ -21,23 +26,28 @@ function deny(code: string, message: string): RuSyncGateResult {
   return { allowed: false, code, message };
 }
 
-/** True only when the Channel wizard has passed far enough for live RU sync. */
+/** True only when the property is connected and not on an explicit hold. */
 export async function evaluateRuOperationalSync(
   admin: { from: (table: string) => any },
   propertyId: string,
 ): Promise<RuSyncGateResult> {
   const { data: prop } = await admin
     .from("properties")
-    .select("id, ru_push_enabled, rentalsunited_property_id, owner_email")
+    .select(
+      "id, ru_push_enabled, ru_hold_reason, ru_hold_set_at, rentalsunited_property_id, owner_email",
+    )
     .eq("id", propertyId)
     .maybeSingle();
   if (!prop) return deny("no_property", "Property not found");
-  if (prop.ru_push_enabled !== true) {
+  if (prop.ru_push_enabled === false) {
+    const since = prop.ru_hold_set_at ? ` since ${String(prop.ru_hold_set_at).slice(0, 10)}` : "";
+    const why = prop.ru_hold_reason ? `: ${prop.ru_hold_reason}` : "";
     return deny(
-      RU_WIZARD_SYNC_CODE,
-      "RU push/pull is disabled until the Channel wizard is completed.",
+      RU_ON_HOLD_CODE,
+      `Channel distribution is on hold for this property${since}${why}.`,
     );
   }
+
 
   const { data: listed } = await admin
     .from("hostfully_room_types")
@@ -92,7 +102,7 @@ export async function evaluateRuOperationalSync(
   return { allowed: true };
 }
 
-/** OwnerIDs that have at least one property with an explicit wizard-passed push. */
+/** OwnerIDs with at least one connected property that is not on hold. */
 export async function ownerIdsWithOperationalSync(
   admin: { from: (table: string) => any },
 ): Promise<Set<string>> {

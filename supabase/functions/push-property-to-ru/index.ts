@@ -3647,7 +3647,7 @@ Deno.serve(async (req) => {
 
     const { data: property, error: propErr } = await supabase
       .from('properties')
-      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, ru_location_id, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived, ru_push_enabled')
+      .select('id, name, description, property_type, address, city, country, postal_code, latitude, longitude, max_guests, bedrooms, bathrooms, toilets, separate_kitchen, amenities, images, ru_image_tags, ru_location_id, rentalsunited_property_id, rentalsunited_building_id, owner_email, external_system, ru_archived, ru_push_enabled, ru_hold_reason, ru_hold_set_at')
       .eq('id', property_id)
       .single();
 
@@ -4019,6 +4019,15 @@ Deno.serve(async (req) => {
       );
     }
 
+
+    /** Explicit, recorded hold on distribution — distinct from an incomplete wizard. */
+    const distributionHold = (property as { ru_push_enabled?: boolean; ru_hold_reason?: string | null; ru_hold_set_at?: string | null }).ru_push_enabled === false
+      ? {
+          code: 'RU_ON_HOLD',
+          message: `Channel distribution is on hold for this property${(property as { ru_hold_set_at?: string | null }).ru_hold_set_at ? ` since ${String((property as { ru_hold_set_at?: string | null }).ru_hold_set_at).slice(0, 10)}` : ''}${(property as { ru_hold_reason?: string | null }).ru_hold_reason ? `: ${(property as { ru_hold_reason?: string | null }).ru_hold_reason}` : ''}. Local changes were saved and will sync when the hold is lifted.`,
+        }
+      : null;
+
     // ── ARI-ONLY REFRESH (action: 'refresh_ari') ───────────────────────────
 
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
@@ -4032,10 +4041,10 @@ Deno.serve(async (req) => {
             ? phaseBlockedResponse(phaseGate)
             : {
                 success: false,
-                error: {
+                error: distributionHold ?? {
                   code: 'WIZARD_SYNC_NOT_READY',
                   message:
-                    'RU push/pull is disabled until the Channel wizard is completed. Local availability was saved and will sync once the gates pass.',
+                    'The Channel Manager connection is not complete yet. Local availability was saved and will sync once the gates pass.',
                 },
               };
           try {
@@ -4222,9 +4231,9 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: false,
-            error: {
+            error: distributionHold ?? {
               code: 'WIZARD_SYNC_NOT_READY',
-              message: 'RU push/pull is disabled until the Channel wizard is completed.',
+              message: 'The Channel Manager connection is not complete yet.',
             },
           }),
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
