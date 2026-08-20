@@ -37,6 +37,8 @@ interface ModifyRequest {
     note?: string;
     /** Operator-set totals (also pushed to RU as ClientPrice / AlreadyPaid). */
     total_price?: number;
+    /** Deliberate overbooking: reason recorded on the stay, required by the DB availability guard. */
+    overbook_override_reason?: string;
     already_paid?: number;
     arrival_time?: string;
   };
@@ -738,6 +740,26 @@ Deno.serve(async (req) => {
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
 
+    /* Deliberate overbooking. Only admin / dev / fearless_leader may bypass the
+     * availability guard; anyone else has the reason stripped so the guard still
+     * refuses the clash. */
+    if (typeof modifications.overbook_override_reason === "string" && modifications.overbook_override_reason.trim()) {
+      const { data: roleRows } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      const privileged = (roleRows ?? []).some((r) =>
+        ["admin", "dev", "fearless_leader"].includes(String(r.role)),
+      );
+      if (privileged) {
+        updateData.overbook_override_reason = modifications.overbook_override_reason.trim().slice(0, 500);
+        updateData.overbook_override_by = userId;
+        updateData.overbook_override_at = new Date().toISOString();
+      } else {
+        console.warn("Overbook override ignored — user is not privileged:", userId);
+      }
+    }
+
     // Accommodation for the new stay: operator override wins, then the reprice, then
     // whatever the current room lines / stored breakdown say. This figure is the room
     // revenue only — extras are added on top below.
@@ -784,6 +806,16 @@ Deno.serve(async (req) => {
 
     if (updateError) {
       console.error("Local update failed:", updateError);
+      if (String(updateError.message || "").includes("UNIT_ALREADY_BOOKED")) {
+        return new Response(
+          JSON.stringify({
+            code: "UNIT_ALREADY_BOOKED",
+            success: false,
+            message: "Another reservation already holds this unit for the new dates.",
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       return new Response(
         JSON.stringify({
           code: "PARTIAL_SUCCESS",
