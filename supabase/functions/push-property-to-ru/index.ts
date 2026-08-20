@@ -3413,12 +3413,12 @@ Deno.serve(async (req) => {
           rate_deferred: allDeferred,
           retry_after_ms: allDeferred ? 60_000 : undefined,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
-          matches: listings.length > 0 && listings.every(l => l.matches),
+          matches: gatePassed,
           state_persisted: primaryVerification?.persisted === true,
           gate_passed: gatePassed,
           used_existing_verdict: usedExistingVerdict,
           success: gatePassed,
-          error: usedExistingVerdict ? null : reason,
+          error: gatePassed ? null : reason,
         });
 
 
