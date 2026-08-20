@@ -69,7 +69,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [busy, setBusy] = useState(false);
   /** What has actually been received — drives the refund / balance preview. */
   const [amountPaid, setAmountPaid] = useState<number | null>(null);
-  const [raiseRefund, setRaiseRefund] = useState(true);
+  const [overpaymentMode, setOverpaymentMode] = useState<"refund" | "credit" | "guest_choice">("guest_choice");
+
   const [requestBalance, setRequestBalance] = useState(true);
   const [datesOpen, setDatesOpen] = useState(false);
 
@@ -262,7 +263,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           modifications,
           // Guards against undoing a Channel Manager modification that landed while this was open.
           expected_updated_at: booking.updated_at ?? null,
-          settlement: { raise_refund: raiseRefund, request_balance: requestBalance },
+          settlement: {
+            raise_refund: overpaymentMode !== "credit",
+            request_balance: requestBalance,
+            overpayment_mode: overpaymentMode,
+          },
+
         },
       });
 
@@ -410,12 +416,37 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                     </span>
                     <span className="tabular-nums text-primary">{money(delta)}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1.5">
                     <Label className="text-[11px] font-normal text-muted-foreground leading-snug">
-                      Raise a pending refund for approval in the Refund Register
+                      What happens to the {money(delta)} overpayment
                     </Label>
-                    <Switch checked={raiseRefund} onCheckedChange={setRaiseRefund} />
+                    <div className="grid grid-cols-3 gap-1">
+                      {([
+                        { key: "guest_choice", label: "Guest chooses" },
+                        { key: "refund", label: "Refund" },
+                        { key: "credit", label: "On account" },
+                      ] as const).map((opt) => (
+                        <Button
+                          key={opt.key}
+                          type="button"
+                          size="sm"
+                          variant={overpaymentMode === opt.key ? "default" : "outline"}
+                          className="h-7 text-[11px]"
+                          onClick={() => setOverpaymentMode(opt.key)}
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {overpaymentMode === "credit"
+                        ? "Held as guest credit on the stay folio — nothing leaves the bank."
+                        : overpaymentMode === "refund"
+                        ? "Scheduled as a pending refund for approval in the Refund Register."
+                        : "The guest is emailed a link to take the refund or keep it on account."}
+                    </p>
                   </div>
+
                 </>
               ) : (
                 <>

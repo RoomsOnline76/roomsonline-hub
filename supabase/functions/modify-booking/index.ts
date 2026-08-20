@@ -42,7 +42,10 @@ interface ModifyRequest {
   settlement?: {
     raise_refund?: boolean;
     request_balance?: boolean;
+    /** refund = schedule for approval, credit = retain on account, guest_choice = let the guest pick. */
+    overpayment_mode?: "refund" | "credit" | "guest_choice";
   };
+
   /**
    * The booking's `updated_at` as the operator's screen last saw it. A channel modification
    * (an extended stay pulled from Rentals United) writes a newer row while a dialog is open;
@@ -699,18 +702,19 @@ Deno.serve(async (req) => {
       modifications.infants !== undefined;
 
     // S8c: Settle the money. The new total is compared with what was actually received, the
-    // difference is written to the booking, and it becomes either a pending refund for approval
-    // or an outstanding balance the guest can be asked to pay.
+    // difference is written to the booking (paid, balance, credit and payment status in one go),
+    // and the overpayment becomes a scheduled refund, credit retained on account, or a guest choice.
     const effectiveTotal = Number(updateData.total_price ?? booking.total_price ?? 0);
-    const settlementOutcome = priceAffected
-      ? await applyBookingSettlement(supabase, booking, {
-          oldTotal: Number(booking.total_price ?? 0),
-          newTotal: effectiveTotal,
-          raiseRefund: settlement?.raise_refund !== false,
-          requestBalance: settlement?.request_balance !== false,
-          reasonNote: modifications.note ?? null,
-        })
-      : null;
+    const settlementOutcome = await applyBookingSettlement(supabase, booking, {
+      oldTotal: Number(booking.total_price ?? 0),
+      newTotal: effectiveTotal,
+      raiseRefund: settlement?.raise_refund !== false,
+      requestBalance: settlement?.request_balance !== false,
+      reasonNote: modifications.note ?? null,
+      overpaymentMode: settlement?.overpayment_mode ??
+        (settlement?.raise_refund === false ? "credit" : "guest_choice"),
+    });
+
 
     // The booking row and the availability blocks are now correct, so the operator can be
     // released. Commission, the channel ARI delta, the sync-status write and the guest email
