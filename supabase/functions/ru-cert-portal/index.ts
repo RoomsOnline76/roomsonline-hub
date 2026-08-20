@@ -2309,7 +2309,35 @@ Deno.serve(async (req) => {
      *                          hard-wired off, so the background drain cannot start
      *                          RU availability/price pulls even if asked to.
      */
+    /**
+     * The live ARI probe can wait out RU's one-call-per-minute window several times over and
+     * blow past the 150s request lifetime, which surfaces to the operator as a 504
+     * IDLE_TIMEOUT and a blank screen. Give the probing score a hard budget and fall back to
+     * the local-only score (no channel calls) so the caller always gets a usable verdict.
+     */
+    const SCORE_PROBE_BUDGET_MS = 90_000;
+    const scorePropertyWithinBudget = async (
+      p: Parameters<typeof scoreProperty>[0],
+      probeAri: boolean,
+    ) => {
+      if (!probeAri) return await scoreProperty(p, { probe_ari: false });
+      const timeout = Symbol("score_timeout");
+      let timer: number | undefined;
+      const budget = new Promise<typeof timeout>((resolve) => {
+        timer = setTimeout(() => resolve(timeout), SCORE_PROBE_BUDGET_MS);
+      });
+      try {
+        const result = await Promise.race([scoreProperty(p, { probe_ari: true }), budget]);
+        if (result !== timeout) return result;
+        console.warn(`[scoreProperty] live probe exceeded ${SCORE_PROBE_BUDGET_MS}ms — scoring locally`);
+        return await scoreProperty(p, { probe_ari: false });
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    };
+
     const LEDGER_ACTIONS = [
+
       "ledger_seed",
       "ledger_get",
       "ledger_mark_stale",
@@ -2379,7 +2407,7 @@ Deno.serve(async (req) => {
         await seedLedger(admin, propertyId);
         // The drain is local-only by construction: it ignores any `probe_ari` in the body.
         const probeAri = action === "ledger_drain_recheck" ? false : body.probe_ari !== false;
-        const report = await scoreProperty(prop, { probe_ari: probeAri });
+        const report = await scorePropertyWithinBudget(prop, probeAri);
         const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
         const written = await writeLedgerRows(admin, propertyId, rows);
         logLedgerEvent({
@@ -2417,7 +2445,7 @@ Deno.serve(async (req) => {
       if (!prop) {
         return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
       }
-      const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+      const report = await scorePropertyWithinBudget(prop, body.probe_ari !== false);
       // Certification requires changes to reach the channel without operator action: any delta
       // parked behind the gate is re-fired in the background as soon as readiness reads clean.
       if (report && (report as { blocked?: boolean }).blocked === false) {
@@ -5310,7 +5338,7 @@ Deno.serve(async (req) => {
         ? false
         : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
-        readiness = await scoreProperty(prop as any, { probe_ari: probeAri }) as any;
+        readiness = await scorePropertyWithinBudget(prop as any, probeAri) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
