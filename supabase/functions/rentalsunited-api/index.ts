@@ -807,6 +807,22 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
 }
 
 /**
+ * Accept an unconfirmed RU request (StatusID 4 → 1). This is the counterpart of
+ * `Push_RejectRequest_RQ`: until a request is accepted the channel holds it as a lead and
+ * refuses every stay modification, so an operator who extends the stay of a held request has
+ * to accept it first or the change never reaches the channel.
+ */
+function buildConfirmRequestXml(creds: RUCredentials, reservationId: string, comments: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_ConfirmRequest_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>${comments ? `
+  <Comments>${escapeXml(comments)}</Comments>` : ''}
+</Push_ConfirmRequest_RQ>`;
+}
+
+
+/**
  * Cancel a confirmed RU reservation. `CancelTypeID` is mandatory:
  * 1 = cancelled by the property provider (us), 2 = cancelled by the guest.
  */
