@@ -133,15 +133,15 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   // A multi-unit stay must show this unit's own party, not the whole booking's.
   const paxText = isMultiUnit && unitLine ? paxLine(unitLine) : paxLine(booking);
 
-  // The arrival day is only occupied from mid-day and the departure day until
-  // mid-day, so the bar starts and ends on column midpoints. A stay clipped by
-  // the visible window keeps a square edge on that side.
+  // The arrival day fills the right 75% of its cell (left quarter stays clear)
+  // and the departure day only the left 25%. A stay clipped by the visible
+  // window keeps a square edge on that side.
   const barStartX = geometry.clippedStart
     ? geometry.startCol * colWidth
-    : (geometry.startCol + 0.5) * colWidth;
+    : (geometry.startCol + 0.25) * colWidth;
   const barEndX = geometry.clippedEnd
     ? (geometry.startCol + geometry.cols) * colWidth
-    : (geometry.startCol + geometry.cols + 0.5) * colWidth;
+    : (geometry.startCol + geometry.cols + 0.25) * colWidth;
 
 
   const handlePointerDown = useCallback(
