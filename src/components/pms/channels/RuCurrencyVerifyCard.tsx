@@ -22,6 +22,7 @@ interface ListingResult {
   ru_reported_iso: string | null;
   on_master_account?: boolean;
   matches: boolean;
+  deferred?: boolean;
   error?: string | null;
 }
 
@@ -32,6 +33,8 @@ interface VerifyResult {
   reason?: string | null;
   listings?: ListingResult[];
   notes?: string[];
+  rate_deferred?: boolean;
+  retry_after_ms?: number;
 }
 
 interface Props {
@@ -46,6 +49,8 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
   /** null while unknown, so the auto-verify below never fires against a verified property. */
   const [verified, setVerified] = useState<boolean | null>(null);
   const autoRan = useRef<string | null>(null);
+  const retryTimer = useRef<number | null>(null);
+  const [deferredUntil, setDeferredUntil] = useState<number | null>(null);
 
   const loadState = useCallback(async () => {
     const { data } = await supabase
@@ -86,6 +91,17 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
           if (!auto) toast.error("The channel has no listing to read a currency from yet");
         } else if (row.reason === "no_ru_listing_id") {
           if (!auto) toast.error("Publish the listing first — currency is read back from the live listing");
+        } else if (row.rate_deferred) {
+          // The channel allows one identical read per sliding minute. A second run fired
+          // straight after a successful one is HELD, not failed — say so and retry it.
+          const waitMs = Math.max(5_000, Number(row.retry_after_ms) || 60_000);
+          setDeferredUntil(Date.now() + waitMs);
+          if (!auto) toast.info("Already checked a moment ago — the channel limits repeat reads. Re-checking automatically in a minute.");
+          if (retryTimer.current) window.clearTimeout(retryTimer.current);
+          retryTimer.current = window.setTimeout(() => {
+            setDeferredUntil(null);
+            void verifyRef.current?.(true);
+          }, waitMs + 1_000);
         } else if (mismatched.length > 0) {
           toast.warning(
             `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,
@@ -111,6 +127,10 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
     [propertyId, queryClient, loadState],
   );
 
+  const verifyRef = useRef<typeof verify | null>(null);
+  verifyRef.current = verify;
+  useEffect(() => () => { if (retryTimer.current) window.clearTimeout(retryTimer.current); }, []);
+
   // Auto-verify once per property when nothing has been recorded — this is a read-back, so it is
   // safe to run unattended and it is what the operator would click anyway.
   useEffect(() => {
@@ -127,7 +147,9 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-2 text-xs font-medium">
           <Coins className="h-3.5 w-3.5 text-muted-foreground" />
-          {verified
+          {deferredUntil
+            ? "Checked a moment ago — the channel limits repeat reads, re-checking shortly…"
+            : verified
             ? "Published currency verified against the channel"
             : running
               ? "Reading the currency the channel holds…"
@@ -138,7 +160,7 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
           size="sm"
           variant={verified ? "outline" : "default"}
           className="h-7 text-xs"
-          disabled={running || disabled}
+          disabled={running || disabled || deferredUntil !== null}
           onClick={() => void verify(false)}
         >
           {running ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <RefreshCw className="mr-1 h-3 w-3" />}
@@ -152,15 +174,18 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
             <li key={l.ru_property_id} className="flex flex-wrap items-center gap-2 text-[11px]">
               {l.matches ? (
                 <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+              ) : l.deferred ? (
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
               ) : (
                 <TriangleAlert className="h-3 w-3 text-amber-600" />
               )}
               <span className="font-mono text-muted-foreground">{l.ru_property_id}</span>
               <Badge variant="outline" className="text-[10px]">
-                {l.ru_reported_iso ?? "no answer"}
+                {l.ru_reported_iso ?? (l.deferred ? "queued" : "no answer")}
               </Badge>
               {l.on_master_account && <span className="text-amber-600">listing sits on the master account</span>}
-              {l.error && !l.on_master_account && <span className="text-muted-foreground">{l.error}</span>}
+              {l.deferred && <span className="text-muted-foreground">waiting out the channel's one-read-per-minute limit</span>}
+              {l.error && !l.on_master_account && !l.deferred && <span className="text-muted-foreground">{l.error}</span>}
             </li>
           ))}
         </ul>
