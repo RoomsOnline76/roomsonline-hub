@@ -614,27 +614,40 @@ Deno.serve(async (req) => {
     }
 
 
-    // S6a: The channel is quoted the guest total (accommodation + mandatory extras), so the
-    // extras have to be priced for the new stay before the channel write goes out.
-    const preContext = await resolveBookingChargeContext(supabase, booking);
-    const preAccommodation = modifications.total_price !== undefined
+    /* S6a: One pricing context for the whole request.
+     *
+     * The charge context and the new accommodation figure were previously resolved twice — once to
+     * quote the channel and again to reconcile the folio — which is a second full read of charges,
+     * room lines and rate context for no new information. Resolve them once here and share them.
+     * The dry-run quote is only needed when a channel actually has to be told a price, so a
+     * ROL'OS-native edit skips it entirely and goes straight to the reconcile that has to run
+     * anyway. */
+    const chargeContext = await resolveBookingChargeContext(supabase, booking);
+    const newAccommodation = modifications.total_price !== undefined
       ? Number(modifications.total_price)
       : newTotalPrice !== null
         ? Number(newTotalPrice)
-        : preContext.accommodation;
-    const preQuote = await quoteBookingCharges(supabase, {
+        : chargeContext.accommodation;
+
+    const quoteInput = {
       bookingId: booking.id,
       propertyId: booking.property_id,
-      accommodation: preAccommodation,
+      accommodation: newAccommodation,
       checkIn: modifications.check_in_date || booking.check_in_date,
       checkOut: modifications.check_out_date || booking.check_out_date,
       adults: modifications.adults ?? booking.adults,
       children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
       infants: modifications.infants ?? booking.infants,
-      rooms: preContext.rooms,
-      roomTypeIds: preContext.roomTypeIds,
+      rooms: chargeContext.rooms,
+      roomTypeIds: chargeContext.roomTypeIds,
       currency: booking.currency,
-    });
+    };
+
+    // The channel is quoted the guest total (accommodation + mandatory extras), so the extras have
+    // to be priced before the channel write goes out — but only for reservations the channel owns.
+    const preQuote = isRuBooking(booking)
+      ? await quoteBookingCharges(supabase, quoteInput)
+      : null;
 
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
