@@ -385,7 +385,75 @@ Deno.serve(async (req) => {
     // S3: Determine PMS type and check capabilities
     const property = booking.property;
     const externalSystem = property?.external_system || "none";
-    const isRolNative = property?.is_rol_property || externalSystem === "none";
+
+    // S3b: Preview only — price the proposed stay (accommodation + extras + deposits) and
+    // return the breakdown without touching the booking, the folio or the channel.
+    if (body.quote_only) {
+      const previewPaxOrDates =
+        modifications.adults !== undefined ||
+        modifications.children !== undefined ||
+        modifications.teens !== undefined ||
+        modifications.check_in_date !== undefined ||
+        modifications.check_out_date !== undefined;
+
+      const context = await resolveBookingChargeContext(supabase, booking);
+      let accommodation = context.accommodation;
+      let repricedFrom: string | null = null;
+
+      if (modifications.total_price !== undefined) {
+        accommodation = Number(modifications.total_price);
+        repricedFrom = "operator";
+      } else if (isRolNative && previewPaxOrDates) {
+        const repriced = await recalculateRolPrice(supabase, booking, modifications);
+        if (repriced) {
+          accommodation = repriced.total;
+          repricedFrom = repriced.source;
+        }
+      }
+
+      const quote = await quoteBookingCharges(supabase, {
+        bookingId: booking.id,
+        propertyId: booking.property_id,
+        accommodation,
+        checkIn: modifications.check_in_date || booking.check_in_date,
+        checkOut: modifications.check_out_date || booking.check_out_date,
+        adults: modifications.adults ?? booking.adults,
+        children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+        infants: modifications.infants ?? booking.infants,
+        rooms: context.rooms,
+        roomTypeIds: context.roomTypeIds,
+        currency: booking.currency,
+      });
+
+      const paid = Number(booking.amount_paid ?? 0);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          quote: {
+            accommodation: quote.accommodation,
+            extras_total: quote.extrasTotal,
+            deposit_total: quote.depositTotal,
+            guest_total: quote.guestTotal,
+            nights: quote.nights,
+            currency: booking.currency || "ZAR",
+            repriced_from: repricedFrom,
+            amount_paid: paid,
+            balance_due: Math.round((quote.guestTotal - paid) * 100) / 100,
+            previous_total: Number(booking.total_price ?? 0),
+            lines: quote.lines.map((l) => ({
+              name: l.name,
+              category: l.category,
+              amount: l.amount,
+              breakdown: l.breakdown,
+              is_refundable: l.isRefundable,
+              counts_in_total: l.countsInGuestTotal,
+            })),
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
 
     // For external PMS, check if modification is supported
     if (!isRolNative && externalSystem !== "none") {
