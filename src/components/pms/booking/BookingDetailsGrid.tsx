@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange, Users2 } from "lucide-react";
+import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { ViewRatesDialog } from "./ViewRatesDialog";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
@@ -383,17 +384,20 @@ export function BookingDetailsGrid({
           <User className="h-3.5 w-3.5" />Guest Details
         </h4>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-[11px]">Arrival</Label>
-            <Input className="h-8" type="date" value={form.check_in_date} onChange={e => set("check_in_date", e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-[11px]">Departure</Label>
-            <Input className="h-8" type="date" value={form.check_out_date} onChange={e => set("check_out_date", e.target.value)} />
-          </div>
+        <div className="space-y-1">
+          <Label className="text-[11px]">Stay dates</Label>
+          <StayRangePicker
+            size="compact"
+            numberOfMonths={2}
+            minDate={null}
+            from={form.check_in_date}
+            to={form.check_out_date}
+            onChange={({ from, to }) =>
+              setForm(p => ({ ...p, check_in_date: from ?? "", check_out_date: to ?? "" }))
+            }
+            placeholder="Select arrival & departure"
+          />
         </div>
-        <p className="text-[11px] text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>
 
         <div>
           <Label className="text-[11px]">Guest Name</Label>

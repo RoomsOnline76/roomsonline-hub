@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -299,16 +300,16 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label className="text-xs">Stay dates</Label>
-            <Popover open={datesOpen} onOpenChange={setDatesOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedFrom && selectedTo
-                    ? `${format(selectedFrom, "d MMM yyyy")} → ${format(selectedTo, "d MMM yyyy")}`
-                    : "Pick the stay"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
+            <StayRangePicker
+              numberOfMonths={2}
+              minDate={null}
+              from={selectedFrom}
+              to={selectedTo}
+              onChange={({ fromDate, toDate }) => onRangeSelect({ from: fromDate, to: toDate } as any)}
+              placeholder="Pick the stay"
+              modifiers={{ originalStay: originalRangeDays }}
+              modifiersClassNames={{ originalStay: "ring-1 ring-inset ring-border" }}
+              header={
                 <div className="border-b px-3 py-2 space-y-1">
                   <p className="text-[11px] text-muted-foreground">
                     {originalFrom && originalTo
@@ -316,22 +317,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                       : "Original stay unavailable"}
                   </p>
                   <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <span className="inline-block h-2.5 w-2.5 rounded-sm bg-muted ring-1 ring-border" />
+                    <span className="inline-block h-2.5 w-2.5 rounded-sm ring-1 ring-border" />
                     Original stay
                   </p>
                 </div>
-                <Calendar
-                  mode="range"
-                  numberOfMonths={2}
-                  defaultMonth={selectedFrom}
-                  selected={selectedFrom ? { from: selectedFrom, to: selectedTo } : undefined}
-                  onSelect={onRangeSelect as any}
-                  modifiers={{ originalStay: originalRangeDays }}
-                  modifiersClassNames={{ originalStay: "bg-muted text-foreground rounded-sm" }}
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
+              }
+            />
             <div className="flex items-center gap-2">
               <p className={nights > 0 ? "text-[11px] text-muted-foreground" : "text-[11px] text-destructive"}>
                 {nights > 0 ? `${nights} night${nights === 1 ? "" : "s"}` : "Check-out must be after check-in"}

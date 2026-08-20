@@ -3,6 +3,7 @@ import { format, addDays, differenceInDays, eachDayOfInterval } from 'date-fns';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { StayRangePicker } from '@/components/ui/stay-range-picker';
 import {
   Dialog,
   DialogContent,
@@ -224,56 +225,22 @@ export function EditStayDatesDialog({
         </DialogHeader>
 
         <div className="py-4 space-y-4">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  'w-full justify-start text-left font-normal',
-                  !dateRange && 'text-muted-foreground'
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange?.from ? (
-                  dateRange.to ? (
-                    <>
-                      {format(dateRange.from, 'LLL dd, y')} –{' '}
-                      {format(dateRange.to, 'LLL dd, y')}
-                    </>
-                  ) : (
-                    format(dateRange.from, 'LLL dd, y')
-                  )
-                ) : (
-                  <span>Pick dates</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <div className="p-3">
-                {isLoadingAvailability && (
-                  <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    <span>Loading blocked dates…</span>
-                  </div>
-                )}
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={setDateRange}
-                  numberOfMonths={1}
-                  disabled={(date) => 
-                    date < new Date() || 
-                    unavailableDates.some(d => 
-                      d.toDateString() === date.toDateString()
-                    )
-                  }
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </div>
-            </PopoverContent>
-          </Popover>
+          <StayRangePicker
+            numberOfMonths={1}
+            from={dateRange?.from}
+            to={dateRange?.to}
+            onChange={({ fromDate, toDate }) => setDateRange(fromDate ? { from: fromDate, to: toDate } : undefined)}
+            placeholder="Pick dates"
+            disabledDays={unavailableDates}
+            header={
+              isLoadingAvailability ? (
+                <div className="flex items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Loading blocked dates…</span>
+                </div>
+              ) : null
+            }
+          />
 
           {nights > 0 && (
             <p className="text-sm text-muted-foreground text-center">

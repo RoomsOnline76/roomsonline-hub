@@ -301,9 +301,9 @@ export const SearchForm = () => {
         range_middle: (day) => isRangeMiddle(day),
       }}
       modifiersClassNames={{
-        range_start: "bg-primary text-primary-foreground rounded-l-md rounded-r-none",
-        range_end: "bg-primary text-primary-foreground rounded-r-md rounded-l-none",
-        range_middle: "bg-primary/30 text-foreground rounded-none",
+        range_start: "rol-stay-start rounded-l-md rounded-r-none",
+        range_end: "rol-stay-end rounded-r-md rounded-l-none",
+        range_middle: "rol-stay-middle rounded-none",
       }}
       className="p-3 pointer-events-auto"
       classNames={{
