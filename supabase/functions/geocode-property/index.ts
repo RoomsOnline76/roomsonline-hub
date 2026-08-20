@@ -161,7 +161,6 @@ Deno.serve(async (req) => {
 
     console.log(`Geocoded via ${provider}: ${latitude}, ${longitude}`);
 
-    console.log(`Geocoded to: ${latitude}, ${longitude}`);
 
     // Update property with new coordinates
     const { error: updateError } = await supabase
