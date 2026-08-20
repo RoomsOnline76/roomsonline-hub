@@ -773,31 +773,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Accommodation for the new stay: operator override wins, then the reprice, then
-    // whatever the current room lines / stored breakdown say. This figure is the room
-    // revenue only — extras are added on top below.
-    const currentContext = await resolveBookingChargeContext(supabase, booking);
-    const newAccommodation = modifications.total_price !== undefined
-      ? Number(modifications.total_price)
-      : newTotalPrice !== null
-        ? Number(newTotalPrice)
-        : currentContext.accommodation;
-
-    // Extras follow the stay: per-night / per-person / percentage charges are recomputed
-    // for the new dates and pax, and their folio lines corrected in place.
-    const chargeQuote = await reconcileBookingCharges(supabase, {
-      bookingId: booking_id,
-      propertyId: booking.property_id,
-      accommodation: newAccommodation,
-      checkIn: modifications.check_in_date || booking.check_in_date,
-      checkOut: modifications.check_out_date || booking.check_out_date,
-      adults: modifications.adults ?? booking.adults,
-      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
-      infants: modifications.infants ?? booking.infants,
-      rooms: currentContext.rooms,
-      roomTypeIds: currentContext.roomTypeIds,
-      currency: booking.currency,
-    });
+    /* Extras follow the stay: per-night / per-person / percentage charges are recomputed for the new
+     * dates and pax, and their folio lines corrected in place. Accommodation and the charge context
+     * were resolved once at S6a (operator override wins, then the reprice, then the current room
+     * lines) and are reused here rather than re-read. */
+    const chargeQuote = await reconcileBookingCharges(supabase, quoteInput);
 
     // One guest total: accommodation plus mandatory extras. Refundable deposits are
     // itemised separately and never folded into the total.
