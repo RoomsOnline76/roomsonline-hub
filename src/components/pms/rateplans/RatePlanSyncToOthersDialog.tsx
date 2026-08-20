@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { pushRatePlanRates } from "@/lib/channelSavePush";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -54,13 +55,21 @@ export function RatePlanSyncToOthersDialog({
       toast.error(failure);
       return;
     }
-    const results = (data as { results?: { error?: string }[] } | null)?.results ?? [];
+    const results = (data as { results?: { error?: string; property_id?: string }[] } | null)?.results ?? [];
     const failed = results.filter((r) => r.error);
     if (failed.length > 0) {
       toast.warning(`Copied to ${results.length - failed.length} of ${results.length} properties`);
     } else {
       toast.success(`"${ratePlanName}" copied to ${results.length} propert${results.length === 1 ? "y" : "ies"}`);
     }
+    // Each target property now sells on new prices — push and confirm one rates delta each.
+    const pushed = results.filter((r) => !r.error).map((r) => r.property_id).filter(Boolean) as string[];
+    const targets = pushed.length > 0 ? pushed : selected;
+    void (async () => {
+      for (const targetId of targets) {
+        await pushRatePlanRates(targetId, "rate_plan_copy", { label: "Copied rates" });
+      }
+    })();
     setSelected([]);
     onOpenChange(false);
     onCopied();

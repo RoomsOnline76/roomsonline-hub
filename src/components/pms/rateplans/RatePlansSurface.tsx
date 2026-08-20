@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { queueChannelRatesSync } from "@/lib/channelContentSync";
+import { pushRatePlanRates } from "@/lib/channelSavePush";
 import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
 import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
@@ -243,7 +243,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         return;
       }
       // Activating or retiring a plan changes the sellable price at the channel.
-      void queueChannelRatesSync(plan.property_id, "rate_plan_toggle");
+      void pushRatePlanRates(plan.property_id, "rate_plan_toggle", { label: "Rates" });
       fetchData();
     };
 
@@ -261,7 +261,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         return;
       }
       toast.success(`Rate plan "${plan.name}" deleted`);
-      void queueChannelRatesSync(plan.property_id, "rate_plan_delete");
+      void pushRatePlanRates(plan.property_id, "rate_plan_delete", { label: "Rates" });
       fetchData();
     };
 

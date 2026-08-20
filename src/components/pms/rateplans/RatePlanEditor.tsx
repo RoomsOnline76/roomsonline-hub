@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { queueChannelRatesSync } from "@/lib/channelContentSync";
+import { pushRatePlanRates } from "@/lib/channelSavePush";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -396,10 +396,10 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
-    // Prices changed — push rates & availability to the Channel Manager. Fire-and-forget:
-    // a channel failure never turns into a save failure.
-    void queueChannelRatesSync(propertyId, ratePlanId ? "rate_plan_update" : "rate_plan_create").then((result) => {
-      if (result?.queued && !result?.error) toast.info("Rates queued for the Channel Manager");
+    // Prices changed — push rates & availability to the Channel Manager and report the
+    // confirmed outcome. Fire-and-forget: a channel failure never fails the save.
+    void pushRatePlanRates(propertyId, ratePlanId ? "rate_plan_update" : "rate_plan_create", {
+      label: "Rates",
     });
     setLegacyRefresh((n) => n + 1);
     onSaved();
