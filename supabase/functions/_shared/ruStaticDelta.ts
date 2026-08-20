@@ -537,8 +537,28 @@ async function pushStaticContent(
         continue;
       }
       if (data?.success === true) {
+        // The function reports transport success even when individual listings were rejected
+        // (e.g. RU status 310 "Cannot update property location because there are existing
+        // reservations"). A content delta that only landed on some units is NOT delivered:
+        // surface the per-unit rejections so the operator is never told the channel has the
+        // new value when it does not.
+        const rejected = units
+          .filter((u): u is { name?: string; error?: string; success?: boolean } =>
+            !!u && typeof u === 'object' && (u as { success?: boolean }).success === false)
+          .map((u) => `${u.name ?? 'unit'} — ${u.error ?? 'rejected by the channel'}`);
+        if (rejected.length > 0) {
+          return {
+            success: false,
+            errorMessage: `The channel rejected ${rejected.length} listing(s): ${Array.from(new Set(rejected)).join('; ')}`,
+            errorCode: 'RU_UNIT_REJECTED',
+            blockers: Array.from(new Set(rejected)),
+            chunks: chunk,
+            units,
+          };
+        }
         return { success: true, errorMessage: null, errorCode: null, blockers: [], chunks: chunk, units };
       }
+
       const blockers = Array.isArray(data?.blockers)
         ? (data.blockers as unknown[]).map((b) => String(b))
         : Array.isArray(data?.gaps)
