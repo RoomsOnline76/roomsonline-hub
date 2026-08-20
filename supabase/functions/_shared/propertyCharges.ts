@@ -485,3 +485,49 @@ export function chargesBreakdownSnapshot(quote: ChargeQuote): Record<string, unk
     })),
   };
 }
+
+export interface BookingChargeStayContext {
+  accommodation: number;
+  rooms: number;
+  roomTypeIds: string[];
+}
+
+/**
+ * Resolve the accommodation base and room scope for a booking.
+ *
+ * Accommodation is the room revenue only — never the guest total. Preference
+ * order: active room lines, then the last stored breakdown, then total_price
+ * minus the extras that breakdown recorded.
+ */
+// deno-lint-ignore no-explicit-any
+export async function resolveBookingChargeContext(supabase: any, booking: any): Promise<BookingChargeStayContext> {
+  const { data: lines } = await supabase
+    .from("rolos_booking_rooms")
+    .select("room_type_id, rate_charged, status")
+    .eq("booking_id", booking.id);
+
+  const active = (lines || []).filter((l: PropertyChargeRow) => (l.status ?? "active") === "active");
+  const lineTotal = active.reduce((s: number, l: PropertyChargeRow) => s + (Number(l.rate_charged) || 0), 0);
+
+  const snapshot = (booking.charges_breakdown || {}) as Record<string, unknown>;
+  const snapAccommodation = Number(snapshot.accommodation) || 0;
+  const snapExtras = Number(snapshot.extras_total) || 0;
+  const total = Number(booking.total_price) || 0;
+
+  const accommodation = lineTotal > 0
+    ? lineTotal
+    : snapAccommodation > 0
+      ? snapAccommodation
+      : round2(Math.max(0, total - snapExtras));
+
+  const roomTypeIds = [
+    ...active.map((l: PropertyChargeRow) => l.room_type_id),
+    booking.room_type_id,
+  ].filter((id: unknown): id is string => typeof id === "string" && !!id);
+
+  return {
+    accommodation: round2(accommodation),
+    rooms: Math.max(1, active.length || (booking.rolos_room_ids?.length ?? 0) || 1),
+    roomTypeIds: [...new Set(roomTypeIds)],
+  };
+}

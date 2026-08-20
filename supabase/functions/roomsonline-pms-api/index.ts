@@ -23,6 +23,7 @@ import { normalizeRevenueStream, resolveBreakfastConfig, postBookingStreamSplit 
 import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
 import { normaliseEmail, normaliseGuestName, rebuildGuestStats } from "../_shared/guestStats.ts";
+import { reconcileBookingCharges, resolveBookingChargeContext, chargesBreakdownSnapshot } from "../_shared/propertyCharges.ts";
 
 // ============================================================================
 // CORS & CONSTANTS
