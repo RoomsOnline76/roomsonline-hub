@@ -123,8 +123,12 @@ export interface RuUnitValidation {
   has_check_in_from?: boolean;
   has_check_out_until?: boolean;
   check_in_from?: string | null;
+  check_in_to?: string | null;
   check_out_until?: string | null;
   check_in_times_are_default?: boolean;
+  check_in_times_source?: string | null;
+  check_in_times_violation?: string | null;
+  check_in_times_valid?: boolean;
   [key: string]: unknown;
 }
 
