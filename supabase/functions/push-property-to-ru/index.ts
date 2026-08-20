@@ -1551,7 +1551,7 @@ function buildUnitPayload(
 }
 
 // Legacy single-property payload builder (kept for properties with no room types)
-function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number) {
+function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number, charges?: RuChargeRow[] | null) {
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
   const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
