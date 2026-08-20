@@ -482,6 +482,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           modifications,
           // Guards against undoing a Channel Manager modification that landed while this was open.
           expected_updated_at: booking.updated_at ?? null,
+          expected_check_in_date: booking.check_in_date,
+          expected_check_out_date: booking.check_out_date,
           settlement: {
             raise_refund: overpaymentMode !== "credit",
             request_balance: requestBalance,

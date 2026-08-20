@@ -376,8 +376,23 @@ Deno.serve(async (req) => {
     // S1b: Refuse a stale save. The channel writes modifications straight into the booking, so a
     // form opened before that write would push the old dates back and leave the extra nights
     // blocked without the stay covering them. The operator reloads and decides again.
+    //
+    // Only the STAY the form was built on makes a save stale — `updated_at` also moves for
+    // harmless background writes (sync status, channel acknowledgements), and treating those as
+    // conflicts made every second edit fail with a 409.
+    const expectedIn = body.expected_check_in_date ? String(body.expected_check_in_date) : null;
+    const expectedOut = body.expected_check_out_date ? String(body.expected_check_out_date) : null;
     const expected = body.expected_updated_at ? String(body.expected_updated_at) : null;
-    if (expected && booking.updated_at && new Date(booking.updated_at).getTime() > new Date(expected).getTime() + 1000) {
+    const staleDates =
+      !!expectedIn &&
+      !!expectedOut &&
+      (String(booking.check_in_date) !== expectedIn || String(booking.check_out_date) !== expectedOut);
+    const staleTimestamp =
+      !expectedIn &&
+      !!expected &&
+      !!booking.updated_at &&
+      new Date(booking.updated_at).getTime() > new Date(expected).getTime() + 1000;
+    if (staleDates || staleTimestamp) {
       return new Response(
         JSON.stringify({
           code: "STALE_BOOKING",

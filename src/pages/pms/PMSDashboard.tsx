@@ -1789,6 +1789,8 @@ export default function PMSDashboard() {
             booking_id: booking.id,
             modifications: { check_in_date: checkIn, check_out_date: checkOut },
             expected_updated_at: (booking as { updated_at?: string | null }).updated_at ?? null,
+            expected_check_in_date: booking.check_in_date,
+            expected_check_out_date: booking.check_out_date,
           },
         });
         if (error) throw new Error(await extractFunctionError(error, "Could not move the reservation"));
@@ -3494,6 +3496,8 @@ function BookingDetail({
             booking_id: booking.id,
             modifications: stayModifications,
             expected_updated_at: booking.updated_at ?? null,
+            expected_check_in_date: booking.check_in_date,
+            expected_check_out_date: booking.check_out_date,
           },
         });
         if (error) throw new Error(error.message || "The channel refused this change");
