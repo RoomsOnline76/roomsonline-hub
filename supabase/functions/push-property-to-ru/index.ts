@@ -4141,9 +4141,11 @@ Deno.serve(async (req) => {
 
     const phaseGate = await evaluatePhases(supabase, property as any, { readinessGaps: precomputedGaps });
 
-    // Multi-tenant isolation: a missing OwnerID is always a HARD error.
+    // Multi-tenant isolation: a missing OwnerID is always a HARD error for a real push.
+    // A dry run writes nothing to RU — it must still score content readiness so an
+    // unbound property (Phase 1 outstanding) can prove Phase 2 content is complete.
     const ruOwnerId = phaseGate.ru_owner_id;
-    if (!ruOwnerId || ruOwnerId <= 0) {
+    if ((!ruOwnerId || ruOwnerId <= 0) && dry_run !== true) {
       return new Response(
           JSON.stringify({
             success: false,
@@ -4157,6 +4159,7 @@ Deno.serve(async (req) => {
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         );
     }
+
 
     const { account: ownerAccount } = await findOwnerAccount(supabase, property_id, property.owner_email, phaseGate.portfolio_id);
     const childUsername = ownerAccount?.ru_login_email?.trim() ?? '';
@@ -4215,11 +4218,12 @@ Deno.serve(async (req) => {
     }
 
 
-    if (isMultiUnit && useBuilding && !hasChildKeys && (!childUsername || !childPassword)) {
+    if (isMultiUnit && useBuilding && dry_run !== true && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
       // authenticates, so a parent fallback would create it on our master account. Hard stop.
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
 
     // ── READ-BACK ONLY (action: 'verify_calendar') ─────────────────────────
     // Authoritative per-day view of what the channel actually holds for each live unit, read
