@@ -193,7 +193,9 @@ interface RUAvailabilityEntry {
   units: number;
   min_stay?: number;
   max_stay?: number;
-  changeover?: number; // RU <C>: 1=both (default), 2=checkin-only, 3=checkout-only, 4=none
+  /** ROL'OS internal changeover code (0=none, 1=arrival only, 2=departure only, 3=both).
+   *  Translated to the wire scale (1..4) by `toWireChangeover` at XML build time. */
+  changeover?: number;
 }
 
 interface RUExtraGuestPrice {
