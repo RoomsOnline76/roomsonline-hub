@@ -1696,7 +1696,11 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
 
   return {
     name: property.name,
-    property_type_id: objectTypeId,
+    // <PropertyTypeID> = bedroom layout; listing kind travels as <ObjectTypeID>.
+    property_type_id: resolveRuLayoutTypeId(
+      (primaryRoom as { bedrooms?: unknown } | null)?.bedrooms ?? (property as { bedrooms?: unknown }).bedrooms,
+    ),
+    listing_type_id: objectTypeId,
     object_type_is_default: objectTypeIsDefault,
     object_type_source: authoredSingleType,
     can_sleep_max: maxGuests,
