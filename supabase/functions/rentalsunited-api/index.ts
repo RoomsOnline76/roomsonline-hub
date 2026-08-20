@@ -807,6 +807,25 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
 }
 
 /**
+ * Accept an unconfirmed RU request (StatusID 4 → 1). This is the counterpart of
+ * `Push_RejectRequest_RQ`: until a request is accepted the channel holds it as a lead and
+ * refuses every stay modification, so an operator who extends the stay of a held request has
+ * to accept it first or the change never reaches the channel.
+ *
+ * Verb verified live against the account on 2026-08-20: `Push_ConfirmRequest_RQ` answers
+ * "The XML contains not implemented method"; `Push_ConfirmReservation_RQ` is the implemented
+ * one (it answered Status 28 "Reservation does not exist" for a probe id).
+ */
+function buildConfirmRequestXml(creds: RUCredentials, reservationId: string, _comments: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<Push_ConfirmReservation_RQ>
+  ${buildAuthXml(creds)}
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Push_ConfirmReservation_RQ>`;
+}
+
+
+/**
  * Cancel a confirmed RU reservation. `CancelTypeID` is mandatory:
  * 1 = cancelled by the property provider (us), 2 = cancelled by the guest.
  */
@@ -1898,6 +1917,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'get_reservation_by_id',
   'get_leads',
   'reject_request',
+  'confirm_request',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -1937,6 +1957,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'get_reservation_by_id',
   'get_leads',
   'reject_request',
+  'confirm_request',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
@@ -1955,6 +1976,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
  */
 const RU_VERB_BY_ACTION: Record<string, string> = {
   reject_request: 'Push_RejectRequest_RQ',
+  confirm_request: 'Push_ConfirmReservation_RQ',
   cancel_reservation: 'Push_CancelReservation_RQ',
   modify_stay: 'Push_ModifyStay_RQ',
   push_confirmed_reservation: 'Push_PutConfirmedReservationMulti_RQ',
@@ -4294,6 +4316,34 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactRequestXml, status, 'reject_request', response));
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
+    // ── confirm_request (accept a held request so stay modifications become possible) ──
+    if (action === 'confirm_request') {
+      const reservationId = body.reservation_id != null ? String(body.reservation_id).trim() : '';
+      if (!reservationId) {
+        return await abortReservationVerb('missing_reservation_id', 'reservation_id is required');
+      }
+      const xml = buildConfirmRequestXml(scopedCreds, reservationId, body.comments ?? '');
+      const compactRequestXml = compactXml(xml);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      console.log(`[rentalsunited-api] confirm_request (auth=${authMode}) response: ${response.substring(0, 500)}`);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_CONFIRM_REQUEST_FAILED',
+            message: status.message ||
+              'The channel did not accept this request. Accept it in the channel portal, then resend the change.',
+            ru_status_id: status.id,
+            diagnostics: buildDiagnostics(compactRequestXml, status, 'confirm_request', response),
+          },
+        });
+      }
+      return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
+    }
+
+
 
     // ── cancel_reservation (confirmed reservations; also a reject fallback) ──
     if (action === 'cancel_reservation') {

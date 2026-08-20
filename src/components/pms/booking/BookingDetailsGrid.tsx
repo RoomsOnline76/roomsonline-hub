@@ -16,6 +16,8 @@ import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
+import { extractFunctionError } from "@/lib/functionError";
+
 
 
 export interface BookingDetailsGridBooking {
@@ -291,6 +293,48 @@ export function BookingDetailsGrid({
 
     const assignedRoomIds = lines.map(l => l.room_id).filter(Boolean);
 
+    // A stay length or occupancy change has to travel through the modification service: that is
+    // the only path that reaches the channel (accepting a held request first when needed) and
+    // moves the calendar blockout. Writing those fields straight to the record used to leave the
+    // channel holding the original dates and pax while the local record said otherwise.
+    const datesChanged =
+      form.check_in_date !== booking.check_in_date || form.check_out_date !== booking.check_out_date;
+    const paxChanged =
+      occ.adults !== (booking.adults ?? 0) ||
+      occ.children !== (booking.children ?? 0) ||
+      occ.teens !== (booking.teens ?? 0) ||
+      occ.infants !== (booking.infants ?? 0);
+    const routedToService = datesChanged || paxChanged;
+
+    if (routedToService) {
+      const modifications: Record<string, unknown> = {
+        adults: occ.adults || booking.adults || 1,
+        children: occ.children,
+        teens: occ.teens,
+        infants: occ.infants,
+      };
+      if (datesChanged) {
+        modifications.check_in_date = form.check_in_date;
+        modifications.check_out_date = form.check_out_date;
+      }
+      if (accommodation !== Number(booking.total_price ?? 0)) modifications.total_price = accommodation;
+
+      const { data, error } = await supabase.functions.invoke("modify-booking", {
+        body: { booking_id: booking.id, modifications },
+      });
+      if (error) {
+        setSaving(false);
+        toast.error(await extractFunctionError(error, "Could not apply the stay change"));
+        return;
+      }
+      if (data && data.success === false) {
+        setSaving(false);
+        toast.error(data.message || "Could not apply the stay change");
+        return;
+      }
+      if (data?.ru_request_accepted) toast.success("Channel request accepted before the change was applied");
+    }
+
     const { error } = await supabase.from("bookings").update({
       guest_name: form.guest_name,
       guest_email: form.guest_email,
@@ -301,18 +345,23 @@ export function BookingDetailsGrid({
       payment_reference: form.payment_reference || null,
       internal_notes: form.internal_notes || null,
       special_requests: form.special_requests || null,
-      check_in_date: form.check_in_date,
-      check_out_date: form.check_out_date,
       status: form.status,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
-      total_price: accommodation,
       deposit_amount: form.deposit_amount ? deposit : null,
-      adults: occ.adults || booking.adults || 1,
-      children: occ.children,
-      teens: occ.teens,
-      infants: occ.infants,
       rolos_room_ids: assignedRoomIds.length ? assignedRoomIds : null,
+      // Dates, occupancy and the repriced total belong to the modification service when it ran.
+      ...(routedToService
+        ? {}
+        : {
+          check_in_date: form.check_in_date,
+          check_out_date: form.check_out_date,
+          total_price: accommodation,
+          adults: occ.adults || booking.adults || 1,
+          children: occ.children,
+          teens: occ.teens,
+          infants: occ.infants,
+        }),
       booker_is_guest: crm.booker_is_guest,
       booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
       booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
@@ -327,6 +376,7 @@ export function BookingDetailsGrid({
       invoice_to_address: invoiceTo.invoice_to_address || null,
 
     } as never).eq("id", booking.id);
+
 
     if (error) {
       setSaving(false);

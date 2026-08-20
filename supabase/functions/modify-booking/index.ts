@@ -534,6 +534,7 @@ Deno.serve(async (req) => {
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
     let ruModified = false;
+    let ruRequestAccepted = false;
     if (isRuBooking(booking)) {
       const guests =
         (modifications.adults ?? booking.adults ?? 0) +
@@ -574,6 +575,7 @@ Deno.serve(async (req) => {
       }
 
       ruModified = true;
+      ruRequestAccepted = ruResult.confirmedLead === true;
       await supabase.from("booking_sync_status").upsert(
         {
           booking_id,
@@ -796,10 +798,13 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         message: ruModified
-          ? "Booking modified and pushed to the Channel Manager"
+          ? (ruRequestAccepted
+            ? "Request accepted at the Channel Manager and the change pushed"
+            : "Booking modified and pushed to the Channel Manager")
           : "Booking modified successfully",
         booking_id,
         ru_modified: ruModified,
+        ru_request_accepted: ruRequestAccepted,
         new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
         settlement: settlementOutcome,
