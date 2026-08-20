@@ -3033,7 +3033,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
                       <Fragment key={b.id}>
-<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                        <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
@@ -3083,7 +3083,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
                       <Fragment key={b.id}>
-<button
+                        <button
                         onClick={() => onSelectBooking(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
                         title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
@@ -3138,7 +3138,7 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
                 <Fragment key={b.id}>
-<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                  <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
@@ -3250,7 +3250,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const showLabel = dateStr === getBookingLabelDate(b, dates);
                     return (
                       <Fragment key={b.id}>
-<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                        <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
@@ -3310,7 +3310,7 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
                 <Fragment key={b.id}>
-<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                  <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
