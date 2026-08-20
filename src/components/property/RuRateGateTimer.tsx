@@ -43,6 +43,7 @@ interface RuRateGateTimerProps {
 
 export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: RuRateGateTimerProps) {
   const [gates, setGates] = useState<GateState[]>([]);
+  const [linked, setLinked] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const mounted = useRef(true);
 
@@ -52,6 +53,23 @@ export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: 
       mounted.current = false;
     };
   }, []);
+
+  // The pill only belongs on listings that actually distribute through the channel manager.
+  useEffect(() => {
+    if (!propertyId || !enabled) {
+      setLinked(false);
+      return;
+    }
+    void (async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("ru_push_enabled, ru_archived")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (!mounted.current) return;
+      setLinked(data?.ru_push_enabled === true && data?.ru_archived !== true);
+    })();
+  }, [propertyId, enabled]);
 
   const load = useCallback(async () => {
     if (!propertyId || !enabled) {
