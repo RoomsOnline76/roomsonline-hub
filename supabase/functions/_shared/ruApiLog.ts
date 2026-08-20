@@ -103,6 +103,21 @@ function extractStatus(xml: string | null | undefined): { id: string | null; mes
   };
 }
 
+/**
+ * Channel StatusIDs that mean "the channel accepted this".
+ * 0 = success, 5 = partial success (per-range notifs, documented for Push_PutPrices_RQ).
+ * Everything else is a refusal — "Property does not exist" (56), "You can only modify stay in
+ * confirmed reservation" (106) and friends arrive over a perfectly healthy HTTP 200, so judging the
+ * exchange by transport alone paints real refusals green in the monitor.
+ */
+const RU_ACCEPTED_STATUS_IDS = new Set(['0', '5']);
+
+/** True when the channel answered with a refusal status, whatever the HTTP layer thought. */
+function channelRefused(statusId: string | null): boolean {
+  if (statusId === null) return false;
+  return !RU_ACCEPTED_STATUS_IDS.has(String(statusId).trim());
+}
+
 const asText = (value: unknown): string | null =>
   value === null || value === undefined || value === '' ? null : String(value);
 
