@@ -1735,9 +1735,11 @@ export default function PMSDashboard() {
     [roomTypes, roomsByType]
   );
 
-  const handleRuleCreated = () => {
+  /** Any restriction add/edit/remove — refresh every view that draws restrictions at once. */
+  const handleRuleCreated = useCallback(() => {
+    invalidateRestrictionQueries(queryClient);
     refetchOverrides();
-  };
+  }, [queryClient, refetchOverrides]);
 
   /** Right-click a hatched night → open its restriction span for editing. */
   const openBlockEditor = useCallback(
