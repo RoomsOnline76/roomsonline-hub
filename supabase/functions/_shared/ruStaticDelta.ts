@@ -8,8 +8,8 @@ import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts'
 // alone does not satisfy the White-Label certification requirement.
 //
 // Any ROLOS surface that saves static content calls `queueRuStaticDelta`, which:
-//   - skips properties that are not RU-connected (building id OR any active unit id) and
-//     properties with pushes paused (`ru_push_enabled = false`),
+//   - skips properties that are not RU-connected (building id OR any active unit id), and parks
+//     changes for properties on an explicit distribution hold so they land when it is lifted,
 //   - fingerprints the static content and skips the push when nothing RU cares about changed
 //     (so a no-op save costs nothing against RU's per-owner write window),
 //   - debounces per property so a burst of saves becomes one push,
@@ -31,7 +31,7 @@ export const RU_STATIC_DELTA_DEBOUNCE_MS = 10 * 1000;
 export const RU_STATIC_DELTA_ACTION = 'static_delta';
 
 /**
- * ru_sync_runs.action used for deltas that deliberately did nothing (not listed, paused,
+ * ru_sync_runs.action used for deltas that deliberately did nothing (not listed,
  * unchanged fingerprint). Logged under a separate action so it can never be mistaken for a
  * delivered push by the fingerprint/debounce lookup, while still answering the operator
  * question "did my save reach the channel?".
@@ -46,7 +46,13 @@ export const RU_STATIC_DELTA_SKIP_ACTION = 'static_delta_skipped';
 export const RU_STATIC_DELTA_PENDING_ACTION = 'static_delta_pending';
 
 /** Gate refusals that mean "correct content, not yet allowed" rather than a hard failure. */
-export const RU_GATE_ERROR_CODES = ['PHASE_BLOCKED', 'READINESS_UNVERIFIED', 'READINESS_FAILED', RU_WIZARD_SYNC_CODE];
+export const RU_GATE_ERROR_CODES = [
+  'PHASE_BLOCKED',
+  'READINESS_UNVERIFIED',
+  'READINESS_FAILED',
+  RU_WIZARD_SYNC_CODE,
+  RU_ON_HOLD_CODE,
+];
 
 /** A multi-unit property is pushed in resumable chunks; walk at most this many chunks. */
 const RU_STATIC_DELTA_MAX_CHUNKS = 12;
@@ -276,7 +282,7 @@ export async function queueRuStaticDelta(
     // this change to the channel: park it so the automatic re-arm delivers it the moment the gate
     // clears. Only a genuinely undistributed listing is a plain skip.
     if (!snapshot.pushEnabled && snapshot.listed) {
-      const message = snapshot.gateMessage ?? 'The Channel Manager is not enabled for this property yet.';
+      const message = snapshot.gateMessage ?? 'The Channel Manager connection is not complete for this property yet.';
       await logPending(supabase, propertyId, trigger, snapshot.gateCode, message);
       return { queued: false, reason: 'gate_pending', error: message, blockers: [message] };
     }
