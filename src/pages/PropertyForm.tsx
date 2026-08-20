@@ -3264,6 +3264,19 @@ export default function PropertyForm({
 
       schema.parse(formData);
 
+      // The channel manager rejects a listing whose check-out is later than its check-in
+      // "from" time, so an invalid trio must never be saved and pushed.
+      const stayTimeIssues = validateStayTimes(formData);
+      if (stayTimeIssues.length > 0) {
+        toast({
+          title: "Check-in / check-out times invalid",
+          description: stayTimeIssues.map((i) => i.message).join(" "),
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       const nextOwnerEmail = String(formData.owner_email || "").trim().toLowerCase();
       const prevOwnerEmail = persistedOwnerEmailRef.current;
       if (isEditMode && propertyId && prevOwnerEmail !== nextOwnerEmail) {
