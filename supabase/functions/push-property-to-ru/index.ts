@@ -1353,6 +1353,7 @@ function buildUnitPayload(
   locationId: number,
   buildingId?: number,
   currencyId?: number,
+  charges?: RuChargeRow[] | null,
 ) {
   const amenities = property.amenities || {};
   const authoredUnitType = unit.property_type || property.property_type || null;
@@ -1389,8 +1390,11 @@ function buildUnitPayload(
   const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
   const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
-  const securityDeposit = banking.security_deposit || unit.security_deposit || undefined;
-  const cleaningPrice = toFiniteNumber(unit.cleaning_fee) ?? 0;
+  // Charges tab is the only authority for the deposit: no active deposit charge that applies
+  // to this unit means the listing carries no security deposit at all.
+  const securityDeposit = resolveRuSecurityDeposit(charges, unit.id);
+  const cleaningPrice = resolveRuCleaningFee(charges, unit.id) ?? toFiniteNumber(unit.cleaning_fee) ?? 0;
+
 
   // Use unit images first, fall back to property images
   let images = mapImages(unit.images as unknown[] | null, (unit as any).ru_image_tags);
