@@ -4014,33 +4014,51 @@ export default function PropertyForm({
         }
       }
 
-      // Trigger geocoding if coordinates are missing and we have address data
+      // Geocode BEFORE the channel delta, not after it.
+      // The readiness gate blocks a static push while latitude/longitude are empty, so a
+      // fire-and-forget geocode meant every address edit was parked and only delivered later
+      // by the re-arm. Await it on a short budget: if it is slow or fails, the save proceeds
+      // exactly as before and the delta parks as it used to.
       if ((!latitude || !longitude) && formData.address && formData.city && formData.country) {
-        // Fire and forget - don't block the save
-        supabase.functions
-          .invoke("geocode-property", {
-            body: {
-              property_id: savedPropertyId,
-              address: formData.address,
-              city: formData.city,
-              country: formData.country,
-              suburb: formData.suburb,
-            },
-          })
-          .then(({ data: geocodeResult, error: geocodeError }) => {
-            if (geocodeError) {
-              console.warn("Geocoding failed:", geocodeError);
-            } else if (geocodeResult?.success) {
-              // Update local state with new coordinates
-              setLatitude(geocodeResult.latitude);
-              setLongitude(geocodeResult.longitude);
-              toast({
-                title: "Location Updated",
-                description: `Map pin set to: ${geocodeResult.formatted_address}`,
-              });
-            }
-          });
+        const GEOCODE_BUDGET_MS = 8_000;
+        try {
+          const geocoded = await Promise.race([
+            supabase.functions.invoke("geocode-property", {
+              body: {
+                property_id: savedPropertyId,
+                address: formData.address,
+                city: formData.city,
+                country: formData.country,
+                suburb: formData.suburb,
+              },
+            }),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), GEOCODE_BUDGET_MS)),
+          ]);
+          const geocodeResult = geocoded?.data as
+            | { success?: boolean; latitude?: number; longitude?: number; formatted_address?: string }
+            | undefined;
+          if (geocodeResult?.success && geocodeResult.latitude != null && geocodeResult.longitude != null) {
+            setLatitude(geocodeResult.latitude);
+            setLongitude(geocodeResult.longitude);
+            // The edge function already wrote the coordinates onto the row; keep the local
+            // snapshot in step so the next save does not see a phantom change.
+            loadedPropertyRowRef.current = {
+              ...(loadedPropertyRowRef.current ?? {}),
+              latitude: geocodeResult.latitude,
+              longitude: geocodeResult.longitude,
+            };
+            toast({
+              title: "Location Updated",
+              description: `Map pin set to: ${geocodeResult.formatted_address ?? `${geocodeResult.latitude}, ${geocodeResult.longitude}`}`,
+            });
+          } else if (geocoded === null) {
+            console.warn("[PropertyForm] geocoding exceeded its budget — the channel delta may park until it lands");
+          }
+        } catch (geocodeError) {
+          console.warn("Geocoding failed:", geocodeError);
+        }
       }
+
 
       // For new properties, navigate to the slug-based URL
       if (!isEditMode && savedProperty?.slug) {
