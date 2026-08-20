@@ -38,6 +38,15 @@ import {
   type BookerSegmentationValue,
 } from "@/components/pms/crm/BookerSegmentationFields";
 
+/** Turns the database availability guard's codes into operator-readable copy. */
+function friendlyBookingError(message: string, fallbackPrefix: string): string {
+  const clean = (raw: string) => raw.replace(/^[A-Z_]+:\s*/, "").trim();
+  if (message.includes("UNIT_ALREADY_BOOKED")) return clean(message.split("UNIT_ALREADY_BOOKED:")[1] ?? "This unit is already booked for these nights.");
+  if (message.includes("NO_UNITS_FREE")) return clean(message.split("NO_UNITS_FREE:")[1] ?? "No units of this type are free for these nights.");
+  if (message.includes("OCCUPANCY_EXCEEDED")) return clean(message.split("OCCUPANCY_EXCEEDED:")[1] ?? "Too many guests for this unit.");
+  return `${fallbackPrefix}: ${message}`;
+}
+
 interface RoomType {
   id: string;
   name: string;
@@ -618,6 +627,13 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     const stampedPlanId = validLines.find(l => l.rate_plan_id)?.rate_plan_id || null;
     if (stampedPlanId) payload.rolos_rate_plan_id = stampedPlanId;
 
+    /* Deliberate overbooking is recorded on the stay — the database guard reads
+     * this field to allow the write, so the reason is the audit trail. */
+    if (stayClash && mayOverbook && overbookReason.trim()) {
+      payload.overbook_override_reason = overbookReason.trim();
+      payload.overbook_override_at = new Date().toISOString();
+    }
+
     const assignedRoomIds = validLines.map(l => l.room_id).filter(Boolean);
     if (assignedRoomIds.length) payload.rolos_room_ids = assignedRoomIds;
     if (guestId) payload.rolos_guest_id = guestId;
@@ -626,7 +642,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
     if (error) {
       setSaving(false);
-      toast.error("Failed to create booking: " + error.message);
+      toast.error(friendlyBookingError(error.message, "Failed to create booking"));
+      void refreshAvailability();
       return;
     }
 
