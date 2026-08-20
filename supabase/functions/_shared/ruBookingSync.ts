@@ -450,7 +450,95 @@ export async function cancelRuReservation(
 }
 
 
-/** Push a stay change to RU. Confirmed reservations only. */
+/**
+ * Accept an unconfirmed channel request so the reservation becomes modifiable.
+ *
+ * The channel holds a request (StatusID 4) as a lead: it refuses every stay modification while
+ * the request is unaccepted. An operator who extends such a stay in ROL'OS therefore has to
+ * accept the request first, or the extension only closes calendar nights while the reservation
+ * itself stays at its original dates and pax — exactly the drift this function exists to stop.
+ *
+ * On success the booking is promoted locally from `rentalsunited_lead` to `rentalsunited` so
+ * every later push takes the confirmed path.
+ */
+export async function confirmRuRequest(
+  supabase: Db,
+  booking: RuBookingRef,
+  opts: { comments?: string } = {},
+): Promise<RuPushResult> {
+  const traceId = newRuTraceId();
+  const reservationId = booking.external_reservation_id ? String(booking.external_reservation_id).trim() : '';
+  if (!reservationId) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:confirm',
+      property_id: booking.property_id,
+      action: 'Push_ConfirmRequest_RQ',
+      error_reason: 'missing_reservation_id: the booking carries no channel reservation id',
+    });
+    return {
+      ok: false,
+      code: 'RU_RESERVATION_UNKNOWN',
+      message: 'This booking has no channel reservation id — nothing to accept at the channel.',
+      traceId,
+    };
+  }
+
+  const auth = await resolveRuChildAuth(supabase, booking.property_id);
+  if (!auth) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:confirm',
+      property_id: booking.property_id,
+      action: 'Push_ConfirmRequest_RQ',
+      error_reason: 'no_subuser_keys: no Rentals United sub-user API keys stored for this property',
+    });
+    return {
+      ok: false,
+      code: 'RU_AUTH_UNAVAILABLE',
+      message: 'No channel sub-user API keys stored for this property — cannot accept the request.',
+      traceId,
+    };
+  }
+
+  const result = await invokeRu(supabase, 'confirm_request', {
+    reservation_id: reservationId,
+    comments: opts.comments ?? '',
+    ...auth,
+  }, {
+    propertyId: booking.property_id,
+    traceId,
+    parentAction: 'ruBookingSync:confirm',
+    details: { booking_id: booking.id, reservation_id: reservationId },
+  });
+
+  if (!result.ok) {
+    return {
+      ok: false,
+      method: 'confirm_request',
+      code: result.code || 'RU_CONFIRM_REQUEST_FAILED',
+      message: result.message ||
+        'The channel did not accept this request. Accept it in the channel portal, then resend the change.',
+      traceId,
+    };
+  }
+
+  await supabase
+    .from('bookings')
+    .update({ integration_type: 'rentalsunited', hold_expires_at: null })
+    .eq('id', booking.id);
+  booking.integration_type = 'rentalsunited';
+
+  return { ok: true, deferred: result.deferred === true, method: 'confirm_request', traceId };
+}
+
+/**
+ * Push a stay change to RU.
+ *
+ * Unconfirmed requests are accepted first (`confirmLead`, default on) because the channel
+ * rejects modifications on leads — without that step a date or pax change silently degraded
+ * into an availability block only.
+ */
 export async function modifyRuStay(
   supabase: Db,
   booking: RuBookingRef,
@@ -473,24 +561,51 @@ export async function modifyRuStay(
     date_from?: string | null;
     date_to?: string | null;
   },
+  opts: { confirmLead?: boolean } = {},
 ): Promise<RuPushResult> {
   const traceId = newRuTraceId();
+  let confirmedLead = false;
   if (isRuLead(booking)) {
-    await logRuNotAttempted(supabase, {
-      trace_id: traceId,
-      parent_action: 'ruBookingSync:modify',
-      property_id: booking.property_id,
-      action: 'Push_ModifyStay_RQ',
-      error_reason: 'unconfirmed_request: Rentals United accepts stay modifications on confirmed reservations only',
+    if (opts.confirmLead === false) {
+      await logRuNotAttempted(supabase, {
+        trace_id: traceId,
+        parent_action: 'ruBookingSync:modify',
+        property_id: booking.property_id,
+        action: 'Push_ModifyStay_RQ',
+        error_reason: 'unconfirmed_request: Rentals United accepts stay modifications on confirmed reservations only',
+      });
+      return {
+        ok: false,
+        code: 'RU_MODIFY_NOT_ALLOWED',
+        message:
+          'This is still an unconfirmed channel request. Accept the request first, then change the stay.',
+        traceId,
+      };
+    }
+    const confirmed = await confirmRuRequest(supabase, booking, {
+      comments: 'Accepted on modification in ROL\u2019OS',
     });
-    return {
-      ok: false,
-      code: 'RU_MODIFY_NOT_ALLOWED',
-      message:
-        'Rentals United only accepts stay modifications on confirmed reservations. Cancel/reject this request instead.',
-      traceId,
-    };
+    if (!confirmed.ok) {
+      await logRuNotAttempted(supabase, {
+        trace_id: traceId,
+        parent_action: 'ruBookingSync:modify',
+        property_id: booking.property_id,
+        action: 'Push_ModifyStay_RQ',
+        error_reason:
+          'unconfirmed_request: the channel would not accept the held request, so the stay change was not attempted',
+        error_message: confirmed.message ?? null,
+      });
+      return {
+        ok: false,
+        code: confirmed.code || 'RU_MODIFY_NOT_ALLOWED',
+        message: confirmed.message ||
+          'This is still an unconfirmed channel request and the channel refused to accept it — the stay was left unchanged.',
+        traceId,
+      };
+    }
+    confirmedLead = true;
   }
+
 
   const auth = await resolveRuChildAuth(supabase, booking.property_id);
   if (!auth) {
