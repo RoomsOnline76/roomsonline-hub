@@ -27,6 +27,7 @@ import {
   getBarGeometry,
 } from "./roomPlanLayout";
 import { RoomPlanMoveDrag, RoomPlanMoveVerdict, useRoomPlanDrag } from "./useRoomPlanDrag";
+import { useSyncedHorizontalScroll } from "@/hooks/useSyncedHorizontalScroll";
 
 interface RoomPlanRoomType {
   id: string;
@@ -102,6 +103,8 @@ interface RoomPlanGridProps {
   unitLinesByBooking?: Map<string, BookingUnitLine[]>;
   onCreateBooking?: (payload: RoomPlanCreatePayload) => void;
   onMoveBooking?: (payload: RoomPlanMovePayload) => Promise<void> | void;
+  /** Grids sharing this id scroll horizontally in step (portfolio stacks). */
+  scrollSyncGroup?: string | null;
 }
 
 
@@ -160,6 +163,7 @@ export function RoomPlanGrid({
   onCreateBooking,
   onMoveBooking,
   unitLinesByBooking,
+  scrollSyncGroup,
 }: RoomPlanGridProps) {
   /** The stay's line sitting in this row, so the bar shows that unit's party. */
   const resolveUnitLine = useCallback(
@@ -453,6 +457,8 @@ export function RoomPlanGrid({
       setSaving(false);
     }
   };
+
+  useSyncedHorizontalScroll(bodyRef, scrollSyncGroup);
 
   const todayIndex = dates.findIndex((date) => isSameDay(date, new Date()));
   const gridWidth = dates.length * colWidth;
