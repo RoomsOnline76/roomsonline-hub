@@ -1,5 +1,5 @@
 import { readInvokeErrorBody } from './ruInvokeBody.ts';
-import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts';
+import { evaluateRuOperationalSync, RU_ON_HOLD_CODE, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts';
 
 // Event-driven Rentals United STATIC CONTENT delta (Push_PutProperty_RQ).
 //
