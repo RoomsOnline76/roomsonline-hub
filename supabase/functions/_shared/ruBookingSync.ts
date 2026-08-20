@@ -763,6 +763,13 @@ export async function modifyRuStay(
     };
   }
 
+  // Take over our own parked replay of this stay change so it does not hold the slot the operator
+  // is waiting for.
+  await supersedeQueuedRuCalls(supabase, {
+    action: 'modify_stay',
+    reservationId: String(booking.external_reservation_id),
+  });
+
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
