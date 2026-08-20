@@ -378,6 +378,40 @@ Deno.serve(async (req) => {
       );
     }
 
+    // S5b: Money must follow the cancellation. A part-cancel is repriced like any other
+    // modification; a full cancel owes nothing further, so the balance is cleared and whatever the
+    // guest paid stays visible for the refund register to work against.
+    try {
+      if (isUnitCancel && updateData.total_price !== undefined) {
+        await applyBookingSettlement(supabase, booking, {
+          oldTotal: Number(booking.total_price ?? 0),
+          newTotal: Number(updateData.total_price ?? 0),
+          raiseRefund: false,
+          requestBalance: false,
+          reasonNote: `Unit cancelled — ${reason}`.slice(0, 400),
+          overpaymentMode: "credit",
+        });
+      } else if (!isPartialCancel) {
+        const received = await resolveAmountPaid(
+          supabase,
+          booking,
+          Number(booking.total_price ?? 0),
+        );
+        await supabase
+          .from("bookings")
+          .update({
+            amount_paid: received.amount,
+            amount_paid_source: received.source === "none" ? null : received.source,
+            balance_due: 0,
+          })
+          .eq("id", booking_id);
+      }
+    } catch (settleErr) {
+      console.error("[cancel-booking] settlement failed (non-critical):", settleErr);
+    }
+
+
+
     // S6a: Nights a channel reservation closed are stamped with the booking id, not written by
     // the local "manual" restore below. Without releasing them a cancelled channel stay left the
     // dates blocked on the grid, so release them here for the units that were actually cancelled.
