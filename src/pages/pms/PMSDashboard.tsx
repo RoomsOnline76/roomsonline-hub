@@ -1306,6 +1306,11 @@ export default function PMSDashboard() {
         queryClient.invalidateQueries({ queryKey: ["pms-arrivals"] });
         queryClient.invalidateQueries({ queryKey: ["pms-departures"] });
         queryClient.invalidateQueries({ queryKey: ["pms-cal-rooms"] });
+        /* The reservation state changed — tell the channel, and let the helper report what landed. */
+        void pushBookingToChannel(booking.id, action === "check_in" ? "confirmed" : "status", {
+          source: "arrivals_quick_action",
+        });
+
       }
     } catch (e: any) {
       toast.error(e.message);
