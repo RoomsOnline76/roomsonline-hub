@@ -1,4 +1,5 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
+import { toWireChangeover } from '../_shared/ruChangeover.ts';
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -192,7 +193,9 @@ interface RUAvailabilityEntry {
   units: number;
   min_stay?: number;
   max_stay?: number;
-  changeover?: number; // RU <C>: 1=both (default), 2=checkin-only, 3=checkout-only, 4=none
+  /** ROL'OS internal changeover code (0=none, 1=arrival only, 2=departure only, 3=both).
+   *  Translated to the wire scale (1..4) by `toWireChangeover` at XML build time. */
+  changeover?: number;
 }
 
 interface RUExtraGuestPrice {
@@ -1140,7 +1143,8 @@ function buildPushAvailabilityXml(creds: RUCredentials, propertyId: number, avai
       const u = a.units ?? 0;
       const ms = a.min_stay ?? 1;
       const mx = a.max_stay ?? 30;
-      const c = a.changeover ?? 1;
+      // Internal 0..3 → wire 1..4; RU rejects anything outside 1..4 with status 147.
+      const c = toWireChangeover(a.changeover);
       return `<Date From="${a.date_from}" To="${a.date_to}" MSMXTypeID="1">
       <U>${u}</U>
       <MS>${ms}</MS>
