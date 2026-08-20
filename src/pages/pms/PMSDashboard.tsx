@@ -27,6 +27,7 @@ import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
+import { invalidateRestrictionQueries } from "@/lib/restrictionRefresh";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
