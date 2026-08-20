@@ -35,6 +35,9 @@ interface VerifyResult {
   notes?: string[];
   rate_deferred?: boolean;
   retry_after_ms?: number;
+  state_persisted?: boolean;
+  gate_passed?: boolean;
+  error?: string | null;
 }
 
 interface Props {
@@ -106,8 +109,10 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
           toast.warning(
             `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,
           );
-        } else if (listings.some((l) => l.matches)) {
+        } else if (row.state_persisted && row.gate_passed && listings.some((l) => l.matches)) {
           toast.success("Published currency verified against the channel");
+        } else if (listings.some((l) => l.matches)) {
+          toast.error(row.error ?? "The channel answered, but the verified currency could not be saved. Please retry.");
         } else if (!auto) {
           toast.error("The channel did not answer with a currency — try again in a minute");
         }
@@ -172,7 +177,7 @@ export function RuCurrencyVerifyCard({ propertyId, disabled }: Props) {
         <ul className="space-y-1">
           {listings.map((l) => (
             <li key={l.ru_property_id} className="flex flex-wrap items-center gap-2 text-[11px]">
-              {l.matches ? (
+              {l.matches && result?.state_persisted && result?.gate_passed ? (
                 <CheckCircle2 className="h-3 w-3 text-emerald-600" />
               ) : l.deferred ? (
                 <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />

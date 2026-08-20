@@ -16,7 +16,7 @@ import {
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
 import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
-import { markLedgerStaleForScope } from '../_shared/channelStepLedger.ts';
+import { markLedgerStaleForScope, writeLedgerRows } from '../_shared/channelStepLedger.ts';
 import { enqueueJob } from '../_shared/jobQueue.ts';
 
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
@@ -3293,7 +3293,7 @@ Deno.serve(async (req) => {
         const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
         const locId = Number(p.ru_location_id) || Number(state?.ru_location_id) || 0;
         const listings: any[] = [];
-        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; error?: string } | null = null;
+        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; persisted: boolean; error?: string } | null = null;
 
         for (const ruId of ruIds) {
           const readback = await verifyRuPropertyCurrency(supabase, ruId, childAuth);
@@ -3319,23 +3319,52 @@ Deno.serve(async (req) => {
             error: err,
           });
 
-          // Persist the property-level state from the first listing the sub-user can see.
-          // Reuse the iso we just read: a second identical read inside the same minute is
-          // rate-deferred, which used to leave the verdict unrecorded (green UI, open gate).
-          if (!primaryVerification && iso && !onMaster) {
+          await new Promise(r => setTimeout(r, 400));
+        }
+
+        // Persist only after considering the complete listing set. A property-level verdict
+        // must not depend on listing order or account placement: if every successful read-back
+        // agrees with the intended ISO, one of those answers is sufficient durable evidence.
+        const answered = listings.filter((l) => !!l.ru_reported_iso);
+        const agreed = answered.length > 0 && answered.every((l) => l.matches);
+        let persistenceError: string | null = null;
+        let gatePassed = false;
+        if (agreed) {
+          const evidence = answered[0];
+          try {
             primaryVerification = await verifyAndRecordCurrency(supabase, {
               propertyId: p.id,
               locationId: locId,
-              authoredIso: state?.authored_currency_iso ?? 'ZAR',
-              ruPropertyId: ruId,
+              authoredIso: state?.authored_currency_iso ?? expectedIso,
+              ruPropertyId: evidence.ru_property_id,
               childAuth,
               ownerScope: String(ownerId),
               decision: null,
-              knownIso: iso,
+              knownIso: evidence.ru_reported_iso,
             });
+            const durableState = await loadCurrencyState(supabase, p.id);
+            const durableMatch = !!durableState?.verified_at
+              && String(durableState.ru_reported_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase()
+              && String(durableState.published_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase();
+            if (!primaryVerification.persisted || !durableMatch) {
+              throw new Error('Currency state could not be confirmed after persistence');
+            }
+            await writeLedgerRows(supabase, p.id, [{
+              step_key: 'currency',
+              status: 'passed',
+              source: 'channel_probe',
+              blocker_summary: null,
+              details: {
+                published_currency_iso: expectedIso.toUpperCase(),
+                ru_reported_currency_iso: String(evidence.ru_reported_iso).toUpperCase(),
+                verified_ru_property_id: evidence.ru_property_id,
+              },
+            }]);
+            gatePassed = true;
+          } catch (error) {
+            persistenceError = error instanceof Error ? error.message : 'Currency verdict persistence failed';
+            console.error(`[push-property-to-ru] currency verdict persistence failed for ${p.id}:`, persistenceError);
           }
-
-          await new Promise(r => setTimeout(r, 400));
         }
 
         const strays = listings.filter(l => l.on_master_account);
@@ -3343,7 +3372,9 @@ Deno.serve(async (req) => {
         const transport = listings.filter(l => !l.ru_reported_iso && /failed to send a request|fetch failed|timeout/i.test(String(l.error ?? '')));
         const deferred = listings.filter(l => l.deferred);
         const allDeferred = listings.length > 0 && deferred.length === listings.length;
-        const reason = strays.length
+        const reason = persistenceError
+          ? persistenceError
+          : strays.length
           ? `${strays.length} listing(s) still live on the master Rentals United account (${strays.map((s: any) => s.ru_property_id).join(', ')}) — re-push them as the white-label sub-user.`
           : allDeferred
             ? 'The channel allows one identical read per minute — this verification is queued and will complete shortly. The previously verified currency still stands.'
@@ -3366,7 +3397,9 @@ Deno.serve(async (req) => {
           retry_after_ms: allDeferred ? 60_000 : undefined,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
           matches: listings.length > 0 && listings.every(l => l.matches),
-          success: listings.some(l => !!l.ru_reported_iso),
+          state_persisted: primaryVerification?.persisted === true,
+          gate_passed: gatePassed,
+          success: gatePassed,
           error: reason,
         });
 
