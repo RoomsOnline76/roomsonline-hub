@@ -109,6 +109,38 @@ Deno.serve(async (req) => {
       failure = err instanceof Error ? err.message : String(err);
     }
 
+    // A replayed acceptance that the channel refuses because the request's OWN nights read as
+    // closed is our own hold, and the raw replay above cannot heal it (the reopen lives in
+    // `confirmRuRequest`). Re-run the full accept path once so the row does not retry forever on a
+    // block only ROL'OS can lift.
+    if (failure !== null && row.action === 'confirm_request' && isBlockedDates(failure)) {
+      const reservationId = String((row.payload as { reservation_id?: unknown })?.reservation_id ?? '').trim();
+      if (reservationId) {
+        try {
+          const { data: booking } = await supabase
+            .from('bookings')
+            .select('id, property_id, room_type_id, external_reservation_id, booking_channel, integration_type, check_in_date, check_out_date')
+            .eq('external_reservation_id', reservationId)
+            .maybeSingle();
+          if (booking) {
+            const healed = await confirmRuRequest(supabase, booking as never, {
+              comments: 'Accepted on queued retry in ROL\u2019OS',
+            });
+            if (healed.ok) {
+              failure = null;
+              result = { healed: true, method: healed.method, trace_id: healed.traceId };
+            } else if (healed.queued !== true) {
+              failure = healed.message ?? failure;
+            }
+          }
+        } catch (healErr) {
+          console.warn(
+            `[cron-ru-call-queue-drain] confirm self-heal failed: ${healErr instanceof Error ? healErr.message : healErr}`,
+          );
+        }
+      }
+    }
+
     const nowIso = new Date().toISOString();
 
     if (failure === null) {
