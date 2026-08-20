@@ -24,12 +24,6 @@ export interface ChannelPushNotifier {
 
 const activeConfirmations = new Map<string, symbol>();
 
-const SECTION_LABEL: Record<ChannelPushSection, string> = {
-  company: "Company information",
-  content: "Listing content",
-  rates: "Rates & availability",
-};
-
 async function triggerSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
   if (section === "company") {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {

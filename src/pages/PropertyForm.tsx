@@ -3642,6 +3642,9 @@ export default function PropertyForm({
               max_stay: room.maxStay || null,
               room_size: room.roomSize || null,
               bathrooms: room.bathrooms || null,
+              cleaning_fee: room.cleaningFee ?? room.cleaning_fee ?? null,
+              security_deposit: room.securityDeposit ?? room.security_deposit ?? null,
+              tax_rate: room.taxRate ?? room.tax_rate ?? null,
               // The channel maps ObjectTypeID from this column, so the authored channel
               // type wins over the free-text PMS type.
               // Blank means "inherit the property type": the push resolves
@@ -4083,7 +4086,7 @@ export default function PropertyForm({
       );
       loadedPropertyRowRef.current = {
         ...(loadedPropertyRowRef.current ?? {}),
-        ...(propertyData as unknown as Record<string, unknown>),
+        ...(isEditMode ? propertyPatch : propertyData as unknown as Record<string, unknown>),
       };
       if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
 
