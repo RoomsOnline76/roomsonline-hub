@@ -359,6 +359,8 @@ export default function PropertyForm({
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  // Bumped after a save so the channel push-gate countdown re-reads immediately.
+  const [channelGateRefresh, setChannelGateRefresh] = useState(0);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
 
