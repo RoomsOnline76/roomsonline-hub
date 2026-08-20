@@ -35,7 +35,9 @@ interface ModifyRequest {
     rooms?: any[];
     special_requests?: string;
     note?: string;
-    /** Operator-set totals (also pushed to RU as ClientPrice / AlreadyPaid). */
+    /** Operator-set ACCOMMODATION total for the stay (extras are priced on top). */
+    accommodation_total?: number;
+    /** Legacy name for accommodation_total — still accepted from older clients. */
     total_price?: number;
     /** Deliberate overbooking: reason recorded on the stay, required by the DB availability guard. */
     overbook_override_reason?: string;
@@ -416,8 +418,8 @@ Deno.serve(async (req) => {
       let accommodation = context.accommodation;
       let repricedFrom: string | null = null;
 
-      if (modifications.total_price !== undefined) {
-        accommodation = Number(modifications.total_price);
+      if (operatorAccommodation !== undefined && Number.isFinite(operatorAccommodation)) {
+        accommodation = operatorAccommodation;
         repricedFrom = "operator";
       } else if (isRolNative && previewPaxOrDates) {
         const repriced = await recalculateRolPrice(supabase, booking, modifications);
@@ -612,7 +614,7 @@ Deno.serve(async (req) => {
         console.log(
           `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
         );
-      } else if (modifications.total_price === undefined) {
+      } else if (operatorAccommodation === undefined) {
         // No plan and no operator price means we would leave a stale total behind — refuse
         // rather than silently keeping the old amount on a stay of a different length.
         return new Response(
@@ -636,8 +638,8 @@ Deno.serve(async (req) => {
      * ROL'OS-native edit skips it entirely and goes straight to the reconcile that has to run
      * anyway. */
     const chargeContext = await resolveBookingChargeContext(supabase, booking);
-    const newAccommodation = modifications.total_price !== undefined
-      ? Number(modifications.total_price)
+    const newAccommodation = operatorAccommodation !== undefined && Number.isFinite(operatorAccommodation)
+      ? operatorAccommodation
       : newTotalPrice !== null
         ? Number(newTotalPrice)
         : chargeContext.accommodation;
