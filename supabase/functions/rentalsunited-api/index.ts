@@ -23,7 +23,7 @@ import {
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, logRuNotAttempted, newRuTraceId, type RuApiLogContext, type RuTransportStatus } from '../_shared/ruApiLog.ts';
-import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall } from '../_shared/ruRateGate.ts';
+import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall, ruQueuePriority, ruGateWaitMs, isReservationWriteAction } from '../_shared/ruRateGate.ts';
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
 
 /**
