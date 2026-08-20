@@ -15,7 +15,45 @@ export const RU_RATE_WINDOW_SECONDS = 60;
 /** How long a single call may sleep waiting for its slot before deferring instead. */
 export const RU_RATE_MAX_WAIT_MS = 25_000;
 
+/**
+ * Reservation writes happen with an operator watching a dialog. Holding the request for the full
+ * 25s window (twice — accept, then modify) reads as a hang and still ends in a deferral, so these
+ * calls wait only briefly and are then parked at the front of the queue.
+ */
+export const RU_INTERACTIVE_MAX_WAIT_MS = 3_000;
+
+/**
+ * Queue priority (lower runs first). Reservation writes must never queue behind the background
+ * price/availability read-backs, which fill the queue with hundreds of legitimately distinct rows.
+ */
+export const RU_PRIORITY_RESERVATION_WRITE = 1;
+export const RU_PRIORITY_DEFAULT = 100;
+
+/** Actions that carry a reservation an operator is waiting on. */
+const RESERVATION_WRITE_ACTIONS = new Set([
+  'confirm_request',
+  'reject_request',
+  'modify_stay',
+  'cancel_reservation',
+  'push_confirmed_reservation',
+]);
+
+export function isReservationWriteAction(action: string | null | undefined): boolean {
+  return RESERVATION_WRITE_ACTIONS.has(String(action ?? ''));
+}
+
+/** Queue priority for one action — reservation writes jump the queue. */
+export function ruQueuePriority(action: string | null | undefined): number {
+  return isReservationWriteAction(action) ? RU_PRIORITY_RESERVATION_WRITE : RU_PRIORITY_DEFAULT;
+}
+
+/** Gate wait budget for one action — interactive writes fail fast into the queue instead. */
+export function ruGateWaitMs(action: string | null | undefined): number {
+  return isReservationWriteAction(action) ? RU_INTERACTIVE_MAX_WAIT_MS : RU_RATE_MAX_WAIT_MS;
+}
+
 export const RU_RATE_DEFERRED_CODE = 'RU_RATE_DEFERRED';
+
 
 export class RuRateDeferredError extends Error {
   readonly code = RU_RATE_DEFERRED_CODE;
