@@ -898,13 +898,36 @@ Deno.serve(async (req) => {
             options: { dedupeKey: `sync:${booking_id}:${externalSystem}:modify` },
           }]
         : []),
-      {
-        // Shifted dates change both the old and the new nights: the channel window must be
-        // refreshed. One job per property collapses a burst of edits into a single push.
-        type: "channel_ari_delta" as const,
-        payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
-        options: { dedupeKey: `ari:${booking.property_id}` },
-      },
+      /* Shifted dates change both the old and the new nights, so the channel window must be
+       * refreshed either way. A reservation the channel owns was already modified above, so it only
+       * needs the availability delta. A ROL'OS-native stay on a distributed unit has no reservation
+       * at the channel yet — that is why edits to it never reached the channel at all — so it goes
+       * through the full booking sync, which registers it as a confirmed reservation, pushes the
+       * change and queues the same delta. One job per booking / property collapses a burst of
+       * edits into a single push. */
+      ...(isRuBooking(booking)
+        ? [{
+            type: "channel_ari_delta" as const,
+            payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
+            options: { dedupeKey: `ari:${booking.property_id}` },
+          }]
+        : [{
+            type: "channel_booking_sync" as const,
+            payload: {
+              booking_id,
+              change: (modifications.check_in_date || modifications.check_out_date)
+                ? "dates"
+                : paxOrDatesChanged
+                  ? "pax"
+                  : "price",
+              previous: {
+                room_type_id: booking.room_type_id ?? null,
+                check_in_date: booking.check_in_date ?? null,
+                check_out_date: booking.check_out_date ?? null,
+              },
+            },
+            options: { dedupeKey: `channel_booking:${booking_id}` },
+          }]),
       {
         type: "booking_email" as const,
         payload: {
