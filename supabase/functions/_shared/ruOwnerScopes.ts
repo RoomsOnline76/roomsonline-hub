@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ownerIdsWithOperationalSync } from './ruSyncGate.ts';
+import { fetchRetiredRuOwnerIds } from './ruRetiredAccounts.ts';
 
 export interface RuOwnerScope {
   /** null for the master account. */
