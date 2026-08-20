@@ -1063,3 +1063,58 @@ div.channel-recommended {
     transparent 3px 6px
   );
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Stay range ("snake") picker — check-in / check-out render as diagonal
+   half-day cells, matching the room plan. Shared by every ROL'OS stay picker.
+   ──────────────────────────────────────────────────────────────────────────── */
+.rol-stay-middle {
+  background-color: hsl(var(--primary) / 0.18);
+  color: hsl(var(--foreground));
+}
+
+.rol-stay-start {
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 49%,
+    hsl(var(--primary)) 49% 51%,
+    hsl(var(--primary) / 0.18) 51% 100%
+  );
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.rol-stay-end {
+  background-image: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.18) 0 49%,
+    hsl(var(--primary)) 49% 51%,
+    transparent 51% 100%
+  );
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+/* Single selected endpoint (before the departure is chosen) */
+.rol-stay-selected:not(.rol-stay-start):not(.rol-stay-end):not(.rol-stay-middle) {
+  background-image: linear-gradient(
+    135deg,
+    transparent 0 49%,
+    hsl(var(--primary)) 49% 51%,
+    hsl(var(--primary) / 0.18) 51% 100%
+  );
+  color: hsl(var(--foreground));
+  font-weight: 600;
+}
+
+.rol-stay-start:hover,
+.rol-stay-end:hover,
+.rol-stay-middle:hover,
+.rol-stay-selected:hover {
+  background-color: hsl(var(--primary) / 0.26);
+}
+
+/* Legend swatches reuse the same paint on a plain block */
+.rol-stay-swatch {
+  border: 1px solid hsl(var(--border));
+}

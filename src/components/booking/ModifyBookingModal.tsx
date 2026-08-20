@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, AlertCircle, Calculator } from "lucide-react";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 import { supabase } from "@/integrations/supabase/client";
+import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { GuestCountStepper } from "./GuestCountStepper";
 
 interface AvailabilityStatus {
@@ -256,32 +257,19 @@ export const ModifyBookingModal: React.FC<ModifyBookingModalProps> = ({
 
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Check-in</Label>
-              <Input
-                type="date"
-                value={checkInDate}
-                onChange={(e) => setCheckInDate(e.target.value)}
-                className="h-8 text-xs"
-                min={new Date().toISOString().split("T")[0]}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Check-out</Label>
-              <Input
-                type="date"
-                value={checkOutDate}
-                onChange={(e) => setCheckOutDate(e.target.value)}
-                className="h-8 text-xs"
-                min={checkInDate}
-              />
-            </div>
-          </div>
-
-          {/* Nights indicator */}
-          <div className="text-xs text-muted-foreground text-center">
-            {nights} {nights === 1 ? "night" : "nights"}
+          <div className="space-y-1">
+            <Label className="text-xs">Stay dates</Label>
+            <StayRangePicker
+              size="compact"
+              numberOfMonths={1}
+              from={checkInDate}
+              to={checkOutDate}
+              onChange={({ from, to }) => {
+                setCheckInDate(from ?? "");
+                setCheckOutDate(to ?? "");
+              }}
+              placeholder="Select arrival & departure"
+            />
           </div>
 
           {/* Availability Status Indicator */}

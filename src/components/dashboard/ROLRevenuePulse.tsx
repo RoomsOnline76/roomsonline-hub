@@ -3,6 +3,7 @@ import { format, subDays } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import { stayRangeCalendarClassNames } from "@/components/ui/stay-range-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -162,6 +163,7 @@ export function ROLRevenuePulse() {
                 selected={selectedRange}
                 onSelect={handleDateSelect}
                 numberOfMonths={2}
+                classNames={stayRangeCalendarClassNames()}
               />
             </PopoverContent>
           </Popover>

@@ -788,24 +788,23 @@ export default function RoomAvailabilityCalendar({
                       cell: cn(
                         "flex-1 text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
                         "[&:has([aria-selected].day-range-end)]:rounded-r-md",
-                        "[&:has([aria-selected])]:bg-primary/40",
+                        "[&:has([aria-selected])]:bg-transparent",
                         "first:[&:has([aria-selected])]:rounded-l-md",
                         "last:[&:has([aria-selected])]:rounded-r-md"
                       ),
                       day: cn(
                         "p-0 font-normal mx-auto rounded-md transition-colors",
                         "h-10 w-10 sm:h-12 sm:w-12", // Taller on desktop for rate display
-                        "hover:bg-primary hover:text-primary-foreground",
-                        "focus:bg-primary focus:text-primary-foreground",
+                        "hover:bg-accent/60",
                         "aria-selected:opacity-100"
                       ),
-                      day_range_start: "day-range-start !bg-primary text-primary-foreground rounded-l-md rounded-r-none z-10",
-                      day_range_end: "day-range-end !bg-primary text-primary-foreground rounded-r-md rounded-l-none z-10",
-                      day_selected: "!bg-primary text-primary-foreground z-10",
-                      day_today: "ring-2 ring-primary ring-offset-2",
-                      day_outside: "day-outside text-muted-foreground opacity-50 aria-selected:bg-primary/40 aria-selected:text-muted-foreground",
-                      day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed",
-                      day_range_middle: "day-range-middle aria-selected:bg-primary/40 aria-selected:text-foreground rounded-none",
+                      day_range_start: "day-range-start rol-stay-start rounded-l-md rounded-r-none z-10",
+                      day_range_end: "day-range-end rol-stay-end rounded-r-md rounded-l-none z-10",
+                      day_selected: "rol-stay-selected z-10",
+                      day_today: "ring-1 ring-inset ring-primary/50",
+                      day_outside: "day-outside text-muted-foreground opacity-40",
+                      day_disabled: "text-muted-foreground opacity-40 cursor-not-allowed",
+                      day_range_middle: "day-range-middle rol-stay-middle rounded-none",
                       day_hidden: "invisible",
                     }}
                     components={{

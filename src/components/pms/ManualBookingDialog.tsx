@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
 import { CalendarIcon, Plus, Trash2, BedDouble } from "lucide-react";
@@ -688,34 +689,14 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <div className="space-y-4">
               <div className="space-y-2">
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Stay</h4>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn("w-full justify-start text-left font-normal", !form.check_in && !form.check_out && "text-muted-foreground")}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {form.check_in && form.check_out
-                        ? `${format(form.check_in, "EEE d MMM yyyy")} → ${format(form.check_out, "EEE d MMM yyyy")}`
-                        : form.check_in
-                          ? `${format(form.check_in, "d MMM yyyy")} → Select departure`
-                          : "Select arrival & departure"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="range"
-                      numberOfMonths={2}
-                      selected={{ from: form.check_in, to: form.check_out }}
-                      onSelect={(range: { from?: Date; to?: Date } | undefined) => {
-                        setForm(p => ({ ...p, check_in: range?.from, check_out: range?.to }));
-                      }}
-                      disabled={date => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
+                <StayRangePicker
+                  numberOfMonths={2}
+                  from={form.check_in}
+                  to={form.check_out}
+                  onChange={({ fromDate, toDate }) => {
+                    setForm(p => ({ ...p, check_in: fromDate, check_out: toDate }));
+                  }}
+                />
                 {nights > 0 && (
                   <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>
                 )}
