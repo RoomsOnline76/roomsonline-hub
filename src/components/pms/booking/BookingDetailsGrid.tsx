@@ -574,7 +574,26 @@ export function BookingDetailsGrid({
             </div>
           </div>
           <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><span className="font-mono">{displayBookingReference(booking as never)}</span></div>
+          {/* Channel-received stays carry the channel's own reservation number — operators quote that
+              number when they talk to the channel, so show it as received. */}
+          {booking.external_reservation_id && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Channel reservation</span>
+              <button
+                type="button"
+                className="font-mono underline decoration-dotted underline-offset-2"
+                title="Copy the channel reservation number"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(String(booking.external_reservation_id));
+                  toast.success("Channel reservation number copied");
+                }}
+              >
+                {booking.external_reservation_id}
+              </button>
+            </div>
+          )}
         </div>
+
 
         {/* A held channel request is not a reservation at the channel until it is accepted. */}
         {(booking.integration_type || "").toLowerCase() === "rentalsunited_lead" && (
