@@ -24,21 +24,25 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Prefer server-side unrestricted geocoding key; fall back to api_keys table
-    let googleMapsApiKey = Deno.env.get("GOOGLE_MAPS_GEOCODING_KEY") ?? "";
+    // Collect every candidate key: env geocoding key, env maps key, then api_keys table.
+    // A referrer-restricted key returns REQUEST_DENIED for server-side calls, so we try each.
+    const candidateKeys: string[] = [];
+    const pushKey = (k?: string | null) => {
+      if (k && !candidateKeys.includes(k)) candidateKeys.push(k);
+    };
+    pushKey(Deno.env.get("GOOGLE_MAPS_GEOCODING_KEY"));
+    pushKey(Deno.env.get("GOOGLE_MAPS_API_KEY"));
 
-    if (!googleMapsApiKey) {
-      const { data: apiKeyData, error: apiKeyError } = await supabase
-        .from("api_keys")
-        .select("key_value")
-        .eq("key_name", "google_maps_api_key")
-        .maybeSingle();
+    const { data: apiKeyRows } = await supabase
+      .from("api_keys")
+      .select("key_name, key_value")
+      .in("key_name", ["google_maps_api_key", "GOOGLE_MAPS_API_KEY", "google_maps_geocoding_key"]);
+    for (const row of apiKeyRows ?? []) pushKey((row as { key_value?: string }).key_value);
 
-      if (apiKeyError || !apiKeyData?.key_value) {
-        throw new Error("Google Maps API key not configured");
-      }
-      googleMapsApiKey = apiKeyData.key_value;
+    if (candidateKeys.length === 0) {
+      throw new Error("Google Maps API key not configured");
     }
+
 
     const body: GeocodeRequest = await req.json();
     const { property_id, address, city, country, suburb } = body;
