@@ -4637,7 +4637,7 @@ Deno.serve(async (req) => {
             console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
           }
           // ObjectTypeID = property_type_id (no composition lookup)
-          unitPayload.object_type_id = unitPayload.property_type_id;
+          unitPayload.object_type_id = unitPayload.listing_type_id;
 
           if (existingUnitRuId === 0 && unitPayload.images.length < 10) {
             console.warn(`[push-property-to-ru] Unit "${unit.name}" skipped: only ${unitPayload.images.length} images (<10)`);
