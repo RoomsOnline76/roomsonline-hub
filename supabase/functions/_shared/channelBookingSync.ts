@@ -18,6 +18,7 @@ import { queueRuAriDelta } from './ruAriDelta.ts';
 import { bookingActionFromChange, recordChannelBookingEvent } from './channelBookingEvents.ts';
 import {
   cancelRuReservation,
+  confirmRuRequest,
   isRuBooking,
   isRuLead,
   modifyRuStay,
@@ -38,6 +39,7 @@ export type ChannelBookingChange =
   | 'payment'
   | 'notes'
   | 'status'
+  | 'confirmed'
   | 'cancelled'
   | 'no_show'
   | 'deleted'
@@ -122,6 +124,9 @@ async function resolveCurrentListing(
 function isAbsentAtChannel(message?: string | null): boolean {
   return /reservation does not exist|no such reservation/i.test(String(message ?? ''));
 }
+
+/** Local statuses that mean "this stay is going ahead" — enough to accept a held request. */
+const CONFIRMING_STATUSES = new Set(['checked_in', 'in_house', 'checked_out', 'confirmed', 'guaranteed']);
 
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'no_show', 'rejected', 'declined']);
 
@@ -246,9 +251,48 @@ export async function syncBookingToChannel(
       result.message = push.message ?? null;
     }
   } else if (isRuLead(row)) {
-    // An unconfirmed request cannot be modified at the channel — it is accepted or rejected.
-    result.reservation = 'skipped';
-    result.reservation_reason = 'unconfirmed_request';
+    // A held request cannot be modified — it is accepted or rejected. Checking a guest in (or
+    // confirming the stay) is the operator saying "this stay is happening", so accept the request
+    // at the channel now; otherwise the channel keeps the stay as a pending request forever.
+    if (change === 'confirmed' || CONFIRMING_STATUSES.has(status)) {
+      const push = await confirmRuRequest(supabase, row as never, {
+        comments: 'Accepted on check-in in ROL\u2019OS',
+      });
+      result.reservation_method = push.method ?? 'Push_ConfirmRequest_RQ';
+      traceId = push.traceId ?? null;
+      if (push.ok) {
+        result.reservation = push.deferred ? 'queued' : 'pushed';
+        result.deferred = result.deferred || push.deferred === true;
+        if (!push.deferred) {
+          await supabase
+            .from('bookings')
+            .update({ integration_type: 'rentalsunited' })
+            .eq('id', String(row.id));
+        }
+      } else if (push.code === 'RU_RATE_DEFERRED') {
+        // A rate limit is never a fault: the accept is parked and retried, so report it deferred
+        // and leave the booking as a request until the channel actually accepts it.
+        result.reservation = 'queued';
+        result.deferred = true;
+        result.reservation_reason = 'channel_rate_limit';
+        result.message = push.message ?? null;
+      } else if (push.code === 'RU_AUTH_UNAVAILABLE' || push.code === 'RU_RESERVATION_UNKNOWN') {
+        result.reservation = 'skipped';
+        result.reservation_reason = push.code === 'RU_AUTH_UNAVAILABLE'
+          ? 'no_channel_credentials'
+          : 'no_channel_reservation';
+        result.message = push.message ?? null;
+
+      } else {
+        result.reservation = 'failed';
+        result.code = push.code ?? null;
+        result.message = push.message ?? null;
+      }
+    } else {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'unconfirmed_request';
+    }
+
   } else {
     const current = await resolveCurrentListing(supabase, row);
     if (current.absent) {
