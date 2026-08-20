@@ -6385,6 +6385,9 @@ export default function PropertyForm({
                           checked={separateKitchen}
                           onCheckedChange={(c) => {
                             setSeparateKitchen(c);
+                            // One fact, one meaning: the channel publishes "Separate kitchen"
+                            // from the Kitchen amenity, so keep the selection in step.
+                            setSelectedFacilities((prev) => withSeparateKitchen(prev, c));
                             setIsDirty(true);
                           }}
                         />
