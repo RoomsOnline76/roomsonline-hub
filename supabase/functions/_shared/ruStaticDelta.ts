@@ -18,8 +18,14 @@ import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts'
 //
 // Failures are logged and swallowed: a channel refresh must never break a save.
 
-/** Minimum gap between two static deltas for the same property. */
-export const RU_STATIC_DELTA_DEBOUNCE_MS = 60 * 1000;
+/**
+ * Minimum gap between two static deltas for the same property.
+ *
+ * Deliberately short: a save must reach the channel while the operator is still looking at the
+ * editor. It only coalesces autosave bursts — the fingerprint check already stops identical
+ * content from being sent twice.
+ */
+export const RU_STATIC_DELTA_DEBOUNCE_MS = 10 * 1000;
 
 /** ru_sync_runs.action used for static content deltas. */
 export const RU_STATIC_DELTA_ACTION = 'static_delta';
