@@ -277,5 +277,5 @@ export function findBlockedInRange(
 
 /** Roles allowed to knowingly overbook. */
 export function canOverbook(role: string | null | undefined): boolean {
-  return ["owner", "admin", "dev"].includes(String(role ?? ""));
+  return ["owner", "admin", "dev", "fearless_leader"].includes(String(role ?? ""));
 }
