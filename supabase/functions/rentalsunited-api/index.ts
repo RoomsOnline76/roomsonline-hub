@@ -811,14 +811,17 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
  * `Push_RejectRequest_RQ`: until a request is accepted the channel holds it as a lead and
  * refuses every stay modification, so an operator who extends the stay of a held request has
  * to accept it first or the change never reaches the channel.
+ *
+ * Verb verified live against the account on 2026-08-20: `Push_ConfirmRequest_RQ` answers
+ * "The XML contains not implemented method"; `Push_ConfirmReservation_RQ` is the implemented
+ * one (it answered Status 28 "Reservation does not exist" for a probe id).
  */
-function buildConfirmRequestXml(creds: RUCredentials, reservationId: string, comments: string): string {
+function buildConfirmRequestXml(creds: RUCredentials, reservationId: string, _comments: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
-<Push_ConfirmRequest_RQ>
+<Push_ConfirmReservation_RQ>
   ${buildAuthXml(creds)}
-  <ReservationID>${escapeXml(reservationId)}</ReservationID>${comments ? `
-  <Comments>${escapeXml(comments)}</Comments>` : ''}
-</Push_ConfirmRequest_RQ>`;
+  <ReservationID>${escapeXml(reservationId)}</ReservationID>
+</Push_ConfirmReservation_RQ>`;
 }
 
 
@@ -1975,7 +1978,7 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
  */
 const RU_VERB_BY_ACTION: Record<string, string> = {
   reject_request: 'Push_RejectRequest_RQ',
-  confirm_request: 'Push_ConfirmRequest_RQ',
+  confirm_request: 'Push_ConfirmReservation_RQ',
   cancel_reservation: 'Push_CancelReservation_RQ',
   modify_stay: 'Push_ModifyStay_RQ',
   push_confirmed_reservation: 'Push_PutConfirmedReservationMulti_RQ',
