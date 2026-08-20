@@ -900,7 +900,7 @@ export function PortfolioRuAccountsTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { value: accounts.length, label: "RU sub-accounts", focus: "accounts" },
+          { value: uniqueAccounts.length, label: "RU sub-accounts", focus: "accounts" },
           {
             value: footprintLinkedIds.size,
             label: "Properties under sub-accounts",
