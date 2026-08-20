@@ -114,13 +114,37 @@ Deno.serve(async (req) => {
       if (lastStatus !== "REQUEST_DENIED") break;
     }
 
-    if (!geocodeData) {
+    // Fallback: keyless OpenStreetMap geocoder when Google refuses the request
+    // (billing disabled, referrer-restricted key, API not enabled, quota).
+    let provider = "google";
+    let formattedAddress = geocodeData?.results?.[0]?.formatted_address ?? fullAddress;
+    let latitude: number | null = geocodeData?.results?.[0]?.geometry?.location?.lat ?? null;
+    let longitude: number | null = geocodeData?.results?.[0]?.geometry?.location?.lng ?? null;
+
+    if (latitude === null || longitude === null) {
+      console.warn(`Google geocoding unavailable (${lastStatus} ${lastMessage}); trying OpenStreetMap`);
+      try {
+        const osmUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(fullAddress)}`;
+        const osmRes = await fetch(osmUrl, {
+          headers: { "User-Agent": "ROLOS-Geocoder/1.0 (support@roomsonline.co.za)" },
+        });
+        const osmData = await osmRes.json();
+        if (Array.isArray(osmData) && osmData.length > 0) {
+          latitude = Number(osmData[0].lat);
+          longitude = Number(osmData[0].lon);
+          formattedAddress = osmData[0].display_name ?? fullAddress;
+          provider = "openstreetmap";
+        }
+      } catch (osmErr) {
+        console.error("OpenStreetMap geocoding failed:", osmErr);
+      }
+    }
+
+    if (latitude === null || longitude === null || Number.isNaN(latitude) || Number.isNaN(longitude)) {
       const hint =
         lastStatus === "REQUEST_DENIED"
-          ? "The Google Maps key is referrer-restricted or the Geocoding API is not enabled for it. Add a server key (no HTTP referrer restriction, Geocoding API enabled) as GOOGLE_MAPS_GEOCODING_KEY."
-          : lastStatus === "ZERO_RESULTS"
-            ? "Google could not match this address. Check the street, city and country."
-            : lastMessage;
+          ? "Google rejected the key (billing not enabled on the project, or the key is referrer-restricted). The keyless fallback could not match this address either — check the street, city and country spelling."
+          : "Neither Google nor the fallback geocoder could match this address. Check the street, city and country.";
       return new Response(
         JSON.stringify({
           success: false,
@@ -135,12 +159,8 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log(`Geocoded via ${provider}: ${latitude}, ${longitude}`);
 
-    const location = geocodeData.results[0].geometry.location;
-    const latitude = location.lat;
-    const longitude = location.lng;
-
-    console.log(`Geocoded to: ${latitude}, ${longitude}`);
 
     // Update property with new coordinates
     const { error: updateError } = await supabase
@@ -163,7 +183,8 @@ Deno.serve(async (req) => {
         address: fullAddress,
         latitude,
         longitude,
-        formatted_address: geocodeData.results[0].formatted_address,
+        formatted_address: formattedAddress,
+        provider,
       }),
       { 
         status: 200, 
