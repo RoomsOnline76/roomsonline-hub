@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { Check, X, Cloud } from "lucide-react";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
 import { markerFlags } from "@/lib/fieldMarkers";
+import { stayTimeIssueFor } from "@/lib/stayTimes";
 import { cn } from "@/lib/utils";
 
 export interface HouseRulesCardProps {
