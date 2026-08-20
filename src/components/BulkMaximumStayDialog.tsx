@@ -168,8 +168,8 @@ export function BulkMaximumStayDialog({
       if (error) throw error;
 
       toast.success(`Set maximum stay to ${maxStay} nights for ${filteredDates.length} dates`);
-      await syncRestrictionsToChannels(targetPropertyIds, "maximum_stay");
       onRuleCreated?.();
+      void syncRestrictionsToChannels(targetPropertyIds, "maximum_stay");
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error creating maximum stay rule:", error);
