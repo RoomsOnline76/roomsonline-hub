@@ -218,7 +218,17 @@ export default function AdminRentalsUnited() {
           : p,
       ),
     );
-    toast.success(next ? "Distribution resumed" : "Distribution on hold — saves will be parked until it is lifted");
+    if (next) {
+      // Lifting a hold must deliver whatever was parked while it was on, with no manual re-push.
+      void supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "property_readiness", property_id: id, probe_ari: false },
+      });
+    }
+    toast.success(
+      next
+        ? "Distribution resumed — parked changes will be delivered automatically"
+        : "Distribution on hold — saves will be parked until it is lifted",
+    );
   };
 
   const toggleScope = (id: string) =>
