@@ -69,6 +69,7 @@ import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
 import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
+import { validateStayTimes } from "@/lib/stayTimes";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
 import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 import { buildPropertySavePatch, samePersistedValue } from "@/lib/propertySavePatch";
