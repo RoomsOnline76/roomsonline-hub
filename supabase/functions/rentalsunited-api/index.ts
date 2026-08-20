@@ -1059,9 +1059,12 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const distanceEntries = Array.isArray(prop.distances)
     ? prop.distances.filter((d) => Number(d?.destination_id) > 0 && Number(d?.value) > 0)
     : [];
+  // Shape: the id is a child element, not an attribute. With the attribute form RU parsed the
+  // destination as 0 ("Wrong destination id:0", and "Duplicate value in distances" when several
+  // entries all collapsed to 0).
   const distancesXml = distanceEntries.length > 0
     ? `\n    <Distances>\n${distanceEntries
-        .map((d) => `      <Distance DestinationID="${Number(d.destination_id)}" DistanceUnit="1">${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</Distance>`)
+        .map((d) => `      <Distance>\n        <DestinationID>${Number(d.destination_id)}</DestinationID>\n        <DistanceUnitID>1</DistanceUnitID>\n        <DistanceValue>${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</DistanceValue>\n      </Distance>`)
         .join('\n')}\n    </Distances>`
     : '';
 

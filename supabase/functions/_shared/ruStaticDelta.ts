@@ -175,6 +175,9 @@ async function fieldFingerprints(snapshot: StaticSnapshot): Promise<Record<strin
     await add(`property.${col}`, snapshot.property?.[col] ?? null);
   }
   await add('property.charges', snapshot.charges);
+  // Nearby attractions become the channel <Distances> block, so an attraction edit must
+  // invalidate the content hash or the delta skips as "unchanged".
+  await add('property.attractions', snapshot.attractions);
   for (const unit of snapshot.units) {
     const unitKey = String(unit.id ?? unit.name ?? 'unknown');
     for (const col of UNIT_STATIC_COLUMNS) {
@@ -220,6 +223,8 @@ interface StaticSnapshot {
   units: Record<string, unknown>[];
   /** Guest-facing charges — the deposit / cleaning amounts pushed with the listing. */
   charges: Record<string, unknown>[];
+  /** Nearby attractions with a distance — pushed as the channel Distances block. */
+  attractions: Record<string, unknown>[];
   ruConnected: boolean;
   pushEnabled: boolean;
   /** True when the property has a live listing (building id or any active unit id). */
@@ -229,7 +234,7 @@ interface StaticSnapshot {
 }
 
 async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSnapshot> {
-  const [{ data: property }, { data: units }, { data: charges }] = await Promise.all([
+  const [{ data: property }, { data: units }, { data: charges }, { data: attractions }] = await Promise.all([
     supabase
       .from('properties')
       .select(PROPERTY_STATIC_COLUMNS.join(','))
@@ -249,6 +254,12 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
       .select(RU_CHARGE_COLUMNS.join(','))
       .eq('property_id', propertyId)
       .order('id', { ascending: true }),
+    // Points of interest (property surroundings) drive the <Distances> block.
+    supabase
+      .from('local_experiences')
+      .select('id, title, category, distance_km, is_active, ru_destination_id')
+      .eq('property_id', propertyId)
+      .order('id', { ascending: true }),
   ]);
 
   const unitRows = (units ?? []) as Record<string, unknown>[];
@@ -259,6 +270,7 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
     property: (property ?? null) as Record<string, unknown> | null,
     units: unitRows,
     charges: (charges ?? []) as Record<string, unknown>[],
+    attractions: (attractions ?? []) as Record<string, unknown>[],
     listed,
     ruConnected: gate.allowed && listed,
     pushEnabled: gate.allowed,

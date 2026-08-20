@@ -111,7 +111,7 @@ export function matchDestination(
 export function buildDistanceEntries(
   experiences: ExperienceRow[],
   destinations: DestinationRow[],
-  maxEntries = 10,
+  maxEntries: number = 10,
 ): RuDistanceEntry[] {
   const dictionary = new Map<string, DestinationRow>();
   for (const row of destinations) {
@@ -167,6 +167,7 @@ type MinimalClient = {
 export async function loadPropertyDistances(
   supabase: MinimalClient,
   propertyId: string,
+  maxEntries?: number,
 ): Promise<RuDistanceEntry[]> {
   try {
     const [{ data: experiences }, { data: destinations }] = await Promise.all([
@@ -178,7 +179,11 @@ export async function loadPropertyDistances(
       supabase.from("ru_destinations").select("ru_destination_id, name").eq("is_generic", true),
     ]);
     if (!Array.isArray(experiences) || !Array.isArray(destinations)) return [];
-    return buildDistanceEntries(experiences as ExperienceRow[], destinations as DestinationRow[]);
+    return buildDistanceEntries(
+      experiences as ExperienceRow[],
+      destinations as DestinationRow[],
+      maxEntries && maxEntries > 0 ? maxEntries : undefined,
+    );
   } catch (_e) {
     return [];
   }
