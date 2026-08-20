@@ -943,7 +943,17 @@ Deno.serve(async (req) => {
         ru_request_accepted: ruRequestAccepted,
         new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
+        charges: {
+          accommodation: chargeQuote.accommodation,
+          extras_total: chargeQuote.extrasTotal,
+          deposit_total: chargeQuote.depositTotal,
+          guest_total: chargeQuote.guestTotal,
+          created: chargeQuote.created,
+          updated: chargeQuote.updated,
+          removed: chargeQuote.removed,
+        },
         settlement: settlementOutcome,
+
       }),
 
 
