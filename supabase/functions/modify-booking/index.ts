@@ -385,6 +385,7 @@ Deno.serve(async (req) => {
     // S3: Determine PMS type and check capabilities
     const property = booking.property;
     const externalSystem = property?.external_system || "none";
+    const isRolNative = property?.is_rol_property || externalSystem === "none";
 
     // S3b: Preview only — price the proposed stay (accommodation + extras + deposits) and
     // return the breakdown without touching the booking, the folio or the channel.
