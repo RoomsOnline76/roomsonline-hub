@@ -146,8 +146,9 @@ export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: 
           </div>
         </TooltipTrigger>
         <TooltipContent side="left" className="max-w-[15rem] text-xs">
-          {CHANNEL_MANAGER} accepts one update per minute. Held: {detail}. Saves made now are queued and
-          delivered automatically.
+          {held
+            ? `${CHANNEL_MANAGER} accepts one update per minute. Held: ${detail}. Saves made now are queued and delivered automatically.`
+            : `${CHANNEL_MANAGER} is ready — a save now pushes straight away. It accepts one update per minute per section.`}
         </TooltipContent>
       </Tooltip>
     </div>
