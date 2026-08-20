@@ -31,6 +31,7 @@ import {
 } from "@/components/property/ContentRuleHint";
 import { listDeclaresKitchen } from "@/config/propertyFieldRequirements";
 import { ruToken } from "@/lib/ruAmenities";
+import { hasSeparateKitchen, withSeparateKitchen } from "@/lib/ruKitchen";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { findMainImageUrl, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
