@@ -116,6 +116,9 @@ const UNIT_STATIC_COLUMNS = [
   'property_type',
   'ru_image_tags',
   'check_in_instructions',
+  'cleaning_fee',
+  'security_deposit',
+  'tax_rate',
   'rentalsunited_property_id',
   'is_active',
 ] as const;
