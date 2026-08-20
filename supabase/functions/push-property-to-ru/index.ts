@@ -979,8 +979,15 @@ function buildValidation(payload: Record<string, any>): Record<string, unknown> 
     has_check_in_from: timeRe.test(checkInFrom),
     has_check_out_until: timeRe.test(checkOutUntil),
     check_in_from: checkInFrom || null,
+    check_in_to: String(payload.check_in_to || '').trim() || null,
     check_out_until: checkOutUntil || null,
     check_in_times_are_default: payload.check_in_times_are_default === true,
+    check_in_times_source: payload.check_in_times_source ?? null,
+    // RU refuses listings where check-out is later than check-in from. A violating trio
+    // must never publish: it lands the listing in a state RU's own editor rejects.
+    check_in_times_violation: payload.check_in_times_violation ?? null,
+    check_in_times_valid: !payload.check_in_times_violation,
+
     // Photos (certification dimensions).
     images_meeting_cert_size: certSized,
     images_measured_count: Math.max(0, images.length - unverified),
