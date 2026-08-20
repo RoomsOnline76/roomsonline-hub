@@ -6446,6 +6446,9 @@ export default function PropertyForm({
                     value={selectedFacilities}
                     onChange={(next) => {
                       setSelectedFacilities(next);
+                      // Selecting/clearing the Kitchen amenity is the same statement as the
+                      // "Separate kitchen" toggle above — mirror it so ROLOS matches the listing.
+                      setSeparateKitchen(hasSeparateKitchen(next));
                       setIsDirty(true);
                     }}
                     extraGroups={ROLOS_ONLY_FACILITY_GROUPS}
