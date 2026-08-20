@@ -1241,6 +1241,60 @@ function hashCoords(lat: number, lng: number): string {
   return `${(Number(lat) || 0).toFixed(5)},${(Number(lng) || 0).toFixed(5)}`;
 }
 
+/**
+ * ARRIVAL CONTACT — RU's <ArrivalInstructions> Landlord/Email/Phone.
+ *
+ * ROL'OS authors these in Identity & Contact (`amenities.contact.owner|email|telephone`,
+ * with `amenities.contact_email` / `amenities.telephone` as the flat legacy twins).
+ * The old code read `contact.name`, a key the property form never writes, so RU received the
+ * PROPERTY NAME as the landlord instead of the contact person. Property name is the last resort.
+ */
+function resolveArrivalContact(
+  property: PropertyRow,
+  amenities: Record<string, unknown>,
+): { arrival_landlord: string; arrival_email: string; arrival_phone: string } {
+  const contact = ((amenities as any)?.contact || {}) as Record<string, unknown>;
+  const first = (...vals: unknown[]) => {
+    for (const v of vals) {
+      const s = typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim();
+      if (s) return s;
+    }
+    return '';
+  };
+  return {
+    arrival_landlord: first(
+      contact.owner, contact.name, contact.contact_person,
+      (amenities as any)?.key_representative,
+      property.name,
+    ) || 'RoomsOnline',
+    arrival_email: first(
+      contact.email, (amenities as any)?.contact_email, (property as any)?.owner_email,
+    ) || 'dev@roomsonline.co.za',
+    arrival_phone: first(
+      contact.telephone, contact.phone, (amenities as any)?.telephone, (amenities as any)?.phone,
+    ) || '+27 824602220',
+  };
+}
+
+/** RU <HowToArrive>: unit instructions win, then house rules, then the policies block. */
+function resolveArrivalInstructions(unitInstructions: unknown, amenities: Record<string, unknown>): string {
+  const houseRules = ((amenities as any)?.house_rules || {}) as Record<string, unknown>;
+  const policies = ((amenities as any)?.policies || {}) as Record<string, unknown>;
+  const candidates = [
+    unitInstructions,
+    houseRules.check_in_instructions,
+    houseRules.arrival_instructions,
+    policies.check_in_instructions,
+    policies.arrival_instructions,
+  ];
+  for (const c of candidates) {
+    const s = typeof c === 'string' ? c.trim() : '';
+    if (s) return s;
+  }
+  return '';
+}
+
+
 // ── Build RU payload for a single unit ───────────────────────
 
 // Floor is authored per room type in ROLOS (amenities.room_types[].floor).
@@ -1589,11 +1643,12 @@ function buildUnitPayload(
     cancellation_policies: cancellationPolicies.rules,
     cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
-    arrival_landlord: String((amenities as any)?.contact?.name || property.name || 'RoomsOnline'),
-    arrival_email: String((amenities as any)?.contact_email || (amenities as any)?.contact?.email || 'dev@roomsonline.co.za'),
-    arrival_phone: String((amenities as any)?.telephone || (amenities as any)?.contact?.telephone || '+27 824602220'),
+    ...resolveArrivalContact(property, amenities as Record<string, unknown>),
     arrival_days_before: toFiniteNumber(houseRules.days_before_arrival) ?? 0,
-    arrival_how_to_arrive: String(unit.check_in_instructions || houseRules.check_in_instructions || ''),
+    arrival_how_to_arrive: resolveArrivalInstructions(
+      unit.check_in_instructions,
+      amenities as Record<string, unknown>,
+    ),
     check_in_from: checkInFrom,
     check_in_to: checkInTo,
     check_out_until: checkOutUntil,
@@ -1727,11 +1782,12 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     cancellation_policies: cancellationPolicies.rules,
     cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
-    arrival_landlord: String(contact.name || property.name || 'RoomsOnline'),
-    arrival_email: String((amenities as any)?.contact_email || contact.email || 'dev@roomsonline.co.za'),
-    arrival_phone: String((amenities as any)?.telephone || contact.telephone || '+27 824602220'),
+    ...resolveArrivalContact(property, amenities as Record<string, unknown>),
     arrival_days_before: toFiniteNumber(houseRules.days_before_arrival) ?? 0,
-    arrival_how_to_arrive: String(primaryRoom?.check_in_instructions || houseRules.check_in_instructions || ''),
+    arrival_how_to_arrive: resolveArrivalInstructions(
+      primaryRoom?.check_in_instructions,
+      amenities as Record<string, unknown>,
+    ),
     check_in_from: houseRules.check_in_from || primaryRoom?.check_in_time || '14:00',
     check_in_to: houseRules.check_in_to || '22:00',
     check_out_until: houseRules.check_out_to || primaryRoom?.check_out_time || '10:00',
