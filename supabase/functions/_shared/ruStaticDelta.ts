@@ -268,14 +268,21 @@ export async function queueRuStaticDelta(
   if (!propertyId) return { queued: false, reason: 'no_property' };
   try {
     const snapshot = await loadSnapshot(supabase, propertyId);
-    if (!snapshot.property || !snapshot.ruConnected || !snapshot.pushEnabled) {
-      const reason = !snapshot.property
-        ? 'no_property'
-        : !snapshot.ruConnected
-          ? 'not listed on the channel'
-          : 'pushes paused for this property';
-      await logSkip(supabase, propertyId, trigger, reason, null);
-      return { queued: false, reason: snapshot.property ? 'not_connected' : 'no_property' };
+    if (!snapshot.property) {
+      await logSkip(supabase, propertyId, trigger, 'no_property', null);
+      return { queued: false, reason: 'no_property' };
+    }
+    // A listed property whose gate refuses (pushes switched off, wizard incomplete) still *owes*
+    // this change to the channel: park it so the automatic re-arm delivers it the moment the gate
+    // clears. Only a genuinely undistributed listing is a plain skip.
+    if (!snapshot.pushEnabled && snapshot.listed) {
+      const message = snapshot.gateMessage ?? 'The Channel Manager is not enabled for this property yet.';
+      await logPending(supabase, propertyId, trigger, snapshot.gateCode, message);
+      return { queued: false, reason: 'gate_pending', error: message, blockers: [message] };
+    }
+    if (!snapshot.ruConnected) {
+      await logSkip(supabase, propertyId, trigger, 'not listed on the channel', null);
+      return { queued: false, reason: 'not_connected' };
     }
 
     const contentHash = await sha256(
