@@ -4486,8 +4486,15 @@ Deno.serve(async (req) => {
 
       // Deferrable work is parked in the shared background queue and replayed by the drainer,
       // so nothing is lost while still honouring the channel's one-per-sliding-minute rule.
-      if (isDeferrableRuCall(requestBody as unknown as Record<string, unknown>)) {
-        const action = String(requestBody?.action ?? 'ru_call');
+      // Reservation writes are queued too — an operator waiting on an acceptance is better served
+      // by "queued, landing within a minute" than by a hard 429 — but they go in at priority 1 so
+      // the drainer replays them ahead of the hundreds of background price/availability read-backs.
+      const deferAction = String(requestBody?.action ?? 'ru_call');
+      if (
+        isDeferrableRuCall(requestBody as unknown as Record<string, unknown>) ||
+        isReservationWriteAction(deferAction)
+      ) {
+        const action = deferAction;
         const queueId = await enqueueRuCall(getLogClient(), {
           methodKey: error.methodKey,
           action,
@@ -4495,6 +4502,7 @@ Deno.serve(async (req) => {
           ownerId: requestBody?.owner_id != null ? String(requestBody.owner_id) : null,
           propertyId: requestBody?.property_id ?? requestBody?.property_uuid ?? null,
           delayMs: error.waitMs,
+          priority: ruQueuePriority(action),
         });
         if (queueId) {
           return jsonResponse({
