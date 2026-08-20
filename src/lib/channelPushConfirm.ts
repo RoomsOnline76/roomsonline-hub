@@ -40,6 +40,7 @@ const RATE_LIMIT_PATTERN = /rate.?limit|too many|deferred|429|queued|throttl/i;
 
 interface SyncRunRow {
   action: string | null;
+  details: { reason?: string | null } | null;
   success: boolean | null;
   error_code: string | null;
   error_message: string | null;
@@ -70,7 +71,7 @@ export async function confirmChannelPush(options: {
   while (Date.now() < deadline) {
     const { data, error } = await supabase
       .from("ru_sync_runs")
-      .select("action, success, error_code, error_message, created_at")
+      .select("action, success, error_code, error_message, created_at, details")
       .eq("property_id", propertyId)
       .in("action", watched)
       .gte("created_at", sinceIso)
@@ -85,7 +86,7 @@ export async function confirmChannelPush(options: {
     for (const row of ((data ?? []) as SyncRunRow[])) {
       const action = String(row.action ?? "");
       sawAny = true;
-      const reason = row.error_message ?? row.error_code ?? null;
+      const reason = row.error_message ?? row.details?.reason ?? row.error_code ?? null;
       if (actions.skipped.includes(action)) {
         return { verdict: "not_owed", reason };
       }
