@@ -45,7 +45,7 @@ import { RoomPlanGrid, type RoomPlanCreatePayload, type RoomPlanMovePayload, typ
 import type { RoomPlanBooking } from "@/components/pms/roomplan/RoomPlanBar";
 import { extractFunctionError } from "@/lib/functionError";
 import { queueChannelRatesSync } from "@/lib/channelContentSync";
-import { pushBookingToChannel } from "@/lib/channelBookingSync";
+import { pushBookingToChannel, type ChannelBookingChange } from "@/lib/channelBookingSync";
 
 import { useBookingCoverage } from "@/lib/bookingHistoryWindow";
 
