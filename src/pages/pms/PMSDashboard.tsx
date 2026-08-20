@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 
@@ -351,6 +351,54 @@ function getBookingBarTitle(booking: BookingRow): string {
   const base = `${booking.guest_name} · ${booking.check_in_date} → ${booking.check_out_date}`;
   return hold ? `${base}\n${hold.label} — ${hold.detail}` : base;
 }
+
+/**
+ * Which day cell prints the guest name.
+ *
+ * Bars are drawn cell by cell, and the arrival cell only owns the right half of its width (the
+ * half-day wedge), so a name printed there is cut to a couple of characters. The label therefore
+ * moves to the first full night. Two edge cases matter for staff scanning the board: a one-night
+ * stay has no full night, so it keeps the label on its arrival cell, and a stay that began before
+ * the visible range labels its first visible night instead — otherwise it would show as an
+ * anonymous coloured band.
+ */
+function getBookingLabelDate(booking: BookingRow, visibleDates: Date[]): string {
+  const firstFullNight = format(addDays(parseISO(booking.check_in_date), 1), "yyyy-MM-dd");
+  const lastNight = format(addDays(parseISO(booking.check_out_date), -1), "yyyy-MM-dd");
+  // Single-night stay: the arrival cell is the only cell there is.
+  if (firstFullNight > lastNight) return booking.check_in_date;
+
+  const windowStart = visibleDates.length ? format(visibleDates[0], "yyyy-MM-dd") : null;
+  if (windowStart && windowStart > firstFullNight) {
+    // Stay already in progress (or arrival scrolled off): label the first night in view.
+    return windowStart > lastNight ? lastNight : windowStart;
+  }
+  return firstFullNight;
+}
+
+/**
+ * The guest name overlay for a booking bar.
+ *
+ * Bars are clipped to their own day cell, which is far narrower than most names. This overlay sits
+ * on top of the bar and is deliberately unclipped, so the name runs on across the following nights
+ * of the same stay and stays readable at a glance.
+ */
+function BookingBarLabel({ booking, textClass, halfStart }: { booking: BookingRow; textClass: string; halfStart?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute inset-y-0.5 z-[2] flex items-center gap-1 px-1 whitespace-nowrap",
+        halfStart ? "left-1/2" : "left-0",
+      )}
+    >
+      <span className={cn("text-[9px] font-medium leading-none", textClass)}>{booking.guest_name}</span>
+      {hasSpecialIndicator(booking) && <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500" />}
+    </span>
+  );
+}
+
+
+
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   confirmed: { bg: "bg-blue-500/20", text: "text-info dark:text-blue-300", border: "border-blue-500/40" },
@@ -2982,20 +3030,18 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
-                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <Fragment key={b.id}>
+                        <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {isStart && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3034,21 +3080,18 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                   {dayBookings.map(b => {
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
-                      <button
-                        key={b.id}
+                      <Fragment key={b.id}>
+                        <button
                         onClick={() => onSelectBooking(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
                         title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
                       >
-                        {isStart && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3092,21 +3135,18 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+              const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
-                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <Fragment key={b.id}>
+                  <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {isStart && (
-                    <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-
-                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                    </>
-                  )}
                 </button>
+                  {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                </Fragment>
               );
             })}
           </td>
@@ -3207,20 +3247,18 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const colors = getBookingColor(b);
                     const isStart = b.check_in_date === dateStr;
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+                    const showLabel = dateStr === getBookingLabelDate(b, dates);
                     return (
-                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <Fragment key={b.id}>
+                        <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {isStart && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3269,21 +3307,18 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const colors = getBookingColor(b);
               const isStart = b.check_in_date === dateStr;
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
+              const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
-                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <Fragment key={b.id}>
+                  <button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {isStart && (
-                    <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-
-                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                    </>
-                  )}
                 </button>
+                  {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                </Fragment>
               );
             })}
           </td>
