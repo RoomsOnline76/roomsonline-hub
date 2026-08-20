@@ -953,6 +953,7 @@ export default function PropertyForm({
 
   // Room types state with full data structure - starts empty for new properties
   const [roomTypes, setRoomTypes] = useState<any[]>([]);
+  const persistedRoomTypesRef = useRef<any[]>([]);
   const [selectedRoomType, setSelectedRoomType] = useState<string>("");
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
 
@@ -1443,6 +1444,7 @@ export default function PropertyForm({
       pms_synced?: boolean;
     }[]
   >([]);
+  const persistedRateTypesRef = useRef<typeof pmsRateTypes>([]);
 
   // PMS sync hook — all PMS state, sync functions, and adapter logic
   const pmsSync = usePMSSync({
@@ -2738,6 +2740,7 @@ export default function PropertyForm({
               };
             });
             setRoomTypes(transformedRooms);
+            persistedRoomTypesRef.current = transformedRooms;
             // Auto-select first room on initial load
             if (transformedRooms.length > 0 && !selectedRoomType) {
               setSelectedRoomType(transformedRooms[0].id);
@@ -2816,6 +2819,7 @@ export default function PropertyForm({
                 is_active: hr.is_active !== false,
               }));
               setRoomTypes(convertedRooms);
+              persistedRoomTypesRef.current = convertedRooms;
               // Auto-select first room on initial load
               if (convertedRooms.length > 0 && !selectedRoomType) {
                 setSelectedRoomType(convertedRooms[0].id);
@@ -2859,6 +2863,7 @@ export default function PropertyForm({
               };
             });
             setPmsRateTypes(transformedRateTypes);
+            persistedRateTypesRef.current = transformedRateTypes;
           } else if ((data as any).external_system === "hostfully" && data.id) {
             // For Hostfully properties, fetch rate types from pms_rate_types_cache
             const { data: cachedRateTypes } = await supabase
@@ -2880,10 +2885,12 @@ export default function PropertyForm({
                 pms_synced: true,
               }));
               setPmsRateTypes(transformedRateTypes);
+              persistedRateTypesRef.current = transformedRateTypes;
             }
           } else if (hasSavedRateTypes) {
             // pms_rate_types was explicitly saved as [] — respect deletion, don't regenerate
             setPmsRateTypes([]);
+            persistedRateTypesRef.current = [];
           } else if (amenities?.room_types && Array.isArray(amenities.room_types) && amenities.room_types.length > 0) {
             // Auto-generate rate types from ALL wizard rooms (not just those with rates)
             // This ensures every room has a linkable rate type entry
@@ -2911,6 +2918,7 @@ export default function PropertyForm({
               };
             });
             setPmsRateTypes(generatedRateTypes);
+            persistedRateTypesRef.current = generatedRateTypes;
           }
 
           // Load other saved data
@@ -3535,9 +3543,9 @@ export default function PropertyForm({
       );
       const propertyChanged = Object.keys(propertyPatch).length > 0;
       const previousAmenities = (previousRow?.amenities ?? {}) as Record<string, unknown>;
-      const roomsChanged = !samePersistedValue(previousAmenities.room_types, roomTypes);
+      const roomsChanged = !samePersistedValue(persistedRoomTypesRef.current, roomTypes);
       const seasonsChanged = !samePersistedValue(previousAmenities.seasons, seasons);
-      const ratePlansChanged = !samePersistedValue(previousAmenities.pms_rate_types, pmsRateTypes);
+      const ratePlansChanged = !samePersistedValue(persistedRateTypesRef.current, pmsRateTypes);
 
       let savedProperty: { id: string; slug: string | null } | null = null;
       let error: { message: string } | null = null;
@@ -4088,6 +4096,8 @@ export default function PropertyForm({
         ...(loadedPropertyRowRef.current ?? {}),
         ...(isEditMode ? propertyPatch : propertyData as unknown as Record<string, unknown>),
       };
+      if (roomsChanged) persistedRoomTypesRef.current = roomTypes;
+      if (ratePlansChanged) persistedRateTypesRef.current = pmsRateTypes;
       if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
 
 
