@@ -19,6 +19,7 @@ const CHANGES: ChannelBookingChange[] = [
   'payment',
   'notes',
   'status',
+  'confirmed',
   'cancelled',
   'no_show',
   'deleted',

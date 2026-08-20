@@ -17,6 +17,7 @@ import { BookerSegmentationFields, type BookerSegmentationValue } from "@/compon
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
 import { extractFunctionError } from "@/lib/functionError";
+import { pushBookingToChannel } from "@/lib/channelBookingSync";
 
 
 
@@ -60,6 +61,8 @@ export interface BookingDetailsGridBooking {
   invoice_to_vat?: string | null;
   invoice_to_address?: string | null;
   modification_notes?: Record<string, unknown>[] | null;
+  integration_type?: string | null;
+  external_reservation_id?: string | null;
 }
 
 
@@ -125,6 +128,7 @@ export function BookingDetailsGrid({
   onOpenInvoice?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [confirmingRequest, setConfirmingRequest] = useState(false);
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
@@ -571,6 +575,31 @@ export function BookingDetailsGrid({
           </div>
           <div className="flex justify-between"><span className="text-muted-foreground">Reference</span><span className="font-mono">{displayBookingReference(booking as never)}</span></div>
         </div>
+
+        {/* A held channel request is not a reservation at the channel until it is accepted. */}
+        {(booking.integration_type || "").toLowerCase() === "rentalsunited_lead" && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-2 space-y-2 text-[11px]">
+            <p className="font-medium">Not yet confirmed at the channel</p>
+            <p className="text-muted-foreground">
+              The channel still holds this stay as a request. Checking the guest in accepts it automatically —
+              you can also accept it now.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-[11px]"
+              disabled={confirmingRequest}
+              onClick={async () => {
+                setConfirmingRequest(true);
+                const outcome = await pushBookingToChannel(booking.id, "confirmed", { source: "booking_drawer" });
+                setConfirmingRequest(false);
+                if (outcome?.reservation === "pushed") onSaved();
+              }}
+            >
+              {confirmingRequest ? "Accepting…" : "Accept at channel"}
+            </Button>
+          </div>
+        )}
 
         <div>
           <Label className="text-[11px]">Booking Made By</Label>

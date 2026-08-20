@@ -520,39 +520,64 @@ export async function confirmRuRequest(
     details: { booking_id: booking.id, reservation_id: reservationId },
   });
 
+  // The channel refuses to accept a held request whose own nights read as closed on its calendar.
+  const isBlockedDatesMsg = (msg?: string | null) =>
+    /not available for a given dates|check in or check out/i.test(msg ?? '');
+
+  // Reopen exactly the request's own nights so the channel can accept it. Idempotent.
+  const reopenOwnNights = async (): Promise<boolean> => {
+    const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+    if (!ruPropertyId) return false;
+    // RU's Date From/To covers nights, so the departure day is excluded.
+    const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
+    lastNight.setUTCDate(lastNight.getUTCDate() - 1);
+    const reopened = await invokeRu(supabase, 'push_availability', {
+      ru_property_id: Number(ruPropertyId),
+      availability: [{
+        date_from: booking.check_in_date,
+        date_to: lastNight.toISOString().slice(0, 10),
+        units: 1,
+        changeover: 1,
+      }],
+      ...auth,
+    }, {
+      propertyId: booking.property_id,
+      ruPropertyId,
+      traceId,
+      parentAction: 'ruBookingSync:confirm:reopen',
+      details: { booking_id: booking.id, reservation_id: reservationId },
+    });
+    return reopened.ok === true;
+  };
+
+  // A confirm parked behind the rate limit retries from the call queue, where the self-heal below
+  // cannot run — so when a parked attempt is already stuck on closed nights, reopen them first and
+  // let this attempt (or the queue's next retry) land.
+  try {
+    const { data: parked } = await supabase
+      .from('ru_call_queue')
+      .select('id, last_error')
+      .eq('action', 'confirm_request')
+      .eq('status', 'pending')
+      .contains('payload', { reservation_id: reservationId })
+      .limit(3);
+    if ((parked ?? []).some((r: { last_error?: string | null }) => isBlockedDatesMsg(r?.last_error))) {
+      await reopenOwnNights();
+    }
+  } catch (_err) {
+    // Best effort only — never block the confirm on this lookup.
+  }
+
   let result = await attemptConfirm();
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
   // In practice that is our own hold: the request's nights were pushed as 0 units (and/or with a
   // changeover restriction) while the lead was pending. Reopen exactly the request's own nights
   // once and retry, so the operator does not have to fix our block by hand.
-  const isBlockedDates = (msg?: string | null) =>
-    /not available for a given dates|check in or check out/i.test(msg ?? '');
+  const isBlockedDates = isBlockedDatesMsg;
 
   if (!result.ok && isBlockedDates(result.message)) {
-    const ruPropertyId = await resolveRuPropertyId(supabase, booking);
-    if (ruPropertyId) {
-      // RU's Date From/To covers nights, so the departure day is excluded.
-      const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
-      lastNight.setUTCDate(lastNight.getUTCDate() - 1);
-      const reopened = await invokeRu(supabase, 'push_availability', {
-        ru_property_id: Number(ruPropertyId),
-        availability: [{
-          date_from: booking.check_in_date,
-          date_to: lastNight.toISOString().slice(0, 10),
-          units: 1,
-          changeover: 1,
-        }],
-        ...auth,
-      }, {
-        propertyId: booking.property_id,
-        ruPropertyId,
-        traceId,
-        parentAction: 'ruBookingSync:confirm:reopen',
-        details: { booking_id: booking.id, reservation_id: reservationId },
-      });
-      if (reopened.ok) result = await attemptConfirm();
-    }
+    if (await reopenOwnNights()) result = await attemptConfirm();
   }
 
   if (!result.ok) {

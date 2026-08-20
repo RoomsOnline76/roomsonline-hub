@@ -1941,6 +1941,23 @@ async function handleDeleteGuestProfile(body: any, supabase: any): Promise<Respo
 }
 
 
+
+/**
+ * Tell the Channel Manager about a lifecycle change. Check-in is what accepts a still-held channel
+ * request, so this must run even though the local status write already happened — the trigger's
+ * background job is deduped per booking and can drop a status change queued behind another.
+ */
+// deno-lint-ignore no-explicit-any
+async function notifyChannelOfLifecycle(supabase: any, bookingId: string, change: "confirmed" | "status", source: string) {
+  try {
+    await supabase.functions.invoke("channel-booking-sync", {
+      body: { booking_id: bookingId, change, source },
+    });
+  } catch (err) {
+    console.warn("[pms-api] channel lifecycle sync failed:", err);
+  }
+}
+
 // deno-lint-ignore no-explicit-any
 async function handleCheckIn(body: any, supabase: any): Promise<Response> {
   const { booking_id, override_room_ids, override_total_price } = body;
@@ -2024,6 +2041,9 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
       rooms_assigned: finalRoomIds,
     });
   }
+
+  // Accept the request / confirm the reservation at the channel.
+  await notifyChannelOfLifecycle(supabase, booking_id, "confirmed", "pms_check_in");
 
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -2114,6 +2134,8 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
       status: "checked_out",
     });
   }
+
+  await notifyChannelOfLifecycle(supabase, booking_id, "status", "pms_check_out");
 
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
