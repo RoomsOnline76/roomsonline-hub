@@ -195,6 +195,50 @@ export async function enqueueRuCall(
   return typeof data === 'string' ? data : (data?.id ?? null);
 }
 
+/**
+ * An operator clicking Save must not be blocked by OUR OWN parked retry of the same call.
+ *
+ * A failed reservation write is parked in the queue keyed by method+parameters — exactly the key
+ * the inline attempt needs. The drainer's replay then claims the sliding-minute slot and the
+ * person waiting gets `RU_RATE_DEFERRED`. Superseding the parked row (and releasing its slot claim
+ * when it has not run yet) hands the window back to the interactive attempt.
+ *
+ * Returns the number of parked rows taken over.
+ */
+export async function supersedeQueuedRuCalls(
+  supabase: any,
+  args: { action: string; reservationId: string; releaseSlot?: boolean },
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('ru_call_queue')
+      .update({
+        status: 'superseded',
+        completed_at: new Date().toISOString(),
+        claimed_at: null,
+        last_error: 'Superseded by an operator-initiated attempt on the same reservation',
+      })
+      .eq('action', args.action)
+      .eq('status', 'pending')
+      .contains('payload', { reservation_id: args.reservationId })
+      .select('id, method_key');
+    if (error) throw error;
+    const rows = (data ?? []) as { id: string; method_key: string }[];
+    if (rows.length && args.releaseSlot !== false) {
+      // The parked row never reached the channel, so its slot claim is not owed to RU.
+      await supabase
+        .from('ru_method_rate_limits')
+        .delete()
+        .in('method_key', rows.map((r) => r.method_key));
+    }
+    return rows.length;
+  } catch (e) {
+    // Never block a real channel call on this bookkeeping.
+    console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
+    return 0;
+  }
+}
+
 /** Actions safe to run later: reads, verification read-backs and scheduled refreshes. */
 const DEFERRABLE_ACTIONS = new Set([
   'get_availability',
