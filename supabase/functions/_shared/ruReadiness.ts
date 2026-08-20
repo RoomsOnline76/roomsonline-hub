@@ -260,6 +260,12 @@ export function evaluateUnitChecks(
     "Check-in time is not set", "Property → House rules → Check-in");
   add("has_check_out_until", "Content", "Check-out until time", v.has_check_out_until !== false,
     "Check-out time is not set", "Property → House rules → Check-out");
+  // The channel enforces "check-out must not be later than check-in from" and refuses to edit
+  // a listing that breaks it, so a violating trio has to block the push at our side.
+  add("check_in_times_valid", "Content", "Check-in / out times pass the channel rule",
+    !v.check_in_times_violation,
+    String(v.check_in_times_violation || "Check-in / check-out times break the channel rule"),
+    "Property → House rules → Check-in / Check-out");
   add("check_in_times_authored", "Content", "Check-in / out times are authored (not defaults)",
     v.check_in_times_are_default !== true,
     `Sending the default ${v.check_in_from ?? "14:00"} / ${v.check_out_until ?? "10:00"} — confirm the real times`,
