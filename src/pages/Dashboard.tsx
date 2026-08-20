@@ -869,7 +869,9 @@ const Dashboard = () => {
       
       // Aggregate current bookings
       bookings.forEach(b => {
-        const monthKey = format(new Date(b.created_at), "yyyy-MM");
+        const sd = stayDateOf(b);
+        if (!sd) return;
+        const monthKey = format(sd, "yyyy-MM");
         const entry = monthsMap.get(monthKey);
         if (entry) {
           if (b.status !== "cancelled") {
@@ -884,7 +886,8 @@ const Dashboard = () => {
       // Aggregate previous year bookings
       if (comparePrevYear) {
         prevYearBookings.forEach(b => {
-          const bookingDate = new Date(b.created_at);
+          const bookingDate = stayDateOf(b);
+          if (!bookingDate) return;
           // Map to current year month
           const currentYearDate = new Date(bookingDate);
           currentYearDate.setFullYear(currentYearDate.getFullYear() + 1);
@@ -916,7 +919,7 @@ const Dashboard = () => {
         const isFuture = current > today;
         
         const dayBookings = bookings.filter(b => 
-          format(new Date(b.created_at), "yyyy-MM-dd") === dateStr
+          { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === dateStr; }
         );
         
         const entry: ChartDataPoint = {
@@ -934,7 +937,7 @@ const Dashboard = () => {
           const prevYearDate = subYears(current, 1);
           const prevDateStr = format(prevYearDate, "yyyy-MM-dd");
           const prevDayBookings = prevYearBookings.filter(b => 
-            format(new Date(b.created_at), "yyyy-MM-dd") === prevDateStr
+            { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === prevDateStr; }
           );
           
           entry.prevBookings = prevDayBookings.filter(b => b.status !== "cancelled").length;
@@ -1096,7 +1099,7 @@ const Dashboard = () => {
     }
     
     return data;
-  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth]);
+  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth, stayDateOf]);
 
   return (
     <AppLayout>
@@ -1567,7 +1570,7 @@ const Dashboard = () => {
                 let displayBookings = filteredBookings.filter(b => b.status !== "cancelled" && b.status !== "failed");
                 if (drillDownDate) {
                   displayBookings = displayBookings.filter(b => {
-                    const bookingDate = new Date(b.created_at || '');
+                    const bookingDate = stayDateOf(b) || new Date();
                     const matchDate = shouldAggregateByMonth
                       ? format(bookingDate, "MMM yyyy") === drillDownDate
                       : format(bookingDate, "MMM d") === drillDownDate;
