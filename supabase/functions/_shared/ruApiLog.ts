@@ -182,6 +182,13 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
     const response_xml = redactRuXml(entry.response_xml);
     const status = extractStatus(entry.response_xml);
     const transport = classifyTransport(entry);
+    const effectiveStatusId = entry.status_id ?? status.id;
+    const refused = channelRefused(effectiveStatusId);
+    // A refusal carried over HTTP 200 is still a failed exchange.
+    const success = entry.success === true && !refused;
+    const refusalReason = refused
+      ? `channel_error: StatusID ${effectiveStatusId} — ${entry.status_message ?? status.message ?? 'the channel refused the request'}`
+      : null;
 
     // supabase-js returns errors instead of throwing — surface them to the function console so a
     // silent logging outage (missing grant, schema drift) can never hide behind an empty table.
