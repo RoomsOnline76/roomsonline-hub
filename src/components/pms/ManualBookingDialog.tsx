@@ -21,6 +21,17 @@ import { useActivePackages } from "@/hooks/useActivePackages";
 import { ensureGuestProfile, rebuildGuestStats } from "@/lib/guestIdentity";
 import { syncBookingToHubSpot } from "@/lib/hubspotEvents";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
+import { useAuth } from "@/hooks/useAuth";
+import { useUnitAvailability } from "@/hooks/useUnitAvailability";
+import {
+  blockedNightsFor,
+  disabledDaysFrom,
+  blockedDaysFrom,
+  findBlockedInRange,
+  isoDay,
+  canOverbook,
+  type BlockedNight,
+} from "@/lib/unitAvailability";
 import {
   BookerSegmentationFields,
   emptyBookerSegmentation,
@@ -394,6 +405,52 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   }, [lines, activeRoomTypes]);
 
 
+  /* ── Availability guard ────────────────────────────────────────────────
+     Nights already held by a live reservation (or blocked by the property) can
+     neither be picked nor saved. Privileged roles may overbook deliberately,
+     which is stamped on the booking with a reason. */
+  const { userRole } = useAuth();
+  const mayOverbook = canOverbook(userRole);
+  const [overbookReason, setOverbookReason] = useState("");
+  const { availability, refresh: refreshAvailability } = useUnitAvailability(effectivePropertyId, { enabled: open });
+
+  useEffect(() => {
+    if (open) void refreshAvailability();
+  }, [open, refreshAvailability]);
+
+  /** Nights unavailable for the room types / units currently on the form. */
+  const blockedNights = useMemo(() => {
+    const merged = new Map<string, BlockedNight>();
+    const requested = lines.filter(l => l.room_type_id);
+    if (requested.length === 0) return merged;
+    for (const l of requested) {
+      for (const [iso, info] of blockedNightsFor(availability, l.room_type_id, l.room_id || null)) {
+        if (!merged.has(iso)) merged.set(iso, info);
+      }
+    }
+    return merged;
+  }, [availability, lines]);
+
+  const disabledStayDays = useMemo(() => disabledDaysFrom(blockedNights), [blockedNights]);
+  const blockedStayDays = useMemo(() => blockedDaysFrom(blockedNights), [blockedNights]);
+
+  /** The first clash inside the chosen stay, if any. */
+  const stayClash = useMemo(() => {
+    if (!form.check_in || !form.check_out || nights < 1) return null;
+    return findBlockedInRange(blockedNights, isoDay(form.check_in), isoDay(form.check_out));
+  }, [blockedNights, form.check_in, form.check_out, nights]);
+
+  /** Units of a type that are free for the whole stay. */
+  const unitIsFree = useCallback(
+    (roomId: string) => {
+      if (!form.check_in || !form.check_out || nights < 1) return true;
+      const held = availability.unitNights.get(roomId);
+      if (!held) return true;
+      return !findBlockedInRange(held, isoDay(form.check_in), isoDay(form.check_out));
+    },
+    [availability, form.check_in, form.check_out, nights],
+  );
+
   /** Per-line pricing summary. */
   const linePricing = useMemo(() => {
     const map = new Map<string, { total: number; rates: number[]; unresolved: boolean; label: string }>();
@@ -472,6 +529,19 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       if (cap?.over) {
         const name = activeRoomTypes.find(t => t.id === validLines[i].room_type_id)?.name || `Room ${i + 1}`;
         toast.error(`${name} sleeps ${cap.max} — ${cap.guests} guests on room ${i + 1}. Add another room or reduce the guests.`);
+        return;
+      }
+    }
+
+    // Never write a stay over nights that are already sold, unless a privileged
+    // operator gives a reason (which is stored on the booking).
+    if (stayClash) {
+      if (!mayOverbook) {
+        toast.error(`${format(new Date(stayClash.iso), "d MMM")} is not available — ${stayClash.reason}.`);
+        return;
+      }
+      if (!overbookReason.trim()) {
+        toast.error("Add a reason for the overbooking before saving.");
         return;
       }
     }
@@ -693,12 +763,40 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   numberOfMonths={2}
                   from={form.check_in}
                   to={form.check_out}
+                  disabledDays={mayOverbook ? undefined : disabledStayDays}
+                  modifiers={{ rolBlocked: blockedStayDays }}
+                  modifiersClassNames={{ rolBlocked: "line-through text-muted-foreground opacity-60" }}
                   onChange={({ fromDate, toDate }) => {
+                    if (fromDate && toDate) {
+                      const clash = findBlockedInRange(blockedNights, isoDay(fromDate), isoDay(toDate));
+                      if (clash && !mayOverbook) {
+                        toast.error(`${format(new Date(clash.iso), "d MMM")} is not available — ${clash.reason}.`);
+                        return;
+                      }
+                    }
                     setForm(p => ({ ...p, check_in: fromDate, check_out: toDate }));
                   }}
                 />
                 {nights > 0 && (
                   <p className="text-xs text-muted-foreground">{nights} night{nights !== 1 ? "s" : ""}</p>
+                )}
+                {stayClash && (
+                  <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 space-y-2">
+                    <p className="text-xs font-medium text-destructive">
+                      {format(new Date(stayClash.iso), "d MMM yyyy")} is already taken — {stayClash.reason}.
+                    </p>
+                    {mayOverbook && (
+                      <div>
+                        <Label className="text-[10px]">Reason for overbooking (required to continue)</Label>
+                        <Input
+                          className="h-8"
+                          value={overbookReason}
+                          onChange={e => setOverbookReason(e.target.value)}
+                          placeholder="e.g. guest moving units on arrival"
+                        />
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -892,9 +990,15 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                           <Select value={l.room_id} onValueChange={v => updateLine(l.key, { room_id: v })} disabled={!l.room_type_id}>
                             <SelectTrigger className="h-9"><SelectValue placeholder={availableRooms.length ? "Auto / select" : "No units"} /></SelectTrigger>
                             <SelectContent>
-                              {availableRooms.map(r => (
-                                <SelectItem key={r.id} value={r.id}>{r.room_number}{r.room_name ? ` (${r.room_name})` : ""}</SelectItem>
-                              ))}
+                              {availableRooms.map(r => {
+                                const free = unitIsFree(r.id);
+                                return (
+                                  <SelectItem key={r.id} value={r.id} disabled={!free && !mayOverbook}>
+                                    {r.room_number}{r.room_name ? ` (${r.room_name})` : ""}
+                                    {free ? "" : " · booked"}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
@@ -914,13 +1018,37 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                         </Select>
                       </div>
 
-                      <div className="grid grid-cols-5 gap-1.5">
-                        <div><Label className="text-[10px]">Adults</Label><Input className="h-8 px-2" type="number" min={1} value={l.adults} onChange={e => updateLine(l.key, { adults: e.target.value })} /></div>
-                        <div><Label className="text-[10px]">Ch 0–2</Label><Input className="h-8 px-2" type="number" min={0} value={l.infants} onChange={e => updateLine(l.key, { infants: e.target.value })} /></div>
-                        <div><Label className="text-[10px]">Ch 3–12</Label><Input className="h-8 px-2" type="number" min={0} value={l.children} onChange={e => updateLine(l.key, { children: e.target.value })} /></div>
-                        <div><Label className="text-[10px]">Teens</Label><Input className="h-8 px-2" type="number" min={0} value={l.teens} onChange={e => updateLine(l.key, { teens: e.target.value })} /></div>
-                        <div><Label className="text-[10px]">Pets</Label><Input className="h-8 px-2" type="number" min={0} value={l.pets} onChange={e => updateLine(l.key, { pets: e.target.value })} /></div>
-                      </div>
+                      {(() => {
+                        const cap = lineCapacity.get(l.key);
+                        const max = cap?.max ?? null;
+                        // Sleeping slots left for the field being edited (infants excluded).
+                        const slotsFor = (field: "adults" | "children" | "teens") => {
+                          if (!max) return undefined;
+                          const others = (["adults", "children", "teens"] as const)
+                            .filter(f => f !== field)
+                            .reduce((sum, f) => sum + (parseInt(l[f]) || 0), 0);
+                          return Math.max(field === "adults" ? 1 : 0, max - others);
+                        };
+                        const clamp = (field: "adults" | "children" | "teens", raw: string) => {
+                          const limit = slotsFor(field);
+                          const value = parseInt(raw);
+                          if (limit === undefined || isNaN(value)) return raw;
+                          if (value > limit) {
+                            toast.error(`This unit sleeps ${max} guest${max === 1 ? "" : "s"} — add another room for more.`);
+                            return String(limit);
+                          }
+                          return raw;
+                        };
+                        return (
+                          <div className="grid grid-cols-5 gap-1.5">
+                            <div><Label className="text-[10px]">Adults</Label><Input className="h-8 px-2" type="number" min={1} max={slotsFor("adults")} value={l.adults} onChange={e => updateLine(l.key, { adults: clamp("adults", e.target.value) })} /></div>
+                            <div><Label className="text-[10px]">Ch 0–2</Label><Input className="h-8 px-2" type="number" min={0} value={l.infants} onChange={e => updateLine(l.key, { infants: e.target.value })} /></div>
+                            <div><Label className="text-[10px]">Ch 3–12</Label><Input className="h-8 px-2" type="number" min={0} max={slotsFor("children")} value={l.children} onChange={e => updateLine(l.key, { children: clamp("children", e.target.value) })} /></div>
+                            <div><Label className="text-[10px]">Teens</Label><Input className="h-8 px-2" type="number" min={0} max={slotsFor("teens")} value={l.teens} onChange={e => updateLine(l.key, { teens: clamp("teens", e.target.value) })} /></div>
+                            <div><Label className="text-[10px]">Pets</Label><Input className="h-8 px-2" type="number" min={0} value={l.pets} onChange={e => updateLine(l.key, { pets: e.target.value })} /></div>
+                          </div>
+                        );
+                      })()}
                       {(() => {
                         const cap = lineCapacity.get(l.key);
                         if (!cap?.max) return null;
