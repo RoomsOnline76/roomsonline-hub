@@ -580,8 +580,18 @@ export async function confirmRuRequest(
     };
   }
 
-
-
+  // A deferred confirm never reached the channel (rate limit) — the reservation is still a held
+  // request there, so do NOT promote it locally or let a modification follow.
+  if (result.deferred === true) {
+    return {
+      ok: false,
+      method: 'confirm_request',
+      code: 'RU_RATE_DEFERRED',
+      message:
+        'The channel rate limit deferred accepting this request. Nothing was changed — try again in about a minute.',
+      traceId,
+    };
+  }
 
   await supabase
     .from('bookings')
@@ -589,7 +599,8 @@ export async function confirmRuRequest(
     .eq('id', booking.id);
   booking.integration_type = 'rentalsunited';
 
-  return { ok: true, deferred: result.deferred === true, method: 'confirm_request', traceId };
+  return { ok: true, deferred: false, method: 'confirm_request', traceId };
+
 }
 
 /**
