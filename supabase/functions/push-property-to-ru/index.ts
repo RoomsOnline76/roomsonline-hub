@@ -3824,7 +3824,11 @@ Deno.serve(async (req) => {
      * for the whole push from the property's authored attractions plus the cached channel
      * destination dictionary; an empty result simply omits the <Distances> block.
      */
-    const propertyDistances = await loadPropertyDistances(supabase, property_id);
+    const distanceLimitRaw = Number((reqBody as Record<string, unknown>)?.distance_limit);
+    const distanceLimit = Number.isFinite(distanceLimitRaw) && distanceLimitRaw > 0
+      ? Math.floor(distanceLimitRaw)
+      : undefined;
+    const propertyDistances = (await loadPropertyDistances(supabase, property_id, distanceLimit));
     if (propertyDistances.length > 0) {
       console.log(`[push-property-to-ru] Distances mapped: ${propertyDistances.map((d) => `${d.destination_name}=${d.value}km`).join(', ')}`);
     }
