@@ -796,7 +796,18 @@ const Dashboard = () => {
     return { forecast, upper80, lower80, upper95, lower95 };
   };
 
+  /**
+   * Revenue and volume belong to the STAY (arrival) date, never the capture date.
+   * Bulk imports create hundreds of historical bookings on a single day, which
+   * previously produced a single absurd revenue spike on the import day.
+   */
+  const stayDateOf = useCallback((b: { check_in_date?: string | null; created_at?: string | null }) => {
+    const raw = b.check_in_date || b.created_at;
+    return raw ? new Date(raw) : null;
+  }, []);
+
   const chartData = useMemo(() => {
+
     if (!dateRange?.from || !dateRange?.to) return [];
     
     interface ChartDataPoint {
