@@ -3,6 +3,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
+import {
+  chargesBreakdownSnapshot,
+  quoteBookingCharges,
+  reconcileBookingCharges,
+  resolveBookingChargeContext,
+} from "../_shared/propertyCharges.ts";
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
@@ -53,6 +59,9 @@ interface ModifyRequest {
    * extended stay ended up back at its old departure date with the extra nights only blocked.
    */
   expected_updated_at?: string | null;
+
+  /** Price the change without writing anything — powers the dialog preview. */
+  quote_only?: boolean;
 }
 
 
@@ -378,6 +387,75 @@ Deno.serve(async (req) => {
     const externalSystem = property?.external_system || "none";
     const isRolNative = property?.is_rol_property || externalSystem === "none";
 
+    // S3b: Preview only — price the proposed stay (accommodation + extras + deposits) and
+    // return the breakdown without touching the booking, the folio or the channel.
+    if (body.quote_only) {
+      const previewPaxOrDates =
+        modifications.adults !== undefined ||
+        modifications.children !== undefined ||
+        modifications.teens !== undefined ||
+        modifications.check_in_date !== undefined ||
+        modifications.check_out_date !== undefined;
+
+      const context = await resolveBookingChargeContext(supabase, booking);
+      let accommodation = context.accommodation;
+      let repricedFrom: string | null = null;
+
+      if (modifications.total_price !== undefined) {
+        accommodation = Number(modifications.total_price);
+        repricedFrom = "operator";
+      } else if (isRolNative && previewPaxOrDates) {
+        const repriced = await recalculateRolPrice(supabase, booking, modifications);
+        if (repriced) {
+          accommodation = repriced.total;
+          repricedFrom = repriced.source;
+        }
+      }
+
+      const quote = await quoteBookingCharges(supabase, {
+        bookingId: booking.id,
+        propertyId: booking.property_id,
+        accommodation,
+        checkIn: modifications.check_in_date || booking.check_in_date,
+        checkOut: modifications.check_out_date || booking.check_out_date,
+        adults: modifications.adults ?? booking.adults,
+        children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+        infants: modifications.infants ?? booking.infants,
+        rooms: context.rooms,
+        roomTypeIds: context.roomTypeIds,
+        currency: booking.currency,
+      });
+
+      const paid = Number(booking.amount_paid ?? 0);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          quote: {
+            accommodation: quote.accommodation,
+            extras_total: quote.extrasTotal,
+            deposit_total: quote.depositTotal,
+            guest_total: quote.guestTotal,
+            nights: quote.nights,
+            currency: booking.currency || "ZAR",
+            repriced_from: repricedFrom,
+            amount_paid: paid,
+            balance_due: Math.round((quote.guestTotal - paid) * 100) / 100,
+            previous_total: Number(booking.total_price ?? 0),
+            lines: quote.lines.map((l) => ({
+              name: l.name,
+              category: l.category,
+              amount: l.amount,
+              breakdown: l.breakdown,
+              is_refundable: l.isRefundable,
+              counts_in_total: l.countsInGuestTotal,
+            })),
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+
     // For external PMS, check if modification is supported
     if (!isRolNative && externalSystem !== "none") {
       const { data: tracker } = await supabase
@@ -534,6 +612,28 @@ Deno.serve(async (req) => {
     }
 
 
+    // S6a: The channel is quoted the guest total (accommodation + mandatory extras), so the
+    // extras have to be priced for the new stay before the channel write goes out.
+    const preContext = await resolveBookingChargeContext(supabase, booking);
+    const preAccommodation = modifications.total_price !== undefined
+      ? Number(modifications.total_price)
+      : newTotalPrice !== null
+        ? Number(newTotalPrice)
+        : preContext.accommodation;
+    const preQuote = await quoteBookingCharges(supabase, {
+      bookingId: booking.id,
+      propertyId: booking.property_id,
+      accommodation: preAccommodation,
+      checkIn: modifications.check_in_date || booking.check_in_date,
+      checkOut: modifications.check_out_date || booking.check_out_date,
+      adults: modifications.adults ?? booking.adults,
+      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+      infants: modifications.infants ?? booking.infants,
+      rooms: preContext.rooms,
+      roomTypeIds: preContext.roomTypeIds,
+      currency: booking.currency,
+    });
+
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.
     let ruModified = false;
@@ -548,10 +648,11 @@ Deno.serve(async (req) => {
         date_from: modifications.check_in_date ?? null,
         date_to: modifications.check_out_date ?? null,
         number_of_guests: guests > 0 ? guests : null,
-        client_price: modifications.total_price ?? newTotalPrice ?? null,
+        client_price: preQuote.guestTotal || null,
         already_paid: modifications.already_paid ?? null,
         arrival_time: modifications.arrival_time ?? null,
       });
+
 
       if (!ruResult.ok) {
         // Queued (not rejected): the channel owes this method another slot in its sliding minute
@@ -637,12 +738,37 @@ Deno.serve(async (req) => {
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
 
-    // Update total_price if recalculated or explicitly set by the operator
-    if (modifications.total_price !== undefined) {
-      updateData.total_price = modifications.total_price;
-    } else if (newTotalPrice !== null) {
-      updateData.total_price = newTotalPrice;
-    }
+    // Accommodation for the new stay: operator override wins, then the reprice, then
+    // whatever the current room lines / stored breakdown say. This figure is the room
+    // revenue only — extras are added on top below.
+    const currentContext = await resolveBookingChargeContext(supabase, booking);
+    const newAccommodation = modifications.total_price !== undefined
+      ? Number(modifications.total_price)
+      : newTotalPrice !== null
+        ? Number(newTotalPrice)
+        : currentContext.accommodation;
+
+    // Extras follow the stay: per-night / per-person / percentage charges are recomputed
+    // for the new dates and pax, and their folio lines corrected in place.
+    const chargeQuote = await reconcileBookingCharges(supabase, {
+      bookingId: booking_id,
+      propertyId: booking.property_id,
+      accommodation: newAccommodation,
+      checkIn: modifications.check_in_date || booking.check_in_date,
+      checkOut: modifications.check_out_date || booking.check_out_date,
+      adults: modifications.adults ?? booking.adults,
+      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+      infants: modifications.infants ?? booking.infants,
+      rooms: currentContext.rooms,
+      roomTypeIds: currentContext.roomTypeIds,
+      currency: booking.currency,
+    });
+
+    // One guest total: accommodation plus mandatory extras. Refundable deposits are
+    // itemised separately and never folded into the total.
+    updateData.total_price = chargeQuote.guestTotal;
+    updateData.deposit_amount = chargeQuote.depositTotal;
+    updateData.charges_breakdown = chargesBreakdownSnapshot(chargeQuote);
     // Stamp the plan that priced the stay so the next modification does not have to guess again.
     if (repricedPlanId && !booking.rolos_rate_plan_id) {
       updateData.rolos_rate_plan_id = repricedPlanId;
@@ -669,9 +795,9 @@ Deno.serve(async (req) => {
     }
 
     // The booking card reads the room line, so a reprice that only moved the booking total would
-    // leave the line contradicting it. Single-room stays are kept in step here.
-    const effectiveNewTotal = updateData.total_price ?? null;
-    if (effectiveNewTotal !== null) {
+    // leave the line contradicting it. Single-room stays are kept in step here — the line carries
+    // accommodation, never the guest total.
+    {
       const { data: lines } = await supabase
         .from("rolos_booking_rooms")
         .select("id")
@@ -684,13 +810,14 @@ Deno.serve(async (req) => {
         await supabase
           .from("rolos_booking_rooms")
           .update({
-            rate_charged: Number(effectiveNewTotal),
+            rate_charged: newAccommodation,
             nightly_rate: repricedNightly ??
-              (nights > 0 ? Math.round((Number(effectiveNewTotal) / nights) * 100) / 100 : null),
+              (nights > 0 ? Math.round((newAccommodation / nights) * 100) / 100 : null),
           })
           .eq("id", lines[0].id);
       }
     }
+
 
 
 
@@ -816,7 +943,17 @@ Deno.serve(async (req) => {
         ru_request_accepted: ruRequestAccepted,
         new_total_price: updateData.total_price ?? booking.total_price,
         old_total_price: booking.total_price,
+        charges: {
+          accommodation: chargeQuote.accommodation,
+          extras_total: chargeQuote.extrasTotal,
+          deposit_total: chargeQuote.depositTotal,
+          guest_total: chargeQuote.guestTotal,
+          created: chargeQuote.created,
+          updated: chargeQuote.updated,
+          removed: chargeQuote.removed,
+        },
         settlement: settlementOutcome,
+
       }),
 
 

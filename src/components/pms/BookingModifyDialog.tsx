@@ -42,6 +42,23 @@ interface Props {
 
 type QuoteSource = "live" | "average" | null;
 
+interface ChargeLine {
+  name: string;
+  category: string | null;
+  amount: number;
+  breakdown: string | null;
+  is_refundable: boolean;
+  counts_in_total: boolean;
+}
+
+interface ExtrasQuote {
+  accommodation: number;
+  extras_total: number;
+  deposit_total: number;
+  guest_total: number;
+  lines: ChargeLine[];
+}
+
 const toDate = (iso: string): Date | undefined => {
   try {
     const parsed = parseISO(iso);
@@ -81,6 +98,11 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   /** Once the operator types a total, their figure wins over later auto-quotes. */
   const [manualTotal, setManualTotal] = useState(false);
   const quoteSeq = useRef(0);
+
+  // ─── Extras / levies priced for the proposed stay (server-side, single source of truth) ───
+  const [extras, setExtras] = useState<ExtrasQuote | null>(null);
+  const [extrasBusy, setExtrasBusy] = useState(false);
+  const extrasSeq = useRef(0);
 
   useEffect(() => {
     if (!open) return;
@@ -201,11 +223,66 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     setTotalPrice(String(quotedTotal));
   }, [quotedTotal, manualTotal]);
 
+  // Ask the backend to price the property charges for the proposed stay. Nothing is written —
+  // the same engine runs again on save, so the preview and the saved folio always agree.
+  useEffect(() => {
+    if (!open || nights <= 0) return;
+    const accommodation = Number(totalPrice || 0);
+    if (!Number.isFinite(accommodation)) return;
+
+    const seq = ++extrasSeq.current;
+    const timer = setTimeout(() => {
+      (async () => {
+        setExtrasBusy(true);
+        try {
+          const { data, error } = await supabase.functions.invoke("modify-booking", {
+            body: {
+              booking_id: booking.id,
+              quote_only: true,
+              modifications: {
+                check_in_date: checkIn,
+                check_out_date: checkOut,
+                adults: Number(adults) || 0,
+                children: Number(children) || 0,
+                total_price: accommodation,
+              },
+            },
+          });
+          if (seq !== extrasSeq.current) return;
+          if (error || !data?.quote) {
+            setExtras(null);
+            return;
+          }
+          setExtras({
+            accommodation: Number(data.quote.accommodation ?? accommodation),
+            extras_total: Number(data.quote.extras_total ?? 0),
+            deposit_total: Number(data.quote.deposit_total ?? 0),
+            guest_total: Number(data.quote.guest_total ?? accommodation),
+            lines: Array.isArray(data.quote.lines) ? (data.quote.lines as ChargeLine[]) : [],
+          });
+        } catch (err) {
+          console.warn("[BookingModifyDialog] charge preview failed:", err);
+          if (seq === extrasSeq.current) setExtras(null);
+        } finally {
+          if (seq === extrasSeq.current) setExtrasBusy(false);
+        }
+      })();
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [open, booking.id, checkIn, checkOut, adults, children, totalPrice, nights]);
+
+  /** What the guest owes in total — accommodation plus the mandatory extras. */
+  const guestTotal = useMemo(
+    () => (extras ? extras.guest_total : Number(totalPrice || 0)),
+    [extras, totalPrice],
+  );
+
   /** Positive = guest still owes, negative = guest overpaid. */
   const delta = useMemo(() => {
     if (amountPaid === null) return 0;
-    return Math.round((Number(totalPrice || 0) - amountPaid) * 100) / 100;
-  }, [amountPaid, totalPrice]);
+    return Math.round((guestTotal - amountPaid) * 100) / 100;
+  }, [amountPaid, guestTotal]);
 
   const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
@@ -408,6 +485,48 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             )}
           </div>
 
+          {(extrasBusy || (extras && (extras.lines.length > 0 || extras.deposit_total > 0))) && (
+            <div className="rounded-md border p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Accommodation</span>
+                <span className="tabular-nums">{money(Number(totalPrice || 0))}</span>
+              </div>
+
+              {extrasBusy && !extras && (
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />Pricing extras for the new stay
+                </p>
+              )}
+
+              {extras?.lines.map((line, i) => (
+                <div key={`${line.name}-${i}`} className="flex items-start justify-between gap-3 text-xs">
+                  <span className="text-muted-foreground">
+                    {line.name}
+                    {line.breakdown && (
+                      <span className="block text-[10px] opacity-70">{line.breakdown}</span>
+                    )}
+                    {line.is_refundable && (
+                      <span className="block text-[10px] opacity-70">Refundable — not part of the total</span>
+                    )}
+                  </span>
+                  <span className="tabular-nums">{money(line.amount)}</span>
+                </div>
+              ))}
+
+              {extras && (
+                <div className="flex items-center justify-between border-t pt-2 text-sm font-medium">
+                  <span>Guest total</span>
+                  <span className="tabular-nums">{money(extras.guest_total)}</span>
+                </div>
+              )}
+              {extras && extras.deposit_total > 0 && (
+                <p className="text-[11px] text-muted-foreground">
+                  Plus {money(extras.deposit_total)} refundable deposit, held separately.
+                </p>
+              )}
+            </div>
+          )}
+
           {amountPaid !== null && amountPaid > 0 && (
             <div className="rounded-md border p-3 space-y-2.5">
               <div className="flex items-center justify-between text-xs">
@@ -416,7 +535,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               </div>
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">New total</span>
-                <span className="tabular-nums">{money(Number(totalPrice || 0))}</span>
+                <span className="tabular-nums">{money(guestTotal)}</span>
               </div>
               {Math.abs(delta) < 0.01 ? (
                 <p className="text-[11px] text-muted-foreground">Fully settled — no money changes hands.</p>
