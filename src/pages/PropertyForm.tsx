@@ -3602,28 +3602,56 @@ export default function PropertyForm({
               ...(room.id && room.id.length === 36 ? { id: room.id } : {}),
             };
 
-            // One row per unit name, always. The old exact-name `maybeSingle()` lookup missed
-            // case/whitespace variants ("ALBATROS" vs "Albatros") and errored once two rows
-            // shared a name, so every save inserted another row — which the channel then pushed
-            // as a brand-new listing. Match on the normalised name and never insert blind.
-            const normalizedName = String(room.name || "").trim().toLowerCase();
-            const { data: sameNameRows } = await supabase
+            // One row per physical unit, matched by IDENTITY first.
+            //
+            // Matching on the name alone made a rename look like a brand-new unit: the renamed
+            // unit found no name match, was inserted with no channel listing id, and the next
+            // push created a second listing for it while the old row kept the original one.
+            // The unit's own id is stable across renames, so it wins whenever the row still
+            // exists. The normalised-name match stays as the fallback for units the editor has
+            // never persisted (no id yet), and it also absorbs case/whitespace variants.
+            const normalizeRoomName = (value: unknown) => String(value ?? "").trim().toLowerCase();
+            const normalizedName = normalizeRoomName(room.name);
+            const { data: existingRoomRows } = await supabase
               .from("hostfully_room_types")
-              .select("id, name, rentalsunited_property_id, created_at")
+              .select("id, name, rentalsunited_property_id, created_at, is_active")
               .eq("property_id", savedPropertyId);
-            const nameMatches = (sameNameRows || []).filter(
-              (r: any) => String(r.name || "").trim().toLowerCase() === normalizedName,
+            const allRows = (existingRoomRows || []) as any[];
+            const available = allRows.filter((r: any) => !claimedRoomIds.has(r.id));
+            const byId =
+              room.id && room.id.length === 36
+                ? available.find((r: any) => r.id === room.id) ?? null
+                : null;
+            const nameMatches = available.filter((r: any) => normalizeRoomName(r.name) === normalizedName);
+            const preferListed = (a: any, b: any) =>
+              (b.rentalsunited_property_id ? 1 : 0) - (a.rentalsunited_property_id ? 1 : 0) ||
+              String(a.created_at).localeCompare(String(b.created_at));
+            // Renamed outside the editor (import, bulk edit): a unit about to be inserted while a
+            // published row on this property no longer appears in the editor is that same unit
+            // under a new name. Adopt it — inserting would strand its listing and create a second.
+            const editorNames = new Set(roomTypes.map((r: any) => normalizeRoomName(r.name)).filter(Boolean));
+            const editorIds = new Set(
+              roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36),
             );
+            const strandedListed =
+              !byId && nameMatches.length === 0
+                ? available
+                    .filter(
+                      (r: any) =>
+                        r.is_active !== false &&
+                        !!String(r.rentalsunited_property_id ?? "").trim() &&
+                        !editorIds.has(r.id) &&
+                        !editorNames.has(normalizeRoomName(r.name)),
+                    )
+                    .sort(preferListed)
+                : [];
             const targetId =
-              (room.id && room.id.length === 36 && nameMatches.some((r: any) => r.id === room.id)
-                ? room.id
-                : null) ??
-              nameMatches.sort(
-                (a: any, b: any) =>
-                  (b.rentalsunited_property_id ? 1 : 0) - (a.rentalsunited_property_id ? 1 : 0) ||
-                  String(a.created_at).localeCompare(String(b.created_at)),
-              )[0]?.id ??
+              byId?.id ??
+              nameMatches.sort(preferListed)[0]?.id ??
+              (strandedListed.length === 1 ? strandedListed[0].id : null) ??
               null;
+            if (targetId) claimedRoomIds.add(targetId);
+
 
             if (targetId) {
               const { id: _ignoredId, ...updateData } = roomTypeData;
