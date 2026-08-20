@@ -31,6 +31,9 @@ export interface RuPushResult {
   ok: boolean;
   /** True when the channel's rate window parked the call — it will complete from the queue. */
   deferred?: boolean;
+  /** True when a held request had to be accepted at the channel before the change could apply. */
+  confirmedLead?: boolean;
+
   /** Machine code for the caller to surface: RU_CANCEL_NOT_ALLOWED, RU_ERROR, … */
   code?: string;
   message?: string;
