@@ -1064,7 +1064,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   // entries all collapsed to 0).
   const distancesXml = distanceEntries.length > 0
     ? `\n    <Distances>\n${distanceEntries
-        .map((d) => `      <Distance>\n        <DestinationID>${Number(d.destination_id)}</DestinationID>\n        <DistanceUnit>1</DistanceUnit>\n        <DistanceValue>${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</DistanceValue>\n      </Distance>`)
+        .map((d) => `      <Distance>\n        <DestinationID>${Number(d.destination_id)}</DestinationID>\n        <DistanceUnitID>1</DistanceUnitID>\n        <DistanceValue>${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</DistanceValue>\n      </Distance>`)
         .join('\n')}\n    </Distances>`
     : '';
 
