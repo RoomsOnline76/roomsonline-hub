@@ -184,6 +184,14 @@ export async function fetchUnitAvailability(
     }
   }
 
+  const ownBlockTags = options.excludeBookingId
+    ? [
+        `channel_booking:${options.excludeBookingId}`,
+        `booking:${options.excludeBookingId}`,
+        options.excludeBookingId,
+      ]
+    : [];
+
   for (const row of availRes.data ?? []) {
     const key = String(row.room_type ?? "").trim();
     if (!key || !row.date) continue;
@@ -191,6 +199,11 @@ export async function fetchUnitAvailability(
     if (!typeId) continue;
     const stopped = row.is_stop_sell === true || Number(row.available_units ?? 1) === 0;
     if (!stopped) continue;
+    // The stay being edited holds its own nights via a channel block — those
+    // must stay selectable, otherwise extending it looks like an overbooking.
+    const reason = String(row.blocked_reason ?? "");
+    if (ownBlockTags.some((tag) => reason.includes(tag))) continue;
+
     let byNight = snapshot.typeBlocks.get(typeId);
     if (!byNight) {
       byNight = new Map();
