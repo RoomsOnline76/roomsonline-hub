@@ -4156,9 +4156,13 @@ export default function PropertyForm({
       // helper so one save cannot trip the channel rate limit, and the whole watcher runs
       // outside the save path: a slow channel never holds up the editor.
       if (isEditMode && savedPropertyId && changedChannelFields.length > 0) {
+        // Re-read the push gate so the countdown reflects this save straight away.
+        setChannelGateRefresh((n) => n + 1);
         void pushChangedChannelFields(savedPropertyId, changedChannelFields, ({ title, description, variant }) =>
           toast({ title, description, variant }),
-        ).catch((pushErr) => console.warn("[PropertyForm] channel push watcher failed:", pushErr));
+        )
+          .catch((pushErr) => console.warn("[PropertyForm] channel push watcher failed:", pushErr))
+          .finally(() => setChannelGateRefresh((n) => n + 1));
       }
 
 
