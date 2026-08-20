@@ -3,6 +3,12 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
+import {
+  chargesBreakdownSnapshot,
+  quoteBookingCharges,
+  reconcileBookingCharges,
+  resolveBookingChargeContext,
+} from "../_shared/propertyCharges.ts";
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import {
@@ -53,6 +59,9 @@ interface ModifyRequest {
    * extended stay ended up back at its old departure date with the extra nights only blocked.
    */
   expected_updated_at?: string | null;
+
+  /** Price the change without writing anything — powers the dialog preview. */
+  quote_only?: boolean;
 }
 
 
