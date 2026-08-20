@@ -183,7 +183,8 @@ Deno.serve(async (req) => {
         address: fullAddress,
         latitude,
         longitude,
-        formatted_address: geocodeData.results[0].formatted_address,
+        formatted_address: formattedAddress,
+        provider,
       }),
       { 
         status: 200, 
