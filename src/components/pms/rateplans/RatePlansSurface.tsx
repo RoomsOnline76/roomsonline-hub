@@ -243,7 +243,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         return;
       }
       // Activating or retiring a plan changes the sellable price at the channel.
-      void queueChannelRatesSync(plan.property_id, "rate_plan_toggle");
+      void pushRatePlanRates(plan.property_id, "rate_plan_toggle", { label: "Rates" });
       fetchData();
     };
 
