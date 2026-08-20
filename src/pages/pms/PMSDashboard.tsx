@@ -3032,19 +3032,16 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
-                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <Fragment key={b.id}>
+<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {showLabel && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3085,20 +3082,16 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                     const isStart = b.check_in_date === dateStr;
                     const showLabel = dateStr === getBookingLabelDate(b, weekDates);
                     return (
-                      <button
-                        key={b.id}
+                      <Fragment key={b.id}>
+<button
                         onClick={() => onSelectBooking(b)}
                         onDoubleClick={() => onSelectBooking(b, "folio")}
                         title={`${getBookingBarTitle(b)} · ${b.status} — click to open, double-click for folio`}
                         className={cn("absolute inset-y-0.5 inset-x-0.5 rounded-sm border flex items-center gap-1 px-1 overflow-hidden cursor-pointer hover:opacity-90", colors.bg, colors.border)}
                       >
-                        {showLabel && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3144,20 +3137,16 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
-                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <Fragment key={b.id}>
+<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {showLabel && (
-                    <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-
-                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                    </>
-                  )}
                 </button>
+                  {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                </Fragment>
               );
             })}
           </td>
@@ -3260,19 +3249,16 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                     const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
                     const showLabel = dateStr === getBookingLabelDate(b, dates);
                     return (
-                      <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                      <Fragment key={b.id}>
+<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
                         isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                         isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
-                        {showLabel && (
-                          <>
-                            <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-                            {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                          </>
-                        )}
                       </button>
+                        {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                      </Fragment>
                     );
                   })}
 
@@ -3323,20 +3309,16 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
               const isEnd = addDays(parseISO(b.check_out_date), -1).toISOString().slice(0, 10) === dateStr;
               const showLabel = dateStr === getBookingLabelDate(b, dates);
               return (
-                <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
+                <Fragment key={b.id}>
+<button title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
                   isStart ? "left-1/2 rol-bar-half-in" : "left-0",
                   isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
-                  {showLabel && (
-                    <>
-                      <span className={cn("text-[9px] font-medium truncate", colors.text)}>{b.guest_name}</span>
-
-                      {hasSpecialIndicator(b) && <AlertTriangle className="h-2.5 w-2.5 text-amber-500 ml-auto shrink-0" />}
-                    </>
-                  )}
                 </button>
+                  {showLabel && <BookingBarLabel booking={b} textClass={colors.text} halfStart={isStart} />}
+                </Fragment>
               );
             })}
           </td>
