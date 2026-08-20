@@ -6273,7 +6273,10 @@ Deno.serve(async (req) => {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
             const refreshed = await listRuUsers();
-            const recovered = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
+            const recovered = matchByEmail(refreshed)
+              ?? matchByStoredIdentity(refreshed, existing.account as any)
+              ?? await adoptLocalByEmail();
+
             if (recovered) {
               userAccountId = recovered.user_account_id ?? null;
               ruOwnerId = recovered.owner_id ?? null;
