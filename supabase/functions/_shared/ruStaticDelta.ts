@@ -459,6 +459,8 @@ async function logPending(
 async function pushStaticContent(
   supabase: any,
   propertyId: string,
+  /** Restrict the push to these unit ids (unit-only change); null pushes every listing. */
+  scopeUnitIds: string[] | null,
 ): Promise<{
   success: boolean;
   errorMessage: string | null;
@@ -467,7 +469,7 @@ async function pushStaticContent(
   chunks: number;
   units: unknown[];
 }> {
-  let remaining: string[] | null = null;
+  let remaining: string[] | null = scopeUnitIds && scopeUnitIds.length > 0 ? scopeUnitIds : null;
   let batchId: string | null = null;
   const units: unknown[] = [];
 
