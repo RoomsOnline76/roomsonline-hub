@@ -248,7 +248,38 @@ Deno.serve(async (req) => {
     if (!isStaff && !isOwner) return json({ error: "forbidden" }, 403);
 
     const { data: cfg } = await supabase.from(cfgTable).select("*").eq(entityCol, entityId).maybeSingle();
-    if (!cfg) return json({ error: "no_billing_config" }, 400);
+    if (!cfg) {
+      // Read-only / idempotent actions must not hard-fail on an entity that has
+      // no billing configuration yet — they simply have nothing to report.
+      if (action === "summary") {
+        return json({
+          success: true,
+          configured: false,
+          entity: { id: entityId, name: entityName, scope },
+          currency: "ZAR",
+          subscription: {
+            model: null,
+            monthly_amount: 0,
+            engagement_date: null,
+            free_days: 0,
+            paid_start: null,
+            window_opens_on: null,
+            can_start: false,
+            started_on: null,
+            next_due: null,
+            status: "unconfigured",
+          },
+          setup: { pending_items: [], pending_total: 0, open_invoice: null },
+          monthly: { open_invoice: null },
+          invoices: [],
+          cancelled_count: 0,
+        });
+      }
+      if (action === "apply_config_change" || action === "reset_for_owner_change") {
+        return json({ success: true, skipped: "no_billing_config" });
+      }
+      return json({ error: "no_billing_config" }, 400);
+    }
 
     const currency = "ZAR";
     const paidStart = paidStartFor(cfg);
