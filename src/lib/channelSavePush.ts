@@ -77,7 +77,14 @@ export async function pushChangedChannelFields(
         description: `${labels} — confirmed on the ${SECTION_LABEL[section].toLowerCase()} push.`,
       });
     } else if (verdict === "not_owed") {
-      // The channel already holds this value (or the listing is not distributed yet).
+      // Nothing is owed: the channel already holds this value, or the listing is not distributed.
+      // Stay silent unless the ledger gave a reason worth telling the operator.
+      if (reason && !/nothing the channel cares about|already pushed/i.test(reason)) {
+        notify({
+          title: `${SECTION_LABEL[section]} not sent to the ${CHANNEL_MANAGER}`,
+          description: `${labels} — ${reason}.`,
+        });
+      }
       continue;
     } else if (verdict === "failed") {
       notify({

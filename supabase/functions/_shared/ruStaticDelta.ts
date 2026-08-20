@@ -18,8 +18,14 @@ import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts'
 //
 // Failures are logged and swallowed: a channel refresh must never break a save.
 
-/** Minimum gap between two static deltas for the same property. */
-export const RU_STATIC_DELTA_DEBOUNCE_MS = 60 * 1000;
+/**
+ * Minimum gap between two static deltas for the same property.
+ *
+ * Deliberately short: a save must reach the channel while the operator is still looking at the
+ * editor. It only coalesces autosave bursts — the fingerprint check already stops identical
+ * content from being sent twice.
+ */
+export const RU_STATIC_DELTA_DEBOUNCE_MS = 10 * 1000;
 
 /** ru_sync_runs.action used for static content deltas. */
 export const RU_STATIC_DELTA_ACTION = 'static_delta';
@@ -163,11 +169,35 @@ function diffFingerprints(
   return [...keys].filter((k) => previous[k] !== current[k]).sort();
 }
 
+/**
+ * Unit ids this delta can be limited to.
+ *
+ * Property-level fields (name, description, address, amenities, images, occupancy) are copied into
+ * every listing's payload, so any `property.*` change must push all listings. When *only* unit
+ * fields moved, the push is scoped to those units — a one-unit edit on an eleven-unit property
+ * then costs one channel write instead of eleven.
+ */
+function scopeUnitIdsFromChanges(changedFields: string[]): string[] | null {
+  if (changedFields.length === 0) return null;
+  if (changedFields.some((k) => k.startsWith('property.'))) return null;
+  const ids = new Set<string>();
+  for (const key of changedFields) {
+    const match = /^unit:([^.]+)\./.exec(key);
+    if (!match) return null;
+    ids.add(match[1]);
+  }
+  return ids.size > 0 ? [...ids] : null;
+}
+
 interface StaticSnapshot {
   property: Record<string, unknown> | null;
   units: Record<string, unknown>[];
   ruConnected: boolean;
   pushEnabled: boolean;
+  /** True when the property has a live listing (building id or any active unit id). */
+  listed: boolean;
+  gateCode: string | null;
+  gateMessage: string | null;
 }
 
 async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSnapshot> {
@@ -188,12 +218,16 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
 
   const unitRows = (units ?? []) as Record<string, unknown>[];
   const listedUnit = unitRows.some((u) => !!u.rentalsunited_property_id);
+  const listed = Boolean(property?.rentalsunited_property_id) || listedUnit;
   const gate = await evaluateRuOperationalSync(supabase, propertyId);
   return {
     property: (property ?? null) as Record<string, unknown> | null,
     units: unitRows,
-    ruConnected: gate.allowed && (Boolean(property?.rentalsunited_property_id) || listedUnit),
+    listed,
+    ruConnected: gate.allowed && listed,
     pushEnabled: gate.allowed,
+    gateCode: gate.allowed ? null : (gate.code ?? null),
+    gateMessage: gate.allowed ? null : (gate.message ?? null),
   };
 }
 
@@ -234,14 +268,21 @@ export async function queueRuStaticDelta(
   if (!propertyId) return { queued: false, reason: 'no_property' };
   try {
     const snapshot = await loadSnapshot(supabase, propertyId);
-    if (!snapshot.property || !snapshot.ruConnected || !snapshot.pushEnabled) {
-      const reason = !snapshot.property
-        ? 'no_property'
-        : !snapshot.ruConnected
-          ? 'not listed on the channel'
-          : 'pushes paused for this property';
-      await logSkip(supabase, propertyId, trigger, reason, null);
-      return { queued: false, reason: snapshot.property ? 'not_connected' : 'no_property' };
+    if (!snapshot.property) {
+      await logSkip(supabase, propertyId, trigger, 'no_property', null);
+      return { queued: false, reason: 'no_property' };
+    }
+    // A listed property whose gate refuses (pushes switched off, wizard incomplete) still *owes*
+    // this change to the channel: park it so the automatic re-arm delivers it the moment the gate
+    // clears. Only a genuinely undistributed listing is a plain skip.
+    if (!snapshot.pushEnabled && snapshot.listed) {
+      const message = snapshot.gateMessage ?? 'The Channel Manager is not enabled for this property yet.';
+      await logPending(supabase, propertyId, trigger, snapshot.gateCode, message);
+      return { queued: false, reason: 'gate_pending', error: message, blockers: [message] };
+    }
+    if (!snapshot.ruConnected) {
+      await logSkip(supabase, propertyId, trigger, 'not listed on the channel', null);
+      return { queued: false, reason: 'not_connected' };
     }
 
     const contentHash = await sha256(
@@ -276,9 +317,12 @@ export async function queueRuStaticDelta(
     }
 
     const startedAt = Date.now();
+    // Send only what moved: unit-only changes are scoped to those units.
+    const scopeUnitIds = options.force ? null : scopeUnitIdsFromChanges(changedFields);
     const { success, errorMessage, errorCode, blockers, chunks, units } = await pushStaticContent(
       supabase,
       propertyId,
+      scopeUnitIds,
     );
     const gatePending = !success && !!errorCode && RU_GATE_ERROR_CODES.includes(errorCode);
 
@@ -315,6 +359,8 @@ export async function queueRuStaticDelta(
           push_type: pushType,
           changed_fields: changedFields,
           changed_field_count: changedFields.length,
+          scope: scopeUnitIds ? 'units' : 'property',
+          scope_unit_ids: scopeUnitIds,
           field_fingerprints: success ? currentFields : previous.fields,
           forced: options.force === true,
           chunks,
@@ -371,6 +417,38 @@ async function logSkip(
 }
 
 /**
+ * Park a delta that the operational gate refused on a *listed* property.
+ *
+ * The content change is real and still owed, so it is logged under the pending action that
+ * `resumePendingRuDeltas` watches — the change is delivered automatically once pushes are enabled.
+ */
+async function logPending(
+  supabase: any,
+  propertyId: string,
+  trigger: string,
+  gateCode: string | null,
+  message: string,
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      property_id: propertyId,
+      action: RU_STATIC_DELTA_PENDING_ACTION,
+      success: false,
+      error_message: message,
+      details: {
+        trigger,
+        gate_pending: true,
+        error_code: gateCode ?? RU_WIZARD_SYNC_CODE,
+        blockers: [message],
+      },
+    });
+  } catch (err) {
+    console.warn('[ruStaticDelta] pending log insert failed', err);
+  }
+}
+
+
+/**
  * Deliver the content push, walking the resumable chunk sequence.
  *
  * `push-property-to-ru` pushes a slice of a multi-unit property per invocation and reports the
@@ -381,6 +459,8 @@ async function logSkip(
 async function pushStaticContent(
   supabase: any,
   propertyId: string,
+  /** Restrict the push to these unit ids (unit-only change); null pushes every listing. */
+  scopeUnitIds: string[] | null,
 ): Promise<{
   success: boolean;
   errorMessage: string | null;
@@ -389,7 +469,7 @@ async function pushStaticContent(
   chunks: number;
   units: unknown[];
 }> {
-  let remaining: string[] | null = null;
+  let remaining: string[] | null = scopeUnitIds && scopeUnitIds.length > 0 ? scopeUnitIds : null;
   let batchId: string | null = null;
   const units: unknown[] = [];
 
