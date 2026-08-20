@@ -505,8 +505,7 @@ export async function persistDecision(
   enabled = true,
 ): Promise<void> {
   if (!enabled || !propertyId) return;
-  try {
-    await supabase.from('ru_currency_state').upsert({
+  const { error } = await supabase.from('ru_currency_state').upsert({
       property_id: propertyId,
       ru_location_id: d.location_id,
       location_currency_iso: d.location_iso,
@@ -524,8 +523,9 @@ export async function persistDecision(
       verified_ru_property_id: d.verified_ru_property_id ?? null,
       decided_at: new Date().toISOString(),
     }, { onConflict: 'property_id' });
-  } catch (e) {
-    console.warn('[ruCurrency] Failed to persist currency decision:', e instanceof Error ? e.message : e);
+  if (error) {
+    console.error('[ruCurrency] Failed to persist currency decision:', error.message);
+    throw new Error(`RU_CURRENCY_STATE_PERSIST_FAILED: ${error.message}`);
   }
 }
 
@@ -552,7 +552,7 @@ export async function verifyAndRecordCurrency(
      */
     knownIso?: string | null;
   },
-): Promise<{ ru_reported_iso: string | null; matches: boolean; error?: string }> {
+): Promise<{ ru_reported_iso: string | null; matches: boolean; persisted: boolean; error?: string }> {
   const childAuth = opts.childAuth ?? {};
   const ownerScope = opts.ownerScope || ruOwnerScopeKey(childAuth);
   const expected = (opts.decision?.published_iso || opts.authoredIso || 'ZAR').toUpperCase();
@@ -560,7 +560,7 @@ export async function verifyAndRecordCurrency(
     ? { iso: opts.knownIso, error: undefined as string | undefined }
     : await verifyRuPropertyCurrency(supabase, opts.ruPropertyId, childAuth);
   if (!readback.iso) {
-    return { ru_reported_iso: null, matches: false, error: readback.error };
+    return { ru_reported_iso: null, matches: false, persisted: false, error: readback.error };
   }
 
   const iso = readback.iso.toUpperCase();
@@ -592,7 +592,7 @@ export async function verifyAndRecordCurrency(
       : `Currency drift: Rentals United reports ${iso} for listing ${opts.ruPropertyId} on account ${ownerScope}, but we publish in ${expected}. The location currency did not take effect for this account.`,
   };
   await persistDecision(supabase, opts.propertyId, d, true);
-  return { ru_reported_iso: iso, matches, error: matches ? undefined : 'RU_CURRENCY_DRIFT' };
+  return { ru_reported_iso: iso, matches, persisted: true, error: matches ? undefined : 'RU_CURRENCY_DRIFT' };
 }
 
 
