@@ -102,7 +102,7 @@ export async function pushBookingToChannel(
         });
       } else if (outcome.deferred || outcome.reservation === "queued") {
         toast.info("Queued for the channel", {
-          description: "The channel rate limit was reached — the update goes out within a minute.",
+          description: outcome.message ?? "The channel rate limit was reached — the update goes out within a minute.",
         });
       } else if (outcome.reservation === "pushed") {
         toast.success(`${label} sent to the channel`);

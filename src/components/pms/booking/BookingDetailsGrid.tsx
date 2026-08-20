@@ -128,7 +128,7 @@ export function BookingDetailsGrid({
   onOpenInvoice?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
-  const [confirmingRequest, setConfirmingRequest] = useState(false);
+  const [confirmState, setConfirmState] = useState<"idle" | "working" | "queued">("idle");
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
@@ -649,15 +649,29 @@ export function BookingDetailsGrid({
               size="sm"
               variant="outline"
               className="h-7 text-[11px]"
-              disabled={confirmingRequest}
+              disabled={confirmState !== "idle"}
               onClick={async () => {
-                setConfirmingRequest(true);
+                setConfirmState("working");
                 const outcome = await pushBookingToChannel(booking.id, "confirmed", { source: "booking_drawer" });
-                setConfirmingRequest(false);
-                if (outcome?.reservation === "pushed") onSaved();
+                if (outcome?.reservation === "pushed") {
+                  setConfirmState("idle");
+                  onSaved();
+                } else if (outcome?.reservation === "queued" || outcome?.deferred) {
+                  setConfirmState("queued");
+                  window.setTimeout(() => {
+                    setConfirmState("idle");
+                    onSaved();
+                  }, 65_000);
+                } else {
+                  setConfirmState("idle");
+                }
               }}
             >
-              {confirmingRequest ? "Accepting…" : "Accept at channel"}
+              {confirmState === "working"
+                ? "Sending…"
+                : confirmState === "queued"
+                  ? "Waiting for channel"
+                  : "Accept at channel"}
             </Button>
           </div>
         )}

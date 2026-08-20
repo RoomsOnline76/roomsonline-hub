@@ -155,6 +155,32 @@ Deno.serve(async (req) => {
         .from('ru_call_queue')
         .update({ status: 'done', completed_at: nowIso, last_error: null, result: result as never })
         .eq('id', row.id);
+
+      // A queued acceptance bypasses `confirmRuRequest`'s inline success branch, so promote the
+      // held request here as part of the same durable completion. Without this, the channel has
+      // accepted it while the drawer remains permanently labelled “Not yet confirmed”.
+      if (row.action === 'confirm_request') {
+        const reservationId = String((row.payload as { reservation_id?: unknown })?.reservation_id ?? '').trim();
+        if (reservationId) {
+          const { data: promoted } = await supabase
+            .from('bookings')
+            .update({ integration_type: 'rentalsunited', hold_expires_at: null })
+            .eq('external_reservation_id', reservationId)
+            .eq('integration_type', 'rentalsunited_lead')
+            .select('id');
+          for (const booking of (promoted ?? []) as Array<{ id: string }>) {
+            await supabase.from('booking_sync_status').upsert({
+              booking_id: booking.id,
+              external_system: 'rentalsunited',
+              sync_status: 'synced',
+              last_action: 'confirm',
+              last_action_at: nowIso,
+              error_message: null,
+              last_error_message: null,
+            }, { onConflict: 'booking_id,external_system' });
+          }
+        }
+      }
     } else {
       const deferred = isDeferral(failure);
       const noOp = !deferred && isNoOp(failure);

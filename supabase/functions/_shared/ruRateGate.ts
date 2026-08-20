@@ -38,8 +38,27 @@ const RESERVATION_WRITE_ACTIONS = new Set([
   'push_confirmed_reservation',
 ]);
 
+/**
+ * The transport receives both raw verbs (`confirm_request`) and diagnostic parent labels such as
+ * `ruBookingSync:confirm`. Normalise both forms before choosing priority/wait budgets; otherwise
+ * an operator action accidentally inherits the 25-second background budget.
+ */
+function reservationWriteAction(action: string | null | undefined): string {
+  const raw = String(action ?? '').trim();
+  if (RESERVATION_WRITE_ACTIONS.has(raw)) return raw;
+  const suffix = raw.split(':').at(-1) ?? raw;
+  const aliases: Record<string, string> = {
+    confirm: 'confirm_request',
+    reject: 'reject_request',
+    modify: 'modify_stay',
+    cancel: 'cancel_reservation',
+    create: 'push_confirmed_reservation',
+  };
+  return aliases[suffix] ?? suffix;
+}
+
 export function isReservationWriteAction(action: string | null | undefined): boolean {
-  return RESERVATION_WRITE_ACTIONS.has(String(action ?? ''));
+  return RESERVATION_WRITE_ACTIONS.has(reservationWriteAction(action));
 }
 
 /** Queue priority for one action — reservation writes jump the queue. */
