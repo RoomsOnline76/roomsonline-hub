@@ -5045,7 +5045,7 @@ Deno.serve(async (req) => {
         // Fallback: reuse the unit's resolved property_type_id (e.g. 12=Chalet, 1=Apartment) as
         // the ObjectTypeID. RU accepts this when the building has no enforced composition.
         const compObjTypeId = objectTypeIdByName.get(unit.name.trim().toUpperCase());
-        const objTypeId = compObjTypeId ?? unitPayload.property_type_id;
+        const objTypeId = compObjTypeId ?? unitPayload.listing_type_id;
         unitPayload.object_type_id = objTypeId;
         if (!compObjTypeId) {
           console.log(`[push-property-to-ru] No composition match for "${unit.name}" — falling back to property_type_id=${objTypeId}`);
