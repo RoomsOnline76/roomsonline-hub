@@ -173,6 +173,29 @@ function sameValue(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * Photo lists per unit, keyed by the unit's stable id (falling back to its name).
+ *
+ * Unit photos live inside the `amenities.room_types` array, which `readPath` cannot walk.
+ * Diffing them explicitly means "images added/removed on a unit" is reported — and pushed —
+ * as photos rather than hiding inside the coarse "units" change.
+ */
+function unitPhotoMap(source: Record<string, unknown> | null | undefined): Record<string, unknown> {
+  const rooms = readPath(source, "amenities.room_types");
+  if (!Array.isArray(rooms)) return {};
+  const out: Record<string, unknown> = {};
+  rooms.forEach((room, index) => {
+    if (!room || typeof room !== "object") return;
+    const r = room as Record<string, unknown>;
+    const key = String(r.id ?? r.name ?? index);
+    out[key] = {
+      images: Array.isArray(r.images) ? r.images : [],
+      tags: r.ruImageTags ?? r.ru_image_tags ?? null,
+    };
+  });
+  return out;
+}
+
+/**
  * Fields the channel cares about that actually changed in this save.
  * A path missing from the submitted payload is never reported — the form simply did
  * not author it this time.
@@ -193,8 +216,18 @@ export function deriveChangedChannelFields(
     seen.add(dedupeKey);
     changed.push({ path: spec.path, label: spec.label, section: spec.section });
   }
+  // Photos added to or removed from a unit/room.
+  const nextUnitPhotos = unitPhotoMap(after);
+  if (Object.keys(nextUnitPhotos).length > 0 && !sameValue(unitPhotoMap(before), nextUnitPhotos)) {
+    const dedupeKey = "content:unit photos";
+    if (!seen.has(dedupeKey)) {
+      seen.add(dedupeKey);
+      changed.push({ path: "amenities.room_types", label: "unit photos", section: "content" });
+    }
+  }
   return changed;
 }
+
 
 /** "business name, primary contact and telephone" */
 export function joinFieldLabels(fields: ChangedChannelField[]): string {
