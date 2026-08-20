@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { currentBlockAttribution } from "@/lib/blockAttribution";
+import { clearNights } from "@/lib/restrictionSpans";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
