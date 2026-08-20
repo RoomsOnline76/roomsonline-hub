@@ -31,6 +31,12 @@ export interface RuPushResult {
   ok: boolean;
   /** True when the channel's rate window parked the call — it will complete from the queue. */
   deferred?: boolean;
+  /**
+   * True when the channel write could not be made now and is parked in the priority queue.
+   * Not a failure: the call lands within about a minute on its own, so the caller should say so
+   * calmly rather than reporting an error.
+   */
+  queued?: boolean;
   /** True when a held request had to be accepted at the channel before the change could apply. */
   confirmedLead?: boolean;
 
