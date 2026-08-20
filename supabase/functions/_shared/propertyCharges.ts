@@ -53,11 +53,17 @@ export interface ChargeContext {
   adults: number;
   children: number;
   infants: number;
+  /**
+   * Guests already covered by the room rate across the whole stay (sum of the
+   * booked units' base occupancy). Per-person charges only bill guests above it.
+   */
+  baseOccupancy?: number | null;
   /** Booking room type id plus any aliases (per-line ids, external PMS ids). */
   roomTypeIds?: string[];
   rateTypeId?: string | null;
   currency?: string;
 }
+
 
 export interface QuoteLine {
   chargeId: string;
