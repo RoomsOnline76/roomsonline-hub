@@ -1705,6 +1705,66 @@ Deno.serve(async (req) => {
 
 
 
+    // ── Restore an authored unit that is live upstream but inactive locally ──
+    if (raw.scope === "restore_local_unit") {
+      const { data: unit, error: unitErr } = await admin
+        .from("hostfully_room_types")
+        .select("id, name, property_id, linked_rolos_id, rentalsunited_property_id, properties!inner(amenities)")
+        .eq("id", raw.entity_id)
+        .maybeSingle();
+      if (unitErr) return bad(unitErr.message, 500);
+      if (!unit?.rentalsunited_property_id) return bad("Unit has no channel listing", 409);
+
+      const joinedProperty = unit.properties as unknown as {
+        amenities?: { room_types?: Array<{ name?: string; is_active?: boolean }> };
+      };
+      const authored = (joinedProperty.amenities?.room_types || []).some(
+        (room) =>
+          room.is_active !== false &&
+          String(room.name || "").trim().toLowerCase() === String(unit.name || "").trim().toLowerCase(),
+      );
+      if (!authored) return bad("Unit is not active in the property's authored Rooms inventory", 409);
+
+      const ownerId = await resolveRuOwnerId(admin, unit.property_id);
+      const presence = await verifyListingPresence(admin, {
+        listingId: String(unit.rentalsunited_property_id),
+        ownerId,
+        ctx: logCtx(traceId, "channel-restore-unit:verify"),
+      });
+      if (presence.error) return presence.deferred ? deferred(presence.error) : bad(presence.error, 502);
+      if (!presence.present || presence.archived) return bad("The unit listing is not live on the channel", 409);
+
+      const { error: restoreErr } = await admin
+        .from("hostfully_room_types")
+        .update({ is_active: true })
+        .eq("id", unit.id);
+      if (restoreErr) return bad(restoreErr.message, 500);
+      if (unit.linked_rolos_id) {
+        const { error: linkedErr } = await admin
+          .from("rolos_room_types")
+          .update({ is_active: true })
+          .eq("id", unit.linked_rolos_id);
+        if (linkedErr) return bad(linkedErr.message, 500);
+      }
+
+      await admin.from("ru_archive_events").insert({
+        property_id: unit.property_id,
+        property_name: `Unit restored (${unit.name})`,
+        direction: "reactivated",
+        unit_count: 1,
+        listing_count: 1,
+        reason: raw.reason ?? "Authored unit restored during channel reconciliation",
+        actor_user_id: actorUserId,
+        actor_email: actorEmail,
+        ru_status: "updated",
+        detail: `${unit.name} kept live on listing ${unit.rentalsunited_property_id}`,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── Re-point a local record at a listing that is live on the account ──
     //    Used when a record still holds an id the channel has archived. The
     //    replacement id is verified live upstream before anything is written,
