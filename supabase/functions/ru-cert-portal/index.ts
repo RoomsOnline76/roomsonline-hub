@@ -6222,17 +6222,40 @@ Deno.serve(async (req) => {
       //    binds a specific RU account when several match this owner.
       const requestedOwnerId = usableRuId(body.ru_owner_id);
       const candidateUsers = await listRuUsers();
+      // A sub-account we already know locally under this login (bound to a sibling
+      // property or to no scope at all) must be adopted rather than re-created: RU
+      // rejects the duplicate email with status 95 and the roster's `<Email>` can
+      // differ from the login, so an email-only roster match misses it.
+      const adoptLocalByEmail = async (): Promise<RuUser | null> => {
+        const { data: rows } = await admin
+          .from("ru_owner_accounts")
+          .select("ru_owner_id, ru_user_id, ru_login_email, owner_email")
+          .or(`owner_email.eq.${ownerEmail},ru_login_email.eq.${ownerEmail}`)
+          .not("ru_owner_id", "is", null);
+        const row = (rows ?? []).find((r: any) => usableRuId(r.ru_owner_id));
+        if (!row) return null;
+        const ownerId = usableRuId(row.ru_owner_id);
+        const rosterHit = candidateUsers.find((u) => usableRuId(u.owner_id) === ownerId) ?? null;
+        return {
+          owner_id: ownerId,
+          user_account_id: rosterHit?.user_account_id ?? usableRuId(row.ru_user_id) ?? undefined,
+          email: row.ru_login_email ?? row.owner_email ?? undefined,
+          login_email: row.ru_login_email ?? undefined,
+        };
+      };
       const preExisting = (requestedOwnerId
         ? candidateUsers.find((u) => usableRuId(u.owner_id) === requestedOwnerId) ?? null
         : null)
         ?? matchByEmail(candidateUsers)
-        ?? matchByStoredIdentity(candidateUsers, existing.account as any);
+        ?? matchByStoredIdentity(candidateUsers, existing.account as any)
+        ?? await adoptLocalByEmail();
       if (preExisting) {
         userAccountId = preExisting.user_account_id ?? null;
         ruOwnerId = preExisting.owner_id ?? null;
-        adoptedEmail = String(preExisting.email ?? "").trim() || null;
+        adoptedEmail = String(preExisting.login_email ?? preExisting.email ?? "").trim() || null;
         adopted = true;
       }
+
 
 
       if (!adopted) {
@@ -6250,7 +6273,10 @@ Deno.serve(async (req) => {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
             const refreshed = await listRuUsers();
-            const recovered = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
+            const recovered = matchByEmail(refreshed)
+              ?? matchByStoredIdentity(refreshed, existing.account as any)
+              ?? await adoptLocalByEmail();
+
             if (recovered) {
               userAccountId = recovered.user_account_id ?? null;
               ruOwnerId = recovered.owner_id ?? null;
