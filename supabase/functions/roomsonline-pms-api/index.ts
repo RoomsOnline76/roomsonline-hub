@@ -2664,7 +2664,9 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     children: booking.children,
     infants: booking.infants,
     rooms: context.rooms,
+    baseOccupancy: context.baseOccupancy,
     roomTypeIds: context.roomTypeIds,
+
     currency: booking.currency,
   });
 
