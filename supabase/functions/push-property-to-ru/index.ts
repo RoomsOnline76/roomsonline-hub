@@ -1276,7 +1276,85 @@ function resolveArrivalContact(
   };
 }
 
-/** RU <HowToArrive>: unit instructions win, then house rules, then the policies block. */
+/**
+ * CHECK-IN / CHECK-OUT TIMES — RU's <CheckInOut> block.
+ *
+ * RU enforces a rule its own UI states as "Check-out time must not be later than the
+ * check-in time from": CheckOutUntil <= CheckInFrom. Pushing a violating trio leaves the
+ * listing in a state RU refuses to edit, so we resolve, normalise and validate here and
+ * report a violation instead of publishing values the channel will reject.
+ *
+ * Source order: unit-authored time, then property house rules, then our fallback.
+ */
+const RU_CHECK_IN_DEFAULTS = { from: '14:00', to: '22:00', out: '10:00' } as const;
+
+/** Accepts `9:00`, `09:00:00`, `09h00` → `09:00`. Returns null when unusable. */
+function normaliseTimeOfDay(value: unknown): string | null {
+  const raw = typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\d{1,2})\s*[:h.]?\s*(\d{2})?/);
+  if (!m) return null;
+  const hours = Number(m[1]);
+  const minutes = Number(m[2] ?? '0');
+  if (!Number.isFinite(hours) || hours < 0 || hours > 23) return null;
+  if (!Number.isFinite(minutes) || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function minutesOfDay(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+interface RuCheckInOut {
+  check_in_from: string;
+  check_in_to: string;
+  check_out_until: string;
+  /** Which layer supplied the times, for the push report. */
+  source: 'unit' | 'property' | 'default';
+  /** True when any of the three fell back to our default rather than authored data. */
+  is_default: boolean;
+  /** Set when the authored trio breaks a channel rule — the unit must not be pushed. */
+  violation: string | null;
+}
+
+function resolveCheckInOut(
+  amenities: Record<string, unknown>,
+  unitCheckIn?: unknown,
+  unitCheckOut?: unknown,
+): RuCheckInOut {
+  const houseRules = ((amenities as any)?.house_rules || {}) as Record<string, unknown>;
+
+  const unitFrom = normaliseTimeOfDay(unitCheckIn);
+  const unitOut = normaliseTimeOfDay(unitCheckOut);
+  const propFrom = normaliseTimeOfDay(houseRules.check_in_from);
+  const propTo = normaliseTimeOfDay(houseRules.check_in_to);
+  const propOut = normaliseTimeOfDay(houseRules.check_out_to ?? houseRules.check_out_until);
+
+  const from = unitFrom ?? propFrom;
+  const to = propTo;
+  const out = unitOut ?? propOut;
+
+  const source: RuCheckInOut['source'] = unitFrom || unitOut ? 'unit' : propFrom || propTo || propOut ? 'property' : 'default';
+  const resolved: RuCheckInOut = {
+    check_in_from: from ?? RU_CHECK_IN_DEFAULTS.from,
+    check_in_to: to ?? RU_CHECK_IN_DEFAULTS.to,
+    check_out_until: out ?? RU_CHECK_IN_DEFAULTS.out,
+    source,
+    is_default: !from || !to || !out,
+    violation: null,
+  };
+
+  // Only authored values can be a violation — our defaults are always compliant.
+  if (from && to && minutesOfDay(to) <= minutesOfDay(from)) {
+    resolved.violation = `Check-in window is invalid: "to" (${to}) must be later than "from" (${from}).`;
+  } else if (from && out && minutesOfDay(out) > minutesOfDay(from)) {
+    resolved.violation = `Check-out time (${out}) must not be later than the check-in from time (${from}) — the channel refuses this combination.`;
+  }
+  return resolved;
+}
+
+
 function resolveArrivalInstructions(unitInstructions: unknown, amenities: Record<string, unknown>): string {
   const houseRules = ((amenities as any)?.house_rules || {}) as Record<string, unknown>;
   const policies = ((amenities as any)?.policies || {}) as Record<string, unknown>;
