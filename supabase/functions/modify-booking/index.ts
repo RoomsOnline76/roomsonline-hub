@@ -663,7 +663,7 @@ Deno.serve(async (req) => {
         date_from: modifications.check_in_date ?? null,
         date_to: modifications.check_out_date ?? null,
         number_of_guests: guests > 0 ? guests : null,
-        client_price: preQuote.guestTotal || null,
+        client_price: preQuote?.guestTotal || null,
         already_paid: modifications.already_paid ?? null,
         arrival_time: modifications.arrival_time ?? null,
       });
