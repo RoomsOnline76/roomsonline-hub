@@ -2332,6 +2332,7 @@ export default function PMSDashboard() {
                           unitLinesByBooking={linesByBooking}
                           onCreateBooking={(payload) => handleRoomPlanCreate({ ...payload, propertyId: prop.id })}
                           onMoveBooking={handleRoomPlanMove}
+                          scrollSyncGroup="dashboard-roomplan-portfolio"
                         />
                       </div>
                     );
