@@ -145,6 +145,20 @@ function computeAmount(
   if (charge.applies_to_children) persons += ctx.children;
   if (charge.applies_to_infants) persons += ctx.infants;
 
+  /* Guests the room rate already covers. An explicit setting on the charge wins;
+   * otherwise the booked units' base occupancy decides. Without either, every
+   * guest is billed (old behaviour). */
+  const included = Math.max(
+    0,
+    charge.guests_included != null
+      ? Number(charge.guests_included) || 0
+      : Number(ctx.baseOccupancy ?? 0) || 0,
+  );
+  const billablePersons = Math.max(0, persons - included);
+  const personNote = included > 0
+    ? `${billablePersons} of ${persons} guests (${included} included)`
+    : `${persons} guests`;
+
   let amount = 0;
   let breakdown = "";
 
@@ -162,13 +176,14 @@ function computeAmount(
       breakdown = `${fmt(base, currency)} × ${ctx.rooms} rooms × ${ctx.nights} nights`;
       break;
     case "per_person":
-      amount = base * persons;
-      breakdown = `${fmt(base, currency)} × ${persons} guests`;
+      amount = base * billablePersons;
+      breakdown = `${fmt(base, currency)} × ${personNote}`;
       break;
     case "per_person_per_night":
-      amount = base * persons * ctx.nights;
-      breakdown = `${fmt(base, currency)} × ${persons} guests × ${ctx.nights} nights`;
+      amount = base * billablePersons * ctx.nights;
+      breakdown = `${fmt(base, currency)} × ${personNote} × ${ctx.nights} nights`;
       break;
+
     case "percentage_of_accommodation": {
       amount = ctx.accommodation * (base / 100);
       const minCap = charge.min_cap != null ? Number(charge.min_cap) : null;
