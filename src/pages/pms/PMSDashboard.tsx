@@ -1133,6 +1133,7 @@ export default function PMSDashboard() {
       return (data || []) as (AvailabilityOverride & { property_id: string })[];
     },
     enabled: isPortfolioMode,
+    staleTime: 0,
   });
 
   const { data: portfolioAliasRoomTypes = [] } = useQuery({
