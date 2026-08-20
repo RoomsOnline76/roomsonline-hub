@@ -12,6 +12,7 @@
  */
 import { findOwnerAccount } from './ruPhaseGate.ts';
 import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
+import { supersedeQueuedRuCalls } from './ruRateGate.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
