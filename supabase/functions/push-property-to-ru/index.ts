@@ -1650,22 +1650,8 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
-    amenities: (() => {
-      // Single-listing path: composition falls back to the property-wide values,
-      // but the primary room type's own bathrooms / toilets / kitchen win when set.
-      const list = mapAmenities(property.amenities);
-      const comp = resolveUnitComposition(property, primaryRoom);
-      const push = (id: number, count: number) => {
-        if (count <= 0) return;
-        const existing = list.find((a: any) => a.id === id);
-        if (existing) existing.count = Math.max(existing.count, count);
-        else list.push({ id, count } as any);
-      };
-      push(81, comp.bathrooms);
-      push(37, comp.toilets);
-      if (comp.separateKitchen) push(101, 1);
-      return list;
-    })(),
+    amenities: singleAmenities,
+
 
     rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
     images: allImages,
