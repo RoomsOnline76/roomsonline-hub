@@ -1115,7 +1115,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           "Company details have not been pushed to the Channel Manager with the verified keys yet — run \"Push company details\" first.",
         );
       }
-      const checks = { ...(signoff.checks ?? {}) };
+      const currentReadiness = (roadmapRef.current.channel_readiness ?? {}) as Record<string, unknown>;
+      const checks = {
+        ...((currentReadiness.checks ?? signoff.checks ?? {}) as Record<string, SignoffCheckRecord>),
+      };
       if (checked) {
         checks[itemKey] = { checked: true, by: actorLabel ?? null, at: new Date().toISOString() };
       } else {
