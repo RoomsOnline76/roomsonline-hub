@@ -4746,7 +4746,13 @@ Deno.serve(async (req) => {
               has_check_out_until: everyFlag('has_check_out_until'),
               check_in_times_are_default: units.some(u => (u.validation as any).check_in_times_are_default === true),
               check_in_from: (units[0]?.validation as any)?.check_in_from ?? null,
+              check_in_to: (units[0]?.validation as any)?.check_in_to ?? null,
               check_out_until: (units[0]?.validation as any)?.check_out_until ?? null,
+              check_in_times_source: (units[0]?.validation as any)?.check_in_times_source ?? null,
+              // Any unit breaking the channel time rule blocks the whole listing set.
+              check_in_times_violation:
+                units.map(u => (u.validation as any)?.check_in_times_violation).find(Boolean) ?? null,
+              check_in_times_valid: units.every(u => !(u.validation as any)?.check_in_times_violation),
             },
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
