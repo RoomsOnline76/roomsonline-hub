@@ -1118,3 +1118,31 @@ div.channel-recommended {
 .rol-stay-swatch {
   border: 1px solid hsl(var(--border));
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Stay bars (dashboard multicalendar + Room Plan): the arrival day is only
+   occupied from mid-day and the departure day until mid-day, so bar ends are
+   sliced diagonally to read as half days — same language as the stay pickers.
+   ──────────────────────────────────────────────────────────────────────────── */
+.rol-bar-half-in {
+  --rol-bar-wedge: 6px;
+  clip-path: polygon(var(--rol-bar-wedge) 0, 100% 0, 100% 100%, 0 100%);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.rol-bar-half-out {
+  --rol-bar-wedge: 6px;
+  clip-path: polygon(0 0, 100% 0, calc(100% - var(--rol-bar-wedge)) 100%, 0 100%);
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.rol-bar-half-in.rol-bar-half-out {
+  clip-path: polygon(
+    var(--rol-bar-wedge) 0,
+    100% 0,
+    calc(100% - var(--rol-bar-wedge)) 100%,
+    0 100%
+  );
+}
