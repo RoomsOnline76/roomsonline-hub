@@ -42,7 +42,10 @@ interface ModifyRequest {
   settlement?: {
     raise_refund?: boolean;
     request_balance?: boolean;
+    /** refund = schedule for approval, credit = retain on account, guest_choice = let the guest pick. */
+    overpayment_mode?: "refund" | "credit" | "guest_choice";
   };
+
   /**
    * The booking's `updated_at` as the operator's screen last saw it. A channel modification
    * (an extended stay pulled from Rentals United) writes a newer row while a dialog is open;
