@@ -622,14 +622,17 @@ export async function confirmRuRequest(
   }
 
   // A deferred confirm never reached the channel (rate limit) — the reservation is still a held
-  // request there, so do NOT promote it locally or let a modification follow.
+  // request there, so do NOT promote it locally or let a modification follow. It is queued at
+  // priority 1 and lands within about a minute, so report it as pending rather than as a failure.
   if (result.deferred === true) {
     return {
       ok: false,
+      queued: true,
       method: 'confirm_request',
-      code: 'RU_RATE_DEFERRED',
+      code: 'RU_CONFIRM_QUEUED',
       message:
-        'The channel rate limit deferred accepting this request. Nothing was changed — try again in about a minute.',
+        'The channel is accepting this request now (it was queued behind the channel\'s one-call-per-minute limit). ' +
+        'Nothing was changed yet — resend the change in about a minute.',
       traceId,
     };
   }
