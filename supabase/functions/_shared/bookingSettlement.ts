@@ -164,7 +164,8 @@ async function retainOnAccount(
 
     const { error: txError } = await supabase.from("rolos_folio_transactions").insert({
       folio_id: folioId,
-      transaction_type: "credit",
+      // `credit` is not an accepted folio type — a retained overpayment posts as a negative adjustment.
+      transaction_type: "adjustment",
       description: note,
       amount: -Math.abs(amount),
       reference: `credit:${booking.id}`,
