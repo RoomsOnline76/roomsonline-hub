@@ -554,14 +554,18 @@ Deno.serve(async (req) => {
       });
 
       if (!ruResult.ok) {
+        // Queued (not rejected): the channel owes this method another slot in its sliding minute
+        // and the call is parked at the front of the queue. Record it as pending, not failed, and
+        // answer 202 so the dialog can say "landing shortly" instead of showing an error.
+        const queued = ruResult.queued === true;
         await supabase.from("booking_sync_status").upsert(
           {
             booking_id,
             external_system: "rentalsunited",
-            sync_status: "failed",
+            sync_status: queued ? "pending" : "failed",
             last_action: "modify",
             last_action_at: new Date().toISOString(),
-            error_message: ruResult.message,
+            error_message: queued ? null : ruResult.message,
             last_error_message: ruResult.message,
           },
           { onConflict: "booking_id,external_system" }
@@ -570,10 +574,11 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({
             code: ruResult.code || "RU_ERROR",
+            queued,
             message: ruResult.message ||
               "The Channel Manager rejected the modification — the booking was left unchanged.",
           }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: queued ? 202 : 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
