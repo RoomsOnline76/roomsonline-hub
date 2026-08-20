@@ -1483,12 +1483,12 @@ function buildUnitPayload(
   }
 
 
+  // Bathroom (81), WC (53) and Kitchen (101) blocks: RU counts these blocks to render the
+  // Composition panel, so one block is emitted per bathroom and per toilet. Each block
+  // carries a real child amenity — an empty <Amenities/> is read as id:0 and rejected.
+  rooms.push(...compositionRoomBlocks(resolveUnitComposition(property, unit), unitAmenities));
 
-  // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
-  // RU's parser interprets <Amenities/> with no children as amenity id:0 and rejects with
-  // "Wrong composition room id:0". Since RU has no required amenities for those rooms in
-  // our data model, we list them only via the root <Amenities> block (item ids 11=Kitchen,
-  // 6=Bathroom etc.) — the CompositionRoomsAmenities block is bedroom-only.
+
 
   return {
     name: unit.name,
