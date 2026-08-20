@@ -594,8 +594,35 @@ export async function confirmRuRequest(
   const isBlockedDates = isBlockedDatesMsg;
 
   if (!result.ok && isBlockedDates(result.message)) {
-    if (await reopenOwnNights()) result = await attemptConfirm();
+    if (await reopenOwnNights()) {
+      /* The refused attempt already spent this minute's slot for `Push_ConfirmReservation_RQ`, so an
+         immediate retry is always rejected by the channel's one-call-per-minute limit and the
+         reopened calendar never gets used. Park the retry just past the window instead and report
+         it as pending. */
+      const queuedId = await enqueueRuCall(supabase, {
+        methodKey: `confirm_request:${reservationId}`,
+        action: 'confirm_request',
+        payload: { reservation_id: reservationId, comments: opts.comments ?? '', ...auth },
+        propertyId: booking.property_id,
+        priority: 1,
+        delayMs: 65_000,
+      });
+      if (queuedId) {
+        return {
+          ok: false,
+          queued: true,
+          method: 'confirm_request',
+          code: 'RU_CONFIRM_QUEUED',
+          message:
+            'The request\'s own nights were reopened at the channel and the acceptance is queued for the ' +
+            'next available channel slot (about a minute). Nothing was changed yet — resend the change once it lands.',
+          traceId,
+        };
+      }
+      result = await attemptConfirm();
+    }
   }
+
 
   if (!result.ok) {
     const raw = result.message ?? '';
