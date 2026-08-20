@@ -229,10 +229,6 @@ export async function supersedeQueuedRuCalls(
     // Never block a real channel call on this bookkeeping.
     console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
     return 0;
-  } catch (e) {
-    // Never block a real channel call on this bookkeeping.
-    console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
-    return 0;
   }
 }
 
