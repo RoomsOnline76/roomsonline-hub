@@ -359,6 +359,8 @@ export async function queueRuStaticDelta(
           push_type: pushType,
           changed_fields: changedFields,
           changed_field_count: changedFields.length,
+          scope: scopeUnitIds ? 'units' : 'property',
+          scope_unit_ids: scopeUnitIds,
           field_fingerprints: success ? currentFields : previous.fields,
           forced: options.force === true,
           chunks,
