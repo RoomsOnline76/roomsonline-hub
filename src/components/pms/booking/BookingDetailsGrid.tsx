@@ -738,6 +738,11 @@ export function BookingDetailsGrid({
           <div className="flex justify-between"><span className="text-muted-foreground">Accommodation</span><span className="font-medium">{money(accommodation)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Extras</span><span className="font-medium">{money(account.extras)}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Payments</span><span className="font-medium">-{money(account.payments)}</span></div>
+          {account.deposits > 0 && (
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>Refundable deposit (held separately)</span><span>{money(account.deposits)}</span>
+            </div>
+          )}
           <Separator />
           <div className="flex justify-between text-base">
             <span className="font-semibold">Balance</span>
@@ -767,7 +772,7 @@ export function BookingDetailsGrid({
         )}
 
         <div>
-          <Label className="text-[11px]">Booking Total (ZAR)</Label>
+          <Label className="text-[11px]">Accommodation (ZAR)</Label>
           <Input className="h-8" type="number" min={0} value={form.total_price} onChange={e => set("total_price", e.target.value)} />
         </div>
         <div>
