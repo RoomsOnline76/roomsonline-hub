@@ -637,12 +637,37 @@ Deno.serve(async (req) => {
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
 
-    // Update total_price if recalculated or explicitly set by the operator
-    if (modifications.total_price !== undefined) {
-      updateData.total_price = modifications.total_price;
-    } else if (newTotalPrice !== null) {
-      updateData.total_price = newTotalPrice;
-    }
+    // Accommodation for the new stay: operator override wins, then the reprice, then
+    // whatever the current room lines / stored breakdown say. This figure is the room
+    // revenue only — extras are added on top below.
+    const currentContext = await resolveBookingChargeContext(supabase, booking);
+    const newAccommodation = modifications.total_price !== undefined
+      ? Number(modifications.total_price)
+      : newTotalPrice !== null
+        ? Number(newTotalPrice)
+        : currentContext.accommodation;
+
+    // Extras follow the stay: per-night / per-person / percentage charges are recomputed
+    // for the new dates and pax, and their folio lines corrected in place.
+    const chargeQuote = await reconcileBookingCharges(supabase, {
+      bookingId: booking_id,
+      propertyId: booking.property_id,
+      accommodation: newAccommodation,
+      checkIn: modifications.check_in_date || booking.check_in_date,
+      checkOut: modifications.check_out_date || booking.check_out_date,
+      adults: modifications.adults ?? booking.adults,
+      children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
+      infants: modifications.infants ?? booking.infants,
+      rooms: currentContext.rooms,
+      roomTypeIds: currentContext.roomTypeIds,
+      currency: booking.currency,
+    });
+
+    // One guest total: accommodation plus mandatory extras. Refundable deposits are
+    // itemised separately and never folded into the total.
+    updateData.total_price = chargeQuote.guestTotal;
+    updateData.deposit_amount = chargeQuote.depositTotal;
+    updateData.charges_breakdown = chargesBreakdownSnapshot(chargeQuote);
     // Stamp the plan that priced the stay so the next modification does not have to guess again.
     if (repricedPlanId && !booking.rolos_rate_plan_id) {
       updateData.rolos_rate_plan_id = repricedPlanId;
@@ -669,9 +694,9 @@ Deno.serve(async (req) => {
     }
 
     // The booking card reads the room line, so a reprice that only moved the booking total would
-    // leave the line contradicting it. Single-room stays are kept in step here.
-    const effectiveNewTotal = updateData.total_price ?? null;
-    if (effectiveNewTotal !== null) {
+    // leave the line contradicting it. Single-room stays are kept in step here — the line carries
+    // accommodation, never the guest total.
+    {
       const { data: lines } = await supabase
         .from("rolos_booking_rooms")
         .select("id")
@@ -684,13 +709,14 @@ Deno.serve(async (req) => {
         await supabase
           .from("rolos_booking_rooms")
           .update({
-            rate_charged: Number(effectiveNewTotal),
+            rate_charged: newAccommodation,
             nightly_rate: repricedNightly ??
-              (nights > 0 ? Math.round((Number(effectiveNewTotal) / nights) * 100) / 100 : null),
+              (nights > 0 ? Math.round((newAccommodation / nights) * 100) / 100 : null),
           })
           .eq("id", lines[0].id);
       }
     }
+
 
 
 
