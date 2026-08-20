@@ -1102,7 +1102,19 @@ export function RoomManagerTab({
                       <Checkbox
                         id={`sep-kitchen-${selectedRoomType}`}
                         checked={!!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen}
-                        onCheckedChange={(v) => updateRoomTypeField(selectedRoomType, "separateKitchen", !!v)}
+                        onCheckedChange={(v) => {
+                          updateRoomTypeField(selectedRoomType, "separateKitchen", !!v);
+                          // The channel publishes "Separate kitchen" from the Kitchen amenity,
+                          // so the unit amenity list must say the same thing.
+                          const current = ensureArray(
+                            roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                          ) as string[];
+                          updateRoomTypeField(
+                            selectedRoomType,
+                            "amenities",
+                            withSeparateKitchen(current, !!v),
+                          );
+                        }}
                       />
                       <Label htmlFor={`sep-kitchen-${selectedRoomType}`} className="text-[10px] cursor-pointer">
                         Separate
