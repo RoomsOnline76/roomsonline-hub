@@ -295,10 +295,13 @@ export interface BookingChargeInput {
   children?: number | null;
   infants?: number | null;
   rooms?: number | null;
+  /** Guests covered by the rate across the booked units. */
+  baseOccupancy?: number | null;
   roomTypeIds?: (string | null | undefined)[];
   rateTypeId?: string | null;
   currency?: string | null;
 }
+
 
 export function nightsBetween(checkIn: string, checkOut: string): number {
   const ms = new Date(checkOut).getTime() - new Date(checkIn).getTime();
