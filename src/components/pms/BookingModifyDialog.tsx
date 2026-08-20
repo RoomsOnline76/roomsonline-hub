@@ -169,8 +169,23 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         if (!merged.has(iso)) merged.set(iso, info);
       }
     }
+    // Safety net: the stay's own booked nights are never a clash with itself,
+    // even when a block row carries no identifiable booking tag.
+    if (booking.check_in_date && booking.check_out_date) {
+      for (const iso of merged.keys()) {
+        if (iso >= booking.check_in_date && iso < booking.check_out_date) merged.delete(iso);
+      }
+    }
     return merged;
-  }, [availability, assignedRoomIds, lineRoomTypeIds, booking.room_type_id]);
+  }, [
+    availability,
+    assignedRoomIds,
+    lineRoomTypeIds,
+    booking.room_type_id,
+    booking.check_in_date,
+    booking.check_out_date,
+  ]);
+
 
   const disabledStayDays = useMemo(() => disabledDaysFrom(blockedNights), [blockedNights]);
   const blockedStayDays = useMemo(() => blockedDaysFrom(blockedNights), [blockedNights]);
