@@ -122,7 +122,60 @@ export interface SettlementResult {
   /** Token for the guest's credit-or-refund choice page. */
   credit_token: string | null;
   credit_requested: boolean;
+  /** How the overpayment was handled. */
+  overpayment_mode: OverpaymentMode | null;
+  /** Amount held on the booking folio as guest credit. */
+  credit_held: number;
+  payment_status: string;
 }
+
+/** Post the overpayment to the stay's folio as guest credit and hold it on the booking. */
+async function retainOnAccount(
+  supabase: Db,
+  booking: { id: string; property_id?: string | null; guest_name?: string | null },
+  amount: number,
+  note: string,
+): Promise<{ ok: boolean; error: string | null }> {
+  try {
+    let folioId: string | null = null;
+    const { data: folio } = await supabase
+      .from("rolos_folios")
+      .select("id, balance")
+      .eq("booking_id", booking.id)
+      .maybeSingle();
+
+    if (folio?.id) {
+      folioId = folio.id as string;
+    } else {
+      const { data: created, error } = await supabase
+        .from("rolos_folios")
+        .insert({
+          booking_id: booking.id,
+          property_id: booking.property_id ?? null,
+          guest_name: booking.guest_name ?? null,
+          balance: 0,
+          status: "open",
+        })
+        .select("id")
+        .single();
+      if (error) return { ok: false, error: error.message };
+      folioId = created?.id as string;
+    }
+
+    const { error: txError } = await supabase.from("rolos_folio_transactions").insert({
+      folio_id: folioId,
+      transaction_type: "credit",
+      description: note,
+      amount: -Math.abs(amount),
+      reference: `credit:${booking.id}`,
+    });
+    if (txError) return { ok: false, error: txError.message };
+    return { ok: true, error: null };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 
 async function raisePendingRefund(
   supabase: Db,
