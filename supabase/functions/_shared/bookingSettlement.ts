@@ -64,6 +64,7 @@ export async function resolveAmountPaid(
     payment_status?: string | null;
     total_price?: number | null;
     booking_channel?: string | null;
+    deposit_amount?: number | null;
   },
   oldTotal: number,
 ): Promise<ResolvedPayment> {
@@ -86,11 +87,25 @@ export async function resolveAmountPaid(
     return { amount: round2(stored), source };
   }
 
-  const paidFlag = PAID_PAYMENT_STATUSES.includes(String(booking.payment_status ?? "").toLowerCase());
-  if (paidFlag && oldTotal > 0) return { amount: round2(oldTotal), source: "channel" };
+  const status = String(booking.payment_status ?? "").toLowerCase();
+  const isChannelBooking = !!booking.booking_channel &&
+    !["direct", "walk_in", "phone", "email", "rolos"].includes(String(booking.booking_channel).toLowerCase());
+
+  // A stay settled at the channel carries no local transaction: the pre-modification total is what
+  // the guest has actually paid, so shortening it produces a real credit instead of silence.
+  if (PAID_PAYMENT_STATUSES.includes(status) && oldTotal > 0) {
+    return { amount: round2(oldTotal), source: isChannelBooking || status === "paid_externally" ? "channel" : "manual" };
+  }
+
+  // Deposit-only stays: the deposit is money received even when nothing else is recorded.
+  const deposit = round2(Number(booking.deposit_amount ?? 0));
+  if (["partially_paid", "deposit_paid", "partial"].includes(status) && deposit > 0) {
+    return { amount: deposit, source: "manual" };
+  }
 
   return { amount: 0, source: "none" };
 }
+
 
 export interface SettlementResult {
   amount_paid: number;
