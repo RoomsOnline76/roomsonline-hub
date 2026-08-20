@@ -344,6 +344,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    /* An operator-typed amount is always the ACCOMMODATION figure, never the guest
+     * total. `accommodation_total` says so plainly; `total_price` is the old field
+     * name and is still accepted so older clients keep working. Extras are always
+     * priced on top of this number — reading a guest total back in here is what
+     * used to make fees compound on every edit. */
+    const operatorAccommodation =
+      modifications.accommodation_total !== undefined
+        ? Number(modifications.accommodation_total)
+        : modifications.total_price !== undefined
+          ? Number(modifications.total_price)
+          : undefined;
+
+
     // S1: Fetch booking with property info
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
