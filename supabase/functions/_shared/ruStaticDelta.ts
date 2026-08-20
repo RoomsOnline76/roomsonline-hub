@@ -1,5 +1,6 @@
 import { readInvokeErrorBody } from './ruInvokeBody.ts';
 import { evaluateRuOperationalSync, RU_ON_HOLD_CODE, RU_WIZARD_SYNC_CODE } from './ruSyncGate.ts';
+import { RU_CHARGE_COLUMNS } from './ruDeposits.ts';
 
 // Event-driven Rentals United STATIC CONTENT delta (Push_PutProperty_RQ).
 //
@@ -173,6 +174,7 @@ async function fieldFingerprints(snapshot: StaticSnapshot): Promise<Record<strin
   for (const col of PROPERTY_STATIC_COLUMNS) {
     await add(`property.${col}`, snapshot.property?.[col] ?? null);
   }
+  await add('property.charges', snapshot.charges);
   for (const unit of snapshot.units) {
     const unitKey = String(unit.id ?? unit.name ?? 'unknown');
     for (const col of UNIT_STATIC_COLUMNS) {
@@ -216,6 +218,8 @@ function scopeUnitIdsFromChanges(changedFields: string[]): string[] | null {
 interface StaticSnapshot {
   property: Record<string, unknown> | null;
   units: Record<string, unknown>[];
+  /** Guest-facing charges — the deposit / cleaning amounts pushed with the listing. */
+  charges: Record<string, unknown>[];
   ruConnected: boolean;
   pushEnabled: boolean;
   /** True when the property has a live listing (building id or any active unit id). */
@@ -225,7 +229,7 @@ interface StaticSnapshot {
 }
 
 async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSnapshot> {
-  const [{ data: property }, { data: units }] = await Promise.all([
+  const [{ data: property }, { data: units }, { data: charges }] = await Promise.all([
     supabase
       .from('properties')
       .select(PROPERTY_STATIC_COLUMNS.join(','))
@@ -238,6 +242,13 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
       .eq('property_id', propertyId)
       .eq('is_active', true)
       .order('name', { ascending: true }),
+    // Charges live in their own table, so a deposit / cleaning edit is invisible to the
+    // property + unit hash unless it is fingerprinted here.
+    supabase
+      .from('property_charges')
+      .select(RU_CHARGE_COLUMNS.join(','))
+      .eq('property_id', propertyId)
+      .order('id', { ascending: true }),
   ]);
 
   const unitRows = (units ?? []) as Record<string, unknown>[];
@@ -247,6 +258,7 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
   return {
     property: (property ?? null) as Record<string, unknown> | null,
     units: unitRows,
+    charges: (charges ?? []) as Record<string, unknown>[],
     listed,
     ruConnected: gate.allowed && listed,
     pushEnabled: gate.allowed,
@@ -310,7 +322,7 @@ export async function queueRuStaticDelta(
     }
 
     const contentHash = await sha256(
-      stableStringify({ property: snapshot.property, units: snapshot.units }),
+      stableStringify({ property: snapshot.property, units: snapshot.units, charges: snapshot.charges }),
     );
     const previous = await lastStaticRun(supabase, propertyId);
     const currentFields = await fieldFingerprints(snapshot);

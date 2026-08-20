@@ -147,6 +147,17 @@ export const MANDATORY_CHECK_PATHS: Readonly<Record<string, readonly string[]>> 
   cancellation_policies_authored: ["amenities.cancellation_policies", "cancellation_master_mode"],
 };
 
+/**
+ * The Charges tab writes to its own table (`property_charges`), not the property payload, so
+ * it cannot be diffed here. It reports its own change with this field: the deposit and
+ * cleaning amounts travel inside the pushed listing content.
+ */
+export const CHARGES_CHANGE_FIELD: ChangedChannelField = {
+  path: "property_charges",
+  label: "charges (deposit / cleaning)",
+  section: "content",
+};
+
 /** Every path the changed-field diff watches — used by the coverage test. */
 export const TRACKED_PATHS: readonly string[] = FIELD_SPECS.map((spec) => spec.path);
 

@@ -21,6 +21,12 @@ import { enqueueJob } from '../_shared/jobQueue.ts';
 
 import { computeLocalBookableWindow } from '../_shared/ruLocalWindow.ts';
 import { loadCanonicalRooms, normaliseRoomName } from '../_shared/canonicalRooms.ts';
+import {
+  RU_CHARGE_COLUMNS,
+  resolveRuCleaningFee,
+  resolveRuSecurityDeposit,
+  type RuChargeRow,
+} from '../_shared/ruDeposits.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -1353,6 +1359,7 @@ function buildUnitPayload(
   locationId: number,
   buildingId?: number,
   currencyId?: number,
+  charges?: RuChargeRow[] | null,
 ) {
   const amenities = property.amenities || {};
   const authoredUnitType = unit.property_type || property.property_type || null;
@@ -1389,8 +1396,11 @@ function buildUnitPayload(
   const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
   const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
-  const securityDeposit = banking.security_deposit || unit.security_deposit || undefined;
-  const cleaningPrice = toFiniteNumber(unit.cleaning_fee) ?? 0;
+  // Charges tab is the only authority for the deposit: no active deposit charge that applies
+  // to this unit means the listing carries no security deposit at all.
+  const securityDeposit = resolveRuSecurityDeposit(charges, unit.id);
+  const cleaningPrice = resolveRuCleaningFee(charges, unit.id) ?? toFiniteNumber(unit.cleaning_fee) ?? 0;
+
 
   // Use unit images first, fall back to property images
   let images = mapImages(unit.images as unknown[] | null, (unit as any).ru_image_tags);
@@ -1547,7 +1557,7 @@ function buildUnitPayload(
 }
 
 // Legacy single-property payload builder (kept for properties with no room types)
-function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number) {
+function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRow[], locationId: number, currencyId?: number, charges?: RuChargeRow[] | null) {
   const primaryRoom = roomTypes[0] || null;
   const amenities = property.amenities || {};
   const authoredSingleType = primaryRoom?.property_type || property.property_type || null;
@@ -1576,8 +1586,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const depositAmount = toFiniteNumber(banking.deposit_amount ?? banking.prepayment_amount);
   const deposit = depositPercent && depositPercent > 0 ? depositPercent : depositAmount && depositAmount > 0 ? depositAmount : 0;
   const depositTypeId = depositPercent && depositPercent > 0 ? 3 : depositAmount && depositAmount > 0 ? 5 : 1;
-  const securityDeposit = banking.security_deposit || primaryRoom?.security_deposit || undefined;
-  const cleaningPrice = toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
+  // Charges tab is the only authority for the deposit (see ruDeposits.ts).
+  const securityDeposit = resolveRuSecurityDeposit(charges, primaryRoom?.id);
+  const cleaningPrice = resolveRuCleaningFee(charges, primaryRoom?.id) ?? toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
   // Building-level rooms: RU counts the bed amenities inside every Bedroom (257) block
   // and rejects the listing ("Add sufficient amount of beds") when they cover less than
   // half of CanSleepMax. Emit the real bed_configuration of every room type instead of a
@@ -3729,6 +3740,14 @@ Deno.serve(async (req) => {
 
 
 
+    // Guest-facing charges (deposit / cleaning) are authored on the Charges tab and are the
+    // only source for the listing's SecurityDeposit and CleaningPrice.
+    const { data: chargeRows } = await supabase
+      .from('property_charges')
+      .select(RU_CHARGE_COLUMNS.join(','))
+      .eq('property_id', property_id);
+    const propertyCharges = (chargeRows ?? []) as RuChargeRow[];
+
     const { data: roomTypes } = await supabase
       .from('hostfully_room_types')
       .select('id, name, description, max_guests, bedrooms, bathrooms, beds, bed_configuration, linked_rolos_id, amenities, images, ru_image_tags, check_in_time, check_out_time, check_in_instructions, cleaning_fee, security_deposit, address_street, address_postal_code, latitude, longitude, property_type, cancellation_policy, room_size, rentalsunited_property_id, created_at, updated_at')
@@ -3861,7 +3880,7 @@ Deno.serve(async (req) => {
 
         const scored = await Promise.all(
           activeRoomTypes.map(async (rt) => {
-            const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId), distances: propertyDistances } as Record<string, any>;
+            const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId, propertyCharges), distances: propertyDistances } as Record<string, any>;
             // Probe image dimensions exactly like the dry run does — without this the
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
             await applyImageVerification(payload);
@@ -4421,7 +4440,7 @@ Deno.serve(async (req) => {
       // Dry run: validate each unit
       if (dry_run) {
         const units = await Promise.all(activeRoomTypes.map(async (rt) => {
-          const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId), distances: propertyDistances } as Record<string, any>;
+          const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId, propertyCharges), distances: propertyDistances } as Record<string, any>;
           await applyImageVerification(payload);
           return {
             room_type_id: rt.id,
@@ -4553,7 +4572,7 @@ Deno.serve(async (req) => {
         for (const unit of filteredUnits) {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
-          const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId), distances: propertyDistances };
+          const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId, propertyCharges), distances: propertyDistances };
           unitPayload.owner_id = ruOwnerId;
           const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
           if (unitImageIssues.length > 0) {
@@ -4955,7 +4974,7 @@ Deno.serve(async (req) => {
       const unitResults: any[] = [];
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
-        const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId), distances: propertyDistances };
+        const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId, propertyCharges), distances: propertyDistances };
         const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
         if (unitImageIssues.length > 0) {
           console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
@@ -5169,7 +5188,7 @@ Deno.serve(async (req) => {
     }
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
-    const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId), distances: propertyDistances };
+    const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId, propertyCharges), distances: propertyDistances };
     ruPayload.owner_id = ruOwnerId;
     const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
     if (singleImageIssues.length > 0) {

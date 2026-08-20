@@ -4,9 +4,24 @@ import { toast } from "sonner";
 import { fetchPropertyRoomTypes } from "@/hooks/usePropertyRoomTypes";
 import type { PropertyCharge, ChargePreset } from "@/components/charges/ChargeCalculator";
 import type { Json } from "@/integrations/supabase/types";
+import { CHARGES_CHANGE_FIELD } from "@/lib/channelPushFields";
+import { pushChangedChannelFields } from "@/lib/channelSavePush";
 
 export function usePropertyCharges(propertyId: string | null) {
   const queryClient = useQueryClient();
+
+  /**
+   * A charge change alters the pushed listing (deposit / cleaning amounts), so it owes the
+   * channel a static delta exactly like a property save does. Fire-and-forget: the channel
+   * round-trip must never block the charges UI.
+   */
+  const pushChargesToChannel = () => {
+    if (!propertyId) return;
+    void pushChangedChannelFields(propertyId, [CHARGES_CHANGE_FIELD], ({ title, description, variant }) => {
+      if (variant === "destructive") toast.error(title, { description });
+      else toast.success(title, { description });
+    });
+  };
 
   // Fetch property charges
   const chargesQuery = useQuery({
@@ -52,6 +67,7 @@ export function usePropertyCharges(propertyId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property-charges', propertyId] });
       toast.success("Charge created successfully");
+      pushChargesToChannel();
     },
     onError: (error) => {
       toast.error("Failed to create charge: " + error.message);
@@ -73,6 +89,7 @@ export function usePropertyCharges(propertyId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property-charges', propertyId] });
       toast.success("Charge updated successfully");
+      pushChargesToChannel();
     },
     onError: (error) => {
       toast.error("Failed to update charge: " + error.message);
@@ -91,6 +108,7 @@ export function usePropertyCharges(propertyId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property-charges', propertyId] });
       toast.success("Charge deleted successfully");
+      pushChargesToChannel();
     },
     onError: (error) => {
       toast.error("Failed to delete charge: " + error.message);
@@ -108,6 +126,7 @@ export function usePropertyCharges(propertyId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['property-charges', propertyId] });
+      pushChargesToChannel();
     },
     onError: (error) => {
       toast.error("Failed to toggle charge: " + error.message);
