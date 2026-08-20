@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { isKitchenFamilyId, withSingleKitchenFlavour } from "@/lib/ruKitchen";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -101,7 +102,12 @@ export default function RUAmenityPicker({
   );
 
   const setToken = useCallback((id: number, checked: boolean, count = 1) => {
-    const others = (value ?? []).filter((v) => {
+    // Kitchen flavours are mutually exclusive — ticking "kitchenette" must clear
+    // "Separate kitchen", otherwise the channel keeps publishing the old flavour.
+    const base = checked && isKitchenFamilyId(id)
+      ? withSingleKitchenFlavour(value ?? [], id)
+      : (value ?? []);
+    const others = base.filter((v) => {
       const m = v.match(/^ru:(\d+)(?::\d+)?$/i);
       return !m || parseInt(m[1], 10) !== id;
     });

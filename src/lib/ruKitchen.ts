@@ -20,6 +20,27 @@ export function hasSeparateKitchen(values: string[] | null | undefined): boolean
   );
 }
 
+/**
+ * Kitchen flavours are one fact with one answer: a unit has a separate kitchen (101 and
+ * its variants), an open/kitchenette kitchen (94/157) or a kitchen corner (517) — never
+ * two at once. Ticking one clears the others so ROLOS and the channel agree.
+ */
+export const RU_KITCHEN_FAMILY_IDS = [94, 101, 102, 135, 157, 517, 1262];
+
+/** True when the id is one of the mutually exclusive kitchen flavours. */
+export function isKitchenFamilyId(id: number): boolean {
+  return RU_KITCHEN_FAMILY_IDS.includes(Number(id));
+}
+
+/** Drop every other kitchen flavour from the list, keeping `keepId`. */
+export function withSingleKitchenFlavour(values: string[] | null | undefined, keepId: number): string[] {
+  return (values || []).filter((v) => {
+    if (!isRuToken(v)) return true;
+    const id = ruTokenId(v);
+    return id === keepId || !isKitchenFamilyId(Number(id));
+  });
+}
+
 /** Add or remove the separate-kitchen amenity so the list matches the flag. */
 export function withSeparateKitchen(values: string[] | null | undefined, on: boolean): string[] {
   const list = [...(values || [])];
