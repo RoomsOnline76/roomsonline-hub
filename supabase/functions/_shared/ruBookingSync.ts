@@ -12,6 +12,7 @@
  */
 import { findOwnerAccount } from './ruPhaseGate.ts';
 import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
+import { supersedeQueuedRuCalls } from './ruRateGate.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -31,6 +32,12 @@ export interface RuPushResult {
   ok: boolean;
   /** True when the channel's rate window parked the call — it will complete from the queue. */
   deferred?: boolean;
+  /**
+   * True when the channel write could not be made now and is parked in the priority queue.
+   * Not a failure: the call lands within about a minute on its own, so the caller should say so
+   * calmly rather than reporting an error.
+   */
+  queued?: boolean;
   /** True when a held request had to be accepted at the channel before the change could apply. */
   confirmedLead?: boolean;
 
@@ -568,6 +575,16 @@ export async function confirmRuRequest(
     // Best effort only — never block the confirm on this lookup.
   }
 
+  // Our own parked retry of this exact confirm competes for the same sliding-minute slot as the
+  // operator sitting in the dialog, so the interactive attempt takes it over.
+  const superseded = await supersedeQueuedRuCalls(supabase, {
+    action: 'confirm_request',
+    reservationId,
+  });
+  if (superseded) {
+    console.log(`[ruBookingSync] took over ${superseded} parked confirm_request for reservation ${reservationId}`);
+  }
+
   let result = await attemptConfirm();
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
@@ -606,14 +623,17 @@ export async function confirmRuRequest(
   }
 
   // A deferred confirm never reached the channel (rate limit) — the reservation is still a held
-  // request there, so do NOT promote it locally or let a modification follow.
+  // request there, so do NOT promote it locally or let a modification follow. It is queued at
+  // priority 1 and lands within about a minute, so report it as pending rather than as a failure.
   if (result.deferred === true) {
     return {
       ok: false,
+      queued: true,
       method: 'confirm_request',
-      code: 'RU_RATE_DEFERRED',
+      code: 'RU_CONFIRM_QUEUED',
       message:
-        'The channel rate limit deferred accepting this request. Nothing was changed — try again in about a minute.',
+        'The channel is accepting this request now (it was queued behind the channel\'s one-call-per-minute limit). ' +
+        'Nothing was changed yet — resend the change in about a minute.',
       traceId,
     };
   }
@@ -693,6 +713,7 @@ export async function modifyRuStay(
       });
       return {
         ok: false,
+        queued: confirmed.queued === true,
         code: confirmed.code || 'RU_MODIFY_NOT_ALLOWED',
         message: confirmed.message ||
           'This is still an unconfirmed channel request and the channel refused to accept it — the stay was left unchanged.',
@@ -742,6 +763,13 @@ export async function modifyRuStay(
     };
   }
 
+  // Take over our own parked replay of this stay change so it does not hold the slot the operator
+  // is waiting for.
+  await supersedeQueuedRuCalls(supabase, {
+    action: 'modify_stay',
+    reservationId: String(booking.external_reservation_id),
+  });
+
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
@@ -776,7 +804,15 @@ export async function modifyRuStay(
 
 
   return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', confirmedLead, traceId }
+    ? {
+        ok: true,
+        deferred: result.deferred === true,
+        // Parked at priority 1 in the call queue: in flight, not delivered yet.
+        queued: result.deferred === true,
+        method: 'modify_stay',
+        confirmedLead,
+        traceId,
+      }
     : { ok: false, method: 'modify_stay', code: result.code, message: result.message, confirmedLead, traceId };
 }
 

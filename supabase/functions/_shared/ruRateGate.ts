@@ -15,7 +15,45 @@ export const RU_RATE_WINDOW_SECONDS = 60;
 /** How long a single call may sleep waiting for its slot before deferring instead. */
 export const RU_RATE_MAX_WAIT_MS = 25_000;
 
+/**
+ * Reservation writes happen with an operator watching a dialog. Holding the request for the full
+ * 25s window (twice — accept, then modify) reads as a hang and still ends in a deferral, so these
+ * calls wait only briefly and are then parked at the front of the queue.
+ */
+export const RU_INTERACTIVE_MAX_WAIT_MS = 3_000;
+
+/**
+ * Queue priority (lower runs first). Reservation writes must never queue behind the background
+ * price/availability read-backs, which fill the queue with hundreds of legitimately distinct rows.
+ */
+export const RU_PRIORITY_RESERVATION_WRITE = 1;
+export const RU_PRIORITY_DEFAULT = 100;
+
+/** Actions that carry a reservation an operator is waiting on. */
+const RESERVATION_WRITE_ACTIONS = new Set([
+  'confirm_request',
+  'reject_request',
+  'modify_stay',
+  'cancel_reservation',
+  'push_confirmed_reservation',
+]);
+
+export function isReservationWriteAction(action: string | null | undefined): boolean {
+  return RESERVATION_WRITE_ACTIONS.has(String(action ?? ''));
+}
+
+/** Queue priority for one action — reservation writes jump the queue. */
+export function ruQueuePriority(action: string | null | undefined): number {
+  return isReservationWriteAction(action) ? RU_PRIORITY_RESERVATION_WRITE : RU_PRIORITY_DEFAULT;
+}
+
+/** Gate wait budget for one action — interactive writes fail fast into the queue instead. */
+export function ruGateWaitMs(action: string | null | undefined): number {
+  return isReservationWriteAction(action) ? RU_INTERACTIVE_MAX_WAIT_MS : RU_RATE_MAX_WAIT_MS;
+}
+
 export const RU_RATE_DEFERRED_CODE = 'RU_RATE_DEFERRED';
+
 
 export class RuRateDeferredError extends Error {
   readonly code = RU_RATE_DEFERRED_CODE;
@@ -155,6 +193,43 @@ export async function enqueueRuCall(
     return null;
   }
   return typeof data === 'string' ? data : (data?.id ?? null);
+}
+
+/**
+ * An operator clicking Save must not be blocked by OUR OWN parked retry of the same call.
+ *
+ * A failed reservation write is parked in the queue keyed by method+parameters — exactly the key
+ * the inline attempt needs. The drainer's replay then claims the sliding-minute slot and the
+ * person waiting gets `RU_RATE_DEFERRED` for a call that is already being made on their behalf.
+ * Superseding the parked row stops that competition; the slot claim itself is left alone because a
+ * previously attempted row really did spend a call at the channel.
+ *
+ * Returns the number of parked rows taken over.
+ */
+export async function supersedeQueuedRuCalls(
+  supabase: any,
+  args: { action: string; reservationId: string },
+): Promise<number> {
+  try {
+    const { data, error } = await supabase
+      .from('ru_call_queue')
+      .update({
+        status: 'superseded',
+        completed_at: new Date().toISOString(),
+        claimed_at: null,
+        last_error: 'Superseded by an operator-initiated attempt on the same reservation',
+      })
+      .eq('action', args.action)
+      .eq('status', 'pending')
+      .contains('payload', { reservation_id: args.reservationId })
+      .select('id');
+    if (error) throw error;
+    return ((data ?? []) as { id: string }[]).length;
+  } catch (e) {
+    // Never block a real channel call on this bookkeeping.
+    console.warn(`[ruRateGate] could not supersede parked ${args.action}: ${e instanceof Error ? e.message : e}`);
+    return 0;
+  }
 }
 
 /** Actions safe to run later: reads, verification read-backs and scheduled refreshes. */

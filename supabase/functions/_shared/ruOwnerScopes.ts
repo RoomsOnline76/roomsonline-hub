@@ -12,6 +12,7 @@
  */
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ownerIdsWithOperationalSync } from './ruSyncGate.ts';
+import { fetchRetiredRuOwnerIds } from './ruRetiredAccounts.ts';
 
 export interface RuOwnerScope {
   /** null for the master account. */
@@ -73,6 +74,10 @@ export async function resolveRuOwnerScopes(
 
   let children: RuOwnerScope[] = [];
   const skipped: string[] = [];
+  // Retired sub-accounts must never be read, pushed to or counted — and every call addressed to
+  // one burns a sliding-minute slot that a live account (or an operator's reservation write) needs.
+  const retired = await fetchRetiredRuOwnerIds();
+  const retiredSkipped: string[] = [];
   // One OwnerID = one account, however many local rows point at it. Fanning out
   // per row would read (and rate-limit) the same sub-account twice.
   const seenOwners = new Set<string>();
@@ -85,6 +90,10 @@ export async function resolveRuOwnerScopes(
     const ownerId = String(a.ru_owner_id).trim();
     if (!ownerId || seenOwners.has(ownerId)) continue;
     seenOwners.add(ownerId);
+    if (retired.has(ownerId)) {
+      retiredSkipped.push(ownerId);
+      continue;
+    }
     const hasKeys = withKeys.has(ownerId) || !!a.ru_api_access_key;
     const label = `${a.ru_login_email ?? a.owner_email ?? 'sub-user'} (OwnerID ${ownerId})`;
     if (!hasKeys) {
@@ -110,6 +119,12 @@ export async function resolveRuOwnerScopes(
     children = children.filter((c) => ready.has(String(c.ownerId)));
   }
 
+  if (retiredSkipped.length) {
+    console.log(
+      `[ruOwnerScopes] skipped ${retiredSkipped.length} retired sub-account(s) for ${cadenceAction}: ${retiredSkipped.join(', ')}`,
+    );
+  }
+
   if (skipped.length) {
     console.warn(
       `[ruOwnerScopes] ${skipped.length} RU sub-user(s) have no API keys and were skipped for ${cadenceAction}: ${skipped.join(', ')}`,
@@ -123,11 +138,13 @@ export async function resolveRuOwnerScopes(
 export async function listRuOwnersWithoutKeys(admin: SupabaseClient): Promise<string[]> {
   const scopes = await resolveRuOwnerScopes(admin, '__none__');
   const covered = new Set(scopes.map((s) => s.ownerId).filter(Boolean) as string[]);
+  // A retired account is not a coverage gap — it is deliberately unmonitored.
+  const retired = await fetchRetiredRuOwnerIds();
   const { data: accounts } = await admin
     .from('ru_owner_accounts')
     .select('ru_owner_id')
     .not('ru_owner_id', 'is', null);
   return (accounts ?? [])
     .map((a: { ru_owner_id: string }) => String(a.ru_owner_id))
-    .filter((id) => id && !covered.has(id));
+    .filter((id) => id && !covered.has(id) && !retired.has(id));
 }
