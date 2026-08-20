@@ -2407,7 +2407,7 @@ Deno.serve(async (req) => {
         await seedLedger(admin, propertyId);
         // The drain is local-only by construction: it ignores any `probe_ari` in the body.
         const probeAri = action === "ledger_drain_recheck" ? false : body.probe_ari !== false;
-        const report = await scoreProperty(prop, { probe_ari: probeAri });
+        const report = await scorePropertyWithinBudget(prop, probeAri);
         const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
         const written = await writeLedgerRows(admin, propertyId, rows);
         logLedgerEvent({
@@ -2445,7 +2445,7 @@ Deno.serve(async (req) => {
       if (!prop) {
         return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
       }
-      const report = await scoreProperty(prop, { probe_ari: body.probe_ari !== false });
+      const report = await scorePropertyWithinBudget(prop, body.probe_ari !== false);
       // Certification requires changes to reach the channel without operator action: any delta
       // parked behind the gate is re-fired in the background as soon as readiness reads clean.
       if (report && (report as { blocked?: boolean }).blocked === false) {
@@ -5338,7 +5338,7 @@ Deno.serve(async (req) => {
         ? false
         : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
-        readiness = await scoreProperty(prop as any, { probe_ari: probeAri }) as any;
+        readiness = await scorePropertyWithinBudget(prop as any, probeAri) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
