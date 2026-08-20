@@ -838,29 +838,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The booking card reads the room line, so a reprice that only moved the booking total would
-    // leave the line contradicting it. Single-room stays are kept in step here — the line carries
-    // accommodation, never the guest total.
+    /* The booking card and the next re-price both read the room lines, so a line left
+     * on an old figure would contradict the booking and become the accommodation base
+     * on the following edit. Every active line is written to match the accommodation
+     * total — apportioned evenly across a multi-unit stay, remainder on the first line.
+     * Lines carry accommodation only, never the guest total. */
     {
       const { data: lines } = await supabase
         .from("rolos_booking_rooms")
-        .select("id")
+        .select("id, status")
         .eq("booking_id", booking_id);
-      if (Array.isArray(lines) && lines.length === 1) {
+      const active = (Array.isArray(lines) ? lines : []).filter(
+        (l: { status?: string | null }) => (l.status ?? "active") === "active",
+      );
+      if (active.length > 0) {
         const nights = countNights(
           modifications.check_in_date || booking.check_in_date,
           modifications.check_out_date || booking.check_out_date,
         );
-        await supabase
-          .from("rolos_booking_rooms")
-          .update({
-            rate_charged: newAccommodation,
-            nightly_rate: repricedNightly ??
-              (nights > 0 ? Math.round((newAccommodation / nights) * 100) / 100 : null),
-          })
-          .eq("id", lines[0].id);
+        const per = Math.round((newAccommodation / active.length) * 100) / 100;
+        const remainder = Math.round((newAccommodation - per * active.length) * 100) / 100;
+        for (let i = 0; i < active.length; i++) {
+          const share = i === 0 ? Math.round((per + remainder) * 100) / 100 : per;
+          await supabase
+            .from("rolos_booking_rooms")
+            .update({
+              rate_charged: share,
+              nightly_rate: active.length === 1 && repricedNightly != null
+                ? repricedNightly
+                : nights > 0
+                  ? Math.round((share / nights) * 100) / 100
+                  : null,
+            })
+            .eq("id", active[i].id);
+        }
       }
     }
+
 
 
 
