@@ -521,11 +521,30 @@ export async function confirmRuRequest(
   });
 
   if (!result.ok) {
+    // The channel refuses to accept a held request whose own nights are closed on its calendar
+    // (0 units left, or a check-in/check-out restriction on the arrival/departure day). That is a
+    // calendar state the operator can fix, so it gets its own code and a plain-language reason
+    // instead of the opaque channel string.
+    const raw = result.message ?? '';
+    const blockedDates = /not available for a given dates|check in or check out/i.test(raw);
+    if (blockedDates) {
+      return {
+        ok: false,
+        method: 'confirm_request',
+        code: 'RU_CONFIRM_BLOCKED_DATES',
+        message:
+          'The channel will not accept this request because its own nights are closed on the channel calendar ' +
+          '(no units left, or a check-in/check-out restriction on the arrival or departure day). ' +
+          'Open those dates on the channel and accept the request there, then resend the change. ' +
+          `Channel said: ${raw}`,
+        traceId,
+      };
+    }
     return {
       ok: false,
       method: 'confirm_request',
       code: result.code || 'RU_CONFIRM_REQUEST_FAILED',
-      message: result.message ||
+      message: raw ||
         'The channel did not accept this request. Accept it in the channel portal, then resend the change.',
       traceId,
     };
