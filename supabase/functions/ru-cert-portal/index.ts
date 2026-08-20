@@ -1706,17 +1706,30 @@ Deno.serve(async (req) => {
       name: string;
       rentalsunited_property_id?: string | null;
     }, opts: { probe_ari?: boolean } = {}) => {
-      const { data, error } = await admin.functions.invoke("push-property-to-ru", {
-        body: { property_id: p.id, dry_run: true },
-      });
+      // A cold/loaded worker occasionally drops the first dry-run invoke (the tail of a
+      // portfolio-wide sweep used to report a false "payload could not be built"), so the
+      // build is retried once before it is scored as a real content gap.
+      let data: any = null;
+      let error: { message?: string } | null = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const res = await admin.functions.invoke("push-property-to-ru", {
+          body: { property_id: p.id, dry_run: true },
+        });
+        data = res.data;
+        error = res.error;
+        if (!error) break;
+        console.warn(`[scoreProperty] dry run for "${p.name}" attempt ${attempt}/2 failed: ${error.message}`);
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+      }
       if (error) {
+        const reason = error.message ? ` (${error.message})` : "";
         return {
           property_id: p.id,
           name: p.name,
           ok: false,
           blocked: true,
           error: error.message,
-          gaps: ["Dry run failed — Rentals United payload could not be built"],
+          gaps: [`Dry run could not be completed — retry the check${reason}`],
           checks: [],
           groups: [],
           score: 0,
@@ -1724,6 +1737,7 @@ Deno.serve(async (req) => {
           checks_passed: 0,
         };
       }
+
 
       const units: RuUnitInput[] = data?.units ?? [
         { name: p.name, validation: data?.validation ?? {} },
@@ -3588,13 +3602,28 @@ Deno.serve(async (req) => {
         (p: { ru_push_enabled: boolean | null }) => p.ru_push_enabled === true,
       );
 
+      // Scored one small page per invocation. Scoring every property in a single worker
+      // exhausted its wall clock/memory, and the tail properties then reported a false
+      // "payload could not be built"; the client walks `next_offset` until it is null.
+      const PAGE = 3;
+      const offset = Number.isFinite(Number(body.offset)) ? Math.max(0, Number(body.offset)) : 0;
+      const page = candidates.slice(offset, offset + PAGE);
       const results: unknown[] = [];
-      for (const p of candidates) {
+      for (const p of page) {
         results.push(await scoreProperty(p));
       }
+      const nextOffset = offset + page.length < candidates.length ? offset + page.length : null;
 
-      return json({ success: true, properties: results });
+      return json({
+        success: true,
+        properties: results,
+        offset,
+        next_offset: nextOffset,
+        total: candidates.length,
+      });
     }
+
+
 
 
     // ── Phase 5: RU user management (parked behind a single switch) ──
