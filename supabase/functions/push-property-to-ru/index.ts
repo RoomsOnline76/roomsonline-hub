@@ -3314,9 +3314,11 @@ Deno.serve(async (req) => {
             ru_property_id: ruId,
             ru_reported_iso: iso ?? null,
             on_master_account: onMaster,
+            deferred: !iso && readback.deferred === true,
             matches: !!iso && iso.toUpperCase() === expectedIso.toUpperCase(),
             error: err,
           });
+
           // Persist the property-level state from the first listing the sub-user can see.
           if (!primaryVerification && iso && !onMaster) {
             primaryVerification = await verifyAndRecordCurrency(supabase, {
