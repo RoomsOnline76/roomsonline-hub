@@ -201,11 +201,12 @@ export function BulkStopSellDialog({
         }
       }
 
+      onRuleCreated?.();
       if (applyMode === "rooms") {
         // Rate-plan closures have no Rentals United equivalent — they stay ROL'OS/direct only.
-        await syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
+        // Fire-and-forget: the calendar refreshes now, the channel delta follows behind.
+        void syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
       }
-      onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error creating stop sell rule:", error);
