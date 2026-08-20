@@ -71,6 +71,7 @@ import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/cha
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { validateStayTimes } from "@/lib/stayTimes";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
+import { RuRateGateTimer } from "@/components/property/RuRateGateTimer";
 import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 import { buildPropertySavePatch, samePersistedValue } from "@/lib/propertySavePatch";
 
