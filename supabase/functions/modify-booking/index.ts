@@ -439,7 +439,9 @@ Deno.serve(async (req) => {
         children: (modifications.children ?? booking.children ?? 0) + (modifications.teens ?? booking.teens ?? 0),
         infants: modifications.infants ?? booking.infants,
         rooms: context.rooms,
+        baseOccupancy: context.baseOccupancy,
         roomTypeIds: context.roomTypeIds,
+
         currency: booking.currency,
       });
 
