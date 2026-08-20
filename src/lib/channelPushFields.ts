@@ -36,6 +36,18 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "amenities.mobile_number", label: "mobile number", section: "company" },
   { path: "amenities.postal_address", label: "postal address", section: "company" },
   { path: "amenities.ru_company_profile", label: "distribution company profile", section: "company" },
+  // The representative's nationality and country of residence are mandatory channel
+  // locations; name them explicitly so the toast says what moved.
+  {
+    path: "amenities.ru_company_profile.legal_rep.nationality_id",
+    label: "representative nationality",
+    section: "company",
+  },
+  {
+    path: "amenities.ru_company_profile.legal_rep.country_of_residence_id",
+    label: "representative country of residence",
+    section: "company",
+  },
   { path: "owner_name", label: "owner name", section: "company" },
   { path: "owner_email", label: "owner email", section: "company" },
 
@@ -51,6 +63,7 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "city", label: "town", section: "content" },
   { path: "country", label: "country", section: "content" },
   { path: "postal_code", label: "postal code", section: "content" },
+  { path: "ru_location_id", label: "Channel Manager location", section: "content" },
   { path: "latitude", label: "map position", section: "content" },
   { path: "longitude", label: "map position", section: "content" },
   { path: "max_guests", label: "maximum guests", section: "content" },
