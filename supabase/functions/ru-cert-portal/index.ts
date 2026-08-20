@@ -3602,17 +3602,27 @@ Deno.serve(async (req) => {
         (p: { ru_push_enabled: boolean | null }) => p.ru_push_enabled === true,
       );
 
-      // Scored in small parallel batches: a long serial sweep used to exhaust the worker's
-      // wall clock, so the last few properties failed their dry run for no content reason.
+      // Scored one small page per invocation. Scoring every property in a single worker
+      // exhausted its wall clock/memory, and the tail properties then reported a false
+      // "payload could not be built"; the client walks `next_offset` until it is null.
+      const PAGE = 3;
+      const offset = Number.isFinite(Number(body.offset)) ? Math.max(0, Number(body.offset)) : 0;
+      const page = candidates.slice(offset, offset + PAGE);
       const results: unknown[] = [];
-      const BATCH = 3;
-      for (let i = 0; i < candidates.length; i += BATCH) {
-        const batch = candidates.slice(i, i + BATCH);
-        results.push(...(await Promise.all(batch.map((p) => scoreProperty(p)))));
+      for (const p of page) {
+        results.push(await scoreProperty(p));
       }
+      const nextOffset = offset + page.length < candidates.length ? offset + page.length : null;
 
+      return json({
+        success: true,
+        properties: results,
+        offset,
+        next_offset: nextOffset,
+        total: candidates.length,
+      });
+    }
 
-      return json({ success: true, properties: results });
     }
 
 
