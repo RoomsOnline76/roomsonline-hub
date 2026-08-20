@@ -1056,10 +1056,15 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
 
 
+  const roadmapRef = useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    roadmapRef.current = (((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>);
+  }, [d?.roadmap]);
+
   const writeChannelReadiness = useCallback(
     async (patch: Record<string, unknown>) => {
       if (!propertyId) return;
-      const existing = ((d?.roadmap as any)?.roadmap ?? {}) as Record<string, unknown>;
+      const existing = roadmapRef.current;
       const next = {
         ...existing,
         channel_readiness: {
@@ -1067,16 +1072,37 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           ...patch,
         },
       };
+      const queryKey = ["rolos-onboarding-distribution", propertyId] as const;
+      const previous = queryClient.getQueryData(queryKey);
+
+      // Paint the operator's tick immediately. Previously every checkbox waited for
+      // the full onboarding refresh (including the channel scorecard), making a
+      // lightweight database write appear frozen or occasionally get clicked twice.
+      roadmapRef.current = next;
+      queryClient.setQueryData(queryKey, (current: typeof distribution.data) =>
+        current
+          ? {
+              ...current,
+              roadmap: { ...current.roadmap, roadmap: next },
+            }
+          : current,
+      );
+
       const { error } = await supabase
         .from("property_onboarding_roadmap")
         .upsert({ property_id: propertyId, roadmap: next as never }, { onConflict: "property_id" });
-      if (error) throw error;
+      if (error) {
+        roadmapRef.current = existing;
+        queryClient.setQueryData(queryKey, previous);
+        throw error;
+      }
       // Phase 2 ledger — the manual verification checklist moved; nothing else did.
       void markChannelStepsStale(propertyId, ["signoff"]);
-      await refresh();
-
+      // Reconcile only the lightweight persisted snapshot in the background. A
+      // checkbox must never block on readiness grading or a channel request.
+      void queryClient.invalidateQueries({ queryKey });
     },
-    [d?.roadmap, propertyId, refresh],
+    [propertyId, queryClient],
   );
 
   const lockedSignoffItems = signoff.lockedItems ?? [];
@@ -1089,7 +1115,10 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
           "Company details have not been pushed to the Channel Manager with the verified keys yet — run \"Push company details\" first.",
         );
       }
-      const checks = { ...(signoff.checks ?? {}) };
+      const currentReadiness = (roadmapRef.current.channel_readiness ?? {}) as Record<string, unknown>;
+      const checks = {
+        ...((currentReadiness.checks ?? signoff.checks ?? {}) as Record<string, SignoffCheckRecord>),
+      };
       if (checked) {
         checks[itemKey] = { checked: true, by: actorLabel ?? null, at: new Date().toISOString() };
       } else {
