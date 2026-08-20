@@ -67,8 +67,13 @@ export const RESTRICTION_KIND_LABELS: Record<RestrictionKind, string> = {
   rate_plan_closure: "Rate plan closed",
 };
 
+/**
+ * A night is blocked only when it says so explicitly. `available_units === 0` counts only for
+ * channel-owned rows (the channel genuinely reporting no inventory) — a manual row that exists
+ * purely to carry a min stay must never read as a block.
+ */
 const isBlocked = (row: AvailabilityNightRow): boolean =>
-  row.is_stop_sell === true || row.available_units === 0;
+  row.is_stop_sell === true || (row.available_units === 0 && !isManualSource(row.external_system));
 
 /** The restriction kinds a single night row carries. */
 function kindsOnRow(row: AvailabilityNightRow): { kind: RestrictionKind; value: number | null }[] {
