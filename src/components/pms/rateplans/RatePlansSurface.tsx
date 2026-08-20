@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { queueChannelRatesSync } from "@/lib/channelContentSync";
+import { pushRatePlanRates } from "@/lib/channelSavePush";
 import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
 import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
