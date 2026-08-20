@@ -17280,6 +17280,14 @@ export type Database = {
         }
         Returns: string
       }
+      ru_push_gate_status: {
+        Args: { _property_id: string }
+        Returns: {
+          last_called_at: string
+          section: string
+          wait_seconds: number
+        }[]
+      }
       ru_queue_lnm_repull: {
         Args: {
           _change_id?: string

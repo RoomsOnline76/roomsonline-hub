@@ -71,6 +71,7 @@ import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/cha
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { validateStayTimes } from "@/lib/stayTimes";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
+import { RuRateGateTimer } from "@/components/property/RuRateGateTimer";
 import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 import { buildPropertySavePatch, samePersistedValue } from "@/lib/propertySavePatch";
 
@@ -358,6 +359,8 @@ export default function PropertyForm({
   const [isEditMode, setIsEditMode] = useState(false);
   const [owners, setOwners] = useState<any[]>([]);
   const [isDirty, setIsDirty] = useState(false);
+  // Bumped after a save so the channel push-gate countdown re-reads immediately.
+  const [channelGateRefresh, setChannelGateRefresh] = useState(0);
   const [propertySlug, setPropertySlug] = useState<string>("");
   const [propertyId, setPropertyId] = useState<string | null>(null); // Actual UUID for DB operations
 
@@ -4155,9 +4158,13 @@ export default function PropertyForm({
       // helper so one save cannot trip the channel rate limit, and the whole watcher runs
       // outside the save path: a slow channel never holds up the editor.
       if (isEditMode && savedPropertyId && changedChannelFields.length > 0) {
+        // Re-read the push gate so the countdown reflects this save straight away.
+        setChannelGateRefresh((n) => n + 1);
         void pushChangedChannelFields(savedPropertyId, changedChannelFields, ({ title, description, variant }) =>
           toast({ title, description, variant }),
-        ).catch((pushErr) => console.warn("[PropertyForm] channel push watcher failed:", pushErr));
+        )
+          .catch((pushErr) => console.warn("[PropertyForm] channel push watcher failed:", pushErr))
+          .finally(() => setChannelGateRefresh((n) => n + 1));
       }
 
 
@@ -4315,6 +4322,9 @@ export default function PropertyForm({
   return (
 
     <FormShell embedded={embedded}>
+      {isEditMode && propertyId && (
+        <RuRateGateTimer propertyId={propertyId} refreshKey={channelGateRefresh} />
+      )}
       <div className={embedded ? "property-form-container property-form-dense w-full p-2" : "property-form-container property-form-dense w-full"}>
         {/* Breadcrumb + Header — hidden in embed mode */}
         {!embedded && isEditMode && propertyId && (
