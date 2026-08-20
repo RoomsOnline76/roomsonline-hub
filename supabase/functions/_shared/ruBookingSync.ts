@@ -574,6 +574,16 @@ export async function confirmRuRequest(
     // Best effort only — never block the confirm on this lookup.
   }
 
+  // Our own parked retry of this exact confirm competes for the same sliding-minute slot as the
+  // operator sitting in the dialog, so the interactive attempt takes it over.
+  const superseded = await supersedeQueuedRuCalls(supabase, {
+    action: 'confirm_request',
+    reservationId,
+  });
+  if (superseded) {
+    console.log(`[ruBookingSync] took over ${superseded} parked confirm_request for reservation ${reservationId}`);
+  }
+
   let result = await attemptConfirm();
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
