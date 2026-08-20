@@ -793,8 +793,34 @@ export function PortfolioRuAccountsTab() {
     }
   }, [ownerEmailFor, ownerEmailChoice, queryClient]);
 
+  /**
+   * One channel sub-account is ONE account. If a stray second local row points at
+   * the same OwnerID (e.g. a property-scoped twin of the portfolio row the property
+   * already inherits), it must not be listed as a separate account. Portfolio scope
+   * wins, because that is the row every member property inherits.
+   */
+  const uniqueAccounts = useMemo(() => {
+    const byOwner = new Map<string, RuAccount>();
+    const out: RuAccount[] = [];
+    for (const acc of accounts) {
+      const ownerId = (acc.ru_owner_id || "").trim();
+      if (!ownerId) {
+        out.push(acc);
+        continue;
+      }
+      const held = byOwner.get(ownerId);
+      if (!held) {
+        byOwner.set(ownerId, acc);
+        continue;
+      }
+      if (!held.portfolio_id && acc.portfolio_id) byOwner.set(ownerId, acc);
+    }
+    return [...out, ...byOwner.values()];
+  }, [accounts]);
+
   const rows = useMemo(() => {
-    return accounts.map((acc) => {
+    return uniqueAccounts.map((acc) => {
+
       let scopeLabel = "Owner";
       let scopeName = acc.owner_email;
       let linked: PropRow[] = [];
