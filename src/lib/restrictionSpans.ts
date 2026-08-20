@@ -239,10 +239,26 @@ const KIND_COLUMN: Partial<Record<RestrictionKind, "minimum_stay" | "maximum_sta
   lead_post: "lead_days_post",
 };
 
+/** The columns each restriction kind owns — clearing one never touches another's. */
+const CLEARED_FIELDS: Record<Exclude<RestrictionKind, "rate_plan_closure">, Record<string, unknown>> = {
+  block: {
+    is_stop_sell: false,
+    available_units: null,
+    blocked_by: null,
+    blocked_by_label: null,
+    blocked_reason: null,
+    blocked_at: null,
+  },
+  min_stay: { minimum_stay: null },
+  max_stay: { maximum_stay: null },
+  lead_advance: { lead_days_advance: null },
+  lead_post: { lead_days_post: null },
+};
+
 /**
- * Clear a restriction from a set of nights. Blocks delete the night row outright;
- * stay/lead restrictions null their own column and only delete the row when nothing
- * meaningful is left on it.
+ * Clear one restriction from a set of nights. Only that restriction's own columns are reset;
+ * every other rule on the same night survives. The night row itself is deleted only once
+ * nothing meaningful is left on it.
  */
 async function clearNights(
   propertyId: string,
@@ -250,21 +266,10 @@ async function clearNights(
   dates: string[],
   kind: RestrictionKind,
 ): Promise<void> {
-  if (dates.length === 0) return;
+  if (dates.length === 0 || kind === "rate_plan_closure") return;
 
-  if (kind === "block") {
-    const { error } = await supabase
-      .from("property_availability")
-      .delete()
-      .eq("property_id", propertyId)
-      .eq("room_type", roomType)
-      .in("date", dates);
-    if (error) throw error;
-    return;
-  }
-
-  const column = KIND_COLUMN[kind];
-  if (!column) return;
+  const patch = CLEARED_FIELDS[kind];
+  if (!patch) return;
 
   const { data, error } = await supabase
     .from("property_availability")
@@ -279,7 +284,7 @@ async function clearNights(
   const rows = (data || []) as AvailabilityNightRow[];
   const emptyIds: string[] = [];
   for (const row of rows) {
-    const next: AvailabilityNightRow = { ...row, [column]: null } as AvailabilityNightRow;
+    const next = { ...row, ...patch } as AvailabilityNightRow;
     const stillMeaningful =
       isBlocked(next) ||
       (next.minimum_stay ?? 0) > 0 ||
@@ -289,7 +294,7 @@ async function clearNights(
     if (stillMeaningful) {
       const { error: upErr } = await supabase
         .from("property_availability")
-        .update({ [column]: null })
+        .update(patch)
         .eq("id", row.id!);
       if (upErr) throw upErr;
     } else if (row.id) {
