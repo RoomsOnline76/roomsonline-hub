@@ -1328,6 +1328,25 @@ const RU_BATHROOM_FIXTURE_IDS = [
   35, 36, 46, 50, 52, 239, 245, 252, 315, 321, 29, 33, 6, 7, 8, 344, 351, 395,
 ];
 const RU_KITCHEN_ITEM_IDS = [2, 3, 17, 124, 125, 130, 131, 157, 94];
+/**
+ * Kitchen flavours in the dictionary. RU renders composition room 101 as
+ * "Separate kitchen", so only the 101 family may use that block. A kitchenette /
+ * kitchen-in-the-living-room selection maps to room 94 ("kitchen in the living /
+ * dining room") — otherwise ROLOS says kitchenette and the OTA says separate kitchen.
+ */
+const RU_SEPARATE_KITCHEN_IDS = [101, 102, 135, 1262];
+const RU_OPEN_KITCHEN_IDS = [94, 157];
+/** Composition room id to use for the kitchen block, or null when no kitchen is declared. */
+function resolveKitchenRoomId(
+  selected: { id: number }[],
+  separateKitchen: boolean,
+): number | null {
+  const has = (id: number) => selected.some((a) => Number(a.id) === id);
+  if (RU_SEPARATE_KITCHEN_IDS.some(has)) return 101;
+  if (RU_OPEN_KITCHEN_IDS.some(has)) return 94;
+  if (has(517)) return 517;
+  return separateKitchen ? 101 : null;
+}
 const RU_BATHROOM_FALLBACK_ID = 245; // washbasin
 const RU_TOILET_ID = 37;
 
@@ -1346,9 +1365,10 @@ function compositionRoomBlocks(
   for (let i = 0; i < comp.toilets; i++) {
     blocks.push({ room_id: 53, amenities: [{ id: RU_TOILET_ID, count: 1 }] });
   }
-  if (comp.separateKitchen) {
-    const kitchenChild = firstOf(RU_KITCHEN_ITEM_IDS) ?? 101;
-    blocks.push({ room_id: 101, amenities: [{ id: kitchenChild, count: 1 }] });
+  const kitchenRoomId = resolveKitchenRoomId(selected, comp.separateKitchen);
+  if (kitchenRoomId !== null) {
+    const kitchenChild = firstOf(RU_KITCHEN_ITEM_IDS) ?? 2; // cookware & kitchen utensils
+    blocks.push({ room_id: kitchenRoomId, amenities: [{ id: kitchenChild, count: 1 }] });
   }
   return blocks;
 }
@@ -1441,7 +1461,9 @@ function buildUnitPayload(
     };
     pushComposition(81, bathroomCount);
     pushComposition(37, toiletCount);
-    if (comp.separateKitchen) pushComposition(101, 1);
+    if (comp.separateKitchen && resolveKitchenRoomId(unitAmenities, true) === 101) {
+      pushComposition(101, 1);
+    }
 
   }
 
@@ -1642,7 +1664,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     };
     push(81, singleComp.bathrooms);
     push(37, singleComp.toilets);
-    if (singleComp.separateKitchen) push(101, 1);
+    if (singleComp.separateKitchen && resolveKitchenRoomId(singleAmenities as any, true) === 101) {
+      push(101, 1);
+    }
   }
   // RU renders the Composition panel from these blocks, so bathrooms and toilets need one
   // block each (with a real child amenity — an empty list is read as id:0 and rejected).
