@@ -1545,7 +1545,10 @@ export function RoomManagerTab({
             >
               <RUAmenityPicker
                 value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
-                onChange={(next) => updateRoomTypeField(selectedRoomType, "amenities", next)}
+                onChange={(next) => {
+                  updateRoomTypeField(selectedRoomType, "amenities", next);
+                  updateRoomTypeField(selectedRoomType, "separateKitchen", hasSeparateKitchen(next));
+                }}
               />
               {ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities).length < 10 && (
                 <p className="mt-2 text-[10px] text-destructive">At least 10 mapped amenities are required.</p>
