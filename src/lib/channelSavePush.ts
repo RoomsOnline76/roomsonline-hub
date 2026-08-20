@@ -22,6 +22,8 @@ export interface ChannelPushNotifier {
   (input: { title: string; description: string; variant?: "default" | "destructive" }): void;
 }
 
+const activeConfirmations = new Map<string, symbol>();
+
 const SECTION_LABEL: Record<ChannelPushSection, string> = {
   company: "Company information",
   content: "Listing content",
@@ -54,6 +56,12 @@ export async function pushChangedChannelFields(
 ): Promise<void> {
   const sections = sectionsOf(changed);
   if (sections.length === 0) return;
+  const confirmation = Symbol(propertyId);
+  activeConfirmations.set(propertyId, confirmation);
+  const delivered: string[] = [];
+  const deferred: string[] = [];
+  const failed: string[] = [];
+  const reasons: string[] = [];
 
   for (const section of sections) {
     const fields = changed.filter((f) => f.section === section);
@@ -62,41 +70,49 @@ export async function pushChangedChannelFields(
 
     const triggerError = await triggerSection(propertyId, section);
     if (triggerError) {
-      notify({
-        title: `${SECTION_LABEL[section]} not sent to the ${CHANNEL_MANAGER}`,
-        description: `${labels} could not be delivered: ${triggerError}`,
-        variant: "destructive",
-      });
+      failed.push(labels);
+      reasons.push(triggerError);
       continue;
     }
 
     const { verdict, reason } = await confirmChannelPush({ propertyId, section, sinceIso });
     if (verdict === "delivered") {
-      notify({
-        title: `Sent to the ${CHANNEL_MANAGER}`,
-        description: `${labels} — confirmed on the ${SECTION_LABEL[section].toLowerCase()} push.`,
-      });
+      delivered.push(labels);
     } else if (verdict === "not_owed") {
       // Nothing is owed: the channel already holds this value, or the listing is not distributed.
       // Stay silent unless the ledger gave a reason worth telling the operator.
       if (reason && !/nothing the channel cares about|already pushed/i.test(reason)) {
-        notify({
-          title: `${SECTION_LABEL[section]} not sent to the ${CHANNEL_MANAGER}`,
-          description: `${labels} — ${reason}.`,
-        });
+        deferred.push(labels);
+        reasons.push(reason);
       }
       continue;
     } else if (verdict === "failed") {
-      notify({
-        title: `${SECTION_LABEL[section]} rejected by the ${CHANNEL_MANAGER}`,
-        description: `${labels}: ${reason ?? "no reason returned"}`,
-        variant: "destructive",
-      });
+      failed.push(labels);
+      reasons.push(reason ?? "No reason returned");
     } else {
-      notify({
-        title: `${SECTION_LABEL[section]} queued for the ${CHANNEL_MANAGER}`,
-        description: `${labels} will be delivered automatically${reason ? ` — ${reason}` : ""}.`,
-      });
+      deferred.push(labels);
+      if (reason) reasons.push(reason);
     }
+  }
+
+  // A newer save owns the UI now; its watcher will report the final state.
+  if (activeConfirmations.get(propertyId) !== confirmation) return;
+  activeConfirmations.delete(propertyId);
+  if (failed.length > 0) {
+    notify({
+      title: `Channel update rejected`,
+      description: `${failed.join(", ")}: ${Array.from(new Set(reasons)).join("; ")}`,
+      variant: "destructive",
+    });
+  } else if (deferred.length > 0) {
+    notify({
+      title: `Channel update queued`,
+      description: `${deferred.join(", ")} will be delivered automatically${reasons.length ? ` — ${Array.from(new Set(reasons)).join("; ")}` : ""}.`,
+    });
+  } else if (delivered.length > 0) {
+    notify({
+      title: `Sent to the ${CHANNEL_MANAGER}`,
+      description: `${delivered.join(", ")} — delivery confirmed.`,
+    });
   }
 }

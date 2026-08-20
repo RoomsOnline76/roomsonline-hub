@@ -71,6 +71,7 @@ import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/cha
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
 import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
+import { buildPropertySavePatch, samePersistedValue } from "@/lib/propertySavePatch";
 
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -3339,7 +3340,9 @@ export default function PropertyForm({
         images: uploadedImages,
         ru_image_tags: pruneRuImageTagMap(imageTags, uploadedImages),
 
-        max_guests: 2, // Default value, can be updated later
+        // Capacity is authored by the dedicated occupancy/unit surfaces. This overview save
+        // must preserve it instead of silently resetting every property to two guests.
+        max_guests: Number(loadedPropertyRowRef.current?.max_guests) || 2,
         // Composition — required by Rentals United and downstream channels
         bedrooms: propBedrooms || null,
         bathrooms: propBathrooms ?? null,
@@ -3525,16 +3528,44 @@ export default function PropertyForm({
         },
       };
 
-      const { data: savedProperty, error } = isEditMode
-        ? await supabase.from("properties").update(propertyData).eq("id", propertyId).select("id, slug").single()
-        : await supabase.from("properties").insert([propertyData]).select("id, slug").single();
+      const previousRow = loadedPropertyRowRef.current;
+      const propertyPatch = buildPropertySavePatch(
+        previousRow,
+        propertyData as unknown as Record<string, unknown>,
+      );
+      const propertyChanged = Object.keys(propertyPatch).length > 0;
+      const previousAmenities = (previousRow?.amenities ?? {}) as Record<string, unknown>;
+      const roomsChanged = !samePersistedValue(previousAmenities.room_types, roomTypes);
+      const seasonsChanged = !samePersistedValue(previousAmenities.seasons, seasons);
+      const ratePlansChanged = !samePersistedValue(previousAmenities.pms_rate_types, pmsRateTypes);
+
+      let savedProperty: { id: string; slug: string | null } | null = null;
+      let error: { message: string } | null = null;
+      if (isEditMode && propertyId) {
+        if (propertyChanged) {
+          const result = await supabase
+            .from("properties")
+            .update(propertyPatch)
+            .eq("id", propertyId)
+            .select("id, slug")
+            .single();
+          savedProperty = result.data;
+          error = result.error;
+        } else {
+          savedProperty = { id: propertyId, slug: propertySlug || null };
+        }
+      } else {
+        const result = await supabase.from("properties").insert([propertyData]).select("id, slug").single();
+        savedProperty = result.data;
+        error = result.error;
+      }
 
       if (error) throw error;
 
       const savedPropertyId = savedProperty?.id || propertyId;
 
       // Portfolio calendars share season definitions only. Each property's season/rack rates remain untouched.
-      if (isRolProperty && savedPropertyId) {
+      if (isRolProperty && savedPropertyId && seasonsChanged) {
         try {
           await syncPortfolioSeasonDates(savedPropertyId, seasons);
         } catch (seasonSyncError) {
@@ -3549,11 +3580,18 @@ export default function PropertyForm({
 
       // For ROL properties, sync room types to hostfully_room_types table
       // This triggers the bidirectional sync to rolos_room_types
-      if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
+      if (isRolProperty && savedPropertyId && roomTypes.length > 0 && roomsChanged) {
         try {
           // Upsert room types to hostfully_room_types with ALL fields.
           // Two units in one save must never resolve to the same row.
           const claimedRoomIds = new Set<string>();
+          // One snapshot for the whole save. Previously every unit repeated this query,
+          // making save time grow linearly with network latency.
+          const { data: existingRoomRows } = await supabase
+            .from("hostfully_room_types")
+            .select("id, name, rentalsunited_property_id, created_at, is_active")
+            .eq("property_id", savedPropertyId);
+          const allRows = (existingRoomRows || []) as any[];
           for (const room of roomTypes) {
 
             // Find matching rate type to get baseRate — check linkedRateTypes first, then wizard-rate pattern
@@ -3624,11 +3662,6 @@ export default function PropertyForm({
             // exists. The normalised-name match stays as the fallback for units the editor has
             // never persisted (no id yet), and it also absorbs case/whitespace variants.
             const normalizedName = normalizeRoomIdentityName(room.name);
-            const { data: existingRoomRows } = await supabase
-              .from("hostfully_room_types")
-              .select("id, name, rentalsunited_property_id, created_at, is_active")
-              .eq("property_id", savedPropertyId);
-            const allRows = (existingRoomRows || []) as any[];
             const available = allRows.filter((r: any) => !claimedRoomIds.has(r.id));
             const resolvedIdentity = resolvePersistedRoomIdentity(
               allRows.map((r: any) => ({
@@ -3745,7 +3778,7 @@ export default function PropertyForm({
       // Two hard guards: a save made before the units tab hydrated (empty roomTypes) may
       // never archive anything, and a unit that holds a channel listing id is never
       // archived silently — that is how live units vanished from the channel footprint.
-      if (isRolProperty && savedPropertyId && roomTypes.length > 0) {
+      if (isRolProperty && savedPropertyId && roomTypes.length > 0 && roomsChanged) {
         try {
           const currentRoomNames = roomTypes.map((r: any) => (r.name || "").toLowerCase().trim()).filter(Boolean);
           const currentRoomIds = roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36);
@@ -3804,7 +3837,7 @@ export default function PropertyForm({
 
 
       // For ROL properties, sync pmsRateTypes to rolos_rate_plans table
-      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0 && ratePlansChanged) {
         try {
           console.log(
             `[ROL Sync] Syncing ${pmsRateTypes.length} rate types to rolos_rate_plans...`,
@@ -3871,7 +3904,7 @@ export default function PropertyForm({
       }
 
       // Deactivate stale rolos_rate_plans (runs even when pmsRateTypes is empty to clean up all)
-      if (isRolProperty && savedPropertyId) {
+      if (isRolProperty && savedPropertyId && ratePlansChanged) {
         try {
           const { data: allExistingPlans } = await supabase
             .from("rolos_rate_plans")
@@ -3900,7 +3933,7 @@ export default function PropertyForm({
       }
 
       // Auto-link rate plans to room types based on amenities linkedRateTypes
-      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0) {
+      if (isRolProperty && savedPropertyId && pmsRateTypes.length > 0 && (ratePlansChanged || roomsChanged)) {
         try {
           const { data: allPlans } = await supabase
             .from("rolos_rate_plans")
@@ -4038,7 +4071,6 @@ export default function PropertyForm({
 
       // Phase 2 ledger — mark only the sections this save actually changed as stale.
       // Fire-and-forget bookkeeping: it never blocks or fails the save.
-      const previousRow = loadedPropertyRowRef.current;
       const changedSteps = derivePropertyStepsFromChanges(
         previousRow,
         propertyData as unknown as Record<string, unknown>,
@@ -4056,9 +4088,14 @@ export default function PropertyForm({
       if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
 
 
+      const changedLabels = Array.from(new Set(changedChannelFields.map((field) => field.label)));
       toast({
-        title: "Success",
-        description: isEditMode ? "Property updated successfully" : "Property created successfully",
+        title: propertyChanged ? "Property saved" : "No changes detected",
+        description: changedLabels.length > 0
+          ? `${changedLabels.join(", ")} saved; channel delivery is being confirmed.`
+          : propertyChanged
+            ? "Local changes saved. No channel update is required."
+            : "Everything is already up to date.",
       });
 
       // Mandatory channel fields changed → push the affected sections and confirm delivery
