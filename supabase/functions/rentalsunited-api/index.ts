@@ -476,7 +476,12 @@ async function callRentalsUnited(creds: RUCredentials, xmlBody: string): Promise
   // Claim the shared slot (waiting out a short remainder) before spending the call — a deferral
   // is raised as RuRateDeferredError and answered with 429 + RU_RATE_DEFERRED by the handler.
   try {
-    await reserveRuSlot(getLogClient(), compactRequestXml, { ownerId: context?.ru_owner_id ?? null });
+    await reserveRuSlot(getLogClient(), compactRequestXml, {
+      ownerId: context?.ru_owner_id ?? null,
+      // An operator is watching a reservation dialog: wait briefly, then park at the front of the
+      // queue instead of holding the request for the full sliding-minute remainder.
+      maxWaitMs: ruGateWaitMs(context?.parent_action ?? null),
+    });
   } catch (gateErr) {
     if (gateErr instanceof RuRateDeferredError) {
       await logRuExchange(getLogClient(), {
