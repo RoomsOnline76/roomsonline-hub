@@ -4315,6 +4315,9 @@ export default function PropertyForm({
   return (
 
     <FormShell embedded={embedded}>
+      {isEditMode && propertyId && (
+        <RuRateGateTimer propertyId={propertyId} refreshKey={channelGateRefresh} />
+      )}
       <div className={embedded ? "property-form-container property-form-dense w-full p-2" : "property-form-container property-form-dense w-full"}>
         {/* Breadcrumb + Header — hidden in embed mode */}
         {!embedded && isEditMode && propertyId && (
