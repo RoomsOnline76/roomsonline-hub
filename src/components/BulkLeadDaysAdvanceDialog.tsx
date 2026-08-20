@@ -168,8 +168,8 @@ export function BulkLeadDaysAdvanceDialog({
       if (error) throw error;
 
       toast.success(`Set advance lead days to ${leadDays} for ${filteredDates.length} dates`);
-      await syncRestrictionsToChannels(targetPropertyIds, "lead_days");
       onRuleCreated?.();
+      void syncRestrictionsToChannels(targetPropertyIds, "lead_days");
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error creating lead days rule:", error);

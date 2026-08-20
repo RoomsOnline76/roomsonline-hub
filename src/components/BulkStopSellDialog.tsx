@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import { currentBlockAttribution } from "@/lib/blockAttribution";
+import { clearNights } from "@/lib/restrictionSpans";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 import {
   PropertyScopeSelector,
@@ -155,14 +156,12 @@ export function BulkStopSellDialog({
           if (error) throw error;
           toast.success(`Blocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
         } else {
+          // Unblocking clears only the block itself — any min stay / max stay / lead-day rule
+          // on those same nights stays exactly where it was.
           for (const pid of targetPropertyIds) {
-            const { error } = await supabase
-              .from("property_availability")
-              .delete()
-              .eq("property_id", pid)
-              .in("room_type", selectedRoomTypes)
-              .in("date", dates);
-            if (error) throw error;
+            for (const roomType of selectedRoomTypes) {
+              await clearNights(pid, roomType, dates, "block");
+            }
           }
           toast.success(`Unblocked ${dates.length} dates × ${selectedRoomTypes.length} room(s) × ${targetPropertyIds.length} propert${targetPropertyIds.length === 1 ? "y" : "ies"}`);
         }
@@ -201,11 +200,12 @@ export function BulkStopSellDialog({
         }
       }
 
+      onRuleCreated?.();
       if (applyMode === "rooms") {
         // Rate-plan closures have no Rentals United equivalent — they stay ROL'OS/direct only.
-        await syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
+        // Fire-and-forget: the calendar refreshes now, the channel delta follows behind.
+        void syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
       }
-      onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error creating stop sell rule:", error);

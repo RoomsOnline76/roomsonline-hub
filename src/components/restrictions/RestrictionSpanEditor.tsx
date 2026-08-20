@@ -51,9 +51,10 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
   const valueLabel = VALUE_LABELS[span.kind];
 
   const finish = async (message: string) => {
+    // Close and confirm straight away; the refresh + channel push continue behind the dialog.
     toast.success(message);
-    await onChanged(span);
     onOpenChange(false);
+    void onChanged(span);
   };
 
   const handleSave = async () => {

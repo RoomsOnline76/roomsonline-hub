@@ -5784,7 +5784,7 @@ export type Database = {
       }
       property_availability: {
         Row: {
-          available_units: number
+          available_units: number | null
           blocked_at: string | null
           blocked_by: string | null
           blocked_by_label: string | null
@@ -5803,7 +5803,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          available_units?: number
+          available_units?: number | null
           blocked_at?: string | null
           blocked_by?: string | null
           blocked_by_label?: string | null
@@ -5822,7 +5822,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          available_units?: number
+          available_units?: number | null
           blocked_at?: string | null
           blocked_by?: string | null
           blocked_by_label?: string | null

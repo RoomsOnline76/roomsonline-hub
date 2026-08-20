@@ -27,6 +27,7 @@ import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
+import { invalidateRestrictionQueries } from "@/lib/restrictionRefresh";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
@@ -1017,6 +1018,8 @@ export default function PMSDashboard() {
       return (data || []) as AvailabilityOverride[];
     },
     enabled: !!propertyId,
+    // Restrictions are edited in place — never serve a cached copy after a change.
+    staleTime: 0,
   });
 
   // Build override lookup
@@ -1130,6 +1133,7 @@ export default function PMSDashboard() {
       return (data || []) as (AvailabilityOverride & { property_id: string })[];
     },
     enabled: isPortfolioMode,
+    staleTime: 0,
   });
 
   const { data: portfolioAliasRoomTypes = [] } = useQuery({
@@ -1735,9 +1739,11 @@ export default function PMSDashboard() {
     [roomTypes, roomsByType]
   );
 
-  const handleRuleCreated = () => {
+  /** Any restriction add/edit/remove — refresh every view that draws restrictions at once. */
+  const handleRuleCreated = useCallback(() => {
+    invalidateRestrictionQueries(queryClient);
     refetchOverrides();
-  };
+  }, [queryClient, refetchOverrides]);
 
   /** Right-click a hatched night → open its restriction span for editing. */
   const openBlockEditor = useCallback(

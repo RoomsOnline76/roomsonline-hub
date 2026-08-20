@@ -67,6 +67,7 @@ export function RestrictionsManagerDialog({
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["restriction-spans", scopeKey, futureOnly ? from : "all", to],
     enabled: open && propertyIds.length > 0,
+    staleTime: 0,
     queryFn: async () => {
       const nightsQuery = supabase
         .from("property_availability")
@@ -133,16 +134,16 @@ export function RestrictionsManagerDialog({
     if (match) setEditing((current) => current ?? match);
   }, [open, focusBlock, spans]);
 
-  const handleChanged = async (span: RestrictionSpan) => {
-    await refetch();
+  const handleChanged = (span: RestrictionSpan) => {
+    // Refresh the UI first and let the Channel Manager delta run in the background — the
+    // operator should never wait on an edge-function round trip to see their own edit.
+    void refetch();
     onChanged?.();
     if (span.kind !== "rate_plan_closure") {
-      try {
-        await syncRestrictionsToChannels([span.propertyId], "stop_sell");
-      } catch (error) {
+      void syncRestrictionsToChannels([span.propertyId], "stop_sell").catch((error) => {
         console.error("Restriction change saved but the channel push failed:", error);
         toast.error("Saved, but the Channel Manager update could not be queued");
-      }
+      });
     }
   };
 
