@@ -260,7 +260,7 @@ const CLEARED_FIELDS: Record<Exclude<RestrictionKind, "rate_plan_closure">, Reco
  * every other rule on the same night survives. The night row itself is deleted only once
  * nothing meaningful is left on it.
  */
-async function clearNights(
+export async function clearNights(
   propertyId: string,
   roomType: string,
   dates: string[],
