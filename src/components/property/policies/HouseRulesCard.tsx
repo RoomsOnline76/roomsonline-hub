@@ -168,9 +168,16 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                   value={formData.check_in_to}
                   onChange={(e) => handleInputChange("check_in_to", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_in_to", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_in_to", selectedPMS))}
+                  className={cn(
+                    "h-6 text-xs flex-1",
+                    getPMSFieldClass("check_in_to", selectedPMS),
+                    checkInToIssue && "border-destructive",
+                  )}
                 />
               </div>
+              {checkInToIssue && (
+                <p className="text-[10px] text-destructive leading-tight">{checkInToIssue}</p>
+              )}
             </CardContent>
           </Card>
 
@@ -197,10 +204,18 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
                   value={formData.check_out_to}
                   onChange={(e) => handleInputChange("check_out_to", e.target.value)}
                   disabled={isFieldPopulatedByPMS("check_out_to", selectedPMS)}
-                  className={cn("h-6 text-xs flex-1", getPMSFieldClass("check_out_to", selectedPMS), channelMandatoryClass("check_out_until"))}
+                  className={cn(
+                    "h-6 text-xs flex-1",
+                    getPMSFieldClass("check_out_to", selectedPMS),
+                    channelMandatoryClass("check_out_until"),
+                    checkOutIssue && "border-destructive",
+                  )}
                   {...markerFlags(!!(formData.check_out_to || "").trim())}
                 />
               </div>
+              {checkOutIssue && (
+                <p className="text-[10px] text-destructive leading-tight">{checkOutIssue}</p>
+              )}
             </CardContent>
           </Card>
 
