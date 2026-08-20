@@ -376,6 +376,28 @@ function getBookingLabelDate(booking: BookingRow, visibleDates: Date[]): string 
   return firstFullNight;
 }
 
+/**
+ * The guest name overlay for a booking bar.
+ *
+ * Bars are clipped to their own day cell, which is far narrower than most names. This overlay sits
+ * on top of the bar and is deliberately unclipped, so the name runs on across the following nights
+ * of the same stay and stays readable at a glance.
+ */
+function BookingBarLabel({ booking, textClass, halfStart }: { booking: BookingRow; textClass: string; halfStart?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "pointer-events-none absolute inset-y-0.5 z-[2] flex items-center gap-1 px-1 whitespace-nowrap",
+        halfStart ? "left-1/2" : "left-0",
+      )}
+    >
+      <span className={cn("text-[9px] font-medium leading-none", textClass)}>{booking.guest_name}</span>
+      {hasSpecialIndicator(booking) && <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-amber-500" />}
+    </span>
+  );
+}
+
+
 
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
