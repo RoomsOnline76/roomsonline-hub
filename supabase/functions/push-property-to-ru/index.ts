@@ -1547,7 +1547,10 @@ function buildUnitPayload(
 
   return {
     name: unit.name,
-    property_type_id: objectTypeId,
+    // <PropertyTypeID> = bedroom layout (Studio / One Bedroom / …), NOT the listing kind.
+    property_type_id: resolveRuLayoutTypeId((unit as { bedrooms?: unknown }).bedrooms),
+    // Listing kind (Apartment, Villa, …) — sent as <ObjectTypeID> by the orchestrator.
+    listing_type_id: objectTypeId,
     object_type_is_default: objectTypeIsDefault,
     object_type_source: authoredUnitType,
     can_sleep_max: maxGuests,
