@@ -133,6 +133,16 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   // A multi-unit stay must show this unit's own party, not the whole booking's.
   const paxText = isMultiUnit && unitLine ? paxLine(unitLine) : paxLine(booking);
 
+  // The arrival day is only occupied from mid-day and the departure day until
+  // mid-day, so the bar starts and ends on column midpoints. A stay clipped by
+  // the visible window keeps a square edge on that side.
+  const barStartX = geometry.clippedStart
+    ? geometry.startCol * colWidth
+    : (geometry.startCol + 0.5) * colWidth;
+  const barEndX = geometry.clippedEnd
+    ? (geometry.startCol + geometry.cols) * colWidth
+    : (geometry.startCol + geometry.cols + 0.5) * colWidth;
+
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent) => {
@@ -158,16 +168,16 @@ export const RoomPlanBar = memo(function RoomPlanBar({
           onPointerDown={handlePointerDown}
           onClick={handleClick}
           style={{
-            left: geometry.startCol * colWidth + colWidth * 0.28,
-            width: geometry.cols * colWidth - colWidth * 0.56,
+            left: barStartX,
+            width: Math.max(colWidth * 0.5, barEndX - barStartX),
             top: lane * (ROOM_PLAN_ROW_H - 4) + 3,
             height: ROOM_PLAN_ROW_H - 8,
           }}
           className={cn(
             "absolute z-20 flex items-center gap-1 overflow-hidden rounded-full border px-2 text-[10px] font-medium leading-none shadow-sm transition-colors",
             getBarColor(booking.status),
-            geometry.clippedStart && "rounded-l-none",
-            geometry.clippedEnd && "rounded-r-none",
+            geometry.clippedStart ? "rounded-l-none" : "rol-bar-half-in",
+            geometry.clippedEnd ? "rounded-r-none" : "rol-bar-half-out",
             draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
             dragging && "opacity-40"
           )}

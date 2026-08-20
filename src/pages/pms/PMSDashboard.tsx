@@ -2986,8 +2986,8 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                       <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
-                        isStart ? "left-0.5 rounded-l-sm" : "left-0",
-                        isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                        isStart ? "left-1/2 rol-bar-half-in" : "left-0",
+                        isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
                         {isStart && (
                           <>
@@ -3096,8 +3096,8 @@ function MonthRoomRow({ room, dates, bookings, onSelectBooking }: {
                 <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
-                  isStart ? "left-0.5 rounded-l-sm" : "left-0",
-                  isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                  isStart ? "left-1/2 rol-bar-half-in" : "left-0",
+                  isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
                   {isStart && (
                     <>
@@ -3211,8 +3211,8 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                       <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                         "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                         colors.bg, colors.border,
-                        isStart ? "left-0.5 rounded-l-sm" : "left-0",
-                        isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                        isStart ? "left-1/2 rol-bar-half-in" : "left-0",
+                        isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                       )}>
                         {isStart && (
                           <>
@@ -3273,8 +3273,8 @@ function WeekRoomRow({ room, dates, bookings, onSelectBooking }: {
                 <button key={b.id} title={getBookingBarTitle(b)} onClick={() => onSelectBooking(b)} onDoubleClick={() => onSelectBooking(b, "folio")} className={cn(
                   "absolute inset-y-0.5 border flex items-center px-1 overflow-hidden cursor-pointer hover:opacity-80 z-[1]",
                   colors.bg, colors.border,
-                  isStart ? "left-0.5 rounded-l-sm" : "left-0",
-                  isEnd ? "right-0.5 rounded-r-sm" : "right-0"
+                  isStart ? "left-1/2 rol-bar-half-in" : "left-0",
+                  isEnd ? "right-[-50%] rol-bar-half-out" : "right-0"
                 )}>
                   {isStart && (
                     <>
