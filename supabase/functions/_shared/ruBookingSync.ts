@@ -673,14 +673,17 @@ export async function modifyRuStay(
       reservation_id: String(booking.external_reservation_id),
       from_ru_property_id: currentRuPropertyId || ruPropertyId,
       to_ru_property_id: ruPropertyId,
+      confirmed_lead_first: confirmedLead,
+      number_of_guests: modify.number_of_guests ?? null,
     },
   });
 
 
   return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', traceId }
-    : { ok: false, method: 'modify_stay', code: result.code, message: result.message, traceId };
+    ? { ok: true, deferred: result.deferred === true, method: 'modify_stay', confirmedLead, traceId }
+    : { ok: false, method: 'modify_stay', code: result.code, message: result.message, confirmedLead, traceId };
 }
+
 
 
 /**
