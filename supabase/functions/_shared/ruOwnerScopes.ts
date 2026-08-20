@@ -119,6 +119,12 @@ export async function resolveRuOwnerScopes(
     children = children.filter((c) => ready.has(String(c.ownerId)));
   }
 
+  if (retiredSkipped.length) {
+    console.log(
+      `[ruOwnerScopes] skipped ${retiredSkipped.length} retired sub-account(s) for ${cadenceAction}: ${retiredSkipped.join(', ')}`,
+    );
+  }
+
   if (skipped.length) {
     console.warn(
       `[ruOwnerScopes] ${skipped.length} RU sub-user(s) have no API keys and were skipped for ${cadenceAction}: ${skipped.join(', ')}`,
@@ -132,11 +138,13 @@ export async function resolveRuOwnerScopes(
 export async function listRuOwnersWithoutKeys(admin: SupabaseClient): Promise<string[]> {
   const scopes = await resolveRuOwnerScopes(admin, '__none__');
   const covered = new Set(scopes.map((s) => s.ownerId).filter(Boolean) as string[]);
+  // A retired account is not a coverage gap — it is deliberately unmonitored.
+  const retired = await fetchRetiredRuOwnerIds();
   const { data: accounts } = await admin
     .from('ru_owner_accounts')
     .select('ru_owner_id')
     .not('ru_owner_id', 'is', null);
   return (accounts ?? [])
     .map((a: { ru_owner_id: string }) => String(a.ru_owner_id))
-    .filter((id) => id && !covered.has(id));
+    .filter((id) => id && !covered.has(id) && !retired.has(id));
 }
