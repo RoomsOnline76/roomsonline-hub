@@ -1300,6 +1300,51 @@ function resolveUnitComposition(
   return { bathrooms, toilets, separateKitchen };
 }
 
+/**
+ * RU derives the public Composition panel (bedrooms / bathrooms / toilets) from the
+ * `CompositionRoomsAmenities` blocks — one block per room. Listing 81 (Bathroom) and
+ * 37 (toilet) in the root <Amenities> list is stored but never counted there, which is
+ * why properties published as "0 Bathroom / 0 Toilet".
+ *
+ * Valid composition room ids for this account: 53 WC, 81 Bathroom, 94 kitchen in the
+ * living/dining room, 101 Kitchen, 249 Living room, 257 Bedroom, 372 Livingroom/Bedroom,
+ * 517 Bedroom/Living room with kitchen corner.
+ *
+ * A block with an empty <Amenities/> is parsed by RU as amenity id 0 and rejected
+ * ("Wrong composition room id:0"), so every block carries a real child amenity — taken
+ * from the unit's own selection where possible, otherwise a truthful minimum.
+ */
+const RU_BATHROOM_FIXTURE_IDS = [
+  35, 36, 46, 50, 52, 239, 245, 252, 315, 321, 29, 33, 6, 7, 8, 344, 351, 395,
+];
+const RU_KITCHEN_ITEM_IDS = [2, 3, 17, 124, 125, 130, 131, 157, 94];
+const RU_BATHROOM_FALLBACK_ID = 245; // washbasin
+const RU_TOILET_ID = 37;
+
+function compositionRoomBlocks(
+  comp: { bathrooms: number; toilets: number; separateKitchen: boolean },
+  selected: { id: number; count: number }[],
+): { room_id: number; amenities: { id: number; count: number }[] }[] {
+  const has = (id: number) => selected.some((a) => a.id === id);
+  const firstOf = (ids: number[]) => ids.find((id) => has(id));
+  const blocks: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+
+  const bathroomChild = firstOf(RU_BATHROOM_FIXTURE_IDS) ?? RU_BATHROOM_FALLBACK_ID;
+  for (let i = 0; i < comp.bathrooms; i++) {
+    blocks.push({ room_id: 81, amenities: [{ id: bathroomChild, count: 1 }] });
+  }
+  for (let i = 0; i < comp.toilets; i++) {
+    blocks.push({ room_id: 53, amenities: [{ id: RU_TOILET_ID, count: 1 }] });
+  }
+  if (comp.separateKitchen) {
+    const kitchenChild = firstOf(RU_KITCHEN_ITEM_IDS) ?? 101;
+    blocks.push({ room_id: 101, amenities: [{ id: kitchenChild, count: 1 }] });
+  }
+  return blocks;
+}
+
+
+
 
 
 function buildUnitPayload(
