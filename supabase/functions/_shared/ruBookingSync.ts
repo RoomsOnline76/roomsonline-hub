@@ -532,11 +532,14 @@ export async function confirmRuRequest(
   if (!result.ok && isBlockedDates(result.message)) {
     const ruPropertyId = await resolveRuPropertyId(supabase, booking);
     if (ruPropertyId) {
+      // RU's Date From/To covers nights, so the departure day is excluded.
+      const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
+      lastNight.setUTCDate(lastNight.getUTCDate() - 1);
       const reopened = await invokeRu(supabase, 'push_availability', {
-        property_id: Number(ruPropertyId),
+        ru_property_id: Number(ruPropertyId),
         availability: [{
           date_from: booking.check_in_date,
-          date_to: booking.check_out_date,
+          date_to: lastNight.toISOString().slice(0, 10),
           units: 1,
           changeover: 1,
         }],
