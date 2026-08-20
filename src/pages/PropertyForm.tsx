@@ -4113,7 +4113,10 @@ export default function PropertyForm({
       loadedPropertyRowRef.current = {
         ...(loadedPropertyRowRef.current ?? {}),
         ...(isEditMode ? propertyPatch : propertyData as unknown as Record<string, unknown>),
+        // Coordinates written by the awaited geocode above must survive the patch merge.
+        ...(geocodedCoords ?? {}),
       };
+
       if (roomsChanged) persistedRoomTypesRef.current = roomTypes;
       if (ratePlansChanged) persistedRateTypesRef.current = pmsRateTypes;
       if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
