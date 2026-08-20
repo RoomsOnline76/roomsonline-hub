@@ -417,6 +417,38 @@ async function logSkip(
 }
 
 /**
+ * Park a delta that the operational gate refused on a *listed* property.
+ *
+ * The content change is real and still owed, so it is logged under the pending action that
+ * `resumePendingRuDeltas` watches — the change is delivered automatically once pushes are enabled.
+ */
+async function logPending(
+  supabase: any,
+  propertyId: string,
+  trigger: string,
+  gateCode: string | null,
+  message: string,
+): Promise<void> {
+  try {
+    await supabase.from('ru_sync_runs').insert({
+      property_id: propertyId,
+      action: RU_STATIC_DELTA_PENDING_ACTION,
+      success: false,
+      error_message: message,
+      details: {
+        trigger,
+        gate_pending: true,
+        error_code: gateCode ?? RU_WIZARD_SYNC_CODE,
+        blockers: [message],
+      },
+    });
+  } catch (err) {
+    console.warn('[ruStaticDelta] pending log insert failed', err);
+  }
+}
+
+
+/**
  * Deliver the content push, walking the resumable chunk sequence.
  *
  * `push-property-to-ru` pushes a slice of a multi-unit property per invocation and reports the
