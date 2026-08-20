@@ -352,6 +352,32 @@ function getBookingBarTitle(booking: BookingRow): string {
   return hold ? `${base}\n${hold.label} — ${hold.detail}` : base;
 }
 
+/**
+ * Which day cell prints the guest name.
+ *
+ * Bars are drawn cell by cell, and the arrival cell only owns the right half of its width (the
+ * half-day wedge), so a name printed there is cut to a couple of characters. The label therefore
+ * moves to the first full night. Two edge cases matter for staff scanning the board: a one-night
+ * stay has no full night, so it keeps the label on its arrival cell, and a stay that began before
+ * the visible range labels its first visible night instead — otherwise it would show as an
+ * anonymous coloured band.
+ */
+function getBookingLabelDate(booking: BookingRow, visibleDates: Date[]): string {
+  const firstFullNight = format(addDays(parseISO(booking.check_in_date), 1), "yyyy-MM-dd");
+  const lastNight = format(addDays(parseISO(booking.check_out_date), -1), "yyyy-MM-dd");
+  // Single-night stay: the arrival cell is the only cell there is.
+  if (firstFullNight > lastNight) return booking.check_in_date;
+
+  const windowStart = visibleDates.length ? format(visibleDates[0], "yyyy-MM-dd") : null;
+  if (windowStart && windowStart > firstFullNight) {
+    // Stay already in progress (or arrival scrolled off): label the first night in view.
+    return windowStart > lastNight ? lastNight : windowStart;
+  }
+  return firstFullNight;
+}
+
+
+
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   confirmed: { bg: "bg-blue-500/20", text: "text-info dark:text-blue-300", border: "border-blue-500/40" },
   pending: { bg: "bg-amber-500/20", text: "text-warning dark:text-amber-300", border: "border-amber-500/40" },
