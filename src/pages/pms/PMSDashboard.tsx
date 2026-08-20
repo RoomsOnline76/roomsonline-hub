@@ -1018,6 +1018,8 @@ export default function PMSDashboard() {
       return (data || []) as AvailabilityOverride[];
     },
     enabled: !!propertyId,
+    // Restrictions are edited in place — never serve a cached copy after a change.
+    staleTime: 0,
   });
 
   // Build override lookup
