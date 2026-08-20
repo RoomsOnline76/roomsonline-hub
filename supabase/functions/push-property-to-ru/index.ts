@@ -4218,11 +4218,12 @@ Deno.serve(async (req) => {
     }
 
 
-    if (isMultiUnit && useBuilding && !hasChildKeys && (!childUsername || !childPassword)) {
+    if (isMultiUnit && useBuilding && dry_run !== true && !hasChildKeys && (!childUsername || !childPassword)) {
       // Push_PutBuilding_RQ has no <OwnerID>: the building lands on whichever account
       // authenticates, so a parent fallback would create it on our master account. Hard stop.
       return new Response(JSON.stringify({ success: false, error: { code: 'RU_CHILD_AUTH_REQUIRED', message: `No Rentals United API keys are stored for OwnerID ${ruOwnerId}. RU requires the sub-user's own AccessKey + SecretKey to create or update its building inventory — generate them in the RU dashboard (Security settings) and save them in Portfolios → RU accounts.` } }), { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
+
 
     // ── READ-BACK ONLY (action: 'verify_calendar') ─────────────────────────
     // Authoritative per-day view of what the channel actually holds for each live unit, read
