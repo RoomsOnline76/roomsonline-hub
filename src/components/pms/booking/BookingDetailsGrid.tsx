@@ -345,7 +345,12 @@ export function BookingDetailsGrid({
       occ.children !== (booking.children ?? 0) ||
       occ.teens !== (booking.teens ?? 0) ||
       occ.infants !== (booking.infants ?? 0);
-    const routedToService = datesChanged || paxChanged;
+    /* A price change also belongs to the service: it re-prices the extras on the new
+     * accommodation basis and re-quotes the channel. Writing it locally would leave the
+     * fees priced off the previous figure. */
+    const priceChanged = accommodation !== storedAccommodation;
+    const routedToService = datesChanged || paxChanged || priceChanged;
+
 
     if (routedToService) {
       const modifications: Record<string, unknown> = {
