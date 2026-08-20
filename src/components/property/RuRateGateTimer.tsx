@@ -112,10 +112,12 @@ export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: 
     [gates, now],
   );
 
-  if (!propertyId || !enabled || active.length === 0) return null;
+  if (!propertyId || !enabled || !linked) return null;
 
   const lead = active[0];
-  const pct = Math.min(100, Math.max(0, ((WINDOW_SECONDS - lead.remaining) / WINDOW_SECONDS) * 100));
+  const held = active.length > 0;
+  // Idle shows a complete, muted ring so the pill stays present rather than blinking in and out.
+  const pct = held ? Math.min(100, Math.max(0, ((WINDOW_SECONDS - lead.remaining) / WINDOW_SECONDS) * 100)) : 100;
   const detail = active.map((g) => `${SECTION_LABEL[g.section]} ${g.remaining}s`).join(" · ");
 
   return (
@@ -130,14 +132,16 @@ export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: 
             <span
               className="relative inline-flex h-4 w-4 shrink-0 rounded-full"
               style={{
-                background: `conic-gradient(hsl(var(--primary)) ${pct}%, hsl(var(--muted)) ${pct}% 100%)`,
+                background: held
+                  ? `conic-gradient(hsl(var(--primary)) ${pct}%, hsl(var(--muted)) ${pct}% 100%)`
+                  : "hsl(var(--muted))",
               }}
               aria-hidden="true"
             >
               <span className="absolute inset-[3px] rounded-full bg-card" />
             </span>
             <span className="text-[11px] font-medium tracking-wide text-muted-foreground">
-              Next push in {lead.remaining}s
+              {held ? `Next push in ${lead.remaining}s` : "Push window open"}
             </span>
           </div>
         </TooltipTrigger>
