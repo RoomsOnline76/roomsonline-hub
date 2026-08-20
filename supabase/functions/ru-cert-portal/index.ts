@@ -6523,13 +6523,40 @@ Deno.serve(async (req) => {
       // The unique indexes on this table are PARTIAL, so PostgREST's ON CONFLICT
       // cannot target them. Resolve the existing row manually, then update/insert.
       const existingQuery = admin.from("ru_owner_accounts").select("id").limit(1);
-      const { data: existingRow } = portfolioId
+      const { data: scopeRow } = portfolioId
         ? await existingQuery.eq("portfolio_id", portfolioId).maybeSingle()
         : await existingQuery.eq("property_id", propertyId).maybeSingle();
+
+      // A channel sub-account is ONE account: it must never be represented by a
+      // second local row under a different scope. When this OwnerID is already
+      // held elsewhere (typically the portfolio row a property inherits), that
+      // row IS the account — update it instead of minting a property-scoped twin,
+      // which made one account read as two in the accounts list and made every
+      // owner-scoped read run twice.
+      let existingRow = scopeRow;
+      if (!existingRow?.id && ruOwnerId) {
+        const { data: byOwner } = await admin
+          .from("ru_owner_accounts")
+          .select("id, portfolio_id, property_id")
+          .eq("ru_owner_id", String(ruOwnerId))
+          .limit(1)
+          .maybeSingle();
+        if (byOwner?.id) {
+          existingRow = { id: byOwner.id } as typeof scopeRow;
+          // Keep the scope the account already has — re-scoping it would move the
+          // account away from the portfolio whose properties inherit it.
+          if (byOwner.portfolio_id) {
+            row.portfolio_id = byOwner.portfolio_id;
+            row.property_id = null;
+            row.scope = "portfolio";
+          }
+        }
+      }
 
       const { data: saved, error: saveErr } = existingRow?.id
         ? await admin.from("ru_owner_accounts").update(row).eq("id", existingRow.id).select().maybeSingle()
         : await admin.from("ru_owner_accounts").insert(row).select().maybeSingle();
+
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
