@@ -13,6 +13,12 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readInvokeErrorBody } from '../_shared/ruInvokeBody.ts';
 import { RU_RATE_DEFERRED_CODE } from '../_shared/ruRateGate.ts';
 import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { confirmRuRequest } from '../_shared/ruBookingSync.ts';
+
+/** The channel refuses to accept a held request whose own nights read as closed on its calendar. */
+function isBlockedDates(message: string | null | undefined): boolean {
+  return /not available for a given dates|check in or check out/i.test(String(message ?? ''));
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
