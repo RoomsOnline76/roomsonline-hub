@@ -629,7 +629,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           )}
 
           <div className="space-y-1.5">
-            <Label className="text-xs">Total (ZAR)</Label>
+            <Label className="text-xs">Accommodation (ZAR)</Label>
             <Input
               type="number"
               min={0}
