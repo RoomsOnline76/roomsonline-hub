@@ -712,6 +712,7 @@ export async function modifyRuStay(
       });
       return {
         ok: false,
+        queued: confirmed.queued === true,
         code: confirmed.code || 'RU_MODIFY_NOT_ALLOWED',
         message: confirmed.message ||
           'This is still an unconfirmed channel request and the channel refused to accept it — the stay was left unchanged.',
