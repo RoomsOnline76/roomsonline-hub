@@ -17,6 +17,7 @@ import {
   type ChannelPushSection,
 } from "@/lib/channelPushFields";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface ChannelPushNotifier {
   (input: { title: string; description: string; variant?: "default" | "destructive" }): void;
