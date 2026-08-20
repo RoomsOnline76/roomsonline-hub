@@ -1300,6 +1300,51 @@ function resolveUnitComposition(
   return { bathrooms, toilets, separateKitchen };
 }
 
+/**
+ * RU derives the public Composition panel (bedrooms / bathrooms / toilets) from the
+ * `CompositionRoomsAmenities` blocks — one block per room. Listing 81 (Bathroom) and
+ * 37 (toilet) in the root <Amenities> list is stored but never counted there, which is
+ * why properties published as "0 Bathroom / 0 Toilet".
+ *
+ * Valid composition room ids for this account: 53 WC, 81 Bathroom, 94 kitchen in the
+ * living/dining room, 101 Kitchen, 249 Living room, 257 Bedroom, 372 Livingroom/Bedroom,
+ * 517 Bedroom/Living room with kitchen corner.
+ *
+ * A block with an empty <Amenities/> is parsed by RU as amenity id 0 and rejected
+ * ("Wrong composition room id:0"), so every block carries a real child amenity — taken
+ * from the unit's own selection where possible, otherwise a truthful minimum.
+ */
+const RU_BATHROOM_FIXTURE_IDS = [
+  35, 36, 46, 50, 52, 239, 245, 252, 315, 321, 29, 33, 6, 7, 8, 344, 351, 395,
+];
+const RU_KITCHEN_ITEM_IDS = [2, 3, 17, 124, 125, 130, 131, 157, 94];
+const RU_BATHROOM_FALLBACK_ID = 245; // washbasin
+const RU_TOILET_ID = 37;
+
+function compositionRoomBlocks(
+  comp: { bathrooms: number; toilets: number; separateKitchen: boolean },
+  selected: { id: number; count: number }[],
+): { room_id: number; amenities: { id: number; count: number }[] }[] {
+  const has = (id: number) => selected.some((a) => a.id === id);
+  const firstOf = (ids: number[]) => ids.find((id) => has(id));
+  const blocks: { room_id: number; amenities: { id: number; count: number }[] }[] = [];
+
+  const bathroomChild = firstOf(RU_BATHROOM_FIXTURE_IDS) ?? RU_BATHROOM_FALLBACK_ID;
+  for (let i = 0; i < comp.bathrooms; i++) {
+    blocks.push({ room_id: 81, amenities: [{ id: bathroomChild, count: 1 }] });
+  }
+  for (let i = 0; i < comp.toilets; i++) {
+    blocks.push({ room_id: 53, amenities: [{ id: RU_TOILET_ID, count: 1 }] });
+  }
+  if (comp.separateKitchen) {
+    const kitchenChild = firstOf(RU_KITCHEN_ITEM_IDS) ?? 101;
+    blocks.push({ room_id: 101, amenities: [{ id: kitchenChild, count: 1 }] });
+  }
+  return blocks;
+}
+
+
+
 
 
 function buildUnitPayload(
@@ -1438,12 +1483,12 @@ function buildUnitPayload(
   }
 
 
+  // Bathroom (81), WC (53) and Kitchen (101) blocks: RU counts these blocks to render the
+  // Composition panel, so one block is emitted per bathroom and per toilet. Each block
+  // carries a real child amenity — an empty <Amenities/> is read as id:0 and rejected.
+  rooms.push(...compositionRoomBlocks(resolveUnitComposition(property, unit), unitAmenities));
 
-  // NOTE: Bathroom (81) and Kitchen (101) blocks are intentionally OMITTED.
-  // RU's parser interprets <Amenities/> with no children as amenity id:0 and rejects with
-  // "Wrong composition room id:0". Since RU has no required amenities for those rooms in
-  // our data model, we list them only via the root <Amenities> block (item ids 11=Kitchen,
-  // 6=Bathroom etc.) — the CompositionRoomsAmenities block is bedroom-only.
+
 
   return {
     name: unit.name,
@@ -1564,8 +1609,30 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   const seenUrls = new Set<string>();
   allImages = allImages.filter(img => { if (seenUrls.has(img.url)) return false; seenUrls.add(img.url); return true; });
   allImages = restampRuImages(allImages);
+  // Bed count is derived from the bedroom blocks only — measure it before the bathroom /
+  // WC / kitchen composition blocks are appended.
   const totalBeds = rooms.reduce((sum, r) => sum + r.amenities.reduce((sm, a) => sm + (a.count || 1), 0), 0);
   const numberOfBeds = totalBeds;
+
+  // Single-listing path: composition falls back to the property-wide values, but the
+  // primary room type's own bathrooms / toilets / kitchen win when set.
+  const singleComp = resolveUnitComposition(property, primaryRoom);
+  const singleAmenities = mapAmenities(property.amenities);
+  {
+    const push = (id: number, count: number) => {
+      if (count <= 0) return;
+      const existing = singleAmenities.find((a: any) => a.id === id);
+      if (existing) existing.count = Math.max(existing.count, count);
+      else singleAmenities.push({ id, count } as any);
+    };
+    push(81, singleComp.bathrooms);
+    push(37, singleComp.toilets);
+    if (singleComp.separateKitchen) push(101, 1);
+  }
+  // RU renders the Composition panel from these blocks, so bathrooms and toilets need one
+  // block each (with a real child amenity — an empty list is read as id:0 and rejected).
+  rooms.push(...compositionRoomBlocks(singleComp, singleAmenities));
+
   return {
     name: property.name,
     property_type_id: objectTypeId,
@@ -1583,22 +1650,8 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     owner_id: 0, no_of_units: 1, floor: buildingFloor, floor_is_default: buildingFloorIsDefault, space, space_is_default: spaceIsDefault, street,
     detailed_location_id: locationId, zip_code: zipCode,
     latitude: lat, longitude: lng,
-    amenities: (() => {
-      // Single-listing path: composition falls back to the property-wide values,
-      // but the primary room type's own bathrooms / toilets / kitchen win when set.
-      const list = mapAmenities(property.amenities);
-      const comp = resolveUnitComposition(property, primaryRoom);
-      const push = (id: number, count: number) => {
-        if (count <= 0) return;
-        const existing = list.find((a: any) => a.id === id);
-        if (existing) existing.count = Math.max(existing.count, count);
-        else list.push({ id, count } as any);
-      };
-      push(81, comp.bathrooms);
-      push(37, comp.toilets);
-      if (comp.separateKitchen) push(101, 1);
-      return list;
-    })(),
+    amenities: singleAmenities,
+
 
     rooms, descriptions: [{ language_id: 1, text: property.description || property.name || 'Beautiful property' }],
     images: allImages,
