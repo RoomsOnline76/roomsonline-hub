@@ -16,6 +16,8 @@
  * "no open availability day in the next 365 days". Always parse through this helper.
  */
 
+import { fromWireChangeover } from './ruChangeover.ts';
+
 export interface RuCalendarDay {
   date: string;
   /** Units bookable that day (0 when RU reports the day blocked). */
@@ -83,7 +85,7 @@ export function parseRuAvailabilityDays(xml: string): Map<string, RuCalendarDay>
       units,
       min_stay: num(attr(attrs, 'MinStay')) ?? childNum(inner, 'MinStay'),
       max_stay: num(attr(attrs, 'MaxStay')) ?? childNum(inner, 'MaxStay'),
-      changeover: num(attr(attrs, 'Changeover')) ?? childNum(inner, 'Changeover'),
+      changeover: fromWireChangeover(num(attr(attrs, 'Changeover')) ?? childNum(inner, 'Changeover')),
       blocked,
       reservations: num(attr(attrs, 'Reservations')) ?? childNum(inner, 'Reservations'),
     });
@@ -101,7 +103,7 @@ export function parseRuAvailabilityDays(xml: string): Map<string, RuCalendarDay>
     const units = num(attr(attrs, 'Units'));
     const minStay = num(attr(attrs, 'MinStay'));
     const maxStay = num(attr(attrs, 'MaxStay'));
-    const changeover = num(attr(attrs, 'Changeover'));
+    const changeover = fromWireChangeover(num(attr(attrs, 'Changeover')));
     const start = new Date(`${from}T00:00:00Z`);
     const end = new Date(`${to}T00:00:00Z`);
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
