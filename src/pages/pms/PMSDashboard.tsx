@@ -3409,30 +3409,75 @@ function BookingDetail({
     });
   };
 
+  /**
+   * Save the drawer's edit form.
+   *
+   * Stay-shaped fields (dates, pax, price, status) must never be written straight to the row: the
+   * Channel Manager would keep the original reservation while ROL'OS showed the new one. Those go
+   * through `modify-booking`, which prices the stay, settles the folio and pushes the channel delta
+   * in one pass. Only guest identity / notes stay a plain local write.
+   */
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase.from("bookings").update({
+
+    const stayModifications: Record<string, unknown> = {};
+    if (form.check_in_date !== booking.check_in_date) stayModifications.check_in_date = form.check_in_date;
+    if (form.check_out_date !== booking.check_out_date) stayModifications.check_out_date = form.check_out_date;
+    if ((parseInt(form.adults) || 1) !== (booking.adults ?? 1)) stayModifications.adults = parseInt(form.adults) || 1;
+    if ((parseInt(form.children) || 0) !== (booking.children ?? 0)) stayModifications.children = parseInt(form.children) || 0;
+    if ((parseInt(form.teens) || 0) !== (booking.teens ?? 0)) stayModifications.teens = parseInt(form.teens) || 0;
+    if ((parseInt(form.infants) || 0) !== (booking.infants ?? 0)) stayModifications.infants = parseInt(form.infants) || 0;
+    if ((parseInt(form.pets) || 0) !== (booking.pets ?? 0)) stayModifications.pets = parseInt(form.pets) || 0;
+    if ((parseFloat(form.total_price) || 0) !== (booking.total_price ?? 0)) stayModifications.total_price = parseFloat(form.total_price) || 0;
+    if (form.status !== booking.status) stayModifications.status = form.status;
+
+    const localOnly = {
       guest_name: form.guest_name,
       guest_email: form.guest_email,
       guest_phone: form.guest_phone || null,
-      check_in_date: form.check_in_date,
-      check_out_date: form.check_out_date,
-      adults: parseInt(form.adults) || 1,
-      children: parseInt(form.children) || 0,
-      teens: parseInt(form.teens) || 0,
-      infants: parseInt(form.infants) || 0,
-      pets: parseInt(form.pets) || 0,
-      total_price: parseFloat(form.total_price) || 0,
       payment_status: form.payment_status,
       payment_method: form.payment_method || null,
-      status: form.status,
       special_requests: form.special_requests || null,
-    }).eq("id", booking.id);
-    setSaving(false);
-    if (error) { toast.error("Failed to save: " + error.message); return; }
-    toast("Booking updated successfully");
-    setIsEditing(false);
-    onSaved();
+    };
+
+    try {
+      if (Object.keys(stayModifications).length > 0) {
+        const { data, error } = await supabase.functions.invoke("modify-booking", {
+          body: {
+            booking_id: booking.id,
+            modifications: stayModifications,
+            expected_updated_at: booking.updated_at ?? null,
+          },
+        });
+        if (error) throw new Error(error.message || "The channel refused this change");
+        if (data && data.success === false) throw new Error(data.message || "The channel refused this change");
+
+        if (data?.queued === true) {
+          toast.info("Waiting on the Channel Manager", {
+            description: data.message || "The channel is taking this change now — it lands within a minute.",
+          });
+        } else {
+          toast.success(data?.message || "Booking updated and sent to the channel");
+        }
+      }
+
+      const { error: localError } = await supabase.from("bookings").update(localOnly).eq("id", booking.id);
+      if (localError) throw new Error(localError.message);
+
+      if (Object.keys(stayModifications).length === 0) toast.success("Booking updated");
+
+      setIsEditing(false);
+      onSaved();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to save";
+      toast.error(
+        message.includes("UNIT_ALREADY_BOOKED")
+          ? "Another reservation already holds this unit for the new dates."
+          : message.replace(/^[A-Z_]+:\s*/, ""),
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLifecycleAction = async (action: string, extraPayload?: Record<string, any>) => {
@@ -3465,11 +3510,20 @@ function BookingDetail({
       }
       toast.success(`Action "${action.replace("_", " ")}" completed`);
       onSaved();
+
+      /* Every lifecycle step is a channel delta: the reservation state (and the nights it holds)
+         changed here, so the Channel Manager has to hear about exactly that change. The helper
+         toasts what actually landed — pushed, parked behind the rate limit, or refused. */
+      const change = LIFECYCLE_CHANNEL_CHANGE[action];
+      if (change) {
+        void pushBookingToChannel(booking.id, change, { source: "booking_drawer" });
+      }
     } catch (e: any) {
       toast.error(e.message);
     }
     setActionLoading(null);
   };
+
 
   const handleReassignCheckIn = async () => {
     const overridePrice = parseFloat(reassignPrice);
