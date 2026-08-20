@@ -232,6 +232,7 @@ import { PropertySectionRail } from "@/components/property/PropertySectionRail";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 import AiAmenityDialog from "@/components/property/AiAmenityDialog";
 import { ROLOS_ONLY_FACILITY_GROUPS } from "@/lib/rolosOnlyFacilities";
+import { hasSeparateKitchen, withSeparateKitchen } from "@/lib/ruKitchen";
 import { canonicalPricingModel } from "@/components/pms/rateplans/ratePlanDraft";
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 
@@ -6385,6 +6386,9 @@ export default function PropertyForm({
                           checked={separateKitchen}
                           onCheckedChange={(c) => {
                             setSeparateKitchen(c);
+                            // One fact, one meaning: the channel publishes "Separate kitchen"
+                            // from the Kitchen amenity, so keep the selection in step.
+                            setSelectedFacilities((prev) => withSeparateKitchen(prev, c));
                             setIsDirty(true);
                           }}
                         />
@@ -6442,6 +6446,9 @@ export default function PropertyForm({
                     value={selectedFacilities}
                     onChange={(next) => {
                       setSelectedFacilities(next);
+                      // Selecting/clearing the Kitchen amenity is the same statement as the
+                      // "Separate kitchen" toggle above — mirror it so ROLOS matches the listing.
+                      setSeparateKitchen(hasSeparateKitchen(next));
                       setIsDirty(true);
                     }}
                     extraGroups={ROLOS_ONLY_FACILITY_GROUPS}
