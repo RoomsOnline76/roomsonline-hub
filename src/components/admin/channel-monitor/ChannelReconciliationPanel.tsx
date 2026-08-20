@@ -39,6 +39,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
     clearStale,
     repointListing,
     publishMissingUnits,
+    restoreLocalUnit,
     clearConflict,
     cleanupAll,
     cleanup,
@@ -74,6 +75,9 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   }, [result, erroredOwners, duplicateCleanable]);
   const readComplete = result?.read_complete !== false;
   const cleanableTotal = cleanableListings.length + (readComplete ? result?.stale.length || 0 : 0);
+  const recoverableUnits = result?.recoverable_inactive_units || [];
+  const reviewOnlyTotal = recoverableUnits.length + (result?.archived_matched.length || 0) +
+    (result?.conflicts.length || 0);
 
   // Every live listing belongs to exactly one class, so the buckets must add up
   // to the live count the account returned. Any gap is a classification bug and
@@ -192,6 +196,19 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
   const gap = result ? result.channel_listing_count - billableListings : 0;
   const cleaning = cleanup !== null;
 
+  const handleRestore = useCallback(async (recordId: string, name: string) => {
+    setBusyId(recordId);
+    try {
+      await restoreLocalUnit(recordId);
+      toast.success(`${name} restored locally; its live listing was preserved`);
+      await onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not restore the unit");
+    } finally {
+      setBusyId(null);
+    }
+  }, [restoreLocalUnit, onChanged]);
+
 
   return (
     <Card>
@@ -224,10 +241,16 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               )}
             </Button>
           )}
-          {result && cleanableTotal === 0 && !cleaning && (
+          {result && cleanableTotal === 0 && reviewOnlyTotal === 0 && !cleaning && (
             <Badge variant="secondary" className="gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5" />
               Nothing to clean up
+            </Badge>
+          )}
+          {result && cleanableTotal === 0 && reviewOnlyTotal > 0 && !cleaning && (
+            <Badge variant="outline" className="gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Review {reviewOnlyTotal} discrepanc{reviewOnlyTotal === 1 ? "y" : "ies"}
             </Badge>
           )}
 
@@ -294,6 +317,11 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 label="Conflicting local ids"
                 value={result.conflicts.length}
                 tone={result.conflicts.length ? "warn" : undefined}
+              />
+              <Stat
+                label="Live but inactive locally"
+                value={recoverableUnits.length}
+                tone={recoverableUnits.length ? "warn" : undefined}
               />
               <Stat
                 label="On other sub-accounts"
@@ -484,11 +512,29 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                                   )}
 
                                   {parked.length > 0 && (
-                                    <p className="text-muted-foreground">
-                                      Listing held by an inactive unit:{" "}
-                                      {parked.map((u) => `${u.name} (${u.listing_id})`).join(", ")} — archive
-                                      upstream or reactivate the unit.
-                                    </p>
+                                    <div className="space-y-1">
+                                      {parked.map((unit) => {
+                                        const recoverable = recoverableUnits.some((u) => u.record_id === unit.record_id);
+                                        return (
+                                          <div key={unit.record_id} className="flex flex-wrap items-center gap-2">
+                                            <span className="text-muted-foreground">
+                                              {recoverable ? "Authored unit inactive locally" : "Inactive local unit"}: {unit.name} ({unit.listing_id})
+                                            </span>
+                                            {recoverable && (
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={busyId !== null}
+                                                onClick={() => void handleRestore(unit.record_id, unit.name)}
+                                              >
+                                                <RefreshCw className="mr-1 h-3 w-3" />
+                                                Reactivate unit
+                                              </Button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   )}
                                 </div>
                               )}

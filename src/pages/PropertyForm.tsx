@@ -70,6 +70,7 @@ import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelCon
 import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
+import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 
 import { HyperGuestSyncReflectionButton } from "@/components/property/HyperGuestSyncReflectionButton";
 import { HyperGuestPropertyLookup } from "@/components/property/HyperGuestPropertyLookup";
@@ -3613,26 +3614,35 @@ export default function PropertyForm({
             // The unit's own id is stable across renames, so it wins whenever the row still
             // exists. The normalised-name match stays as the fallback for units the editor has
             // never persisted (no id yet), and it also absorbs case/whitespace variants.
-            const normalizeRoomName = (value: unknown) => String(value ?? "").trim().toLowerCase();
-            const normalizedName = normalizeRoomName(room.name);
+            const normalizedName = normalizeRoomIdentityName(room.name);
             const { data: existingRoomRows } = await supabase
               .from("hostfully_room_types")
               .select("id, name, rentalsunited_property_id, created_at, is_active")
               .eq("property_id", savedPropertyId);
             const allRows = (existingRoomRows || []) as any[];
             const available = allRows.filter((r: any) => !claimedRoomIds.has(r.id));
-            const byId =
-              room.id && room.id.length === 36
-                ? available.find((r: any) => r.id === room.id) ?? null
-                : null;
-            const nameMatches = available.filter((r: any) => normalizeRoomName(r.name) === normalizedName);
+            const resolvedIdentity = resolvePersistedRoomIdentity(
+              allRows.map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                isActive: r.is_active,
+                listingId: r.rentalsunited_property_id,
+                createdAt: r.created_at,
+              })),
+              { id: room.id, name: room.name },
+              claimedRoomIds,
+            );
+            const byId = resolvedIdentity?.id === room.id ? resolvedIdentity : null;
+            const nameMatches = resolvedIdentity && normalizeRoomIdentityName(resolvedIdentity.name) === normalizedName
+              ? [resolvedIdentity]
+              : [];
             const preferListed = (a: any, b: any) =>
               (b.rentalsunited_property_id ? 1 : 0) - (a.rentalsunited_property_id ? 1 : 0) ||
               String(a.created_at).localeCompare(String(b.created_at));
             // Renamed outside the editor (import, bulk edit): a unit about to be inserted while a
             // published row on this property no longer appears in the editor is that same unit
             // under a new name. Adopt it — inserting would strand its listing and create a second.
-            const editorNames = new Set(roomTypes.map((r: any) => normalizeRoomName(r.name)).filter(Boolean));
+            const editorNames = new Set(roomTypes.map((r: any) => normalizeRoomIdentityName(r.name)).filter(Boolean));
             const editorIds = new Set(
               roomTypes.map((r: any) => r.id).filter((id: string) => id && id.length === 36),
             );
@@ -3644,7 +3654,7 @@ export default function PropertyForm({
                         r.is_active !== false &&
                         !!String(r.rentalsunited_property_id ?? "").trim() &&
                         !editorIds.has(r.id) &&
-                        !editorNames.has(normalizeRoomName(r.name)),
+                        !editorNames.has(normalizeRoomIdentityName(r.name)),
                     )
                     .sort(preferListed)
                 : [];

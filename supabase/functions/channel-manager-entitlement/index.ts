@@ -30,7 +30,9 @@ interface Body {
     /** Remove/release many listings on one account with a single pair of reads. */
     | "cleanup_batch"
     /** Point a local record at a listing id verified live on the account. */
-    | "repoint_local_listing";
+    | "repoint_local_listing"
+    /** Restore an authored unit that is live upstream but inactive locally. */
+    | "restore_local_unit";
   entity_id: string;
   /** cleanup_batch: everything to resolve on this account, in order. */
   targets?: Array<{
@@ -437,6 +439,7 @@ Deno.serve(async (req) => {
       "clear_local_listing",
       "cleanup_batch",
       "repoint_local_listing",
+      "restore_local_unit",
     ];
     if (!raw || !scopes.includes(raw.scope)) {
       return bad(`scope must be one of: ${scopes.join(", ")}`);
@@ -449,6 +452,7 @@ Deno.serve(async (req) => {
       "clear_local_listing",
       "cleanup_batch",
       "repoint_local_listing",
+      "restore_local_unit",
     ]);
 
     if (!NO_ENABLED.has(raw.scope) && typeof raw.enabled !== "boolean") {
@@ -466,7 +470,7 @@ Deno.serve(async (req) => {
 
 
       const [{ data: props }, { data: units }] = await Promise.all([
-        admin.from("properties").select("id, name, is_active, is_trading, ru_push_enabled, rentalsunited_property_id"),
+        admin.from("properties").select("id, name, is_active, is_trading, ru_push_enabled, rentalsunited_property_id, amenities"),
         admin.from("hostfully_room_types").select("id, name, property_id, is_active, rentalsunited_property_id"),
       ]);
 
@@ -1104,6 +1108,27 @@ Deno.serve(async (req) => {
       }
       const untrackedUnitCount = footprint.reduce((s, f) => s + f.units_without_listing.length, 0);
       const inactiveHeldCount = footprint.reduce((s, f) => s + f.inactive_units_with_listing.length, 0);
+      const propertyById = new Map(
+        ((props || []) as Array<Record<string, unknown>>).map((p) => [String(p.id), p]),
+      );
+      const recoverableInactiveUnits = footprint.flatMap((f) => {
+        const property = propertyById.get(f.property_id);
+        const amenities = (property?.amenities || {}) as {
+          room_types?: Array<{ name?: string; is_active?: boolean }>;
+        };
+        const authoredNames = new Set(
+          (amenities.room_types || [])
+            .filter((room) => room.is_active !== false)
+            .map((room) => String(room.name || "").trim().toLowerCase())
+            .filter(Boolean),
+        );
+        return f.inactive_units_with_listing
+          .filter(
+            (unit) =>
+              liveOnChannel.has(unit.listing_id) && authoredNames.has(unit.name.trim().toLowerCase()),
+          )
+          .map((unit) => ({ ...unit, property_id: f.property_id }));
+      });
 
       /**
        * Single-account rule. Every ROL'OS listing must live on the monitored
@@ -1160,6 +1185,7 @@ Deno.serve(async (req) => {
           footprint,
           untracked_unit_count: untrackedUnitCount,
           inactive_units_holding_listings: inactiveHeldCount,
+          recoverable_inactive_units: recoverableInactiveUnits,
           allowed_owner_ids: allowedOwnerIds,
           owner_violations: ownerViolations,
           unverifiable_accounts: unverifiableAccounts,
