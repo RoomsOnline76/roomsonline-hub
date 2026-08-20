@@ -1045,6 +1045,9 @@ export type Database = {
           origin_property_id: string | null
           origin_type: string | null
           origin_url: string | null
+          overbook_override_at: string | null
+          overbook_override_by: string | null
+          overbook_override_reason: string | null
           paid_at: string | null
           payment_intent_id: string | null
           payment_method: string | null
@@ -1142,6 +1145,9 @@ export type Database = {
           origin_property_id?: string | null
           origin_type?: string | null
           origin_url?: string | null
+          overbook_override_at?: string | null
+          overbook_override_by?: string | null
+          overbook_override_reason?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null
@@ -1239,6 +1245,9 @@ export type Database = {
           origin_property_id?: string | null
           origin_type?: string | null
           origin_url?: string | null
+          overbook_override_at?: string | null
+          overbook_override_by?: string | null
+          overbook_override_reason?: string | null
           paid_at?: string | null
           payment_intent_id?: string | null
           payment_method?: string | null
@@ -17000,10 +17009,22 @@ export type Database = {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
       }
+      assert_room_line_bookable: {
+        Args: {
+          _booking_id: string
+          _guests: number
+          _line_id: string
+          _line_status: string
+          _room_id: string
+          _room_type_id: string
+        }
+        Returns: undefined
+      }
       attribute_portfolio_share: {
         Args: { _booking_id: string }
         Returns: undefined
       }
+      booking_status_is_live: { Args: { _status: string }; Returns: boolean }
       can_access_channel_property: {
         Args: { _property_id: string; _user_id: string }
         Returns: boolean
