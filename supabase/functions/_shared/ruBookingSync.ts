@@ -509,7 +509,7 @@ export async function confirmRuRequest(
     };
   }
 
-  const result = await invokeRu(supabase, 'confirm_request', {
+  const attemptConfirm = () => invokeRu(supabase, 'confirm_request', {
     reservation_id: reservationId,
     comments: opts.comments ?? '',
     ...auth,
@@ -520,20 +520,50 @@ export async function confirmRuRequest(
     details: { booking_id: booking.id, reservation_id: reservationId },
   });
 
+  let result = await attemptConfirm();
+
+  // The channel refuses to accept a held request whose own nights read as closed on its calendar.
+  // In practice that is our own hold: the request's nights were pushed as 0 units (and/or with a
+  // changeover restriction) while the lead was pending. Reopen exactly the request's own nights
+  // once and retry, so the operator does not have to fix our block by hand.
+  const isBlockedDates = (msg?: string | null) =>
+    /not available for a given dates|check in or check out/i.test(msg ?? '');
+
+  if (!result.ok && isBlockedDates(result.message)) {
+    const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+    if (ruPropertyId) {
+      // RU's Date From/To covers nights, so the departure day is excluded.
+      const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
+      lastNight.setUTCDate(lastNight.getUTCDate() - 1);
+      const reopened = await invokeRu(supabase, 'push_availability', {
+        ru_property_id: Number(ruPropertyId),
+        availability: [{
+          date_from: booking.check_in_date,
+          date_to: lastNight.toISOString().slice(0, 10),
+          units: 1,
+          changeover: 1,
+        }],
+        ...auth,
+      }, {
+        propertyId: booking.property_id,
+        ruPropertyId,
+        traceId,
+        parentAction: 'ruBookingSync:confirm:reopen',
+        details: { booking_id: booking.id, reservation_id: reservationId },
+      });
+      if (reopened.ok) result = await attemptConfirm();
+    }
+  }
+
   if (!result.ok) {
-    // The channel refuses to accept a held request whose own nights are closed on its calendar
-    // (0 units left, or a check-in/check-out restriction on the arrival/departure day). That is a
-    // calendar state the operator can fix, so it gets its own code and a plain-language reason
-    // instead of the opaque channel string.
     const raw = result.message ?? '';
-    const blockedDates = /not available for a given dates|check in or check out/i.test(raw);
-    if (blockedDates) {
+    if (isBlockedDates(raw)) {
       return {
         ok: false,
         method: 'confirm_request',
         code: 'RU_CONFIRM_BLOCKED_DATES',
         message:
-          'The channel will not accept this request because its own nights are closed on the channel calendar ' +
+          'The channel still reads this request\'s own nights as closed after reopening them ' +
           '(no units left, or a check-in/check-out restriction on the arrival or departure day). ' +
           'Open those dates on the channel and accept the request there, then resend the change. ' +
           `Channel said: ${raw}`,
@@ -549,6 +579,9 @@ export async function confirmRuRequest(
       traceId,
     };
   }
+
+
+
 
   await supabase
     .from('bookings')
