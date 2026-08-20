@@ -381,11 +381,12 @@ const Dashboard = () => {
       
       // Fetch internal bookings
       let internalQuery = supabase.from("bookings").select("*").in("property_id", propertyIds);
-      internalQuery = internalQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      internalQuery = internalQuery.gte("check_in_date", fromDate).lte("check_in_date", toDate);
       
       // Fetch PMS reservations
       let pmsQuery = supabase.from("pms_reservations").select("*").in("property_id", propertyIds);
-      pmsQuery = pmsQuery.gte("created_at", fromDate).lte("created_at", toDate + "T23:59:59");
+      pmsQuery = pmsQuery.gte("arrival_date", fromDate).lte("arrival_date", toDate);
+
       
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
