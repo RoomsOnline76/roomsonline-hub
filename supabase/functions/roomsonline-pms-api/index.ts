@@ -2641,164 +2641,70 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 });
   }
 
-  // Get booking details for calculation context
   const { data: booking, error: bErr } = await supabase.from("bookings")
-    .select("id, property_id, check_in_date, check_out_date, adults, children, infants, total_price, room_type_id, rolos_room_ids")
+    .select("id, property_id, check_in_date, check_out_date, adults, children, infants, total_price, deposit_amount, currency, charges_breakdown, room_type_id, rolos_room_ids")
     .eq("id", booking_id).single();
   if (bErr || !booking) {
     return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Booking not found", "apply_service_charges")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
   }
 
-  // Check idempotency
-  const { data: existing } = await supabase.from("rolos_booking_charges").select("id").eq("booking_id", booking_id).limit(1);
-  if (existing?.length) {
-    return new Response(JSON.stringify(createSuccessResponse({ message: "Charges already applied", skipped: true }, "apply_service_charges")),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  }
+  const context = await resolveBookingChargeContext(supabase, booking);
 
-  // Get active property charges
-  const { data: charges } = await supabase.from("property_charges")
-    .select("*")
-    .eq("property_id", booking.property_id)
-    .eq("is_active", true)
-    .order("display_order", { ascending: true });
-  if (!charges?.length) {
-    return new Response(JSON.stringify(createSuccessResponse({ message: "No active charges configured", applied: [] }, "apply_service_charges")),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-  }
+  // Reconcile (never blindly re-add): create missing rule-based charges, correct
+  // changed ones, drop those that no longer apply. Manual folio postings untouched.
+  const quote = await reconcileBookingCharges(supabase, {
+    bookingId: booking.id,
+    propertyId: booking.property_id,
+    accommodation: context.accommodation,
+    checkIn: booking.check_in_date,
+    checkOut: booking.check_out_date,
+    adults: booking.adults,
+    children: booking.children,
+    infants: booking.infants,
+    rooms: context.rooms,
+    roomTypeIds: context.roomTypeIds,
+    currency: booking.currency,
+  });
 
-  // Calculate context
-  const nights = Math.max(1, Math.ceil((new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) / 86400000));
-  const adults = booking.adults || 1;
-  const children = booking.children || 0;
-  const infants = booking.infants || 0;
-  const totalGuests = adults + children;
-  const subtotal = booking.total_price || 0;
-  const roomCount = booking.rolos_room_ids?.length || 1;
-
-  // Ensure folio exists
-  let { data: folio } = await supabase.from("rolos_folios").select("id").eq("booking_id", booking_id).single();
-  if (!folio) {
-    const { data: newFolio } = await supabase.from("rolos_folios").insert({ booking_id }).select("id").single();
-    folio = newFolio;
-  }
-
-  // Breakfast / F&B split configuration (null for properties that never configure it)
-  const breakfastConfig = await resolveBreakfastConfig(supabase, booking_id, booking.property_id);
-
-  const applied: any[] = [];
-  for (const charge of charges) {
-    // Check room type applicability
-    if (!charge.applies_to_all_rooms && charge.room_type_ids?.length) {
-      if (!charge.room_type_ids.includes(booking.room_type_id)) continue;
-    }
-    // Check night range
-    if (charge.min_nights && nights < charge.min_nights) continue;
-    if (charge.max_nights && nights > charge.max_nights) continue;
-
-    // Calculate amount
-    let amount = 0;
-    let breakdown = "";
-    const method = charge.calculation_method;
-    const baseAmt = Number(charge.amount) || 0;
-
-    if (method === "flat") {
-      amount = baseAmt;
-      breakdown = `Flat: R${baseAmt}`;
-    } else if (method === "per_night") {
-      amount = baseAmt * nights;
-      breakdown = `R${baseAmt} × ${nights} nights`;
-    } else if (method === "per_person") {
-      const persons = (charge.applies_to_adults !== false ? adults : 0)
-        + (charge.applies_to_children ? children : 0)
-        + (charge.applies_to_infants ? infants : 0);
-      amount = baseAmt * persons;
-      breakdown = `R${baseAmt} × ${persons} guests`;
-    } else if (method === "per_person_per_night") {
-      const persons = (charge.applies_to_adults !== false ? adults : 0)
-        + (charge.applies_to_children ? children : 0)
-        + (charge.applies_to_infants ? infants : 0);
-      amount = baseAmt * persons * nights;
-      breakdown = `R${baseAmt} × ${persons} guests × ${nights} nights`;
-    } else if (method === "per_room") {
-      amount = baseAmt * roomCount;
-      breakdown = `R${baseAmt} × ${roomCount} room(s)`;
-    } else if (method === "per_room_per_night") {
-      amount = baseAmt * roomCount * nights;
-      breakdown = `R${baseAmt} × ${roomCount} room(s) × ${nights} nights`;
-    } else if (method === "percentage") {
-      const applyTo = charge.percentage_apply_to === "total" ? subtotal : subtotal;
-      amount = (baseAmt / 100) * applyTo;
-      breakdown = `${baseAmt}% of R${applyTo}`;
-    }
-
-    // Apply caps
-    if (charge.min_cap && amount < Number(charge.min_cap)) amount = Number(charge.min_cap);
-    if (charge.max_cap && amount > Number(charge.max_cap)) amount = Number(charge.max_cap);
-
-    amount = Math.round(amount * 100) / 100;
-    if (amount <= 0) continue;
-
-    const stream = normalizeRevenueStream(charge.revenue_stream);
-    const includedInRate = charge.is_included_in_rate === true;
-
-    // Charges marked "included in rate" are already inside the guest total.
-    // They must never post a folio transaction (that would double-charge) —
-    // they are recorded as split markers only.
-    let tx: { id: string } | null = null;
-    if (!includedInRate) {
-      const txType = charge.category === "tax" ? "tax" : charge.category === "deposit" ? "deposit" : "charge";
-      const { data: inserted } = await supabase.from("rolos_folio_transactions").insert({
-        folio_id: folio.id,
-        transaction_type: txType,
-        description: `${charge.name}${charge.description ? ` - ${charge.description}` : ""}`,
-        amount,
-        revenue_stream: stream,
-      }).select("id").single();
-      tx = inserted;
-    }
-
-    // Record in booking charges
-    const { data: bc } = await supabase.from("rolos_booking_charges").insert({
-      booking_id,
-      property_id: booking.property_id,
-      charge_id: charge.id,
-      folio_transaction_id: tx?.id || null,
-      name: charge.name,
-      category: charge.category,
-      calculation_method: method,
-      amount,
-      revenue_stream: stream,
-      is_refundable: charge.is_refundable || false,
-      refund_timing: charge.refund_timing || null,
-      refund_status: charge.is_refundable ? "pending" : null,
-      breakdown: includedInRate ? `${breakdown} (included in rate)` : breakdown,
-    }).select().single();
-
-    applied.push(bc);
-  }
+  await supabase.from("bookings").update({
+    total_price: quote.guestTotal,
+    deposit_amount: quote.depositTotal,
+    charges_breakdown: chargesBreakdownSnapshot(quote),
+  }).eq("id", booking.id);
 
   // Post the accommodation / F&B split for the room revenue when breakfast is
-  // included in the rate. Total posted equals the original accommodation total.
-  if (breakfastConfig) {
+  // included in the rate. Total posted equals the accommodation total.
+  const breakfastConfig = await resolveBreakfastConfig(supabase, booking_id, booking.property_id);
+  const applied: any[] = [...quote.lines];
+  if (breakfastConfig && quote.folioId) {
     const split = await postBookingStreamSplit(supabase, {
       bookingId: booking_id,
       propertyId: booking.property_id,
-      folioId: folio.id,
-      nights,
-      guests: totalGuests,
-      rooms: roomCount,
-      total: subtotal,
+      folioId: quote.folioId,
+      nights: quote.nights,
+      guests: quote.adults + quote.children,
+      rooms: quote.rooms,
+      total: context.accommodation,
       config: breakfastConfig,
     });
     if (split.posted) applied.push({ split: split.lines });
   }
 
-
-  return new Response(JSON.stringify(createSuccessResponse({ applied, count: applied.length }, "apply_service_charges")),
+  return new Response(JSON.stringify(createSuccessResponse({
+    applied,
+    count: quote.lines.length,
+    created: quote.created,
+    updated: quote.updated,
+    removed: quote.removed,
+    accommodation: quote.accommodation,
+    extras_total: quote.extrasTotal,
+    deposit_total: quote.depositTotal,
+    guest_total: quote.guestTotal,
+  }, "apply_service_charges")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
+
 
 // deno-lint-ignore no-explicit-any
 async function handleBackfillRevenueStreams(body: any, supabase: any): Promise<Response> {
