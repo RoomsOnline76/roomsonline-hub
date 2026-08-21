@@ -253,3 +253,7 @@ schedule = "*/5 * * * *"
 # Branded print-ready draft revenue report + Canva asset pack (auth required).
 [functions.revenue-report-draft]
 verify_jwt = true
+
+# TOBI insights for a revenue report run (auth required).
+[functions.reports-xai-insights]
+verify_jwt = true

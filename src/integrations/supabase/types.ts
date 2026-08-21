@@ -8344,6 +8344,53 @@ export type Database = {
           },
         ]
       }
+      report_insights: {
+        Row: {
+          chart_recommendation: string | null
+          created_at: string
+          flags: Json
+          generated_at: string | null
+          generated_by: string | null
+          narrative: string | null
+          provider: string | null
+          run_id: string
+          suggestions: Json
+          updated_at: string
+        }
+        Insert: {
+          chart_recommendation?: string | null
+          created_at?: string
+          flags?: Json
+          generated_at?: string | null
+          generated_by?: string | null
+          narrative?: string | null
+          provider?: string | null
+          run_id: string
+          suggestions?: Json
+          updated_at?: string
+        }
+        Update: {
+          chart_recommendation?: string | null
+          created_at?: string
+          flags?: Json
+          generated_at?: string | null
+          generated_by?: string | null
+          narrative?: string | null
+          provider?: string | null
+          run_id?: string
+          suggestions?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_insights_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_runs: {
         Row: {
           as_of_date: string
