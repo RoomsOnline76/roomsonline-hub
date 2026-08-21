@@ -80,7 +80,7 @@ export async function logReportRunEvent(
       run_id: runId,
       event_type: eventType,
       message,
-      detail,
+      detail: detail as never,
       actor_id: auth.user?.id ?? undefined,
     }]);
   } catch (error) {
