@@ -82,14 +82,13 @@ const monthOf = (value: unknown): number | null => {
 };
 
 const yearOf = (value: unknown): number | null => {
-  const n = toNum(value);
-  if (n === null) return null;
-  const year = Math.round(n);
-  return year >= 2000 && year <= 2100 && `${year}` === text(value).trim().slice(0, 4)
-    ? year
-    : year >= 2000 && year <= 2100 && typeof value === "number"
-      ? year
-      : null;
+  if (typeof value === "number" && Number.isInteger(value) && value >= 2000 && value <= 2100) {
+    return value;
+  }
+  const raw = text(value);
+  if (!/^\d{4}$/.test(raw)) return null;
+  const year = Number(raw);
+  return year >= 2000 && year <= 2100 ? year : null;
 };
 
 /** "OTB @ 14 Aug 2026" / "OTB @ 20.08.26" → ISO date. */
