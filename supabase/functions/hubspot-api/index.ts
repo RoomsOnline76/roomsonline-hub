@@ -36,6 +36,13 @@ const requestSchema = z.object({
     "enrich_contact",
     "log_engagement",
     "sync_owner",
+    // Read-only operator surfaces (CRM page + Guests enrichment).
+    "get_metrics",
+    "get_contact_summary",
+    "get_sync_log",
+    // Optional, default-off message logging (never affects native delivery).
+    "set_message_logging",
+    "log_message_event",
   ]),
 
   owner_id: z.string().uuid().optional(),
