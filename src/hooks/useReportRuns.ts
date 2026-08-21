@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { logReportRunEvent } from "@/hooks/useReportRunEvents";
+import { DEFAULT_REPORT_SOURCE, isReportSourceKey } from "@/lib/report-adapters";
 
 export type ReportRunStatus = "draft" | "processing" | "ready" | "failed";
 
@@ -203,7 +204,9 @@ export function useReportRunMutations() {
           property_id: input.propertyId,
           as_of_date: input.asOfDate,
           title: input.title,
-          source_type: input.sourceType ?? "nightsbridge",
+          source_type: isReportSourceKey(input.sourceType)
+            ? input.sourceType
+            : DEFAULT_REPORT_SOURCE,
           status: "draft",
           previous_run_id: previous?.id ?? null,
           created_by: auth.user?.id ?? null,

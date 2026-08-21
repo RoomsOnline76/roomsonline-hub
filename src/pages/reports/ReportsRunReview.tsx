@@ -25,6 +25,7 @@ import type { ReportSourceFile } from "@/hooks/useReportRuns";
 
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
+import { getAdapter } from "@/lib/report-adapters";
 
 
 const formatDate = (iso: string): string =>
@@ -40,7 +41,7 @@ export default function ReportsRunReview() {
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
-  const { process, isProcessing } = useProcessReportRun(runId);
+  const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
   const { generate, isGenerating } = useReportExcel(runId);
   const {
     generate: generateDraft,
@@ -53,6 +54,10 @@ export default function ReportsRunReview() {
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
   const [reparsingId, setReparsingId] = useState<string | null>(null);
+  /** Source-specific behaviour (parser, expected columns, template). */
+  const adapter = getAdapter(run?.sourceType);
+
+
 
   usePageSEO({
     title: run?.title ? `${run.title} | Rooms Online` : "Report run | Rooms Online",
@@ -234,11 +239,19 @@ export default function ReportsRunReview() {
         </div>
         <div className="flex items-center gap-2">
           <RunStatusPill status={run.status} />
-          <Badge variant="secondary" className="font-normal capitalize">
-            {run.sourceType}
+          <Badge variant="secondary" className="font-normal">
+            {adapter.label}
           </Badge>
         </div>
       </div>
+
+      {adapter.status !== "ready" && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{adapter.label} runs cannot be processed yet</AlertTitle>
+          <AlertDescription>{adapter.notes}</AlertDescription>
+        </Alert>
+      )}
 
       {run.status === "failed" && run.errorMessage && (
         <Alert variant="destructive">
@@ -266,7 +279,7 @@ export default function ReportsRunReview() {
             <span className="text-muted-foreground font-normal">({run.files.length})</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <SourceFileList
             files={run.files}
             editable={editable}
@@ -275,6 +288,17 @@ export default function ReportsRunReview() {
             onReparse={(file) => void handleReparse(file)}
             onRemove={(file) => void handleRemoveFile(file)}
           />
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-medium">{adapter.label} expected columns</p>
+            <p className="text-xs text-muted-foreground">{adapter.description}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {adapter.getExpectedColumns().map((column) => (
+                <Badge key={column} variant="outline" className="font-normal text-[11px]">
+                  {column}
+                </Badge>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
