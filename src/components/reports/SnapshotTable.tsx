@@ -1,0 +1,128 @@
+import { useMemo } from "react";
+import type { ReportSnapshot } from "@/hooks/useReportSnapshot";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+const monthLabel = (key: string): string => {
+  const [year, month] = key.split("-").map(Number);
+  return `${MONTHS[month - 1] ?? key} ${`${year}`.slice(2)}`;
+};
+
+const money = (value: number): string =>
+  new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+
+const percent = (value: number): string => `${((value || 0) * 100).toFixed(1)}%`;
+
+interface Props {
+  snapshot: ReportSnapshot;
+}
+
+/** Month-by-month view of the computed snapshot. */
+export function SnapshotTable({ snapshot }: Props) {
+  const sources = useMemo(
+    () =>
+      Object.entries(snapshot.sourceBreakdown ?? {})
+        .map(([name, value]) => ({ name, ...value }))
+        .sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0)),
+    [snapshot.sourceBreakdown],
+  );
+
+  const nonSellableRows = snapshot.totals.non_sellable_rows ?? 0;
+
+  return (
+    <div className="space-y-5">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <th className="py-2 pr-3 font-medium">Month</th>
+              <th className="py-2 px-3 font-medium text-right">OTB revenue</th>
+              <th className="py-2 px-3 font-medium text-right">Room nights</th>
+              <th className="py-2 px-3 font-medium text-right">Capacity days</th>
+              <th className="py-2 px-3 font-medium text-right">ADR</th>
+              <th className="py-2 pl-3 font-medium text-right">Occupancy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {snapshot.months.map((key) => (
+              <tr key={key} className="border-b last:border-0">
+                <td className="py-2 pr-3 font-medium">{monthLabel(key)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">
+                  {money(snapshot.otbRevenue[key] ?? 0)}
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums">
+                  {snapshot.roomNights[key] ?? 0}
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                  {snapshot.capacityDays[key] ?? 0}
+                </td>
+                <td className="py-2 px-3 text-right tabular-nums">{money(snapshot.adr[key] ?? 0)}</td>
+                <td className="py-2 pl-3 text-right tabular-nums">
+                  {percent(snapshot.occupancy[key] ?? 0)}
+                </td>
+              </tr>
+            ))}
+            <tr className="font-medium">
+              <td className="py-2 pr-3">Total</td>
+              <td className="py-2 px-3 text-right tabular-nums">
+                {money(snapshot.totals.revenue ?? 0)}
+              </td>
+              <td className="py-2 px-3 text-right tabular-nums">{snapshot.totals.nights ?? 0}</td>
+              <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                {snapshot.totals.capacity_days ?? 0}
+              </td>
+              <td className="py-2 px-3 text-right tabular-nums">{money(snapshot.totals.adr ?? 0)}</td>
+              <td className="py-2 pl-3 text-right tabular-nums">
+                {percent(snapshot.totals.occupancy ?? 0)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Source breakdown</p>
+          {sources.length === 0 && <p className="text-sm text-muted-foreground">No sources.</p>}
+          {sources.map((source) => (
+            <div key={source.name} className="flex items-center justify-between text-sm">
+              <span>{source.name}</span>
+              <span className="tabular-nums text-muted-foreground">
+                {money(source.revenue ?? 0)} · {source.nights ?? 0} nights
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Excluded rows</p>
+          {nonSellableRows === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No Room 0 / Holding in Credit / Events rows found.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm">
+                {nonSellableRows} non-sellable row(s) kept out of occupancy.
+              </p>
+              {Object.entries(snapshot.nonSellable ?? {}).map(([key, value]) => (
+                <div key={key} className="flex items-center justify-between text-sm">
+                  <span>{monthLabel(key)}</span>
+                  <span className="tabular-nums text-muted-foreground">
+                    {money(value.revenue ?? 0)} · {value.nights ?? 0} nights
+                  </span>
+                </div>
+              ))}
+            </>
+          )}
+          <p className="text-xs text-muted-foreground pt-2">
+            Capacity based on {snapshot.roomCount ?? "?"} room(s).
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
