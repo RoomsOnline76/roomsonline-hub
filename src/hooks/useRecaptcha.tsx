@@ -320,6 +320,6 @@ export function useAutoRecaptcha(action: string = "login") {
   return {
     ...state,
     retry,
-    isReady: bypass ? true : !!executeRecaptcha,
+    isReady: bypass ? true : getEffectiveRecaptchaMode() === "bridge" ? true : !!executeRecaptcha,
   };
 }
