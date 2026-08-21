@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { COMM_CHANNELS, MARKET_SEGMENTS, type CrmAccountType } from "@/lib/crmSegmentation";
 import { CrmAccountPicker } from "./CrmAccountPicker";
 import { CrmAccountDialog } from "./CrmAccountDialog";
+import { PhoneInput } from "@/components/pms/PhoneInput";
+import { splitPhone, DEFAULT_DIAL_ISO } from "@/lib/dialCodes";
 import type { CrmAccount } from "@/hooks/useCrmAccounts";
 
 export interface BookerSegmentationValue {
@@ -63,6 +65,9 @@ export function BookerSegmentationFields({
 }: BookerSegmentationFieldsProps) {
 
   const [creating, setCreating] = useState<{ type: CrmAccountType; name: string } | null>(null);
+  const [bookerIso, setBookerIso] = useState<string>(
+    () => splitPhone(value.booker_phone).iso || DEFAULT_DIAL_ISO,
+  );
   const [pendingField, setPendingField] = useState<keyof BookerSegmentationValue | null>(null);
 
   const openCreate = (type: CrmAccountType, name: string, field: keyof BookerSegmentationValue) => {
@@ -89,8 +94,8 @@ export function BookerSegmentationFields({
         </div>
 
         {!value.booker_is_guest && (
-          <div className="grid gap-2 sm:grid-cols-3">
-            <div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="min-w-0">
               <Label className={labelCls}>Booker Name</Label>
               <Input
                 className="h-9"
@@ -99,7 +104,7 @@ export function BookerSegmentationFields({
                 placeholder="Who made the booking"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className={labelCls}>Booker Email</Label>
               <Input
                 className="h-9"
@@ -108,12 +113,13 @@ export function BookerSegmentationFields({
                 onChange={(e) => onChange({ booker_email: e.target.value })}
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <Label className={labelCls}>Booker Phone</Label>
-              <Input
-                className="h-9"
+              <PhoneInput
                 value={value.booker_phone}
-                onChange={(e) => onChange({ booker_phone: e.target.value })}
+                onChange={(v) => onChange({ booker_phone: v })}
+                countryIso={bookerIso}
+                onCountryIsoChange={setBookerIso}
               />
             </div>
           </div>
@@ -122,8 +128,8 @@ export function BookerSegmentationFields({
       )}
 
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        <div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="min-w-0">
           <Label className={labelCls}>Company (invoice to)</Label>
           <CrmAccountPicker
             accounts={accounts}
@@ -137,7 +143,7 @@ export function BookerSegmentationFields({
             onCreateNew={(type, name) => openCreate(type, name, "company_account_id")}
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className={labelCls}>Travel Agent / Tour Operator</Label>
           <CrmAccountPicker
             accounts={accounts}
@@ -148,7 +154,7 @@ export function BookerSegmentationFields({
             onCreateNew={(type, name) => openCreate(type, name, "agent_account_id")}
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className={labelCls}>Source</Label>
           <CrmAccountPicker
             accounts={accounts}
@@ -161,8 +167,8 @@ export function BookerSegmentationFields({
         </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
-        <div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="min-w-0">
           <Label className={labelCls}>Market Segment</Label>
           <Select
             value={value.market_segment || "__none__"}
@@ -177,7 +183,7 @@ export function BookerSegmentationFields({
             </SelectContent>
           </Select>
         </div>
-        <div>
+        <div className="min-w-0">
           <Label className={labelCls}>Distribution / Communication</Label>
           <Select
             value={value.comm_channel || "__none__"}

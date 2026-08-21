@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays } from "date-fns";
-import { CalendarIcon, Plus, Trash2, BedDouble } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, BedDouble, Users2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { callPmsApi } from "@/hooks/usePmsApi";
 import { toast } from "sonner";
@@ -38,7 +38,7 @@ import {
   type BookerSegmentationValue,
 } from "@/components/pms/crm/BookerSegmentationFields";
 import { PhoneInput, CountryCombobox } from "@/components/pms/PhoneInput";
-import { countryByName, splitPhone, countryByIso } from "@/lib/dialCodes";
+import { countryByName, splitPhone, countryByIso, ensureE164 } from "@/lib/dialCodes";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
@@ -628,7 +628,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       propertyId: effectivePropertyId,
       fullName: form.guest_name,
       email: form.guest_email,
-      phone: form.guest_phone || null,
+      phone: ensureE164(form.guest_phone, resolvedPhoneIso) || null,
       nationality: countryByIso(form.guest_country)?.name || null,
     });
 
@@ -645,7 +645,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       second_guest_name: form.second_guest_name || null,
       booking_made_by: form.booking_made_by || null,
       guest_email: form.guest_email,
-      guest_phone: form.guest_phone || null,
+      guest_phone: ensureE164(form.guest_phone, resolvedPhoneIso) || null,
       check_in_date: format(form.check_in!, "yyyy-MM-dd"),
       check_out_date: format(form.check_out!, "yyyy-MM-dd"),
       room_type_id: validLines[0].room_type_id,
@@ -670,7 +670,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       booker_is_guest: crm.booker_is_guest,
       booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
       booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
-      booker_phone: crm.booker_is_guest ? null : (crm.booker_phone || null),
+      booker_phone: crm.booker_is_guest ? null : (ensureE164(crm.booker_phone, bookerPhoneIso || resolvedPhoneIso) || null),
       company_account_id: crm.company_account_id,
       agent_account_id: crm.agent_account_id,
       source_account_id: crm.source_account_id,
@@ -715,7 +715,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
         bookingId: insertedData.id,
         guestName: form.guest_name,
         guestEmail: form.guest_email,
-        guestPhone: form.guest_phone || null,
+        guestPhone: ensureE164(form.guest_phone, resolvedPhoneIso) || null,
         amount: totalPrice,
         status: autoStatus,
         checkOut: format(form.check_out!, "yyyy-MM-dd"),
@@ -811,7 +811,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Booking</DialogTitle>
         </DialogHeader>
@@ -834,6 +834,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
             <p className="text-xs text-muted-foreground mt-1">Booking details become available once a property is chosen.</p>
           </div>
         ) : (
+          <>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
             {/* ─────────── Left panel: stay + guest ─────────── */}
             <div className="space-y-4">
@@ -1082,36 +1083,6 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 </div>
               </div>
 
-              <Separator />
-
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker &amp; Segmentation</h4>
-                <BookerSegmentationFields
-                  compact
-                  hideBooker
-
-                  value={crm}
-                  onChange={patch => setCrm(p => ({ ...p, ...patch }))}
-                  accounts={accounts}
-                  isPortfolioScoped={isPortfolioScoped}
-                  onSaveAccount={saveAccount}
-                  onCompanyLinked={applyCompany}
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label>Invoice To</Label>
-                    <Input value={invoiceTo.name} onChange={e => setInvoiceTo(p => ({ ...p, name: e.target.value }))} placeholder="Defaults to the guest" />
-                  </div>
-                  <div>
-                    <Label>Invoice VAT No.</Label>
-                    <Input value={invoiceTo.vat} onChange={e => setInvoiceTo(p => ({ ...p, vat: e.target.value }))} placeholder="Optional" />
-                  </div>
-                </div>
-                <div>
-                  <Label>Invoice Address</Label>
-                  <Textarea value={invoiceTo.address} onChange={e => setInvoiceTo(p => ({ ...p, address: e.target.value }))} rows={2} placeholder="Auto-filled when a company is linked" />
-                </div>
-              </div>
             </div>
 
             {/* ─────────── Right panel: room lines + account ─────────── */}
@@ -1342,6 +1313,39 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               </div>
             </div>
           </div>
+
+          {/* Linked profiles get the dialog's full width so the pickers aren't cramped. */}
+          <div className="mt-5 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+            <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <Users2 className="h-3.5 w-3.5" />Linked Profiles &amp; Segmentation
+            </h4>
+            <BookerSegmentationFields
+              compact
+              hideBooker
+              value={crm}
+              onChange={patch => setCrm(p => ({ ...p, ...patch }))}
+              accounts={accounts}
+              isPortfolioScoped={isPortfolioScoped}
+              onSaveAccount={saveAccount}
+              onCompanyLinked={applyCompany}
+            />
+            <Separator />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="min-w-0">
+                <Label className="text-[11px]">Invoice To</Label>
+                <Input className="h-9" value={invoiceTo.name} onChange={e => setInvoiceTo(p => ({ ...p, name: e.target.value }))} placeholder="Defaults to the guest" />
+              </div>
+              <div className="min-w-0">
+                <Label className="text-[11px]">Invoice VAT No.</Label>
+                <Input className="h-9" value={invoiceTo.vat} onChange={e => setInvoiceTo(p => ({ ...p, vat: e.target.value }))} placeholder="Optional" />
+              </div>
+              <div className="min-w-0 sm:col-span-2">
+                <Label className="text-[11px]">Invoice Address</Label>
+                <Textarea value={invoiceTo.address} onChange={e => setInvoiceTo(p => ({ ...p, address: e.target.value }))} rows={2} placeholder="Auto-filled when a company is linked" />
+              </div>
+            </div>
+          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
