@@ -17498,6 +17498,7 @@ export type Database = {
       }
       can_view_cost_share: { Args: never; Returns: boolean }
       can_view_rol_pulse: { Args: { user_id: string }; Returns: boolean }
+      can_write_property_image: { Args: { _name: string }; Returns: boolean }
       cancel_subscription_by_token: {
         Args: { _token: string }
         Returns: boolean
