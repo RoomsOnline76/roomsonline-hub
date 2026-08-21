@@ -20,7 +20,8 @@ export type ReportRunEventType =
   | "draft_generated"
   | "insights_generated"
   | "segment_split_applied"
-  | "special_report_generated";
+  | "special_report_generated"
+  | "prior_report_imported";
 
 export async function logRunEvent(
   admin: Admin,
