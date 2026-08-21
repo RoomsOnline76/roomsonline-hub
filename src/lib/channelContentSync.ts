@@ -113,11 +113,15 @@ export async function queueChannelContentSync(
 export async function queueChannelRatesSync(
   propertyId: string | null | undefined,
   trigger: string,
-  options: { force?: boolean; wait?: boolean } = {},
+  options: ChannelSyncOptions = {},
 ): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
   void markChannelStepsStale(propertyId, channelLedgerStepsForTrigger(trigger, "rates"));
+  if (await gateBlocks(propertyId, options.manual)) {
+    return { queued: false, reason: CHANNEL_EDIT_GATE_REASON };
+  }
   try {
+
 
     const { data, error } = await supabase.functions.invoke("ru-ari-delta", {
       body: {
