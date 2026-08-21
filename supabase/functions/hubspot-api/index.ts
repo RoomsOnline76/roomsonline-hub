@@ -121,6 +121,29 @@ const requestSchema = z.object({
   /** Delta sweep window for `sync_owner` — ISO timestamp. */
   since: z.string().trim().max(40).optional(),
   limit: z.number().int().min(1).max(200).optional(),
+  /** Contact lookup for the read-only Guests enrichment panel. */
+  email: z.string().email().max(255).optional(),
+  /** Scope for the read-only CRM metrics / sync log. */
+  property_id: z.string().uuid().optional(),
+  /** Optional per-property message logging switch (default OFF). */
+  message_logging: z
+    .object({
+      property_id: z.string().uuid(),
+      enabled: z.boolean(),
+    })
+    .optional(),
+  /** A native message that has ALREADY been delivered, projected as a note. */
+  message_event: z
+    .object({
+      email: z.string().email().max(255),
+      property_id: z.string().uuid().optional(),
+      event: z.string().trim().max(64).optional(),
+      subject: z.string().trim().max(255).optional(),
+      body: z.string().trim().max(4000).optional(),
+      /** Set when the caller is an explicit operator opt-in, not the auto sweep. */
+      force: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 
