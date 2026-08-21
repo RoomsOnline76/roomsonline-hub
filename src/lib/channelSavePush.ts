@@ -170,6 +170,14 @@ export async function pushRatePlanRates(
   options: { label?: string } = {},
 ): Promise<void> {
   if (!propertyId) return;
+  // Gate first, so a property still inside the wizard never even shows a spinner.
+  const gate = await channelEditGateState(propertyId);
+  if (!gate.open) {
+    console.log(
+      `[channel rate push] silent for ${propertyId} — Channel onboarding incomplete: ${gate.missing.join("; ")}`,
+    );
+    return;
+  }
   const label = options.label ?? "Rates";
   const toastId = `ru-rates-${propertyId}`;
   const sinceIso = new Date(Date.now() - 5_000).toISOString();
@@ -181,11 +189,15 @@ export async function pushRatePlanRates(
     toast.error(`${CHANNEL_MANAGER} update rejected`, { id: toastId, description: outcome.error });
     return;
   }
-  if (outcome?.queued === false && outcome?.reason === "not_connected") {
-    // Not distributed to the channel — nothing is owed, so stay quiet.
+  if (
+    outcome?.queued === false &&
+    (outcome?.reason === "not_connected" || outcome?.reason === CHANNEL_EDIT_GATE_REASON)
+  ) {
+    // Not distributed to the channel (or still onboarding) — nothing is owed, so stay quiet.
     toast.dismiss(toastId);
     return;
   }
+
 
   const { verdict, reason } = await confirmChannelPush({ propertyId, section: "rates", sinceIso });
   if (verdict === "delivered") {
