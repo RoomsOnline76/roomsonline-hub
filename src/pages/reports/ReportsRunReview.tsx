@@ -35,6 +35,9 @@ export default function ReportsRunReview() {
   const navigate = useNavigate();
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
+  const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
+  const { process, isProcessing } = useProcessReportRun(runId);
+  const { generate, isGenerating } = useReportExcel(runId);
   const [pending, setPending] = useState<File[]>([]);
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
@@ -44,6 +47,29 @@ export default function ReportsRunReview() {
     description: "Review the uploaded source files for a revenue report run.",
     noIndex: true,
   });
+
+  const handleProcess = useCallback(async () => {
+    const result = await process();
+    if (!result.ok) {
+      toast.error("Processing failed", { description: result.message });
+    } else {
+      toast.success(`${result.rowsParsed} booking row(s) aggregated`, {
+        description: `${result.months.length} month(s) covered`,
+      });
+    }
+    await Promise.all([refetch(), refetchSnapshot()]);
+  }, [process, refetch, refetchSnapshot]);
+
+  const handleExcel = useCallback(async () => {
+    const result = await generate();
+    if (!result.ok) {
+      toast.error("Could not build the workbook", { description: result.message });
+      return;
+    }
+    window.open(result.url, "_blank", "noopener");
+    toast.success("Consolidated workbook ready");
+  }, [generate]);
+
 
   const handleUpload = useCallback(async () => {
     if (!run || pending.length === 0) return;
