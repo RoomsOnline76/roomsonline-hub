@@ -235,11 +235,19 @@ export default function ReportsRunReview() {
         </div>
         <div className="flex items-center gap-2">
           <RunStatusPill status={run.status} />
-          <Badge variant="secondary" className="font-normal capitalize">
-            {run.sourceType}
+          <Badge variant="secondary" className="font-normal">
+            {adapter.label}
           </Badge>
         </div>
       </div>
+
+      {adapter.status !== "ready" && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{adapter.label} runs cannot be processed yet</AlertTitle>
+          <AlertDescription>{adapter.notes}</AlertDescription>
+        </Alert>
+      )}
 
       {run.status === "failed" && run.errorMessage && (
         <Alert variant="destructive">
