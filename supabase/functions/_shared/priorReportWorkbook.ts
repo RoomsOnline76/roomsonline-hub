@@ -401,7 +401,11 @@ function parseYearGrid(rows: Row[]): YearGrid {
 
 /* ─────────────────────────── entry point ─────────────────────────── */
 
-export function parsePriorReportWorkbook(buffer: ArrayBuffer): PriorReportExtract {
+export function parsePriorReportWorkbook(
+  buffer: ArrayBuffer,
+  options: { runAsOfDate?: string | null } = {},
+): PriorReportExtract {
+
   const extract: PriorReportExtract = {
     asOfDate: null,
     otbColumnLabel: null,
