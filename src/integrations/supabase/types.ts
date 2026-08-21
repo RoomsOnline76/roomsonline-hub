@@ -7640,6 +7640,67 @@ export type Database = {
           },
         ]
       }
+      property_report_settings: {
+        Row: {
+          brand_primary: string | null
+          brand_secondary: string | null
+          cover_artwork_url: string | null
+          created_at: string
+          default_source_type: string
+          historical_baseline: Json
+          property_id: string
+          report_logo_url: string | null
+          room_count: number
+          updated_at: string
+        }
+        Insert: {
+          brand_primary?: string | null
+          brand_secondary?: string | null
+          cover_artwork_url?: string | null
+          created_at?: string
+          default_source_type?: string
+          historical_baseline?: Json
+          property_id: string
+          report_logo_url?: string | null
+          room_count?: number
+          updated_at?: string
+        }
+        Update: {
+          brand_primary?: string | null
+          brand_secondary?: string | null
+          cover_artwork_url?: string | null
+          created_at?: string
+          default_source_type?: string
+          historical_baseline?: Json
+          property_id?: string
+          report_logo_url?: string | null
+          room_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_report_settings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "property_report_settings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_report_settings_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: true
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_review_cache: {
         Row: {
           created_at: string | null
@@ -8236,11 +8297,61 @@ export type Database = {
           },
         ]
       }
+      report_additional_inputs: {
+        Row: {
+          comp_rns_by_month: Json
+          created_at: string
+          dinner_by_month: Json
+          free_commentary: string | null
+          min_stay_notes: string | null
+          promotions_notes: string | null
+          rate_override_notes: string | null
+          room0_by_month: Json
+          run_id: string
+          updated_at: string
+        }
+        Insert: {
+          comp_rns_by_month?: Json
+          created_at?: string
+          dinner_by_month?: Json
+          free_commentary?: string | null
+          min_stay_notes?: string | null
+          promotions_notes?: string | null
+          rate_override_notes?: string | null
+          room0_by_month?: Json
+          run_id: string
+          updated_at?: string
+        }
+        Update: {
+          comp_rns_by_month?: Json
+          created_at?: string
+          dinner_by_month?: Json
+          free_commentary?: string | null
+          min_stay_notes?: string | null
+          promotions_notes?: string | null
+          rate_override_notes?: string | null
+          room0_by_month?: Json
+          run_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_additional_inputs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_runs: {
         Row: {
           as_of_date: string
           created_at: string
           created_by: string | null
+          error_message: string | null
+          excel_generated_at: string | null
+          excel_path: string | null
           id: string
           previous_run_id: string | null
           property_id: string
@@ -8253,6 +8364,9 @@ export type Database = {
           as_of_date: string
           created_at?: string
           created_by?: string | null
+          error_message?: string | null
+          excel_generated_at?: string | null
+          excel_path?: string | null
           id?: string
           previous_run_id?: string | null
           property_id: string
@@ -8265,6 +8379,9 @@ export type Database = {
           as_of_date?: string
           created_at?: string
           created_by?: string | null
+          error_message?: string | null
+          excel_generated_at?: string | null
+          excel_path?: string | null
           id?: string
           previous_run_id?: string | null
           property_id?: string
@@ -8300,6 +8417,77 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_snapshots: {
+        Row: {
+          additional_revenue: Json
+          adr: Json
+          capacity_days: Json
+          created_at: string
+          last_year_actual: Json
+          last_year_room_nights: Json
+          months: Json
+          non_sellable: Json
+          occupancy: Json
+          otb_revenue: Json
+          previous_otb_revenue: Json
+          previous_room_nights: Json
+          room_count: number | null
+          room_nights: Json
+          run_id: string
+          source_breakdown: Json
+          totals: Json
+          updated_at: string
+        }
+        Insert: {
+          additional_revenue?: Json
+          adr?: Json
+          capacity_days?: Json
+          created_at?: string
+          last_year_actual?: Json
+          last_year_room_nights?: Json
+          months?: Json
+          non_sellable?: Json
+          occupancy?: Json
+          otb_revenue?: Json
+          previous_otb_revenue?: Json
+          previous_room_nights?: Json
+          room_count?: number | null
+          room_nights?: Json
+          run_id: string
+          source_breakdown?: Json
+          totals?: Json
+          updated_at?: string
+        }
+        Update: {
+          additional_revenue?: Json
+          adr?: Json
+          capacity_days?: Json
+          created_at?: string
+          last_year_actual?: Json
+          last_year_room_nights?: Json
+          months?: Json
+          non_sellable?: Json
+          occupancy?: Json
+          otb_revenue?: Json
+          previous_otb_revenue?: Json
+          previous_room_nights?: Json
+          room_count?: number | null
+          room_nights?: Json
+          run_id?: string
+          source_breakdown?: Json
+          totals?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_snapshots_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: true
+            referencedRelation: "report_runs"
             referencedColumns: ["id"]
           },
         ]

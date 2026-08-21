@@ -16,9 +16,14 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportRun, useReportRunMutations } from "@/hooks/useReportRuns";
+import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
+import { SnapshotTable } from "@/components/reports/SnapshotTable";
+import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
+
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { formatBytes, getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
+
 
 const formatDate = (iso: string): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
@@ -32,6 +37,9 @@ export default function ReportsRunReview() {
   const navigate = useNavigate();
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
+  const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
+  const { process, isProcessing } = useProcessReportRun(runId);
+  const { generate, isGenerating } = useReportExcel(runId);
   const [pending, setPending] = useState<File[]>([]);
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
@@ -41,6 +49,30 @@ export default function ReportsRunReview() {
     description: "Review the uploaded source files for a revenue report run.",
     noIndex: true,
   });
+
+  const handleProcess = useCallback(async () => {
+    const result = await process();
+    if (!result.ok) {
+      toast.error("Processing failed", { description: result.message });
+    } else {
+      toast.success(`${result.rowsParsed ?? 0} booking row(s) aggregated`, {
+        description: `${result.months?.length ?? 0} month(s) covered`,
+      });
+    }
+    await Promise.all([refetch(), refetchSnapshot()]);
+  }, [process, refetch, refetchSnapshot]);
+
+  const handleExcel = useCallback(async () => {
+    const result = await generate();
+    if (!result.ok || !result.url) {
+      toast.error("Could not build the workbook", { description: result.message });
+      return;
+    }
+    window.open(result.url, "_blank", "noopener");
+    toast.success("Consolidated workbook ready");
+
+  }, [generate]);
+
 
   const handleUpload = useCallback(async () => {
     if (!run || pending.length === 0) return;
@@ -245,19 +277,37 @@ export default function ReportsRunReview() {
         </Card>
       )}
 
-      {/* ─── Processing (Phase 2) ────────────────────────────── */}
+      {/* ─── Processing + snapshot ───────────────────────────── */}
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-5">
           <div className="space-y-1">
             <p className="text-sm font-medium">Process run</p>
             <p className="text-sm text-muted-foreground">
-              Parsing and aggregation arrive in the next phase.
+              {snapshot
+                ? `${snapshot.months.length} month(s) aggregated from ${snapshot.totals.bookings ?? 0} booking(s).`
+                : "Parse the uploaded files into revenue, room nights, ADR and occupancy."}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button disabled>
-              <Play className="h-4 w-4 mr-2" />
-              Process
+            <Button onClick={() => void handleProcess()} disabled={isProcessing || run.files.length === 0}>
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              {snapshot ? "Re-process" : "Process"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleExcel()}
+              disabled={isGenerating || !snapshot}
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+              )}
+              Download Excel
             </Button>
             <Button
               variant="outline"
@@ -271,6 +321,22 @@ export default function ReportsRunReview() {
           </div>
         </CardContent>
       </Card>
+
+      {snapshot && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Aggregated results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SnapshotTable snapshot={snapshot} />
+          </CardContent>
+        </Card>
+      )}
+
+      {snapshot && runId && <ManualInputsCard runId={runId} months={snapshot.months} />}
+
+
+
     </div>
   );
 }
