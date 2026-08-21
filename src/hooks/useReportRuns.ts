@@ -148,7 +148,7 @@ export function useReportRun(runId: string | undefined) {
       const row = data as unknown as RunRow;
       return {
         ...mapSummary(row),
-        fileCount: files?.length ?? 0,
+        fileCount: (files ?? []).filter((f) => (f.file_role ?? "source") !== "prior_report").length,
         previousRunId: row.previous_run_id,
         baselineLocked: Boolean(row.baseline_locked),
         files: (files ?? []).map((f) => ({
