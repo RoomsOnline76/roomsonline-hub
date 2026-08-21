@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import { HistoricalBaselineEditor } from "@/components/reports/HistoricalBaselineEditor";
+import type { HistoricalBaseline } from "@/lib/historicalBaseline";
 
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
@@ -21,7 +23,7 @@ export default function ReportsPropertySettings() {
   const [coverUrl, setCoverUrl] = useState("");
   const [primary, setPrimary] = useState("");
   const [secondary, setSecondary] = useState("");
-  const [baselineJson, setBaselineJson] = useState("{}");
+  const [baseline, setBaseline] = useState<HistoricalBaseline>({});
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -36,18 +38,11 @@ export default function ReportsPropertySettings() {
     setCoverUrl(settings.coverArtworkUrl ?? "");
     setPrimary(settings.brandPrimary ?? "");
     setSecondary(settings.brandSecondary ?? "");
-    setBaselineJson(JSON.stringify(settings.historicalBaseline ?? {}, null, 2));
+    setBaseline(settings.historicalBaseline ?? {});
   }, [settings]);
 
   const handleSave = async () => {
     if (!propertyId) return;
-    let baseline: Record<string, unknown> = {};
-    try {
-      baseline = baselineJson.trim() ? JSON.parse(baselineJson) : {};
-    } catch {
-      toast.error("Historical baseline must be valid JSON");
-      return;
-    }
     const rooms = Number(roomCount);
     if (!Number.isFinite(rooms) || rooms < 1) {
       toast.error("Room count must be 1 or more");
@@ -61,7 +56,7 @@ export default function ReportsPropertySettings() {
         coverArtworkUrl: coverUrl || null,
         brandPrimary: primary || null,
         brandSecondary: secondary || null,
-        historicalBaseline: baseline as never,
+        historicalBaseline: baseline,
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -70,6 +65,7 @@ export default function ReportsPropertySettings() {
       });
     }
   };
+
 
   return (
     <div className="space-y-6">
