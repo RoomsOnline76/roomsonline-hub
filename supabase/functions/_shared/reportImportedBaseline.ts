@@ -156,3 +156,43 @@ export function substituteThinMonths(
   return swapped;
 }
 
+
+export interface TotalledAggregate extends WindowedAggregate {
+  totals: {
+    revenue: number;
+    nights: number;
+    capacity_days: number;
+    adr: number;
+    occupancy: number;
+    [key: string]: number;
+  };
+}
+
+/**
+ * One call for every source parser: widen the window with months only the prior
+ * workbook knows, replace thin months, and recompute the affected totals.
+ */
+export function reconcileWithImportedBaseline(
+  aggregate: TotalledAggregate,
+  imported: unknown,
+  roomCount: number,
+): { addedMonths: string[]; substituted: SubstitutedMonth[] } {
+  const addedMonths = extendReportWindow(aggregate, importedBaselineMonths(imported), roomCount);
+  const substituted = substituteThinMonths(aggregate, imported);
+  if (!addedMonths.length && !substituted.length) return { addedMonths, substituted };
+
+  let revenue = 0;
+  let nights = 0;
+  let capacity = 0;
+  for (const key of aggregate.months) {
+    revenue += aggregate.otb_revenue[key] ?? 0;
+    nights += aggregate.room_nights[key] ?? 0;
+    capacity += aggregate.capacity_days[key] ?? 0;
+  }
+  aggregate.totals.revenue = Math.round(revenue * 100) / 100;
+  aggregate.totals.nights = nights;
+  aggregate.totals.capacity_days = capacity;
+  aggregate.totals.adr = nights > 0 ? Math.round((revenue / nights) * 100) / 100 : 0;
+  aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
+  return { addedMonths, substituted };
+}
