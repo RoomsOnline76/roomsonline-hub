@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Card,
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   ExternalLink,
   Loader2,
@@ -21,6 +22,7 @@ import {
   Users,
   Briefcase,
   Link2,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
@@ -43,6 +45,7 @@ import {
 export default function PMSCrm() {
   const { propertyId, properties } = usePmsPropertyId();
   const { data: status, isLoading } = useHubspotStatus();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const live = Boolean(status?.enabled && status?.connected);
   const { data: metrics, isFetching: metricsLoading } = useHubspotMetrics(live);
   const { data: log } = useHubspotSyncLog(live);
