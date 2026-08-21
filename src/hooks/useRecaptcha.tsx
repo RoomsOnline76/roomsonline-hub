@@ -279,13 +279,16 @@ export function useAutoRecaptcha(action: string = "login") {
       setState({ isVerified: true, isVerifying: false, token: RECAPTCHA_BYPASS_TOKEN, error: null, hasAttempted: true });
       return true;
     }
-    if (!executeRecaptcha) return false;
-    
-    
+    const bridging = getEffectiveRecaptchaMode() === "bridge";
+    if (!executeRecaptcha && !bridging) return false;
+
     setState(prev => ({ ...prev, isVerifying: true, error: null }));
-    
+
     try {
-      const token = await executeRecaptcha(action);
+      const token = bridging
+        ? await requestBridgeToken(action)
+        : await executeNativeOrBridge(action, executeRecaptcha);
+
       
       if (token) {
         setState({
