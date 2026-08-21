@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { GuestHubspotPanel } from "@/components/pms/crm/GuestHubspotPanel";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Search, Users, Mail, Phone, CalendarDays, AlertCircle, Download, Star, Repeat, Ban, Building2, Moon, Pencil, Archive, Wallet } from "lucide-react";
@@ -551,6 +552,9 @@ export default function PMSGuests() {
                 )}
 
                 <Separator />
+
+                {/* Optional CRM mirror — hidden unless the add-on is live and matched */}
+                <GuestHubspotPanel email={selectedGuest.email} />
 
                 {/* Booking History */}
                 <div className="space-y-2">
