@@ -32,9 +32,26 @@ const EXPECTED_COLUMNS = [
 ];
 
 const ADDITIONAL_FIELDS: AdditionalFieldConfig = {
-  // F&B and extras arrive in the House State grid, so only Room 0 style
-  // adjustments and complimentary nights are asked for.
-  monthly: ["room0", "compRns"],
+  monthly: [
+    {
+      key: "dinner_by_month",
+      label: "F&B and extras revenue",
+      hint: "Pre-filled from the House State F&B and Extras columns — override only if needed.",
+      kind: "currency",
+    },
+    {
+      key: "room0_by_month",
+      label: "Other non-rooms revenue",
+      hint: "Conference, spa or sundry revenue not shown on the House State grid.",
+      kind: "currency",
+    },
+    {
+      key: "comp_rns_by_month",
+      label: "Complimentary room nights",
+      hint: "Villa or room nights given at no charge.",
+      kind: "count",
+    },
+  ],
   narrative: ["minStay", "promotions", "rateOverrides", "commentary"],
 };
 
