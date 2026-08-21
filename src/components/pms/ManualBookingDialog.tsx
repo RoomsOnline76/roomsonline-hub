@@ -928,9 +928,22 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                     <Input type="email" value={form.guest_email} onChange={e => update("guest_email", e.target.value)} placeholder="guest@email.com" />
                   </div>
                   <div>
-                    <Label>Phone</Label>
-                    <Input value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} placeholder="+27..." />
+                    <Label>Country</Label>
+                    <CountryCombobox
+                      value={form.guest_country || null}
+                      onChange={setGuestCountry}
+                      placeholder="Country of origin"
+                    />
                   </div>
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <PhoneInput
+                    value={form.guest_phone}
+                    onChange={v => update("guest_phone", v)}
+                    countryIso={resolvedPhoneIso}
+                    onCountryIsoChange={setPhoneIsoManually}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -943,6 +956,81 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker</h4>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="mb-booker-is-guest"
+                    checked={crm.booker_is_guest}
+                    onCheckedChange={(v) => {
+                      const isGuest = !!v;
+                      setCrm(p => ({
+                        ...p,
+                        booker_is_guest: isGuest,
+                        // Unticking pre-fills from the guest so only the differences get typed.
+                        booker_name: isGuest ? "" : (p.booker_name || form.guest_name),
+                        booker_email: isGuest ? "" : (p.booker_email || form.guest_email),
+                        booker_phone: isGuest ? "" : (p.booker_phone || form.guest_phone),
+                      }));
+                      if (!isGuest) setBookerPhoneIso(prev => prev || resolvedPhoneIso);
+                    }}
+                  />
+                  <Label htmlFor="mb-booker-is-guest" className="cursor-pointer text-xs font-normal">
+                    The booker is the guest
+                  </Label>
+                </div>
+
+                {!crm.booker_is_guest && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Booker Name</Label>
+                        <Input
+                          value={crm.booker_name}
+                          onChange={e => setCrm(p => ({ ...p, booker_name: e.target.value }))}
+                          placeholder="Who made the booking"
+                        />
+                      </div>
+                      <div>
+                        <Label>Booker Email</Label>
+                        <Input
+                          type="email"
+                          value={crm.booker_email}
+                          onChange={e => setCrm(p => ({ ...p, booker_email: e.target.value }))}
+                          placeholder="booker@email.com"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Booker Phone</Label>
+                      <PhoneInput
+                        value={crm.booker_phone}
+                        onChange={v => setCrm(p => ({ ...p, booker_phone: v }))}
+                        countryIso={bookerPhoneIso || resolvedPhoneIso}
+                        onCountryIsoChange={setBookerPhoneIso}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setCrm(p => ({
+                        ...p,
+                        booker_name: form.guest_name,
+                        booker_email: form.guest_email,
+                        booker_phone: form.guest_phone,
+                      }))}
+                    >
+                      Copy guest details
+                    </Button>
+                  </div>
+                )}
+              </div>
+
 
               <Separator />
 
