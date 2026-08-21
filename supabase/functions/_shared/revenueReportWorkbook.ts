@@ -19,6 +19,10 @@ export interface WorkbookInputs {
   dinner_by_month: Record<string, number>;
   room0_by_month: Record<string, number>;
   comp_rns_by_month: Record<string, number>;
+  min_stay_notes?: string | null;
+  promotions_notes?: string | null;
+  rate_override_notes?: string | null;
+  free_commentary?: string | null;
 }
 
 export interface WorkbookOptions {
@@ -302,6 +306,28 @@ export async function buildRevenueWorkbook(options: WorkbookOptions): Promise<Ui
     cell.value = text;
     cell.font = { name: FONT, size: 9, italic: true };
   });
+
+  // Reviewer commentary block, to the right of the notes footer.
+  const commentary: Array<[string, string | null | undefined]> = [
+    ["Minimum stay", inputs.min_stay_notes],
+    ["Promotions", inputs.promotions_notes],
+    ["Rate overrides", inputs.rate_override_notes],
+    ["Commentary", inputs.free_commentary],
+  ];
+  let commentaryRow = layout.adrFirst;
+  for (const [label, value] of commentary) {
+    if (!value) continue;
+    const heading = sheet.getCell(commentaryRow, 13);
+    heading.value = label;
+    heading.font = { name: FONT, bold: true, size: 9 };
+    const body = sheet.getCell(commentaryRow, 14);
+    body.value = value;
+    body.font = { name: FONT, size: 9 };
+    body.alignment = { wrapText: true, vertical: "top" };
+    sheet.mergeCells(commentaryRow, 14, commentaryRow, 17);
+    commentaryRow += 2;
+  }
+  sheet.getColumn(14).width = 40;
 
   sheet.getColumn(1).width = 12;
   for (let col = 2; col <= 11; col += 1) sheet.getColumn(col).width = 16;
