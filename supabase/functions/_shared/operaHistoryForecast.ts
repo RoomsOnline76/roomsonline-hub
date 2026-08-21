@@ -69,18 +69,31 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
  * reading order, so items are bucketed by baseline and sorted left to right.
  */
 export function reconstructLines(items: PdfTextItem[], tolerance = 3): string[] {
-  const buckets = new Map<number, PdfTextItem[]>();
-  for (const item of items) {
-    if (typeof item.str !== "string" || !item.str.trim()) continue;
-    const key = Math.round(item.y / tolerance);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(item);
-    buckets.set(key, bucket);
+  // Clustered rather than rounded: a grid row's cells are printed at baselines
+  // that differ by a fraction of a point, and fixed buckets split them at the
+  // bucket edge, which loses whole rows.
+  const sorted = items
+    .filter((item) => typeof item.str === "string" && item.str.trim().length > 0)
+    .sort((a, b) => b.y - a.y);
+
+  const rows: PdfTextItem[][] = [];
+  let current: PdfTextItem[] = [];
+  let anchor = Number.NaN;
+  for (const item of sorted) {
+    if (!current.length || Math.abs(anchor - item.y) <= tolerance) {
+      if (!current.length) anchor = item.y;
+      current.push(item);
+      continue;
+    }
+    rows.push(current);
+    current = [item];
+    anchor = item.y;
   }
-  return [...buckets.entries()]
-    .sort((a, b) => b[0] - a[0])
-    .map(([, bucket]) =>
-      bucket
+  if (current.length) rows.push(current);
+
+  return rows
+    .map((row) =>
+      row
         .sort((a, b) => a.x - b.x)
         .map((item) => item.str.trim())
         .join(" ")
@@ -89,6 +102,7 @@ export function reconstructLines(items: PdfTextItem[], tolerance = 3): string[] 
     )
     .filter((line) => line.length > 0);
 }
+
 
 const num = (raw: string | undefined): number => {
   if (raw === undefined) return NaN;
