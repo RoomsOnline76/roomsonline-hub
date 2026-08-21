@@ -204,7 +204,7 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
     ...state,
     verify,
     reset,
-    isReady: mode === "bypass" ? true : mode === "bridge" ? true : !!executeRecaptcha,
+    isReady: mode === "bypass" ? true : getEffectiveRecaptchaMode() === "bridge" ? true : !!executeRecaptcha,
   };
 }
 
@@ -233,12 +233,16 @@ export function useAutoRecaptcha(action: string = "login") {
   }, [bypass]);
 
   useEffect(() => {
-    if (bypass || !executeRecaptcha || state.hasAttempted) return;
+    const bridging = getEffectiveRecaptchaMode() === "bridge";
+    if (bypass || state.hasAttempted) return;
+    if (!executeRecaptcha && !bridging) return;
 
     const runVerification = async () => {
       try {
-        const token = await executeRecaptcha(action);
-        
+        const token = bridging
+          ? await requestBridgeToken(action)
+          : await executeNativeOrBridge(action, executeRecaptcha);
+
         if (token) {
           setState({
             isVerified: true,
@@ -247,6 +251,7 @@ export function useAutoRecaptcha(action: string = "login") {
             error: null,
             hasAttempted: true,
           });
+
         } else {
           setState(prev => ({
             ...prev,
