@@ -8236,6 +8236,124 @@ export type Database = {
           },
         ]
       }
+      report_runs: {
+        Row: {
+          as_of_date: string
+          created_at: string
+          created_by: string | null
+          id: string
+          previous_run_id: string | null
+          property_id: string
+          source_type: string
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          as_of_date: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          previous_run_id?: string | null
+          property_id: string
+          source_type?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          as_of_date?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          previous_run_id?: string | null
+          property_id?: string
+          source_type?: string
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_runs_previous_run_id_fkey"
+            columns: ["previous_run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "report_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_runs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_source_files: {
+        Row: {
+          byte_size: number | null
+          created_at: string
+          file_hash: string | null
+          id: string
+          original_filename: string
+          parse_errors: Json | null
+          parsed_ok: boolean | null
+          row_count: number | null
+          run_id: string
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          byte_size?: number | null
+          created_at?: string
+          file_hash?: string | null
+          id?: string
+          original_filename: string
+          parse_errors?: Json | null
+          parsed_ok?: boolean | null
+          row_count?: number | null
+          run_id: string
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          byte_size?: number | null
+          created_at?: string
+          file_hash?: string | null
+          id?: string
+          original_filename?: string
+          parse_errors?: Json | null
+          parsed_ok?: boolean | null
+          row_count?: number | null
+          run_id?: string
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_source_files_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rol_bank_export_batches: {
         Row: {
           bank_provider: string
@@ -17150,6 +17268,7 @@ export type Database = {
           role: string
         }[]
       }
+      has_reports_access: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
