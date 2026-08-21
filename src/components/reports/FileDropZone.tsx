@@ -83,7 +83,7 @@ export function FileDropZone({
         )}
       >
         <Upload className="h-6 w-6 mx-auto mb-3 text-muted-foreground" />
-        <p className="text-sm font-medium">Drop bookingsummary files here</p>
+        <p className="text-sm font-medium">Drop source files here</p>
         <p className="text-sm text-muted-foreground mt-1">
           or click to browse — {extensions.join(" / ")}, up to{" "}
           {formatBytes(MAX_SOURCE_FILE_BYTES)} each
@@ -105,7 +105,7 @@ export function FileDropZone({
         <ul className="space-y-2">
           {files.map((file, index) => {
             const state = states[index] ?? { phase: "pending" as UploadPhase };
-            const invalid = !hasAcceptedExtension(file.name) || file.size > MAX_SOURCE_FILE_BYTES;
+            const invalid = !hasAcceptedExtension(file.name, extensions) || file.size > MAX_SOURCE_FILE_BYTES;
             return (
               <li
                 key={`${file.name}-${index}`}

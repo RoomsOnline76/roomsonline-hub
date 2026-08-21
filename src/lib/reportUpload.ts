@@ -66,6 +66,8 @@ export interface UploadSourceFilesArgs {
   files: File[];
   /** Hashes already stored on this run — matching files are skipped. */
   existingHashes?: string[];
+  /** Extensions the run's source adapter accepts; defaults to workbooks. */
+  acceptedExtensions?: readonly string[];
   onProgress?: (progress: UploadProgress) => void;
 }
 
@@ -74,6 +76,7 @@ export async function uploadSourceFiles({
   propertyId,
   files,
   existingHashes = [],
+  acceptedExtensions = ACCEPTED_SOURCE_EXTENSIONS,
   onProgress,
 }: UploadSourceFilesArgs): Promise<UploadResult> {
   const seen = new Set(existingHashes);
@@ -83,8 +86,8 @@ export async function uploadSourceFiles({
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
     try {
-      if (!hasAcceptedExtension(file.name)) {
-        throw new Error("Only .xlsx and .xls files are accepted");
+      if (!hasAcceptedExtension(file.name, acceptedExtensions)) {
+        throw new Error(`Only ${acceptedExtensions.join(" / ")} files are accepted`);
       }
       if (file.size > MAX_SOURCE_FILE_BYTES) {
         throw new Error("File exceeds the 20 MB limit");
