@@ -7,6 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DEFAULT_REPORT_SOURCE,
+  isReportSourceKey,
+  listAdapters,
+  type ReportSourceKey,
+} from "@/lib/report-adapters";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
@@ -52,6 +65,7 @@ export default function ReportsPropertySettings() {
   const [brandSource, setBrandSource] = useState<ReportBrandSource>("custom");
   const [baseline, setBaseline] = useState<HistoricalBaseline>({});
   const [roomCountTouched, setRoomCountTouched] = useState(false);
+  const [sourceType, setSourceType] = useState<ReportSourceKey>(DEFAULT_REPORT_SOURCE);
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -68,6 +82,11 @@ export default function ReportsPropertySettings() {
     setSecondary(settings.brandSecondary ?? "");
     setBrandSource(settings.brandSource ?? "custom");
     setBaseline(settings.historicalBaseline ?? {});
+    setSourceType(
+      isReportSourceKey(settings.defaultSourceType)
+        ? settings.defaultSourceType
+        : DEFAULT_REPORT_SOURCE,
+    );
     setRoomCountTouched(true);
   }, [settings]);
 
@@ -141,6 +160,7 @@ export default function ReportsPropertySettings() {
         brandSecondary: resolved.secondary,
         brandSource,
         historicalBaseline: baseline,
+        defaultSourceType: sourceType,
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -230,6 +250,36 @@ export default function ReportsPropertySettings() {
             <p className="text-xs text-muted-foreground">
               Capacity days = rooms × days in month (7 rooms × 31 = 217).
               {rolBrand && ` ROL inventory: ${ROOM_COUNT_SOURCE_LABEL[rolBrand.roomCountSource]}.`}
+            </p>
+          </div>
+
+          {/* Default report source */}
+          <div className="space-y-2 max-w-sm">
+            <Label htmlFor="default-source">Default report source</Label>
+            <Select
+              value={sourceType}
+              onValueChange={(next) => {
+                if (isReportSourceKey(next)) setSourceType(next);
+              }}
+            >
+              <SelectTrigger id="default-source">
+                <SelectValue placeholder="Choose a source" />
+              </SelectTrigger>
+              <SelectContent>
+                {listAdapters().map((option) => (
+                  <SelectItem
+                    key={option.key}
+                    value={option.key}
+                    disabled={option.status !== "ready"}
+                  >
+                    {option.label}
+                    {option.status !== "ready" && " — coming soon"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Preselected when a new run is created for this property.
             </p>
           </div>
 
