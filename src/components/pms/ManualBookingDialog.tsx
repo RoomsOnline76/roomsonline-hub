@@ -38,7 +38,7 @@ import {
   type BookerSegmentationValue,
 } from "@/components/pms/crm/BookerSegmentationFields";
 import { PhoneInput, CountryCombobox } from "@/components/pms/PhoneInput";
-import { countryByName, splitPhone, countryByIso } from "@/lib/dialCodes";
+import { countryByName, splitPhone, countryByIso, ensureE164 } from "@/lib/dialCodes";
 import { Checkbox } from "@/components/ui/checkbox";
 
 
