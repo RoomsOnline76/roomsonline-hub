@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getAdapter, unsupportedSourceMessage } from "@/lib/report-adapters";
 
 export interface ReportSnapshot {
   runId: string;
