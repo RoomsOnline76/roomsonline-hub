@@ -40,7 +40,7 @@ export default function ReportsRunReview() {
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
-  const { process, isProcessing } = useProcessReportRun(runId);
+  const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
   const { generate, isGenerating } = useReportExcel(runId);
   const {
     generate: generateDraft,
