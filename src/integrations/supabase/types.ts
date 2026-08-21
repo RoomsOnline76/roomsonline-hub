@@ -17576,6 +17576,7 @@ export type Database = {
         Returns: boolean
       }
       is_scoped_admin: { Args: { _user_id: string }; Returns: boolean }
+      manages_any_property: { Args: { _user_id: string }; Returns: boolean }
       next_commission_statement_reference: {
         Args: { _period_month: string; _rep_code: string }
         Returns: string
