@@ -7,6 +7,7 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { applyImportedBaseline } from "../_shared/reportImportedBaseline.ts";
 
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
@@ -199,7 +200,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, baseline_locked, status")
+      .select("id, property_id, as_of_date, previous_run_id, baseline_locked, imported_baseline, status")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -426,6 +427,15 @@ Deno.serve(async (req) => {
         lastYearNights[key] = baseline.room_nights[lyKey];
       }
     }
+
+    // A first run has no earlier run: fall back to figures imported from the
+    // property's existing consolidated report workbook.
+    applyImportedBaseline(run.imported_baseline, aggregate.months, {
+      previousRevenue,
+      previousNights,
+      lastYearRevenue,
+      lastYearNights,
+    });
 
     // Manual extras (dinner / room 0 / comp nights) supplied by the reviewer.
     const { data: inputs } = await admin
