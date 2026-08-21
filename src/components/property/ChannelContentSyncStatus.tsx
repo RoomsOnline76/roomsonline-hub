@@ -125,8 +125,9 @@ const ForceButton: React.FC<{ propertyId: string; kind: SyncKind }> = ({ propert
       const trigger = kind === "content" ? "manual_content_sync" : "manual_rates_sync";
       const result =
         kind === "content"
-          ? await queueChannelContentSync(propertyId, trigger, { force: true, wait: true })
-          : await queueChannelRatesSync(propertyId, trigger, { force: true, wait: true });
+          ? await queueChannelContentSync(propertyId, trigger, { force: true, wait: true, manual: true })
+          : await queueChannelRatesSync(propertyId, trigger, { force: true, wait: true, manual: true });
+
       if (result?.queued && !result?.error) {
         toast({ title: `${config.title} pushed`, description: "The Channel Manager listing was refreshed." });
       } else if (result?.reason === "gate_pending") {
