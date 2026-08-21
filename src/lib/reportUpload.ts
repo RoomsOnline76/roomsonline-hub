@@ -68,6 +68,12 @@ export interface UploadSourceFilesArgs {
   existingHashes?: string[];
   /** Extensions the run's source adapter accepts; defaults to workbooks. */
   acceptedExtensions?: readonly string[];
+  /**
+   * `source` (default) for the period exports the parser reads, or
+   * `prior_report` for the property's existing consolidated workbook used to
+   * seed a first run's baseline.
+   */
+  fileRole?: "source" | "prior_report";
   onProgress?: (progress: UploadProgress) => void;
 }
 
@@ -77,6 +83,7 @@ export async function uploadSourceFiles({
   files,
   existingHashes = [],
   acceptedExtensions = ACCEPTED_SOURCE_EXTENSIONS,
+  fileRole = "source",
   onProgress,
 }: UploadSourceFilesArgs): Promise<UploadResult> {
   const seen = new Set(existingHashes);
@@ -101,7 +108,7 @@ export async function uploadSourceFiles({
       }
 
       onProgress?.({ index, phase: "uploading" });
-      const path = `${propertyId}/${runId}/source/${crypto.randomUUID()}-${sanitize(file.name)}`;
+      const path = `${propertyId}/${runId}/${fileRole === "prior_report" ? "prior" : "source"}/${crypto.randomUUID()}-${sanitize(file.name)}`;
       const { error: uploadError } = await supabase.storage
         .from(REVENUE_REPORTS_BUCKET)
         .upload(path, file, { upsert: false, contentType: file.type || undefined });
@@ -113,6 +120,7 @@ export async function uploadSourceFiles({
         original_filename: file.name,
         byte_size: file.size,
         file_hash: hash,
+        file_role: fileRole,
       });
       if (insertError) {
         await supabase.storage.from(REVENUE_REPORTS_BUCKET).remove([path]);
