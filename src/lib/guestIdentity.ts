@@ -34,7 +34,10 @@ export async function ensureGuestProfile(opts: {
   fullName: string;
   email?: string | null;
   phone?: string | null;
+  /** Country of origin (ISO alpha-2 or name) — stored so the next booking pre-fills. */
+  nationality?: string | null;
 }): Promise<string | null> {
+
   const email = (opts.email ?? "").trim().toLowerCase();
   const norm = normaliseGuestName(opts.fullName);
   if (!email && !norm) return null;
