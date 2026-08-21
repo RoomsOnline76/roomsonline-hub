@@ -14,7 +14,10 @@ import {
   type PdfTextItem,
 } from "../_shared/operaHistoryForecast.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { applyImportedBaseline } from "../_shared/reportImportedBaseline.ts";
+import {
+  applyImportedBaseline,
+  reconcileWithImportedBaseline,
+} from "../_shared/reportImportedBaseline.ts";
 
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
@@ -333,6 +336,9 @@ Deno.serve(async (req) => {
     }
 
     const aggregate = aggregateLedger(ledger, roomCount);
+
+    // Months the prior workbook covers but the uploads do not, plus thin months.
+    reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
 
     // Previous baseline: the most recent other run for this property with a snapshot.
     let previousRunId = run.previous_run_id;

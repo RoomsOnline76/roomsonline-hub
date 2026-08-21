@@ -24,7 +24,10 @@ import {
   parseProtelProduction,
 } from "../_shared/protel/production.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { applyImportedBaseline } from "../_shared/reportImportedBaseline.ts";
+import {
+  applyImportedBaseline,
+  reconcileWithImportedBaseline,
+} from "../_shared/reportImportedBaseline.ts";
 
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
@@ -411,6 +414,9 @@ Deno.serve(async (req) => {
     }
 
     const aggregate = aggregateLedger(finalLedger, roomCount);
+
+    // Months the prior workbook covers but the uploads do not, plus thin months.
+    reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
 
     let previousRunId = run.previous_run_id;
     if (!previousRunId && !run.baseline_locked) {
