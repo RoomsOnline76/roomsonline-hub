@@ -55,8 +55,8 @@ export default function ReportsRunReview() {
     if (!result.ok) {
       toast.error("Processing failed", { description: result.message });
     } else {
-      toast.success(`${result.rowsParsed} booking row(s) aggregated`, {
-        description: `${result.months.length} month(s) covered`,
+      toast.success(`${result.rowsParsed ?? 0} booking row(s) aggregated`, {
+        description: `${result.months?.length ?? 0} month(s) covered`,
       });
     }
     await Promise.all([refetch(), refetchSnapshot()]);
@@ -64,12 +64,13 @@ export default function ReportsRunReview() {
 
   const handleExcel = useCallback(async () => {
     const result = await generate();
-    if (!result.ok) {
+    if (!result.ok || !result.url) {
       toast.error("Could not build the workbook", { description: result.message });
       return;
     }
     window.open(result.url, "_blank", "noopener");
     toast.success("Consolidated workbook ready");
+
   }, [generate]);
 
 
