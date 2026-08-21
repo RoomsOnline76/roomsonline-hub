@@ -58,6 +58,10 @@ export interface ProcessResult {
   message?: string;
   rowsParsed?: number;
   months?: string[];
+  /** True when the parser stopped on its time budget with work still pending. */
+  partial?: boolean;
+  filesParsed?: number;
+  filesPending?: number;
 }
 
 export interface ExcelResult {
@@ -114,19 +118,32 @@ export function useProcessReportRun(runId: string | undefined) {
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const process = useCallback(async (): Promise<ProcessResult> => {
+  /**
+   * Re-parses the whole run, or a single stored file when `fileId` is given so
+   * one bad workbook can be retried without re-reading every other file.
+   */
+  const process = useCallback(async (fileId?: string): Promise<ProcessResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
     setIsProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke("nightsbridge-report-parser", {
-        body: { run_id: runId },
+        body: fileId ? { run_id: runId, file_id: fileId } : { run_id: runId },
       });
-      if (error) return { ok: false, message: await readError(error) };
-      if (data?.error) return { ok: false, message: String(data.error) };
+      if (error) {
+        const message = await readError(error);
+        // A time-budget stop comes back as 422 with a "run again to continue" note.
+        return { ok: false, message, partial: /time limit/i.test(message) };
+      }
+      if (data?.error) {
+        return { ok: false, message: String(data.error), partial: Boolean(data?.partial) };
+      }
       return {
         ok: true,
         rowsParsed: Number(data?.rows_parsed ?? 0),
         months: Array.isArray(data?.months) ? (data.months as string[]) : [],
+        partial: data?.status === "partial" || Boolean(data?.partial),
+        filesParsed: Number(data?.files_parsed ?? 0),
+        filesPending: Number(data?.files_pending ?? 0),
       };
     } finally {
       setIsProcessing(false);

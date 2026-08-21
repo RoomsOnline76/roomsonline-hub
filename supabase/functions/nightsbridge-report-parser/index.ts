@@ -6,8 +6,12 @@ import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
+import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
+/** Stop taking on new files once this much of the invocation budget is gone. */
+const TIME_BUDGET_MS = 100_000;
+
 
 const COLUMN_ALIASES: Record<keyof LedgerRow | "arrival" , string[]> = {
   booking_id: ["booking id"],
@@ -188,6 +192,10 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     runId = typeof body?.run_id === "string" ? body.run_id : "";
     if (!runId) return json({ error: "run_id is required" }, 400);
+    /** Single-file check: re-parse one file without touching the snapshot. */
+    const onlyFileId = typeof body?.file_id === "string" ? body.file_id : "";
+    const actorId = userData.user.id;
+    const startedAt = Date.now();
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
@@ -197,18 +205,43 @@ Deno.serve(async (req) => {
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
 
-    const { data: files, error: filesError } = await admin
+    let fileQuery = admin
       .from("report_source_files")
       .select("id, storage_path, original_filename")
-      .eq("run_id", runId)
-      .order("created_at", { ascending: true });
+      .eq("run_id", runId);
+    if (onlyFileId) fileQuery = fileQuery.eq("id", onlyFileId);
+    const { data: files, error: filesError } = await fileQuery.order("created_at", {
+      ascending: true,
+    });
     if (filesError) return json({ error: filesError.message }, 500);
-    if (!files?.length) return json({ error: "No source files uploaded for this run" }, 400);
+    if (!files?.length) {
+      return json(
+        { error: onlyFileId ? "File not found on this run" : "No source files uploaded for this run" },
+        400,
+      );
+    }
 
-    await admin
-      .from("report_runs")
-      .update({ status: "processing", error_message: null })
-      .eq("id", runId);
+    if (!onlyFileId) {
+      if (run.status === "processing") {
+        return json({ error: "This run is already being processed" }, 409);
+      }
+      await admin
+        .from("report_runs")
+        .update({
+          status: "processing",
+          error_message: null,
+          processing_note: `Starting — ${files.length} file(s) queued`,
+        })
+        .eq("id", runId);
+      await logRunEvent(
+        admin,
+        runId,
+        "processing_started",
+        `Processing started for ${files.length} file(s)`,
+        { file_count: files.length },
+        actorId,
+      );
+    }
 
     const ledger: LedgerRow[] = [];
     const fileResults: Array<{
@@ -218,8 +251,23 @@ Deno.serve(async (req) => {
       row_count: number;
       errors: string[];
     }> = [];
+    let processedFiles = 0;
+    let truncated = false;
 
     for (const file of files) {
+      if (processedFiles > 0 && Date.now() - startedAt > TIME_BUDGET_MS) {
+        truncated = true;
+        break;
+      }
+      if (!onlyFileId) {
+        await admin
+          .from("report_runs")
+          .update({
+            processing_note: `Reading ${file.original_filename} (${processedFiles + 1} of ${files.length})`,
+          })
+          .eq("id", runId);
+      }
+
       const download = await admin.storage.from(BUCKET).download(file.storage_path);
       if (download.error || !download.data) {
         const message = download.error?.message ?? "download failed";
@@ -230,12 +278,20 @@ Deno.serve(async (req) => {
           row_count: 0,
           errors: [`${file.original_filename}: ${message}`],
         });
+        processedFiles += 1;
         continue;
       }
 
-      const parsed = parseWorkbook(await download.data.arrayBuffer(), file.original_filename);
+      // Parse one workbook at a time and release the buffer before the next file.
+      let parsed: ParsedFile;
+      {
+        const buffer = await download.data.arrayBuffer();
+        parsed = parseWorkbook(buffer, file.original_filename);
+      }
       const ok = parsed.rows.length > 0;
-      if (ok) ledger.push(...parsed.rows);
+      if (ok) {
+        for (const row of parsed.rows) ledger.push(row);
+      }
       fileResults.push({
         id: file.id,
         filename: file.original_filename,
@@ -243,27 +299,68 @@ Deno.serve(async (req) => {
         row_count: parsed.rows.length,
         errors: parsed.errors,
       });
+      parsed.rows.length = 0;
+      processedFiles += 1;
     }
 
-    for (const result of fileResults) {
+    // Batch the per-file bookkeeping instead of one round trip per file.
+    await Promise.all(
+      fileResults.map((result) =>
+        admin
+          .from("report_source_files")
+          .update({
+            parsed_ok: result.parsed_ok,
+            row_count: result.row_count,
+            parse_errors: result.errors.length ? result.errors : null,
+          })
+          .eq("id", result.id),
+      ),
+    );
+
+    if (onlyFileId) {
+      const result = fileResults[0];
+      await logRunEvent(
+        admin,
+        runId,
+        "file_reparsed",
+        `${result.filename}: ${result.parsed_ok ? `${result.row_count} row(s) parsed` : "parse failed"}`,
+        { file_id: result.id, errors: result.errors },
+        actorId,
+      );
+      return json({
+        success: result.parsed_ok,
+        run_id: runId,
+        file: result,
+        rows_parsed: result.row_count,
+      });
+    }
+
+    if (truncated) {
+      const message = `Processed ${processedFiles} of ${files.length} file(s) before the time limit — run again to continue`;
       await admin
-        .from("report_source_files")
-        .update({
-          parsed_ok: result.parsed_ok,
-          row_count: result.row_count,
-          parse_errors: result.errors.length ? result.errors : null,
-        })
-        .eq("id", result.id);
+        .from("report_runs")
+        .update({ status: "failed", error_message: message, processing_note: null })
+        .eq("id", runId);
+      await logRunEvent(admin, runId, "processing_partial", message, {
+        processed: processedFiles,
+        total: files.length,
+      }, actorId);
+      return json({ error: message, partial: true, processed: processedFiles, total: files.length, files: fileResults }, 422);
     }
 
     if (ledger.length === 0) {
       const message = fileResults.flatMap((r) => r.errors)[0] ?? "No usable booking rows found";
       await admin
         .from("report_runs")
-        .update({ status: "failed", error_message: message })
+        .update({ status: "failed", error_message: message, processing_note: null })
         .eq("id", runId);
+      await logRunEvent(admin, runId, "processing_failed", message, { files: fileResults }, actorId);
       return json({ error: message, files: fileResults }, 422);
     }
+
+    // A re-process must never blend with the previous result.
+    await admin.from("report_snapshots").delete().eq("run_id", runId);
+
 
     // Property capacity configuration.
     const { data: settings } = await admin
@@ -365,10 +462,12 @@ Deno.serve(async (req) => {
     if (snapshotError) {
       await admin
         .from("report_runs")
-        .update({ status: "failed", error_message: snapshotError.message })
+        .update({ status: "failed", error_message: snapshotError.message, processing_note: null })
         .eq("id", runId);
+      await logRunEvent(admin, runId, "processing_failed", snapshotError.message, {}, actorId);
       return json({ error: snapshotError.message }, 500);
     }
+
 
     // Fold completed (fully past) months into the property's historical baseline so
     // future runs have last-year actuals without any manual import. Existing values win.
@@ -427,10 +526,25 @@ Deno.serve(async (req) => {
         status: "ready",
         previous_run_id: previousRunId,
         error_message: null,
+        processing_note: null,
         excel_path: null,
         excel_generated_at: null,
       })
       .eq("id", runId);
+
+    await logRunEvent(
+      admin,
+      runId,
+      "processing_succeeded",
+      `${ledger.length} booking row(s) aggregated across ${aggregate.months.length} month(s)`,
+      {
+        rows_parsed: ledger.length,
+        months: aggregate.months.length,
+        files: fileResults.length,
+        room_count: roomCount,
+      },
+      actorId,
+    );
 
     return json({
       success: true,
@@ -442,14 +556,17 @@ Deno.serve(async (req) => {
       totals: aggregate.totals,
     });
   } catch (error) {
+
     const message = error instanceof Error ? error.message : "Unexpected parser failure";
     console.error("nightsbridge-report-parser failed:", message);
     if (runId) {
       await admin
         .from("report_runs")
-        .update({ status: "failed", error_message: message })
+        .update({ status: "failed", error_message: message, processing_note: null })
         .eq("id", runId);
+      await logRunEvent(admin, runId, "processing_failed", message);
     }
+
     return json({ error: message }, 500);
   }
 });
