@@ -156,6 +156,7 @@ export default function ReportsPropertySettings() {
         brandSource,
         historicalBaseline: baseline,
         defaultSourceType: sourceType,
+        specialReportSet: specialSet === "none" ? null : specialSet,
       });
       toast.success("Report settings saved");
     } catch (error) {
