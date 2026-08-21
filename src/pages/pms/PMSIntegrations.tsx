@@ -387,10 +387,17 @@ export default function PMSIntegrations() {
                   <Terminal className="h-3.5 w-3.5" />
                   API
                 </TabsTrigger>
+                {crm.available && (
+                  <TabsTrigger value="enquiry" className="gap-1.5 text-xs">
+                    <MailQuestion className="h-3.5 w-3.5" />
+                    Enquiry form
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="portfolio" className="gap-1.5 text-xs">
                   <Building2 className="h-3.5 w-3.5" />
                   Portfolio
                 </TabsTrigger>
+
                 </TabsList>
               </div>
 
