@@ -8,7 +8,13 @@ import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { usePmsStaffRole } from "@/hooks/usePmsStaffRole";
 import { VersionBadge } from "./VersionBadge";
 import { getVisibleModules } from "@/lib/pmsPermissions";
-import { pmsNavGroups, isNavItemVisibleForScope, type NavItem } from "./PMSSidebar";
+import {
+  pmsNavGroups,
+  isNavItemVisibleForScope,
+  isNavItemVisibleForAddons,
+  type NavItem,
+} from "./PMSSidebar";
+import { useHubspotCapability } from "@/hooks/useHubspotCrm";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +40,7 @@ export function PmsMobileBottomNav() {
 
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = hasMinRole(userRole, "admin");
+  const { available: hubspotAvailable } = useHubspotCapability();
 
   const groups = pmsNavGroups
     .map((group) => ({
@@ -42,7 +49,8 @@ export function PmsMobileBottomNav() {
         (item) =>
           (item.platformOnly ? isPlatformUser : true) &&
           (isPlatformUser || visibleModules.includes(item.module)) &&
-          isNavItemVisibleForScope(item, !!propertyId),
+          isNavItemVisibleForScope(item, !!propertyId) &&
+          isNavItemVisibleForAddons(item, hubspotAvailable),
       ),
     }))
     .filter((group) => group.items.length > 0);

@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useHubspotCapability, logMessageToHubspot } from "@/hooks/useHubspotCrm";
 import { Plus, Send, Mail, Pencil, Trash2, RefreshCw, Clock, CheckCircle2, XCircle, AlertCircle, Sparkles, Eye, EyeOff, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -116,6 +118,9 @@ function PMSMessaging() {
   const [showPreview, setShowPreview] = useState(false);
   const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
   const [sendForm, setSendForm] = useState({ recipient_email: "", subject: "", body: "" });
+  const [alsoLogToCrm, setAlsoLogToCrm] = useState(false);
+  const { healthy: hubspotHealthy, status: hubspotStatus } = useHubspotCapability();
+  const crmLoggingOnForProperty = Boolean(pid && hubspotStatus?.messageLogProperties.includes(pid));
 
   const editor = useEditor({
     extensions: [
@@ -177,7 +182,20 @@ function PMSMessaging() {
     try {
       await sendMessage.mutateAsync(sendForm);
       toast.success("Message sent");
+      // CRM copy is a projection of an already delivered message: fire-and-forget,
+      // never awaited, and it can never turn a successful send into a failure.
+      if (hubspotHealthy && (alsoLogToCrm || crmLoggingOnForProperty) && sendForm.recipient_email) {
+        logMessageToHubspot({
+          email: sendForm.recipient_email,
+          propertyId: pid,
+          event: "manual_message",
+          subject: sendForm.subject,
+          body: sendForm.body,
+          force: alsoLogToCrm,
+        });
+      }
       setSendOpen(false);
+      setAlsoLogToCrm(false);
       setSendForm({ recipient_email: "", subject: "", body: "" });
     } catch (e: unknown) {
       toast.error((e as Error).message || "Failed to send");
@@ -547,6 +565,24 @@ function PMSMessaging() {
                 <Label>Body (HTML)</Label>
                 <Textarea rows={5} value={sendForm.body} onChange={e => setSendForm(f => ({ ...f, body: e.target.value }))} />
               </div>
+              {/* Optional CRM copy — only offered when the add-on is live. Native
+                  delivery is unaffected either way. */}
+              {hubspotHealthy && (
+                <div className="flex items-start gap-2 rounded-md border p-3">
+                  <Checkbox
+                    id="log-to-crm"
+                    checked={alsoLogToCrm}
+                    onCheckedChange={v => setAlsoLogToCrm(v === true)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <Label htmlFor="log-to-crm" className="text-sm">Also log to CRM</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Adds a copy of this message to the guest's CRM timeline after it is sent.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
