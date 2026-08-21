@@ -109,29 +109,68 @@ export default function ReportsPropertySettings() {
               <Input id="logo-url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="logo-url">Report logo URL</Label>
+              <Input id="logo-url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
+              {logoUrl && (
+                <img
+                  src={logoUrl}
+                  alt="Report logo preview"
+                  loading="lazy"
+                  className="h-10 w-auto rounded border bg-muted object-contain p-1"
+                />
+              )}
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="cover-url">Cover artwork URL</Label>
               <Input id="cover-url" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} />
+              {coverUrl && (
+                <img
+                  src={coverUrl}
+                  alt="Cover artwork preview"
+                  loading="lazy"
+                  className="h-24 w-full rounded border object-cover"
+                />
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="brand-primary">Primary colour</Label>
-                <Input
-                  id="brand-primary"
-                  placeholder="#E91E8C"
-                  value={primary}
-                  onChange={(e) => setPrimary(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="brand-primary"
+                    placeholder="#E91E8C"
+                    value={primary}
+                    onChange={(e) => setPrimary(e.target.value)}
+                  />
+                  <input
+                    type="color"
+                    aria-label="Pick primary colour"
+                    value={/^#[0-9a-f]{6}$/i.test(primary) ? primary : "#e91e8c"}
+                    onChange={(e) => setPrimary(e.target.value)}
+                    className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="brand-secondary">Secondary colour</Label>
-                <Input
-                  id="brand-secondary"
-                  placeholder="#1A1A2E"
-                  value={secondary}
-                  onChange={(e) => setSecondary(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="brand-secondary"
+                    placeholder="#1A1A2E"
+                    value={secondary}
+                    onChange={(e) => setSecondary(e.target.value)}
+                  />
+                  <input
+                    type="color"
+                    aria-label="Pick secondary colour"
+                    value={/^#[0-9a-f]{6}$/i.test(secondary) ? secondary : "#1a1a2e"}
+                    onChange={(e) => setSecondary(e.target.value)}
+                    className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
+                  />
+                </div>
               </div>
             </div>
+
           </div>
 
           <div className="space-y-2">
