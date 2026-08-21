@@ -1088,6 +1088,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker &amp; Segmentation</h4>
                 <BookerSegmentationFields
                   compact
+                  hideBooker
+
                   value={crm}
                   onChange={patch => setCrm(p => ({ ...p, ...patch }))}
                   accounts={accounts}
