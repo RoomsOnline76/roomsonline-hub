@@ -140,6 +140,7 @@ const PMSRoomTypes = lazy(() => import("./pages/pms/PMSRoomTypes"));
 const PMSRatePlans = lazy(() => import("./pages/pms/PMSRatePlans"));
 const PMSGuests = lazy(() => import("./pages/pms/PMSGuests"));
 const PMSInquiries = lazy(() => import("./pages/pms/PMSInquiries"));
+const PMSCrm = lazy(() => import("./pages/pms/PMSCrm"));
 const GuestCheckIn = lazy(() => import("./pages/GuestCheckIn"));
 const GuestFeedback = lazy(() => import("./pages/GuestFeedback"));
 const PMSHousekeeping = lazy(() => import("./pages/pms/PMSHousekeeping"));
@@ -420,6 +421,7 @@ const App = () => (
                           <Route path="rate-plans" element={<PMSRatePlans />} />
                           <Route path="guests" element={<PMSGuests />} />
                           <Route path="inquiries" element={<PMSInquiries />} />
+                          <Route path="crm" element={<PMSCrm />} />
                           <Route path="housekeeping" element={<PMSHousekeeping />} />
                           <Route path="reports" element={<PMSReports />} />
                           <Route path="branding" element={<PMSBranding />} />
