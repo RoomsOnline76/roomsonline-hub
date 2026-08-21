@@ -22,6 +22,7 @@ import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { BaselineCard } from "@/components/reports/BaselineCard";
 import { DownloadBar } from "@/components/reports/DownloadBar";
+import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
 import { useReportDraft } from "@/hooks/useReportDraft";
 
