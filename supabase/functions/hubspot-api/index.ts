@@ -1297,6 +1297,7 @@ Deno.serve(async (req) => {
         }
 
         await markSync("ok");
+        await logEvent("sync_owner", { companies, contacts, deals, delta_since: since });
         return ok({
           synced: true,
           delta_since: since,
