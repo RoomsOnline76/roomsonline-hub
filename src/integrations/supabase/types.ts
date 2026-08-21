@@ -8439,6 +8439,7 @@ export type Database = {
         Row: {
           as_of_date: string
           baseline_locked: boolean
+          baseline_source: string
           created_at: string
           created_by: string | null
           draft_generated_at: string | null
@@ -8447,6 +8448,7 @@ export type Database = {
           excel_generated_at: string | null
           excel_path: string | null
           id: string
+          imported_baseline: Json | null
           previous_run_id: string | null
           processing_note: string | null
           property_id: string
@@ -8458,6 +8460,7 @@ export type Database = {
         Insert: {
           as_of_date: string
           baseline_locked?: boolean
+          baseline_source?: string
           created_at?: string
           created_by?: string | null
           draft_generated_at?: string | null
@@ -8466,6 +8469,7 @@ export type Database = {
           excel_generated_at?: string | null
           excel_path?: string | null
           id?: string
+          imported_baseline?: Json | null
           previous_run_id?: string | null
           processing_note?: string | null
           property_id: string
@@ -8477,6 +8481,7 @@ export type Database = {
         Update: {
           as_of_date?: string
           baseline_locked?: boolean
+          baseline_source?: string
           created_at?: string
           created_by?: string | null
           draft_generated_at?: string | null
@@ -8485,6 +8490,7 @@ export type Database = {
           excel_generated_at?: string | null
           excel_path?: string | null
           id?: string
+          imported_baseline?: Json | null
           previous_run_id?: string | null
           processing_note?: string | null
           property_id?: string
@@ -8600,6 +8606,7 @@ export type Database = {
           byte_size: number | null
           created_at: string
           file_hash: string | null
+          file_role: string
           id: string
           original_filename: string
           parse_errors: Json | null
@@ -8613,6 +8620,7 @@ export type Database = {
           byte_size?: number | null
           created_at?: string
           file_hash?: string | null
+          file_role?: string
           id?: string
           original_filename: string
           parse_errors?: Json | null
@@ -8626,6 +8634,7 @@ export type Database = {
           byte_size?: number | null
           created_at?: string
           file_hash?: string | null
+          file_role?: string
           id?: string
           original_filename?: string
           parse_errors?: Json | null
