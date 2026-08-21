@@ -1,49 +1,41 @@
-# Phase 2 – NightsBridge Parser + Aggregator
+# Phase 3 – Consolidated Excel Generation
 
-Turns the uploaded bookingsummary files from Phase 1 into real numbers: revenue, room nights, ADR and occupancy per month, stored as a snapshot that later phases (Excel, PDF, Canva) simply read.
+Note on current state: the database has only `report_runs` and `report_source_files`, and there is no parser, aggregator, `report_snapshots` or `property_report_settings` in the codebase — the approved Phase 2 work was never applied. Excel generation needs those numbers, so this plan builds the Phase 2 carry-over first, then Phase 3.
 
-## What the user will see
+## Part A – Phase 2 carry-over (prerequisite)
 
-- On a draft run's review page: a **Process files** button.
-- While it runs: a processing state, then a results panel showing, per month, OTB revenue, room nights, ADR, occupancy %, capacity days, and a source breakdown (Booking.com / Expedia / Own / LekkeSlaap / Other).
-- Per-file feedback: parsed OK with row counts, or a clear list of what failed (wrong file, missing columns, unreadable rows).
-- Rows flagged as non-sellable (Room 0, Holding in Credit, Events) shown separately so they never inflate occupancy.
-- A **Report settings** card per property to set room count (used for capacity), pre-filled from the property's active rooms where available.
-- Re-processing a run replaces its snapshot; the previous ready run for the same property is linked automatically as the "previous" baseline.
+- Tables `report_snapshots` and `property_report_settings` (room count, logo, brand colours, historical baseline), RLS via `has_reports_access()`, with GRANTs.
+- Edge function `nightsbridge-report-parser`: reads the run's uploaded files from the `revenue-reports` bucket, parses the bookingsummary column set (header row located by column match, two title rows skipped), writes `parsed_ok` / `row_count` / `parse_errors` per file.
+- Shared aggregator: arrival-month allocation, per month OTB revenue, room nights, ADR, occupancy, capacity days (rooms × days in month), source normalisation (Expedia group, "… | Roomsonline"/Own Booking → Own, Booking.com, LekkeSlaap, Other), Room 0 / Holding in Credit / Events kept in a separate non-sellable bucket.
+- Previous ready run for the property becomes the "previous" baseline; last-year actuals read from `property_report_settings.historical_baseline`.
+- Run review page: Process files action, per-file parse status, month-by-month results table. Property settings page: room count + branding form.
 
-## Rules applied (from the brief)
+## Part B – Phase 3 workbook
 
-- Revenue and nights are attributed to the **arrival month**.
-- Only rows with numeric Revenue and Nights count; all statuses kept, provisional bookings included.
-- Occupancy = room nights / (room count × days in month). Capacity days computed per month (e.g. 31 × 7 = 217).
-- ADR = revenue / room nights (0 nights → no ADR, not a division error).
-- Source names normalised: Expedia/Hotels.com/Travelo → Expedia; any "… | Roomsonline" / Own Booking / Own web site → Own; Booking.com, LekkeSlaap, Airbnb kept as-is; anything else → Other.
-- Month window = the union of months present in the uploaded files, in chronological order.
+A **Download Excel** action on a ready run produces a three-sheet workbook that mirrors the supplied Torburnlea reference file.
+
+**Sheet 1 – OTB RR**
+- Row 1 title: `<Property name> | <as-of date>`.
+- Revenue block columns in reference order: month, `OTB @ <current date>`, `OTB @ <previous date>`, Variance, Last Year Actual, OTB vs LY, Dinner, Room 0, Comp RNs, Additional Revenue, Total Combined; TOTAL row with SUM formulas.
+- Room Nights block and Occupancy block side by side (occupancy cells divide room nights by the month's capacity days), plus the "7 Rooms / 28 = 196 / 29 = 203 / 30 = 210 / 31 = 217" capacity legend derived from the configured room count.
+- ADR block dividing the revenue rows by the room-night rows.
+- Revenue Comparison Review panel (Revenue OTB vs LY and ADR OTB vs LY percentage columns).
+- Notes footer: OTB / LY legend and the provisional-bookings note.
+
+**Sheet 2 – Fin Year**
+- Skeleton for the current and prior year: Jan–Dec revenue, room nights, occupancy and ADR blocks with variance and % variance formulas; value cells left open for later population, formulas already in place.
+
+**Sheet 3 – Historical**
+- Multi-year revenue / room nights / occupancy / ADR grid built from `property_report_settings.historical_baseline`, with year-over-year variance formulas and no rows when no history exists.
+
+**Formulas, not values**: variance, totals, ADR, occupancy, % change and the LY comparisons are written as real Excel formulas referencing other cells, so the downloaded file stays editable. Only source measurements (OTB revenue, room nights, last-year actuals, manual dinner/Room 0/Comp RN inputs) are literal numbers.
+
+**Formatting**: Arial throughout, `R#,##0` currency with dashes for zero, 0.0% occupancy and variance percentages, bold section headers, brand-primary header fills from property report settings, sensible column widths, frozen header rows, negative values in parentheses.
 
 ## Technical section
 
-**Database migration**
-- `report_snapshots` (run_id PK → report_runs, months, otb_revenue, previous_otb_revenue, last_year_actual, room_nights, previous_room_nights, last_year_room_nights, capacity_days, additional_revenue, source_breakdown, adr, occupancy, totals, non_sellable jsonb, created_at) — GRANTs for authenticated/service_role, RLS via the existing `has_reports_access()`.
-- `property_report_settings` (property_id PK, room_count int, report_logo_url, cover_artwork_url, brand_primary, brand_secondary, historical_baseline jsonb, default_source_type default 'nightsbridge') — same grants/RLS pattern.
-- Add `previous_run_id` linkage use and allow `report_runs.status` transitions draft → processing → ready → failed.
-
-**Edge function `nightsbridge-report-parser`**
-- Input: `{ run_id }`; validates caller has reports access, loads the run's source files, downloads each from the `revenue-reports` bucket.
-- Parses XLSX with SheetJS (`npm:xlsx`), locating the header row by matching the known column set rather than a fixed index; tolerates the two title rows.
-- Emits a normalised ledger row per booking (booking_id, arrival, last_night, nights, revenue, extras, commission, nett, room_name, source, status, type, currency).
-- Writes `parsed_ok`, `row_count`, `parse_errors` back to `report_source_files`.
-
-**Aggregator (`_shared/nightsbridgeAggregate.ts`)**
-- Pure function: ledger + room_count → months, per-month revenue/nights/ADR/occupancy/capacity_days, source_breakdown, non-sellable buckets, totals. Reused later by Excel/PDF phases and unit-testable against the sample files.
-- Pulls the previous ready run's snapshot for `previous_*` fields and `property_report_settings.historical_baseline` for last-year fields (left empty when absent).
-- Persists the snapshot, sets `previous_run_id`, flips status to `ready` (or `failed` with errors).
-
-**Frontend**
-- `src/hooks/useReportSnapshot.ts` — trigger processing (invoke the function) and read the snapshot.
-- `src/hooks/usePropertyReportSettings.ts` — read/write report settings.
-- `src/pages/reports/ReportsRunReview.tsx` — add Process action, per-file parse status, and a snapshot results table.
-- `src/pages/reports/ReportsPropertySettings.tsx` — replace the placeholder with the room count / branding form.
-- Currency formatted ZAR, dates treated as Africa/Johannesburg.
-
-**Verification**
-- Reconcile the four supplied sample files (Aug–Nov 2026) against `31.07.26_Torburnlea Homestead-Revenue Report.xlsx` at room_count 7 before calling the phase done.
+- New edge function `revenue-report-excel` (`{ run_id }`): auth-gated by `has_reports_access`, loads run + snapshot + property + report settings, builds the workbook with `npm:exceljs`, uploads to `revenue-reports/<run_id>/consolidated-<as_of>.xlsx` and returns a signed URL; records the path on the run (`excel_path` column added in Part A's migration).
+- Layout constants and cell-address maths live in `supabase/functions/_shared/revenueReportWorkbook.ts` so the Phase 5 PDF/Canva work reuses the same row/column map.
+- Manual inputs (Dinner, Room 0, Comp RNs) read from `report_additional_inputs` when present; created as part of Part A with an editable card on the run review page.
+- Frontend: `useReportExcel.ts` hook plus a Download Excel button on `ReportsRunReview.tsx` with generating/ready states and error surfacing from the function response.
+- Verification: generate the workbook for a run built from the four sample bookingsummary files at room count 7, then compare sheet structure, column order, formula strings and reconciled revenue / room nights / ADR / occupancy against `31.07.26_Torburnlea Homestead-Revenue Report.xlsx`, and confirm the file opens with zero formula errors.
