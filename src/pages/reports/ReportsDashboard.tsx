@@ -8,10 +8,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
+import { useReportRuns } from "@/hooks/useReportRuns";
+import { RunStatusPill } from "@/components/reports/RunStatusPill";
+
+const formatRunDate = (iso: string): string =>
+  new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 export default function ReportsDashboard() {
   const [search, setSearch] = useState("");
   const { properties, total, isLoading, error } = useReportProperties(search);
+  const { runs, isLoading: runsLoading } = useReportRuns();
+
 
   usePageSEO({
     title: "Revenue Reports | Rooms Online",
