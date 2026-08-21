@@ -280,7 +280,16 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       guest_name: g.full_name || p.guest_name,
       guest_email: keepOrTake(p.guest_email, g.email),
       guest_phone: keepOrTake(p.guest_phone, g.phone),
+      guest_country: p.guest_country || countryByName(g.nationality)?.iso || "",
     }));
+
+    // Predetermine the dial code: the stored number's prefix wins, then nationality.
+    const fromPhone = splitPhone(g.phone).iso;
+    const fromNationality = countryByName(g.nationality)?.iso ?? null;
+    if (!phoneIsoManual.current && (fromPhone || fromNationality)) {
+      setPhoneIso(prev => prev || fromPhone || fromNationality);
+    }
+
 
     // Guest notes / nationality are appended to internal notes so nothing is lost.
     const profileBits = [
