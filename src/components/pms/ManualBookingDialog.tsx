@@ -555,7 +555,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
   const resetAll = () => {
     setForm({
-      guest_name: "", guest_email: "", guest_phone: "", guest_company: "",
+      guest_name: "", guest_email: "", guest_phone: "", guest_country: "", guest_company: "",
       second_guest_name: "", booking_made_by: "",
       check_in: undefined, check_out: undefined,
       total_price: "", deposit_amount: "",
@@ -566,7 +566,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setCrm(emptyBookerSegmentation());
     setInvoiceTo({ name: "", vat: "", address: "" });
     setPickedGuest(null);
+    setPhoneIso(null);
+    setBookerPhoneIso(null);
+    phoneIsoManual.current = false;
   };
+
 
   const handleSave = async () => {
     if (!effectivePropertyId) {
