@@ -232,7 +232,13 @@ export function ManualInputsCard({
             Save inputs
           </Button>
           {onReprocess && (
-            <Button onClick={() => void onReprocess()} disabled={isProcessing || save.isPending}>
+            <Button
+              onClick={async () => {
+                await handleSave();
+                await onReprocess();
+              }}
+              disabled={isProcessing || save.isPending}
+            >
               {isProcessing ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -241,6 +247,7 @@ export function ManualInputsCard({
               Save &amp; re-process
             </Button>
           )}
+
         </div>
       </CardContent>
     </Card>
