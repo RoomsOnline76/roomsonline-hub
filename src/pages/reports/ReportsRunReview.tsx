@@ -54,6 +54,10 @@ export default function ReportsRunReview() {
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
   const [reparsingId, setReparsingId] = useState<string | null>(null);
+  /** Source-specific behaviour (parser, expected columns, template). */
+  const adapter = getAdapter(run?.sourceType);
+
+
 
   usePageSEO({
     title: run?.title ? `${run.title} | Rooms Online` : "Report run | Rooms Online",
