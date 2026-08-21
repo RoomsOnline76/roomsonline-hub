@@ -12,6 +12,8 @@ export interface ReportSourceFile {
   originalFilename: string;
   byteSize: number | null;
   fileHash: string | null;
+  /** `prior_report` files seed the baseline; they are never parsed as periods. */
+  fileRole: "source" | "prior_report";
   parsedOk: boolean | null;
   parseErrors: string[];
   rowCount: number | null;
