@@ -1,29 +1,45 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import {
+  ROOM_COUNT_SOURCE_LABEL,
+  useReportPropertyBrand,
+} from "@/hooks/useReportPropertyBrand";
 import { HistoricalBaselineEditor } from "@/components/reports/HistoricalBaselineEditor";
+import { BrandAssetUpload } from "@/components/reports/BrandAssetUpload";
+import {
+  REPORT_BRAND_SOURCE_LABEL,
+  resolveReportBrand,
+  type ReportBrandSource,
+} from "@/lib/reportBranding";
 import type { HistoricalBaseline } from "@/lib/historicalBaseline";
+
+const HEX = /^#[0-9a-f]{6}$/i;
 
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
   const { properties } = useReportProperties();
   const property = properties.find((p) => p.id === propertyId);
   const { settings, isLoading, save } = usePropertyReportSettings(propertyId);
+  const { brand: rolBrand } = useReportPropertyBrand(propertyId);
 
   const [roomCount, setRoomCount] = useState("1");
   const [logoUrl, setLogoUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [primary, setPrimary] = useState("");
   const [secondary, setSecondary] = useState("");
+  const [brandSource, setBrandSource] = useState<ReportBrandSource>("custom");
   const [baseline, setBaseline] = useState<HistoricalBaseline>({});
+  const [roomCountTouched, setRoomCountTouched] = useState(false);
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -38,8 +54,31 @@ export default function ReportsPropertySettings() {
     setCoverUrl(settings.coverArtworkUrl ?? "");
     setPrimary(settings.brandPrimary ?? "");
     setSecondary(settings.brandSecondary ?? "");
+    setBrandSource(settings.brandSource ?? "custom");
     setBaseline(settings.historicalBaseline ?? {});
+    setRoomCountTouched(true);
   }, [settings]);
+
+  // No saved settings yet → seed capacity from ROL inventory.
+  useEffect(() => {
+    if (isLoading || settings || roomCountTouched) return;
+    if (rolBrand && rolBrand.roomCount > 0) {
+      setRoomCount(String(rolBrand.roomCount));
+      setRoomCountTouched(true);
+    }
+  }, [isLoading, settings, rolBrand, roomCountTouched]);
+
+  const resolved = useMemo(
+    () =>
+      resolveReportBrand(
+        brandSource,
+        rolBrand
+          ? { logoUrl: rolBrand.logoUrl, primary: rolBrand.primary, secondary: rolBrand.secondary }
+          : null,
+        { logoUrl, primary, secondary },
+      ),
+    [brandSource, rolBrand, logoUrl, primary, secondary],
+  );
 
   const handleSave = async () => {
     if (!propertyId) return;
@@ -52,10 +91,11 @@ export default function ReportsPropertySettings() {
       await save.mutateAsync({
         propertyId,
         roomCount: Math.floor(rooms),
-        reportLogoUrl: logoUrl || null,
+        reportLogoUrl: brandSource === "custom" ? logoUrl || null : resolved.logoUrl,
         coverArtworkUrl: coverUrl || null,
-        brandPrimary: primary || null,
-        brandSecondary: secondary || null,
+        brandPrimary: resolved.primary,
+        brandSecondary: resolved.secondary,
+        brandSource,
         historicalBaseline: baseline,
       });
       toast.success("Report settings saved");
@@ -65,7 +105,6 @@ export default function ReportsPropertySettings() {
       });
     }
   };
-
 
   return (
     <div className="space-y-6">
@@ -89,88 +128,167 @@ export default function ReportsPropertySettings() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium">Capacity &amp; branding</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="room-count">Sellable rooms</Label>
+        <CardContent className="space-y-6">
+          {/* Capacity */}
+          <div className="space-y-2 max-w-sm">
+            <Label htmlFor="room-count">Sellable rooms</Label>
+            <div className="flex items-center gap-2">
               <Input
                 id="room-count"
                 type="number"
                 min={1}
                 value={roomCount}
-                onChange={(e) => setRoomCount(e.target.value)}
+                onChange={(e) => {
+                  setRoomCountTouched(true);
+                  setRoomCount(e.target.value);
+                }}
               />
+              {rolBrand && rolBrand.roomCount > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => {
+                    setRoomCountTouched(true);
+                    setRoomCount(String(rolBrand.roomCount));
+                    toast.success(`Capacity set to ${rolBrand.roomCount} rooms from ROL`);
+                  }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                  Use ROL ({rolBrand.roomCount})
+                </Button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Capacity days = rooms × days in month (7 rooms × 31 = 217).
+              {rolBrand && ` ROL inventory: ${ROOM_COUNT_SOURCE_LABEL[rolBrand.roomCountSource]}.`}
+            </p>
+          </div>
+
+          {/* Brand source */}
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Branding source</Label>
               <p className="text-xs text-muted-foreground">
-                Capacity days = rooms × days in month (7 rooms × 31 = 217).
+                Follow the property's own branding, fall back to the Rooms Online house
+                brand, or set report-only colours.
               </p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="logo-url">Report logo URL</Label>
-              <Input id="logo-url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="logo-url">Report logo URL</Label>
-              <Input id="logo-url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} />
-              {logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt="Report logo preview"
-                  loading="lazy"
-                  className="h-10 w-auto rounded border bg-muted object-contain p-1"
-                />
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="cover-url">Cover artwork URL</Label>
-              <Input id="cover-url" value={coverUrl} onChange={(e) => setCoverUrl(e.target.value)} />
-              {coverUrl && (
-                <img
-                  src={coverUrl}
-                  alt="Cover artwork preview"
-                  loading="lazy"
-                  className="h-24 w-full rounded border object-cover"
-                />
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="brand-primary">Primary colour</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="brand-primary"
-                    placeholder="#E91E8C"
-                    value={primary}
-                    onChange={(e) => setPrimary(e.target.value)}
-                  />
-                  <input
-                    type="color"
-                    aria-label="Pick primary colour"
-                    value={/^#[0-9a-f]{6}$/i.test(primary) ? primary : "#e91e8c"}
-                    onChange={(e) => setPrimary(e.target.value)}
-                    className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="brand-secondary">Secondary colour</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="brand-secondary"
-                    placeholder="#1A1A2E"
-                    value={secondary}
-                    onChange={(e) => setSecondary(e.target.value)}
-                  />
-                  <input
-                    type="color"
-                    aria-label="Pick secondary colour"
-                    value={/^#[0-9a-f]{6}$/i.test(secondary) ? secondary : "#1a1a2e"}
-                    onChange={(e) => setSecondary(e.target.value)}
-                    className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
-                  />
-                </div>
-              </div>
-            </div>
+            <ToggleGroup
+              type="single"
+              value={brandSource}
+              onValueChange={(v) => v && setBrandSource(v as ReportBrandSource)}
+              className="justify-start flex-wrap"
+            >
+              {(["property", "rol", "custom"] as ReportBrandSource[]).map((source) => (
+                <ToggleGroupItem key={source} value={source} className="text-xs px-3">
+                  {REPORT_BRAND_SOURCE_LABEL[source]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
 
+            {brandSource === "property" && !rolBrand?.primary && (
+              <p className="text-xs text-muted-foreground">
+                This property has no brand colours set in ROL — the Rooms Online defaults
+                will be used.
+              </p>
+            )}
+
+            {/* Resolved swatches */}
+            <div className="flex items-center gap-4">
+              {(
+                [
+                  ["Primary", resolved.primary],
+                  ["Secondary", resolved.secondary],
+                ] as const
+              ).map(([label, value]) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span
+                    className="h-8 w-8 rounded border"
+                    style={{ backgroundColor: value }}
+                    aria-hidden
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    {label} {value}
+                  </span>
+                </div>
+              ))}
+              {resolved.logoUrl && (
+                <img
+                  src={resolved.logoUrl}
+                  alt="Resolved report logo"
+                  loading="lazy"
+                  className="h-8 w-auto rounded border bg-muted object-contain p-1"
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Custom overrides */}
+          {brandSource === "custom" && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <BrandAssetUpload
+                label="Report logo"
+                kind="logo"
+                value={logoUrl}
+                onChange={setLogoUrl}
+                propertyId={propertyId}
+                helpText="Any size — logos are exempt from the minimum dimensions."
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="brand-primary">Primary colour</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="brand-primary"
+                      placeholder="#E91E8C"
+                      value={primary}
+                      onChange={(e) => setPrimary(e.target.value)}
+                    />
+                    <input
+                      type="color"
+                      aria-label="Pick primary colour"
+                      value={HEX.test(primary) ? primary : "#e91e8c"}
+                      onChange={(e) => setPrimary(e.target.value)}
+                      className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="brand-secondary">Secondary colour</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="brand-secondary"
+                      placeholder="#1A1A2E"
+                      value={secondary}
+                      onChange={(e) => setSecondary(e.target.value)}
+                    />
+                    <input
+                      type="color"
+                      aria-label="Pick secondary colour"
+                      value={HEX.test(secondary) ? secondary : "#1a1a2e"}
+                      onChange={(e) => setSecondary(e.target.value)}
+                      className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Cover artwork applies to every branding mode */}
+          <div className="max-w-md">
+            <BrandAssetUpload
+              label="Cover artwork"
+              kind="cover"
+              value={coverUrl}
+              onChange={setCoverUrl}
+              propertyId={propertyId}
+              enforceMinDimensions
+              previewClassName="h-28 w-full object-cover"
+              helpText="Minimum 1024×768px — used on the report cover page."
+            />
           </div>
 
           <div className="space-y-2">
@@ -185,7 +303,6 @@ export default function ReportsPropertySettings() {
               onChange={setBaseline}
             />
           </div>
-
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>
