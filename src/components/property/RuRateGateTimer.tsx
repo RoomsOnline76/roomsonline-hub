@@ -54,22 +54,27 @@ export function RuRateGateTimer({ propertyId, refreshKey = 0, enabled = true }: 
     };
   }, []);
 
-  // The pill only belongs on listings that actually distribute through the channel manager.
+  // The pill only belongs on listings that actually distribute through the channel manager,
+  // and only once the property has cleared the Channel onboarding wizard (steps 1–13).
   useEffect(() => {
     if (!propertyId || !enabled) {
       setLinked(false);
       return;
     }
     void (async () => {
-      const { data } = await supabase
-        .from("properties")
-        .select("ru_push_enabled, ru_archived")
-        .eq("id", propertyId)
-        .maybeSingle();
+      const [{ data }, gate] = await Promise.all([
+        supabase
+          .from("properties")
+          .select("ru_push_enabled, ru_archived")
+          .eq("id", propertyId)
+          .maybeSingle(),
+        channelEditGateState(propertyId),
+      ]);
       if (!mounted.current) return;
-      setLinked(data?.ru_push_enabled === true && data?.ru_archived !== true);
+      setLinked(gate.open && data?.ru_push_enabled === true && data?.ru_archived !== true);
     })();
-  }, [propertyId, enabled]);
+  }, [propertyId, enabled, refreshKey]);
+
 
   const load = useCallback(async () => {
     if (!propertyId || !enabled) {
