@@ -68,7 +68,6 @@ const numberMap = (value: unknown): Record<string, number> => {
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((item) => String(item)) : [];
 
-// deno-lint-ignore-file
 const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
   file: {
     id: String((raw.file as { id?: string } | undefined)?.id ?? ""),
