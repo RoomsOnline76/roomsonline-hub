@@ -106,7 +106,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    const extract = parsePriorReportWorkbook(await download.data.arrayBuffer());
+    // The run's own as-of date decides which OTB column is the comparison
+    // baseline — the newest one strictly older than this run.
+    const extract = parsePriorReportWorkbook(await download.data.arrayBuffer(), {
+      runAsOfDate: run.as_of_date ? String(run.as_of_date).slice(0, 10) : null,
+    });
+
 
     const found = {
       previous_otb_months: count(extract.previousOtbRevenue),

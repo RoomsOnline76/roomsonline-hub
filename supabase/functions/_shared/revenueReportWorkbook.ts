@@ -342,7 +342,30 @@ export async function buildRevenueWorkbook(options: WorkbookOptions): Promise<Ui
   finTitle.value = `${options.propertyName} | Financial Year`;
   finTitle.font = { name: FONT, bold: true, size: 14 };
 
-  const finBlock = (startRow: number, heading: string, numFmt: string, withAdr = false) => {
+  // Values come from the property's historical baseline (imported or built up by
+  // earlier runs); the running year falls back to this run's own OTB figures so
+  // the sheet is never blank when a baseline month is still open.
+  const finBaseline = options.historicalBaseline ?? {};
+  const finRevenue = finBaseline.revenue ?? {};
+  const finNights = finBaseline.room_nights ?? {};
+  const finValue = (
+    map: Record<string, number>,
+    fallback: Record<string, number>,
+    year: number,
+    monthIndex: number,
+  ): number | null => {
+    const key = `${year}-${`${monthIndex + 1}`.padStart(2, "0")}`;
+    const value = map[key] ?? fallback[key];
+    return Number.isFinite(value) ? Number(value) : null;
+  };
+
+  const finBlock = (
+    startRow: number,
+    heading: string,
+    numFmt: string,
+    withAdr = false,
+    values?: { map: Record<string, number>; fallback: Record<string, number> },
+  ) => {
     if (heading) {
       const cell = fin.getCell(startRow, 1);
       cell.value = heading;
@@ -363,6 +386,9 @@ export async function buildRevenueWorkbook(options: WorkbookOptions): Promise<Ui
         const rnRow = 20 + i;
         fin.getCell(row, 2).value = { formula: `IF(B${rnRow}=0,0,B${revRow}/B${rnRow})` };
         fin.getCell(row, 3).value = { formula: `IF(C${rnRow}=0,0,C${revRow}/C${rnRow})` };
+      } else if (values) {
+        fin.getCell(row, 2).value = finValue(values.map, values.fallback, asOfYear, i);
+        fin.getCell(row, 3).value = finValue(values.map, {}, asOfYear - 1, i);
       }
       fin.getCell(row, 4).value = { formula: `B${row}-C${row}` };
       fin.getCell(row, 5).value = { formula: `IF(C${row}=0,"",(B${row}-C${row})/C${row})` };
@@ -386,7 +412,10 @@ export async function buildRevenueWorkbook(options: WorkbookOptions): Promise<Ui
     cell.alignment = { horizontal: "center" };
   }
 
-  const revenueBlock = finBlock(2, "", MONEY);
+  const revenueBlock = finBlock(2, "", MONEY, false, {
+    map: finRevenue,
+    fallback: snapshot.otb_revenue ?? {},
+  });
   const revTotalRow = revenueBlock.lastRow + 1;
   const finTotal = fin.getCell(revTotalRow, 1);
   finTotal.value = "TOTAL";
@@ -405,8 +434,12 @@ export async function buildRevenueWorkbook(options: WorkbookOptions): Promise<Ui
   };
   fin.getCell(revTotalRow, 5).numFmt = PERCENT;
 
-  finBlock(revTotalRow + 1, "Room Nights", INTEGER);
+  finBlock(revTotalRow + 1, "Room Nights", INTEGER, false, {
+    map: finNights,
+    fallback: snapshot.room_nights ?? {},
+  });
   finBlock(revTotalRow + 15, "ADR", MONEY_DEC, true);
+
 
   fin.getColumn(1).width = 12;
   for (let col = 2; col <= 5; col += 1) fin.getColumn(col).width = 16;

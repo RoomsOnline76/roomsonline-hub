@@ -7,7 +7,12 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { applyImportedBaseline } from "../_shared/reportImportedBaseline.ts";
+import {
+  applyImportedBaseline,
+  reconcileWithImportedBaseline,
+} from "../_shared/reportImportedBaseline.ts";
+
+
 
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
@@ -383,6 +388,35 @@ Deno.serve(async (req) => {
     }
 
     const aggregate = aggregateLedger(ledger, roomCount);
+
+    // The prior workbook knows months the uploads may not cover, and months the
+    // uploads only skim. Widen the window, then substitute the thin months.
+    const { addedMonths, substituted } = reconcileWithImportedBaseline(
+      aggregate,
+      run.imported_baseline,
+      roomCount,
+    );
+    if (addedMonths.length || substituted.length) {
+      await logRunEvent(
+        admin,
+        runId,
+        "prior_report_gap_filled",
+        [
+          addedMonths.length ? `${addedMonths.length} month(s) added from the prior workbook` : "",
+          substituted.length
+            ? `${substituted.length} thin month(s) taken from the prior workbook (${substituted
+                .map((m) => m.month)
+                .join(", ")})`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("; "),
+        { added_months: addedMonths, substituted },
+        actorId,
+      );
+    }
+
+
 
     // Previous baseline: the most recent other run for this property with a snapshot.
     // A reviewer-pinned baseline (including a deliberate "none") is never overridden.

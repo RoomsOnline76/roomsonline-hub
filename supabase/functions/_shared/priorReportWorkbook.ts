@@ -177,7 +177,7 @@ interface OtbResult {
   warnings: string[];
 }
 
-function parseOtbSheet(rows: Row[]): OtbResult | null {
+function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | null {
   const result: OtbResult = {
     asOfDate: null,
     label: null,
@@ -206,11 +206,24 @@ function parseOtbSheet(rows: Row[]): OtbResult | null {
   });
   if (!headers.length) return null;
 
-  const dates = headers
-    .flatMap((h) => h.columns.map((c) => c.date))
-    .filter((d): d is string => Boolean(d))
-    .sort();
-  result.asOfDate = dates.length ? dates[dates.length - 1] : null;
+  const dates = [
+    ...new Set(
+      headers
+        .flatMap((h) => h.columns.map((c) => c.date))
+        .filter((d): d is string => Boolean(d)),
+    ),
+  ].sort();
+
+  // The workbook usually carries several OTB columns. What this run needs is a
+  // *comparison* baseline, so pick the newest column strictly older than the
+  // run's own as-of date; only fall back to the newest when nothing is older.
+  const runDate = runAsOfDate ? runAsOfDate.slice(0, 10) : null;
+  const older = runDate ? dates.filter((d) => d < runDate) : [];
+  result.asOfDate = older.length
+    ? older[older.length - 1]
+    : dates.length
+      ? dates[dates.length - 1]
+      : null;
   result.label = result.asOfDate
     ? (headers
         .flatMap((h) => h.columns)
@@ -218,7 +231,12 @@ function parseOtbSheet(rows: Row[]): OtbResult | null {
     : headers[0].columns[0].heading;
   if (!result.asOfDate) {
     result.warnings.push("Could not read the as-of date from the OTB column heading.");
+  } else if (runDate && !older.length && result.asOfDate >= runDate) {
+    result.warnings.push(
+      `The workbook's only OTB column (${result.asOfDate}) is not older than this run — variances will read as zero.`,
+    );
   }
+
 
   // 2. Walk each block: header row, then month rows until the block ends.
   for (let h = 0; h < headers.length; h += 1) {
@@ -383,7 +401,11 @@ function parseYearGrid(rows: Row[]): YearGrid {
 
 /* ─────────────────────────── entry point ─────────────────────────── */
 
-export function parsePriorReportWorkbook(buffer: ArrayBuffer): PriorReportExtract {
+export function parsePriorReportWorkbook(
+  buffer: ArrayBuffer,
+  options: { runAsOfDate?: string | null } = {},
+): PriorReportExtract {
+
   const extract: PriorReportExtract = {
     asOfDate: null,
     otbColumnLabel: null,
@@ -409,7 +431,7 @@ export function parsePriorReportWorkbook(buffer: ArrayBuffer): PriorReportExtrac
     const rows = sheetRows(workbook, name);
 
     if (/otb/.test(key)) {
-      const otb = parseOtbSheet(rows);
+      const otb = parseOtbSheet(rows, options.runAsOfDate ?? null);
       if (!otb || (!Object.keys(otb.revenue).length && !Object.keys(otb.nights).length)) {
         extract.sheetsSkipped.push(name);
         continue;
