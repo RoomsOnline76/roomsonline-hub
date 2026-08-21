@@ -27,17 +27,35 @@ const DEFAULT_FLAGS: FeatureFlags = {
   hostfully_client_id: null,
 };
 
-const FLAGS_CACHE_KEY = "rolos.feature_flags";
+const FLAGS_CACHE_KEY = "rolos.feature_flags.v2";
+const FLAGS_CACHE_MAX_AGE_MS = 1000 * 60 * 30;
+
+// Publishable keys must never be seeded from cache: a rotated/reconfigured key
+// (e.g. a reCAPTCHA site key whose domain list changed) would otherwise keep
+// being mounted from a stale tab and fail with "Invalid domain for site key".
+const NON_CACHEABLE_KEYS = [
+  "google_maps_api_key",
+  "google_recaptcha_site_key",
+  "hostfully_client_id",
+] as const;
 
 function readCachedFlags(): FeatureFlags | undefined {
   try {
+    // Drop any pre-versioning cache so stale keys can't survive.
+    sessionStorage.removeItem("rolos.feature_flags");
     const raw = sessionStorage.getItem(FLAGS_CACHE_KEY);
     if (!raw) return undefined;
-    return { ...DEFAULT_FLAGS, ...(JSON.parse(raw) as Partial<FeatureFlags>) };
+    const parsed = JSON.parse(raw) as { cachedAt?: number; flags?: Partial<FeatureFlags> };
+    if (!parsed?.flags || typeof parsed.cachedAt !== "number") return undefined;
+    if (Date.now() - parsed.cachedAt > FLAGS_CACHE_MAX_AGE_MS) return undefined;
+    const flags = { ...DEFAULT_FLAGS, ...parsed.flags };
+    for (const key of NON_CACHEABLE_KEYS) flags[key] = null;
+    return flags;
   } catch {
     return undefined;
   }
 }
+
 
 export function useFeatureFlags() {
   return useQuery({

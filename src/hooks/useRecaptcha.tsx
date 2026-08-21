@@ -1,7 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useGoogleReCaptcha } from "react-google-recaptcha-v3";
 import { useRecaptchaSiteKey as useRecaptchaSiteKeyFromFlags } from "@/hooks/useFeatureFlags";
-import { getRecaptchaMode, isRecaptchaBypassHost, RECAPTCHA_BRIDGE_URL, RECAPTCHA_BYPASS_TOKEN } from "@/lib/recaptchaMode";
+import {
+  getRecaptchaMode,
+  getEffectiveRecaptchaMode,
+  markNativeRecaptchaFailed,
+  isRecaptchaBypassHost,
+  RECAPTCHA_BRIDGE_URL,
+  RECAPTCHA_BYPASS_TOKEN,
+} from "@/lib/recaptchaMode";
+
 
 interface RecaptchaState {
   isVerified: boolean;
