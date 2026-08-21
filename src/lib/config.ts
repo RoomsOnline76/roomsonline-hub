@@ -18,10 +18,19 @@ export const SURVEY_DOMAIN = "https://survey.roomsonline.co.za";
 // The connect portal domain for ROL'OS API documentation & sales
 export const CONNECT_DOMAIN = "https://connect.roomsonline.co.za";
 
+// The internal Revenue Reports domain (admin / dev / fearless_leader only)
+export const REPORTS_DOMAIN = "https://reports.roomsonline.co.za";
+
 // Check if we're on the connect domain
 export const isConnectDomain = typeof window !== 'undefined' && (
   window.location.hostname === 'connect.roomsonline.co.za'
 );
+
+// Check if we're on the Revenue Reports domain
+export const isReportsDomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'reports.roomsonline.co.za'
+);
+
 
 // Path helper: on connect domain, strip /connect prefix; on main domain, keep it
 export const connectPath = (path: string) =>
