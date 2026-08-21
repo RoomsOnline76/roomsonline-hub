@@ -8,6 +8,7 @@
  */
 
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
+import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEditGate";
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { confirmChannelPush } from "@/lib/channelPushConfirm";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/lib/channelPushFields";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
 
 export interface ChannelPushNotifier {
   (input: { title: string; description: string; variant?: "default" | "destructive" }): void;
