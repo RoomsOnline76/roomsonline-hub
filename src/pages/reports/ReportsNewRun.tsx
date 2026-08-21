@@ -16,6 +16,20 @@ import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileD
 import { uploadSourceFiles } from "@/lib/reportUpload";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DEFAULT_REPORT_SOURCE,
+  getAdapter,
+  isReportSourceKey,
+  listAdapters,
+  type ReportSourceKey,
+} from "@/lib/report-adapters";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -29,6 +43,7 @@ interface RunNotes {
 interface WizardState {
   step: Step;
   property: ReportProperty | null;
+  sourceType: ReportSourceKey;
   asOfDate: string;
   title: string;
   titleEdited: boolean;
@@ -39,6 +54,7 @@ interface WizardState {
 type WizardAction =
   | { type: "step"; step: Step }
   | { type: "property"; property: ReportProperty }
+  | { type: "sourceType"; value: ReportSourceKey }
   | { type: "asOfDate"; value: string }
   | { type: "title"; value: string }
   | { type: "addFiles"; files: File[] }
@@ -62,6 +78,7 @@ const defaultTitle = (dateIso: string): string => {
 const initialState: WizardState = {
   step: 1,
   property: null,
+  sourceType: DEFAULT_REPORT_SOURCE,
   asOfDate: todayIso(),
   title: defaultTitle(todayIso()),
   titleEdited: false,
@@ -75,6 +92,8 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, step: action.step };
     case "property":
       return { ...state, property: action.property, step: 2 };
+    case "sourceType":
+      return { ...state, sourceType: action.value };
     case "asOfDate":
       return {
         ...state,
@@ -118,6 +137,8 @@ export default function ReportsNewRun() {
     noIndex: true,
   });
 
+  const adapter = useMemo(() => getAdapter(state.sourceType), [state.sourceType]);
+
   const canProcess = useMemo(
     () => Boolean(state.property) && Boolean(state.asOfDate) && state.files.length > 0,
     [state.property, state.asOfDate, state.files.length],
@@ -130,6 +151,17 @@ export default function ReportsNewRun() {
   const handleRemoveFile = useCallback((index: number) => {
     dispatch({ type: "removeFile", index });
     setFileStates({});
+  }, []);
+
+  // Preselect the property's configured default report source.
+  const loadDefaultSource = useCallback(async (propertyId: string) => {
+    const { data } = await supabase
+      .from("property_report_settings")
+      .select("default_source_type")
+      .eq("property_id", propertyId)
+      .maybeSingle();
+    const next = data?.default_source_type;
+    if (isReportSourceKey(next)) dispatch({ type: "sourceType", value: next });
   }, []);
 
   // Pre-fill the narrative notes from this property's most recent run.
@@ -170,6 +202,7 @@ export default function ReportsNewRun() {
         propertyId: state.property.id,
         asOfDate: state.asOfDate,
         title: state.title.trim() || defaultTitle(state.asOfDate),
+        sourceType: state.sourceType,
       });
 
       const result = await uploadSourceFiles({
@@ -284,6 +317,7 @@ export default function ReportsNewRun() {
                 onClick={() => {
                   dispatch({ type: "property", property });
                   void loadPreviousNotes(property.id);
+                  void loadDefaultSource(property.id);
                 }}
                 className="w-full flex items-center gap-3 rounded-md border px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
               >
@@ -324,8 +358,39 @@ export default function ReportsNewRun() {
             <div className="flex items-center gap-3 rounded-md border px-3 py-2.5">
               <span className="text-sm font-medium flex-1 truncate">{state.property.name}</span>
               <Badge variant="secondary" className="font-normal">
-                NightsBridge
+                {adapter.label}
               </Badge>
+            </div>
+
+            <div className="space-y-2 max-w-sm">
+              <Label htmlFor="source-type">Report source</Label>
+              <Select
+                value={state.sourceType}
+                onValueChange={(next) => {
+                  if (isReportSourceKey(next)) dispatch({ type: "sourceType", value: next });
+                }}
+              >
+                <SelectTrigger id="source-type">
+                  <SelectValue placeholder="Choose a source" />
+                </SelectTrigger>
+                <SelectContent>
+                  {listAdapters().map((option) => (
+                    <SelectItem
+                      key={option.key}
+                      value={option.key}
+                      disabled={option.status !== "ready"}
+                    >
+                      {option.label}
+                      {option.status !== "ready" && " — coming soon"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {adapter.status === "ready"
+                  ? adapter.description
+                  : adapter.notes}
+              </p>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -379,6 +444,7 @@ export default function ReportsNewRun() {
               files={state.files}
               states={fileStates}
               disabled={busy}
+              acceptedExtensions={adapter.acceptedFileTypes}
               onFilesAdded={handleAddFiles}
               onRemove={handleRemoveFile}
             />
