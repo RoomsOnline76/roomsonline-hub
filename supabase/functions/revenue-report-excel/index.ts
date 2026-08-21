@@ -50,7 +50,9 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, title, properties(name)")
+      .select(
+        "id, property_id, as_of_date, previous_run_id, imported_baseline, title, properties(name)",
+      )
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -89,6 +91,13 @@ Deno.serve(async (req) => {
         .maybeSingle();
       previousAsOf = prev?.as_of_date ?? null;
     }
+    // A first run compares against the imported workbook's OTB column, so the
+    // header must name that date rather than printing "OTB @ n/a".
+    if (!previousAsOf) {
+      const imported = (run.imported_baseline ?? null) as { as_of_date?: string | null } | null;
+      previousAsOf = imported?.as_of_date ?? null;
+    }
+
 
     const propertyName =
       (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
