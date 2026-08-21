@@ -7,7 +7,13 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
-import { applyImportedBaseline } from "../_shared/reportImportedBaseline.ts";
+import {
+  applyImportedBaseline,
+  extendReportWindow,
+  importedBaselineMonths,
+  substituteThinMonths,
+} from "../_shared/reportImportedBaseline.ts";
+
 
 const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
