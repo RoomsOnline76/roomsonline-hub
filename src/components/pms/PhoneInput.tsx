@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import * as Flags from "country-flag-icons/react/3x2";
 import {
   DIAL_COUNTRIES,
   countryByIso,
@@ -19,6 +20,21 @@ import {
   splitPhone,
   type DialCountry,
 } from "@/lib/dialCodes";
+
+type FlagComponent = (props: { title?: string; className?: string }) => JSX.Element;
+
+/** Real SVG flag icon — emoji flags don't render on many Windows browsers. */
+export function FlagIcon({ iso, className }: { iso?: string | null; className?: string }) {
+  const key = (iso || "").toUpperCase();
+  const Flag = (Flags as unknown as Record<string, FlagComponent | undefined>)[key];
+  if (!Flag) return null;
+  return (
+    <Flag
+      title={key}
+      className={cn("h-3.5 w-5 shrink-0 rounded-[2px] object-cover shadow-sm", className)}
+    />
+  );
+}
 
 interface CountryComboboxProps {
   /** ISO alpha-2 code, or null when nothing is chosen. */
@@ -57,14 +73,14 @@ export function CountryCombobox({
           disabled={disabled}
           className={cn(
             "h-10 justify-between font-normal",
-            compactTrigger ? "w-[104px] shrink-0 px-2" : "w-full",
+            compactTrigger ? "w-[118px] shrink-0 px-2" : "w-full",
             className,
           )}
         >
           <span className="flex min-w-0 items-center gap-1.5 truncate">
             {selected ? (
               <>
-                <span aria-hidden>{selected.flag}</span>
+                <FlagIcon iso={selected.iso} />
                 <span className="truncate">
                   {compactTrigger ? selected.dial : selected.name}
                   {!compactTrigger && showDial ? ` ${selected.dial}` : ""}
@@ -103,7 +119,7 @@ export function CountryCombobox({
                   <Check
                     className={cn("mr-2 h-4 w-4", value === c.iso ? "opacity-100" : "opacity-0")}
                   />
-                  <span className="mr-2" aria-hidden>{c.flag}</span>
+                  <FlagIcon iso={c.iso} className="mr-2" />
                   <span className="flex-1 truncate">{c.name}</span>
                   <span className="ml-2 text-xs text-muted-foreground">{c.dial}</span>
                 </CommandItem>

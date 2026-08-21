@@ -174,10 +174,36 @@ export function splitPhone(value?: string | null): { iso: string | null; dial: s
   return { iso: null, dial: "", local: raw };
 }
 
-/** Joins a dial code and local number into a single E.164-style value. */
+/**
+ * Joins a dial code and local number into a single E.164-style value.
+ *
+ * Once a country is chosen the prefix is always kept, so a captured number can
+ * never reach a channel or the CRM adaptor as a bare local number. Trunk zeros
+ * are dropped because E.164 has no room for them.
+ */
 export function joinPhone(dial: string, local: string): string {
-  const localDigits = (local || "").replace(/[^\d]/g, "").replace(/^0+/, "");
+  const raw = (local || "").trim();
+  if (!raw) return "";
+  // A user who pasted a full international number keeps it as-is.
+  if (raw.startsWith("+")) {
+    const digits = raw.replace(/[^\d]/g, "");
+    return digits ? `+${digits}` : "";
+  }
+  const localDigits = raw.replace(/[^\d]/g, "").replace(/^0+/, "");
   if (!localDigits) return "";
-  if (!dial) return local.trim();
-  return `${dial}${localDigits}`;
+  if (!dial) return localDigits;
+  return `+${dial.replace(/[^\d]/g, "")}${localDigits}`;
+}
+
+/**
+ * Final safety net before a number is stored or pushed: guarantees an E.164
+ * value by applying the picker's country when a legacy number has no prefix.
+ */
+export function ensureE164(value?: string | null, fallbackIso?: string | null): string {
+  const raw = (value || "").trim();
+  if (!raw) return "";
+  const parts = splitPhone(raw);
+  if (parts.iso) return joinPhone(parts.dial, parts.local);
+  const dial = dialForCountry(fallbackIso);
+  return joinPhone(dial, parts.local || raw);
 }

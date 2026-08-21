@@ -18,6 +18,8 @@ import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
 import { extractFunctionError } from "@/lib/functionError";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
+import { PhoneInput } from "@/components/pms/PhoneInput";
+import { splitPhone, DEFAULT_DIAL_ISO, ensureE164 } from "@/lib/dialCodes";
 
 
 
@@ -128,6 +130,9 @@ export function BookingDetailsGrid({
   onOpenInvoice?: () => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const [guestPhoneIso, setGuestPhoneIso] = useState<string>(
+    () => splitPhone(booking.guest_phone).iso || DEFAULT_DIAL_ISO,
+  );
   const [confirmState, setConfirmState] = useState<"idle" | "working" | "queued">("idle");
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
@@ -384,7 +389,7 @@ export function BookingDetailsGrid({
     const { error } = await supabase.from("bookings").update({
       guest_name: form.guest_name,
       guest_email: form.guest_email,
-      guest_phone: form.guest_phone || null,
+      guest_phone: ensureE164(form.guest_phone, guestPhoneIso) || null,
       guest_company: form.guest_company || null,
       second_guest_name: form.second_guest_name || null,
       booking_made_by: form.booking_made_by || null,
@@ -503,15 +508,18 @@ export function BookingDetailsGrid({
           <Label className="text-[11px]">2nd Guest</Label>
           <Input className="h-8" value={form.second_guest_name} onChange={e => set("second_guest_name", e.target.value)} placeholder="Optional" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-[11px]">Email</Label>
-            <Input className="h-8" value={form.guest_email} onChange={e => set("guest_email", e.target.value)} />
-          </div>
-          <div>
-            <Label className="text-[11px]">Phone</Label>
-            <Input className="h-8" value={form.guest_phone} onChange={e => set("guest_phone", e.target.value)} />
-          </div>
+        <div>
+          <Label className="text-[11px]">Email</Label>
+          <Input className="h-8" value={form.guest_email} onChange={e => set("guest_email", e.target.value)} />
+        </div>
+        <div>
+          <Label className="text-[11px]">Phone</Label>
+          <PhoneInput
+            value={form.guest_phone}
+            onChange={v => set("guest_phone", v)}
+            countryIso={guestPhoneIso}
+            onCountryIsoChange={setGuestPhoneIso}
+          />
         </div>
         <div>
           <Label className="text-[11px]">Company</Label>
@@ -693,52 +701,6 @@ export function BookingDetailsGrid({
           <Textarea rows={4} value={form.internal_notes} onChange={e => set("internal_notes", e.target.value)} placeholder="Not shown to the guest" />
         </div>
 
-        <Separator />
-
-        {/* ───── Linked Profiles & Segmentation ───── */}
-        <div className="space-y-2">
-          <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            <Users2 className="h-3.5 w-3.5" />Linked Profiles &amp; Segmentation
-          </h4>
-          <BookerSegmentationFields
-            compact
-            value={crm}
-            onChange={patch => setCrm(p => ({ ...p, ...patch }))}
-            accounts={accounts}
-            isPortfolioScoped={isPortfolioScoped}
-            onSaveAccount={saveAccount}
-            onCompanyLinked={applyCompany}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[11px]">Invoice To</Label>
-              <Input
-                className="h-8"
-                value={invoiceTo.invoice_to_name}
-                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_name: e.target.value }))}
-                placeholder="Defaults to the guest"
-              />
-            </div>
-            <div>
-              <Label className="text-[11px]">Invoice VAT No.</Label>
-              <Input
-                className="h-8"
-                value={invoiceTo.invoice_to_vat}
-                onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_vat: e.target.value }))}
-                placeholder="Optional"
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="text-[11px]">Invoice Address</Label>
-            <Textarea
-              rows={2}
-              value={invoiceTo.invoice_to_address}
-              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_address: e.target.value }))}
-              placeholder="Auto-filled when a company is linked"
-            />
-          </div>
-        </div>
       </div>
 
 
@@ -834,6 +796,52 @@ export function BookingDetailsGrid({
         <Button className="w-full" onClick={handleSave} disabled={saving}>
           <Save className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save Booking"}
         </Button>
+      </div>
+
+      {/* ───── Linked Profiles & Segmentation — full width so the pickers breathe ───── */}
+      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3 lg:col-span-3">
+        <h4 className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <Users2 className="h-3.5 w-3.5" />Linked Profiles &amp; Segmentation
+        </h4>
+        <BookerSegmentationFields
+          compact
+          value={crm}
+          onChange={patch => setCrm(p => ({ ...p, ...patch }))}
+          accounts={accounts}
+          isPortfolioScoped={isPortfolioScoped}
+          onSaveAccount={saveAccount}
+          onCompanyLinked={applyCompany}
+        />
+        <Separator />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="min-w-0">
+            <Label className="text-[11px]">Invoice To</Label>
+            <Input
+              className="h-9"
+              value={invoiceTo.invoice_to_name}
+              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_name: e.target.value }))}
+              placeholder="Defaults to the guest"
+            />
+          </div>
+          <div className="min-w-0">
+            <Label className="text-[11px]">Invoice VAT No.</Label>
+            <Input
+              className="h-9"
+              value={invoiceTo.invoice_to_vat}
+              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_vat: e.target.value }))}
+              placeholder="Optional"
+            />
+          </div>
+          <div className="min-w-0 sm:col-span-2">
+            <Label className="text-[11px]">Invoice Address</Label>
+            <Textarea
+              rows={2}
+              value={invoiceTo.invoice_to_address}
+              onChange={e => setInvoiceTo(p => ({ ...p, invoice_to_address: e.target.value }))}
+              placeholder="Auto-filled when a company is linked"
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
