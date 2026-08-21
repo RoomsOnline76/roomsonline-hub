@@ -203,7 +203,9 @@ export function useReportRunMutations() {
           property_id: input.propertyId,
           as_of_date: input.asOfDate,
           title: input.title,
-          source_type: input.sourceType ?? "nightsbridge",
+          source_type: isReportSourceKey(input.sourceType)
+            ? input.sourceType
+            : DEFAULT_REPORT_SOURCE,
           status: "draft",
           previous_run_id: previous?.id ?? null,
           created_by: auth.user?.id ?? null,
