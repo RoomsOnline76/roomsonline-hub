@@ -77,6 +77,12 @@ const footerLabel = (iso: string): string => {
   return `OWNER'S REPORT ${month.toUpperCase()} ${iso.slice(2, 4)}`;
 };
 
+/** `2026/7` → `2025/6`. */
+const priorFiscalLabel = (label: string): string => {
+  const start = Number(label.split("/")[0]);
+  return Number.isFinite(start) ? `${start - 1}/${`${start}`.slice(-1)}` : label;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -224,13 +230,8 @@ Deno.serve(async (req) => {
 
     if (nationalityCurrent) {
       const rows = buildNationalityTable(nationalityCurrent, nationalityPrior);
-      const currentLabel = fiscalYearLabel(nationalityCurrent.period?.from ?? run.as_of_date);
-      const priorLabel = nationalityPrior?.period?.from
-        ? fiscalYearLabel(nationalityPrior.period.from)
-        : (() => {
-            const [start, end] = currentLabel.split("/").map(Number);
-            return `${start - 1}/${`${end + 1999}`.slice(-1)}`;
-          })();
+      const currentLabel = fiscalYearLabel(run.as_of_date);
+      const priorLabel = priorFiscalLabel(currentLabel);
 
       await upload(
         "nationality",
@@ -253,10 +254,7 @@ Deno.serve(async (req) => {
       const currentLabel = fiscalYearLabel(current?.period?.from ?? run.as_of_date);
       const priorLabel = prior?.period?.from
         ? fiscalYearLabel(prior.period.from)
-        : (() => {
-            const [start, end] = currentLabel.split("/").map(Number);
-            return `${start - 1}/${`${end + 1999}`.slice(-1)}`;
-          })();
+        : priorFiscalLabel(currentLabel);
 
       await upload(
         "partners",
