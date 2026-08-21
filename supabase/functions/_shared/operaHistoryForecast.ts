@@ -112,6 +112,28 @@ const num = (raw: string | undefined): number => {
   return Number.isFinite(value) ? value : NaN;
 };
 
+/**
+ * OPERA prints negative money with the sign in its own cell (`- 4,769.53`),
+ * which would otherwise tokenise as an unreadable `-`. Lone signs are folded
+ * into the value that follows them.
+ */
+export function mergeNegativeTokens(parts: string[]): string[] {
+  const merged: string[] = [];
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index];
+    const next = parts[index + 1];
+    if (part === "-" && next && /\d/.test(next)) {
+      merged.push(`-${next}`);
+      index += 1;
+      continue;
+    }
+    merged.push(part);
+  }
+  return merged;
+}
+
+
+
 /** `01-08-26` (DD-MM-YY) → `2026-08-01`. */
 export function operaDateToIso(raw: string): string | null {
   const match = raw.trim().match(/^(\d{2})-(\d{2})-(\d{2})$/);
