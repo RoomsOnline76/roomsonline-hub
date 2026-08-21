@@ -56,3 +56,57 @@ export const RECAPTCHA_BRIDGE_URL =
 
 export const RECAPTCHA_BYPASS_TOKEN = "dev-bypass-token";
 
+// ── Native-failure latch ────────────────────────────────────────────────────
+// If the native provider cannot mint a token on this host (typically Google's
+// "Invalid domain for site key" — a stale/incorrect key/domain pairing), we
+// latch that fact for the rest of the session, unmount the native provider so
+// Google's red "ERROR for site owner" surface disappears, and mint tokens via
+// the canonical-host bridge instead.
+
+const NATIVE_FAILED_KEY = "rol_recaptcha_native_failed";
+
+let nativeFailed = (() => {
+  try {
+    return sessionStorage.getItem(NATIVE_FAILED_KEY) === "1";
+  } catch {
+    return false;
+  }
+})();
+
+const listeners = new Set<() => void>();
+
+export function hasNativeRecaptchaFailed(): boolean {
+  return nativeFailed;
+}
+
+export function markNativeRecaptchaFailed(reason?: unknown): void {
+  const key = typeof window !== "undefined" ? window.location.hostname : "";
+  console.warn(
+    `reCAPTCHA native mode unavailable on ${key}; falling back to canonical bridge.`,
+    reason ?? "",
+  );
+  if (nativeFailed) return;
+  nativeFailed = true;
+  try {
+    sessionStorage.setItem(NATIVE_FAILED_KEY, "1");
+  } catch {
+    /* non-fatal */
+  }
+  listeners.forEach((l) => l());
+}
+
+export function subscribeNativeRecaptchaFailure(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** Mode after taking the runtime native-failure latch into account. */
+export function getEffectiveRecaptchaMode(
+  hostname: string = typeof window !== "undefined" ? window.location.hostname : "",
+): RecaptchaMode {
+  const mode = getRecaptchaMode(hostname);
+  if (mode === "native" && nativeFailed) return "bridge";
+  return mode;
+}
+
+
