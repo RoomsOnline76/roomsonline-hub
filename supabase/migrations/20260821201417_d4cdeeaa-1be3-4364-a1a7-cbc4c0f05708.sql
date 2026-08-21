@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.diag_upload_check(text);
