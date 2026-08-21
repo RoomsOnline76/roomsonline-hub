@@ -7644,6 +7644,7 @@ export type Database = {
         Row: {
           brand_primary: string | null
           brand_secondary: string | null
+          brand_source: string
           cover_artwork_url: string | null
           created_at: string
           default_source_type: string
@@ -7656,6 +7657,7 @@ export type Database = {
         Insert: {
           brand_primary?: string | null
           brand_secondary?: string | null
+          brand_source?: string
           cover_artwork_url?: string | null
           created_at?: string
           default_source_type?: string
@@ -7668,6 +7670,7 @@ export type Database = {
         Update: {
           brand_primary?: string | null
           brand_secondary?: string | null
+          brand_source?: string
           cover_artwork_url?: string | null
           created_at?: string
           default_source_type?: string
