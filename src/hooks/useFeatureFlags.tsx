@@ -71,10 +71,14 @@ export function useFeatureFlags() {
         
         const flags = { ...DEFAULT_FLAGS, ...data.data };
         try {
-          sessionStorage.setItem(FLAGS_CACHE_KEY, JSON.stringify(flags));
+          sessionStorage.setItem(
+            FLAGS_CACHE_KEY,
+            JSON.stringify({ cachedAt: Date.now(), flags }),
+          );
         } catch {
           /* best-effort cache only */
         }
+
         return flags;
       } catch (err) {
         console.error('Feature flags fetch failed:', err);
