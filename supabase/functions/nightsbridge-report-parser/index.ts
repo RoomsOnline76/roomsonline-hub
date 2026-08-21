@@ -9,10 +9,9 @@ import {
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import {
   applyImportedBaseline,
-  extendReportWindow,
-  importedBaselineMonths,
-  substituteThinMonths,
+  reconcileWithImportedBaseline,
 } from "../_shared/reportImportedBaseline.ts";
+
 
 
 const BUCKET = "revenue-reports";
