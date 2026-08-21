@@ -311,6 +311,36 @@ Deno.serve(async (req) => {
         .eq("service", SERVICE);
     };
 
+    /**
+     * Append an audit line to the shared integration log. Fire-and-forget:
+     * a failed log write must never change the outcome of a HubSpot action.
+     */
+    const logEvent = async (
+      event: string,
+      metadata: Json = {},
+      propertyId?: string | null,
+    ): Promise<void> => {
+      try {
+        await admin.from("integration_logs").insert({
+          property_id: propertyId ?? body.property_id ?? null,
+          integration_type: SERVICE,
+          event,
+          metadata: { owner_id: ownerId, ...metadata },
+        });
+      } catch (err) {
+        console.warn("[hubspot-api] log write failed:", err);
+      }
+    };
+
+    /** Owner's properties — the scope every read-only metric is measured over. */
+    const ownerPropertyIds = async (): Promise<string[]> => {
+      const { data } = await admin
+        .from("property_owners")
+        .select("property_id")
+        .eq("user_id", ownerId);
+      return (data || []).map((l: { property_id: string }) => l.property_id);
+    };
+
     /** Guard used by every sync action: enabled + credentials present. */
     const requireActive = async (): Promise<
       { token: string; config: Json } | Response
