@@ -124,9 +124,15 @@ export function useProcessReportRun(runId: string | undefined, sourceType?: stri
    */
   const process = useCallback(async (fileId?: string): Promise<ProcessResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
+    const adapter = getAdapter(sourceType);
+    // Stub adapters (OPERA / PROTEL) have no parser deployed yet — fail clearly
+    // instead of invoking a function that does not exist.
+    if (adapter.status !== "ready") {
+      return { ok: false, message: unsupportedSourceMessage(sourceType) };
+    }
     setIsProcessing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("nightsbridge-report-parser", {
+      const { data, error } = await supabase.functions.invoke(adapter.parserFunction, {
         body: fileId ? { run_id: runId, file_id: fileId } : { run_id: runId },
       });
       if (error) {
@@ -149,7 +155,7 @@ export function useProcessReportRun(runId: string | undefined, sourceType?: stri
       setIsProcessing(false);
       await queryClient.invalidateQueries({ queryKey: ["reports"] });
     }
-  }, [runId, queryClient]);
+  }, [runId, sourceType, queryClient]);
 
   return { process, isProcessing };
 }
