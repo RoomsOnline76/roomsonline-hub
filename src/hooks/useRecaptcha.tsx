@@ -120,6 +120,30 @@ async function requestBridgeToken(action: string, timeoutMs = 5000): Promise<str
 
 // ── Public hook ──────────────────────────────────────────────────────────────
 
+// ── Native execution with automatic bridge fallback ─────────────────────────
+// A wrong key/domain pairing on the current host (Google: "Invalid domain for
+// site key") makes native execution throw or return nothing. Rather than
+// blocking sign-in, latch the failure and mint the token through the canonical
+// host bridge instead.
+
+async function executeNativeOrBridge(
+  action: string,
+  executeRecaptcha: ((action: string) => Promise<string>) | undefined,
+): Promise<string | null> {
+  if (getEffectiveRecaptchaMode() === "bridge") {
+    return requestBridgeToken(action);
+  }
+  if (!executeRecaptcha) return null;
+  try {
+    const token = await executeRecaptcha(action);
+    if (token) return token;
+    markNativeRecaptchaFailed("empty token");
+  } catch (err) {
+    markNativeRecaptchaFailed(err);
+  }
+  return requestBridgeToken(action);
+}
+
 export function useRecaptcha(action: string = "submit", scoreThreshold: number = 0.5) {
   const { executeRecaptcha } = useGoogleReCaptcha();
   const mode = getRecaptchaMode();
@@ -132,7 +156,7 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
 
   // Prime the bridge iframe on mount so the first `verify()` is snappy.
   useEffect(() => {
-    if (mode === "bridge") ensureBridge();
+    if (getEffectiveRecaptchaMode() === "bridge") ensureBridge();
   }, [mode]);
 
   const verify = useCallback(async () => {
@@ -146,12 +170,12 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
       } else if (mode === "bridge") {
         token = await requestBridgeToken(action);
       } else {
-        if (!executeRecaptcha) {
+        if (!executeRecaptcha && getEffectiveRecaptchaMode() === "native") {
           console.warn("reCAPTCHA not yet available");
           setState((prev) => ({ ...prev, isVerifying: false, error: "reCAPTCHA not ready" }));
           return false;
         }
-        token = await executeRecaptcha(action);
+        token = await executeNativeOrBridge(action, executeRecaptcha);
       }
 
       if (token) {
@@ -174,6 +198,7 @@ export function useRecaptcha(action: string = "submit", scoreThreshold: number =
   const reset = useCallback(() => {
     setState({ isVerified: false, isVerifying: false, token: null, error: null });
   }, []);
+
 
   return {
     ...state,
