@@ -68,7 +68,8 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, status, title, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, created_at, properties(name, brand_logo_url), report_source_files(count)";
+
 
 /** Recent report runs, newest first. */
 export function useReportRuns(limit = 25) {
@@ -121,7 +122,9 @@ export function useReportRun(runId: string | undefined) {
         ...mapSummary(row),
         fileCount: files?.length ?? 0,
         previousRunId: row.previous_run_id,
+        baselineLocked: Boolean(row.baseline_locked),
         files: (files ?? []).map((f) => ({
+
           id: f.id,
           runId: f.run_id,
           storagePath: f.storage_path,
