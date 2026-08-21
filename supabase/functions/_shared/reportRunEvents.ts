@@ -18,7 +18,9 @@ export type ReportRunEventType =
   | "file_reparsed"
   | "excel_generated"
   | "draft_generated"
-  | "insights_generated";
+  | "insights_generated"
+  | "segment_split_applied"
+  | "special_report_generated";
 
 export async function logRunEvent(
   admin: Admin,

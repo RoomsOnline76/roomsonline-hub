@@ -13,6 +13,8 @@ export interface PropertyReportSettings {
   brandSource: ReportBrandSource;
   historicalBaseline: HistoricalBaseline;
   defaultSourceType: string;
+  /** Bespoke report set flag, e.g. `cheetaplains`. */
+  specialReportSet: string | null;
 }
 
 const KEY = ["reports", "property-settings"] as const;
@@ -43,6 +45,8 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           "custom") as ReportBrandSource,
         historicalBaseline: (data.historical_baseline ?? {}) as HistoricalBaseline,
         defaultSourceType: data.default_source_type ?? "nightsbridge",
+        specialReportSet:
+          (data as { special_report_set?: string | null }).special_report_set ?? null,
       };
     },
   });
@@ -60,6 +64,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           brand_source: input.brandSource ?? "custom",
           historical_baseline: (input.historicalBaseline ?? {}) as never,
           default_source_type: input.defaultSourceType ?? "nightsbridge",
+          special_report_set: input.specialReportSet ?? null,
         },
         { onConflict: "property_id" },
       );

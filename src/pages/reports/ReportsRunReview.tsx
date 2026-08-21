@@ -26,6 +26,8 @@ import type { ReportSourceFile } from "@/hooks/useReportRuns";
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 import { getAdapter } from "@/lib/report-adapters";
+import { SpecialReportsCard } from "@/components/reports/SpecialReportsCard";
+import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
 
 
 const formatDate = (iso: string): string =>
@@ -56,6 +58,9 @@ export default function ReportsRunReview() {
   const [reparsingId, setReparsingId] = useState<string | null>(null);
   /** Source-specific behaviour (parser, expected columns, template). */
   const adapter = getAdapter(run?.sourceType);
+  /** CheetaPlains and friends add bespoke slides to the standard pack. */
+  const { settings: propertySettings } = usePropertyReportSettings(run?.propertyId);
+  const specialSet = propertySettings?.specialReportSet ?? null;
 
 
 
@@ -406,6 +411,8 @@ export default function ReportsRunReview() {
           isProcessing={isProcessing}
         />
       )}
+
+      {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
 
       <RunEventTimeline runId={runId} isLive={run.status === "processing"} />
     </div>

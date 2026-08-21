@@ -7652,6 +7652,7 @@ export type Database = {
           property_id: string
           report_logo_url: string | null
           room_count: number
+          special_report_set: string | null
           updated_at: string
         }
         Insert: {
@@ -7665,6 +7666,7 @@ export type Database = {
           property_id: string
           report_logo_url?: string | null
           room_count?: number
+          special_report_set?: string | null
           updated_at?: string
         }
         Update: {
@@ -7678,6 +7680,7 @@ export type Database = {
           property_id?: string
           report_logo_url?: string | null
           room_count?: number
+          special_report_set?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -8635,6 +8638,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "report_source_files_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_special_reports: {
+        Row: {
+          created_at: string
+          generated_at: string
+          id: string
+          payload: Json
+          report_key: string
+          run_id: string
+          storage_path: string | null
+          title: string
+          updated_at: string
+          warnings: Json
+        }
+        Insert: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          payload?: Json
+          report_key: string
+          run_id: string
+          storage_path?: string | null
+          title: string
+          updated_at?: string
+          warnings?: Json
+        }
+        Update: {
+          created_at?: string
+          generated_at?: string
+          id?: string
+          payload?: Json
+          report_key?: string
+          run_id?: string
+          storage_path?: string | null
+          title?: string
+          updated_at?: string
+          warnings?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_special_reports_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
             referencedRelation: "report_runs"
