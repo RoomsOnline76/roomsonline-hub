@@ -191,7 +191,7 @@ export function parseOperaHistoryForecast(lines: string[], filename: string): Op
     // occupancy %, room revenue, average rate. Trailing columns (departures,
     // day use, no show, OOO, adults & children) are not used and may be blank
     // on forecast rows, so nothing is read positionally after the average rate.
-    const parts = dayMatch[2].split(/\s+/).filter(Boolean);
+    const parts = mergeNegativeTokens(dayMatch[2].split(/\s+/).filter(Boolean));
     const occIndex = parts.findIndex((part) => part.includes("%"));
     if (occIndex < 8) {
       malformed += 1;
