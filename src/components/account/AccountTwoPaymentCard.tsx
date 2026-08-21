@@ -197,9 +197,9 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
             )}
           </div>
           <div className="text-base font-semibold">{fmtMoney(setupAmount, cur)}</div>
-          {summary.setup.items.length > 0 && (
+          {setupItems.length > 0 && (
             <ul className="space-y-0.5 text-[11px] text-muted-foreground">
-              {summary.setup.items.map((i) => (
+              {setupItems.map((i) => (
                 <li key={i.description} className="flex justify-between gap-2">
                   <span>{i.description}</span>
                   <span>{fmtMoney(i.amount, cur)}</span>
