@@ -21,6 +21,9 @@ import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { BaselineCard } from "@/components/reports/BaselineCard";
+import { DownloadBar } from "@/components/reports/DownloadBar";
+import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
+import { useReportDraft } from "@/hooks/useReportDraft";
 
 
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
@@ -42,6 +45,13 @@ export default function ReportsRunReview() {
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId);
   const { generate, isGenerating } = useReportExcel(runId);
+  const {
+    generate: generateDraft,
+    buildPack,
+    isGenerating: isDraftBusy,
+    isPacking,
+  } = useReportDraft(runId);
+  const [draftUrl, setDraftUrl] = useState<string | null>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
@@ -64,16 +74,11 @@ export default function ReportsRunReview() {
     await Promise.all([refetch(), refetchSnapshot()]);
   }, [process, refetch, refetchSnapshot]);
 
-  const handleExcel = useCallback(async () => {
-    const result = await generate();
-    if (!result.ok || !result.url) {
-      toast.error("Could not build the workbook", { description: result.message });
-      return;
-    }
-    window.open(result.url, "_blank", "noopener");
-    toast.success("Consolidated workbook ready");
-
-  }, [generate]);
+  const handleDraft = useCallback(async () => {
+    const result = await generateDraft();
+    if (result.ok && result.url) setDraftUrl(result.url);
+    return result;
+  }, [generateDraft]);
 
 
   const handleUpload = useCallback(async () => {
@@ -301,18 +306,6 @@ export default function ReportsRunReview() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => void handleExcel()}
-              disabled={isGenerating || !snapshot}
-            >
-              {isGenerating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-              )}
-              Download Excel
-            </Button>
-            <Button
-              variant="outline"
               className="text-destructive"
               onClick={() => void handleDeleteRun()}
               disabled={deleteRun.isPending}
@@ -323,6 +316,25 @@ export default function ReportsRunReview() {
           </div>
         </CardContent>
       </Card>
+
+      <DownloadBar
+        hasSnapshot={Boolean(snapshot)}
+        isExcelBusy={isGenerating}
+        isDraftBusy={isDraftBusy}
+        isPackBusy={isPacking}
+        onExcel={generate}
+        onDraft={handleDraft}
+        onPack={buildPack}
+      />
+
+      {snapshot && (
+        <DraftReportPreview
+          url={draftUrl}
+          isGenerating={isDraftBusy}
+          onGenerate={() => void handleDraft()}
+          pageCount={Object.keys(snapshot.sourceBreakdown ?? {}).length > 0 ? 5 : 4}
+        />
+      )}
 
       <BaselineCard run={run} onChanged={async () => { await refetch(); }} />
 

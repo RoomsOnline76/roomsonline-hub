@@ -8350,6 +8350,8 @@ export type Database = {
           baseline_locked: boolean
           created_at: string
           created_by: string | null
+          draft_generated_at: string | null
+          draft_report_path: string | null
           error_message: string | null
           excel_generated_at: string | null
           excel_path: string | null
@@ -8366,6 +8368,8 @@ export type Database = {
           baseline_locked?: boolean
           created_at?: string
           created_by?: string | null
+          draft_generated_at?: string | null
+          draft_report_path?: string | null
           error_message?: string | null
           excel_generated_at?: string | null
           excel_path?: string | null
@@ -8382,6 +8386,8 @@ export type Database = {
           baseline_locked?: boolean
           created_at?: string
           created_by?: string | null
+          draft_generated_at?: string | null
+          draft_report_path?: string | null
           error_message?: string | null
           excel_generated_at?: string | null
           excel_path?: string | null

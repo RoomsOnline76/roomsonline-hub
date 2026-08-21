@@ -249,3 +249,7 @@ schedule = "10 3 * * *"
 [functions.cron-channel-ledger-drain]
 verify_jwt = false
 schedule = "*/5 * * * *"
+
+# Branded print-ready draft revenue report + Canva asset pack (auth required).
+[functions.revenue-report-draft]
+verify_jwt = true
