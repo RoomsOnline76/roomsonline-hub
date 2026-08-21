@@ -14,6 +14,7 @@ export type ReportRunEventType =
   | "processing_succeeded"
   | "processing_failed"
   | "processing_partial"
+  | "capacity_mismatch"
   | "file_reparsed"
   | "excel_generated"
   | "draft_generated"

@@ -33,10 +33,9 @@ export const REPORT_SOURCES: Record<ReportSourceKey, ReportSourceDescriptor> = {
   opera: {
     key: "opera",
     label: "OPERA",
-    status: "planned",
+    status: "ready",
     parserFunction: "opera-report-parser",
     reportTemplate: "standard",
-    notes: "OPERA parsing is not available yet.",
   },
   protel: {
     key: "protel",

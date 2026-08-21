@@ -98,6 +98,7 @@ export default function ReportsRunReview() {
         runId: run.id,
         propertyId: run.propertyId,
         files: pending,
+        acceptedExtensions: adapter.acceptedFileTypes,
         existingHashes: run.files.map((f) => f.fileHash ?? "").filter(Boolean),
         onProgress: ({ index, phase, message }) =>
           setFileStates((prev) => ({ ...prev, [index]: { phase, message } })),
@@ -115,7 +116,7 @@ export default function ReportsRunReview() {
     } finally {
       setBusy(false);
     }
-  }, [run, pending, refetch]);
+  }, [run, pending, refetch, adapter]);
 
   const handleDownload = useCallback(async (storagePath: string) => {
     const url = await getSourceFileUrl(storagePath);
@@ -313,6 +314,7 @@ export default function ReportsRunReview() {
               files={pending}
               states={fileStates}
               disabled={busy}
+              acceptedExtensions={adapter.acceptedFileTypes}
               onFilesAdded={(incoming) => setPending((prev) => [...prev, ...incoming])}
               onRemove={(index) => setPending((prev) => prev.filter((_, i) => i !== index))}
             />
