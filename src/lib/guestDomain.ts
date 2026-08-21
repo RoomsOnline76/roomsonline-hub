@@ -20,9 +20,11 @@ const ADMIN_HOSTS = new Set([
   "sleepinafrica.roomsonline.co.za",
   "connect.roomsonline.co.za",
   "survey.roomsonline.co.za",
+  "reports.roomsonline.co.za",
   "localhost",
   "127.0.0.1",
 ]);
+
 
 /**
  * Synchronous fallback so the first paint of a known guest host never flashes

@@ -162,7 +162,15 @@ const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey
 
 import { PMSShell } from "./components/layout/PMSShell";
 import { ConnectLayout } from "./components/layout/ConnectLayout";
-import { isConnectDomain } from "./lib/config";
+import { ReportsLayout } from "./components/layout/ReportsLayout";
+import { isConnectDomain, isReportsDomain } from "./lib/config";
+
+const ReportsDashboard = lazy(() => import("./pages/reports/ReportsDashboard"));
+const ReportsNewRun = lazy(() => import("./pages/reports/ReportsNewRun"));
+const ReportsRunReview = lazy(() => import("./pages/reports/ReportsRunReview"));
+const ReportsPropertySettings = lazy(() => import("./pages/reports/ReportsPropertySettings"));
+const ReportsHelp = lazy(() => import("./pages/reports/ReportsHelp"));
+
 
 // ─── Shared Connect portal child routes (used in two mounts) ────
 function connectChildRoutes(): ReactElement[] {
@@ -268,7 +276,22 @@ const App = () => (
                         <Routes>
                           <Route path="*" element={<UnderConstruction />} />
                         </Routes>
+                      ) : isReportsDomain ? (
+                        /* ═══ Revenue Reports domain mount ═══════════════ */
+                        <Routes>
+                          <Route path="/auth" element={<Auth />} />
+                          <Route path="/" element={<ReportsLayout />}>
+                            <Route index element={<ReportsDashboard />} />
+                            <Route path="new" element={<ReportsNewRun />} />
+                            <Route path="runs/:runId" element={<ReportsRunReview />} />
+                            <Route path="settings" element={<ReportsDashboard />} />
+                            <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
+                            <Route path="help" element={<ReportsHelp />} />
+                          </Route>
+                          <Route path="*" element={<Navigate to="/" replace />} />
+                        </Routes>
                       ) : (
+
                       <Routes>
 
                         {/* ═══ Connect domain mount ═══════════════════════ */}
