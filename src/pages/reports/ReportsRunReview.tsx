@@ -16,9 +16,12 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportRun, useReportRunMutations } from "@/hooks/useReportRuns";
+import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
+import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { formatBytes, getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
+
 
 const formatDate = (iso: string): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
