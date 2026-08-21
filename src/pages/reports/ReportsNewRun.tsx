@@ -209,6 +209,7 @@ export default function ReportsNewRun() {
         runId,
         propertyId: state.property.id,
         files: state.files,
+        acceptedExtensions: adapter.acceptedFileTypes,
         onProgress: ({ index, phase, message }) =>
           setFileStates((prev) => ({ ...prev, [index]: { phase, message } })),
       });
@@ -388,7 +389,7 @@ export default function ReportsNewRun() {
               </Select>
               <p className="text-xs text-muted-foreground">
                 {adapter.status === "ready"
-                  ? adapter.description
+                  ? [adapter.description, adapter.notes].filter(Boolean).join(" ")
                   : adapter.notes}
               </p>
             </div>
