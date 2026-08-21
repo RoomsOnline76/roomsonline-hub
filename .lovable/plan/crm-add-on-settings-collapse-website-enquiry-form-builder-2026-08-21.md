@@ -8,7 +8,7 @@ On `/pms/crm`, the "Add-on settings" card (connect, replace token, pause, discon
 - Whole header is the toggle, with a chevron affordance.
 - Body (the HubSpot card) only renders when opened.
 
-## 2. Integrations — Enquiry form section
+## 2. in Integrations page in edit/setup property — Enquiry form section
 
 New tab **Enquiry form** in the single-property tab row on `/pms/integrations`, shown only when the CRM add-on is live for the owner (same capability check the CRM menu item uses). When the add-on is off, the tab is hidden.
 
