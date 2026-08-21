@@ -30,6 +30,7 @@ export interface ReportRunSummary {
 
 export interface ReportRunDetail extends ReportRunSummary {
   previousRunId: string | null;
+  baselineLocked: boolean;
   files: ReportSourceFile[];
 }
 
@@ -44,12 +45,14 @@ interface RunRow {
   source_type: string;
   as_of_date: string;
   previous_run_id: string | null;
+  baseline_locked?: boolean | null;
   status: string | null;
   title: string | null;
   created_at: string;
   properties?: { name: string | null; brand_logo_url: string | null } | null;
   report_source_files?: { count: number }[] | null;
 }
+
 
 const mapSummary = (row: RunRow): ReportRunSummary => ({
   id: row.id,
