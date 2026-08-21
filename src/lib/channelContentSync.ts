@@ -1,11 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
 import { channelLedgerStepsForTrigger, markChannelStepsStale } from "@/lib/channelStepLedger";
+import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEditGate";
 
 
 /**
  * Outcome of a delta. `reason: "gate_pending"` means the change is real and still owed to the
  * channel: it was parked because the listing does not currently satisfy the mandatory channel
  * gate, and it re-fires automatically as soon as readiness clears. No manual push required.
+ *
+ * `reason: "onboarding_incomplete"` means the property has not cleared the first thirteen
+ * Channel onboarding steps: no channel call was made at all and nothing should be reported.
  */
 export interface ChannelSyncOutcome {
   queued?: boolean;
@@ -14,6 +18,28 @@ export interface ChannelSyncOutcome {
   error?: string;
   blockers?: string[];
 }
+
+export interface ChannelSyncOptions {
+  force?: boolean;
+  wait?: boolean;
+  /**
+   * Explicit operator/system action (manual "push now", wizard publish, certification
+   * console, cron). Bypasses the onboarding gate; ordinary saves must not set this.
+   */
+  manual?: boolean;
+}
+
+/** Ordinary edits stay silent and make no channel call before wizard step 13. */
+async function gateBlocks(propertyId: string, manual?: boolean): Promise<boolean> {
+  if (manual) return false;
+  const gate = await channelEditGateState(propertyId);
+  if (gate.open) return false;
+  console.log(
+    `[channel sync] skipped for ${propertyId} — Channel onboarding incomplete: ${gate.missing.join("; ")}`,
+  );
+  return true;
+}
+
 
 /**
  * Static content delta to the Channel Manager.
