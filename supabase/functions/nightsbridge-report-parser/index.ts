@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, status")
+      .select("id, property_id, as_of_date, previous_run_id, baseline_locked, status")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -285,8 +285,9 @@ Deno.serve(async (req) => {
     const aggregate = aggregateLedger(ledger, roomCount);
 
     // Previous baseline: the most recent other run for this property with a snapshot.
+    // A reviewer-pinned baseline (including a deliberate "none") is never overridden.
     let previousRunId = run.previous_run_id;
-    if (!previousRunId) {
+    if (!previousRunId && !run.baseline_locked) {
       const { data: prior } = await admin
         .from("report_runs")
         .select("id")
@@ -367,6 +368,57 @@ Deno.serve(async (req) => {
         .update({ status: "failed", error_message: snapshotError.message })
         .eq("id", runId);
       return json({ error: snapshotError.message }, 500);
+    }
+
+    // Fold completed (fully past) months into the property's historical baseline so
+    // future runs have last-year actuals without any manual import. Existing values win.
+    try {
+      const now = new Date();
+      const currentKey = `${now.getUTCFullYear()}-${`${now.getUTCMonth() + 1}`.padStart(2, "0")}`;
+      const revenueBase = { ...(baseline.revenue ?? {}) } as Record<string, number>;
+      const nightsBase = { ...(baseline.room_nights ?? {}) } as Record<string, number>;
+      const sources = {
+        ...((settings?.historical_baseline as { sources?: Record<string, string> } | null)
+          ?.sources ?? {}),
+      } as Record<string, string>;
+      let changed = false;
+      for (const key of aggregate.months) {
+        if (key >= currentKey) continue; // month still running or in the future
+        if (revenueBase[key] === undefined) {
+          revenueBase[key] = aggregate.otb_revenue[key] ?? 0;
+          sources[key] = "run";
+          changed = true;
+        }
+        if (nightsBase[key] === undefined) {
+          nightsBase[key] = aggregate.room_nights[key] ?? 0;
+          sources[key] = sources[key] ?? "run";
+          changed = true;
+        }
+      }
+      if (changed) {
+        const years = [
+          ...new Set(
+            Object.keys({ ...revenueBase, ...nightsBase }).map((key) => Number(key.slice(0, 4))),
+          ),
+        ]
+          .filter((year) => Number.isFinite(year))
+          .sort((a, b) => a - b);
+        await admin.from("property_report_settings").upsert(
+          {
+            property_id: run.property_id,
+            room_count: roomCount,
+            historical_baseline: {
+              years,
+              revenue: revenueBase,
+              room_nights: nightsBase,
+              sources,
+            },
+          },
+          { onConflict: "property_id" },
+        );
+      }
+    } catch (baselineError) {
+      console.error("historical baseline backfill skipped:", baselineError);
     }
 
     await admin

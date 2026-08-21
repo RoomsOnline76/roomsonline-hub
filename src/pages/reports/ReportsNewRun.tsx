@@ -14,8 +14,17 @@ import { useReportProperties, type ReportProperty } from "@/hooks/useReportPrope
 import { useReportRunMutations } from "@/hooks/useReportRuns";
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { uploadSourceFiles } from "@/lib/reportUpload";
+import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/integrations/supabase/client";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
+
+interface RunNotes {
+  minStay: string;
+  promotions: string;
+  rateOverrides: string;
+  commentary: string;
+}
 
 interface WizardState {
   step: Step;
@@ -24,6 +33,7 @@ interface WizardState {
   title: string;
   titleEdited: boolean;
   files: File[];
+  notes: RunNotes;
 }
 
 type WizardAction =
@@ -32,7 +42,9 @@ type WizardAction =
   | { type: "asOfDate"; value: string }
   | { type: "title"; value: string }
   | { type: "addFiles"; files: File[] }
-  | { type: "removeFile"; index: number };
+  | { type: "removeFile"; index: number }
+  | { type: "notes"; field: keyof RunNotes; value: string }
+  | { type: "notesAll"; notes: RunNotes };
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
@@ -54,6 +66,7 @@ const initialState: WizardState = {
   title: defaultTitle(todayIso()),
   titleEdited: false,
   files: [],
+  notes: { minStay: "", promotions: "", rateOverrides: "", commentary: "" },
 };
 
 function reducer(state: WizardState, action: WizardAction): WizardState {
@@ -74,6 +87,10 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       return { ...state, files: [...state.files, ...action.files] };
     case "removeFile":
       return { ...state, files: state.files.filter((_, i) => i !== action.index) };
+    case "notes":
+      return { ...state, notes: { ...state.notes, [action.field]: action.value } };
+    case "notesAll":
+      return { ...state, notes: action.notes };
     default:
       return state;
   }
@@ -83,6 +100,7 @@ const STEPS: { step: Step; label: string }[] = [
   { step: 1, label: "Property" },
   { step: 2, label: "Details" },
   { step: 3, label: "Files" },
+  { step: 4, label: "Notes" },
 ];
 
 export default function ReportsNewRun() {
@@ -114,6 +132,35 @@ export default function ReportsNewRun() {
     setFileStates({});
   }, []);
 
+  // Pre-fill the narrative notes from this property's most recent run.
+  const loadPreviousNotes = useCallback(async (propertyId: string) => {
+    const { data } = await supabase
+      .from("report_runs")
+      .select("report_additional_inputs(min_stay_notes, promotions_notes, rate_override_notes, free_commentary)")
+      .eq("property_id", propertyId)
+      .order("as_of_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const previous = (data as unknown as {
+      report_additional_inputs?: {
+        min_stay_notes: string | null;
+        promotions_notes: string | null;
+        rate_override_notes: string | null;
+        free_commentary: string | null;
+      }[] | null;
+    } | null)?.report_additional_inputs?.[0];
+    if (!previous) return;
+    dispatch({
+      type: "notesAll",
+      notes: {
+        minStay: previous.min_stay_notes ?? "",
+        promotions: previous.promotions_notes ?? "",
+        rateOverrides: previous.rate_override_notes ?? "",
+        commentary: previous.free_commentary ?? "",
+      },
+    });
+  }, []);
+
   const handleCreate = useCallback(async () => {
     if (!state.property || !canProcess) return;
     setBusy(true);
@@ -132,6 +179,20 @@ export default function ReportsNewRun() {
         onProgress: ({ index, phase, message }) =>
           setFileStates((prev) => ({ ...prev, [index]: { phase, message } })),
       });
+
+      const notes = state.notes;
+      if (notes.minStay || notes.promotions || notes.rateOverrides || notes.commentary) {
+        await supabase.from("report_additional_inputs").upsert(
+          {
+            run_id: runId,
+            min_stay_notes: notes.minStay.trim() || null,
+            promotions_notes: notes.promotions.trim() || null,
+            rate_override_notes: notes.rateOverrides.trim() || null,
+            free_commentary: notes.commentary.trim() || null,
+          },
+          { onConflict: "run_id" },
+        );
+      }
 
       if (result.failed.length) {
         toast.error(`${result.failed.length} file(s) failed to upload`, {
@@ -220,7 +281,10 @@ export default function ReportsNewRun() {
               <button
                 key={property.id}
                 type="button"
-                onClick={() => dispatch({ type: "property", property })}
+                onClick={() => {
+                  dispatch({ type: "property", property });
+                  void loadPreviousNotes(property.id);
+                }}
                 className="w-full flex items-center gap-3 rounded-md border px-3 py-2.5 text-left hover:bg-muted/40 transition-colors"
               >
                 {property.logoUrl ? (
@@ -324,6 +388,76 @@ export default function ReportsNewRun() {
                 onClick={() => dispatch({ type: "step", step: 2 })}
                 disabled={busy}
               >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Back
+              </Button>
+              <Button
+                onClick={() => dispatch({ type: "step", step: 4 })}
+                disabled={!canProcess || busy}
+              >
+                Continue
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── Step 4: notes (optional) ─────────────────────────── */}
+      {state.step === 4 && state.property && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">
+              Notes <span className="text-muted-foreground font-normal">(optional)</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-sm text-muted-foreground">
+              Pre-filled from this property's last report. Dinner, Room 0 and complimentary
+              room nights are captured per month on the review page once the files are parsed.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="wizard-min-stay">Minimum stay</Label>
+                <Textarea
+                  id="wizard-min-stay"
+                  rows={3}
+                  value={state.notes.minStay}
+                  onChange={(e) => dispatch({ type: "notes", field: "minStay", value: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wizard-promotions">Promotions</Label>
+                <Textarea
+                  id="wizard-promotions"
+                  rows={3}
+                  value={state.notes.promotions}
+                  onChange={(e) => dispatch({ type: "notes", field: "promotions", value: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wizard-rate-overrides">Rate overrides</Label>
+                <Textarea
+                  id="wizard-rate-overrides"
+                  rows={3}
+                  value={state.notes.rateOverrides}
+                  onChange={(e) =>
+                    dispatch({ type: "notes", field: "rateOverrides", value: e.target.value })
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wizard-commentary">Commentary</Label>
+              <Textarea
+                id="wizard-commentary"
+                rows={4}
+                value={state.notes.commentary}
+                onChange={(e) => dispatch({ type: "notes", field: "commentary", value: e.target.value })}
+              />
+            </div>
+            <div className="flex justify-between">
+              <Button variant="ghost" onClick={() => dispatch({ type: "step", step: 3 })} disabled={busy}>
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>

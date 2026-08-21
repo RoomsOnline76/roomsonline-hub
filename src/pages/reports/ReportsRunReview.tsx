@@ -20,6 +20,8 @@ import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
+import { BaselineCard } from "@/components/reports/BaselineCard";
+
 
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { formatBytes, getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
@@ -322,6 +324,8 @@ export default function ReportsRunReview() {
         </CardContent>
       </Card>
 
+      <BaselineCard run={run} onChanged={async () => { await refetch(); }} />
+
       {snapshot && (
         <Card>
           <CardHeader className="pb-3">
@@ -333,10 +337,16 @@ export default function ReportsRunReview() {
         </Card>
       )}
 
-      {snapshot && runId && <ManualInputsCard runId={runId} months={snapshot.months} />}
-
-
-
+      {snapshot && runId && (
+        <ManualInputsCard
+          runId={runId}
+          months={snapshot.months}
+          otbRevenue={snapshot.otbRevenue}
+          onReprocess={handleProcess}
+          isProcessing={isProcessing}
+        />
+      )}
     </div>
+
   );
 }

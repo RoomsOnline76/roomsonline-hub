@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import { HistoricalBaselineEditor } from "@/components/reports/HistoricalBaselineEditor";
+import type { HistoricalBaseline } from "@/lib/historicalBaseline";
 
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
@@ -21,7 +23,7 @@ export default function ReportsPropertySettings() {
   const [coverUrl, setCoverUrl] = useState("");
   const [primary, setPrimary] = useState("");
   const [secondary, setSecondary] = useState("");
-  const [baselineJson, setBaselineJson] = useState("{}");
+  const [baseline, setBaseline] = useState<HistoricalBaseline>({});
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -36,18 +38,11 @@ export default function ReportsPropertySettings() {
     setCoverUrl(settings.coverArtworkUrl ?? "");
     setPrimary(settings.brandPrimary ?? "");
     setSecondary(settings.brandSecondary ?? "");
-    setBaselineJson(JSON.stringify(settings.historicalBaseline ?? {}, null, 2));
+    setBaseline(settings.historicalBaseline ?? {});
   }, [settings]);
 
   const handleSave = async () => {
     if (!propertyId) return;
-    let baseline: Record<string, unknown> = {};
-    try {
-      baseline = baselineJson.trim() ? JSON.parse(baselineJson) : {};
-    } catch {
-      toast.error("Historical baseline must be valid JSON");
-      return;
-    }
     const rooms = Number(roomCount);
     if (!Number.isFinite(rooms) || rooms < 1) {
       toast.error("Room count must be 1 or more");
@@ -61,7 +56,7 @@ export default function ReportsPropertySettings() {
         coverArtworkUrl: coverUrl || null,
         brandPrimary: primary || null,
         brandSecondary: secondary || null,
-        historicalBaseline: baseline as never,
+        historicalBaseline: baseline,
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -70,6 +65,7 @@ export default function ReportsPropertySettings() {
       });
     }
   };
+
 
   return (
     <div className="space-y-6">
@@ -139,18 +135,18 @@ export default function ReportsPropertySettings() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="baseline">Historical baseline (JSON)</Label>
-            <textarea
-              id="baseline"
-              className="w-full min-h-40 rounded-md border bg-background px-3 py-2 text-sm font-mono"
-              value={baselineJson}
-              onChange={(e) => setBaselineJson(e.target.value)}
-              spellCheck={false}
-            />
+            <Label>Historical baseline (last-year actuals)</Label>
             <p className="text-xs text-muted-foreground">
-              {`Shape: { "years": [2024, 2025], "revenue": { "2025-07": 343388.91 }, "room_nights": { "2025-07": 145 } }`}
+              Months that fall fully in the past are captured automatically when a run is
+              processed; anything older can be imported here.
             </p>
+            <HistoricalBaselineEditor
+              baseline={baseline}
+              roomCount={Math.max(Number(roomCount) || 1, 1)}
+              onChange={setBaseline}
+            />
           </div>
+
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>

@@ -73,7 +73,9 @@ Deno.serve(async (req) => {
 
     const { data: inputs } = await admin
       .from("report_additional_inputs")
-      .select("dinner_by_month, room0_by_month, comp_rns_by_month")
+      .select(
+        "dinner_by_month, room0_by_month, comp_rns_by_month, min_stay_notes, promotions_notes, rate_override_notes, free_commentary",
+      )
       .eq("run_id", runId)
       .maybeSingle();
 
@@ -112,6 +114,10 @@ Deno.serve(async (req) => {
         dinner_by_month: numberMap(inputs?.dinner_by_month),
         room0_by_month: numberMap(inputs?.room0_by_month),
         comp_rns_by_month: numberMap(inputs?.comp_rns_by_month),
+        min_stay_notes: inputs?.min_stay_notes ?? null,
+        promotions_notes: inputs?.promotions_notes ?? null,
+        rate_override_notes: inputs?.rate_override_notes ?? null,
+        free_commentary: inputs?.free_commentary ?? null,
       },
     });
 

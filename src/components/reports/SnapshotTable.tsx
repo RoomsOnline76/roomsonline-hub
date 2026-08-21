@@ -1,12 +1,7 @@
 import { useMemo } from "react";
+import { cn } from "@/lib/utils";
 import type { ReportSnapshot } from "@/hooks/useReportSnapshot";
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-const monthLabel = (key: string): string => {
-  const [year, month] = key.split("-").map(Number);
-  return `${MONTHS[month - 1] ?? key} ${`${year}`.slice(2)}`;
-};
+import { monthLabel } from "@/lib/historicalBaseline";
 
 const money = (value: number): string =>
   new Intl.NumberFormat("en-ZA", {
@@ -17,11 +12,20 @@ const money = (value: number): string =>
 
 const percent = (value: number): string => `${((value || 0) * 100).toFixed(1)}%`;
 
+const signedMoney = (value: number): string =>
+  `${value > 0 ? "+" : ""}${money(value)}`;
+
+const varianceTone = (value: number): string =>
+  value > 0 ? "text-primary" : value < 0 ? "text-destructive" : "text-muted-foreground";
+
+const sumMap = (map: Record<string, number>, months: string[]): number =>
+  months.reduce((total, key) => total + (map[key] ?? 0), 0);
+
 interface Props {
   snapshot: ReportSnapshot;
 }
 
-/** Month-by-month view of the computed snapshot. */
+/** Month-by-month view of the computed snapshot with previous / last-year comparison. */
 export function SnapshotTable({ snapshot }: Props) {
   const sources = useMemo(
     () =>
@@ -31,7 +35,18 @@ export function SnapshotTable({ snapshot }: Props) {
     [snapshot.sourceBreakdown],
   );
 
+  const comparisonTotals = useMemo(() => {
+    const months = snapshot.months;
+    const previous = sumMap(snapshot.previousOtbRevenue, months);
+    const lastYear = sumMap(snapshot.lastYearActual, months);
+    const current = sumMap(snapshot.otbRevenue, months);
+    return { previous, lastYear, variance: current - previous, lyVariance: current - lastYear };
+  }, [snapshot]);
+
   const nonSellableRows = snapshot.totals.non_sellable_rows ?? 0;
+  const hasComparison =
+    Object.keys(snapshot.previousOtbRevenue).length > 0 ||
+    Object.keys(snapshot.lastYearActual).length > 0;
 
   return (
     <div className="space-y-5">
@@ -41,6 +56,9 @@ export function SnapshotTable({ snapshot }: Props) {
             <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
               <th className="py-2 pr-3 font-medium">Month</th>
               <th className="py-2 px-3 font-medium text-right">OTB revenue</th>
+              <th className="py-2 px-3 font-medium text-right">Previous OTB</th>
+              <th className="py-2 px-3 font-medium text-right">Variance</th>
+              <th className="py-2 px-3 font-medium text-right">Last year</th>
               <th className="py-2 px-3 font-medium text-right">Room nights</th>
               <th className="py-2 px-3 font-medium text-right">Capacity days</th>
               <th className="py-2 px-3 font-medium text-right">ADR</th>
@@ -48,28 +66,58 @@ export function SnapshotTable({ snapshot }: Props) {
             </tr>
           </thead>
           <tbody>
-            {snapshot.months.map((key) => (
-              <tr key={key} className="border-b last:border-0">
-                <td className="py-2 pr-3 font-medium">{monthLabel(key)}</td>
-                <td className="py-2 px-3 text-right tabular-nums">
-                  {money(snapshot.otbRevenue[key] ?? 0)}
-                </td>
-                <td className="py-2 px-3 text-right tabular-nums">
-                  {snapshot.roomNights[key] ?? 0}
-                </td>
-                <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
-                  {snapshot.capacityDays[key] ?? 0}
-                </td>
-                <td className="py-2 px-3 text-right tabular-nums">{money(snapshot.adr[key] ?? 0)}</td>
-                <td className="py-2 pl-3 text-right tabular-nums">
-                  {percent(snapshot.occupancy[key] ?? 0)}
-                </td>
-              </tr>
-            ))}
+            {snapshot.months.map((key) => {
+              const current = snapshot.otbRevenue[key] ?? 0;
+              const previous = snapshot.previousOtbRevenue[key] ?? 0;
+              const variance = current - previous;
+              const percentChange = previous === 0 ? null : variance / previous;
+              return (
+                <tr key={key} className="border-b last:border-0">
+                  <td className="py-2 pr-3 font-medium">{monthLabel(key)}</td>
+                  <td className="py-2 px-3 text-right tabular-nums">{money(current)}</td>
+                  <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                    {money(previous)}
+                  </td>
+                  <td className={cn("py-2 px-3 text-right tabular-nums", varianceTone(variance))}>
+                    {signedMoney(variance)}
+                    {percentChange !== null && (
+                      <span className="block text-xs">{percent(percentChange)}</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                    {money(snapshot.lastYearActual[key] ?? 0)}
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums">
+                    {snapshot.roomNights[key] ?? 0}
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                    {snapshot.capacityDays[key] ?? 0}
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums">{money(snapshot.adr[key] ?? 0)}</td>
+                  <td className="py-2 pl-3 text-right tabular-nums">
+                    {percent(snapshot.occupancy[key] ?? 0)}
+                  </td>
+                </tr>
+              );
+            })}
             <tr className="font-medium">
               <td className="py-2 pr-3">Total</td>
               <td className="py-2 px-3 text-right tabular-nums">
                 {money(snapshot.totals.revenue ?? 0)}
+              </td>
+              <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                {money(comparisonTotals.previous)}
+              </td>
+              <td
+                className={cn(
+                  "py-2 px-3 text-right tabular-nums",
+                  varianceTone(comparisonTotals.variance),
+                )}
+              >
+                {signedMoney(comparisonTotals.variance)}
+              </td>
+              <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
+                {money(comparisonTotals.lastYear)}
               </td>
               <td className="py-2 px-3 text-right tabular-nums">{snapshot.totals.nights ?? 0}</td>
               <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
@@ -83,6 +131,13 @@ export function SnapshotTable({ snapshot }: Props) {
           </tbody>
         </table>
       </div>
+
+      {!hasComparison && (
+        <p className="text-xs text-muted-foreground">
+          No comparison data yet — pick a baseline run and capture last-year actuals in the property
+          settings to fill the previous and last-year columns.
+        </p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

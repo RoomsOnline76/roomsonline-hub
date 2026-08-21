@@ -30,6 +30,7 @@ export interface ReportRunSummary {
 
 export interface ReportRunDetail extends ReportRunSummary {
   previousRunId: string | null;
+  baselineLocked: boolean;
   files: ReportSourceFile[];
 }
 
@@ -44,12 +45,14 @@ interface RunRow {
   source_type: string;
   as_of_date: string;
   previous_run_id: string | null;
+  baseline_locked?: boolean | null;
   status: string | null;
   title: string | null;
   created_at: string;
   properties?: { name: string | null; brand_logo_url: string | null } | null;
   report_source_files?: { count: number }[] | null;
 }
+
 
 const mapSummary = (row: RunRow): ReportRunSummary => ({
   id: row.id,
@@ -65,7 +68,8 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, status, title, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, created_at, properties(name, brand_logo_url), report_source_files(count)";
+
 
 /** Recent report runs, newest first. */
 export function useReportRuns(limit = 25) {
@@ -118,7 +122,9 @@ export function useReportRun(runId: string | undefined) {
         ...mapSummary(row),
         fileCount: files?.length ?? 0,
         previousRunId: row.previous_run_id,
+        baselineLocked: Boolean(row.baseline_locked),
         files: (files ?? []).map((f) => ({
+
           id: f.id,
           runId: f.run_id,
           storagePath: f.storage_path,
@@ -210,4 +216,72 @@ export function useReportRunMutations() {
   });
 
   return { createRun, deleteRun, deleteFile, invalidate };
+}
+
+export interface BaselineCandidate {
+  id: string;
+  title: string | null;
+  asOfDate: string;
+  status: ReportRunStatus;
+}
+
+/**
+ * Earlier runs for the same property that can act as the "OTB @ previous date"
+ * comparison, plus a mutation to pin (or clear) the choice.
+ */
+export function useReportBaseline(run: ReportRunDetail | null) {
+  const queryClient = useQueryClient();
+
+  const candidates = useQuery({
+    queryKey: ["reports", "baseline-candidates", run?.id],
+    enabled: Boolean(run?.id),
+    queryFn: async (): Promise<BaselineCandidate[]> => {
+      if (!run) return [];
+      const { data, error } = await supabase
+        .from("report_runs")
+        .select("id, title, as_of_date, status")
+        .eq("property_id", run.propertyId)
+        .neq("id", run.id)
+        .order("as_of_date", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        title: row.title,
+        asOfDate: row.as_of_date,
+        status: asStatus(row.status),
+      }));
+    },
+  });
+
+  const setBaseline = useMutation({
+    mutationFn: async (previousRunId: string | null) => {
+      if (!run) return;
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ previous_run_id: previousRunId, baseline_locked: true })
+        .eq("id", run.id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),
+  });
+
+  const clearLock = useMutation({
+    mutationFn: async () => {
+      if (!run) return;
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ baseline_locked: false })
+        .eq("id", run.id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["reports"] }),
+  });
+
+  return {
+    candidates: candidates.data ?? [],
+    isLoading: candidates.isLoading,
+    setBaseline,
+    clearLock,
+  };
 }
