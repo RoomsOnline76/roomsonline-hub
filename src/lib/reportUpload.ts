@@ -27,10 +27,20 @@ export interface UploadResult {
   failed: { filename: string; message: string }[];
 }
 
-export function hasAcceptedExtension(filename: string): boolean {
+/**
+ * Extension check. `accepted` comes from the run's source adapter
+ * (`ReportSourceAdapter.acceptedFileTypes`) so PDF sources such as OPERA are
+ * allowed without widening the workbook sources.
+ */
+export function hasAcceptedExtension(
+  filename: string,
+  accepted: readonly string[] = ACCEPTED_SOURCE_EXTENSIONS,
+): boolean {
   const lower = filename.toLowerCase();
-  return ACCEPTED_SOURCE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  const list = accepted.length ? accepted : ACCEPTED_SOURCE_EXTENSIONS;
+  return list.some((ext) => lower.endsWith(ext.toLowerCase()));
 }
+
 
 export function formatBytes(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return "—";
