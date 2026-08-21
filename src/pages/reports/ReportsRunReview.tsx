@@ -349,6 +349,8 @@ export default function ReportsRunReview() {
         </Card>
       )}
 
+      {snapshot && runId && <AiInsightsPanel runId={runId} />}
+
       {snapshot && runId && (
         <ManualInputsCard
           runId={runId}
