@@ -22,6 +22,22 @@ const readError = async (error: unknown): Promise<string> => {
   return error instanceof Error ? error.message : "Unknown error";
 };
 
+/**
+ * Storage serves stored HTML as plain text, so the raw signed URL renders as source
+ * code. Re-wrap the document in a blob URL with an explicit HTML type so the iframe
+ * (and the Open link) render the real report.
+ */
+const toRenderableUrl = async (signedUrl: string): Promise<string> => {
+  try {
+    const response = await fetch(signedUrl);
+    if (!response.ok) return signedUrl;
+    const html = await response.text();
+    return URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  } catch {
+    return signedUrl;
+  }
+};
+
 /** Builds the branded draft report and the optional Canva asset pack. */
 export function useReportDraft(runId: string | undefined) {
   const queryClient = useQueryClient();
@@ -37,10 +53,13 @@ export function useReportDraft(runId: string | undefined) {
       if (error) return { ok: false, message: await readError(error) };
       if (data?.error) return { ok: false, message: String(data.error) };
       if (!data?.url) return { ok: false, message: "No link returned" };
-      return { ok: true, url: String(data.url), path: data.path ? String(data.path) : undefined };
+      const signedUrl = String(data.url);
+      const url = action === "report" ? await toRenderableUrl(signedUrl) : signedUrl;
+      return { ok: true, url, path: data.path ? String(data.path) : undefined };
     },
     [runId],
   );
+
 
   const generate = useCallback(async (): Promise<DraftResult> => {
     setIsGenerating(true);
