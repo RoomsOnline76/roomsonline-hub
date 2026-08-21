@@ -52,6 +52,8 @@ export interface NavItem {
   module: PmsModule;
   /** Route is gated to platform users (admin/dev/fearless) — hidden from owners & staff. */
   platformOnly?: boolean;
+  /** Only shown when the optional HubSpot CRM add-on is connected and enabled. */
+  requiresHubspot?: boolean;
 }
 
 export interface NavGroup {
