@@ -364,7 +364,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   /** Undo a wrong pick: clears the guest identity fields only. */
   const clearPickedGuest = useCallback(() => {
     setPickedGuest(null);
-    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "" }));
+    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "", guest_country: "" }));
   }, []);
 
   // Reset room lines when the active property changes so we never carry a room
