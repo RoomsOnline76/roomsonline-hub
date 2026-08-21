@@ -49,23 +49,21 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     const token = authHeader.replace("Bearer ", "");
 
     let claims: Record<string, unknown> | null = null;
     try {
-      // Bound the upstream auth call so a hung/slow verify can never let the
-      // worker be killed before we return a response (which surfaced as 502).
-      const { data: claimsData, error: claimsError } = await Promise.race([
-        supabaseAdmin.auth.getClaims(token),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("auth_timeout")), 8000)
-        ),
-      ]) as Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>;
+      // Bound the upstream auth call, then retry once: the first call on a cold
+      // isolate has to fetch signing keys and occasionally exceeds the budget.
+      let claimsData: Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>["data"] = null;
+      let claimsError: unknown = null;
+      try {
+        ({ data: claimsData, error: claimsError } = await verifyClaims(token, 6000));
+      } catch (firstErr) {
+        if (String((firstErr as Error)?.message) !== "auth_timeout") throw firstErr;
+        console.warn("data-access-api auth verify slow, retrying");
+        ({ data: claimsData, error: claimsError } = await verifyClaims(token, 8000));
+      }
       if (claimsError || !claimsData?.claims) {
         return jsonResponse({ error: "Unauthorized", code: "invalid_token" }, 401);
       }
