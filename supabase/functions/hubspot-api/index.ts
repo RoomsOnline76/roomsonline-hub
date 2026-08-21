@@ -878,6 +878,311 @@ Deno.serve(async (req) => {
       }
 
 
+      // ---- Read-only operator surfaces --------------------------------------
+      // These power the CRM page and the Guests enrichment panel. They only
+      // ever read: no writes to HubSpot, no writes to ROL'OS records.
+      case "get_metrics": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+
+        const countOf = async (
+          object: "contacts" | "deals",
+          filters: Json[] = [],
+        ): Promise<number | null> => {
+          const res = await hubspot(active.token, `/crm/v3/objects/${object}/search`, {
+            method: "POST",
+            body: JSON.stringify({
+              limit: 1,
+              properties: ["hs_object_id"],
+              ...(filters.length ? { filterGroups: [{ filters }] } : {}),
+            }),
+          });
+          if (!res.ok) return null;
+          const total = (res.body as { total?: number })?.total;
+          return typeof total === "number" ? total : null;
+        };
+
+        const contactsTotal = await countOf("contacts");
+        const openDeals = await countOf("deals", [
+          { propertyName: "hs_is_closed", operator: "EQ", value: "false" },
+        ]);
+
+        // Linked guests: batch-read a bounded sample of ROL'OS guest emails and
+        // count how many exist in the portal. Bounded so the call stays quick.
+        const propertyIds = await ownerPropertyIds();
+        let guestsWithEmail = 0;
+        let linkedGuests: number | null = null;
+
+        if (propertyIds.length) {
+          const { data: guests } = await admin
+            .from("rolos_guest_profiles")
+            .select("email")
+            .in("property_id", propertyIds)
+            .not("email", "is", null)
+            .limit(500);
+          const emails = Array.from(
+            new Set(
+              (guests || [])
+                .map((g: { email: string | null }) => (g.email || "").trim().toLowerCase())
+                .filter(Boolean),
+            ),
+          );
+          guestsWithEmail = emails.length;
+
+          if (emails.length) {
+            let matched = 0;
+            let failed = false;
+            for (let i = 0; i < emails.length; i += 100) {
+              const chunk = emails.slice(i, i + 100);
+              const res = await hubspot(active.token, "/crm/v3/objects/contacts/batch/read", {
+                method: "POST",
+                body: JSON.stringify({
+                  idProperty: "email",
+                  properties: ["email"],
+                  inputs: chunk.map((email) => ({ id: email })),
+                }),
+              });
+              // 207 = partial success (some emails simply do not exist).
+              if (!res.ok && res.status !== 207) {
+                failed = true;
+                break;
+              }
+              matched += ((res.body as { results?: unknown[] })?.results || []).length;
+            }
+            if (!failed) linkedGuests = matched;
+          } else {
+            linkedGuests = 0;
+          }
+        }
+
+        return ok({
+          contacts_total: contactsTotal,
+          open_deals: openDeals,
+          guests_with_email: guestsWithEmail,
+          linked_guests: linkedGuests,
+          properties: propertyIds.length,
+          portal_id: row?.portal_id ?? null,
+          last_sync_at: row?.last_sync_at ?? null,
+        });
+      }
+
+      case "get_contact_summary": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.email) return fail("email is required", 400);
+
+        const email = body.email.trim().toLowerCase();
+        const search = await hubspot(active.token, "/crm/v3/objects/contacts/search", {
+          method: "POST",
+          body: JSON.stringify({
+            limit: 1,
+            properties: [
+              "email",
+              "firstname",
+              "lastname",
+              "lifecyclestage",
+              "hubspot_owner_id",
+              "hs_lead_status",
+              "createdate",
+              "lastmodifieddate",
+              TRADE_PROPERTY,
+              LIFECYCLE_PROPERTY,
+            ],
+            filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
+          }),
+        });
+        if (!search.ok) {
+          return fail("HubSpot contact lookup failed", search.status, { details: search.body });
+        }
+        const hit = (search.body as {
+          results?: Array<{ id: string; properties: Record<string, string | null> }>;
+        })?.results?.[0];
+        if (!hit) return ok({ linked: false, portal_id: row?.portal_id ?? null });
+
+        const props = hit.properties || {};
+
+        // Contact owner name — best effort, never fatal.
+        let ownerName: string | null = null;
+        if (props.hubspot_owner_id) {
+          const ownerRes = await hubspot(
+            active.token,
+            `/crm/v3/owners/${props.hubspot_owner_id}`,
+          );
+          if (ownerRes.ok) {
+            const o = ownerRes.body as { firstName?: string; lastName?: string; email?: string };
+            ownerName =
+              [o.firstName, o.lastName].filter(Boolean).join(" ").trim() || o.email || null;
+          }
+        }
+
+        // Recent timeline notes.
+        const notesRes = await hubspot(
+          active.token,
+          `/crm/v4/objects/contacts/${hit.id}/associations/notes?limit=5`,
+        );
+        const noteIds = ((notesRes.body as { results?: Array<{ toObjectId?: string | number }> })
+          ?.results || [])
+          .map((r) => String(r.toObjectId ?? ""))
+          .filter(Boolean)
+          .slice(0, 5);
+        const timeline: Array<{ id: string; body: string; at: string | null }> = [];
+        for (const noteId of noteIds) {
+          const noteRes = await hubspot(
+            active.token,
+            `/crm/v3/objects/notes/${noteId}?properties=hs_note_body,hs_timestamp`,
+          );
+          if (!noteRes.ok) continue;
+          const p = (noteRes.body as { properties?: Record<string, string | null> })?.properties || {};
+          timeline.push({
+            id: noteId,
+            body: (p.hs_note_body || "").replace(/<[^>]+>/g, " ").trim().slice(0, 400),
+            at: p.hs_timestamp || null,
+          });
+        }
+        timeline.sort((a, b) => (b.at || "").localeCompare(a.at || ""));
+
+        // Deals associated with the contact.
+        const dealAssoc = await hubspot(
+          active.token,
+          `/crm/v4/objects/contacts/${hit.id}/associations/deals?limit=10`,
+        );
+        const dealIds = ((dealAssoc.body as { results?: Array<{ toObjectId?: string | number }> })
+          ?.results || [])
+          .map((r) => String(r.toObjectId ?? ""))
+          .filter(Boolean)
+          .slice(0, 10);
+        const deals: Array<{
+          id: string;
+          name: string | null;
+          stage: string | null;
+          amount: string | null;
+          closed: boolean;
+        }> = [];
+        for (const dealId of dealIds) {
+          const dealRes = await hubspot(
+            active.token,
+            `/crm/v3/objects/deals/${dealId}?properties=dealname,dealstage,amount,hs_is_closed`,
+          );
+          if (!dealRes.ok) continue;
+          const p = (dealRes.body as { properties?: Record<string, string | null> })?.properties || {};
+          deals.push({
+            id: dealId,
+            name: p.dealname ?? null,
+            stage: p.dealstage ?? null,
+            amount: p.amount ?? null,
+            closed: p.hs_is_closed === "true",
+          });
+        }
+
+        return ok({
+          linked: true,
+          portal_id: row?.portal_id ?? null,
+          contact_id: hit.id,
+          email: props.email ?? email,
+          name: [props.firstname, props.lastname].filter(Boolean).join(" ").trim() || null,
+          lifecycle_stage: props.lifecyclestage ?? null,
+          lead_status: props.hs_lead_status ?? null,
+          rol_lifecycle: props[LIFECYCLE_PROPERTY] ?? null,
+          trade_or_direct: props[TRADE_PROPERTY] ?? null,
+          owner_name: ownerName,
+          created_at: props.createdate ?? null,
+          updated_at: props.lastmodifieddate ?? null,
+          timeline,
+          deals,
+        });
+      }
+
+      case "get_sync_log": {
+        const propertyIds = await ownerPropertyIds();
+        const query = admin
+          .from("integration_logs")
+          .select("id, event, metadata, created_at, property_id")
+          .eq("integration_type", SERVICE)
+          .order("created_at", { ascending: false })
+          .limit(body.limit ?? 25);
+        if (propertyIds.length) query.or(`property_id.is.null,property_id.in.(${propertyIds.join(",")})`);
+        const { data, error } = await query;
+        if (error) return fail(`Could not read the sync log: ${error.message}`, 500);
+        return ok({ entries: data || [] });
+      }
+
+      // ---- Optional, default-off message logging ----------------------------
+      case "set_message_logging": {
+        if (!body.message_logging) return fail("message_logging is required", 400);
+        const current = (row?.config || {}) as Json;
+        const list = Array.isArray(current.message_log_properties)
+          ? (current.message_log_properties as string[])
+          : [];
+        const next = body.message_logging.enabled
+          ? Array.from(new Set([...list, body.message_logging.property_id]))
+          : list.filter((id) => id !== body.message_logging!.property_id);
+
+        const { data: saved, error } = await admin
+          .from("owner_integrations")
+          .upsert(
+            { owner_id: ownerId, service: SERVICE, config: { ...current, message_log_properties: next } },
+            { onConflict: "owner_id,service" },
+          )
+          .select("*")
+          .single();
+        if (error) return fail(`Could not update message logging: ${error.message}`, 500);
+        await logEvent("message_logging_changed", {
+          property_id: body.message_logging.property_id,
+          enabled: body.message_logging.enabled,
+        }, body.message_logging.property_id);
+        return ok({
+          ...statusPayload(saved as typeof row),
+          message_log_properties: next,
+        });
+      }
+
+      case "log_message_event": {
+        const active = await requireActive();
+        if (active instanceof Response) return active;
+        if (!body.message_event) return fail("message_event is required", 400);
+
+        const ev = body.message_event;
+        const allowed = Array.isArray((active.config as Json).message_log_properties)
+          ? ((active.config as Json).message_log_properties as string[])
+          : [];
+        // Default OFF: the automatic path only runs for opted-in properties.
+        // An explicit operator action (`force`) bypasses the per-property flag.
+        if (!ev.force && !(ev.property_id && allowed.includes(ev.property_id))) {
+          return ok({ skipped: true, reason: "logging_disabled" });
+        }
+
+        const contactId = await findContactId(active.token, ev.email);
+        if (!contactId) {
+          await logEvent("message_log_skipped", { email: ev.email, reason: "contact_not_found" }, ev.property_id);
+          return ok({ skipped: true, reason: "contact_not_found" });
+        }
+
+        const heading = ev.subject || `ROL'OS message${ev.event ? ` · ${ev.event}` : ""}`;
+        const res = await hubspot(active.token, "/crm/v3/objects/notes", {
+          method: "POST",
+          body: JSON.stringify({
+            properties: {
+              hs_timestamp: new Date().toISOString(),
+              hs_note_body: [heading, ev.body].filter(Boolean).join("\n\n"),
+            },
+            associations: [
+              {
+                to: { id: contactId },
+                types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 202 }],
+              },
+            ],
+          }),
+        });
+        if (!res.ok) {
+          // Never fail the caller: native delivery already succeeded.
+          await logEvent("message_log_failed", { email: ev.email, status: res.status }, ev.property_id);
+          return ok({ skipped: true, reason: "hubspot_rejected", status: res.status });
+        }
+        await logEvent("message_logged", { email: ev.email, event: ev.event ?? null }, ev.property_id);
+        return ok({ note_id: (res.body as { id?: string })?.id ?? null, contact_id: contactId });
+      }
+
+
       case "sync_owner": {
         const active = await requireActive();
         if (active instanceof Response) return active;
