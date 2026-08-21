@@ -116,7 +116,7 @@ export default function ReportsRunReview() {
     } finally {
       setBusy(false);
     }
-  }, [run, pending, refetch]);
+  }, [run, pending, refetch, adapter]);
 
   const handleDownload = useCallback(async (storagePath: string) => {
     const url = await getSourceFileUrl(storagePath);
