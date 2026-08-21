@@ -259,6 +259,9 @@ Deno.serve(async (req) => {
       last_sync_at: r?.last_sync_at ?? null,
       last_error: r?.last_error ?? null,
       config: r?.config ?? {},
+      message_log_properties: Array.isArray((r?.config as Json | undefined)?.message_log_properties)
+        ? ((r?.config as Json).message_log_properties as string[])
+        : [],
     });
 
     const decryptToken = async (): Promise<string | null> => {
