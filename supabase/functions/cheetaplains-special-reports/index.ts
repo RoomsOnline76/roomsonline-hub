@@ -201,7 +201,14 @@ Deno.serve(async (req) => {
     const reports: Array<{ kind: string; storage_path: string; row_count: number }> = [];
     const stamp = Date.now();
 
-    const upload = async (kind: string, html: string, rowCount: number, meta: unknown) => {
+    const upload = async (
+      kind: string,
+      title: string,
+      html: string,
+      rowCount: number,
+      payload: Record<string, unknown>,
+      warnings: string[],
+    ) => {
       const path = `${run.property_id}/${runId}/special/${kind}-${stamp}.html`;
       const { error: uploadError } = await admin.storage
         .from(BUCKET)
@@ -214,15 +221,14 @@ Deno.serve(async (req) => {
       const { error: recordError } = await admin.from("report_special_reports").upsert(
         {
           run_id: runId,
-          property_id: run.property_id,
-          report_kind: kind,
+          report_key: kind,
+          title,
           storage_path: path,
-          row_count: rowCount,
-          metadata: meta,
+          payload: { ...payload, row_count: rowCount },
+          warnings: warnings.filter(Boolean),
           generated_at: new Date().toISOString(),
-          generated_by: actorId,
         },
-        { onConflict: "run_id,report_kind" },
+        { onConflict: "run_id,report_key" },
       );
       if (recordError) throw new Error(`${kind}: ${recordError.message}`);
       reports.push({ kind, storage_path: path, row_count: rowCount });
@@ -235,6 +241,7 @@ Deno.serve(async (req) => {
 
       await upload(
         "nationality",
+        "Bookings by nationality",
         buildNationalitySlide({
           ...context,
           currentLabel,
@@ -243,7 +250,8 @@ Deno.serve(async (req) => {
           hasPrior: Boolean(nationalityPrior),
         }),
         rows.length,
-        { current_label: currentLabel, prior_label: priorLabel, notes: nationalityNotes },
+        { current_label: currentLabel, prior_label: priorLabel, has_prior: Boolean(nationalityPrior) },
+        nationalityNotes,
       );
     }
 
@@ -258,6 +266,7 @@ Deno.serve(async (req) => {
 
       await upload(
         "partners",
+        "Top booking travel partners",
         buildPartnersSlide({
           ...context,
           currentLabel,
@@ -279,8 +288,8 @@ Deno.serve(async (req) => {
           prior_label: priorLabel,
           current_file: current?.filename ?? null,
           prior_file: prior?.filename ?? null,
-          notes: reservationFiles.flatMap((file) => [...file.errors, ...file.warnings]),
         },
+        reservationFiles.flatMap((file) => [...file.errors, ...file.warnings]),
       );
     }
 
