@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks, Building2, ShieldCheck } from "lucide-react";
+import { Code2, Link2, LayoutTemplate, Globe, Puzzle, Terminal, Sparkles, Blocks, Building2, ShieldCheck, MailQuestion } from "lucide-react";
 import { WhiteLabelDomainPanel } from "@/components/integrations/WhiteLabelDomainPanel";
 import { useWhitelabel, usePortfolioWhitelabel } from "@/hooks/useWhitelabel";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
@@ -20,6 +20,8 @@ import { IntegrationDocumentation } from "@/components/integrations/IntegrationD
 import { SmartBookButtonGenerator } from "@/components/integrations/SmartBookButtonGenerator";
 import { GatedPaymentProviderSelect } from "@/components/integrations/GatedPaymentProviderSelect";
 import { PortfolioWidgetTab } from "@/components/integrations/PortfolioWidgetTab";
+import { EnquiryFormTab } from "@/components/integrations/EnquiryFormTab";
+import { useHubspotCapability } from "@/hooks/useHubspotCrm";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -27,6 +29,7 @@ export default function PMSIntegrations() {
   const { propertyId, properties, portfolioProperties, portfolioIds, loading: propertyLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
   const wl = useWhitelabel(propertyId);
+  const crm = useHubspotCapability();
 
   const hasPortfolio = showPortfolioToggle;
 
@@ -387,10 +390,17 @@ export default function PMSIntegrations() {
                   <Terminal className="h-3.5 w-3.5" />
                   API
                 </TabsTrigger>
+                {crm.available && (
+                  <TabsTrigger value="enquiry" className="gap-1.5 text-xs">
+                    <MailQuestion className="h-3.5 w-3.5" />
+                    Enquiry form
+                  </TabsTrigger>
+                )}
                 <TabsTrigger value="portfolio" className="gap-1.5 text-xs">
                   <Building2 className="h-3.5 w-3.5" />
                   Portfolio
                 </TabsTrigger>
+
                 </TabsList>
               </div>
 
@@ -432,6 +442,12 @@ export default function PMSIntegrations() {
                 <ApiTab property={property} />
                 <IntegrationDocumentation type="api" />
               </TabsContent>
+
+              {crm.available && (
+                <TabsContent value="enquiry" className="space-y-4">
+                  <EnquiryFormTab property={property} />
+                </TabsContent>
+              )}
 
               <TabsContent value="portfolio" className="space-y-4">
                 <PortfolioWidgetTab property={property} />
