@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
+import { channelEditGateState } from "@/lib/channelEditGate";
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
