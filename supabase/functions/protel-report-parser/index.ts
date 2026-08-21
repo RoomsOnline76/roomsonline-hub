@@ -177,7 +177,9 @@ Deno.serve(async (req) => {
     let fileQuery = admin
       .from("report_source_files")
       .select("id, storage_path, original_filename")
-      .eq("run_id", runId);
+      .eq("run_id", runId)
+      // Prior consolidated report workbooks are baseline imports, not period exports.
+      .neq("file_role", "prior_report");
     if (onlyFileId) fileQuery = fileQuery.eq("id", onlyFileId);
     const { data: files, error: filesError } = await fileQuery.order("created_at", {
       ascending: true,
