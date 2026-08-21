@@ -74,8 +74,10 @@ export function BookerSegmentationFields({
 
   return (
     <div className="space-y-3">
+      {!hideBooker && (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
+
           <Checkbox
             id="booker-is-guest"
             checked={value.booker_is_guest}
