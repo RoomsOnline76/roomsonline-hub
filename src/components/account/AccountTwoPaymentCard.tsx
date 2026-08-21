@@ -151,9 +151,11 @@ export function AccountTwoPaymentCard({ scope, entityId, onChanged }: Props) {
   if (!summary) return null;
 
   const cur = summary.currency;
-  const setupInvoice = summary.setup.invoice;
-  const paidSetupInvoice = summary.setup.paid_invoice;
-  const setupAmount = setupInvoice ? setupInvoice.amount : summary.setup.total;
+  const setup = summary.setup ?? ({ items: [], total: 0, invoice: null, paid_invoice: null } as Summary["setup"]);
+  const setupItems = setup.items ?? [];
+  const setupInvoice = setup.invoice;
+  const paidSetupInvoice = setup.paid_invoice;
+  const setupAmount = setupInvoice ? setupInvoice.amount : setup.total ?? 0;
   const sub = summary.subscription;
   // Contracted fee vs the amount the gateway is actually collecting.
   const drift = detectSubscriptionDrift({
