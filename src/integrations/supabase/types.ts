@@ -8347,6 +8347,7 @@ export type Database = {
       report_runs: {
         Row: {
           as_of_date: string
+          baseline_locked: boolean
           created_at: string
           created_by: string | null
           error_message: string | null
@@ -8362,6 +8363,7 @@ export type Database = {
         }
         Insert: {
           as_of_date: string
+          baseline_locked?: boolean
           created_at?: string
           created_by?: string | null
           error_message?: string | null
@@ -8377,6 +8379,7 @@ export type Database = {
         }
         Update: {
           as_of_date?: string
+          baseline_locked?: boolean
           created_at?: string
           created_by?: string | null
           error_message?: string | null
