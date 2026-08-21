@@ -119,6 +119,8 @@ export function BookerSegmentationFields({
           </div>
         )}
       </div>
+      )}
+
 
       <div className="grid gap-2 sm:grid-cols-3">
         <div>
