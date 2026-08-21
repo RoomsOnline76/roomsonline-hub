@@ -175,8 +175,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     guest_name: "",
     guest_email: "",
     guest_phone: "",
+    /** ISO alpha-2 country of origin — also seeds the phone dial code. */
+    guest_country: "",
     guest_company: "",
     second_guest_name: "",
+
     booking_made_by: "",
     check_in: undefined as Date | undefined,
     check_out: undefined as Date | undefined,
