@@ -135,18 +135,18 @@ export default function ReportsPropertySettings() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="baseline">Historical baseline (JSON)</Label>
-            <textarea
-              id="baseline"
-              className="w-full min-h-40 rounded-md border bg-background px-3 py-2 text-sm font-mono"
-              value={baselineJson}
-              onChange={(e) => setBaselineJson(e.target.value)}
-              spellCheck={false}
-            />
+            <Label>Historical baseline (last-year actuals)</Label>
             <p className="text-xs text-muted-foreground">
-              {`Shape: { "years": [2024, 2025], "revenue": { "2025-07": 343388.91 }, "room_nights": { "2025-07": 145 } }`}
+              Months that fall fully in the past are captured automatically when a run is
+              processed; anything older can be imported here.
             </p>
+            <HistoricalBaselineEditor
+              baseline={baseline}
+              roomCount={Math.max(Number(roomCount) || 1, 1)}
+              onChange={setBaseline}
+            />
           </div>
+
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>
