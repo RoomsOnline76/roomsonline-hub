@@ -59,6 +59,7 @@ export default function ReportsPropertySettings() {
   const [baseline, setBaseline] = useState<HistoricalBaseline>({});
   const [roomCountTouched, setRoomCountTouched] = useState(false);
   const [sourceType, setSourceType] = useState<ReportSourceKey>(DEFAULT_REPORT_SOURCE);
+  const [specialSet, setSpecialSet] = useState<string>("none");
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -75,6 +76,7 @@ export default function ReportsPropertySettings() {
     setSecondary(settings.brandSecondary ?? "");
     setBrandSource(settings.brandSource ?? "custom");
     setBaseline(settings.historicalBaseline ?? {});
+    setSpecialSet(settings.specialReportSet ?? "none");
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
         ? settings.defaultSourceType
@@ -273,6 +275,24 @@ export default function ReportsPropertySettings() {
             </Select>
             <p className="text-xs text-muted-foreground">
               Preselected when a new run is created for this property.
+            </p>
+          </div>
+
+          {/* Specialised report set */}
+          <div className="space-y-2 max-w-sm">
+            <Label htmlFor="special-set">Specialised report set</Label>
+            <Select value={specialSet} onValueChange={setSpecialSet}>
+              <SelectTrigger id="special-set">
+                <SelectValue placeholder="Standard pack only" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Standard pack only</SelectItem>
+                <SelectItem value="cheetaplains">CheetaPlains owner pack</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Adds the bookings-by-nationality and top-travel-partner slides to every run for
+              this property.
             </p>
           </div>
 
