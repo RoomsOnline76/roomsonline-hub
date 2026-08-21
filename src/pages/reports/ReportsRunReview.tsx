@@ -25,6 +25,7 @@ import type { ReportSourceFile } from "@/hooks/useReportRuns";
 
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
+import { getAdapter } from "@/lib/report-adapters";
 
 
 const formatDate = (iso: string): string =>
