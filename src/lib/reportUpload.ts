@@ -141,7 +141,7 @@ export async function uploadSourceFiles({
     }
   }
 
-  return { uploaded, failed };
+  return { uploaded, skipped, failed };
 }
 
 /** Short-lived signed URL so staff can re-download an original upload. */
