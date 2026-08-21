@@ -19,6 +19,8 @@ import { useReportRun, useReportRunMutations } from "@/hooks/useReportRuns";
 import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
+import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
+
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { formatBytes, getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 
