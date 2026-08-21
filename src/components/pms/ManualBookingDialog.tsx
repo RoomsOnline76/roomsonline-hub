@@ -37,6 +37,10 @@ import {
   emptyBookerSegmentation,
   type BookerSegmentationValue,
 } from "@/components/pms/crm/BookerSegmentationFields";
+import { PhoneInput, CountryCombobox } from "@/components/pms/PhoneInput";
+import { countryByName, splitPhone, countryByIso } from "@/lib/dialCodes";
+import { Checkbox } from "@/components/ui/checkbox";
+
 
 /** Turns the database availability guard's codes into operator-readable copy. */
 function friendlyBookingError(message: string, fallbackPrefix: string): string {
@@ -171,8 +175,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     guest_name: "",
     guest_email: "",
     guest_phone: "",
+    /** ISO alpha-2 country of origin — also seeds the phone dial code. */
+    guest_country: "",
     guest_company: "",
     second_guest_name: "",
+
     booking_made_by: "",
     check_in: undefined as Date | undefined,
     check_out: undefined as Date | undefined,
@@ -186,6 +193,43 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   });
 
   const [lines, setLines] = useState<RoomLine[]>([newLine()]);
+
+  // ───── Phone dial codes ─────
+  /** Dial-code country for the guest phone; `manual` stops the country field overriding it. */
+  const [phoneIso, setPhoneIso] = useState<string | null>(null);
+  const phoneIsoManual = useRef(false);
+  const [bookerPhoneIso, setBookerPhoneIso] = useState<string | null>(null);
+  /** Fallback dial code from the property's own country (walk-ins). */
+  const [propertyIso, setPropertyIso] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!effectivePropertyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("country")
+        .eq("id", effectivePropertyId)
+        .maybeSingle();
+      if (cancelled) return;
+      setPropertyIso(countryByName(data?.country)?.iso ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [effectivePropertyId]);
+
+  /** Effective dial-code country: explicit pick → guest country → property country. */
+  const resolvedPhoneIso = phoneIso || countryByIso(form.guest_country)?.iso || propertyIso;
+
+  const setGuestCountry = useCallback((iso: string) => {
+    setForm(p => ({ ...p, guest_country: iso }));
+    if (!phoneIsoManual.current) setPhoneIso(iso);
+  }, []);
+
+  const setPhoneIsoManually = useCallback((iso: string) => {
+    phoneIsoManual.current = true;
+    setPhoneIso(iso);
+  }, []);
+
 
   // ───── Linked CRM profiles + segmentation ─────
   const crmScope = useCrmScopeForProperty(effectivePropertyId || null);
@@ -236,7 +280,16 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       guest_name: g.full_name || p.guest_name,
       guest_email: keepOrTake(p.guest_email, g.email),
       guest_phone: keepOrTake(p.guest_phone, g.phone),
+      guest_country: p.guest_country || countryByName(g.nationality)?.iso || "",
     }));
+
+    // Predetermine the dial code: the stored number's prefix wins, then nationality.
+    const fromPhone = splitPhone(g.phone).iso;
+    const fromNationality = countryByName(g.nationality)?.iso ?? null;
+    if (!phoneIsoManual.current && (fromPhone || fromNationality)) {
+      setPhoneIso(prev => prev || fromPhone || fromNationality);
+    }
+
 
     // Guest notes / nationality are appended to internal notes so nothing is lost.
     const profileBits = [
@@ -311,7 +364,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
   /** Undo a wrong pick: clears the guest identity fields only. */
   const clearPickedGuest = useCallback(() => {
     setPickedGuest(null);
-    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "" }));
+    setForm(p => ({ ...p, guest_name: "", guest_email: "", guest_phone: "", guest_country: "" }));
   }, []);
 
   // Reset room lines when the active property changes so we never carry a room
@@ -502,7 +555,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
   const resetAll = () => {
     setForm({
-      guest_name: "", guest_email: "", guest_phone: "", guest_company: "",
+      guest_name: "", guest_email: "", guest_phone: "", guest_country: "", guest_company: "",
       second_guest_name: "", booking_made_by: "",
       check_in: undefined, check_out: undefined,
       total_price: "", deposit_amount: "",
@@ -513,7 +566,11 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     setCrm(emptyBookerSegmentation());
     setInvoiceTo({ name: "", vat: "", address: "" });
     setPickedGuest(null);
+    setPhoneIso(null);
+    setBookerPhoneIso(null);
+    phoneIsoManual.current = false;
   };
+
 
   const handleSave = async () => {
     if (!effectivePropertyId) {
@@ -572,7 +629,9 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       fullName: form.guest_name,
       email: form.guest_email,
       phone: form.guest_phone || null,
+      nationality: countryByIso(form.guest_country)?.name || null,
     });
+
 
 
     // 2. Insert booking (aggregate occupancy across all room lines)
@@ -869,9 +928,22 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                     <Input type="email" value={form.guest_email} onChange={e => update("guest_email", e.target.value)} placeholder="guest@email.com" />
                   </div>
                   <div>
-                    <Label>Phone</Label>
-                    <Input value={form.guest_phone} onChange={e => update("guest_phone", e.target.value)} placeholder="+27..." />
+                    <Label>Country</Label>
+                    <CountryCombobox
+                      value={form.guest_country || null}
+                      onChange={setGuestCountry}
+                      placeholder="Country of origin"
+                    />
                   </div>
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <PhoneInput
+                    value={form.guest_phone}
+                    onChange={v => update("guest_phone", v)}
+                    countryIso={resolvedPhoneIso}
+                    onCountryIsoChange={setPhoneIsoManually}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -884,6 +956,81 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                   </div>
                 </div>
               </div>
+
+              <Separator />
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker</h4>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="mb-booker-is-guest"
+                    checked={crm.booker_is_guest}
+                    onCheckedChange={(v) => {
+                      const isGuest = !!v;
+                      setCrm(p => ({
+                        ...p,
+                        booker_is_guest: isGuest,
+                        // Unticking pre-fills from the guest so only the differences get typed.
+                        booker_name: isGuest ? "" : (p.booker_name || form.guest_name),
+                        booker_email: isGuest ? "" : (p.booker_email || form.guest_email),
+                        booker_phone: isGuest ? "" : (p.booker_phone || form.guest_phone),
+                      }));
+                      if (!isGuest) setBookerPhoneIso(prev => prev || resolvedPhoneIso);
+                    }}
+                  />
+                  <Label htmlFor="mb-booker-is-guest" className="cursor-pointer text-xs font-normal">
+                    The booker is the guest
+                  </Label>
+                </div>
+
+                {!crm.booker_is_guest && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label>Booker Name</Label>
+                        <Input
+                          value={crm.booker_name}
+                          onChange={e => setCrm(p => ({ ...p, booker_name: e.target.value }))}
+                          placeholder="Who made the booking"
+                        />
+                      </div>
+                      <div>
+                        <Label>Booker Email</Label>
+                        <Input
+                          type="email"
+                          value={crm.booker_email}
+                          onChange={e => setCrm(p => ({ ...p, booker_email: e.target.value }))}
+                          placeholder="booker@email.com"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Booker Phone</Label>
+                      <PhoneInput
+                        value={crm.booker_phone}
+                        onChange={v => setCrm(p => ({ ...p, booker_phone: v }))}
+                        countryIso={bookerPhoneIso || resolvedPhoneIso}
+                        onCountryIsoChange={setBookerPhoneIso}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setCrm(p => ({
+                        ...p,
+                        booker_name: form.guest_name,
+                        booker_email: form.guest_email,
+                        booker_phone: form.guest_phone,
+                      }))}
+                    >
+                      Copy guest details
+                    </Button>
+                  </div>
+                )}
+              </div>
+
 
               <Separator />
 
@@ -941,6 +1088,8 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Booker &amp; Segmentation</h4>
                 <BookerSegmentationFields
                   compact
+                  hideBooker
+
                   value={crm}
                   onChange={patch => setCrm(p => ({ ...p, ...patch }))}
                   accounts={accounts}

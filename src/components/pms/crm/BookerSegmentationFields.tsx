@@ -40,8 +40,11 @@ interface BookerSegmentationFieldsProps {
   onSaveAccount: (values: Partial<CrmAccount> & { name: string }) => Promise<string>;
   /** Called when a company is linked so callers can copy invoice-to details. */
   onCompanyLinked?: (account: CrmAccount | null) => void;
+  /** Hide the booker toggle/fields when the caller renders them itself. */
+  hideBooker?: boolean;
   compact?: boolean;
 }
+
 
 /**
  * "Linked Profiles" + "Segmentation" — the booker (when not the guest), the
@@ -55,8 +58,10 @@ export function BookerSegmentationFields({
   isPortfolioScoped,
   onSaveAccount,
   onCompanyLinked,
+  hideBooker,
   compact,
 }: BookerSegmentationFieldsProps) {
+
   const [creating, setCreating] = useState<{ type: CrmAccountType; name: string } | null>(null);
   const [pendingField, setPendingField] = useState<keyof BookerSegmentationValue | null>(null);
 
@@ -69,8 +74,10 @@ export function BookerSegmentationFields({
 
   return (
     <div className="space-y-3">
+      {!hideBooker && (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
+
           <Checkbox
             id="booker-is-guest"
             checked={value.booker_is_guest}
@@ -112,6 +119,8 @@ export function BookerSegmentationFields({
           </div>
         )}
       </div>
+      )}
+
 
       <div className="grid gap-2 sm:grid-cols-3">
         <div>

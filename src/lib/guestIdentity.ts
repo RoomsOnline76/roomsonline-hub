@@ -34,7 +34,10 @@ export async function ensureGuestProfile(opts: {
   fullName: string;
   email?: string | null;
   phone?: string | null;
+  /** Country of origin (ISO alpha-2 or name) — stored so the next booking pre-fills. */
+  nationality?: string | null;
 }): Promise<string | null> {
+
   const email = (opts.email ?? "").trim().toLowerCase();
   const norm = normaliseGuestName(opts.fullName);
   if (!email && !norm) return null;
@@ -73,10 +76,12 @@ export async function ensureGuestProfile(opts: {
           full_name: displayGuestName(opts.fullName),
           ...(opts.phone ? { phone: opts.phone } : {}),
           ...(email ? { email: opts.email } : {}),
+          ...(opts.nationality ? { nationality: opts.nationality } : {}),
         })
         .eq("id", existingId);
       return existingId;
     }
+
     const { data: created } = await supabase
       .from("rolos_guest_profiles")
       .upsert(
@@ -85,9 +90,11 @@ export async function ensureGuestProfile(opts: {
           full_name: displayGuestName(opts.fullName),
           email: opts.email || null,
           phone: opts.phone || null,
+          nationality: opts.nationality || null,
         },
         { onConflict: "property_id,normalised_name" },
       )
+
       .select("id")
       .single();
     return created?.id ?? null;
