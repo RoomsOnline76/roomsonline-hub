@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type RoomCountSource = "rooms" | "room-types" | "bedrooms" | "none";
+export type RoomCountSource = "channel-units" | "rooms" | "room-types" | "none";
 
 export interface ReportPropertyBrandData {
   brandOverrideEnabled: boolean;
@@ -29,16 +29,17 @@ export function useReportPropertyBrand(propertyId: string | undefined) {
         supabase
           .from("properties")
           .select(
-            "brand_override_enabled, brand_logo_url, brand_primary_color, brand_secondary_color, bedrooms",
+            "brand_override_enabled, brand_logo_url, brand_primary_color, brand_secondary_color",
           )
           .eq("id", propertyId)
           .maybeSingle(),
         supabase
-          .from("rolos_rooms")
-          .select("id", { count: "exact", head: true })
-          .eq("property_id", propertyId),
+          .from("hostfully_room_types")
+          .select("total_units")
+          .eq("property_id", propertyId)
+          .eq("is_active", true),
         supabase
-          .from("rolos_room_types")
+          .from("rolos_rooms")
           .select("id", { count: "exact", head: true })
           .eq("property_id", propertyId),
       ]);
@@ -47,21 +48,20 @@ export function useReportPropertyBrand(propertyId: string | undefined) {
       const property = propertyResult.data;
       if (!property) return null;
 
-      const rooms = roomsResult.count ?? 0;
-      const roomTypes = roomTypesResult.count ?? 0;
-      const bedrooms = property.bedrooms ?? 0;
+      const channelUnits = (roomsResult.data ?? []).reduce(
+        (sum, row) => sum + (typeof row.total_units === "number" && row.total_units > 0 ? row.total_units : 1),
+        0,
+      );
+      const rooms = roomTypesResult.count ?? 0;
 
       let roomCount = 0;
       let roomCountSource: RoomCountSource = "none";
-      if (rooms > 0) {
+      if (channelUnits > 0) {
+        roomCount = channelUnits;
+        roomCountSource = "channel-units";
+      } else if (rooms > 0) {
         roomCount = rooms;
         roomCountSource = "rooms";
-      } else if (roomTypes > 0) {
-        roomCount = roomTypes;
-        roomCountSource = "room-types";
-      } else if (bedrooms > 0) {
-        roomCount = bedrooms;
-        roomCountSource = "bedrooms";
       }
 
       return {
@@ -82,8 +82,8 @@ export function useReportPropertyBrand(propertyId: string | undefined) {
 }
 
 export const ROOM_COUNT_SOURCE_LABEL: Record<RoomCountSource, string> = {
+  "channel-units": "from sellable unit inventory",
   rooms: "from ROL room inventory",
   "room-types": "from ROL room types",
-  bedrooms: "from the property bedroom count",
   none: "no inventory recorded in ROL yet",
 };
