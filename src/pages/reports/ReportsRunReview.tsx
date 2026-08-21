@@ -245,19 +245,37 @@ export default function ReportsRunReview() {
         </Card>
       )}
 
-      {/* ─── Processing (Phase 2) ────────────────────────────── */}
+      {/* ─── Processing + snapshot ───────────────────────────── */}
       <Card>
         <CardContent className="flex flex-wrap items-center justify-between gap-3 py-5">
           <div className="space-y-1">
             <p className="text-sm font-medium">Process run</p>
             <p className="text-sm text-muted-foreground">
-              Parsing and aggregation arrive in the next phase.
+              {snapshot
+                ? `${snapshot.months.length} month(s) aggregated from ${snapshot.totals.bookings ?? 0} booking(s).`
+                : "Parse the uploaded files into revenue, room nights, ADR and occupancy."}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button disabled>
-              <Play className="h-4 w-4 mr-2" />
-              Process
+            <Button onClick={() => void handleProcess()} disabled={isProcessing || run.files.length === 0}>
+              {isProcessing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              {snapshot ? "Re-process" : "Process"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void handleExcel()}
+              disabled={isGenerating || !snapshot}
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+              )}
+              Download Excel
             </Button>
             <Button
               variant="outline"
@@ -271,6 +289,18 @@ export default function ReportsRunReview() {
           </div>
         </CardContent>
       </Card>
+
+      {snapshot && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium">Aggregated results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SnapshotTable snapshot={snapshot} />
+          </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }
