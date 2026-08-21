@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { HistoricalBaseline } from "@/lib/historicalBaseline";
+import type { ReportBrandSource } from "@/lib/reportBranding";
 
 export interface PropertyReportSettings {
   propertyId: string;
@@ -9,6 +10,7 @@ export interface PropertyReportSettings {
   coverArtworkUrl: string | null;
   brandPrimary: string | null;
   brandSecondary: string | null;
+  brandSource: ReportBrandSource;
   historicalBaseline: HistoricalBaseline;
   defaultSourceType: string;
 }
@@ -37,6 +39,8 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
         coverArtworkUrl: data.cover_artwork_url,
         brandPrimary: data.brand_primary,
         brandSecondary: data.brand_secondary,
+        brandSource: ((data as { brand_source?: string }).brand_source ??
+          "custom") as ReportBrandSource,
         historicalBaseline: (data.historical_baseline ?? {}) as HistoricalBaseline,
         defaultSourceType: data.default_source_type ?? "nightsbridge",
       };
@@ -53,6 +57,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           cover_artwork_url: input.coverArtworkUrl ?? null,
           brand_primary: input.brandPrimary ?? null,
           brand_secondary: input.brandSecondary ?? null,
+          brand_source: input.brandSource ?? "custom",
           historical_baseline: (input.historicalBaseline ?? {}) as never,
           default_source_type: input.defaultSourceType ?? "nightsbridge",
         },
@@ -60,6 +65,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
       );
       if (error) throw error;
     },
+
     onSuccess: () => queryClient.invalidateQueries({ queryKey: KEY }),
   });
 
