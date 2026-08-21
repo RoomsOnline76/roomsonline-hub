@@ -20,6 +20,7 @@ export type ReportRunEventType =
   | "processing_succeeded"
   | "processing_failed"
   | "processing_partial"
+  | "capacity_mismatch"
   | "excel_generated"
   | "draft_generated"
   | "insights_generated"
@@ -47,6 +48,7 @@ export const REPORT_EVENT_LABEL: Record<ReportRunEventType, string> = {
   processing_succeeded: "Processing finished",
   processing_failed: "Processing failed",
   processing_partial: "Processing incomplete",
+  capacity_mismatch: "Capacity check",
   excel_generated: "Workbook generated",
   draft_generated: "Draft report generated",
   insights_generated: "Insights generated",
