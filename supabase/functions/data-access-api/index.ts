@@ -7,6 +7,22 @@ const corsHeaders = {
 };
 
 
+// Module-scoped so the JWKS / signing-key cache survives between requests.
+// Re-creating the client per call re-fetched keys every time and could hang.
+const supabaseAdmin = createClient(
+  Deno.env.get("SUPABASE_URL")!,
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+);
+
+async function verifyClaims(token: string, timeoutMs: number) {
+  return (await Promise.race([
+    supabaseAdmin.auth.getClaims(token),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("auth_timeout")), timeoutMs)
+    ),
+  ])) as Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>;
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
