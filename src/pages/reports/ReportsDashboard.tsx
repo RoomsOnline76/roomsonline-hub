@@ -8,10 +8,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
+import { useReportRuns } from "@/hooks/useReportRuns";
+import { RunStatusPill } from "@/components/reports/RunStatusPill";
+
+const formatRunDate = (iso: string): string =>
+  new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 export default function ReportsDashboard() {
   const [search, setSearch] = useState("");
   const { properties, total, isLoading, error } = useReportProperties(search);
+  const { runs, isLoading: runsLoading } = useReportRuns();
+
 
   usePageSEO({
     title: "Revenue Reports | Rooms Online",
@@ -42,16 +53,51 @@ export default function ReportsDashboard() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium">Recent runs</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="rounded-lg border border-dashed py-12 text-center space-y-2">
-            <p className="text-sm font-medium">No report runs yet</p>
-            <p className="text-sm text-muted-foreground">
-              Uploading and processing arrives in the next phase. Runs will appear here
-              once created.
-            </p>
-          </div>
+        <CardContent className="space-y-2">
+          {runsLoading && [1, 2, 3].map((i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)}
+
+          {!runsLoading && runs.length === 0 && (
+            <div className="rounded-lg border border-dashed py-12 text-center space-y-2">
+              <p className="text-sm font-medium">No report runs yet</p>
+              <p className="text-sm text-muted-foreground">
+                Create a run to upload NightsBridge bookingsummary files.
+              </p>
+            </div>
+          )}
+
+          {runs.map((run) => (
+            <Link
+              key={run.id}
+              to={`/runs/${run.id}`}
+              className="flex items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/40 transition-colors"
+            >
+              {run.propertyLogoUrl ? (
+                <img
+                  src={run.propertyLogoUrl}
+                  alt={`${run.propertyName ?? "Property"} logo`}
+                  loading="lazy"
+                  className="h-9 w-9 rounded object-contain bg-muted"
+                />
+              ) : (
+                <span className="h-9 w-9 rounded bg-muted flex items-center justify-center">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                </span>
+              )}
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium truncate">
+                  {run.propertyName ?? "Unknown property"}
+                </span>
+                <span className="block text-xs text-muted-foreground truncate">
+                  As-of {formatRunDate(run.asOfDate)} · {run.fileCount} file
+                  {run.fileCount === 1 ? "" : "s"}
+                </span>
+              </span>
+              <RunStatusPill status={run.status} />
+            </Link>
+          ))}
         </CardContent>
       </Card>
+
 
       {/* ─── Properties ─────────────────────────────────────── */}
       <section className="space-y-4">
