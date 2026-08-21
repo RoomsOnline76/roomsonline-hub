@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,11 +22,23 @@ import {
   type ReportBrandSource,
 } from "@/lib/reportBranding";
 import type { HistoricalBaseline } from "@/lib/historicalBaseline";
+import {
+  ReportReadinessChecklist,
+  type ReadinessItem,
+} from "@/components/reports/ReportReadinessChecklist";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
+  const navigate = useNavigate();
   const { properties } = useReportProperties();
   const property = properties.find((p) => p.id === propertyId);
   const { settings, isLoading, save } = usePropertyReportSettings(propertyId);
@@ -80,6 +92,38 @@ export default function ReportsPropertySettings() {
     [brandSource, rolBrand, logoUrl, primary, secondary],
   );
 
+  const readiness = useMemo<ReadinessItem[]>(() => {
+    const rooms = Number(roomCount);
+    const baselineMonths = Object.keys(baseline ?? {}).length;
+    return [
+      {
+        label: "Sellable rooms captured",
+        done: Number.isFinite(rooms) && rooms >= 1,
+        hint: "Occupancy cannot be calculated without a room count.",
+      },
+      {
+        label: "Report logo available",
+        done: Boolean(resolved.logoUrl),
+        hint: "Upload a logo, or switch branding to the Rooms Online default.",
+      },
+      {
+        label: "Brand colours resolved",
+        done: HEX.test(resolved.primary ?? "") && HEX.test(resolved.secondary ?? ""),
+        hint: "Pick a branding source or enter two hex colours.",
+      },
+      {
+        label: "Cover artwork set",
+        done: Boolean(coverUrl),
+        hint: "Optional — the cover page falls back to a plain brand panel.",
+      },
+      {
+        label: "Last-year baseline loaded",
+        done: baselineMonths > 0,
+        hint: "Without a baseline the report shows no year-on-year comparison.",
+      },
+    ];
+  }, [roomCount, resolved, coverUrl, baseline]);
+
   const handleSave = async () => {
     if (!propertyId) return;
     const rooms = Number(roomCount);
@@ -123,6 +167,29 @@ export default function ReportsPropertySettings() {
           Capacity drives occupancy; branding drives the workbook and the report pack.
         </p>
       </div>
+
+      {properties.length > 1 && (
+        <div className="max-w-sm space-y-2">
+          <Label htmlFor="property-switch">Property</Label>
+          <Select
+            value={propertyId ?? ""}
+            onValueChange={(next) => navigate(`/settings/${next}`)}
+          >
+            <SelectTrigger id="property-switch">
+              <SelectValue placeholder="Choose a property" />
+            </SelectTrigger>
+            <SelectContent>
+              {properties.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <ReportReadinessChecklist items={readiness} />
 
       <Card>
         <CardHeader className="pb-3">
