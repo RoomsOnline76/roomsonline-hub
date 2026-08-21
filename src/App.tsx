@@ -162,7 +162,15 @@ const ProjectDiscoverySurvey = lazy(() => import("./pages/ProjectDiscoverySurvey
 
 import { PMSShell } from "./components/layout/PMSShell";
 import { ConnectLayout } from "./components/layout/ConnectLayout";
-import { isConnectDomain } from "./lib/config";
+import { ReportsLayout } from "./components/layout/ReportsLayout";
+import { isConnectDomain, isReportsDomain } from "./lib/config";
+
+const ReportsDashboard = lazy(() => import("./pages/reports/ReportsDashboard"));
+const ReportsNewRun = lazy(() => import("./pages/reports/ReportsNewRun"));
+const ReportsRunReview = lazy(() => import("./pages/reports/ReportsRunReview"));
+const ReportsPropertySettings = lazy(() => import("./pages/reports/ReportsPropertySettings"));
+const ReportsHelp = lazy(() => import("./pages/reports/ReportsHelp"));
+
 
 // ─── Shared Connect portal child routes (used in two mounts) ────
 function connectChildRoutes(): ReactElement[] {
