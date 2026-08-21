@@ -53,10 +53,20 @@ export async function pushChangedChannelFields(
 ): Promise<void> {
   const sections = sectionsOf(changed);
   if (sections.length === 0) return;
+  // Before the property has cleared the first thirteen Channel onboarding steps there is
+  // nothing to push and nothing to report: no channel call, no toast lifecycle.
+  const gate = await channelEditGateState(propertyId);
+  if (!gate.open) {
+    console.log(
+      `[channel save push] silent for ${propertyId} — Channel onboarding incomplete: ${gate.missing.join("; ")}`,
+    );
+    return;
+  }
   const confirmation = Symbol(propertyId);
   activeConfirmations.set(propertyId, confirmation);
   const delivered: string[] = [];
   const deferred: string[] = [];
+
   // Sections whose delta parked: keep watching so the eventual background delivery is
   // reported instead of landing silently minutes later.
   const parked: { section: ChannelPushSection; labels: string; sinceIso: string }[] = [];
