@@ -64,13 +64,21 @@ export function PriorReportImportCard({ run, onChanged }: Props) {
         files: pending,
         fileRole: "prior_report",
         acceptedExtensions: PRIOR_EXTENSIONS,
-        existingHashes: run.files.map((file) => file.fileHash ?? "").filter(Boolean),
+        existingHashes: run.files
+          .filter((file) => file.fileRole === "prior_report")
+          .map((file) => file.fileHash ?? "")
+          .filter(Boolean),
         onProgress: ({ index, phase, message }) =>
           setStates((prev) => ({ ...prev, [index]: { phase, message } })),
       });
       if (result.failed.length) {
         toast.error("Some files were not stored", {
           description: result.failed.map((f) => `${f.filename}: ${f.message}`).join("; "),
+        });
+      }
+      if (!result.uploaded && result.skipped.length && !result.failed.length) {
+        toast.info("Already imported", {
+          description: "That workbook is already attached to this run.",
         });
       }
       if (result.uploaded) {
