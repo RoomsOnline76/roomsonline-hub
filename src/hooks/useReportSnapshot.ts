@@ -114,7 +114,7 @@ export function useReportSnapshot(runId: string | undefined) {
 }
 
 /** Runs the parser + aggregator for a run. */
-export function useProcessReportRun(runId: string | undefined) {
+export function useProcessReportRun(runId: string | undefined, sourceType?: string) {
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
 
