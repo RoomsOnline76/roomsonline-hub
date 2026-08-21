@@ -272,17 +272,36 @@ export default function PMSCrm() {
 
       <Separator />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Add-on settings</CardTitle>
-          <CardDescription className="text-xs">
-            Connect, replace the token, pause or disconnect. Included free.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <HubSpotIntegrationCard bare />
-        </CardContent>
-      </Card>
+      <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    Add-on settings
+                    <Badge variant={status?.connected ? "secondary" : "outline"} className="text-[10px]">
+                      {status?.connected ? "Connected" : "Not connected"}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Connect, replace the token, pause or disconnect. Included free.
+                  </CardDescription>
+                </div>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              <HubSpotIntegrationCard bare />
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
     </div>
   );
 }
