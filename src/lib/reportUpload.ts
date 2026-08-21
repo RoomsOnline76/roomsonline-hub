@@ -24,6 +24,8 @@ export interface UploadProgress {
 
 export interface UploadResult {
   uploaded: number;
+  /** Files skipped because an identical file is already on the run. */
+  skipped: { filename: string }[];
   failed: { filename: string; message: string }[];
 }
 
