@@ -17512,7 +17512,6 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
-      diag_upload_check: { Args: { _name: string }; Returns: Json }
       encrypt_sensitive_text: { Args: { plaintext: string }; Returns: string }
       encrypt_system_password: { Args: { plaintext: string }; Returns: string }
       format_rol_booking_reference: {
