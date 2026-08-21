@@ -8,6 +8,7 @@
  */
 
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
+import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEditGate";
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { confirmChannelPush } from "@/lib/channelPushConfirm";
 import {
@@ -18,6 +19,7 @@ import {
 } from "@/lib/channelPushFields";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
 
 export interface ChannelPushNotifier {
   (input: { title: string; description: string; variant?: "default" | "destructive" }): void;
@@ -51,10 +53,20 @@ export async function pushChangedChannelFields(
 ): Promise<void> {
   const sections = sectionsOf(changed);
   if (sections.length === 0) return;
+  // Before the property has cleared the first thirteen Channel onboarding steps there is
+  // nothing to push and nothing to report: no channel call, no toast lifecycle.
+  const gate = await channelEditGateState(propertyId);
+  if (!gate.open) {
+    console.log(
+      `[channel save push] silent for ${propertyId} — Channel onboarding incomplete: ${gate.missing.join("; ")}`,
+    );
+    return;
+  }
   const confirmation = Symbol(propertyId);
   activeConfirmations.set(propertyId, confirmation);
   const delivered: string[] = [];
   const deferred: string[] = [];
+
   // Sections whose delta parked: keep watching so the eventual background delivery is
   // reported instead of landing silently minutes later.
   const parked: { section: ChannelPushSection; labels: string; sinceIso: string }[] = [];
@@ -158,6 +170,14 @@ export async function pushRatePlanRates(
   options: { label?: string } = {},
 ): Promise<void> {
   if (!propertyId) return;
+  // Gate first, so a property still inside the wizard never even shows a spinner.
+  const gate = await channelEditGateState(propertyId);
+  if (!gate.open) {
+    console.log(
+      `[channel rate push] silent for ${propertyId} — Channel onboarding incomplete: ${gate.missing.join("; ")}`,
+    );
+    return;
+  }
   const label = options.label ?? "Rates";
   const toastId = `ru-rates-${propertyId}`;
   const sinceIso = new Date(Date.now() - 5_000).toISOString();
@@ -169,11 +189,15 @@ export async function pushRatePlanRates(
     toast.error(`${CHANNEL_MANAGER} update rejected`, { id: toastId, description: outcome.error });
     return;
   }
-  if (outcome?.queued === false && outcome?.reason === "not_connected") {
-    // Not distributed to the channel — nothing is owed, so stay quiet.
+  if (
+    outcome?.queued === false &&
+    (outcome?.reason === "not_connected" || outcome?.reason === CHANNEL_EDIT_GATE_REASON)
+  ) {
+    // Not distributed to the channel (or still onboarding) — nothing is owed, so stay quiet.
     toast.dismiss(toastId);
     return;
   }
+
 
   const { verdict, reason } = await confirmChannelPush({ propertyId, section: "rates", sinceIso });
   if (verdict === "delivered") {
