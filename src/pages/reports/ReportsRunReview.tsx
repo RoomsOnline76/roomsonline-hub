@@ -330,6 +330,10 @@ export default function ReportsRunReview() {
         </Card>
       )}
 
+      {snapshot && runId && <ManualInputsCard runId={runId} months={snapshot.months} />}
+
+
+
     </div>
   );
 }
