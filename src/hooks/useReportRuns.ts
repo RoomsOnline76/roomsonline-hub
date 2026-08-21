@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { logReportRunEvent } from "@/hooks/useReportRunEvents";
 
 export type ReportRunStatus = "draft" | "processing" | "ready" | "failed";
 
@@ -11,6 +12,7 @@ export interface ReportSourceFile {
   byteSize: number | null;
   fileHash: string | null;
   parsedOk: boolean | null;
+  parseErrors: string[];
   rowCount: number | null;
   createdAt: string;
 }
@@ -25,6 +27,8 @@ export interface ReportRunSummary {
   status: ReportRunStatus;
   title: string | null;
   fileCount: number;
+  errorMessage: string | null;
+  processingNote: string | null;
   createdAt: string;
 }
 
@@ -48,11 +52,26 @@ interface RunRow {
   baseline_locked?: boolean | null;
   status: string | null;
   title: string | null;
+  error_message?: string | null;
+  processing_note?: string | null;
   created_at: string;
   properties?: { name: string | null; brand_logo_url: string | null } | null;
   report_source_files?: { count: number }[] | null;
 }
 
+
+/** parse_errors is jsonb — accept an array, a string, or an object of messages. */
+const normaliseParseErrors = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((v) => (typeof v === "string" ? v : JSON.stringify(v)));
+  if (typeof value === "string") return [value];
+  if (typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).map(
+      ([key, detail]) => `${key}: ${typeof detail === "string" ? detail : JSON.stringify(detail)}`,
+    );
+  }
+  return [String(value)];
+};
 
 const mapSummary = (row: RunRow): ReportRunSummary => ({
   id: row.id,
@@ -64,11 +83,13 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
   status: asStatus(row.status),
   title: row.title,
   fileCount: row.report_source_files?.[0]?.count ?? 0,
+  errorMessage: row.error_message ?? null,
+  processingNote: row.processing_note ?? null,
   createdAt: row.created_at,
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */
@@ -100,6 +121,10 @@ export function useReportRun(runId: string | undefined) {
   const query = useQuery({
     queryKey: [...RUNS_KEY, "detail", runId],
     enabled: Boolean(runId),
+    // While the parser is working, poll so the processing note and per-file
+    // outcomes land in the UI without the user reloading.
+    refetchInterval: (q) =>
+      (q.state.data as ReportRunDetail | null | undefined)?.status === "processing" ? 4000 : false,
     queryFn: async (): Promise<ReportRunDetail | null> => {
       if (!runId) return null;
       const { data, error } = await supabase
@@ -112,7 +137,7 @@ export function useReportRun(runId: string | undefined) {
 
       const { data: files, error: filesError } = await supabase
         .from("report_source_files")
-        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, parsed_ok, row_count, created_at")
+        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, parsed_ok, parse_errors, row_count, created_at")
         .eq("run_id", runId)
         .order("created_at", { ascending: true });
       if (filesError) throw filesError;
@@ -132,6 +157,7 @@ export function useReportRun(runId: string | undefined) {
           byteSize: f.byte_size === null ? null : Number(f.byte_size),
           fileHash: f.file_hash,
           parsedOk: f.parsed_ok,
+          parseErrors: normaliseParseErrors(f.parse_errors),
           rowCount: f.row_count,
           createdAt: f.created_at,
         })),
@@ -185,6 +211,7 @@ export function useReportRunMutations() {
         .select("id")
         .single();
       if (error) throw error;
+      await logReportRunEvent(data.id, "run_created", `Run created for ${input.asOfDate}`);
       return data.id;
     },
     onSuccess: invalidate,
@@ -207,10 +234,18 @@ export function useReportRunMutations() {
   });
 
   const deleteFile = useMutation({
-    mutationFn: async (file: { id: string; storagePath: string }) => {
+    mutationFn: async (file: {
+      id: string;
+      storagePath: string;
+      runId?: string;
+      filename?: string;
+    }) => {
       await supabase.storage.from("revenue-reports").remove([file.storagePath]);
       const { error } = await supabase.from("report_source_files").delete().eq("id", file.id);
       if (error) throw error;
+      if (file.runId) {
+        await logReportRunEvent(file.runId, "file_removed", `Removed ${file.filename ?? "a source file"}`);
+      }
     },
     onSuccess: invalidate,
   });

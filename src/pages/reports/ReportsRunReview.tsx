@@ -1,14 +1,6 @@
 import { useCallback, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  ArrowLeft,
-  Building2,
-  Download,
-  FileSpreadsheet,
-  Loader2,
-  Play,
-  Trash2,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, Building2, Loader2, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,10 +17,14 @@ import { DownloadBar } from "@/components/reports/DownloadBar";
 import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
 import { useReportDraft } from "@/hooks/useReportDraft";
+import { SourceFileList } from "@/components/reports/SourceFileList";
+import { RunEventTimeline } from "@/components/reports/RunEventTimeline";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { ReportSourceFile } from "@/hooks/useReportRuns";
 
 
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
-import { formatBytes, getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
+import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 
 
 const formatDate = (iso: string): string =>
@@ -56,6 +52,7 @@ export default function ReportsRunReview() {
   const [pending, setPending] = useState<File[]>([]);
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
+  const [reparsingId, setReparsingId] = useState<string | null>(null);
 
   usePageSEO({
     title: run?.title ? `${run.title} | Rooms Online` : "Report run | Rooms Online",
@@ -66,7 +63,13 @@ export default function ReportsRunReview() {
   const handleProcess = useCallback(async () => {
     const result = await process();
     if (!result.ok) {
-      toast.error("Processing failed", { description: result.message });
+      if (result.partial) {
+        toast.warning("Processing incomplete", {
+          description: `${result.message} — press Process again to continue.`,
+        });
+      } else {
+        toast.error("Processing failed", { description: result.message });
+      }
     } else {
       toast.success(`${result.rowsParsed ?? 0} booking row(s) aggregated`, {
         description: `${result.months?.length ?? 0} month(s) covered`,
@@ -117,6 +120,48 @@ export default function ReportsRunReview() {
     }
     window.open(url, "_blank", "noopener");
   }, []);
+
+  const handleReparse = useCallback(
+    async (file: ReportSourceFile) => {
+      setReparsingId(file.id);
+      try {
+        const result = await process(file.id);
+        if (result.ok) {
+          toast.success(`${file.originalFilename} re-parsed`, {
+            description: `${result.rowsParsed ?? 0} row(s) read. Re-process the run to refresh totals.`,
+          });
+        } else {
+          toast.error(`${file.originalFilename} could not be parsed`, {
+            description: result.message,
+          });
+        }
+        await Promise.all([refetch(), refetchSnapshot()]);
+      } finally {
+        setReparsingId(null);
+      }
+    },
+    [process, refetch, refetchSnapshot],
+  );
+
+  const handleRemoveFile = useCallback(
+    async (file: ReportSourceFile) => {
+      try {
+        await deleteFile.mutateAsync({
+          id: file.id,
+          storagePath: file.storagePath,
+          runId: file.runId,
+          filename: file.originalFilename,
+        });
+        toast.success(`${file.originalFilename} removed`);
+        await refetch();
+      } catch (error) {
+        toast.error("Could not remove the file", {
+          description: error instanceof Error ? error.message : undefined,
+        });
+      }
+    },
+    [deleteFile, refetch],
+  );
 
   const handleDeleteRun = useCallback(async () => {
     if (!run) return;
@@ -195,6 +240,24 @@ export default function ReportsRunReview() {
         </div>
       </div>
 
+      {run.status === "failed" && run.errorMessage && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Last processing attempt did not finish</AlertTitle>
+          <AlertDescription>{run.errorMessage}</AlertDescription>
+        </Alert>
+      )}
+
+      {run.status === "processing" && (
+        <Alert>
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertTitle>Processing</AlertTitle>
+          <AlertDescription>
+            {run.processingNote ?? "Reading the uploaded workbooks…"}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* ─── Stored source files ──────────────────────────────── */}
       <Card>
         <CardHeader className="pb-3">
@@ -203,59 +266,15 @@ export default function ReportsRunReview() {
             <span className="text-muted-foreground font-normal">({run.files.length})</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {run.files.length === 0 && (
-            <p className="text-sm text-muted-foreground py-4">
-              No files stored on this run yet.
-            </p>
-          )}
-          {run.files.map((file) => (
-            <div
-              key={file.id}
-              className="flex items-center gap-3 rounded-md border px-3 py-2 text-sm"
-            >
-              <FileSpreadsheet className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span className="flex-1 min-w-0 truncate font-medium">
-                {file.originalFilename}
-              </span>
-              <span className="text-xs text-muted-foreground shrink-0">
-                {formatBytes(file.byteSize)}
-              </span>
-              <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
-                {file.parsedOk === null
-                  ? "Not parsed yet"
-                  : file.parsedOk
-                    ? `${file.rowCount ?? 0} rows`
-                    : "Parse failed"}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0"
-                onClick={() => void handleDownload(file.storagePath)}
-                aria-label={`Download ${file.originalFilename}`}
-              >
-                <Download className="h-4 w-4" />
-              </Button>
-              {editable && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-destructive"
-                  onClick={async () => {
-                    await deleteFile.mutateAsync({
-                      id: file.id,
-                      storagePath: file.storagePath,
-                    });
-                    await refetch();
-                  }}
-                  aria-label={`Remove ${file.originalFilename}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          ))}
+        <CardContent>
+          <SourceFileList
+            files={run.files}
+            editable={editable}
+            reparsingId={reparsingId}
+            onDownload={(path) => void handleDownload(path)}
+            onReparse={(file) => void handleReparse(file)}
+            onRemove={(file) => void handleRemoveFile(file)}
+          />
         </CardContent>
       </Card>
 
@@ -361,6 +380,8 @@ export default function ReportsRunReview() {
           isProcessing={isProcessing}
         />
       )}
+
+      <RunEventTimeline runId={runId} isLive={run.status === "processing"} />
     </div>
 
   );

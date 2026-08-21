@@ -7,6 +7,7 @@ import {
   buildDraftReport,
   type DraftSnapshot,
 } from "../_shared/revenueReportHtml.ts";
+import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -166,6 +167,14 @@ Deno.serve(async (req) => {
       if (packUpload.error) return json({ error: packUpload.error.message }, 500);
       const packSigned = await admin.storage.from(BUCKET).createSignedUrl(packPath, 60 * 30);
       if (packSigned.error) return json({ error: packSigned.error.message }, 500);
+      await logRunEvent(
+        admin,
+        runId,
+        "draft_generated",
+        "Canva asset pack built",
+        { path: packPath, charts: draft.charts.length, tables: draft.tables.length },
+        userData.user.id,
+      );
       return json({
         success: true,
         path: packPath,
@@ -189,6 +198,15 @@ Deno.serve(async (req) => {
 
     const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
     if (signed.error) return json({ error: signed.error.message }, 500);
+
+    await logRunEvent(
+      admin,
+      runId,
+      "draft_generated",
+      "Draft visual report generated",
+      { path, charts: draft.charts.length },
+      userData.user.id,
+    );
 
     return json({
       success: true,

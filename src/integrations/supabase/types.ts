@@ -8394,6 +8394,44 @@ export type Database = {
           },
         ]
       }
+      report_run_events: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          detail: Json
+          event_type: string
+          id: string
+          message: string | null
+          run_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          event_type: string
+          id?: string
+          message?: string | null
+          run_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          detail?: Json
+          event_type?: string
+          id?: string
+          message?: string | null
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_runs: {
         Row: {
           as_of_date: string
@@ -8407,6 +8445,7 @@ export type Database = {
           excel_path: string | null
           id: string
           previous_run_id: string | null
+          processing_note: string | null
           property_id: string
           source_type: string
           status: string
@@ -8425,6 +8464,7 @@ export type Database = {
           excel_path?: string | null
           id?: string
           previous_run_id?: string | null
+          processing_note?: string | null
           property_id: string
           source_type?: string
           status?: string
@@ -8443,6 +8483,7 @@ export type Database = {
           excel_path?: string | null
           id?: string
           previous_run_id?: string | null
+          processing_note?: string | null
           property_id?: string
           source_type?: string
           status?: string

@@ -10,6 +10,7 @@ import {
   type AnomalySnapshot,
 } from "../_shared/reportAnomalies.ts";
 import { aiChat, modelForTask, AI_TEMPERATURE } from "../_shared/aiModels.ts";
+import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const MAX_SUGGESTION_CHARS = 480;
 const MAX_NARRATIVE_CHARS = 1800;
@@ -211,6 +212,15 @@ Deno.serve(async (req) => {
       .from("report_insights")
       .upsert(record, { onConflict: "run_id" });
     if (saveError) return json({ error: saveError.message }, 500);
+
+    await logRunEvent(
+      admin,
+      runId,
+      "insights_generated",
+      "TOBI insights generated",
+      { provider: outcome.provider },
+      userData.user.id,
+    );
 
     return json({ success: true, insights: record });
   } catch (err) {

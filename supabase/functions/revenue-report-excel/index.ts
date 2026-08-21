@@ -5,6 +5,7 @@ import {
   buildRevenueWorkbook,
   type HistoricalBaseline,
 } from "../_shared/revenueReportWorkbook.ts";
+import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -136,6 +137,15 @@ Deno.serve(async (req) => {
 
     const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 60 * 30);
     if (signed.error) return json({ error: signed.error.message }, 500);
+
+    await logRunEvent(
+      admin,
+      runId,
+      "excel_generated",
+      `Workbook generated (${Math.round(bytes.byteLength / 1024)} KB)`,
+      { path, bytes: bytes.byteLength },
+      userData.user.id,
+    );
 
     return json({ success: true, path, url: signed.data.signedUrl, bytes: bytes.byteLength });
   } catch (error) {
