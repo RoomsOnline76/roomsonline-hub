@@ -154,6 +154,7 @@ Deno.serve(async (req) => {
       .from("report_source_files")
       .select("id, storage_path, original_filename")
       .eq("run_id", runId)
+      .neq("file_role", "prior_report")
       .order("created_at", { ascending: true });
     if (filesError) return json({ error: filesError.message }, 500);
     if (!files?.length) return json({ error: "No source files uploaded for this run" }, 400);

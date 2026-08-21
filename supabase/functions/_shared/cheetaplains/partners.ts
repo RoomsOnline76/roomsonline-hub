@@ -81,7 +81,7 @@ export function normalisePartnerName(raw: string): string {
     .replace(/\s{2,}/g, " ")
     .trim();
   const key = withoutSuffix.toLowerCase();
-  return DISPLAY_OVERRIDES[key] ?? withoutSuffix || stripped;
+  return DISPLAY_OVERRIDES[key] ?? (withoutSuffix || stripped);
 }
 
 const HEADERS = {

@@ -12,6 +12,8 @@ export interface ReportSourceFile {
   originalFilename: string;
   byteSize: number | null;
   fileHash: string | null;
+  /** `prior_report` files seed the baseline; they are never parsed as periods. */
+  fileRole: "source" | "prior_report";
   parsedOk: boolean | null;
   parseErrors: string[];
   rowCount: number | null;
@@ -138,7 +140,7 @@ export function useReportRun(runId: string | undefined) {
 
       const { data: files, error: filesError } = await supabase
         .from("report_source_files")
-        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, parsed_ok, parse_errors, row_count, created_at")
+        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, file_role, parsed_ok, parse_errors, row_count, created_at")
         .eq("run_id", runId)
         .order("created_at", { ascending: true });
       if (filesError) throw filesError;
@@ -146,7 +148,7 @@ export function useReportRun(runId: string | undefined) {
       const row = data as unknown as RunRow;
       return {
         ...mapSummary(row),
-        fileCount: files?.length ?? 0,
+        fileCount: (files ?? []).filter((f) => (f.file_role ?? "source") !== "prior_report").length,
         previousRunId: row.previous_run_id,
         baselineLocked: Boolean(row.baseline_locked),
         files: (files ?? []).map((f) => ({
@@ -157,6 +159,7 @@ export function useReportRun(runId: string | undefined) {
           originalFilename: f.original_filename,
           byteSize: f.byte_size === null ? null : Number(f.byte_size),
           fileHash: f.file_hash,
+          fileRole: (f.file_role ?? "source") as "source" | "prior_report",
           parsedOk: f.parsed_ok,
           parseErrors: normaliseParseErrors(f.parse_errors),
           rowCount: f.row_count,

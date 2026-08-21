@@ -13,6 +13,7 @@ import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { BaselineCard } from "@/components/reports/BaselineCard";
+import { PriorReportImportCard } from "@/components/reports/PriorReportImportCard";
 import { DownloadBar } from "@/components/reports/DownloadBar";
 import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
@@ -388,6 +389,9 @@ export default function ReportsRunReview() {
       )}
 
       <BaselineCard run={run} onChanged={async () => { await refetch(); }} />
+
+      {/* ─── First-run baseline from the existing owner report ── */}
+      <PriorReportImportCard run={run} onChanged={async () => { await refetch(); await refetchSnapshot(); }} />
 
       {snapshot && (
         <Card>
