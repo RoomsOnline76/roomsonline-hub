@@ -19,6 +19,8 @@ interface FileDropZoneProps {
   files: File[];
   states: Record<number, DropZoneFileState>;
   disabled?: boolean;
+  /** Source-adapter file types; defaults to the NightsBridge workbook types. */
+  acceptedExtensions?: string[];
   onFilesAdded: (files: File[]) => void;
   onRemove: (index: number) => void;
 }
@@ -39,11 +41,15 @@ export function FileDropZone({
   files,
   states,
   disabled = false,
+  acceptedExtensions,
   onFilesAdded,
   onRemove,
 }: FileDropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const extensions = acceptedExtensions?.length
+    ? acceptedExtensions
+    : [...ACCEPTED_SOURCE_EXTENSIONS];
 
   const accept = useCallback((incoming: FileList | null) => {
     if (!incoming) return;
@@ -79,14 +85,14 @@ export function FileDropZone({
         <Upload className="h-6 w-6 mx-auto mb-3 text-muted-foreground" />
         <p className="text-sm font-medium">Drop bookingsummary files here</p>
         <p className="text-sm text-muted-foreground mt-1">
-          or click to browse — {ACCEPTED_SOURCE_EXTENSIONS.join(" / ")}, up to{" "}
+          or click to browse — {extensions.join(" / ")}, up to{" "}
           {formatBytes(MAX_SOURCE_FILE_BYTES)} each
         </p>
         <input
           ref={inputRef}
           type="file"
           multiple
-          accept={ACCEPTED_SOURCE_EXTENSIONS.join(",")}
+          accept={extensions.join(",")}
           className="hidden"
           onChange={(e) => {
             accept(e.target.files);
