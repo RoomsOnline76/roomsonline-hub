@@ -28,6 +28,7 @@ import {
   Radar,
   BookOpen,
   SlidersHorizontal,
+  Contact,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -44,6 +45,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check } from "lucide-react";
 import rolLogo from "@/assets/rol-logo.png";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useHubspotCapability } from "@/hooks/useHubspotCrm";
 
 export interface NavItem {
   title: string;
@@ -78,6 +80,8 @@ export const pmsNavGroups: NavGroup[] = [
       { title: "Groups", icon: UsersRound, href: "/pms/groups", module: "groups" },
       { title: "Guests", icon: Users, href: "/pms/guests", module: "guests" },
       { title: "Inquiries", icon: Inbox, href: "/pms/inquiries", module: "guests" },
+      // CRM is the optional HubSpot add-on surface — hidden unless connected.
+      { title: "CRM", icon: Contact, href: "/pms/crm", module: "guests", requiresHubspot: true },
       { title: "Bookings", icon: BookOpen, href: "/pms/bookings", module: "bookings" },
       { title: "Messaging", icon: MessageSquare, href: "/pms/messaging", module: "messaging" },
     ],
@@ -127,6 +131,11 @@ export function isNavItemVisibleForScope(item: NavItem, hasProperty: boolean): b
   return hasProperty || !PROPERTY_LINKED_ONLY_MODULES.includes(item.module);
 }
 
+/** Add-on gate: HubSpot-only entries disappear when the add-on is not live. */
+export function isNavItemVisibleForAddons(item: NavItem, hubspotAvailable: boolean): boolean {
+  return !item.requiresHubspot || hubspotAvailable;
+}
+
 export function PMSSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -136,6 +145,7 @@ export function PMSSidebar() {
   const { staffRole } = usePmsStaffRole(propertyId);
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
+  const { available: hubspotAvailable } = useHubspotCapability();
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("pms-sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;
@@ -299,7 +309,8 @@ export function PMSSidebar() {
             (item) =>
               (item.platformOnly ? isPlatformUser : true) &&
               (isPlatformUser || visibleModules.includes(item.module)) &&
-              isNavItemVisibleForScope(item, !!propertyId)
+              isNavItemVisibleForScope(item, !!propertyId) &&
+              isNavItemVisibleForAddons(item, hubspotAvailable)
           );
           if (visibleItems.length === 0) return null;
           return (
