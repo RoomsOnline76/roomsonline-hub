@@ -11,7 +11,7 @@ are source agnostic and must stay that way.
 | Adapter contract | `src/lib/report-adapters/types.ts` |
 | Registry + helpers | `src/lib/report-adapters/index.ts` |
 | NightsBridge (ready) | `src/lib/report-adapters/nightsbridge.ts` |
-| OPERA (planned) | `src/lib/report-adapters/opera.ts` |
+| OPERA (ready) | `src/lib/report-adapters/opera.ts` |
 | PROTEL (planned) | `src/lib/report-adapters/protel.ts` |
 | Server-side mirror | `supabase/functions/_shared/reportSourceAdapters.ts` |
 
@@ -45,3 +45,45 @@ preselects it in the New Run wizard.
 
 No UI changes are needed — the wizard, property settings and run review page all read
 the registry.
+
+## OPERA
+
+OPERA does not export a booking ledger. Its monthly extract is the **History and
+Forecast** report (`history_forecast`), a PDF with one row per business date:
+
+```text
+Date      Total Arr.  Comp. House Deduct Non-Ded. Deduct Non-Ded. Occ.%  Room Revenue Average Rate
+          Occ.  Rooms Rooms Use   Indiv. Indiv.   Group  Group
+01-08-26  52    14    0     1      52    0        0      0        50.00% 80,375.60    1,545.68
+```
+
+Pipeline:
+
+| Step | Where |
+| --- | --- |
+| PDF text extraction (`unpdf`) and visual line rebuilding | `supabase/functions/opera-report-parser/index.ts` |
+| Grid parsing, Total-row reconciliation, ledger synthesis | `supabase/functions/_shared/operaHistoryForecast.ts` |
+| Aggregation, snapshot, Excel, draft, insights | unchanged shared engine |
+
+Notes:
+
+- One PDF per month; upload as many months as the run covers. Scanned PDFs (no
+  text layer) are rejected.
+- Text items are clustered by baseline, not bucketed — a cell printed a fraction
+  of a point off the row baseline would otherwise drop the whole day.
+- Negative money is printed with the sign in its own cell (`- 4,769.53`) and is
+  re-joined before parsing.
+- Each day becomes ledger rows split into `Direct / Individual` and `Group` by
+  that day's room-night split, with the last segment absorbing the rounding
+  remainder so the month reproduces the printed total to the cent.
+- Comp and house-use rooms become zero-revenue non-sellable rows and pre-fill the
+  reviewer's complimentary room-night input; reviewer values always win.
+- The daily rows are reconciled against the printed `Total` row for rooms and
+  revenue; a mismatch fails the file rather than under-reporting.
+- Because OPERA prints occupancy %, the sellable room count is implied by
+  `rooms occupied / occupancy` and cross-checked against the configured count; a
+  material difference is logged as a `capacity_mismatch` run event.
+
+Verified against `docs/reference/opera/` (Cathedral Peak, 9 monthly extracts):
+revenue, room nights, occupancy and ADR match the consolidated workbook for every
+month.
