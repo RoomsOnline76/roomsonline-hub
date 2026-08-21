@@ -37,6 +37,10 @@ import {
   emptyBookerSegmentation,
   type BookerSegmentationValue,
 } from "@/components/pms/crm/BookerSegmentationFields";
+import { PhoneInput, CountryCombobox } from "@/components/pms/PhoneInput";
+import { countryByName, splitPhone, countryByIso } from "@/lib/dialCodes";
+import { Checkbox } from "@/components/ui/checkbox";
+
 
 /** Turns the database availability guard's codes into operator-readable copy. */
 function friendlyBookingError(message: string, fallbackPrefix: string): string {
