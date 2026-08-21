@@ -629,7 +629,9 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       fullName: form.guest_name,
       email: form.guest_email,
       phone: form.guest_phone || null,
+      nationality: countryByIso(form.guest_country)?.name || null,
     });
+
 
 
     // 2. Insert booking (aggregate occupancy across all room lines)
