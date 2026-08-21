@@ -194,6 +194,43 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
 
   const [lines, setLines] = useState<RoomLine[]>([newLine()]);
 
+  // ───── Phone dial codes ─────
+  /** Dial-code country for the guest phone; `manual` stops the country field overriding it. */
+  const [phoneIso, setPhoneIso] = useState<string | null>(null);
+  const phoneIsoManual = useRef(false);
+  const [bookerPhoneIso, setBookerPhoneIso] = useState<string | null>(null);
+  /** Fallback dial code from the property's own country (walk-ins). */
+  const [propertyIso, setPropertyIso] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!effectivePropertyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("country")
+        .eq("id", effectivePropertyId)
+        .maybeSingle();
+      if (cancelled) return;
+      setPropertyIso(countryByName(data?.country)?.iso ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [effectivePropertyId]);
+
+  /** Effective dial-code country: explicit pick → guest country → property country. */
+  const resolvedPhoneIso = phoneIso || countryByIso(form.guest_country)?.iso || propertyIso;
+
+  const setGuestCountry = useCallback((iso: string) => {
+    setForm(p => ({ ...p, guest_country: iso }));
+    if (!phoneIsoManual.current) setPhoneIso(iso);
+  }, []);
+
+  const setPhoneIsoManually = useCallback((iso: string) => {
+    phoneIsoManual.current = true;
+    setPhoneIso(iso);
+  }, []);
+
+
   // ───── Linked CRM profiles + segmentation ─────
   const crmScope = useCrmScopeForProperty(effectivePropertyId || null);
   const { accounts, isPortfolioScoped, saveAccount } = useCrmAccounts(crmScope);
