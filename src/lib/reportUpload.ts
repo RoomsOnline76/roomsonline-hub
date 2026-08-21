@@ -24,6 +24,8 @@ export interface UploadProgress {
 
 export interface UploadResult {
   uploaded: number;
+  /** Files skipped because an identical file is already on the run. */
+  skipped: { filename: string }[];
   failed: { filename: string; message: string }[];
 }
 
@@ -88,6 +90,7 @@ export async function uploadSourceFiles({
 }: UploadSourceFilesArgs): Promise<UploadResult> {
   const seen = new Set(existingHashes);
   const failed: UploadResult["failed"] = [];
+  const skipped: UploadResult["skipped"] = [];
   let uploaded = 0;
 
   for (let index = 0; index < files.length; index += 1) {
@@ -103,7 +106,8 @@ export async function uploadSourceFiles({
       onProgress?.({ index, phase: "hashing" });
       const hash = await hashFile(file);
       if (seen.has(hash)) {
-        onProgress?.({ index, phase: "done", message: "Duplicate — skipped" });
+        skipped.push({ filename: file.name });
+        onProgress?.({ index, phase: "done", message: "Already on this run — skipped" });
         continue;
       }
 
@@ -137,7 +141,7 @@ export async function uploadSourceFiles({
     }
   }
 
-  return { uploaded, failed };
+  return { uploaded, skipped, failed };
 }
 
 /** Short-lived signed URL so staff can re-download an original upload. */

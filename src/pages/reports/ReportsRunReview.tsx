@@ -105,7 +105,10 @@ export default function ReportsRunReview() {
         propertyId: run.propertyId,
         files: pending,
         acceptedExtensions: adapter.acceptedFileTypes,
-        existingHashes: run.files.map((f) => f.fileHash ?? "").filter(Boolean),
+        existingHashes: run.files
+          .filter((f) => f.fileRole !== "prior_report")
+          .map((f) => f.fileHash ?? "")
+          .filter(Boolean),
         onProgress: ({ index, phase, message }) =>
           setFileStates((prev) => ({ ...prev, [index]: { phase, message } })),
       });
@@ -113,8 +116,16 @@ export default function ReportsRunReview() {
         toast.error(`${result.failed.length} file(s) failed`, {
           description: result.failed[0]?.message,
         });
+      } else if (result.uploaded === 0 && result.skipped.length) {
+        toast.info(`${result.skipped.length} file(s) already on this run`, {
+          description: "Identical files were skipped — nothing new was added.",
+        });
       } else {
-        toast.success(`${result.uploaded} file(s) added`);
+        toast.success(`${result.uploaded} file(s) added`, {
+          description: result.skipped.length
+            ? `${result.skipped.length} duplicate(s) skipped`
+            : undefined,
+        });
       }
       setPending([]);
       setFileStates({});
