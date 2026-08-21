@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { HistoricalBaseline } from "@/lib/historicalBaseline";
 
 export interface PropertyReportSettings {
   propertyId: string;
@@ -8,11 +9,7 @@ export interface PropertyReportSettings {
   coverArtworkUrl: string | null;
   brandPrimary: string | null;
   brandSecondary: string | null;
-  historicalBaseline: {
-    years?: number[];
-    revenue?: Record<string, number>;
-    room_nights?: Record<string, number>;
-  };
+  historicalBaseline: HistoricalBaseline;
   defaultSourceType: string;
 }
 
@@ -40,7 +37,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
         coverArtworkUrl: data.cover_artwork_url,
         brandPrimary: data.brand_primary,
         brandSecondary: data.brand_secondary,
-        historicalBaseline: (data.historical_baseline ?? {}) as PropertyReportSettings["historicalBaseline"],
+        historicalBaseline: (data.historical_baseline ?? {}) as HistoricalBaseline,
         defaultSourceType: data.default_source_type ?? "nightsbridge",
       };
     },
@@ -56,7 +53,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           cover_artwork_url: input.coverArtworkUrl ?? null,
           brand_primary: input.brandPrimary ?? null,
           brand_secondary: input.brandSecondary ?? null,
-          historical_baseline: input.historicalBaseline ?? {},
+          historical_baseline: (input.historicalBaseline ?? {}) as never,
           default_source_type: input.defaultSourceType ?? "nightsbridge",
         },
         { onConflict: "property_id" },
@@ -78,8 +75,21 @@ export interface ReportAdditionalInputs {
   dinnerByMonth: Record<string, number>;
   room0ByMonth: Record<string, number>;
   compRnsByMonth: Record<string, number>;
+  minStayNotes: string | null;
+  promotionsNotes: string | null;
+  rateOverrideNotes: string | null;
   freeCommentary: string | null;
 }
+
+const EMPTY_INPUTS: ReportAdditionalInputs = {
+  dinnerByMonth: {},
+  room0ByMonth: {},
+  compRnsByMonth: {},
+  minStayNotes: null,
+  promotionsNotes: null,
+  rateOverrideNotes: null,
+  freeCommentary: null,
+};
 
 export function useReportAdditionalInputs(runId: string | undefined) {
   const queryClient = useQueryClient();
@@ -88,10 +98,12 @@ export function useReportAdditionalInputs(runId: string | undefined) {
     queryKey: ["reports", "additional-inputs", runId],
     enabled: Boolean(runId),
     queryFn: async (): Promise<ReportAdditionalInputs> => {
-      if (!runId) return { dinnerByMonth: {}, room0ByMonth: {}, compRnsByMonth: {}, freeCommentary: null };
+      if (!runId) return EMPTY_INPUTS;
       const { data, error } = await supabase
         .from("report_additional_inputs")
-        .select("dinner_by_month, room0_by_month, comp_rns_by_month, free_commentary")
+        .select(
+          "dinner_by_month, room0_by_month, comp_rns_by_month, min_stay_notes, promotions_notes, rate_override_notes, free_commentary",
+        )
         .eq("run_id", runId)
         .maybeSingle();
       if (error) throw error;
@@ -99,6 +111,9 @@ export function useReportAdditionalInputs(runId: string | undefined) {
         dinnerByMonth: (data?.dinner_by_month ?? {}) as Record<string, number>,
         room0ByMonth: (data?.room0_by_month ?? {}) as Record<string, number>,
         compRnsByMonth: (data?.comp_rns_by_month ?? {}) as Record<string, number>,
+        minStayNotes: data?.min_stay_notes ?? null,
+        promotionsNotes: data?.promotions_notes ?? null,
+        rateOverrideNotes: data?.rate_override_notes ?? null,
         freeCommentary: data?.free_commentary ?? null,
       };
     },
@@ -113,6 +128,9 @@ export function useReportAdditionalInputs(runId: string | undefined) {
           dinner_by_month: input.dinnerByMonth,
           room0_by_month: input.room0ByMonth,
           comp_rns_by_month: input.compRnsByMonth,
+          min_stay_notes: input.minStayNotes,
+          promotions_notes: input.promotionsNotes,
+          rate_override_notes: input.rateOverrideNotes,
           free_commentary: input.freeCommentary,
         },
         { onConflict: "run_id" },
