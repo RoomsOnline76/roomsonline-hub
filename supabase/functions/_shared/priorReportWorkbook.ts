@@ -333,6 +333,7 @@ function parseYearGrid(rows: Row[]): YearGrid {
   let columns: { year: number; col: number }[] = [];
   let mode: "revenue" | "nights" | null = null;
   let lastLabel = "";
+  let seenBlock = false;
 
   rows.forEach((row) => {
     const cells = row ?? [];
@@ -349,8 +350,15 @@ function parseYearGrid(rows: Row[]): YearGrid {
 
     if (yearCols.length >= 2) {
       columns = yearCols;
-      const source = /revenue|room night|occupancy/i.test(label) ? label : lastLabel;
-      mode = /room night/i.test(source) ? "nights" : /occupancy/i.test(source) ? null : "revenue";
+      const known = /revenue|room night|occupancy|adr|average daily rate|target/i;
+      const source = known.test(label) ? label : lastLabel;
+      if (/room night/i.test(source)) mode = "nights";
+      else if (/revenue/i.test(source)) mode = "revenue";
+      else if (known.test(source)) mode = null;
+      // An unlabelled first block is the revenue grid; later unlabelled blocks
+      // (occupancy, ADR, targets) are ignored rather than guessed at.
+      else mode = seenBlock ? null : "revenue";
+      seenBlock = true;
       lastLabel = label || lastLabel;
       return;
     }
