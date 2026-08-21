@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("special_report_set, brand_source, logo_url, brand_primary, brand_secondary")
+      .select("special_report_set, brand_source, report_logo_url, brand_primary, brand_secondary")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
     }
 
     const branding: SpecialReportBranding = {
-      logoUrl: settings?.logo_url ?? null,
+      logoUrl: settings?.report_logo_url ?? null,
       brandPrimary: settings?.brand_source === "rol" ? null : (settings?.brand_primary ?? null),
       brandSecondary: settings?.brand_source === "rol" ? null : (settings?.brand_secondary ?? null),
     };
