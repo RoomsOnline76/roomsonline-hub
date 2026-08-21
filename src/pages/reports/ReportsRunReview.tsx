@@ -279,7 +279,7 @@ export default function ReportsRunReview() {
             <span className="text-muted-foreground font-normal">({run.files.length})</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <SourceFileList
             files={run.files}
             editable={editable}
@@ -288,6 +288,17 @@ export default function ReportsRunReview() {
             onReparse={(file) => void handleReparse(file)}
             onRemove={(file) => void handleRemoveFile(file)}
           />
+          <div className="rounded-md border bg-muted/30 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-medium">{adapter.label} expected columns</p>
+            <p className="text-xs text-muted-foreground">{adapter.description}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {adapter.getExpectedColumns().map((column) => (
+                <Badge key={column} variant="outline" className="font-normal text-[11px]">
+                  {column}
+                </Badge>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
