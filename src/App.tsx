@@ -276,7 +276,22 @@ const App = () => (
                         <Routes>
                           <Route path="*" element={<UnderConstruction />} />
                         </Routes>
+                      ) : isReportsDomain ? (
+                        /* ═══ Revenue Reports domain mount ═══════════════ */
+                        <Routes>
+                          <Route path="/auth" element={<Auth />} />
+                          <Route path="/" element={<ReportsLayout />}>
+                            <Route index element={<ReportsDashboard />} />
+                            <Route path="new" element={<ReportsNewRun />} />
+                            <Route path="runs/:runId" element={<ReportsRunReview />} />
+                            <Route path="settings" element={<ReportsDashboard />} />
+                            <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
+                            <Route path="help" element={<ReportsHelp />} />
+                          </Route>
+                          <Route path="*" element={<Navigate to="/" replace />} />
+                        </Routes>
                       ) : (
+
                       <Routes>
 
                         {/* ═══ Connect domain mount ═══════════════════════ */}
