@@ -431,7 +431,7 @@ export function parsePriorReportWorkbook(
     const rows = sheetRows(workbook, name);
 
     if (/otb/.test(key)) {
-      const otb = parseOtbSheet(rows);
+      const otb = parseOtbSheet(rows, options.runAsOfDate ?? null);
       if (!otb || (!Object.keys(otb.revenue).length && !Object.keys(otb.nights).length)) {
         extract.sheetsSkipped.push(name);
         continue;
