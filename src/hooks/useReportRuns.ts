@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { logReportRunEvent } from "@/hooks/useReportRunEvents";
+import { DEFAULT_REPORT_SOURCE, isReportSourceKey } from "@/lib/report-adapters";
 
 export type ReportRunStatus = "draft" | "processing" | "ready" | "failed";
 
