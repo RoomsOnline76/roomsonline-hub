@@ -161,7 +161,7 @@ export default function ReportsDashboard() {
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {property.city ?? "Location not set"}
-                      {property.bedrooms ? ` · ${property.bedrooms} rooms` : ""}
+                      {property.roomCount ? ` · ${property.roomCount} rooms` : ""}
                     </p>
                     <Badge variant="secondary" className="text-[11px] font-normal">
                       Last run: —
