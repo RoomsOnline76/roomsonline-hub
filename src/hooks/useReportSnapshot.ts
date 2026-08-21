@@ -53,6 +53,19 @@ const readError = async (error: unknown): Promise<string> => {
   return error instanceof Error ? error.message : "Unknown error";
 };
 
+export interface ProcessResult {
+  ok: boolean;
+  message?: string;
+  rowsParsed?: number;
+  months?: string[];
+}
+
+export interface ExcelResult {
+  ok: boolean;
+  message?: string;
+  url?: string;
+}
+
 /** Computed snapshot for a run. */
 export function useReportSnapshot(runId: string | undefined) {
   const query = useQuery({
@@ -101,9 +114,7 @@ export function useProcessReportRun(runId: string | undefined) {
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const process = useCallback(async (): Promise<
-    { ok: true; rowsParsed: number; months: string[] } | { ok: false; message: string }
-  > => {
+  const process = useCallback(async (): Promise<ProcessResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
     setIsProcessing(true);
     try {
@@ -131,9 +142,7 @@ export function useReportExcel(runId: string | undefined) {
   const queryClient = useQueryClient();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generate = useCallback(async (): Promise<
-    { ok: true; url: string } | { ok: false; message: string }
-  > => {
+  const generate = useCallback(async (): Promise<ExcelResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
     setIsGenerating(true);
     try {
