@@ -392,27 +392,12 @@ Deno.serve(async (req) => {
 
     // The prior workbook knows months the uploads may not cover, and months the
     // uploads only skim. Widen the window, then substitute the thin months.
-    const addedMonths = extendReportWindow(
+    const { addedMonths, substituted } = reconcileWithImportedBaseline(
       aggregate,
-      importedBaselineMonths(run.imported_baseline),
+      run.imported_baseline,
       roomCount,
     );
-    const substituted = substituteThinMonths(aggregate, run.imported_baseline);
     if (addedMonths.length || substituted.length) {
-      let revenueTotal = 0;
-      let nightsTotal = 0;
-      let capacityTotal = 0;
-      for (const key of aggregate.months) {
-        revenueTotal += aggregate.otb_revenue[key] ?? 0;
-        nightsTotal += aggregate.room_nights[key] ?? 0;
-        capacityTotal += aggregate.capacity_days[key] ?? 0;
-      }
-      aggregate.totals.revenue = Math.round(revenueTotal * 100) / 100;
-      aggregate.totals.nights = nightsTotal;
-      aggregate.totals.capacity_days = capacityTotal;
-      aggregate.totals.adr =
-        nightsTotal > 0 ? Math.round((revenueTotal / nightsTotal) * 100) / 100 : 0;
-      aggregate.totals.occupancy = capacityTotal > 0 ? nightsTotal / capacityTotal : 0;
       await logRunEvent(
         admin,
         runId,
@@ -431,6 +416,7 @@ Deno.serve(async (req) => {
         actorId,
       );
     }
+
 
 
     // Previous baseline: the most recent other run for this property with a snapshot.
