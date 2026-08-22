@@ -29,14 +29,14 @@ export function DownloadBar({
       action: () => Promise<{ ok: boolean; message?: string; url?: string }>,
       successLabel: string,
       failureLabel: string,
-      openInTab: boolean,
+      download: boolean,
     ) => {
       const result = await action();
       if (!result.ok || !result.url) {
         toast.error(failureLabel, { description: result.message });
         return;
       }
-      if (openInTab) window.open(result.url, "_blank", "noopener");
+      if (download) await downloadFile(result.url);
       toast.success(successLabel);
     },
     [],
