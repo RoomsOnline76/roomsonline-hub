@@ -51,7 +51,9 @@ export const compactMoney = (value: number): string => {
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${sign}R${round(abs / 1_000_000, 1)}m`;
-  if (abs >= 1_000) return `${sign}R${Math.round(abs / 1_000)}k`;
+  // Keep one decimal below R10k so ADR bars read R1.8k / R2.3k, not a flat R2k.
+  if (abs >= 10_000) return `${sign}R${Math.round(abs / 1_000)}k`;
+  if (abs >= 1_000) return `${sign}R${round(abs / 1_000, 1)}k`;
   return `${sign}R${Math.round(abs)}`;
 };
 
