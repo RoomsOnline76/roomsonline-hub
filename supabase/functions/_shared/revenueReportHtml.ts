@@ -939,17 +939,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   .brand { display: flex; align-items: center; gap: 3mm; min-width: 0; }
   .logo { height: 12mm; width: auto; max-width: 40mm; object-fit: contain; }
-  .wreath {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 11mm; height: 11mm;
-    border: 1.5px solid var(--primary);
-    border-radius: 50%;
-    color: var(--primary);
-    font-size: 8pt;
-    letter-spacing: 0.06em;
-  }
+  .wreath-mark { height: 10mm; width: auto; object-fit: contain; }
+  .cover .wreath-mark { height: 16mm; }
   .brandline { font-size: 10pt; letter-spacing: 0.02em; }
   .brandline .divider { color: var(--muted); margin: 0 1mm; }
   .asof { font-size: 9pt; color: var(--muted); white-space: nowrap; }
