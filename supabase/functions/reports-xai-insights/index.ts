@@ -353,6 +353,10 @@ Deno.serve(async (req) => {
       flags: enrichedFlags,
       suggestions,
       chart_recommendation: clamp(ai.chart_recommendation, 240),
+      slides_considered: {
+        count: usedSlides ? slides.length : 0,
+        titles: usedSlides ? slideTitles : [],
+      },
       provider: outcome.provider,
       generated_by: userData.user.id,
       generated_at: new Date().toISOString(),
@@ -368,10 +372,13 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "insights_generated",
-      "TOBI insights generated",
-      { provider: outcome.provider },
+      usedSlides
+        ? `TOBI insights generated from ${slides.length} pasted slide${slides.length === 1 ? "" : "s"}`
+        : "TOBI insights generated",
+      { provider: outcome.provider, slides_considered: usedSlides ? slideTitles : [] },
       userData.user.id,
     );
+
 
     return json({ success: true, insights: record });
   } catch (err) {
