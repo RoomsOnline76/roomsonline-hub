@@ -562,8 +562,8 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   const parentPlanId = draft.derived_from_plan_id ? String(draft.derived_from_plan_id) : null;
 
   const payload: Record<string, unknown> = {
-
     property_id: propertyId,
+
     name: draft.name,
     code: draft.code || null,
     description: draft.description || null,
