@@ -134,7 +134,7 @@ const STEPS: { step: Step; label: string }[] = [
   { step: 1, label: "Property" },
   { step: 2, label: "Details" },
   { step: 3, label: "Files" },
-  { step: 4, label: "Notes" },
+  { step: 4, label: "Notes (optional)" },
 ];
 
 export default function ReportsNewRun() {
@@ -143,6 +143,9 @@ export default function ReportsNewRun() {
   const [search, setSearch] = useState("");
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
+  // Owner slides are a Cheetah Plains-only add-on: offered only when the
+  // property's report settings configure that set.
+  const [ownerSlidesOffered, setOwnerSlidesOffered] = useState(false);
   const { properties, isLoading } = useReportProperties(search);
   const { createRun } = useReportRunMutations();
 
