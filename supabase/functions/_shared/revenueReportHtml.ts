@@ -1065,9 +1065,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
   @page { size: A4; margin: 0; }
   @media print {
-    body { background: #fff; }
-    .page { margin: 0; box-shadow: none; min-height: var(--page-h); }
+    html, body { margin: 0; padding: 0; background: #fff; width: auto; }
+    /* Exactly one sheet per .page: no outer margin (which triggers Chromium's
+       shrink-to-fit) and a hair under 297mm so rounding never spills over. */
+    .page {
+      margin: 0;
+      box-shadow: none;
+      width: auto;
+      min-height: 0;
+      height: 296.6mm;
+      overflow: hidden;
+    }
   }
+
 </style>
 </head>
 <body>
