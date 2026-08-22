@@ -133,7 +133,18 @@ Deno.serve(async (req) => {
         if (entry?.signedUrl) urlByPath.set(paths[index], entry.signedUrl);
       });
 
-      for (const definition of REPORT_MEDIA_SLOTS) {
+      const definitions = [
+        ...REPORT_MEDIA_SLOTS,
+        ...(customSlotRows ?? []).map((row) => ({
+          key: String(row.slot_key),
+          section: String(row.section ?? row.title ?? "Additional Slides"),
+          title: String(row.title ?? "Additional slides"),
+          hint: "",
+          layout: (row.layout === "half" ? "half" : "full") as "half" | "full",
+        })),
+      ];
+
+      for (const definition of definitions) {
         const images = mediaRows
           .filter((row) => row.slot_key === definition.key)
           .map((row) => ({
@@ -152,6 +163,7 @@ Deno.serve(async (req) => {
         });
       }
     }
+
 
 
     let previousAsOf: string | null = null;
