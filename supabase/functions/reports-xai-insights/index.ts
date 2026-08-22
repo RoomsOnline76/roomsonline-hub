@@ -47,6 +47,99 @@ const clamp = (value: unknown, max: number): string | null => {
   return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed;
 };
 
+interface SlideImage {
+  /** Human label used in the report and in TOBI's references. */
+  label: string;
+  caption: string | null;
+  dataUrl: string;
+}
+
+/**
+ * Loads every pasted screenshot on the run — standard slots and custom
+ * additional slides — in the reviewer's slide order, inlined as base64 so the
+ * provider never has to fetch a link.
+ */
+const loadSlideImages = async (
+  admin: ReturnType<typeof createClient>,
+  runId: string,
+  pageOrder: unknown,
+): Promise<SlideImage[]> => {
+  const { data: rows } = await admin
+    .from("report_media")
+    .select("slot_key, storage_path, caption, section_title, sort_order, content_type")
+    .eq("run_id", runId)
+    .order("sort_order", { ascending: true });
+  if (!rows || rows.length === 0) return [];
+
+  const { data: slots } = await admin
+    .from("report_media_slots")
+    .select("slot_key, section, title, sort_order")
+    .eq("run_id", runId);
+  const slotTitle = new Map<string, string>();
+  for (const slot of slots ?? []) {
+    slotTitle.set(
+      String(slot.slot_key),
+      String(slot.section ?? slot.title ?? "Additional slide"),
+    );
+  }
+
+  // Respect the reviewer's page order where it names media pages.
+  const order = Array.isArray((pageOrder as { order?: unknown })?.order)
+    ? ((pageOrder as { order: unknown[] }).order.map(String))
+    : [];
+  const rank = (slotKey: string): number => {
+    const idx = order.findIndex((key) => key === slotKey || key === `media:${slotKey}`);
+    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+  };
+
+  const sorted = [...rows].sort((a, b) => {
+    const diff = rank(String(a.slot_key)) - rank(String(b.slot_key));
+    if (diff !== 0) return diff;
+    return Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+  });
+
+  const slides: SlideImage[] = [];
+  let budget = MAX_SLIDE_BYTES;
+  for (const row of sorted) {
+    if (slides.length >= MAX_SLIDE_IMAGES) break;
+    const path = String(row.storage_path ?? "");
+    if (!path) continue;
+    const { data: blob, error } = await admin.storage.from(MEDIA_BUCKET).download(path);
+    if (error || !blob) continue;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > budget) continue;
+    budget -= bytes.byteLength;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    const mime = String(row.content_type ?? blob.type ?? "image/png") || "image/png";
+    if (!mime.startsWith("image/")) continue;
+    slides.push({
+      label:
+        clamp(row.section_title, 120) ??
+        slotTitle.get(String(row.slot_key)) ??
+        String(row.slot_key),
+      caption: clamp(row.caption, 240),
+      dataUrl: `data:${mime};base64,${btoa(binary)}`,
+    });
+  }
+  return slides;
+};
+
+const SLIDES_PROMPT = `
+
+Slides:
+The user message may include extra screenshots the revenue team pasted into the report
+(channel mixes, competitor rates, market or portal screenshots), each with the slide
+title it sits under. Read them and let what you see shape the recommendations.
+- Never take a number, month or percentage for the "narrative" from a screenshot — the
+  narrative is built only from "facts" and "snapshot".
+- Screenshot-derived observations may appear only in "suggestions" and "flag_notes",
+  and must name the slide they came from, e.g. "the Airbnb performance slide shows…".
+- If a slide has a title but nothing legible or relevant, ignore it silently. Never guess
+  at figures you cannot read.`;
+
 const SYSTEM_PROMPT = `You are TOBI, the revenue analyst for a South African hospitality group.
 You write the commentary for a monthly revenue outlook report that an owner reads.
 
