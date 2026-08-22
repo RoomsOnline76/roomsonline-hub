@@ -777,7 +777,6 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
         title: heading,
         body: `
     <div class="block">
-      <h3 class="block-title">${esc(heading)}</h3>
       <div class="shots one-up">
         <figure class="shot">
           <img src="${esc(image.url)}" alt="${esc(heading)}" />
