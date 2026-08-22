@@ -323,15 +323,18 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                   const liveValue = liveMatrix?.get(season.calendar_season_id)?.get(rt.id);
                   // What this cell resolves to while it is empty, best hint first.
                   const fallback =
-                    columnValue !== ""
-                      ? columnValue
-                      : rate.mode === "differential"
-                        ? "0"
-                        : liveValue && liveValue > 0
-                          ? `${fmtMoney(liveValue)} legacy`
-                          : planBase > 0
-                            ? `${fmtMoney(planBase)} base`
-                            : "Rate";
+                    rate.mode === "derived"
+                      ? "Tracks parent"
+                      : columnValue !== ""
+                        ? columnValue
+                        : rate.mode === "differential"
+                          ? "0"
+                          : liveValue && liveValue > 0
+                            ? `${fmtMoney(liveValue)} legacy`
+                            : planBase > 0
+                              ? `${fmtMoney(planBase)} base`
+                              : "Rate";
+
                   return (
                     <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
                       <Input
