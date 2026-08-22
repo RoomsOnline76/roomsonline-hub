@@ -16,21 +16,25 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useReportPageOrder } from "@/hooks/useReportPageOrder";
+import type { ReportPageDefinition } from "@/lib/reportPages";
 
 interface SlideOrganizerProps {
   runId: string;
-  /** Media sections that will print, with their image counts and titles. */
-  mediaSections: { section: string; images: number; titles: string[] }[];
+  /** Media pages that will print: section pages plus per-image slides. */
+  mediaPages: ReportPageDefinition[];
+  /** Legacy section key -> per-image slide keys for orders saved earlier. */
+  legacyExpansions?: Record<string, string[]>;
 }
 
 /**
  * Manual page sequencing for the draft report: drag (or nudge) pages into the
  * order the revenue team wants, and hide the ones they don't need this round.
  */
-export function SlideOrganizer({ runId, mediaSections }: SlideOrganizerProps) {
+export function SlideOrganizer({ runId, mediaPages, legacyExpansions }: SlideOrganizerProps) {
   const { pages, movePage, reorderTo, toggleHidden, reset, isSaving } = useReportPageOrder(
     runId,
-    mediaSections,
+    mediaPages,
+    legacyExpansions,
   );
   const [open, setOpen] = useState(false);
   const [dragKey, setDragKey] = useState<string | null>(null);

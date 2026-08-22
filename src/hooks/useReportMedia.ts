@@ -101,6 +101,7 @@ export function useReportMedia(runId: string | undefined) {
         title: (row.title as string) ?? "Additional slides",
         hint: (row.hint as string) ?? "Paste anything else the revenue team needs in the report.",
         layout: row.layout === "half" ? "half" : "full",
+        explode: true,
         isCustom: true,
       }));
     },

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import {
   REPORT_DATA_PAGES,
   REPORT_NOTES_PAGE,
-  mediaPageKey,
+  expandLegacyMediaKeys,
   orderPageKeys,
   type ReportPageDefinition,
 } from "@/lib/reportPages";
@@ -37,7 +37,10 @@ const parse = (raw: unknown): PageOrderState => {
  */
 export function useReportPageOrder(
   runId: string | undefined,
-  mediaSections: { section: string; images: number; titles: string[] }[],
+  /** Media pages that will print — section pages plus per-image slides. */
+  mediaPages: ReportPageDefinition[],
+  /** Legacy section key -> per-image slide keys, so old saved orders survive. */
+  legacyExpansions: Record<string, string[]> = {},
 ) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["report-page-order", runId], [runId]);
@@ -60,35 +63,20 @@ export function useReportPageOrder(
   const state = query.data ?? { order: [], hidden: [] };
 
   const available: ReportPageDefinition[] = useMemo(
-    () => [
-      ...REPORT_DATA_PAGES,
-      ...mediaSections.map((entry) => {
-        const countLabel =
-          entry.images === 0
-            ? "No images yet"
-            : `${entry.images} image${entry.images === 1 ? "" : "s"}`;
-        const titleList = entry.titles.filter(Boolean).join(", ");
-        return {
-          key: mediaPageKey(entry.section),
-          title: entry.section,
-          summary: titleList ? `${countLabel} · ${titleList}` : countLabel,
-        };
-      }),
-      REPORT_NOTES_PAGE,
-    ],
-    [mediaSections],
+    () => [...REPORT_DATA_PAGES, ...mediaPages, REPORT_NOTES_PAGE],
+    [mediaPages],
   );
 
   const pages: OrganizerPage[] = useMemo(() => {
     const byKey = new Map(available.map((page) => [page.key, page]));
     return orderPageKeys(
       available.map((page) => page.key),
-      state.order,
+      expandLegacyMediaKeys(state.order, legacyExpansions),
     )
       .map((key) => byKey.get(key))
       .filter((page): page is ReportPageDefinition => Boolean(page))
       .map((page) => ({ ...page, hidden: state.hidden.includes(page.key) }));
-  }, [available, state.hidden, state.order]);
+  }, [available, legacyExpansions, state.hidden, state.order]);
 
   const save = useMutation({
     mutationFn: async (next: PageOrderState) => {

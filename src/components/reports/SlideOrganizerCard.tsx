@@ -1,51 +1,79 @@
 import { useMemo } from "react";
 import { useReportMedia } from "@/hooks/useReportMedia";
+import { mediaImagePageKey, mediaPageKey, type ReportPageDefinition } from "@/lib/reportPages";
 import { SlideOrganizer } from "./SlideOrganizer";
 
-export interface OrganizerMediaSection {
-  section: string;
-  images: number;
-  /** Distinct headings the reviewer typed for images in this section. */
-  titles: string[];
-}
-
 /**
- * Wires the slide organizer to the run's media sections so pasted-image pages
- * (built-in and custom) appear in the sequence list. Custom slide sections are
- * included even when they have no images yet, so each one is individually
- * movable from the moment it is created.
+ * Wires the slide organizer to the run's media pages.
+ *
+ * Grouped slots (Channel Performance, Booking.com, Expedia) contribute one row
+ * per section. Exploded slots — the additional slides and any custom section the
+ * reviewer created — contribute one row per image, each carrying its own title
+ * and caption so it can be placed individually in the printed order.
  */
 export function SlideOrganizerCard({ runId }: { runId: string }) {
   const media = useReportMedia(runId);
 
-  const mediaSections = useMemo<OrganizerMediaSection[]>(() => {
-    const out: OrganizerMediaSection[] = [];
+  const { mediaPages, legacyExpansions } = useMemo(() => {
+    const sections: { section: string; images: number; titles: string[] }[] = [];
+    const perImage: ReportPageDefinition[] = [];
+    const expansions: Record<string, string[]> = {};
+
     for (const slot of media.slots) {
-      const isEmpty = slot.images.length === 0;
-      // Custom slots always show so each is individually movable before content
-      // is added; built-in slots only appear once they have images.
-      if (isEmpty && !slot.definition.isCustom) continue;
+      const exploded = slot.definition.explode === true || slot.definition.isCustom;
+
+      if (exploded) {
+        slot.images.forEach((image, index) => {
+          const title =
+            (image.section_title ?? "").trim() || `${slot.definition.title} ${index + 1}`;
+          const key = mediaImagePageKey(image.id);
+          perImage.push({
+            key,
+            title,
+            summary: (image.caption ?? "").trim() || `Pasted slide · ${slot.definition.section}`,
+          });
+          const legacyKey = mediaPageKey(slot.definition.section);
+          expansions[legacyKey] = [...(expansions[legacyKey] ?? []), key];
+        });
+        continue;
+      }
+
+      // Built-in grouped slots only appear once they carry an image.
+      if (slot.images.length === 0) continue;
 
       const titles = slot.images
         .map((image) => (image.section_title ?? "").trim() || slot.definition.title)
         .filter((title, index, arr) => arr.indexOf(title) === index);
 
-      const existing = out.find((entry) => entry.section === slot.definition.section);
+      const existing = sections.find((entry) => entry.section === slot.definition.section);
       if (existing) {
         existing.images += slot.images.length;
         for (const title of titles) {
           if (!existing.titles.includes(title)) existing.titles.push(title);
         }
       } else {
-        out.push({
+        sections.push({
           section: slot.definition.section,
           images: slot.images.length,
           titles: titles.length > 0 ? titles : [slot.definition.title],
         });
       }
     }
-    return out;
+
+    const sectionPages: ReportPageDefinition[] = sections.map((entry) => {
+      const countLabel = `${entry.images} image${entry.images === 1 ? "" : "s"}`;
+      const titleList = entry.titles.filter(Boolean).join(", ");
+      return {
+        key: mediaPageKey(entry.section),
+        title: entry.section,
+        summary: titleList ? `${countLabel} · ${titleList}` : countLabel,
+      };
+    });
+
+    return { mediaPages: [...sectionPages, ...perImage], legacyExpansions: expansions };
   }, [media.slots]);
 
-  return <SlideOrganizer runId={runId} mediaSections={mediaSections} />;
+  return (
+    <SlideOrganizer runId={runId} mediaPages={mediaPages} legacyExpansions={legacyExpansions} />
+  );
 }

@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     // Pasted screenshots the revenue team captured, grouped into their slots.
     const { data: mediaRows } = await admin
       .from("report_media")
-      .select("slot_key, storage_path, caption, section_title, sort_order")
+      .select("id, slot_key, storage_path, caption, section_title, sort_order")
       .eq("run_id", runId)
       .order("sort_order", { ascending: true });
 
@@ -155,6 +155,7 @@ Deno.serve(async (req) => {
           title: String(row.title ?? "Additional slides"),
           hint: "",
           layout: (row.layout === "half" ? "half" : "full") as "half" | "full",
+          explode: true,
         })),
       ];
 
@@ -162,6 +163,7 @@ Deno.serve(async (req) => {
         const images = mediaRows
           .filter((row) => row.slot_key === definition.key)
           .map((row) => ({
+            id: String(row.id),
             url: urlByPath.get(String(row.storage_path)) ?? "",
             caption: row.caption ? String(row.caption) : null,
             sectionTitle: row.section_title ? String(row.section_title) : null,
@@ -173,6 +175,7 @@ Deno.serve(async (req) => {
           section: definition.section,
           title: definition.title,
           layout: definition.layout,
+          explode: definition.explode === true,
           images,
         });
       }

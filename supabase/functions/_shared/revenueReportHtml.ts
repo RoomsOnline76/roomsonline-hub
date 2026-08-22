@@ -14,7 +14,12 @@ import {
   percent,
   varianceBarChart,
 } from "./revenueReportCharts.ts";
-import { mediaPageKey, orderPageKeys } from "./reportPages.ts";
+import {
+  expandLegacyMediaKeys,
+  mediaImagePageKey,
+  mediaPageKey,
+  orderPageKeys,
+} from "./reportPages.ts";
 
 
 export interface DraftSnapshot {
@@ -52,6 +57,8 @@ export interface DraftBranding {
 }
 
 export interface DraftMediaImage {
+  /** `report_media.id` — the stable key for a per-image slide. */
+  id?: string;
   url: string;
   caption: string | null;
   /** Optional heading entered by the revenue team for this image's block. */
@@ -63,6 +70,8 @@ export interface DraftMediaSlot {
   section: string;
   title: string;
   layout: "full" | "half";
+  /** Each image prints as its own slide instead of sharing the section page. */
+  explode?: boolean;
   images: DraftMediaImage[];
 }
 
@@ -747,11 +756,43 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
   // ── Pasted media (revenue-team screenshots) ───────────────────────────
   const mediaSlots = (options.media ?? []).filter((slot) => slot.images.length > 0);
+  const sectionSlots = mediaSlots.filter((slot) => slot.explode !== true);
+  const perImageSlots = mediaSlots.filter((slot) => slot.explode === true);
   const mediaSections: { section: string; slots: DraftMediaSlot[] }[] = [];
-  for (const slot of mediaSlots) {
+  for (const slot of sectionSlots) {
     const existing = mediaSections.find((entry) => entry.section === slot.section);
     if (existing) existing.slots.push(slot);
     else mediaSections.push({ section: slot.section, slots: [slot] });
+  }
+
+  // Exploded slots (the additional slides): one printed page per image, so each
+  // is individually titled and individually movable in the slide organizer.
+  const perImagePages: { key: string; title: string; section: string; body: string }[] = [];
+  for (const slot of perImageSlots) {
+    slot.images.forEach((image, index) => {
+      const heading = (image.sectionTitle ?? "").trim() || `${slot.title} ${index + 1}`;
+      perImagePages.push({
+        key: mediaImagePageKey(String(image.id ?? `${slot.key}-${index}`)),
+        section: slot.section,
+        title: heading,
+        body: `
+    <div class="block">
+      <div class="shots one-up">
+        <figure class="shot">
+          <img src="${esc(image.url)}" alt="${esc(heading)}" />
+          ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
+        </figure>
+      </div>
+    </div>`,
+      });
+    });
+  }
+
+  // Legacy saved orders point at the whole section — expand it in place.
+  const legacyExpansions: Record<string, string[]> = {};
+  for (const page of perImagePages) {
+    const legacyKey = mediaPageKey(page.section);
+    legacyExpansions[legacyKey] = [...(legacyExpansions[legacyKey] ?? []), page.key];
   }
 
   // Images within a slot are grouped by the title the reviewer typed, so each
@@ -895,6 +936,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       title: entry.section,
       body: entry.slots.map(mediaSlotHtml).join(""),
     })),
+    ...perImagePages.map((entry) => ({ key: entry.key, title: entry.title, body: entry.body })),
     { key: "process_notes", title: "Process Notes", body: notesPageBody },
   ].filter((def) => def.body.trim().length > 0);
 
@@ -904,7 +946,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const byKey = new Map(builtPages.map((page) => [page.key, page]));
   const pageDefs = orderPageKeys(
     builtPages.map((page) => page.key),
-    options.pageOrder,
+    expandLegacyMediaKeys(options.pageOrder, legacyExpansions),
   )
     .filter((key) => !hidden.has(key))
     .map((key) => byKey.get(key)!)

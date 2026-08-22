@@ -8,6 +8,8 @@ export interface MediaSlotDefinition {
   title: string;
   hint: string;
   layout: "full" | "half";
+  /** Each image prints as its own slide (own page + own organizer row). */
+  explode?: boolean;
 }
 
 export const REPORT_MEDIA_SLOTS: readonly MediaSlotDefinition[] = [
@@ -87,10 +89,12 @@ export const REPORT_MEDIA_SLOTS: readonly MediaSlotDefinition[] = [
     title: "Additional slides",
     hint: "Anything else the revenue team wants in the report, in order.",
     layout: "full",
+    explode: true,
   },
 ] as const;
 
 export const MEDIA_SECTIONS: string[] = REPORT_MEDIA_SLOTS.reduce<string[]>((acc, slot) => {
+  if (slot.explode) return acc;
   if (!acc.includes(slot.section)) acc.push(slot.section);
   return acc;
 }, []);
