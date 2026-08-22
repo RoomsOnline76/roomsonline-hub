@@ -60,6 +60,8 @@ interface DraftSeasonRate {
   base_rate?: number | null;
   differential_type?: DifferentialType;
   differential_value?: number | null;
+  /** Derived columns: this season's offset override off the parent plan. */
+  derivation_value?: number | null;
   extra_adult_rate?: number | null;
   /** Per-unit cell values from the unit x season matrix; interpreted per `mode`. */
   unit_values?: Record<string, number | null>;
@@ -85,9 +87,15 @@ interface Draft {
   is_primary_sell?: boolean;
   push_to_channels?: boolean;
   sell_priority?: number | null;
+  /** Derived pricing: track another plan on the same property, offset and rounded. */
+  derived_from_plan_id?: string | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  derivation_rounding?: string | null;
   units?: DraftUnit[];
   season_rates?: DraftSeasonRate[];
 }
+
 
 const num = (v: unknown): number | null => {
   const n = Number(v);
