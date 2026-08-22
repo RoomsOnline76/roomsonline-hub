@@ -952,12 +952,27 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     }
   }
 
+  // A line already printed verbatim in the reviewer's own notes is not repeated.
+  const notesText = [
+    inputs.min_stay_notes,
+    inputs.promotions_notes,
+    inputs.rate_override_notes,
+    inputs.free_commentary,
+  ]
+    .filter(Boolean)
+    .join(" \n ")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+  const overallUnique = overallCommentary.filter(
+    (line) => !notesText.includes(line.replace(/\s+/g, " ").toLowerCase()),
+  );
+
   const overallHtml =
-    overallCommentary.length > 0
+    overallUnique.length > 0
       ? `
       <div class="note">
         <h4>Overall commentary</h4>
-        <ul class="tobi">${overallCommentary.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
+        <ul class="tobi">${overallUnique.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
       </div>`
       : "";
 
