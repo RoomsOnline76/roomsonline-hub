@@ -141,10 +141,17 @@ type BlockKind = "revenue" | "nights" | "skip";
 const blockKind = (label: string): BlockKind => {
   const l = label.toLowerCase();
   if (/adr|average daily rate/.test(l)) return "skip";
-  if (/room night|room occupancy|occupancy/.test(l)) return "nights";
+  // An occupancy block prints percentages, not counts — never treat it as room
+  // nights, or fractions land in the nights maps and blow ADR up to millions.
+  if (/room night/.test(l)) return "nights";
+  if (/occupancy/.test(l)) return "skip";
   if (/revenue/.test(l) || !l) return "revenue";
   return "revenue";
 };
+
+/** Room nights are counts: a fraction is an occupancy value in disguise. */
+const plausibleNights = (value: number): boolean => Number.isFinite(value) && value >= 1;
+
 
 /**
  * Room-night columns and occupancy columns can share the same "OTB @ …"
