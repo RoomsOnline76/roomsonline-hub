@@ -92,6 +92,8 @@ export interface DraftOptions {
   hiddenPages?: string[] | null;
   /** How often the review is produced — drives the printed wording. */
   cadence?: "monthly" | "bimonthly" | null;
+  /** Run source — OPERA carries rooms revenue only (no Dinner / Room 0 / Additional). */
+  sourceType?: string | null;
 }
 
 
@@ -229,6 +231,10 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const primary = hex(branding.brandPrimary, DEFAULT_THEME.primary);
   const secondary = hex(branding.brandSecondary, DEFAULT_THEME.secondary);
   const theme: ChartTheme = { ...DEFAULT_THEME, primary, secondary, ink: secondary };
+
+  // OPERA reports carry rooms revenue only: the Dinner / Room 0 / Comp RN /
+  // Additional / Total combined columns do not exist in that source's report.
+  const showAdditionalColumns = String(options.sourceType ?? "nightsbridge") !== "opera";
 
   const additionalByMonth: Record<string, number> = {};
   const combinedByMonth: Record<string, number> = {};
@@ -432,11 +438,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       "Variance",
       "Last year actual",
       "OTB vs last year",
-      "Dinner",
-      "Room 0",
-      "Comp room nights",
-      "Additional revenue",
-      "Total combined",
+      ...(showAdditionalColumns
+        ? ["Dinner", "Room 0", "Comp room nights", "Additional revenue", "Total combined"]
+        : []),
     ],
     ...months.map((key, i) => [
       monthLabel(key),
@@ -445,11 +449,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       Math.round(otbNow[i] - otbPrev[i]),
       Math.round(otbLy[i]),
       Math.round(otbNow[i] - otbLy[i]),
-      Math.round(dinner[i]),
-      Math.round(room0[i]),
-      Math.round(compRns[i]),
-      Math.round(additional[i]),
-      Math.round(combined[i]),
+      ...(showAdditionalColumns
+        ? [
+            Math.round(dinner[i]),
+            Math.round(room0[i]),
+            Math.round(compRns[i]),
+            Math.round(additional[i]),
+            Math.round(combined[i]),
+          ]
+        : []),
     ]),
     [
       "Total",
@@ -458,11 +466,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       Math.round(totalOtb - totalPrevious),
       Math.round(totalLastYear),
       Math.round(totalOtb - totalLastYear),
-      Math.round(totalDinner),
-      Math.round(totalRoom0),
-      Math.round(totalCompRns),
-      Math.round(totalAdditional),
-      Math.round(totalCombined),
+      ...(showAdditionalColumns
+        ? [
+            Math.round(totalDinner),
+            Math.round(totalRoom0),
+            Math.round(totalCompRns),
+            Math.round(totalAdditional),
+            Math.round(totalCombined),
+          ]
+        : []),
     ],
   ];
 
@@ -575,11 +587,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <th>Variance</th>
           <th>Last year actual</th>
           <th>OTB vs LY</th>
-          <th>Dinner</th>
+          ${
+            showAdditionalColumns
+              ? `<th>Dinner</th>
           <th>Room 0</th>
           <th>Comp RNs</th>
           <th>Additional</th>
-          <th>Total combined</th>
+          <th>Total combined</th>`
+              : ""
+          }
         </tr>
       </thead>
       <tbody>
@@ -593,11 +609,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
           <td class="muted">${esc(zar(otbLy[i]))}</td>
           <td>${deltaCell(otbNow[i], otbLy[i], compactMoney)}</td>
-          <td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
+          ${
+            showAdditionalColumns
+              ? `<td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
           <td class="muted">${room0[i] ? esc(zar(room0[i])) : "—"}</td>
           <td class="muted">${compRns[i] ? nightsFmt(compRns[i]) : "—"}</td>
           <td class="muted">${additional[i] ? esc(zar(additional[i])) : "—"}</td>
-          <td class="strong">${esc(zar(combined[i]))}</td>
+          <td class="strong">${esc(zar(combined[i]))}</td>`
+              : ""
+          }
         </tr>`,
           )
           .join("")}
@@ -610,11 +630,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${deltaCell(totalOtb, totalPrevious, compactMoney)}</td>
           <td>${esc(zar(totalLastYear))}</td>
           <td>${deltaCell(totalOtb, totalLastYear, compactMoney)}</td>
-          <td>${totalDinner ? esc(zar(totalDinner)) : "—"}</td>
+          ${
+            showAdditionalColumns
+              ? `<td>${totalDinner ? esc(zar(totalDinner)) : "—"}</td>
           <td>${totalRoom0 ? esc(zar(totalRoom0)) : "—"}</td>
           <td>${totalCompRns ? nightsFmt(totalCompRns) : "—"}</td>
           <td>${esc(zar(totalAdditional))}</td>
-          <td class="strong">${esc(zar(totalCombined))}</td>
+          <td class="strong">${esc(zar(totalCombined))}</td>`
+              : ""
+          }
         </tr>
       </tfoot>
     </table>`;
@@ -895,7 +919,11 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       <li>All provisional bookings are included in the figures above, in line with the standard revenue review.</li>
       <li>Revenue and room nights are allocated to the month of arrival.</li>
       <li>Occupancy uses ${snapshot.room_count} sellable room${snapshot.room_count === 1 ? "" : "s"}; Room 0, events and holding-in-credit rows are excluded from the denominator.</li>
-      <li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>
+      ${
+        showAdditionalColumns
+          ? "<li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>"
+          : "<li>Figures are accommodation revenue only, as reported by the property management system.</li>"
+      }
       <li>This is a draft for the revenue team — screenshots and commentary can be added before it is issued.</li>
     </ul>
     <div class="contact">
@@ -930,7 +958,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           : "—",
         totalLastYear > 0 ? `LY ${compactMoney(totalLastYear)}` : "no baseline captured",
       )}
-      ${kpi("Total combined", money(totalCombined), `incl. ${compactMoney(totalAdditional)} additional`)}
+      ${
+        showAdditionalColumns
+          ? kpi(
+              "Total combined",
+              money(totalCombined),
+              `incl. ${compactMoney(totalAdditional)} additional`,
+            )
+          : kpi("Blended ADR", money(blendedAdr), "OTB revenue / room nights")
+      }
     </div>`;
 
   const performanceKpis = `
@@ -938,7 +974,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${kpi("Room nights", nightsFmt(totalNights), `of ${nightsFmt(totalCapacity)} available`)}
       ${kpi("Occupancy", pctFmt(blendedOccupancy * 100), "on the books")}
       ${kpi("Blended ADR", money(blendedAdr), "OTB revenue / room nights")}
-      ${kpi("Additional revenue", money(totalAdditional), "dinner + room 0")}
+      ${
+        showAdditionalColumns
+          ? kpi("Additional revenue", money(totalAdditional), "dinner + room 0")
+          : kpi(
+              "Sellable rooms",
+              String(snapshot.room_count),
+              "used for the occupancy denominator",
+            )
+      }
     </div>`;
 
   const builtPages: { key: string; title: string; body: string }[] = [
