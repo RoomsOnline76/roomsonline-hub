@@ -100,7 +100,7 @@ export default function ReportsPropertySettings() {
         : DEFAULT_REPORT_SOURCE,
     );
     setRoomCountTouched(true);
-  }, [settings]);
+  }, [settings, isReportsClient]);
 
   // No saved settings yet → seed capacity from ROL inventory.
   useEffect(() => {
