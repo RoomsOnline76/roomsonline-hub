@@ -75,7 +75,12 @@ export interface DraftOptions {
   media?: DraftMediaSlot[];
   /** TOBI lines the reviewer ticked for inclusion, in final (possibly edited) wording. */
   tobiCommentary?: string[];
+  /** Saved page order (page keys) from the slide organizer. */
+  pageOrder?: string[] | null;
+  /** Page keys the reviewer hid in the slide organizer. */
+  hiddenPages?: string[] | null;
 }
+
 
 
 
