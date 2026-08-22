@@ -28,23 +28,13 @@ const EXPECTED_COLUMNS = [
 ];
 
 /**
- * Complimentary and house-use nights are read straight off the grid, so the
- * reviewer is only asked for revenue that lives outside the rooms ledger.
+ * OPERA reports carry rooms revenue only — the reference consolidated workbook
+ * has no Dinner, Room 0 or Additional revenue columns, so none are collected or
+ * printed. Complimentary and house-use nights come straight off the grid and are
+ * the single monthly override a reviewer may need.
  */
 const ADDITIONAL_FIELDS: AdditionalFieldConfig = {
   monthly: [
-    {
-      key: "dinner_by_month",
-      label: "Dinner revenue",
-      hint: "Food & beverage captured outside the rooms ledger.",
-      kind: "currency",
-    },
-    {
-      key: "room0_by_month",
-      label: "Other non-rooms revenue",
-      hint: "Conference, spa or sundry revenue not shown on the OPERA rooms grid.",
-      kind: "currency",
-    },
     {
       key: "comp_rns_by_month",
       label: "Complimentary room nights",
