@@ -514,7 +514,8 @@ export default function ReportsRunReview() {
       {runId && <SlideOrganizerCard runId={runId} sourceType={run.sourceType} />}
 
 
-      {runId && (
+      {/* Owner slides are a Cheetah Plains-only add-on. */}
+      {runId && ownerSlidesOffered && (
         <SpecialReportsCard
           runId={runId}
           enabled={specialSet === "cheetaplains"}
