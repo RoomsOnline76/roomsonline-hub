@@ -872,11 +872,11 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     box-shadow: 0 1px 12px rgba(15, 23, 42, 0.12);
     display: flex;
     flex-direction: column;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    overflow: hidden;
   }
+  /* Only break between pages — never inside one, and never on an empty page. */
   .page + .page { break-before: page; page-break-before: always; }
+  .page:empty { display: none; }
+
   .page-head {
     display: flex;
     align-items: center;
