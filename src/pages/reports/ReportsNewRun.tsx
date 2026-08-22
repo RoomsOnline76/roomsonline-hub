@@ -182,7 +182,9 @@ export default function ReportsNewRun() {
     if (isReportSourceKey(next)) dispatch({ type: "sourceType", value: next });
     // The property's configured set is only a suggestion — the reviewer can untick it.
     const suggested = (data as { special_report_set?: string | null } | null)?.special_report_set;
-    dispatch({ type: "specialSet", value: suggested ?? null });
+    const offered = suggested === "cheetaplains";
+    setOwnerSlidesOffered(offered);
+    dispatch({ type: "specialSet", value: offered ? "cheetaplains" : null });
   }, []);
 
   // Pre-fill the narrative notes from this property's most recent run.
