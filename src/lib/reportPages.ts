@@ -13,6 +13,7 @@ export interface ReportPageDefinition {
 /** Data pages the builder emits, in their default sequence. */
 export const REPORT_DATA_PAGES: readonly ReportPageDefinition[] = [
   { key: "revenue_performance", title: "Revenue Performance", summary: "Revenue grid + KPIs" },
+  { key: "revenue_commentary", title: "Revenue Commentary", summary: "Month-by-month commentary" },
   { key: "nights_occupancy", title: "Room Nights & Occupancy", summary: "Nights and occupancy grids" },
   { key: "rate_comparison", title: "Rate & Comparison Review", summary: "ADR grid + comparison review" },
   { key: "revenue_review", title: "Revenue Review", summary: "Revenue / occupancy / ADR charts" },
