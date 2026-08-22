@@ -140,6 +140,40 @@ const formatLongDate = (iso: string): string => {
   });
 };
 
+const formatShortDate = (iso: string): string => {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  });
+};
+
+/**
+ * Browsers name the saved PDF after the printed document title, so this builds the
+ * agreed filename pattern and strips characters that break filenames.
+ *
+ *   "Torburnlea Homestead - Bi-Monthly Revenue Review - 14 Aug 2026 by RoomsOnline - Sleep in Africa"
+ */
+export function pdfDocumentTitle(
+  propertyName: string,
+  reportKind: string,
+  asOfIso: string,
+): string {
+  const clean = (value: string) =>
+    value
+      .replace(/[\\/:*?"<>|]/g, " ")
+      .replace(/[·–—]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  return clean(
+    `${propertyName} - ${reportKind} - ${formatShortDate(asOfIso)} by RoomsOnline - Sleep in Africa`,
+  );
+}
+
 const csvCell = (value: string | number): string => {
   const text = String(value ?? "");
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
