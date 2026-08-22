@@ -461,25 +461,27 @@ export default function ReportsNewRun() {
               </div>
             </div>
 
-            {/* Optional extras layered on top of the standard pack */}
-            <div className="rounded-md border px-3 py-3 space-y-2">
-              <p className="text-sm font-medium">Optional extras</p>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={state.specialSet === "cheetaplains"}
-                  onCheckedChange={(checked) =>
-                    dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
-                  }
-                  aria-label="Add Cheetah Plains owner slides"
-                />
-                <span className="space-y-1">
-                  <span className="block text-sm">Add Cheetah Plains owner slides</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Nationality and travel-partner slides, built on top of the regular report.
+            {/* Optional extras — Cheetah Plains owner slides only */}
+            {ownerSlidesOffered && (
+              <div className="rounded-md border px-3 py-3 space-y-2">
+                <p className="text-sm font-medium">Optional extras</p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={state.specialSet === "cheetaplains"}
+                    onCheckedChange={(checked) =>
+                      dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
+                    }
+                    aria-label="Add Cheetah Plains owner slides"
+                  />
+                  <span className="space-y-1">
+                    <span className="block text-sm">Add Cheetah Plains owner slides</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Nationality and travel-partner slides, built on top of the regular report.
+                    </span>
                   </span>
-                </span>
-              </label>
-            </div>
+                </label>
+              </div>
+            )}
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => dispatch({ type: "step", step: 1 })}>
