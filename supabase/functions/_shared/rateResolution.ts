@@ -20,7 +20,9 @@ import {
   normalizePricingInputs,
   resolveNightRates,
   type DifferentialType,
+  type ParentPlanPricing,
   type PlanSeasonRate,
+
   type PricingInputs,
   type PricingRatePlan,
   type PricingSeason,
@@ -32,7 +34,10 @@ export type RateSource =
   | "plan_season"
   | "relational_season"
   | "rack_rate"
-  | "unit_daily_rate";
+  | "unit_daily_rate"
+  /** Price computed off a parent plan (Tour Operator off RACK, BAR Net off BAR). */
+  | "derived";
+
 
 export interface UnitRateContext {
   id: string;
@@ -67,7 +72,10 @@ export interface RateCoverage {
   plan_season_days: number;
   /** Days priced from rolos_rate_seasons + rolos_rate_prices (tier 4). */
   relational_days: number;
+  /** Days priced off a parent plan through derivation. */
+  derived_days: number;
   rack_days: number;
+
   unit_daily_days: number;
   unpriced_days: number;
 }
@@ -264,16 +272,18 @@ export async function createRateResolver(
   const relationalSeasonRates: Record<string, RelationalSeasonRate[]> = {};
   const ratePlans: Record<string, PricingRatePlan> = {};
   const planSeasonRates: Record<string, PlanSeasonRate[]> = {};
+  const parentPlans: Record<string, ParentPlanPricing> = {};
   const dailyOverrides: Record<string, Record<string, never>> = {};
 
   if (rolosIds.length > 0) {
     const { data: planLinks } = await supabase
       .from("rolos_rate_plan_room_types")
       .select(
-        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay, is_primary_sell, push_to_channels, sell_priority)",
+        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay, is_primary_sell, push_to_channels, sell_priority, derived_from_plan_id, derivation_type, derivation_value, derivation_rounding)",
       )
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
+
 
     const audience = opts.audience ?? "direct";
     const liveLinks = ((planLinks ?? []) as any[]).filter((entry) => entry?.is_active !== false && entry?.rolos_rate_plans);
@@ -331,11 +341,76 @@ export async function createRateResolver(
         max_stay: plan?.max_stay ?? null,
         differential_type: (entry.differential_type as DifferentialType) ?? "none",
         differential_value: entry.differential_value ?? null,
+        derived_from_plan_id: plan?.derived_from_plan_id ? String(plan.derived_from_plan_id) : null,
+        derivation_type: (plan?.derivation_type as "percent" | "amount" | null) ?? null,
+        derivation_value: plan?.derivation_value ?? null,
+        derivation_rounding: plan?.derivation_rounding ?? "nearest_10",
       };
     }
 
+    // Parent plans of any derived plan in play. Loaded plan-centric because a
+    // parent (a static RACK, or a yielded BAR) may itself sell nothing directly.
+    const parentIds = [
+      ...new Set(
+        Object.values(ratePlans)
+          .map((p) => (p.derived_from_plan_id ? String(p.derived_from_plan_id) : null))
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    if (parentIds.length > 0) {
+      const { data: parentRows } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name, base_rate, adult_1_rate, is_active")
+        .in("id", parentIds)
+        .is("deleted_at", null);
+
+      for (const row of (parentRows ?? []) as any[]) {
+        const adult1 = Number(row?.adult_1_rate);
+        parentPlans[String(row.id)] = {
+          rate_plan_id: String(row.id),
+          name: row?.name ?? null,
+          base_rate: Number(row?.base_rate) || 0,
+          extra_adult_rate: Number.isFinite(adult1) && adult1 > 0 ? adult1 : undefined,
+          is_active: row?.is_active !== false,
+          seasonRates: [],
+          seasonRatesByRoom: {},
+        };
+      }
+
+      const { data: parentSeasonRows } = await supabase
+        .from("rolos_rate_plan_season_rates")
+        .select(
+          "rate_plan_id, room_type_id, base_rate, extra_adult_rate, differential_type, differential_value, is_active, deleted_at, shared_season_id, legacy_season_id, rolos_shared_seasons(calendar_season_id, start_date, end_date), rolos_rate_seasons(start_date, end_date, min_stay_override)",
+        )
+        .in("rate_plan_id", parentIds)
+        .is("deleted_at", null);
+
+      for (const row of (parentSeasonRows ?? []) as any[]) {
+        if (row?.is_active === false) continue;
+        const parent = parentPlans[String(row.rate_plan_id)];
+        if (!parent) continue;
+        const shared = row.rolos_shared_seasons;
+        const legacy = row.rolos_rate_seasons;
+        const entry: PlanSeasonRate = {
+          calendar_season_id: shared?.calendar_season_id ? String(shared.calendar_season_id) : null,
+          start_date: shared?.start_date ?? legacy?.start_date ?? null,
+          end_date: shared?.end_date ?? legacy?.end_date ?? null,
+          base_rate: row.base_rate ?? null,
+          extra_adult_rate: row.extra_adult_rate ?? null,
+          differential_type: (row.differential_type as DifferentialType) ?? "none",
+          differential_value: row.differential_value ?? null,
+        };
+        if (!entry.calendar_season_id && (!entry.start_date || !entry.end_date)) continue;
+        if (row.room_type_id) {
+          (parent.seasonRatesByRoom[String(row.room_type_id)] ||= []).push(entry);
+        } else {
+          parent.seasonRates.push(entry);
+        }
+      }
+    }
 
     const planIds = Object.keys(planToRooms);
+
     if (planIds.length > 0 && opts.window) {
       const { data: closures } = await supabase
         .from("rolos_rate_plan_stop_sell")
@@ -357,7 +432,7 @@ export async function createRateResolver(
       const { data: planSeasonRows } = await supabase
         .from("rolos_rate_plan_season_rates")
         .select(
-          "rate_plan_id, room_type_id, base_rate, extra_adult_rate, differential_type, differential_value, is_active, deleted_at, shared_season_id, legacy_season_id, rolos_shared_seasons(calendar_season_id, start_date, end_date), rolos_rate_seasons(start_date, end_date, min_stay_override)",
+          "rate_plan_id, room_type_id, base_rate, extra_adult_rate, differential_type, differential_value, derivation_value, is_pinned, is_active, deleted_at, shared_season_id, legacy_season_id, rolos_shared_seasons(calendar_season_id, start_date, end_date), rolos_rate_seasons(start_date, end_date, min_stay_override)",
         )
         .in("rate_plan_id", planIds)
         .is("deleted_at", null);
@@ -375,7 +450,10 @@ export async function createRateResolver(
           differential_type: (row.differential_type as DifferentialType) ?? "none",
           differential_value: row.differential_value ?? null,
           min_stay: legacy?.min_stay_override ?? null,
+          derivation_value: row.derivation_value ?? null,
+          is_pinned: row.is_pinned === true,
         };
+
         if (!entry.calendar_season_id && (!entry.start_date || !entry.end_date)) continue;
         const roomKey = row.room_type_id ? String(row.room_type_id) : null;
         const planRooms = planToRooms[row.rate_plan_id] ?? [];
@@ -444,6 +522,8 @@ export async function createRateResolver(
     seasonRateKeys,
     ratePlans,
     planSeasonRates,
+    parentPlans,
+
     relationalSeasonRates,
     unitDailyRates,
     // No Calendar-owned per-date rate override store exists yet; the engine already
@@ -469,6 +549,8 @@ export async function createRateResolver(
       daily_override_days: count("daily_override"),
       plan_season_days: count("plan_season"),
       relational_days: count("relational_season"),
+      derived_days: count("derived"),
+
       rack_days: count("rack_rate"),
       unit_daily_days: count("unit_daily_rate"),
       unpriced_days: 0,
@@ -600,6 +682,9 @@ export function describeCoverage(expectedDays: number, cov: RateCoverage): strin
   if (cov.calendar_days > 0) parts.push(`${cov.calendar_days} calendar`);
   if ((cov.plan_season_days ?? 0) > 0) parts.push(`${cov.plan_season_days} plan season`);
   if ((cov.relational_days ?? 0) > 0) parts.push(`${cov.relational_days} rate-plan season`);
+  if ((cov.derived_days ?? 0) > 0) parts.push(`${cov.derived_days} derived`);
+
+
 
   if (cov.rack_days > 0) parts.push(`${cov.rack_days} rack rate`);
   if (cov.unit_daily_days > 0) parts.push(`${cov.unit_daily_days} unit daily rate`);
