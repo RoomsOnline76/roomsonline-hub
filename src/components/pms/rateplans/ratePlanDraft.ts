@@ -44,9 +44,15 @@ export interface DraftSeasonRate {
   differential_type: Exclude<DifferentialType, "none">;
   differential_value: string;
   extra_adult_rate: string;
+  /**
+   * Derived columns: this season's offset override off the parent plan. Blank means
+   * the season follows the plan-level offset.
+   */
+  derivation_value?: string;
   /** Per-unit cell values, interpreted per the column mode. room_type_id -> raw input. */
   unit_rates: Record<string, string>;
 }
+
 
 export interface RatePlanDraft {
   rate_plan_id: string | null;
