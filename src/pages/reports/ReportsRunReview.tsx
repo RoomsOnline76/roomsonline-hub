@@ -39,6 +39,8 @@ import { getAdapter } from "@/lib/report-adapters";
 import { SpecialReportsCard } from "@/components/reports/SpecialReportsCard";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
 import { reportsPath } from "@/lib/config";
+import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
+
 
 
 const formatDate = (iso: string): string =>
@@ -60,7 +62,12 @@ export default function ReportsRunReview() {
     async (cadence: ReportCadence) => {
       if (!runId) return;
       setSavingCadence(true);
-      const { error } = await supabase.from("report_runs").update({ cadence }).eq("id", runId);
+      // A title the reviewer never customised follows the cadence.
+      const patch: { cadence: ReportCadence; title?: string } = { cadence };
+      if (run && isGeneratedRunTitle(run.title, run.asOfDate)) {
+        patch.title = defaultRunTitle(run.asOfDate, cadence);
+      }
+      const { error } = await supabase.from("report_runs").update(patch).eq("id", runId);
       setSavingCadence(false);
       if (error) {
         toast.error("Could not change the cadence", { description: error.message });
@@ -71,8 +78,9 @@ export default function ReportsRunReview() {
         description: "Regenerate the draft to update the printed wording.",
       });
     },
-    [runId, refetch],
+    [runId, refetch, run],
   );
+
 
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
@@ -283,7 +291,10 @@ export default function ReportsRunReview() {
           )}
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {run.title ?? "Revenue review"}
+              {isGeneratedRunTitle(run.title, run.asOfDate)
+                ? defaultRunTitle(run.asOfDate, run.cadence)
+                : run.title}
+
             </h1>
             <p className="text-sm text-muted-foreground">
               {run.propertyName ?? "Unknown property"} · as-of {formatDate(run.asOfDate)}
