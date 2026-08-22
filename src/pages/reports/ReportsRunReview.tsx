@@ -12,6 +12,7 @@ import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
+import { ReportMediaSlots } from "@/components/reports/ReportMediaSlots";
 import { BaselineCard } from "@/components/reports/BaselineCard";
 import { PriorReportImportCard } from "@/components/reports/PriorReportImportCard";
 import { DownloadBar } from "@/components/reports/DownloadBar";
@@ -426,6 +427,8 @@ export default function ReportsRunReview() {
           isProcessing={isProcessing}
         />
       )}
+
+      {runId && <ReportMediaSlots runId={runId} />}
 
       {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
 
