@@ -22,15 +22,27 @@ export interface BaselineMaps {
   lastYearNights: Record<string, number>;
 }
 
+/**
+ * Room nights are counts. A fractional value is an occupancy percentage that
+ * was read out of the wrong workbook column — accepting it would make previous
+ * ADR (revenue / nights) explode into the millions and rescale every chart.
+ */
+export const isPlausibleNights = (value: unknown): boolean => {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1;
+};
+
 const fill = (
   target: Record<string, number>,
   source: Record<string, number> | undefined,
   months: string[],
+  guard?: (value: number) => boolean,
 ): void => {
   if (!source) return;
   for (const month of months) {
     const value = Number(source[month]);
     if (!Number.isFinite(value)) continue;
+    if (guard && !guard(value)) continue;
     if (target[month] === undefined) target[month] = value;
   }
 };
@@ -45,11 +57,12 @@ export function applyImportedBaseline(
   const baseline = imported as ImportedBaseline;
   const before = JSON.stringify(maps);
   fill(maps.previousRevenue, baseline.previous_otb_revenue, months);
-  fill(maps.previousNights, baseline.previous_room_nights, months);
+  fill(maps.previousNights, baseline.previous_room_nights, months, isPlausibleNights);
   fill(maps.lastYearRevenue, baseline.last_year_actual, months);
-  fill(maps.lastYearNights, baseline.last_year_room_nights, months);
+  fill(maps.lastYearNights, baseline.last_year_room_nights, months, isPlausibleNights);
   return JSON.stringify(maps) !== before;
 }
+
 
 const asBaseline = (imported: unknown): ImportedBaseline | null =>
   imported && typeof imported === "object" ? (imported as ImportedBaseline) : null;
@@ -144,9 +157,10 @@ export function substituteThinMonths(
     swapped.push({ month, parsed_revenue: parsed, imported_revenue: importedRevenue });
     aggregate.otb_revenue[month] = importedRevenue;
     const importedNights = Number(nights[month]);
-    if (Number.isFinite(importedNights) && importedNights > 0) {
+    if (isPlausibleNights(importedNights)) {
       aggregate.room_nights[month] = importedNights;
     }
+
     const monthNights = aggregate.room_nights[month] ?? 0;
     const capacity = aggregate.capacity_days[month] ?? 0;
     aggregate.adr[month] =

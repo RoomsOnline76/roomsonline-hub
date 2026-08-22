@@ -24,6 +24,7 @@ import {
   parseProtelProduction,
 } from "../_shared/protel/production.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
   applyImportedBaseline,
   reconcileWithImportedBaseline,
@@ -398,6 +399,20 @@ Deno.serve(async (req) => {
         .eq("property_id", run.property_id)
         .eq("is_active", true);
       roomCount = count && count > 0 ? count : 1;
+    }
+
+    // A room count captured as capacity days would divide occupancy by ~30.
+    const roomCheck = sanitiseRoomCount(roomCount);
+    if (roomCheck.warning) {
+      roomCount = roomCheck.roomCount;
+      await logRunEvent(
+        admin,
+        runId,
+        "room_count_corrected",
+        roomCheck.warning,
+        { configured: settings?.room_count ?? null, used: roomCount },
+        actorId,
+      );
     }
 
     // House State prints free + occupied rooms, so capacity can be cross-checked.
