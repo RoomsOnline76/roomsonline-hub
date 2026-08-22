@@ -736,21 +736,53 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     else mediaSections.push({ section: slot.section, slots: [slot] });
   }
 
-  const mediaSlotHtml = (slot: DraftMediaSlot): string => `
+  // Images within a slot are grouped by the title the reviewer typed, so each
+  // named section prints under its own heading; untitled images keep the slot name.
+  const mediaSlotHtml = (slot: DraftMediaSlot): string => {
+    const groups: { heading: string; images: DraftMediaImage[] }[] = [];
+    for (const image of slot.images) {
+      const heading = (image.sectionTitle ?? "").trim() || slot.title;
+      const existing = groups.find((group) => group.heading === heading);
+      if (existing) existing.images.push(image);
+      else groups.push({ heading, images: [image] });
+    }
+    return groups
+      .map(
+        (group) => `
     <div class="block">
-      <h3 class="block-title">${esc(slot.title)}</h3>
+      <h3 class="block-title">${esc(group.heading)}</h3>
       <div class="shots ${slot.layout === "half" ? "two-up" : "one-up"}">
-        ${slot.images
+        ${group.images
           .map(
             (image) => `
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(slot.title)}" />
+          <img src="${esc(image.url)}" alt="${esc(group.heading)}" />
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>`,
           )
           .join("")}
       </div>
-    </div>`;
+    </div>`,
+      )
+      .join("");
+  };
+
+  // ── TOBI commentary the reviewer ticked for inclusion ─────────────────
+  const tobiLines = (options.tobiCommentary ?? [])
+    .flatMap((entry) => String(entry ?? "").split(/\n+/))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const tobiHtml =
+    tobiLines.length > 0
+      ? `
+    <div class="notes">
+      <div class="note">
+        <h4>Revenue Commentary</h4>
+        <ul class="tobi">${tobiLines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
+      </div>
+    </div>`
+      : "";
+
 
   const notesPageBody = `
     ${commentary ? `<div class="notes">${commentary}</div>` : ""}
