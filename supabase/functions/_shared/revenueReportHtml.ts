@@ -992,10 +992,18 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   table.grid .strong { font-weight: 600; }
   .pct { font-size: 8pt; }
   /* Wide 9-11 column grids — tighter type so nothing wraps or clips. */
-  table.grid.tight { font-size: 7.6pt; }
-  table.grid.tight th { font-size: 6.6pt; letter-spacing: 0.05em; }
-  table.grid.tight th, table.grid.tight td { padding: 1.3mm 1.4mm; }
-  table.grid.tight .pct { font-size: 6.6pt; }
+  table.grid.tight { font-size: 7.2pt; table-layout: fixed; }
+  table.grid.tight th {
+    font-size: 6.2pt;
+    letter-spacing: 0.03em;
+    white-space: normal;
+    line-height: 1.2;
+    vertical-align: bottom;
+  }
+  table.grid.tight th, table.grid.tight td { padding: 1.1mm 1mm; }
+  table.grid.tight td { white-space: normal; }
+  /* Variance percentage drops under the amount so wide grids never clip. */
+  table.grid.tight .pct { display: block; font-size: 6.2pt; }
 
   /* Titled content blocks */
   .block { display: flex; flex-direction: column; gap: 2mm; break-inside: avoid; }
