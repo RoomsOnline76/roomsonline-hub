@@ -535,7 +535,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
                       size="sm"
                       variant="outline"
                       value={draft.derivation_type}
-                      onValueChange={(v) => v && setField("derivation_type", v)}
+                      onValueChange={(v) => v && setField("derivation_type", v as "percent" | "amount")}
                     >
                       <ToggleGroupItem value="percent" className="h-9 px-2 text-xs">%</ToggleGroupItem>
                       <ToggleGroupItem value="amount" className="h-9 px-2 text-xs">R</ToggleGroupItem>
