@@ -1,3 +1,4 @@
+import { reportsPath } from "@/lib/config";
 import { useCallback, useMemo, useReducer, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
@@ -24,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-import { reportsPath } from "@/lib/config";
   DEFAULT_REPORT_SOURCE,
   getAdapter,
   isReportSourceKey,

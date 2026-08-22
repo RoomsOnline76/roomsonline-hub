@@ -1,3 +1,4 @@
+import { reportsPath } from "@/lib/config";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
@@ -33,7 +34,6 @@ import {
   type ReadinessItem,
 } from "@/components/reports/ReportReadinessChecklist";
 import {
-import { reportsPath } from "@/lib/config";
   Select,
   SelectContent,
   SelectItem,
