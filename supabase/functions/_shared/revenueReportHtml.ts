@@ -217,55 +217,67 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     ? `OTB ${formatLongDate(options.previousAsOfDate)}`
     : "Previous OTB";
 
+  // Signed comparison series — the same units as their parent chart.
+  const diff = (a: number[], b: number[]) => a.map((value, i) => value - (b[i] ?? 0));
+  const VARIANCE_COLOUR = "#7C3AED";
+  const VS_LY_COLOUR = "#0EA5A4";
+
   pushChart(
     groupedBarChart({
       id: "revenue-grouped",
-      title: "Revenue — on the books, previous review, last year and combined",
+      title: "Revenue — on the books, previous review, last year, variance and combined",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: otbNow },
         { name: prevLabel, colour: "#F5A3D0", values: otbPrev },
         { name: "Last year actual", colour: secondary, values: otbLy },
+        { name: "Variance", colour: VARIANCE_COLOUR, values: diff(otbNow, otbPrev) },
+        { name: "OTB vs LY", colour: VS_LY_COLOUR, values: diff(otbNow, otbLy) },
         { name: "Additional revenue", colour: "#9CA3AF", values: additional },
         { name: "Total combined", colour: "#4B5563", values: combined },
       ],
       theme,
-      height: 320,
+      height: 340,
     }),
   );
 
   pushChart(
     groupedBarChart({
       id: "occupancy-grouped",
-      title: "Occupancy % — on the books, previous review and last year",
+      title: "Occupancy % — on the books, previous review, last year, variance and OTB vs LY",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: occNow },
         { name: prevLabel, colour: "#F5A3D0", values: occPrev },
         { name: "Last year actual", colour: secondary, values: occLy },
+        { name: "Variance (pts)", colour: VARIANCE_COLOUR, values: diff(occNow, occPrev) },
+        { name: "OTB vs LY (pts)", colour: VS_LY_COLOUR, values: diff(occNow, occLy) },
       ],
       theme,
-      height: 275,
+      height: 290,
       format: (value) => `${Math.round(value)}%`,
-      valueLabels: months.length <= 8,
+      valueLabels: months.length <= 6,
     }),
   );
 
   pushChart(
     groupedBarChart({
       id: "adr-grouped",
-      title: "Average daily rate — on the books, previous review and last year",
+      title: "Average daily rate — on the books, previous review, last year, variance and OTB vs LY",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: adrNow },
         { name: prevLabel, colour: "#F5A3D0", values: adrPrev },
         { name: "Last year actual", colour: secondary, values: adrLy },
+        { name: "Variance", colour: VARIANCE_COLOUR, values: diff(adrNow, adrPrev) },
+        { name: "OTB vs LY", colour: VS_LY_COLOUR, values: diff(adrNow, adrLy) },
       ],
       theme,
-      height: 275,
-      valueLabels: months.length <= 8,
+      height: 290,
+      valueLabels: months.length <= 6,
     }),
   );
+
 
   pushChart(
     varianceBarChart({
