@@ -14,6 +14,7 @@ import {
   percent,
   varianceBarChart,
 } from "./revenueReportCharts.ts";
+import { monthsInWindow } from "./reportWindow.ts";
 import {
   expandLegacyMediaKeys,
   mediaImagePageKey,
@@ -225,7 +226,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const asOfIso = options.asOfDate.slice(0, 10);
   const asOfLabel = formatLongDate(asOfIso);
   const cadenceLabel = options.cadence === "monthly" ? "Monthly" : "Bi-monthly";
-  const months = snapshot.months.filter(Boolean);
+  // A review only ever prints the month it covers plus the next five.
+  const months = monthsInWindow(snapshot.months.filter(Boolean), asOfIso);
   const labels = months.map(monthLabel);
 
   const primary = hex(branding.brandPrimary, DEFAULT_THEME.primary);
@@ -235,6 +237,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   // OPERA reports carry rooms revenue only: the Dinner / Room 0 / Comp RN /
   // Additional / Total combined columns do not exist in that source's report.
   const showAdditionalColumns = String(options.sourceType ?? "nightsbridge") !== "opera";
+  // Only NightsBridge carries the reviewer-captured Dinner / Room 0 split.
+  const showDinnerNote = String(options.sourceType ?? "nightsbridge") === "nightsbridge";
 
   const additionalByMonth: Record<string, number> = {};
   const combinedByMonth: Record<string, number> = {};
@@ -1022,11 +1026,10 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       <li>Revenue and room nights are allocated to the month of arrival.</li>
       <li>Occupancy uses ${snapshot.room_count} sellable room${snapshot.room_count === 1 ? "" : "s"}; Room 0, events and holding-in-credit rows are excluded from the denominator.</li>
       ${
-        showAdditionalColumns
+        showDinnerNote
           ? "<li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>"
           : "<li>Figures are accommodation revenue only, as reported by the property management system.</li>"
       }
-      <li>This is a draft for the revenue team — screenshots and commentary can be added before it is issued.</li>
     </ul>
     <div class="contact">
       <div>

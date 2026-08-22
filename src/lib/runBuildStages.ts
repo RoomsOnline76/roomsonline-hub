@@ -10,8 +10,10 @@ export type RunBuildStage =
   | "prior_upload"
   | "prior_ingest"
   | "baseline"
+  | "review"
   | "media"
   | "organize"
+  | "insights"
   | "build";
 
 export const RUN_BUILD_STAGES: RunBuildStage[] = [
@@ -20,8 +22,10 @@ export const RUN_BUILD_STAGES: RunBuildStage[] = [
   "prior_upload",
   "prior_ingest",
   "baseline",
+  "review",
   "media",
   "organize",
+  "insights",
   "build",
 ];
 
@@ -64,20 +68,33 @@ export const STAGE_META: Record<RunBuildStage, StageMeta> = {
     blurb: "Which earlier run supplies the comparison columns.",
     optional: true,
   },
-  media: {
+  review: {
     letter: "F",
+    label: "Review results",
+    blurb:
+      "Check the aggregated figures for the review month and the five ahead, and capture any additional revenue.",
+    optional: false,
+  },
+  media: {
+    letter: "G",
     label: "Screenshots",
     blurb: "Drop the channel and stats screenshots into their slots.",
     optional: true,
   },
   organize: {
-    letter: "G",
+    letter: "H",
     label: "Slide order",
     blurb: "Shuffle the pages and images into the order you want.",
     optional: true,
   },
+  insights: {
+    letter: "I",
+    label: "TOBI analysis",
+    blurb: "Review TOBI's read, tick what to include, and write the narrative notes.",
+    optional: false,
+  },
   build: {
-    letter: "H",
+    letter: "J",
     label: "Build",
     blurb: "Process the run, review the numbers and take the downloads.",
     optional: false,
@@ -100,6 +117,8 @@ export interface StageStateInput {
   hasSnapshot: boolean;
   /** At least one screenshot uploaded. */
   hasMedia: boolean;
+  /** TOBI insights exist and the reviewer has been through them. */
+  insightsReviewed: boolean;
 }
 
 export type StageCompletion = Record<RunBuildStage, boolean>;
@@ -116,8 +135,10 @@ export function deriveStageCompletion(input: StageStateInput): StageCompletion {
     prior_upload: priorSettled,
     prior_ingest: priorSettled,
     baseline: input.hasBaseline || input.priorDeclined || input.hasSnapshot,
+    review: input.hasSnapshot,
     media: input.hasMedia,
     organize: input.hasMedia,
+    insights: input.insightsReviewed,
     build: input.hasSnapshot,
   };
 }

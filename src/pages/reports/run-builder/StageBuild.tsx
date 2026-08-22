@@ -1,16 +1,13 @@
 import { Loader2, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { SnapshotTable } from "@/components/reports/SnapshotTable";
-import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
-import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
+import { Card, CardContent } from "@/components/ui/card";
 import { DownloadBar } from "@/components/reports/DownloadBar";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
 import { RunEventTimeline } from "@/components/reports/RunEventTimeline";
 import { reportsPath } from "@/lib/config";
 import type { RunBuilderContext } from "./types";
 
-/** Stage H — process the run, review the figures and take the downloads. */
+/** Stage J — final process, then take the downloads. */
 export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
   const { snapshot } = ctx;
 
@@ -69,30 +66,6 @@ export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
           isGenerating={ctx.isDraftBusy}
           onGenerate={ctx.onDraft}
           pageCount={Object.keys(snapshot.sourceBreakdown ?? {}).length > 0 ? 5 : 4}
-        />
-      )}
-
-      {snapshot && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-medium">Aggregated results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <SnapshotTable snapshot={snapshot} />
-          </CardContent>
-        </Card>
-      )}
-
-      {snapshot && <AiInsightsPanel runId={ctx.runId} />}
-
-      {snapshot && (
-        <ManualInputsCard
-          runId={ctx.runId}
-          sourceType={ctx.run.sourceType}
-          months={snapshot.months}
-          otbRevenue={snapshot.otbRevenue}
-          onReprocess={async () => ctx.onProcess()}
-          isProcessing={ctx.isProcessing}
         />
       )}
 

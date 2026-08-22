@@ -25,6 +25,8 @@ interface Props {
   sourceType?: string | null;
   months: string[];
   otbRevenue: Record<string, number>;
+  /** Which half of the card to show: monthly figures, narrative notes, or both. */
+  sections?: "all" | "monthly" | "narrative";
   onSaved?: () => void | Promise<void>;
   onReprocess?: () => void | Promise<void>;
   isProcessing?: boolean;
@@ -36,6 +38,7 @@ export function ManualInputsCard({
   sourceType,
   months,
   otbRevenue,
+  sections = "all",
   onSaved,
   onReprocess,
   isProcessing = false,
@@ -67,6 +70,9 @@ export function ManualInputsCard({
       .filter(Boolean)
       .join(" "),
   };
+
+  const showMonthly = sections !== "narrative";
+  const showNarrative = sections !== "monthly";
 
   const { inputs, save } = useReportAdditionalInputs(runId);
   const [draft, setDraft] = useState<Draft>({});
@@ -149,9 +155,16 @@ export function ManualInputsCard({
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-medium">Additional revenue &amp; notes</CardTitle>
+        <CardTitle className="text-base font-medium">
+          {sections === "monthly"
+            ? "Additional revenue"
+            : sections === "narrative"
+              ? "Notes for the report"
+              : "Additional revenue & notes"}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        {showMonthly && (
         <div className="overflow-x-auto">
           <div className="min-w-[40rem] space-y-2">
             <div
@@ -226,7 +239,10 @@ export function ManualInputsCard({
             </div>
           </div>
         </div>
+        )}
 
+        {showNarrative && (
+        <>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="min-stay-notes">Minimum stay</Label>
@@ -270,6 +286,8 @@ export function ManualInputsCard({
             placeholder="Anything the owner should read alongside the numbers"
           />
         </div>
+        </>
+        )}
 
         <div className="flex flex-wrap justify-end gap-2">
           <Button onClick={() => void handleSave()} disabled={save.isPending} variant="outline">

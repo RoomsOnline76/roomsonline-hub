@@ -1,5 +1,6 @@
 // Generates the consolidated three-sheet revenue report workbook for a run.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { monthsInWindow } from "../_shared/reportWindow.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
   buildRevenueWorkbook,
@@ -131,7 +132,10 @@ Deno.serve(async (req) => {
       brandPrimary: settings?.brand_primary ?? null,
       historicalBaseline: (settings?.historical_baseline ?? {}) as HistoricalBaseline,
       snapshot: {
-        months: Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
+        months: monthsInWindow(
+          Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
+          String(run.as_of_date).slice(0, 10),
+        ),
         otb_revenue: numberMap(snapshot.otb_revenue),
         previous_otb_revenue: numberMap(snapshot.previous_otb_revenue),
         last_year_actual: numberMap(snapshot.last_year_actual),

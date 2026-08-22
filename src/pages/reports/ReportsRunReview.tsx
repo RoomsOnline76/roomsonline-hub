@@ -19,12 +19,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { useReportDraft } from "@/hooks/useReportDraft";
 import { useReportMedia } from "@/hooks/useReportMedia";
+import { useReportInsights } from "@/hooks/useReportInsights";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import type { DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
+import { monthsInWindow } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
 import {
   deriveStageCompletion,
@@ -40,8 +42,10 @@ import { StageMoreFiles } from "./run-builder/StageMoreFiles";
 import { StagePriorUpload } from "./run-builder/StagePriorUpload";
 import { StagePriorIngest } from "./run-builder/StagePriorIngest";
 import { StageBaseline } from "./run-builder/StageBaseline";
+import { StageReview } from "./run-builder/StageReview";
 import { StageMedia } from "./run-builder/StageMedia";
 import { StageOrganize } from "./run-builder/StageOrganize";
+import { StageInsights } from "./run-builder/StageInsights";
 import { StageBuild } from "./run-builder/StageBuild";
 import type { RunBuilderContext } from "./run-builder/types";
 
@@ -73,6 +77,7 @@ export default function ReportsRunReview() {
     isPacking,
   } = useReportDraft(runId);
   const { total: mediaTotal } = useReportMedia(runId, run?.sourceType);
+  const { insights } = useReportInsights(runId);
 
   const [stage, setStage] = useState<RunBuildStage | null>(null);
   const [savingCadence, setSavingCadence] = useState(false);
@@ -110,8 +115,9 @@ export default function ReportsRunReview() {
         hasBaseline: Boolean(run?.previousRunId),
         hasSnapshot: Boolean(snapshot),
         hasMedia: mediaTotal > 0,
+        insightsReviewed: Boolean(insights?.generatedAt),
       }),
-    [run, snapshot, mediaTotal],
+    [run, snapshot, mediaTotal, insights],
   );
 
   /** Land on the remembered stage the first time the run loads. */
@@ -119,6 +125,12 @@ export default function ReportsRunReview() {
     if (!run || stage) return;
     setStage(resumeStage(run.buildStage, completion));
   }, [run, stage, completion]);
+
+  /** Everything downstream only ever sees the review month plus five ahead. */
+  const windowedSnapshot = useMemo(() => {
+    if (!snapshot || !run) return snapshot ?? null;
+    return { ...snapshot, months: monthsInWindow(snapshot.months, run.asOfDate) };
+  }, [snapshot, run]);
 
   const goToStage = useCallback(
     (next: RunBuildStage) => {
@@ -340,7 +352,7 @@ export default function ReportsRunReview() {
     run,
     runId,
     adapter,
-    snapshot: snapshot ?? null,
+    snapshot: windowedSnapshot ?? null,
     editable: run.status === "draft",
     refresh,
     reparsingId,
@@ -380,8 +392,10 @@ export default function ReportsRunReview() {
     prior_upload: <StagePriorUpload ctx={ctx} />,
     prior_ingest: <StagePriorIngest ctx={ctx} />,
     baseline: <StageBaseline ctx={ctx} />,
+    review: <StageReview ctx={ctx} />,
     media: <StageMedia ctx={ctx} />,
     organize: <StageOrganize ctx={ctx} />,
+    insights: <StageInsights ctx={ctx} />,
     build: <StageBuild ctx={ctx} />,
   }[currentStage];
 
