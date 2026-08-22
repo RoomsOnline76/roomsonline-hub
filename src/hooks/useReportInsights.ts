@@ -39,6 +39,8 @@ export interface ReportInsights {
   flags: InsightFlag[];
   suggestions: Partial<Record<SuggestionField, string>>;
   chartRecommendation: string | null;
+  /** Extra slides/screenshots TOBI read for this generation. */
+  slidesConsidered: { count: number; titles: string[] };
   generatedAt: string | null;
 }
 
