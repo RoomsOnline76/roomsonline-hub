@@ -64,12 +64,14 @@ export function DraftReportPreview({
           </Button>
           {url && (
             <>
-              <Button variant="outline" size="sm" asChild>
-                <a href={url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open
-                </a>
-              </Button>
+              {viewerHref && (
+                <Button variant="outline" size="sm" asChild>
+                  <Link to={viewerHref} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open
+                  </Link>
+                </Button>
+              )}
               <Button size="sm" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Save as PDF
