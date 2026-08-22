@@ -22,10 +22,19 @@ export interface ReportMediaImage extends ReportMediaRow {
   url: string;
 }
 
+/** A slot definition plus the custom-slot bookkeeping the editor needs. */
+export interface ReportSlotDefinition extends MediaSlotDefinition {
+  /** Custom slots are per-run rows the reviewer created. */
+  isCustom: boolean;
+  /** `report_media_slots.id` for custom slots. */
+  id?: string;
+}
+
 export interface ReportMediaSlotState {
-  definition: MediaSlotDefinition;
+  definition: ReportSlotDefinition;
   images: ReportMediaImage[];
 }
+
 
 const extensionFor = (file: File): string => {
   const fromName = file.name.split(".").pop();
