@@ -291,7 +291,10 @@ export default function ReportsRunReview() {
           )}
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight">
-              {run.title ?? "Revenue review"}
+              {isGeneratedRunTitle(run.title, run.asOfDate)
+                ? defaultRunTitle(run.asOfDate, run.cadence)
+                : run.title}
+
             </h1>
             <p className="text-sm text-muted-foreground">
               {run.propertyName ?? "Unknown property"} · as-of {formatDate(run.asOfDate)}
