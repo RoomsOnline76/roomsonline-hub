@@ -12,6 +12,7 @@ export interface ReportMediaRow {
   slot_key: string;
   storage_path: string;
   caption: string | null;
+  section_title: string | null;
   sort_order: number;
   content_type: string | null;
 }
@@ -49,7 +50,7 @@ export function useReportMedia(runId: string | undefined) {
     queryFn: async (): Promise<ReportMediaImage[]> => {
       const { data, error } = await supabase
         .from("report_media")
-        .select("id, run_id, slot_key, storage_path, caption, sort_order, content_type")
+        .select("id, run_id, slot_key, storage_path, caption, section_title, sort_order, content_type")
         .eq("run_id", runId as string)
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -185,6 +186,7 @@ export function useReportMedia(runId: string | undefined) {
     isLoading: query.isLoading,
     upload,
     setCaption,
+    setSectionTitle,
     remove,
     move,
     refresh: invalidate,
