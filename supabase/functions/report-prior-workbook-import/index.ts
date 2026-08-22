@@ -123,6 +123,10 @@ Deno.serve(async (req) => {
       comp_months: count(extract.compRnsByMonth),
       historical_revenue_months: count(extract.historicalRevenue),
       historical_nights_months: count(extract.historicalRoomNights),
+      occupancy_months: count(extract.previousOccupancy) + count(extract.lastYearOccupancy),
+      target_months: count(extract.targets),
+      historical_occupancy_months: count(extract.historicalOccupancy),
+      carry_forward_sheets: Object.keys(extract.carryForward).length,
     };
 
     const preview = {
@@ -139,6 +143,12 @@ Deno.serve(async (req) => {
       comp_rns_by_month: extract.compRnsByMonth,
       historical_revenue: extract.historicalRevenue,
       historical_room_nights: extract.historicalRoomNights,
+      previous_occupancy: extract.previousOccupancy,
+      last_year_occupancy: extract.lastYearOccupancy,
+      targets: extract.targets,
+      target_uplift: extract.targetUplift,
+      historical_occupancy: extract.historicalOccupancy,
+      carry_forward_sheets: Object.keys(extract.carryForward),
       sheets_read: extract.sheetsRead,
       sheets_skipped: extract.sheetsSkipped,
       warnings: extract.warnings,
@@ -162,6 +172,14 @@ Deno.serve(async (req) => {
         previous_room_nights: selections.previous_otb === false ? {} : extract.previousRoomNights,
         last_year_actual: selections.last_year === false ? {} : extract.lastYearActual,
         last_year_room_nights: selections.last_year === false ? {} : extract.lastYearRoomNights,
+        // Occupancy, targets and hand-kept sheets ride along with the baseline
+        // so the workbook builder can reproduce the client's own layout.
+        previous_occupancy: selections.previous_otb === false ? {} : extract.previousOccupancy,
+        last_year_occupancy: selections.last_year === false ? {} : extract.lastYearOccupancy,
+        targets: extract.targets,
+        target_uplift: extract.targetUplift,
+        historical_occupancy: extract.historicalOccupancy,
+        carry_forward: extract.carryForward,
       };
       const { error } = await admin
         .from("report_runs")
@@ -179,6 +197,11 @@ Deno.serve(async (req) => {
       }
       if (selections.last_year !== false && found.last_year_months) {
         applied.push(`${found.last_year_months} month(s) last-year actual`);
+      }
+      if (found.occupancy_months) applied.push(`${found.occupancy_months} occupancy value(s)`);
+      if (found.target_months) applied.push(`${found.target_months} month(s) target`);
+      if (found.carry_forward_sheets) {
+        applied.push(`${found.carry_forward_sheets} carried-forward sheet(s)`);
       }
     }
 
@@ -216,7 +239,9 @@ Deno.serve(async (req) => {
 
     if (
       selections.historical !== false &&
-      (found.historical_revenue_months || found.historical_nights_months)
+      (found.historical_revenue_months ||
+        found.historical_nights_months ||
+        found.historical_occupancy_months)
     ) {
       const { data: settings } = await admin
         .from("property_report_settings")
@@ -226,10 +251,12 @@ Deno.serve(async (req) => {
       const baseline = (settings?.historical_baseline ?? {}) as {
         revenue?: NumberMap;
         room_nights?: NumberMap;
+        occupancy?: NumberMap;
         sources?: Record<string, string>;
       };
       const revenue = mergeMap(baseline.revenue ?? {}, extract.historicalRevenue, replace);
       const roomNights = mergeMap(baseline.room_nights ?? {}, extract.historicalRoomNights, replace);
+      const occupancy = mergeMap(baseline.occupancy ?? {}, extract.historicalOccupancy, replace);
       const sources = { ...(baseline.sources ?? {}) };
       for (const key of Object.keys({ ...extract.historicalRevenue, ...extract.historicalRoomNights })) {
         if (replace || sources[key] === undefined) sources[key] = "prior_report";
@@ -244,7 +271,7 @@ Deno.serve(async (req) => {
         {
           property_id: run.property_id,
           room_count: settings?.room_count ?? 1,
-          historical_baseline: { years, revenue, room_nights: roomNights, sources },
+          historical_baseline: { years, revenue, room_nights: roomNights, occupancy, sources },
         },
         { onConflict: "property_id" },
       );
