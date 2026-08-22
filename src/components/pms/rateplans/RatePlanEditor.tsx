@@ -232,15 +232,25 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             is_primary_sell: (plan as { is_primary_sell?: boolean }).is_primary_sell === true,
             push_to_channels: (plan as { push_to_channels?: boolean }).push_to_channels !== false,
             sell_priority: str((plan as { sell_priority?: number }).sell_priority ?? 100),
+            derived_from_plan_id: (plan as { derived_from_plan_id?: string | null }).derived_from_plan_id ?? null,
+            derivation_type:
+              ((plan as { derivation_type?: string | null }).derivation_type as "percent" | "amount" | null) ?? "percent",
+            derivation_value: str((plan as { derivation_value?: number | null }).derivation_value),
+            derivation_rounding: str((plan as { derivation_rounding?: string | null }).derivation_rounding) || "nearest_10",
             units: (links ?? []).map((l) => ({
               room_type_id: String(l.room_type_id),
               differential_type: (l.differential_type as DifferentialType) ?? "none",
               differential_value: str(l.differential_value),
             })),
-            season_rates: groupSeasonRates(seasonRates ?? [], calendarIdBySharedId),
+            season_rates: groupSeasonRates(
+              seasonRates ?? [],
+              calendarIdBySharedId,
+              Boolean((plan as { derived_from_plan_id?: string | null }).derived_from_plan_id),
+            ),
           };
         }
       } else {
+
         // A brand-new plan sells every unit by default — the common case.
         next = { ...next, units: roomTypes.map((rt) => ({ room_type_id: rt.id, differential_type: "none", differential_value: "" })) };
       }
