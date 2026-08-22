@@ -35,20 +35,38 @@ export function useReportProperties(search: string = "") {
   const query = useQuery({
     queryKey: ["reports", "properties"],
     queryFn: async (): Promise<ReportProperty[]> => {
-      const { data, error } = await supabase
-        .from("properties")
-        .select("id, name, slug, brand_logo_url, city, is_test_property, is_sandbox, ru_archived")
-        .eq("is_active", true)
-        .order("name", { ascending: true });
-      if (error) throw error;
+      const SELECT =
+        "id, name, slug, brand_logo_url, city, is_test_property, is_sandbox, ru_archived, is_reports_client";
 
-      const eligible = (data ?? []).filter(
-        (row) =>
-          !row.is_test_property &&
-          !row.is_sandbox &&
-          !row.ru_archived &&
-          !isInternalFixture(row.name ?? ""),
-      );
+      const [rolRes, clientRes] = await Promise.all([
+        supabase
+          .from("properties")
+          .select(SELECT)
+          .eq("is_active", true)
+          .eq("is_reports_client", false)
+          .order("name", { ascending: true }),
+        // Standalone reporting clients are parked (is_active = false) so they
+        // never leak into ROL selectors; the fixture-name filter does not apply.
+        supabase
+          .from("properties")
+          .select(SELECT)
+          .eq("is_reports_client", true)
+          .is("reports_client_archived_at", null)
+          .order("name", { ascending: true }),
+      ]);
+      if (rolRes.error) throw rolRes.error;
+      if (clientRes.error) throw clientRes.error;
+
+      const eligible = [
+        ...(rolRes.data ?? []).filter(
+          (row) =>
+            !row.is_test_property &&
+            !row.is_sandbox &&
+            !row.ru_archived &&
+            !isInternalFixture(row.name ?? ""),
+        ),
+        ...(clientRes.data ?? []),
+      ];
       const ids = eligible.map((row) => row.id);
       if (ids.length === 0) return [];
 
@@ -76,15 +94,25 @@ export function useReportProperties(search: string = "") {
         inventory.set(row.property_id, (inventory.get(row.property_id) ?? 0) + units);
       }
 
-      return eligible.map((row) => ({
-        id: row.id,
-        name: row.name,
-        slug: row.slug ?? null,
-        logoUrl: row.brand_logo_url ?? null,
-        city: row.city ?? null,
-        roomCount: overrides.get(row.id) ?? inventory.get(row.id) ?? null,
-      }));
+      return eligible
+        .map((row) => {
+          const isReportsClient = Boolean(row.is_reports_client);
+          return {
+            id: row.id,
+            name: row.name,
+            slug: row.slug ?? null,
+            logoUrl: row.brand_logo_url ?? null,
+            city: row.city ?? null,
+            // Reporting clients have no channel inventory — settings only.
+            roomCount: isReportsClient
+              ? overrides.get(row.id) ?? null
+              : overrides.get(row.id) ?? inventory.get(row.id) ?? null,
+            isReportsClient,
+          };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
     },
+
     staleTime: 5 * 60 * 1000,
   });
 
