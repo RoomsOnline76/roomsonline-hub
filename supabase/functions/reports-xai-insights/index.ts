@@ -211,6 +211,9 @@ Deno.serve(async (req) => {
     const record = {
       run_id: runId,
       narrative: clamp(ai.narrative, MAX_NARRATIVE_CHARS),
+      // A fresh generation supersedes the previous reviewer edits and ticks.
+      narrative_final: null,
+      selections: {},
       flags: enrichedFlags,
       suggestions,
       chart_recommendation: clamp(ai.chart_recommendation, 240),
@@ -218,6 +221,7 @@ Deno.serve(async (req) => {
       generated_by: userData.user.id,
       generated_at: new Date().toISOString(),
     };
+
 
     const { error: saveError } = await admin
       .from("report_insights")
