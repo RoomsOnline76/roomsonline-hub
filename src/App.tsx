@@ -312,7 +312,7 @@ const App = () => (
                           <Route path="new" element={<ReportsNewRun />} />
                           <Route path="runs/:runId" element={<ReportsRunReview />} />
                           <Route path="runs/:runId/draft" element={<ReportsDraftView />} />
-                          <Route path="settings" element={<ReportsDashboard />} />
+                          <Route path="settings" element={<ReportsSettings />} />
                           <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
                           <Route path="help" element={<ReportsHelp />} />
                         </Route>
