@@ -8,9 +8,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Plus, Trash2, Upload } from "lucide-react";
 import { useReportMedia, type ReportMediaSlotState } from "@/hooks/useReportMedia";
-import { MEDIA_SECTIONS } from "@/lib/reportMediaSlots";
+
 
 interface ReportMediaSlotsProps {
   runId: string;
