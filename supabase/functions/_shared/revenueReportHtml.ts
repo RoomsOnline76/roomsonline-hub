@@ -851,33 +851,60 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${kpi("Additional revenue", money(totalAdditional), "dinner + room 0")}
     </div>`;
 
-  const pageDefs: { title: string; body: string }[] = [
+  const builtPages: { key: string; title: string; body: string }[] = [
     {
+      key: "revenue_performance",
       title: "Revenue Performance",
       body: `${revenueKpis}${revenueTableHtml}${tobiHtml}${legendHtml}`,
     },
-    { title: "Room Nights & Occupancy", body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}` },
-    { title: "Rate & Comparison Review", body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}` },
     {
+      key: "nights_occupancy",
+      title: "Room Nights & Occupancy",
+      body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}`,
+    },
+    {
+      key: "rate_comparison",
+      title: "Rate & Comparison Review",
+      body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}`,
+    },
+    {
+      key: "revenue_review",
       title: "Revenue Review",
       body: `${figure("revenue-grouped")}${figure("occupancy-grouped")}${figure("adr-grouped")}`,
     },
-    { title: "Pickup & Rate Trend", body: `${figure("pickup-variance")}${figure("adr-trend")}` },
+    {
+      key: "pickup_rate_trend",
+      title: "Pickup & Rate Trend",
+      body: `${figure("pickup-variance")}${figure("adr-trend")}`,
+    },
     ...(sourceEntries.length > 0
       ? [
           {
+            key: "traveller_trends",
             title: "Traveller Trends",
             body: `${figure("source-mix")}${sourceTableHtml}${figure("occupancy")}`,
           },
         ]
       : []),
     ...mediaSections.map((entry) => ({
+      key: mediaPageKey(entry.section),
       title: entry.section,
       body: entry.slots.map(mediaSlotHtml).join(""),
     })),
-    { title: "Process Notes", body: notesPageBody },
+    { key: "process_notes", title: "Process Notes", body: notesPageBody },
   ].filter((def) => def.body.trim().length > 0);
 
+  // The slide organizer decides the printed sequence; hidden pages drop out and
+  // anything the organizer has not seen yet is appended in its natural place.
+  const hidden = new Set(options.hiddenPages ?? []);
+  const byKey = new Map(builtPages.map((page) => [page.key, page]));
+  const pageDefs = orderPageKeys(
+    builtPages.map((page) => page.key),
+    options.pageOrder,
+  )
+    .filter((key) => !hidden.has(key))
+    .map((key) => byKey.get(key)!)
+    .filter(Boolean);
 
   const pagesHtml = pageDefs
     .map((def, index) => {
@@ -889,6 +916,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 </section>`;
     })
     .join("\n\n");
+
 
 
   const html = `<!DOCTYPE html>
