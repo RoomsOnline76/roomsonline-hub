@@ -170,6 +170,8 @@ const ReportsNewRun = lazy(() => import("./pages/reports/ReportsNewRun"));
 const ReportsRunReview = lazy(() => import("./pages/reports/ReportsRunReview"));
 const ReportsDraftView = lazy(() => import("./pages/reports/ReportsDraftView"));
 const ReportsPropertySettings = lazy(() => import("./pages/reports/ReportsPropertySettings"));
+const ReportsSettings = lazy(() => import("./pages/reports/ReportsSettings"));
+
 const ReportsHelp = lazy(() => import("./pages/reports/ReportsHelp"));
 
 
