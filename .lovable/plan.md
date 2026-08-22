@@ -1,21 +1,26 @@
-# Revenue Reports dashboard: real last-run dates + grouped property list
+# PDF filename for saved revenue reports
 
-The property cards currently render a hardcoded `Last run: —` badge — no last-run data is fetched at all. Fix that, then reorder the grid.
+Browsers name the saved PDF after the printed document's title. The report HTML currently sets:
 
-## What changes
+`Cathedral Peak · Bi-monthly Revenue Review 20 August 2026`
 
-1. **Last run date per property**
-   - Fetch the latest run per property (property id, as-of date, status) alongside the property list, covering every eligible property (not just the few in "Recent runs").
-   - Card badge shows `Last run: 20 Aug 2026` when one exists, and stays `Last run: —` when the property has never had a run.
+Change it to the requested filename pattern.
 
-2. **Grouped property list**
-   - Section 1 — **With reports**: properties that have at least one run, alphabetical.
-   - Visible section break (heading + divider) between the two groups.
-   - Section 2 — **No reports yet**: alphabetical.
-   - Search behaviour is unchanged: it still filters across all properties; groups simply reflect the filtered set, and an empty group is hidden.
+## Target format
+
+`Torburnlea Homestead - Bi-Monthly Revenue Review - 14 Aug 2026 by RoomsOnline - Sleep in Africa`
+
+- Property name (or reporting-client name) first
+- Cadence label capitalised as `Monthly` / `Bi-Monthly`
+- As-of date in short form `14 Aug 2026`
+- Trailing `by RoomsOnline - Sleep in Africa`
+- Hyphens only, no `·` or en-dash, and no characters browsers strip or replace in filenames (`/ \ : * ? " < > |`)
+
+The same pattern applies to the CheetaPlains special-report slides, with the report type in place of "Revenue Review".
 
 ## Technical notes
 
-- `src/hooks/useReportProperties.ts`: add a grouped query over `report_runs` (max `as_of_date` per `property_id`, restricted to the eligible property ids already computed there) and expose `lastRunDate: string | null` plus `lastRunId` on `ReportProperty`. Sorting inside the hook stays alphabetical.
-- `src/pages/reports/ReportsDashboard.tsx`: split `properties` into `withRuns` / `withoutRuns` via `useMemo`, render two labelled grids, and use the existing `formatRunDate` helper in the badge.
-- No schema or edge-function changes.
+- `supabase/functions/_shared/revenueReportHtml.ts`: add a small `pdfDocumentTitle()` helper that builds the string from `propertyName`, `cadenceLabel`, and a short as-of label (`d MMM yyyy`), then use it for `<title>`. Page headers, footers and the cover keep their current wording — only the document title changes.
+- `supabase/functions/cheetaplains-special-reports/index.ts`: same helper shape for the slide HTML title.
+- Redeploy `revenue-report-draft` and `cheetaplains-special-reports` so existing runs pick up the new title on the next rebuild.
+- No schema or frontend changes; printing already goes through the iframe's own document.
