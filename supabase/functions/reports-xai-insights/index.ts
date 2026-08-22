@@ -258,22 +258,61 @@ Deno.serve(async (req) => {
       },
     };
 
-    const outcome = await aiChat(
+    const slides = await loadSlideImages(admin, runId, run.page_order);
+    const slideTitles = [...new Set(slides.map((slide) => slide.label))];
+
+    const textOnlyMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: JSON.stringify(userPayload) },
+    ];
+
+    const visionMessages = [
+      { role: "system", content: `${SYSTEM_PROMPT}${SLIDES_PROMPT}` },
       {
-        model: modelForTask("revenue_report_insights"),
-        temperature: AI_TEMPERATURE.prose,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(userPayload) },
+        role: "user",
+        content: [
+          { type: "text", text: JSON.stringify(userPayload) },
+          ...slides.flatMap((slide) => [
+            {
+              type: "text",
+              text: `Slide: ${slide.label}${slide.caption ? ` — ${slide.caption}` : ""}`,
+            },
+            { type: "image_url", image_url: { url: slide.dataUrl } },
+          ]),
         ],
       },
-      { label: "revenue-report-insights", preferFallback: true },
-    );
+    ];
+
+    const runPass = async (withSlides: boolean) =>
+      await aiChat(
+        {
+          model: modelForTask(
+            withSlides ? "revenue_report_insights_vision" : "revenue_report_insights",
+          ),
+          temperature: AI_TEMPERATURE.prose,
+          response_format: { type: "json_object" },
+          messages: withSlides ? visionMessages : textOnlyMessages,
+        },
+        { label: "revenue-report-insights", preferFallback: true },
+      );
+
+    let usedSlides = slides.length > 0;
+    let outcome = await runPass(usedSlides);
+
+    // The narrative must always land: drop back to the text-only pass when the
+    // vision request is terminally refused (bad body, credits, policy).
+    if (!outcome.ok && usedSlides && [400, 402, 403, 413].includes(outcome.status)) {
+      console.warn(
+        `[revenue-report-insights] slide pass refused (${outcome.status}); retrying without slides`,
+      );
+      usedSlides = false;
+      outcome = await runPass(false);
+    }
 
     if (!outcome.ok) {
       return json({ error: outcome.error ?? "TOBI could not build the insights." }, outcome.status);
     }
+
 
     const content = String(
       (outcome.data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]
