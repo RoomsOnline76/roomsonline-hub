@@ -39,6 +39,8 @@ import { getAdapter } from "@/lib/report-adapters";
 import { SpecialReportsCard } from "@/components/reports/SpecialReportsCard";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
 import { reportsPath } from "@/lib/config";
+import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
+
 
 
 const formatDate = (iso: string): string =>
