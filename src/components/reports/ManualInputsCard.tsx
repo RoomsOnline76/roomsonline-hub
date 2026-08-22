@@ -53,17 +53,20 @@ export function ManualInputsCard({
   const showRoom0 = monthlyKeys.has("room0_by_month");
   const showComp = monthlyKeys.has("comp_rns_by_month");
   const showAdditional = showDinner || showRoom0;
-  const gridCols = [
-    "6rem",
-    showDinner ? "1fr" : null,
-    showRoom0 ? "1fr" : null,
-    showComp ? "1fr" : null,
-    showAdditional ? "7rem" : null,
-    "8rem",
-  ]
-    .filter(Boolean)
-    .join("_");
-  const gridClass = `grid grid-cols-[${gridCols}] gap-2`;
+  // Runtime column set — inline style, since Tailwind cannot generate arbitrary
+  // grid templates from a dynamic string.
+  const gridStyle = {
+    gridTemplateColumns: [
+      "6rem",
+      showDinner ? "1fr" : null,
+      showRoom0 ? "1fr" : null,
+      showComp ? "1fr" : null,
+      showAdditional ? "7rem" : null,
+      "8rem",
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
 
   const { inputs, save } = useReportAdditionalInputs(runId);
   const [draft, setDraft] = useState<Draft>({});
@@ -151,7 +154,10 @@ export function ManualInputsCard({
       <CardContent className="space-y-5">
         <div className="overflow-x-auto">
           <div className="min-w-[40rem] space-y-2">
-            <div className={`${gridClass} text-xs uppercase tracking-wide text-muted-foreground`}>
+            <div
+              className="grid gap-2 text-xs uppercase tracking-wide text-muted-foreground"
+              style={gridStyle}
+            >
               <span>Month</span>
               {showDinner && <span>Dinner</span>}
               {showRoom0 && <span>Room 0</span>}
@@ -160,7 +166,7 @@ export function ManualInputsCard({
               <span className="text-right">{showAdditional ? "Combined" : "OTB revenue"}</span>
             </div>
             {months.map((key) => (
-              <div key={key} className={`${gridClass} items-center`}>
+              <div key={key} className="grid items-center gap-2" style={gridStyle}>
                 <span className="text-sm font-medium">{monthLabel(key)}</span>
                 {showDinner && (
                   <Input
@@ -199,7 +205,10 @@ export function ManualInputsCard({
                 </span>
               </div>
             ))}
-            <div className={`${gridClass} items-center border-t pt-2 text-sm font-medium`}>
+            <div
+              className="grid items-center gap-2 border-t pt-2 text-sm font-medium"
+              style={gridStyle}
+            >
               <span>Total</span>
               {showDinner && (
                 <span className="text-muted-foreground font-normal">OTB {money(totals.otb)}</span>
