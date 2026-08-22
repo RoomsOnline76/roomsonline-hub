@@ -122,14 +122,8 @@ const toCsv = (rows: (string | number)[][]): string =>
 const sum = (map: Record<string, number>, keys: string[]): number =>
   keys.reduce((total, key) => total + (Number(map[key]) || 0), 0);
 
-const varianceCell = (current: number, base: number, theme: ChartTheme): string => {
-  if (!base) return `<span class="muted">—</span>`;
-  const delta = current - base;
-  const pct = delta / Math.abs(base);
-  const colour = delta >= 0 ? theme.primary : theme.secondary;
-  const sign = delta >= 0 ? "+" : "";
-  return `<span style="color:${colour}">${sign}${esc(compactMoney(delta))} <span class="pct">(${sign}${esc(percent(pct, 1))})</span></span>`;
-};
+const notesBlock = (title: string, body: string | null): string => {
+
 
 const notesBlock = (title: string, body: string | null): string => {
   if (!body || !body.trim()) return "";
