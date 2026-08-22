@@ -48,8 +48,15 @@ export default function ReportsPropertySettings() {
   const navigate = useNavigate();
   const { properties } = useReportProperties();
   const property = properties.find((p) => p.id === propertyId);
+  const isReportsClient = Boolean(property?.isReportsClient);
   const { settings, isLoading, save } = usePropertyReportSettings(propertyId);
   const { brand: rolBrand } = useReportPropertyBrand(propertyId);
+  const { updateClient, archiveClient } = useReportsClients();
+
+  const [clientName, setClientName] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientCountry, setClientCountry] = useState("");
+
 
   const [roomCount, setRoomCount] = useState("1");
   const [logoUrl, setLogoUrl] = useState("");
