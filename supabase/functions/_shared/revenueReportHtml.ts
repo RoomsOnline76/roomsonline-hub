@@ -718,10 +718,119 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const chrome = (title: string, page: number) =>
     pageChrome(propertyName, asOfLabel, branding.logoUrl, title, page);
 
-  const performancePage = chrome("Revenue Performance", 2);
-  const reviewPage = chrome("Revenue Review", 3);
-  const sourcePage = chrome("Traveller Trends", 4);
-  const notesPage = chrome("Process Notes", sourceEntries.length > 0 ? 5 : 4);
+  // ── Pasted media (revenue-team screenshots) ───────────────────────────
+  const mediaSlots = (options.media ?? []).filter((slot) => slot.images.length > 0);
+  const mediaSections: { section: string; slots: DraftMediaSlot[] }[] = [];
+  for (const slot of mediaSlots) {
+    const existing = mediaSections.find((entry) => entry.section === slot.section);
+    if (existing) existing.slots.push(slot);
+    else mediaSections.push({ section: slot.section, slots: [slot] });
+  }
+
+  const mediaSlotHtml = (slot: DraftMediaSlot): string => `
+    <div class="block">
+      <h3 class="block-title">${esc(slot.title)}</h3>
+      <div class="shots ${slot.layout === "half" ? "two-up" : "one-up"}">
+        ${slot.images
+          .map(
+            (image) => `
+        <figure class="shot">
+          <img src="${esc(image.url)}" alt="${esc(slot.title)}" />
+          ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
+        </figure>`,
+          )
+          .join("")}
+      </div>
+    </div>`;
+
+  const notesPageBody = `
+    ${commentary ? `<div class="notes">${commentary}</div>` : ""}
+    <ul class="fineprint">
+      <li><strong>OTB</strong> — On The Books: confirmed and provisional reservations captured at the as-of date.</li>
+      <li>All provisional bookings are included in the figures above, in line with the standard revenue review.</li>
+      <li>Revenue and room nights are allocated to the month of arrival.</li>
+      <li>Occupancy uses ${snapshot.room_count} sellable room${snapshot.room_count === 1 ? "" : "s"}; Room 0, events and holding-in-credit rows are excluded from the denominator.</li>
+      <li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>
+      <li>This is a draft for the revenue team — screenshots and commentary can be added before it is issued.</li>
+    </ul>
+    <div class="contact">
+      <div>
+        <h4>Prepared by</h4>
+        Rooms Online Revenue Team
+      </div>
+      <div>
+        <h4>Property</h4>
+        ${esc(propertyName)}
+      </div>
+      <div>
+        <h4>Online</h4>
+        ${CONTACT_SITE}
+      </div>
+    </div>`;
+
+  const revenueKpis = `
+    <div class="kpis">
+      ${kpi("OTB revenue", money(totalOtb), `${months.length} month window`)}
+      ${kpi(
+        "vs previous review",
+        `${totalOtb - totalPrevious >= 0 ? "+" : "-"}${compactMoney(Math.abs(totalOtb - totalPrevious))}`,
+        options.previousAsOfDate
+          ? `since ${formatLongDate(options.previousAsOfDate)}`
+          : "no previous review",
+      )}
+      ${kpi(
+        "vs last year",
+        totalLastYear > 0
+          ? `${totalOtb - totalLastYear >= 0 ? "+" : "-"}${compactMoney(Math.abs(totalOtb - totalLastYear))}`
+          : "—",
+        totalLastYear > 0 ? `LY ${compactMoney(totalLastYear)}` : "no baseline captured",
+      )}
+      ${kpi("Total combined", money(totalCombined), `incl. ${compactMoney(totalAdditional)} additional`)}
+    </div>`;
+
+  const performanceKpis = `
+    <div class="kpis">
+      ${kpi("Room nights", nightsFmt(totalNights), `of ${nightsFmt(totalCapacity)} available`)}
+      ${kpi("Occupancy", pctFmt(blendedOccupancy * 100), "on the books")}
+      ${kpi("Blended ADR", money(blendedAdr), "OTB revenue / room nights")}
+      ${kpi("Additional revenue", money(totalAdditional), "dinner + room 0")}
+    </div>`;
+
+  const pageDefs: { title: string; body: string }[] = [
+    { title: "Revenue Performance", body: `${revenueKpis}${revenueTableHtml}${legendHtml}` },
+    { title: "Room Nights & Occupancy", body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}` },
+    { title: "Rate & Comparison Review", body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}` },
+    {
+      title: "Revenue Review",
+      body: `${figure("revenue-grouped")}${figure("occupancy-grouped")}${figure("adr-grouped")}`,
+    },
+    { title: "Pickup & Rate Trend", body: `${figure("pickup-variance")}${figure("adr-trend")}` },
+    ...mediaSections.map((entry) => ({
+      title: entry.section,
+      body: entry.slots.map(mediaSlotHtml).join(""),
+    })),
+    ...(sourceEntries.length > 0
+      ? [
+          {
+            title: "Traveller Trends",
+            body: `${figure("source-mix")}${sourceTableHtml}${figure("occupancy")}`,
+          },
+        ]
+      : []),
+    { title: "Process Notes", body: notesPageBody },
+  ].filter((def) => def.body.trim().length > 0);
+
+  const pagesHtml = pageDefs
+    .map((def, index) => {
+      const page = chrome(def.title, index + 2);
+      return `<section class="page">
+  ${page.header}
+  <div class="body">${def.body}</div>
+  ${page.footer}
+</section>`;
+    })
+    .join("\n\n");
+
 
   const html = `<!DOCTYPE html>
 <html lang="en">
