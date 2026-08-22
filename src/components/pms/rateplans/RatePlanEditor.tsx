@@ -79,6 +79,7 @@ interface LegacyPendingCell {
 function groupSeasonRates(
   rows: StoredSeasonRateRow[],
   calendarIdBySharedId: Map<string, string>,
+  isDerivedPlan = false,
 ): DraftSeasonRate[] {
   const byCalendarSeason = new Map<string, DraftSeasonRate>();
   for (const row of rows) {
@@ -86,23 +87,31 @@ function groupSeasonRates(
     if (!calendarSeasonId) continue;
     const isDifferential = !!row.differential_type && row.differential_type !== "none";
     const value = str(isDifferential ? row.differential_value : row.base_rate);
+    // On a derived plan a row is a tracked season (offset) unless the cell was pinned.
+    const derived = isDerivedPlan && !isDifferential;
     let column = byCalendarSeason.get(calendarSeasonId);
     if (!column) {
       column = {
         calendar_season_id: calendarSeasonId,
-        mode: isDifferential ? "differential" : "absolute",
-        base_rate: isDifferential ? "" : value,
+        mode: derived ? "derived" : isDifferential ? "differential" : "absolute",
+        base_rate: isDifferential || derived ? "" : value,
         differential_type: (isDifferential ? (row.differential_type as "amount" | "percent") : "amount"),
         differential_value: isDifferential ? value : "",
+        derivation_value: derived ? str(row.derivation_value) : "",
         extra_adult_rate: str(row.extra_adult_rate),
         unit_rates: {},
       };
       byCalendarSeason.set(calendarSeasonId, column);
     }
-    if (row.room_type_id) column.unit_rates[String(row.room_type_id)] = value;
+    if (derived && !column.derivation_value) column.derivation_value = str(row.derivation_value);
+    // Only a pinned amount belongs in a derived column's cells.
+    if (row.room_type_id && (!derived || row.is_pinned)) {
+      column.unit_rates[String(row.room_type_id)] = value;
+    }
   }
   return [...byCalendarSeason.values()];
 }
+
 
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
