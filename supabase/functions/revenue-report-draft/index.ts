@@ -8,7 +8,7 @@ import {
   type DraftSnapshot,
   type DraftMediaSlot,
 } from "../_shared/revenueReportHtml.ts";
-import { REPORT_MEDIA_SLOTS } from "../_shared/reportMediaSlots.ts";
+import { isBuiltInSlotKey, slotsForSource } from "../_shared/reportMediaSlots.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -147,16 +147,33 @@ Deno.serve(async (req) => {
         if (entry?.signedUrl) urlByPath.set(paths[index], entry.signedUrl);
       });
 
+      // Built-in slots follow the run's source type; a `report_media_slots` row
+      // whose key matches a built-in slot renames that heading for this run.
+      const slotRows = (customSlotRows ?? []).map((row) => ({
+        key: String(row.slot_key),
+        section: String(row.section ?? row.title ?? "Additional Slides"),
+        title: String(row.title ?? "Additional slides"),
+        hint: "",
+        layout: (row.layout === "half" ? "half" : "full") as "half" | "full",
+        explode: true,
+      }));
+      const overrides = new Map(
+        slotRows.filter((row) => isBuiltInSlotKey(row.key)).map((row) => [row.key, row]),
+      );
+
       const definitions = [
-        ...REPORT_MEDIA_SLOTS,
-        ...(customSlotRows ?? []).map((row) => ({
-          key: String(row.slot_key),
-          section: String(row.section ?? row.title ?? "Additional Slides"),
-          title: String(row.title ?? "Additional slides"),
-          hint: "",
-          layout: (row.layout === "half" ? "half" : "full") as "half" | "full",
-          explode: true,
-        })),
+        ...slotsForSource((run as unknown as { source_type?: unknown }).source_type).map(
+          (definition) => {
+            const override = overrides.get(definition.key);
+            if (!override) return definition;
+            return {
+              ...definition,
+              section: override.section || definition.section,
+              title: override.title || definition.title,
+            };
+          },
+        ),
+        ...slotRows.filter((row) => !isBuiltInSlotKey(row.key)),
       ];
 
       for (const definition of definitions) {
