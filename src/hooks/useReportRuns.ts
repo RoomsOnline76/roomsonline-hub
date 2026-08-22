@@ -5,6 +5,17 @@ import { DEFAULT_REPORT_SOURCE, isReportSourceKey } from "@/lib/report-adapters"
 
 export type ReportRunStatus = "draft" | "processing" | "ready" | "failed";
 
+/** How often this review is produced — drives the printed report wording. */
+export type ReportCadence = "monthly" | "bimonthly";
+
+export const CADENCE_LABEL: Record<ReportCadence, string> = {
+  monthly: "Monthly",
+  bimonthly: "Bi-Monthly",
+};
+
+export const asCadence = (value: unknown): ReportCadence =>
+  value === "monthly" ? "monthly" : "bimonthly";
+
 export interface ReportSourceFile {
   id: string;
   runId: string;
@@ -29,6 +40,7 @@ export interface ReportRunSummary {
   asOfDate: string;
   status: ReportRunStatus;
   title: string | null;
+  cadence: ReportCadence;
   fileCount: number;
   errorMessage: string | null;
   processingNote: string | null;
@@ -55,6 +67,7 @@ interface RunRow {
   baseline_locked?: boolean | null;
   status: string | null;
   title: string | null;
+  cadence?: string | null;
   error_message?: string | null;
   processing_note?: string | null;
   created_at: string;
@@ -85,6 +98,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
   asOfDate: row.as_of_date,
   status: asStatus(row.status),
   title: row.title,
+  cadence: asCadence(row.cadence),
   fileCount: row.report_source_files?.[0]?.count ?? 0,
   errorMessage: row.error_message ?? null,
   processingNote: row.processing_note ?? null,
@@ -92,7 +106,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, cadence, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */
@@ -182,6 +196,7 @@ export interface CreateReportRunInput {
   asOfDate: string;
   title: string;
   sourceType?: string;
+  cadence?: ReportCadence;
 }
 
 export function useReportRunMutations() {
@@ -207,6 +222,7 @@ export function useReportRunMutations() {
           property_id: input.propertyId,
           as_of_date: input.asOfDate,
           title: input.title,
+          cadence: asCadence(input.cadence),
           source_type: isReportSourceKey(input.sourceType)
             ? input.sourceType
             : DEFAULT_REPORT_SOURCE,
