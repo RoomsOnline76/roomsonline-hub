@@ -650,6 +650,30 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   for (const sr of draft.season_rates ?? []) {
     const sharedId = sharedByCalendarId.get(String(sr?.calendar_season_id ?? ""));
     if (!sharedId) continue;
+
+    // A derived column stores this season's offset override, plus any cell the user
+    // typed as a pinned rate that stops tracking the parent for that unit.
+    if (sr.mode === "derived") {
+      const seasonOffset = num(sr.derivation_value);
+      for (const unit of units) {
+        const pinned = positive(seasonUnitValue(sr, String(unit.room_type_id)));
+        if (pinned === null && seasonOffset === null) continue;
+        seasonRows.push({
+          rate_plan_id: planId,
+          shared_season_id: sharedId,
+          room_type_id: unit.room_type_id,
+          base_rate: pinned,
+          extra_adult_rate: positive(sr.extra_adult_rate),
+          differential_type: "none",
+          differential_value: null,
+          derivation_value: seasonOffset,
+          is_pinned: pinned !== null,
+          is_active: true,
+        });
+      }
+      continue;
+    }
+
     const isDiff = sr.mode === "differential";
     const columnAbsolute = positive(sr.base_rate);
     const columnDiff = num(sr.differential_value);
@@ -672,6 +696,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       });
     }
   }
+
   if (seasonRows.length > 0) {
     const { error: srErr } = await sb.from("rolos_rate_plan_season_rates").insert(seasonRows);
     if (srErr) return { error: `Saved the plan but could not store season pricing: ${srErr.message}` };
