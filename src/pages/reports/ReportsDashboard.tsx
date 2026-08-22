@@ -111,8 +111,12 @@ export default function ReportsDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-medium tracking-tight">
             Properties{" "}
-            <span className="text-sm font-normal text-muted-foreground">({total})</span>
+            <span className="text-sm font-normal text-muted-foreground">
+              ({total}
+              {reportsClientCount > 0 ? ` · ${reportsClientCount} reporting-only` : ""})
+            </span>
           </h2>
+
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
