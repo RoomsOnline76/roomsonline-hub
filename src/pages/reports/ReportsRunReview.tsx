@@ -60,7 +60,12 @@ export default function ReportsRunReview() {
     async (cadence: ReportCadence) => {
       if (!runId) return;
       setSavingCadence(true);
-      const { error } = await supabase.from("report_runs").update({ cadence }).eq("id", runId);
+      // A title the reviewer never customised follows the cadence.
+      const patch: { cadence: ReportCadence; title?: string } = { cadence };
+      if (run && isGeneratedRunTitle(run.title, run.asOfDate)) {
+        patch.title = defaultRunTitle(run.asOfDate, cadence);
+      }
+      const { error } = await supabase.from("report_runs").update(patch).eq("id", runId);
       setSavingCadence(false);
       if (error) {
         toast.error("Could not change the cadence", { description: error.message });
@@ -71,8 +76,9 @@ export default function ReportsRunReview() {
         description: "Regenerate the draft to update the printed wording.",
       });
     },
-    [runId, refetch],
+    [runId, refetch, run],
   );
+
 
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
