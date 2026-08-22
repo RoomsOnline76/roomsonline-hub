@@ -999,6 +999,53 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   table.grid .muted { color: var(--muted); }
   table.grid .strong { font-weight: 600; }
   .pct { font-size: 8pt; }
+  /* Wide 9-11 column grids — tighter type so nothing wraps or clips. */
+  table.grid.tight { font-size: 7.6pt; }
+  table.grid.tight th { font-size: 6.6pt; letter-spacing: 0.05em; }
+  table.grid.tight th, table.grid.tight td { padding: 1.3mm 1.4mm; }
+  table.grid.tight .pct { font-size: 6.6pt; }
+
+  /* Titled content blocks */
+  .block { display: flex; flex-direction: column; gap: 2mm; break-inside: avoid; }
+  .block-title {
+    margin: 0;
+    font-size: 8.5pt;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* Legend under the grids */
+  .legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2mm 6mm;
+    font-size: 8pt;
+    color: var(--muted);
+  }
+  .legend li { display: flex; align-items: center; gap: 1.5mm; }
+  .legend .swatch { width: 3mm; height: 3mm; border-radius: 0.6mm; display: inline-block; }
+  .legend .legend-note { font-style: italic; }
+
+  /* Pasted screenshots */
+  .shots { display: grid; gap: 3mm; }
+  .shots.one-up { grid-template-columns: 1fr; }
+  .shots.two-up { grid-template-columns: 1fr 1fr; }
+  figure.shot { margin: 0; break-inside: avoid; }
+  figure.shot img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 1.5mm;
+  }
+  figure.shot figcaption { margin-top: 1.5mm; font-size: 8pt; color: var(--muted); }
+
+
 
   /* Notes */
   .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
