@@ -88,9 +88,30 @@ Deno.serve(async (req) => {
     // Pasted screenshots the revenue team captured, grouped into their slots.
     const { data: mediaRows } = await admin
       .from("report_media")
-      .select("slot_key, storage_path, caption, sort_order")
+      .select("slot_key, storage_path, caption, section_title, sort_order")
       .eq("run_id", runId)
       .order("sort_order", { ascending: true });
+
+    // TOBI commentary the reviewer ticked for inclusion (edited wording wins).
+    const { data: insightRow } = await admin
+      .from("report_insights")
+      .select("narrative, narrative_final, include_narrative, selections")
+      .eq("run_id", runId)
+      .maybeSingle();
+
+    const tobiCommentary: string[] = [];
+    if (insightRow) {
+      const narrative = String(insightRow.narrative_final ?? insightRow.narrative ?? "").trim();
+      if (insightRow.include_narrative !== false && narrative) tobiCommentary.push(narrative);
+      const selections = (insightRow.selections ?? {}) as Record<
+        string,
+        { include?: boolean; text?: string } | undefined
+      >;
+      for (const entry of Object.values(selections)) {
+        const text = String(entry?.text ?? "").trim();
+        if (entry?.include && text) tobiCommentary.push(text);
+      }
+    }
 
     const mediaSlots: DraftMediaSlot[] = [];
     if (mediaRows && mediaRows.length > 0) {
@@ -109,6 +130,7 @@ Deno.serve(async (req) => {
           .map((row) => ({
             url: urlByPath.get(String(row.storage_path)) ?? "",
             caption: row.caption ? String(row.caption) : null,
+            sectionTitle: row.section_title ? String(row.section_title) : null,
           }))
           .filter((image) => image.url.length > 0);
         if (images.length === 0) continue;
@@ -121,6 +143,7 @@ Deno.serve(async (req) => {
         });
       }
     }
+
 
     let previousAsOf: string | null = null;
 
