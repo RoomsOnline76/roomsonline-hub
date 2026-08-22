@@ -966,11 +966,17 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   /* Cover */
   .cover { padding: 0; }
   .cover-art {
-    height: 128mm;
-    background: linear-gradient(160deg, var(--secondary), color-mix(in srgb, var(--secondary) 65%, #000));
-    background-size: cover;
+    height: 118mm;
+    max-height: 118mm;
+    background-color: var(--paper, #fdfcf9);
+    background-size: contain;
+    background-repeat: no-repeat;
     background-position: center;
     position: relative;
+  }
+  .cover-art.is-placeholder {
+    background-image: linear-gradient(160deg, var(--secondary), color-mix(in srgb, var(--secondary) 65%, #000));
+    background-size: cover;
   }
   .cover-body { padding: 14mm; display: flex; flex-direction: column; flex: 1; gap: 6mm; }
   .cover-kicker {
@@ -979,6 +985,13 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     text-transform: uppercase;
     color: var(--primary);
   }
+  .cover-titlerow {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8mm;
+  }
+  .cover-strapline { height: 22mm; max-width: 78mm; width: auto; object-fit: contain; }
   .cover-title {
     font-family: 'Italiana', Georgia, serif;
     font-size: 40pt;
