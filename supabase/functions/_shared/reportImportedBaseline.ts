@@ -13,6 +13,16 @@ export interface ImportedBaseline {
   previous_room_nights?: Record<string, number>;
   last_year_actual?: Record<string, number>;
   last_year_room_nights?: Record<string, number>;
+  /** Occupancy stays occupancy — it must never reach a room-night map. */
+  previous_occupancy?: Record<string, number>;
+  last_year_occupancy?: Record<string, number>;
+  /** Target column recovered from the client's own workbook. */
+  targets?: Record<string, number>;
+  target_uplift?: number | null;
+  historical_occupancy?: Record<string, number>;
+  /** Sheets the revenue team maintains by hand (PROTEL Online Res / Web Comparison). */
+  carry_forward?: Record<string, Array<Array<string | number | null>>>;
+  as_of_date?: string | null;
 }
 
 export interface BaselineMaps {

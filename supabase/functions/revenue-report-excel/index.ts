@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
   buildRevenueWorkbook,
+  type CarryForwardSheets,
   type HistoricalBaseline,
 } from "../_shared/revenueReportWorkbook.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, previous_run_id, imported_baseline, title, properties(name)",
+        "id, property_id, as_of_date, previous_run_id, imported_baseline, title, cadence, source_type, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
@@ -93,11 +94,31 @@ Deno.serve(async (req) => {
     }
     // A first run compares against the imported workbook's OTB column, so the
     // header must name that date rather than printing "OTB @ n/a".
+    const imported = (run.imported_baseline ?? null) as {
+      as_of_date?: string | null;
+      previous_occupancy?: unknown;
+      last_year_occupancy?: unknown;
+      targets?: unknown;
+      target_uplift?: unknown;
+      historical_occupancy?: unknown;
+      carry_forward?: unknown;
+    } | null;
     if (!previousAsOf) {
-      const imported = (run.imported_baseline ?? null) as { as_of_date?: string | null } | null;
       previousAsOf = imported?.as_of_date ?? null;
     }
 
+
+    // Everything the client's own workbook carried that the parser cannot see:
+    // occupancy percentages, the target column and hand-kept sheets.
+    const carryForward = (() => {
+      const raw = imported?.carry_forward;
+      if (!raw || typeof raw !== "object") return {} as CarryForwardSheets;
+      const out: CarryForwardSheets = {};
+      for (const [name, grid] of Object.entries(raw as Record<string, unknown>)) {
+        if (Array.isArray(grid)) out[name] = grid as CarryForwardSheets[string];
+      }
+      return out;
+    })();
 
     const propertyName =
       (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
@@ -128,6 +149,18 @@ Deno.serve(async (req) => {
         promotions_notes: inputs?.promotions_notes ?? null,
         rate_override_notes: inputs?.rate_override_notes ?? null,
         free_commentary: inputs?.free_commentary ?? null,
+      },
+      extras: {
+        sourceType: run.source_type ?? null,
+        cadence: run.cadence ?? null,
+        targets: numberMap(imported?.targets),
+        targetUplift: Number.isFinite(Number(imported?.target_uplift))
+          ? Number(imported?.target_uplift)
+          : null,
+        previousOccupancy: numberMap(imported?.previous_occupancy),
+        lastYearOccupancy: numberMap(imported?.last_year_occupancy),
+        historicalOccupancy: numberMap(imported?.historical_occupancy),
+        carryForward,
       },
     });
 

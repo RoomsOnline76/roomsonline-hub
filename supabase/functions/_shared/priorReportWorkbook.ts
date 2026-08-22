@@ -29,9 +29,18 @@ export interface PriorReportExtract {
   dinnerByMonth: Record<string, number>;
   room0ByMonth: Record<string, number>;
   compRnsByMonth: Record<string, number>;
+  /** Occupancy read as occupancy — never folded into a room-night map. */
+  previousOccupancy: Record<string, number>;
+  lastYearOccupancy: Record<string, number>;
+  /** Target column values, and the uplift its formula was built on (0.1 = +10%). */
+  targets: Record<string, number>;
+  targetUplift: number | null;
   /** Multi-year grids, keyed `YYYY-MM`. */
   historicalRevenue: Record<string, number>;
   historicalRoomNights: Record<string, number>;
+  historicalOccupancy: Record<string, number>;
+  /** Sheets kept verbatim for the next workbook (Online Res, Web Comparison). */
+  carryForward: Record<string, Array<Array<string | number | null>>>;
   /** Sheets that produced data, and sheets that were skipped. */
   sheetsRead: string[];
   sheetsSkipped: string[];
@@ -128,7 +137,53 @@ const rowLabel = (row: Row): string => {
   return "";
 };
 
+
+/**
+ * "OTB @ 20 Aug 2026" (NightsBridge/OPERA) and "as @ 15 July 2014" /
+ * "On the books @ …" (PROTEL) all mark the same thing: a dated column.
+ */
+const OTB_HEADING = /(otb|as|on the books|as at)\s*@/i;
+
+/** Sheets kept verbatim so the revenue team never retypes them. */
+export const CARRY_FORWARD_SHEETS = ["Online Res", "Web Comparison"];
+
+/** Reads a cell's formula (xlsx keeps it on `.f`), for target-uplift recovery. */
+const formulaReader = (workbook: XLSX.WorkBook, name: string) =>
+(row: number, col: number): string | null => {
+  const sheet = workbook.Sheets[name];
+  if (!sheet) return null;
+  const address = XLSX.utils.encode_cell({ r: row, c: col });
+  const cell = sheet[address] as { f?: string } | undefined;
+  return cell?.f ? `=${cell.f}` : null;
+};
+
+/** Trims a raw sheet to its populated bounds, dates flattened to ISO days. */
+const carryForwardGrid = (rows: Row[]): Array<Array<string | number | null>> => {
+  const cell = (value: unknown): string | number | null => {
+    if (value === null || value === undefined || value === "") return null;
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    return text(value) || null;
+  };
+  const grid = rows.map((row) => (row ?? []).map(cell));
+  let lastRow = -1;
+  let width = 0;
+  grid.forEach((row, index) => {
+    const populated = row.reduce<number>(
+      (max, value, col) => (value !== null ? col + 1 : max),
+      0,
+    );
+    if (populated > 0) {
+      lastRow = index;
+      width = Math.max(width, populated);
+    }
+  });
+  if (lastRow < 0 || width === 0) return [];
+  return grid.slice(0, lastRow + 1).map((row) => row.slice(0, width));
+};
+
 /* ─────────────────────── OTB RR sheet ─────────────────────── */
+
 
 interface OtbColumn {
   col: number;
@@ -136,21 +191,41 @@ interface OtbColumn {
   date: string | null;
 }
 
-type BlockKind = "revenue" | "nights" | "skip";
+type BlockKind = "revenue" | "nights" | "occupancy" | "skip";
 
 const blockKind = (label: string): BlockKind => {
   const l = label.toLowerCase();
-  if (/adr|average daily rate/.test(l)) return "skip";
+  if (/adr|avr|average daily rate/.test(l)) return "skip";
   // An occupancy block prints percentages, not counts — never treat it as room
   // nights, or fractions land in the nights maps and blow ADR up to millions.
   if (/room night/.test(l)) return "nights";
-  if (/occupancy/.test(l)) return "skip";
+  if (/occupancy|occ\s*%/.test(l)) return "occupancy";
   if (/revenue/.test(l) || !l) return "revenue";
   return "revenue";
 };
 
 /** Room nights are counts: a fraction is an occupancy value in disguise. */
 const plausibleNights = (value: number): boolean => Number.isFinite(value) && value >= 1;
+
+/**
+ * Occupancy arrives either as a fraction (0.78) or as a percentage (78, PROTEL
+ * multiplies by 100). Anything outside 0–150% is not an occupancy value.
+ */
+const occupancyOf = (value: number | null): number | null => {
+  if (value === null || !Number.isFinite(value) || value < 0) return null;
+  const fraction = value > 1.5 ? value / 100 : value;
+  return fraction >= 0 && fraction <= 1.5 ? fraction : null;
+};
+
+/** Uplift behind a target formula: "=(E3*1.175)" → 0.175. */
+const upliftOfFormula = (formula: string | null): number | null => {
+  if (!formula) return null;
+  const match = /\*\s*([0-9]*\.?[0-9]+)/.exec(formula.replace(/\s/g, ""));
+  if (!match) return null;
+  const factor = Number(match[1]);
+  if (!Number.isFinite(factor) || factor <= 1 || factor > 2) return null;
+  return Math.round((factor - 1) * 10000) / 10000;
+};
 
 
 /**
@@ -178,13 +253,23 @@ interface OtbResult {
   nights: Record<string, number>;
   lastYearRevenue: Record<string, number>;
   lastYearNights: Record<string, number>;
+  occupancy: Record<string, number>;
+  lastYearOccupancy: Record<string, number>;
+  targets: Record<string, number>;
+  targetUplift: number | null;
   dinner: Record<string, number>;
   room0: Record<string, number>;
   compRns: Record<string, number>;
   warnings: string[];
 }
 
-function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | null {
+type FormulaAt = (row: number, col: number) => string | null;
+
+function parseOtbSheet(
+  rows: Row[],
+  runAsOfDate?: string | null,
+  formulaAt: FormulaAt = () => null,
+): OtbResult | null {
   const result: OtbResult = {
     asOfDate: null,
     label: null,
@@ -193,6 +278,10 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
     nights: {},
     lastYearRevenue: {},
     lastYearNights: {},
+    occupancy: {},
+    lastYearOccupancy: {},
+    targets: {},
+    targetUplift: null,
     dinner: {},
     room0: {},
     compRns: {},
@@ -205,7 +294,7 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
     const columns: OtbColumn[] = [];
     (row ?? []).forEach((cell, col) => {
       const heading = text(cell);
-      if (/otb\s*@/i.test(heading)) {
+      if (OTB_HEADING.test(heading)) {
         columns.push({ col, heading, date: parseOtbDate(heading) });
       }
     });
@@ -252,10 +341,10 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
 
     // Section label: this header row's own label, else the nearest label above.
     let label = rowLabel(rows[header.row] ?? []);
-    if (/otb\s*@/i.test(label) || !label) {
+    if (OTB_HEADING.test(label) || !label) {
       for (let r = header.row - 1; r >= 0 && r >= header.row - 3; r -= 1) {
         const candidate = rowLabel(rows[r] ?? []);
-        if (candidate && !/otb\s*@/i.test(candidate)) {
+        if (candidate && !OTB_HEADING.test(candidate)) {
           label = candidate;
           break;
         }
@@ -281,6 +370,7 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
     const headerRow = rows[header.row] ?? [];
     const lyCandidates: number[] = [];
     let dinnerCol: number | null = null;
+    let targetCol: number | null = null;
     let room0Col: number | null = null;
     let compCol: number | null = null;
     headerRow.forEach((cell, col) => {
@@ -288,6 +378,7 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
       if (!heading) return;
       if (/last year/.test(heading) && !/vs/.test(heading)) lyCandidates.push(col);
       if (/^rn last year|last year.*(rn|room night)/.test(heading)) lyCandidates.push(col);
+      if (/target/.test(heading) && !/vs|vrs/.test(heading)) targetCol = col;
       if (/^dinner/.test(heading)) dinnerCol = col;
       if (/room\s*0/.test(heading)) room0Col = col;
       if (/comp\.?\s*(rns?|room nights?)/.test(heading)) compCol = col;
@@ -296,6 +387,21 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
     if (isNights && lyCandidates.length > 1) {
       const counted = lyCandidates.find((col) => looksLikeCounts(rows, dataFrom, end, col));
       if (counted !== undefined) lyCol = counted;
+    }
+
+    // An occupancy block prints percentages beside their room-night counts
+    // (OPERA). Split the two so the counts land in the nights maps rather than
+    // being discarded, and the percentages never pollute them.
+    let occNightsCol: number | null = null;
+    let occLyNightsCol: number | null = null;
+    if (kind === "occupancy") {
+      const isFraction = (col: number) => !looksLikeCounts(rows, dataFrom, end, col);
+      const otbFraction = candidates.find((c) => isFraction(c.col));
+      if (otbFraction) otbCol = otbFraction.col;
+      occNightsCol = candidates.find((c) => !isFraction(c.col))?.col ?? null;
+      const lyFraction = lyCandidates.find(isFraction);
+      if (lyFraction !== undefined) lyCol = lyFraction;
+      occLyNightsCol = lyCandidates.find((col) => !isFraction(col)) ?? null;
     }
 
     // 3. Month rows. Years roll forward from the as-of year.
@@ -319,6 +425,34 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
 
       const otb = toNum(row[otbCol]);
       const ly = lyCol === null ? null : toNum(row[lyCol]);
+
+      if (targetCol !== null) {
+        const target = toNum(row[targetCol]);
+        if (target !== null && kind === "revenue") result.targets[key] = target;
+        const uplift = upliftOfFormula(formulaAt(r, targetCol));
+        if (uplift !== null && result.targetUplift === null) result.targetUplift = uplift;
+      }
+
+      if (kind === "occupancy") {
+        const current = occupancyOf(otb);
+        const lastYear = occupancyOf(ly);
+        if (current !== null) result.occupancy[key] = current;
+        if (lastYear !== null) result.lastYearOccupancy[key] = lastYear;
+        const nights = occNightsCol === null ? null : toNum(row[occNightsCol]);
+        const lyNights = occLyNightsCol === null ? null : toNum(row[occLyNightsCol]);
+        if (nights !== null && plausibleNights(nights) && result.nights[key] === undefined) {
+          result.nights[key] = nights;
+        }
+        if (
+          lyNights !== null &&
+          plausibleNights(lyNights) &&
+          result.lastYearNights[key] === undefined
+        ) {
+          result.lastYearNights[key] = lyNights;
+        }
+        continue;
+      }
+
       if (isNights) {
         if (otb !== null && plausibleNights(otb)) result.nights[key] = otb;
         if (ly !== null && plausibleNights(ly)) result.lastYearNights[key] = ly;
@@ -345,6 +479,7 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
 interface YearGrid {
   revenue: Record<string, number>;
   roomNights: Record<string, number>;
+  occupancy: Record<string, number>;
   rows: number;
 }
 
@@ -355,9 +490,9 @@ interface YearGrid {
  * occupancy) keep their first occurrence.
  */
 function parseYearGrid(rows: Row[]): YearGrid {
-  const grid: YearGrid = { revenue: {}, roomNights: {}, rows: 0 };
+  const grid: YearGrid = { revenue: {}, roomNights: {}, occupancy: {}, rows: 0 };
   let columns: { year: number; col: number }[] = [];
-  let mode: "revenue" | "nights" | null = null;
+  let mode: "revenue" | "nights" | "occupancy" | null = null;
   let lastLabel = "";
   let seenBlock = false;
 
@@ -379,6 +514,7 @@ function parseYearGrid(rows: Row[]): YearGrid {
       const known = /revenue|room night|occupancy|adr|average daily rate|target/i;
       const source = known.test(label) ? label : lastLabel;
       if (/room night/i.test(source)) mode = "nights";
+      else if (/occupancy|occ\s*%/i.test(source)) mode = "occupancy";
       else if (/revenue/i.test(source)) mode = "revenue";
       else if (known.test(source)) mode = null;
       // An unlabelled first block is the revenue grid; later unlabelled blocks
@@ -395,10 +531,14 @@ function parseYearGrid(rows: Row[]): YearGrid {
     const month = monthOf(cells[0]) ?? monthOf(cells[1]) ?? monthOf(cells[2]);
     if (month === null) return;
 
-    const target = mode === "nights" ? grid.roomNights : grid.revenue;
+    const target =
+      mode === "nights" ? grid.roomNights : mode === "occupancy" ? grid.occupancy : grid.revenue;
     for (const { year, col } of columns) {
-      const value = toNum(cells[col]);
+      const raw = toNum(cells[col]);
+      if (raw === null) continue;
+      const value = mode === "occupancy" ? occupancyOf(raw) : raw;
       if (value === null) continue;
+      if (mode === "nights" && !plausibleNights(value)) continue;
       target[`${year}-${pad(month)}`] = value;
       grid.rows += 1;
     }
@@ -425,41 +565,45 @@ export function parsePriorReportWorkbook(
     dinnerByMonth: {},
     room0ByMonth: {},
     compRnsByMonth: {},
+    previousOccupancy: {},
+    lastYearOccupancy: {},
+    targets: {},
+    targetUplift: null,
     historicalRevenue: {},
     historicalRoomNights: {},
+    historicalOccupancy: {},
+    carryForward: {},
     sheetsRead: [],
     sheetsSkipped: [],
     warnings: [],
   };
 
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
+  const workbook = XLSX.read(new Uint8Array(buffer), {
+    type: "array",
+    cellDates: true,
+    cellFormula: true,
+  });
+  const otbSheets: Array<{ name: string; otb: OtbResult }> = [];
 
   for (const name of workbook.SheetNames) {
     const key = name.trim().toLowerCase();
     const rows = sheetRows(workbook, name);
 
-    if (/otb/.test(key)) {
-      const otb = parseOtbSheet(rows, options.runAsOfDate ?? null);
-      if (!otb || (!Object.keys(otb.revenue).length && !Object.keys(otb.nights).length)) {
+    // Sheets the revenue team keeps by hand travel forward untouched.
+    if (CARRY_FORWARD_SHEETS.some((sheet) => sheet.toLowerCase() === key)) {
+      const grid = carryForwardGrid(rows);
+      if (grid.length) {
+        const canonical =
+          CARRY_FORWARD_SHEETS.find((sheet) => sheet.toLowerCase() === key) ?? name;
+        extract.carryForward[canonical] = grid;
+        extract.sheetsRead.push(name);
+      } else {
         extract.sheetsSkipped.push(name);
-        continue;
       }
-      extract.sheetsRead.push(name);
-      extract.asOfDate = otb.asOfDate;
-      extract.otbColumnLabel = otb.label;
-      extract.months = otb.months;
-      extract.previousOtbRevenue = otb.revenue;
-      extract.previousRoomNights = otb.nights;
-      extract.lastYearActual = otb.lastYearRevenue;
-      extract.lastYearRoomNights = otb.lastYearNights;
-      extract.dinnerByMonth = otb.dinner;
-      extract.room0ByMonth = otb.room0;
-      extract.compRnsByMonth = otb.compRns;
-      extract.warnings.push(...otb.warnings);
       continue;
     }
 
-    if (/fin\s*year|historic/.test(key)) {
+    if (/fin\s*year|historic|stats/.test(key)) {
       const grid = parseYearGrid(rows);
       if (!grid.rows) {
         extract.sheetsSkipped.push(name);
@@ -468,19 +612,80 @@ export function parsePriorReportWorkbook(
       extract.sheetsRead.push(name);
       // Historical wins over Fin Year for a month present in both (it is the
       // longer-running record), so merge Fin Year first, Historical after.
-      const revenueTarget = /historic/.test(key)
-        ? { ...extract.historicalRevenue, ...grid.revenue }
-        : { ...grid.revenue, ...extract.historicalRevenue };
-      const nightsTarget = /historic/.test(key)
-        ? { ...extract.historicalRoomNights, ...grid.roomNights }
-        : { ...grid.roomNights, ...extract.historicalRoomNights };
-      extract.historicalRevenue = revenueTarget;
-      extract.historicalRoomNights = nightsTarget;
+      const longRunning = /historic|stats/.test(key);
+      const merge = (
+        existing: Record<string, number>,
+        incoming: Record<string, number>,
+      ): Record<string, number> =>
+        longRunning ? { ...existing, ...incoming } : { ...incoming, ...existing };
+      extract.historicalRevenue = merge(extract.historicalRevenue, grid.revenue);
+      extract.historicalRoomNights = merge(extract.historicalRoomNights, grid.roomNights);
+      extract.historicalOccupancy = merge(extract.historicalOccupancy, grid.occupancy);
       continue;
     }
 
-    extract.sheetsSkipped.push(name);
+    // Any other sheet may be the OTB grid: PROTEL names it after the hotel
+    // ("VA", "Studio Revenue", "Sheet1") and heads its columns "as @ <date>".
+    const otb = parseOtbSheet(rows, options.runAsOfDate ?? null, formulaReader(workbook, name));
+    const usable =
+      otb &&
+      (Object.keys(otb.revenue).length ||
+        Object.keys(otb.nights).length ||
+        Object.keys(otb.occupancy).length);
+    if (!usable || !otb) {
+      extract.sheetsSkipped.push(name);
+      continue;
+    }
+    otbSheets.push({ name, otb });
   }
+
+  // A legacy workbook holds several vintages of the same grid (the PROTEL
+  // archive carries a decade of them). The vintage closest to — but not after —
+  // the run's as-of date is the truthful baseline; later vintages and undated
+  // sheets only fill gaps behind it.
+  const runDate = options.runAsOfDate ?? null;
+  const rank = (asOfDate: string | null): [number, number] => {
+    if (!asOfDate) return [2, 0];
+    const days = Date.parse(`${asOfDate}T00:00:00Z`);
+    if (!Number.isFinite(days)) return [2, 0];
+    const runDays = runDate ? Date.parse(`${runDate}T00:00:00Z`) : NaN;
+    if (Number.isFinite(runDays) && days > runDays) return [1, -days];
+    return [0, -days];
+  };
+  otbSheets.sort((a, b) => {
+    const [groupA, orderA] = rank(a.otb.asOfDate);
+    const [groupB, orderB] = rank(b.otb.asOfDate);
+    return groupA - groupB || orderA - orderB;
+  });
+
+  const fill = (target: Record<string, number>, source: Record<string, number>) => {
+    for (const [month, value] of Object.entries(source)) {
+      if (target[month] === undefined) target[month] = value;
+    }
+  };
+
+  otbSheets.forEach(({ name, otb }, index) => {
+    extract.sheetsRead.push(name);
+    if (index === 0) {
+      extract.asOfDate = otb.asOfDate;
+      extract.otbColumnLabel = otb.label;
+      extract.months = otb.months;
+      extract.warnings.push(...otb.warnings);
+    }
+    fill(extract.previousOtbRevenue, otb.revenue);
+    fill(extract.previousRoomNights, otb.nights);
+    fill(extract.lastYearActual, otb.lastYearRevenue);
+    fill(extract.lastYearRoomNights, otb.lastYearNights);
+    fill(extract.previousOccupancy, otb.occupancy);
+    fill(extract.lastYearOccupancy, otb.lastYearOccupancy);
+    fill(extract.targets, otb.targets);
+    fill(extract.dinnerByMonth, otb.dinner);
+    fill(extract.room0ByMonth, otb.room0);
+    fill(extract.compRnsByMonth, otb.compRns);
+    if (extract.targetUplift === null) extract.targetUplift = otb.targetUplift;
+  });
+
+
 
   if (!extract.sheetsRead.length) {
     extract.warnings.push(
