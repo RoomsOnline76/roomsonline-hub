@@ -273,8 +273,12 @@ Deno.serve(async (req) => {
       // One workbook at a time — the buffer is released before the next file.
       let parsed: ParsedFile;
       {
-        const buffer = await download.data.arrayBuffer();
-        parsed = parseWorkbook(buffer, file.original_filename);
+        // protel writes its OOXML parts in UTF-16; transcode before reading.
+        const repair = await repairWorkbookBuffer(await download.data.arrayBuffer());
+        if (repair.repaired) {
+          await logRunEvent(admin, runId, "info", workbookRepairNote(file.original_filename, repair));
+        }
+        parsed = parseWorkbook(repair.buffer, file.original_filename);
       }
 
       if (parsed.kind === "house_state") {
