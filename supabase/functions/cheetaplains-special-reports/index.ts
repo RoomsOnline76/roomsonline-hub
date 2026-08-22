@@ -176,7 +176,9 @@ Deno.serve(async (req) => {
 
       let sheets: Record<string, Grid>;
       try {
-        sheets = readSheets(await download.data.arrayBuffer());
+        sheets = readSheets(
+          (await repairWorkbookBuffer(await download.data.arrayBuffer())).buffer,
+        );
       } catch (error) {
         nationalityNotes.push(
           `${file.original_filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,
