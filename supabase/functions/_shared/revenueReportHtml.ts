@@ -1159,7 +1159,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
 <!-- Cover -->
 <section class="page cover">
-  <div class="cover-art"${
+  <div class="cover-art${branding.coverArtworkUrl ? "" : " is-placeholder"}"${
     branding.coverArtworkUrl
       ? ` style="background-image:url('${esc(branding.coverArtworkUrl)}')"`
       : ""
@@ -1169,12 +1169,16 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${
         branding.logoUrl
           ? `<img class="logo" src="${esc(branding.logoUrl)}" alt="" />`
-          : `<span class="wreath">ROL</span>`
+          : ""
       }
+      <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
       <span class="brandline">roomsonline</span>
     </div>
     <span class="cover-kicker">Bi-monthly revenue review</span>
-    <h1 class="cover-title">Revenue<br />Review</h1>
+    <div class="cover-titlerow">
+      <h1 class="cover-title">Revenue<br />Review</h1>
+      <img class="cover-strapline" src="${ROL_STRAPLINE_URL}" alt="roomsonline — strategize, optimize, maximize" />
+    </div>
     <div class="cover-rule"></div>
     <div class="cover-property">${esc(propertyName)}</div>
     <div class="cover-meta">
