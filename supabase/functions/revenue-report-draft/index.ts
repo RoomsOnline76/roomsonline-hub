@@ -122,7 +122,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Slide organizer state: { order: string[], hidden: string[] } (a bare array
+    // is accepted too, for runs saved before hiding existed).
+    const rawOrder = (run as unknown as { page_order?: unknown }).page_order;
+    const orderObject = (rawOrder && typeof rawOrder === "object" && !Array.isArray(rawOrder)
+      ? rawOrder
+      : {}) as { order?: unknown; hidden?: unknown };
+    const stringList = (value: unknown): string[] =>
+      Array.isArray(value) ? value.map((entry) => String(entry)).filter(Boolean) : [];
+    const savedPageOrder = Array.isArray(rawOrder)
+      ? stringList(rawOrder)
+      : stringList(orderObject.order);
+    const hiddenPages = stringList(orderObject.hidden);
+
     const mediaSlots: DraftMediaSlot[] = [];
+
     if (mediaRows && mediaRows.length > 0) {
       const paths = mediaRows.map((row) => String(row.storage_path));
       const { data: signed } = await admin.storage
