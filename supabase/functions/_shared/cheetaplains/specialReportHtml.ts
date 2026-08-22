@@ -9,6 +9,8 @@
  * configured.
  */
 
+import { pdfDocumentTitle } from "../revenueReportHtml.ts";
+
 export interface SpecialReportBranding {
   logoUrl: string | null;
   brandPrimary: string | null;
