@@ -5,13 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { useReportProperties, type ReportProperty } from "@/hooks/useReportProperties";
+import { useReportProperties } from "@/hooks/useReportProperties";
 import { useReportRuns } from "@/hooks/useReportRuns";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { NewReportsClientDialog } from "@/components/reports/NewReportsClientDialog";
+import { ReportPropertyCard } from "@/components/reports/ReportPropertyCard";
 import { reportsPath } from "@/lib/config";
 import { sourceLabel } from "@/lib/report-adapters";
 
@@ -23,62 +22,16 @@ const formatRunDate = (iso: string): string =>
     year: "numeric",
   });
 
-function PropertyCard({ property }: { property: ReportProperty }) {
-  return (
-    <Link
-      to={reportsPath(`/settings/${property.id}`)}
-      className="group rounded-lg border p-4 transition-colors hover:bg-muted/50"
-    >
-      <div className="flex items-start gap-3">
-        {property.logoUrl ? (
-          <img
-            src={property.logoUrl}
-            alt={`${property.name} logo`}
-            loading="lazy"
-            className="h-10 w-10 rounded-md object-contain bg-muted"
-          />
-        ) : (
-          <div className="h-10 w-10 rounded-md bg-muted flex items-center justify-center">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className="truncate text-sm font-medium group-hover:text-primary">{property.name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {property.city ?? "Location not set"}
-            {property.roomCount ? ` · ${property.roomCount} rooms` : ""}
-          </p>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="secondary" className="text-[11px] font-normal">
-              Last run: {property.lastRunDate ? formatRunDate(property.lastRunDate) : "—"}
-            </Badge>
-            {property.isReportsClient && (
-              <Badge variant="outline" className="text-[11px] font-normal">
-                Reporting only
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
 export default function ReportsDashboard() {
   const [search, setSearch] = useState("");
-  const { properties, total, isLoading, error } = useReportProperties(search);
+  const { properties, isLoading, error } = useReportProperties(search);
   const { runs, isLoading: runsLoading } = useReportRuns();
-  const reportsClientCount = properties.filter((p) => p.isReportsClient).length;
 
-  // Properties that already have a run come first; both groups stay alphabetical
-  // (the hook sorts by name), and search filtering flows straight through.
-  const { withRuns, withoutRuns } = useMemo(
-    () => ({
-      withRuns: properties.filter((p) => p.lastRunDate),
-      withoutRuns: properties.filter((p) => !p.lastRunDate),
-    }),
-    [properties],
-  );
+  // Dashboard lists only properties that already have at least one run;
+  // everything else lives on the reporting settings page.
+  const withRuns = useMemo(() => properties.filter((p) => p.lastRunDate), [properties]);
+  const reportsClientCount = withRuns.filter((p) => p.isReportsClient).length;
+
 
 
 
@@ -166,9 +119,9 @@ export default function ReportsDashboard() {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-medium tracking-tight">
-            Properties{" "}
+            Properties with reports{" "}
             <span className="text-sm font-normal text-muted-foreground">
-              ({total}
+              ({withRuns.length}
               {reportsClientCount > 0 ? ` · ${reportsClientCount} reporting-only` : ""})
             </span>
           </h2>
@@ -197,46 +150,26 @@ export default function ReportsDashboard() {
               <Skeleton key={i} className="h-24 w-full rounded-lg" />
             ))}
           </div>
-        ) : properties.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
-            No properties match “{search}”.
+        ) : withRuns.length === 0 ? (
+          <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground space-y-1">
+            <p>{search ? `No property with reports matches “${search}”.` : "No property has reports yet."}</p>
+            <p>
+              Configure a property under{" "}
+              <Link to={reportsPath("/settings")} className="underline">
+                reporting settings
+              </Link>
+              .
+            </p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {withRuns.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    With reports ({withRuns.length})
-                  </h3>
-                  <Separator className="flex-1" />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {withRuns.map((property) => (
-                    <PropertyCard key={property.id} property={property} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {withoutRuns.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    No reports yet ({withoutRuns.length})
-                  </h3>
-                  <Separator className="flex-1" />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {withoutRuns.map((property) => (
-                    <PropertyCard key={property.id} property={property} />
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {withRuns.map((property) => (
+              <ReportPropertyCard key={property.id} property={property} />
+            ))}
           </div>
         )}
       </section>
+
     </div>
   );
 }
