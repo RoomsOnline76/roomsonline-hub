@@ -5422,6 +5422,7 @@ export type Database = {
           id: string
           images: Json | null
           is_active: boolean | null
+          is_reports_client: boolean
           is_rol_property: boolean | null
           is_sandbox: boolean
           is_test_property: boolean
@@ -5461,6 +5462,7 @@ export type Database = {
           refund_auto_approve_enabled: boolean
           rentalsunited_building_id: string | null
           rentalsunited_property_id: string | null
+          reports_client_archived_at: string | null
           review_sentiment: Json | null
           ru_archived: boolean
           ru_archived_at: string | null
@@ -5540,6 +5542,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          is_reports_client?: boolean
           is_rol_property?: boolean | null
           is_sandbox?: boolean
           is_test_property?: boolean
@@ -5579,6 +5582,7 @@ export type Database = {
           refund_auto_approve_enabled?: boolean
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
+          reports_client_archived_at?: string | null
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
@@ -5658,6 +5662,7 @@ export type Database = {
           id?: string
           images?: Json | null
           is_active?: boolean | null
+          is_reports_client?: boolean
           is_rol_property?: boolean | null
           is_sandbox?: boolean
           is_test_property?: boolean
@@ -5697,6 +5702,7 @@ export type Database = {
           refund_auto_approve_enabled?: boolean
           rentalsunited_building_id?: string | null
           rentalsunited_property_id?: string | null
+          reports_client_archived_at?: string | null
           review_sentiment?: Json | null
           ru_archived?: boolean
           ru_archived_at?: string | null
