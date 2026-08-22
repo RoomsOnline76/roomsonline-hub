@@ -42,14 +42,41 @@ function SlotEditor({
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{slot.definition.title}</p>
-          <p className="text-xs text-muted-foreground">{slot.definition.hint}</p>
+        <div className="min-w-[240px] flex-1">
+          {slot.definition.isCustom ? (
+            <Input
+              defaultValue={slot.definition.title}
+              placeholder="Slide section title"
+              className="h-8 text-sm font-medium"
+              onBlur={(event) => {
+                if (event.target.value.trim() === slot.definition.title) return;
+                media.updateSlot.mutate({ id: slot.definition.id!, title: event.target.value });
+              }}
+            />
+          ) : (
+            <p className="text-sm font-medium">{slot.definition.title}</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">{slot.definition.hint}</p>
         </div>
-        <Badge variant={slot.images.length > 0 ? "secondary" : "outline"}>
-          {slot.images.length} image{slot.images.length === 1 ? "" : "s"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={slot.images.length > 0 ? "secondary" : "outline"}>
+            {slot.images.length} image{slot.images.length === 1 ? "" : "s"}
+          </Badge>
+          {slot.definition.isCustom && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive"
+              aria-label="Remove slide section"
+              onClick={() => media.deleteSlot.mutate(slot.definition)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
+
 
       <div
         tabIndex={0}
