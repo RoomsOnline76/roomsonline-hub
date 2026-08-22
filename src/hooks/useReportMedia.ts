@@ -211,9 +211,10 @@ export function useReportMedia(runId: string | undefined) {
       if (!runId) throw new Error("No run selected");
       const clean = title.trim() || "Additional slide";
       const nextOrder =
-        (customSlots.data ?? []).reduce((max, slot) => Math.max(max, 0), 0) +
-        (customSlots.data?.length ?? 0) +
-        1;
+        (customSlots.data ?? []).length > 0
+          ? (customSlots.data ?? []).length + 1
+          : 1;
+
       const { error } = await supabase.from("report_media_slots").insert({
         run_id: runId,
         slot_key: `custom_${crypto.randomUUID().slice(0, 8)}`,
