@@ -1228,13 +1228,18 @@ ${pagesHtml}
       promotions: inputs.promotions_notes,
       rate_overrides: inputs.rate_override_notes,
       free_commentary: inputs.free_commentary,
+      tobi: tobiLines,
     },
     media: mediaSlots.map((slot) => ({
       slot: slot.key,
       section: slot.section,
       title: slot.title,
       images: slot.images.length,
+      section_titles: Array.from(
+        new Set(slot.images.map((image) => (image.sectionTitle ?? "").trim()).filter(Boolean)),
+      ),
     })),
+
     pages: pageDefs.map((def, index) => ({ page: index + 2, title: def.title })),
     charts: charts.map((chart) => ({ id: chart.id, title: chart.title, file: `charts/${chart.id}.svg` })),
     tables: tables.map((table) => ({ name: table.name, file: `tables/${table.name}.csv` })),
