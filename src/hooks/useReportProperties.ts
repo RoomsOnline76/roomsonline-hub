@@ -10,7 +10,10 @@ export interface ReportProperty {
   city: string | null;
   /** Sellable room / unit count used by the revenue reports. */
   roomCount: number | null;
+  /** Standalone reporting client — exists for reports only, not in ROL. */
+  isReportsClient: boolean;
 }
+
 
 /** Names that mark internal fixtures which must never appear in reports. */
 const EXCLUDED_NAME_PATTERNS = [/sandbox/i, /\btest\b/i, /rutest/i, /pruebas/i, /\bdemo\b/i, /sample/i];
