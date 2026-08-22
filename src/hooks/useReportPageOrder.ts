@@ -88,7 +88,7 @@ export function useReportPageOrder(
       if (!runId) throw new Error("No run selected");
       const { error } = await supabase
         .from("report_runs")
-        .update({ page_order: next as unknown as Record<string, unknown> })
+        .update({ page_order: { order: next.order, hidden: next.hidden } })
         .eq("id", runId);
       if (error) throw error;
       return next;
