@@ -83,7 +83,45 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .maybeSingle();
 
+    // Pasted screenshots the revenue team captured, grouped into their slots.
+    const { data: mediaRows } = await admin
+      .from("report_media")
+      .select("slot_key, storage_path, caption, sort_order")
+      .eq("run_id", runId)
+      .order("sort_order", { ascending: true });
+
+    const mediaSlots: DraftMediaSlot[] = [];
+    if (mediaRows && mediaRows.length > 0) {
+      const paths = mediaRows.map((row) => String(row.storage_path));
+      const { data: signed } = await admin.storage
+        .from(BUCKET)
+        .createSignedUrls(paths, 60 * 60 * 6);
+      const urlByPath = new Map<string, string>();
+      (signed ?? []).forEach((entry, index) => {
+        if (entry?.signedUrl) urlByPath.set(paths[index], entry.signedUrl);
+      });
+
+      for (const definition of REPORT_MEDIA_SLOTS) {
+        const images = mediaRows
+          .filter((row) => row.slot_key === definition.key)
+          .map((row) => ({
+            url: urlByPath.get(String(row.storage_path)) ?? "",
+            caption: row.caption ? String(row.caption) : null,
+          }))
+          .filter((image) => image.url.length > 0);
+        if (images.length === 0) continue;
+        mediaSlots.push({
+          key: definition.key,
+          section: definition.section,
+          title: definition.title,
+          layout: definition.layout,
+          images,
+        });
+      }
+    }
+
     let previousAsOf: string | null = null;
+
     if (run.previous_run_id) {
       const { data: prev } = await admin
         .from("report_runs")
