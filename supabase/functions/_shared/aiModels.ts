@@ -63,6 +63,8 @@ export const AI_MODELS = {
   // --- Analysis / insight narrative ---
   revenue_insights: AI_TIER.chat,
   revenue_report_insights: AI_TIER.chat,
+  /** Same narrative, but reading the reviewer's pasted report screenshots. */
+  revenue_report_insights_vision: AI_TIER.vision,
   dashboard_insights: AI_TIER.chat,
   health_report: AI_TIER.chat,
 
