@@ -389,7 +389,11 @@ function generateEmailHtml(
   devTasks: DevTask[],
   ruWl: RuWlMetrics | null
 ): string {
-  const { status: effectiveStatus, label: overallStatusLabel } = computeEffectiveStatus(overallStatus, ruWl);
+  const {
+    status: effectiveStatus,
+    label: overallStatusLabel,
+    failingActions: failingPipelines,
+  } = computeEffectiveStatus(overallStatus, ruWl);
   const overallStatusColor = getStatusColor(effectiveStatus);
 
 

@@ -301,6 +301,19 @@ const App = () => (
                           </Route>
                         )}
 
+                        {/* ═══ Revenue Reports mounted under /reports so the
+                            surface is reachable from preview and the admin
+                            domain, not only reports.roomsonline.co.za ═════ */}
+                        <Route path="/reports" element={<ReportsLayout />}>
+                          <Route index element={<ReportsDashboard />} />
+                          <Route path="new" element={<ReportsNewRun />} />
+                          <Route path="runs/:runId" element={<ReportsRunReview />} />
+                          <Route path="settings" element={<ReportsDashboard />} />
+                          <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
+                          <Route path="help" element={<ReportsHelp />} />
+                        </Route>
+
+
                         {/* ═══ Book domain — allowlisted paths render normally ═ */}
                         {!isBookDomain && (
                           <Route

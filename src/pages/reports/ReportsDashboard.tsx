@@ -10,6 +10,7 @@ import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { useReportRuns } from "@/hooks/useReportRuns";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
+import { reportsPath } from "@/lib/config";
 
 const formatRunDate = (iso: string): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
@@ -41,7 +42,7 @@ export default function ReportsDashboard() {
           </p>
         </div>
         <Button asChild>
-          <Link to="/new">
+          <Link to={reportsPath("/new")}>
             <FilePlus2 className="h-4 w-4 mr-2" />
             New report
           </Link>
@@ -68,7 +69,7 @@ export default function ReportsDashboard() {
           {runs.map((run) => (
             <Link
               key={run.id}
-              to={`/runs/${run.id}`}
+              to={reportsPath(`/runs/${run.id}`)}
               className="flex items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/40 transition-colors"
             >
               {run.propertyLogoUrl ? (
@@ -139,7 +140,7 @@ export default function ReportsDashboard() {
             {properties.map((property) => (
               <Link
                 key={property.id}
-                to={`/settings/${property.id}`}
+                to={reportsPath(`/settings/${property.id}`)}
                 className="group rounded-lg border p-4 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-start gap-3">

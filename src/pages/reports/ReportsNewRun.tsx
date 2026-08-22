@@ -1,3 +1,4 @@
+import { reportsPath } from "@/lib/config";
 import { useCallback, useMemo, useReducer, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
@@ -235,7 +236,7 @@ export default function ReportsNewRun() {
       } else {
         toast.success(`Run created with ${result.uploaded} file(s)`);
       }
-      navigate(`/runs/${runId}`);
+      navigate(reportsPath(`/runs/${runId}`));
     } catch (error) {
       toast.error("Could not create the run", {
         description: error instanceof Error ? error.message : undefined,
