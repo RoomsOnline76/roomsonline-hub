@@ -332,7 +332,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     return `<figure class="chart"><figcaption>${esc(caption ?? chart.title)}</figcaption>${chart.svg}</figure>`;
   };
 
-  // ── Tables ────────────────────────────────────────────────────────────
+  // ── Totals for the derived series ─────────────────────────────────────
+  const add = (values: number[]) => values.reduce((total, value) => total + value, 0);
+  const totalDinner = add(dinner);
+  const totalRoom0 = add(room0);
+  const totalCompRns = add(compRns);
+  const totalNightsPrev = add(nightsPrev);
+  const totalNightsLy = add(nightsLy);
+  const totalOccPrev = totalCapacity > 0 ? (totalNightsPrev / totalCapacity) * 100 : 0;
+  const totalOccLy = totalCapacity > 0 ? (totalNightsLy / totalCapacity) * 100 : 0;
+  const totalAdrPrev = totalNightsPrev > 0 ? totalPrevious / totalNightsPrev : 0;
+  const totalAdrLy = totalNightsLy > 0 ? totalLastYear / totalNightsLy : 0;
+
+  // ── Tables (CSV for the designer pack) ────────────────────────────────
   const revenueRows: (string | number)[][] = [
     [
       "Month",
@@ -340,20 +352,25 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       "Previous OTB",
       "Variance",
       "Last year actual",
+      "OTB vs last year",
+      "Dinner",
+      "Room 0",
+      "Comp room nights",
       "Additional revenue",
       "Total combined",
     ],
-    ...months.map((key) => [
+    ...months.map((key, i) => [
       monthLabel(key),
-      Math.round(Number(snapshot.otb_revenue[key]) || 0),
-      Math.round(Number(snapshot.previous_otb_revenue[key]) || 0),
-      Math.round(
-        (Number(snapshot.otb_revenue[key]) || 0) -
-          (Number(snapshot.previous_otb_revenue[key]) || 0),
-      ),
-      Math.round(Number(snapshot.last_year_actual[key]) || 0),
-      Math.round(additionalByMonth[key] || 0),
-      Math.round(combinedByMonth[key] || 0),
+      Math.round(otbNow[i]),
+      Math.round(otbPrev[i]),
+      Math.round(otbNow[i] - otbPrev[i]),
+      Math.round(otbLy[i]),
+      Math.round(otbNow[i] - otbLy[i]),
+      Math.round(dinner[i]),
+      Math.round(room0[i]),
+      Math.round(compRns[i]),
+      Math.round(additional[i]),
+      Math.round(combined[i]),
     ]),
     [
       "Total",
@@ -361,30 +378,63 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       Math.round(totalPrevious),
       Math.round(totalOtb - totalPrevious),
       Math.round(totalLastYear),
+      Math.round(totalOtb - totalLastYear),
+      Math.round(totalDinner),
+      Math.round(totalRoom0),
+      Math.round(totalCompRns),
       Math.round(totalAdditional),
       Math.round(totalCombined),
     ],
   ];
 
-  const performanceRows: (string | number)[][] = [
-    ["Month", "Room nights", "Capacity nights", "Occupancy %", "ADR", "Comp room nights"],
-    ...months.map((key) => [
-      monthLabel(key),
-      Math.round(Number(snapshot.room_nights[key]) || 0),
-      Math.round(Number(snapshot.capacity_days[key]) || 0),
-      Number(((Number(snapshot.occupancy[key]) || 0) * 100).toFixed(1)),
-      Math.round(Number(snapshot.adr[key]) || 0),
-      Math.round(Number(inputs.comp_rns_by_month[key]) || 0),
-    ]),
-    [
-      "Total",
-      Math.round(totalNights),
-      Math.round(totalCapacity),
-      Number((blendedOccupancy * 100).toFixed(1)),
-      Math.round(blendedAdr),
-      Math.round(sum(inputs.comp_rns_by_month, months)),
-    ],
-  ];
+  const metricCsv = (
+    header: string,
+    now: number[],
+    prev: number[],
+    ly: number[],
+    totals: { now: number; prev: number; ly: number },
+    dp = 0,
+  ): (string | number)[][] => {
+    const fix = (value: number) => Number(value.toFixed(dp));
+    return [
+      ["Month", `${header} OTB`, `${header} previous`, "Variance", `${header} last year`, "OTB vs last year"],
+      ...months.map((key, i) => [
+        monthLabel(key),
+        fix(now[i]),
+        fix(prev[i]),
+        fix(now[i] - prev[i]),
+        fix(ly[i]),
+        fix(now[i] - ly[i]),
+      ]),
+      [
+        "Total",
+        fix(totals.now),
+        fix(totals.prev),
+        fix(totals.now - totals.prev),
+        fix(totals.ly),
+        fix(totals.now - totals.ly),
+      ],
+    ];
+  };
+
+  const performanceRows = metricCsv("Room nights", nightsNow, nightsPrev, nightsLy, {
+    now: totalNights,
+    prev: totalNightsPrev,
+    ly: totalNightsLy,
+  });
+  const occupancyRows = metricCsv(
+    "Occupancy %",
+    occNow,
+    occPrev,
+    occLy,
+    { now: blendedOccupancy * 100, prev: totalOccPrev, ly: totalOccLy },
+    1,
+  );
+  const adrRows = metricCsv("ADR", adrNow, adrPrev, adrLy, {
+    now: blendedAdr,
+    prev: totalAdrPrev,
+    ly: totalAdrLy,
+  });
 
   const sourceRows: (string | number)[][] = [
     ["Source", "Revenue", "Room nights", "ADR", "Share of revenue %"],
@@ -399,7 +449,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
   const tables: DraftTable[] = [
     { name: "revenue-performance", csv: toCsv(revenueRows) },
-    { name: "nights-occupancy-adr", csv: toCsv(performanceRows) },
+    { name: "room-nights", csv: toCsv(performanceRows) },
+    { name: "occupancy", csv: toCsv(occupancyRows) },
+    { name: "adr", csv: toCsv(adrRows) },
   ];
   if (sourceEntries.length > 0) {
     tables.push({ name: "source-mix", csv: toCsv(sourceRows) });
@@ -413,35 +465,60 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${hint ? `<span class="kpi-hint">${esc(hint)}</span>` : ""}
     </div>`;
 
+  /** Signed delta with a percentage, formatted for the metric in question. */
+  const deltaCell = (
+    current: number,
+    base: number,
+    format: (value: number) => string,
+    withPct = true,
+  ): string => {
+    const delta = current - base;
+    if (!base && !current) return `<span class="muted">—</span>`;
+    const colour = delta >= 0 ? primary : secondary;
+    const sign = delta > 0 ? "+" : delta < 0 ? "-" : "";
+    const pct = base ? Math.abs(delta / base) : 0;
+    return `<span style="color:${colour}">${sign}${esc(format(Math.abs(delta)))}${
+      withPct && base ? ` <span class="pct">(${sign}${esc(percent(pct, 1))})</span>` : ""
+    }</span>`;
+  };
+
+  const zar = (value: number) => money(value);
+  const nightsFmt = (value: number) => Math.round(value).toLocaleString("en-ZA");
+  const pctFmt = (value: number) => `${value.toFixed(1)}%`;
+
   const revenueTableHtml = `
-    <table class="grid">
+    <table class="grid tight">
       <thead>
         <tr>
           <th class="left">Month</th>
-          <th>OTB now</th>
-          <th>Previous</th>
+          <th>OTB ${esc(asOfLabel)}</th>
+          <th>${esc(options.previousAsOfDate ? `OTB ${formatLongDate(options.previousAsOfDate)}` : "Previous OTB")}</th>
           <th>Variance</th>
-          <th>Last year</th>
+          <th>Last year actual</th>
+          <th>OTB vs LY</th>
+          <th>Dinner</th>
+          <th>Room 0</th>
+          <th>Comp RNs</th>
           <th>Additional</th>
-          <th>Combined</th>
+          <th>Total combined</th>
         </tr>
       </thead>
       <tbody>
         ${months
           .map(
-            (key) => `
+            (key, i) => `
         <tr>
           <td class="left">${esc(monthLabel(key))}</td>
-          <td>${esc(money(Number(snapshot.otb_revenue[key]) || 0))}</td>
-          <td class="muted">${esc(money(Number(snapshot.previous_otb_revenue[key]) || 0))}</td>
-          <td>${varianceCell(
-            Number(snapshot.otb_revenue[key]) || 0,
-            Number(snapshot.previous_otb_revenue[key]) || 0,
-            theme,
-          )}</td>
-          <td class="muted">${esc(money(Number(snapshot.last_year_actual[key]) || 0))}</td>
-          <td class="muted">${esc(money(additionalByMonth[key] || 0))}</td>
-          <td class="strong">${esc(money(combinedByMonth[key] || 0))}</td>
+          <td>${esc(zar(otbNow[i]))}</td>
+          <td class="muted">${esc(zar(otbPrev[i]))}</td>
+          <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
+          <td class="muted">${esc(zar(otbLy[i]))}</td>
+          <td>${deltaCell(otbNow[i], otbLy[i], compactMoney)}</td>
+          <td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
+          <td class="muted">${room0[i] ? esc(zar(room0[i])) : "—"}</td>
+          <td class="muted">${compRns[i] ? nightsFmt(compRns[i]) : "—"}</td>
+          <td class="muted">${additional[i] ? esc(zar(additional[i])) : "—"}</td>
+          <td class="strong">${esc(zar(combined[i]))}</td>
         </tr>`,
           )
           .join("")}
@@ -449,51 +526,155 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       <tfoot>
         <tr>
           <td class="left">Total</td>
-          <td>${esc(money(totalOtb))}</td>
-          <td>${esc(money(totalPrevious))}</td>
-          <td>${varianceCell(totalOtb, totalPrevious, theme)}</td>
-          <td>${esc(money(totalLastYear))}</td>
-          <td>${esc(money(totalAdditional))}</td>
-          <td class="strong">${esc(money(totalCombined))}</td>
+          <td>${esc(zar(totalOtb))}</td>
+          <td>${esc(zar(totalPrevious))}</td>
+          <td>${deltaCell(totalOtb, totalPrevious, compactMoney)}</td>
+          <td>${esc(zar(totalLastYear))}</td>
+          <td>${deltaCell(totalOtb, totalLastYear, compactMoney)}</td>
+          <td>${totalDinner ? esc(zar(totalDinner)) : "—"}</td>
+          <td>${totalRoom0 ? esc(zar(totalRoom0)) : "—"}</td>
+          <td>${totalCompRns ? nightsFmt(totalCompRns) : "—"}</td>
+          <td>${esc(zar(totalAdditional))}</td>
+          <td class="strong">${esc(zar(totalCombined))}</td>
         </tr>
       </tfoot>
     </table>`;
 
-  const performanceTableHtml = `
-    <table class="grid">
-      <thead>
-        <tr>
-          <th class="left">Month</th>
-          <th>Room nights</th>
-          <th>Capacity</th>
-          <th>Occupancy</th>
-          <th>ADR</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${months
-          .map(
-            (key) => `
-        <tr>
-          <td class="left">${esc(monthLabel(key))}</td>
-          <td>${Math.round(Number(snapshot.room_nights[key]) || 0).toLocaleString("en-ZA")}</td>
-          <td class="muted">${Math.round(Number(snapshot.capacity_days[key]) || 0).toLocaleString("en-ZA")}</td>
-          <td>${esc(percent(Number(snapshot.occupancy[key]) || 0, 1))}</td>
-          <td>${esc(money(Number(snapshot.adr[key]) || 0))}</td>
-        </tr>`,
-          )
-          .join("")}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td class="left">Total</td>
-          <td>${Math.round(totalNights).toLocaleString("en-ZA")}</td>
-          <td>${Math.round(totalCapacity).toLocaleString("en-ZA")}</td>
-          <td>${esc(percent(blendedOccupancy, 1))}</td>
-          <td>${esc(money(blendedAdr))}</td>
-        </tr>
-      </tfoot>
-    </table>`;
+  /** Month × (OTB / previous / variance / last year / OTB vs LY) block. */
+  const metricGrid = (
+    caption: string,
+    now: number[],
+    prev: number[],
+    ly: number[],
+    totals: { now: number; prev: number; ly: number },
+    format: (value: number) => string,
+  ): string => `
+    <div class="block">
+      <h3 class="block-title">${esc(caption)}</h3>
+      <table class="grid tight">
+        <thead>
+          <tr>
+            <th class="left">Month</th>
+            <th>OTB ${esc(asOfLabel)}</th>
+            <th>${esc(options.previousAsOfDate ? formatLongDate(options.previousAsOfDate) : "Previous")}</th>
+            <th>Variance</th>
+            <th>Last year</th>
+            <th>OTB vs LY</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${months
+            .map(
+              (key, i) => `
+          <tr>
+            <td class="left">${esc(monthLabel(key))}</td>
+            <td>${esc(format(now[i]))}</td>
+            <td class="muted">${esc(format(prev[i]))}</td>
+            <td>${deltaCell(now[i], prev[i], format)}</td>
+            <td class="muted">${esc(format(ly[i]))}</td>
+            <td>${deltaCell(now[i], ly[i], format)}</td>
+          </tr>`,
+            )
+            .join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="left">${caption === "Occupancy" || caption === "Average daily rate" ? "Blended" : "Total"}</td>
+            <td>${esc(format(totals.now))}</td>
+            <td>${esc(format(totals.prev))}</td>
+            <td>${deltaCell(totals.now, totals.prev, format)}</td>
+            <td>${esc(format(totals.ly))}</td>
+            <td>${deltaCell(totals.now, totals.ly, format)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+
+  const nightsTableHtml = metricGrid(
+    "Room nights",
+    nightsNow,
+    nightsPrev,
+    nightsLy,
+    { now: totalNights, prev: totalNightsPrev, ly: totalNightsLy },
+    nightsFmt,
+  );
+  const occupancyTableHtml = metricGrid(
+    "Occupancy",
+    occNow,
+    occPrev,
+    occLy,
+    { now: blendedOccupancy * 100, prev: totalOccPrev, ly: totalOccLy },
+    pctFmt,
+  );
+  const adrTableHtml = metricGrid(
+    "Average daily rate",
+    adrNow,
+    adrPrev,
+    adrLy,
+    { now: blendedAdr, prev: totalAdrPrev, ly: totalAdrLy },
+    zar,
+  );
+
+  /** Revenue Comparison Review — OTB vs last year on revenue and ADR. */
+  const comparisonReviewHtml = `
+    <div class="block">
+      <h3 class="block-title">Revenue comparison review</h3>
+      <table class="grid tight">
+        <thead>
+          <tr>
+            <th class="left">Month</th>
+            <th>Revenue OTB</th>
+            <th>Revenue last year</th>
+            <th>Revenue %</th>
+            <th>ADR OTB</th>
+            <th>ADR last year</th>
+            <th>ADR %</th>
+            <th>Occupancy OTB</th>
+            <th>Occupancy last year</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${months
+            .map(
+              (key, i) => `
+          <tr>
+            <td class="left">${esc(monthLabel(key))}</td>
+            <td>${esc(zar(otbNow[i]))}</td>
+            <td class="muted">${esc(zar(otbLy[i]))}</td>
+            <td>${otbLy[i] ? deltaCell(otbNow[i], otbLy[i], compactMoney) : `<span class="muted">—</span>`}</td>
+            <td>${esc(zar(adrNow[i]))}</td>
+            <td class="muted">${esc(zar(adrLy[i]))}</td>
+            <td>${adrLy[i] ? deltaCell(adrNow[i], adrLy[i], zar) : `<span class="muted">—</span>`}</td>
+            <td>${esc(pctFmt(occNow[i]))}</td>
+            <td class="muted">${esc(pctFmt(occLy[i]))}</td>
+          </tr>`,
+            )
+            .join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="left">Total</td>
+            <td>${esc(zar(totalOtb))}</td>
+            <td>${esc(zar(totalLastYear))}</td>
+            <td>${totalLastYear ? deltaCell(totalOtb, totalLastYear, compactMoney) : `<span class="muted">—</span>`}</td>
+            <td>${esc(zar(blendedAdr))}</td>
+            <td>${esc(zar(totalAdrLy))}</td>
+            <td>${totalAdrLy ? deltaCell(blendedAdr, totalAdrLy, zar) : `<span class="muted">—</span>`}</td>
+            <td>${esc(pctFmt(blendedOccupancy * 100))}</td>
+            <td>${esc(pctFmt(totalOccLy))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+
+  const legendHtml = `
+    <ul class="legend">
+      <li><span class="swatch" style="background:${primary}"></span> OTB as at ${esc(asOfLabel)}</li>
+      <li><span class="swatch" style="background:#F5A3D0"></span> ${esc(options.previousAsOfDate ? `OTB as at ${formatLongDate(options.previousAsOfDate)}` : "Previous review")}</li>
+      <li><span class="swatch" style="background:${secondary}"></span> Last year actual</li>
+      <li class="legend-note">All provisional bookings are included in these figures.</li>
+    </ul>`;
+
 
   const sourceTableHtml =
     sourceEntries.length === 0
