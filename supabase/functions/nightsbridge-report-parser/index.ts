@@ -12,6 +12,11 @@ import {
   applyImportedBaseline,
   reconcileWithImportedBaseline,
 } from "../_shared/reportImportedBaseline.ts";
+import {
+  pastMonthsNote,
+  trimToReportWindow,
+  type PastMonthActual,
+} from "../_shared/reportWindow.ts";
 
 
 
@@ -405,6 +410,47 @@ Deno.serve(async (req) => {
     const aggregate = aggregateLedger(ledger, roomCount);
 
 
+    // Uploaded extracts for months before this review window (last year's
+
+    // actuals dropped in with the forward months) are comparatives, not report
+
+    // months: lift them out and keep them as last-year figures.
+
+    const pastMonths: PastMonthActual[] = trimToReportWindow(aggregate, String(run.as_of_date));
+
+    const pastRevenue: Record<string, number> = {};
+
+    const pastNights: Record<string, number> = {};
+
+    for (const entry of pastMonths) {
+
+      pastRevenue[entry.month] = entry.revenue;
+
+      pastNights[entry.month] = entry.nights;
+
+    }
+
+    if (pastMonths.length > 0) {
+
+      await logRunEvent(
+
+        admin,
+
+        runId,
+
+        "past_months_reclassified",
+
+        pastMonthsNote(pastMonths),
+
+        { past_months: pastMonths },
+
+        actorId,
+
+      );
+
+    }
+
+
     // The prior workbook knows months the uploads may not cover, and months the
     // uploads only skim. Widen the window, then substitute the thin months.
     const { addedMonths, substituted } = reconcileWithImportedBaseline(
@@ -472,10 +518,10 @@ Deno.serve(async (req) => {
     for (const key of aggregate.months) {
       const [year, month] = key.split("-").map(Number);
       const lyKey = `${year - 1}-${`${month}`.padStart(2, "0")}`;
-      if (baseline.revenue?.[lyKey] !== undefined) lastYearRevenue[key] = baseline.revenue[lyKey];
-      if (baseline.room_nights?.[lyKey] !== undefined) {
-        lastYearNights[key] = baseline.room_nights[lyKey];
-      }
+      const lyRevenue = baseline.revenue?.[lyKey] ?? pastRevenue[lyKey];
+      const lyNights = baseline.room_nights?.[lyKey] ?? pastNights[lyKey];
+      if (lyRevenue !== undefined) lastYearRevenue[key] = lyRevenue;
+      if (lyNights !== undefined) lastYearNights[key] = lyNights;
     }
 
     // A first run has no earlier run: fall back to figures imported from the
