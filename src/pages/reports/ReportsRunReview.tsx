@@ -501,6 +501,7 @@ export default function ReportsRunReview() {
       {snapshot && runId && (
         <ManualInputsCard
           runId={runId}
+          sourceType={run.sourceType}
           months={snapshot.months}
           otbRevenue={snapshot.otbRevenue}
           onReprocess={handleProcess}
