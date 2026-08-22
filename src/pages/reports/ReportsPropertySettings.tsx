@@ -383,9 +383,21 @@ export default function ReportsPropertySettings() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Capacity days = rooms × days in month (7 rooms × 31 = 217).
+              {Number(roomCount) >= 1
+                ? `Capacity days = ${Math.floor(Number(roomCount))} rooms × 31 days = ${(
+                    Math.floor(Number(roomCount)) * 31
+                  ).toLocaleString("en-ZA")} room nights.`
+                : "Capacity days = rooms × days in month (7 rooms × 31 = 217)."}
               {rolBrand && ` ROL inventory: ${ROOM_COUNT_SOURCE_LABEL[rolBrand.roomCountSource]}.`}
             </p>
+            {Number(roomCount) > 400 && (
+              <p className="text-xs font-medium text-destructive">
+                That looks like capacity days, not rooms — occupancy would print at about{" "}
+                {Math.round(100 / 31)}% of the true figure. Enter the sellable room count
+                (roughly {Math.max(1, Math.round(Number(roomCount) / 30.4))}).
+              </p>
+            )}
+
           </div>
 
           {/* Default report source */}
