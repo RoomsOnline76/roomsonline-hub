@@ -55,11 +55,12 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, title, properties(name)")
+      .select("id, property_id, as_of_date, previous_run_id, title, page_order, properties(name)")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
+
 
     const { data: snapshot, error: snapshotError } = await admin
       .from("report_snapshots")
