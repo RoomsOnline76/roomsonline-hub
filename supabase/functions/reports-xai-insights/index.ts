@@ -14,6 +14,10 @@ import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const MAX_SUGGESTION_CHARS = 480;
 const MAX_NARRATIVE_CHARS = 1800;
+/** Provider link caps are small, so slides are inlined as base64 — keep the pass bounded. */
+const MAX_SLIDE_IMAGES = 12;
+const MAX_SLIDE_BYTES = 4_500_000;
+const MEDIA_BUCKET = "revenue-reports";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
