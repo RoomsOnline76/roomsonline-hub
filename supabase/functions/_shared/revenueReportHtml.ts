@@ -1142,9 +1142,13 @@ ${pagesHtml}
       additional_revenue: Math.round(additionalByMonth[key] || 0),
       total_combined: Math.round(combinedByMonth[key] || 0),
       room_nights: Math.round(Number(snapshot.room_nights[key]) || 0),
+      previous_room_nights: Math.round(Number(snapshot.previous_room_nights?.[key]) || 0),
+      last_year_room_nights: Math.round(Number(snapshot.last_year_room_nights?.[key]) || 0),
       capacity_nights: Math.round(Number(snapshot.capacity_days[key]) || 0),
       adr: Math.round(Number(snapshot.adr[key]) || 0),
       occupancy: Number(((Number(snapshot.occupancy[key]) || 0) * 100).toFixed(1)),
+      dinner: Math.round(Number(inputs.dinner_by_month[key]) || 0),
+      room0: Math.round(Number(inputs.room0_by_month[key]) || 0),
       comp_room_nights: Math.round(Number(inputs.comp_rns_by_month[key]) || 0),
     })),
     source_mix: sourceEntries.map((entry) => ({
@@ -1159,8 +1163,16 @@ ${pagesHtml}
       rate_overrides: inputs.rate_override_notes,
       free_commentary: inputs.free_commentary,
     },
+    media: mediaSlots.map((slot) => ({
+      slot: slot.key,
+      section: slot.section,
+      title: slot.title,
+      images: slot.images.length,
+    })),
+    pages: pageDefs.map((def, index) => ({ page: index + 2, title: def.title })),
     charts: charts.map((chart) => ({ id: chart.id, title: chart.title, file: `charts/${chart.id}.svg` })),
     tables: tables.map((table) => ({ name: table.name, file: `tables/${table.name}.csv` })),
+
   };
 
   return { html, charts, tables, manifest };
