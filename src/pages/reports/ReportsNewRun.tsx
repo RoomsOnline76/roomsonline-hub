@@ -71,17 +71,8 @@ type WizardAction =
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
-const defaultTitle = (dateIso: string, cadence: ReportCadence): string => {
-  const prefix = `${CADENCE_LABEL[cadence]} Revenue Review`;
-  const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return prefix;
-  const formatted = parsed.toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return `${prefix} – ${formatted}`;
-};
+const defaultTitle = defaultRunTitle;
+
 
 const initialState: WizardState = {
   step: 1,
