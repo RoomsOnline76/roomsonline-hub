@@ -80,22 +80,15 @@ export function useSpecialReports(runId: string | undefined) {
   }, [runId, queryClient]);
 
   /**
-   * Short-lived link to view or print a generated slide. Storage serves the stored HTML
-   * as plain text, so it is re-wrapped as an HTML blob URL to render properly.
+   * Short-lived renderable copy of a generated slide plus its document title
+   * (used as the saved PDF filename).
    */
-  const open = useCallback(async (storagePath: string): Promise<string | null> => {
+  const open = useCallback(async (storagePath: string): Promise<RenderableReport | null> => {
     const { data, error } = await supabase.storage
       .from(BUCKET)
       .createSignedUrl(storagePath, 60 * 30);
     if (error || !data?.signedUrl) return null;
-    try {
-      const response = await fetch(data.signedUrl);
-      if (!response.ok) return data.signedUrl;
-      const html = await response.text();
-      return URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-    } catch {
-      return data.signedUrl;
-    }
+    return await toRenderableReport(data.signedUrl);
   }, []);
 
 
