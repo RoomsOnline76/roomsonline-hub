@@ -303,8 +303,9 @@ export default function ReportsPropertySettings() {
             <div className="space-y-1">
               <Label>Branding source</Label>
               <p className="text-xs text-muted-foreground">
-                Follow the property's own branding, fall back to the Rooms Online house
-                brand, or set report-only colours.
+                {isReportsClient
+                  ? "Standalone reporting clients have no ROL brand — set report-only logo and colours below, or follow the Rooms Online house brand."
+                  : "Follow the property's own branding, fall back to the Rooms Online house brand, or set report-only colours."}
               </p>
             </div>
             <ToggleGroup
@@ -313,12 +314,15 @@ export default function ReportsPropertySettings() {
               onValueChange={(v) => v && setBrandSource(v as ReportBrandSource)}
               className="justify-start flex-wrap"
             >
-              {(["property", "rol", "custom"] as ReportBrandSource[]).map((source) => (
+              {((isReportsClient
+                ? ["rol", "custom"]
+                : ["property", "rol", "custom"]) as ReportBrandSource[]).map((source) => (
                 <ToggleGroupItem key={source} value={source} className="text-xs px-3">
                   {REPORT_BRAND_SOURCE_LABEL[source]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+
 
             {brandSource === "property" && !rolBrand?.primary && (
               <p className="text-xs text-muted-foreground">
