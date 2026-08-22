@@ -589,15 +589,24 @@ Deno.serve(async (req) => {
           ?.sources ?? {}),
       } as Record<string, string>;
       let changed = false;
-      for (const key of aggregate.months) {
+      const foldable: { month: string; revenue: number; nights: number }[] = [
+        ...aggregate.months.map((key) => ({
+          month: key,
+          revenue: aggregate.otb_revenue[key] ?? 0,
+          nights: aggregate.room_nights[key] ?? 0,
+        })),
+        ...pastMonths,
+      ];
+      for (const entry of foldable) {
+        const key = entry.month;
         if (key >= currentKey) continue; // month still running or in the future
         if (revenueBase[key] === undefined) {
-          revenueBase[key] = aggregate.otb_revenue[key] ?? 0;
+          revenueBase[key] = entry.revenue;
           sources[key] = "run";
           changed = true;
         }
         if (nightsBase[key] === undefined) {
-          nightsBase[key] = aggregate.room_nights[key] ?? 0;
+          nightsBase[key] = entry.nights;
           sources[key] = sources[key] ?? "run";
           changed = true;
         }
