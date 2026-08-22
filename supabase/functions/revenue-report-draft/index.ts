@@ -93,6 +93,14 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .order("sort_order", { ascending: true });
 
+    // Custom "additional slide" sections the reviewer created for this run.
+    const { data: customSlotRows } = await admin
+      .from("report_media_slots")
+      .select("slot_key, section, title, layout, sort_order")
+      .eq("run_id", runId)
+      .order("sort_order", { ascending: true });
+
+
     // TOBI commentary the reviewer ticked for inclusion (edited wording wins).
     const { data: insightRow } = await admin
       .from("report_insights")
