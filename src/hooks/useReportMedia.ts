@@ -124,6 +124,22 @@ export function useReportMedia(runId: string | undefined) {
     onError: (error: Error) => toast.error(error.message || "Could not save the caption"),
   });
 
+  const setSectionTitle = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const { error } = await supabase
+        .from("report_media")
+        .update({ section_title: title.trim() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Section title saved");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not save the section title"),
+  });
+
+
   const remove = useMutation({
     mutationFn: async (row: ReportMediaRow) => {
       const { error } = await supabase.from("report_media").delete().eq("id", row.id);
