@@ -1,39 +1,34 @@
-# Fix the health report's channel failures
+# Retire the test channel account 741765 (connect@roomsonline.co.za)
 
-The report is flagging three real defects, not channel outages. Verified against the live queue rows.
+## What is bound today (verified)
 
-## What is actually wrong
-
-**1. Every queued acceptance retry is broken.**
-Rows for `confirm_request` all end with `Action "undefined" is not supported` after burning 5 attempts. The retry stores only the reservation parameters, so the drainer replays them without telling the channel API which verb to call. No queued acceptance has ever succeeded.
-
-**2. Retries continue for stays that are already finished.**
-Reservation `147032248` is `checked_in` and `147041016` is `cancelled` in ROL'OS, yet acceptances are still being retried for them every cron pass. The channel correctly refuses ("not available for a given dates"), and the refusal is then reported as a failure in the report.
-
-**3. Confirmed-stay pushes fail on missing guest email and stale listings.**
-The reservation XML sends an empty `<Email>` when the booking has none, which the channel rejects with "Guest email is required". Separately, pushes for listings the channel no longer has ("no listing 5655616/5655617") retry to exhaustion instead of parking as a known non-action.
+- One portfolio-scope channel account row for portfolio "RU test portfolio" (`owner_email: connect@roomsonline.co.za`), with no OwnerID, no keys — the shell the clones inherit from.
+- Four properties still tagged to this account via `ru_listings_verified_owner = "connect@roomsonline.co.za (OwnerID 741765)"`: RU Test Clone B, C, D and RU IT Blank Slate – Test Owner.
+- Clone B/C/D each hold a Rentals United mapping row, a currency-state row and 14 channel step-status rows. All three are already channel-archived and have push disabled.
+- Leftover traffic tied to the account: 739 finished queue rows, 205 notifications and 3 channel-origin bookings on Clone B, 80 repull-queue rows, 30 615 API log rows.
+- OwnerID 741765 is **not** in the retired registry (`ru_retired_accounts` holds only 741769, 741771, 741776, 741777, 741778), so roster reads, counts and health alerts still pick it up.
 
 ## What will change
 
-- Queued acceptances will carry their verb, so the retry after the one-call-per-minute limit actually lands and the drawer stops showing "Not yet confirmed".
-- Before retrying an acceptance, the drainer checks the booking's state: checked-in, checked-out, departed or cancelled stays are closed off as "nothing to do" instead of retrying and failing.
-- Reservation pushes fall back to the property's own reservations email when a guest email is missing, so the channel accepts the stay.
-- "No listing for this unit" and "property does not exist" outcomes are recorded as needs-republish non-actions rather than repeated failures, so the report shows work that needs doing instead of noise.
-- Retired test accounts (the six dead owner IDs) stay excluded from all of this.
+- 741765 joins the retired registry, so it is never read, counted, labelled, pushed to or alerted on again — the same treatment the other five dead test accounts get.
+- The portfolio's channel account shell is removed, so the test portfolio and its clones inherit no channel account.
+- The four properties are fully unbound from the channel: owner tag, verified listing counts, push flag, channel mappings, currency state and channel step progress all cleared. They stay in Properties, active and editable, with all local data (rates, images, units) untouched.
+- Parked channel work for the account is closed off: pending/failed queue rows, unprocessed notifications and repull-queue rows for these properties are cleared so nothing retries and the health report stops counting them.
+- The three channel-origin test bookings on Clone B keep their history but are relabelled as local records so no channel push is attempted for them.
+- API log history is left intact as audit evidence (it is read-only and already excluded from health once the owner is retired).
 
 ## Technical detail
 
-`supabase/functions/_shared/ruBookingSync.ts`
-- Add `action: 'confirm_request'` to the `enqueueRuCall` payload at the reopen-and-park branch (~line 602).
+Single migration:
 
-`supabase/functions/cron-ru-call-queue-drain/index.ts`
-- Build the replay body as `{ action: row.action, ...payload, deferrable: false, queued_replay: true }` so any legacy queued row missing `action` still replays correctly.
-- For `action === 'confirm_request'`, look up the booking by `external_reservation_id` before invoking; if `status` is `cancelled`/`checked_in`/`checked_out`/`completed`, mark the row `no_op` with a clear reason and skip the call.
-- Extend `isNoOp()` to match `no listing (\d+) for this unit`, `republish the unit`, and `property does not exist`, so those park as `no_op`.
+1. `INSERT INTO ru_retired_accounts (ru_owner_id, portal_email, reason)` → `('741765', 'connect@roomsonline.co.za', 'Test sub-account and test portfolio — retired 2026-08-22; properties remain local only')` with `ON CONFLICT (ru_owner_id) DO NOTHING`.
+2. `DELETE FROM ru_owner_accounts WHERE id = 'd295f4a7-c9e4-428a-a73e-5d59c917f19c'`.
+3. For the four property ids (`700a9471…`, `0079ba7c…`, `c7351c08…`, `4b1e0a10-0000-4000-8000-000000000002`):
+   - `UPDATE properties SET ru_push_enabled = false, ru_listings_verified_owner = NULL, ru_listings_verified_units = NULL, ru_listings_unmatched = NULL, ru_listings_expected_units = NULL, ru_listings_verified_at = NULL, ru_location_id = NULL, ru_image_tags = NULL, ru_hold_reason = NULL, ru_hold_set_at = NULL, ru_hold_set_by = NULL` (leaving `is_active` and `ru_archived` as they are).
+   - `DELETE FROM pms_mappings WHERE system_type ILIKE '%rental%'`, `DELETE FROM ru_currency_state`, `DELETE FROM property_channel_step_status`, `DELETE FROM ru_readiness_snapshots`, `DELETE FROM ru_notifications`, `DELETE FROM ru_lnm_repull_queue`, `DELETE FROM ru_discounts`, `DELETE FROM ru_duplicate_repairs`, `DELETE FROM ru_mcq_orders`, `DELETE FROM ru_cert_runs` for those property ids.
+   - `DELETE FROM ru_call_queue WHERE ru_owner_id::text = '741765' OR property_id IN (...)`.
+   - `UPDATE bookings SET integration_type = 'rolos', external_reservation_id = NULL WHERE property_id IN (...) AND integration_type LIKE 'rentalsunited%'`, and delete their `booking_sync_status` rows for `external_system = 'rentalsunited'`.
 
-`supabase/functions/rentalsunited-api/index.ts`
-- In `Push_PutConfirmedReservationMulti_RQ` (~line 896) fall back to the property's arrival/reservations email, then a constant no-reply address, when `guest.email` is empty. Same fallback for the modify path if it builds `CustomerInfo`.
+No edge-function code changes are needed — `_shared/ruRetiredAccounts.ts` already filters the roster from the registry.
 
-Deploy: `cron-ru-call-queue-drain`, `rentalsunited-api`, plus any function importing `ruBookingSync`.
-
-Verification: clear the exhausted `failed` rows for the two terminal reservations, then confirm a fresh drain pass logs `ok`/`no_op` and the next health report shows no `confirm_request` failures.
+Verification after the migration: re-query the four properties for a null owner tag and zero mappings, confirm the queue/notification counts for the account are zero, and re-run the channel entitlement read to confirm 741765 is reported as excluded rather than active.
