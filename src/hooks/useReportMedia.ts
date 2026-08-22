@@ -81,9 +81,36 @@ export function useReportMedia(runId: string | undefined) {
     },
   });
 
+  const slotsQueryKey = useMemo(() => ["report-media-slots", runId], [runId]);
+
+  const customSlots = useQuery({
+    queryKey: slotsQueryKey,
+    enabled: Boolean(runId),
+    staleTime: 60_000,
+    queryFn: async (): Promise<ReportSlotDefinition[]> => {
+      const { data, error } = await supabase
+        .from("report_media_slots")
+        .select("id, slot_key, section, title, hint, layout, sort_order")
+        .eq("run_id", runId as string)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.id as string,
+        key: row.slot_key as string,
+        section: (row.section as string) ?? (row.title as string),
+        title: (row.title as string) ?? "Additional slides",
+        hint: (row.hint as string) ?? "Paste anything else the revenue team needs in the report.",
+        layout: row.layout === "half" ? "half" : "full",
+        isCustom: true,
+      }));
+    },
+  });
+
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey });
-  }, [queryClient, queryKey]);
+    void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
+  }, [queryClient, queryKey, slotsQueryKey]);
+
 
   const upload = useMutation({
     mutationFn: async ({ slotKey, files }: { slotKey: string; files: File[] }) => {
