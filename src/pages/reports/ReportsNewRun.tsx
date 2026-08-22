@@ -5,6 +5,7 @@ import { Building2, Check, ChevronLeft, ChevronRight, Loader2, Search } from "lu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,6 +54,8 @@ interface WizardState {
   sourceType: ReportSourceKey;
   asOfDate: string;
   cadence: ReportCadence;
+  /** Optional add-on slide set (currently `cheetaplains`) or null. */
+  specialSet: string | null;
   title: string;
   titleEdited: boolean;
   files: File[];
@@ -65,6 +68,7 @@ type WizardAction =
   | { type: "sourceType"; value: ReportSourceKey }
   | { type: "asOfDate"; value: string }
   | { type: "cadence"; value: ReportCadence }
+  | { type: "specialSet"; value: string | null }
   | { type: "title"; value: string }
   | { type: "addFiles"; files: File[] }
   | { type: "removeFile"; index: number }
@@ -82,6 +86,7 @@ const initialState: WizardState = {
   sourceType: DEFAULT_REPORT_SOURCE,
   asOfDate: todayIso(),
   cadence: "bimonthly",
+  specialSet: null,
   title: defaultTitle(todayIso(), "bimonthly"),
   titleEdited: false,
   files: [],
@@ -108,6 +113,8 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
         cadence: action.value,
         title: state.titleEdited ? state.title : defaultTitle(state.asOfDate, action.value),
       };
+    case "specialSet":
+      return { ...state, specialSet: action.value };
     case "title":
       return { ...state, title: action.value, titleEdited: true };
     case "addFiles":
@@ -165,11 +172,14 @@ export default function ReportsNewRun() {
   const loadDefaultSource = useCallback(async (propertyId: string) => {
     const { data } = await supabase
       .from("property_report_settings")
-      .select("default_source_type")
+      .select("default_source_type, special_report_set")
       .eq("property_id", propertyId)
       .maybeSingle();
     const next = data?.default_source_type;
     if (isReportSourceKey(next)) dispatch({ type: "sourceType", value: next });
+    // The property's configured set is only a suggestion — the reviewer can untick it.
+    const suggested = (data as { special_report_set?: string | null } | null)?.special_report_set;
+    dispatch({ type: "specialSet", value: suggested ?? null });
   }, []);
 
   // Pre-fill the narrative notes from this property's most recent run.
@@ -212,6 +222,7 @@ export default function ReportsNewRun() {
         title: state.title.trim() || defaultTitle(state.asOfDate, state.cadence),
         sourceType: state.sourceType,
         cadence: state.cadence,
+        specialReportSet: state.specialSet,
       });
 
       const result = await uploadSourceFiles({
@@ -443,6 +454,26 @@ export default function ReportsNewRun() {
                   onChange={(e) => dispatch({ type: "title", value: e.target.value })}
                 />
               </div>
+            </div>
+
+            {/* Optional extras layered on top of the standard pack */}
+            <div className="rounded-md border px-3 py-3 space-y-2">
+              <p className="text-sm font-medium">Optional extras</p>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <Checkbox
+                  checked={state.specialSet === "cheetaplains"}
+                  onCheckedChange={(checked) =>
+                    dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
+                  }
+                  aria-label="Add Cheetah Plains owner slides"
+                />
+                <span className="space-y-1">
+                  <span className="block text-sm">Add Cheetah Plains owner slides</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Nationality and travel-partner slides, built on top of the regular report.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="flex justify-between">

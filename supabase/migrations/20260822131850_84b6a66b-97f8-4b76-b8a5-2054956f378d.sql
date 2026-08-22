@@ -1,0 +1,1 @@
+ALTER TABLE public.report_runs ADD COLUMN IF NOT EXISTS special_report_set text;

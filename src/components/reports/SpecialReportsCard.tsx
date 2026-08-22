@@ -5,18 +5,29 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useSpecialReports } from "@/hooks/useSpecialReports";
 import { reportsPath } from "@/lib/config";
 
 interface SpecialReportsCardProps {
   runId: string;
+  /** Whether this run opted into the add-on slides. */
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void | Promise<void>;
+  isToggling?: boolean;
 }
 
 /**
  * CheetaPlains owner-pack extras: the nationality and booking-partner slides.
- * Only rendered for properties flagged with that report set.
+ * An optional extra picked per report run, on top of the standard pack.
  */
-export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
+export function SpecialReportsCard({
+  runId,
+  enabled,
+  onToggle,
+  isToggling = false,
+}: SpecialReportsCardProps) {
   const { reports, generate, isGenerating } = useSpecialReports(runId);
 
   const handleGenerate = useCallback(async () => {
@@ -31,7 +42,27 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
   return (
     <Card>
       <CardHeader className="pb-3 flex flex-row items-center justify-between gap-3">
-        <CardTitle className="text-base font-medium">Specialised owner slides</CardTitle>
+        <div className="space-y-1">
+          <CardTitle className="text-base font-medium">Optional extra: owner slides</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Cheetah Plains nationality and travel-partner slides, added on top of the regular report.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="extras-toggle" className="text-xs text-muted-foreground">
+            {enabled ? "Included" : "Off"}
+          </Label>
+          <Switch
+            id="extras-toggle"
+            checked={enabled}
+            disabled={isToggling}
+            onCheckedChange={(next) => void onToggle(next)}
+            aria-label="Include the optional owner slides in this report"
+          />
+        </div>
+      </CardHeader>
+      {enabled && (
+      <CardContent className="space-y-3">
         <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
           {isGenerating ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -40,8 +71,6 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
           )}
           {reports.length ? "Rebuild" : "Build slides"}
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
         {reports.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Upload the Bookings by Nationality workbook and the reservation-list export, then
@@ -87,6 +116,7 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
           ))
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

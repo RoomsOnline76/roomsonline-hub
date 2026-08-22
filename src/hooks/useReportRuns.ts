@@ -41,6 +41,8 @@ export interface ReportRunSummary {
   status: ReportRunStatus;
   title: string | null;
   cadence: ReportCadence;
+  /** Optional add-on slide set chosen for this run, e.g. `cheetaplains`. */
+  specialReportSet: string | null;
   fileCount: number;
   errorMessage: string | null;
   processingNote: string | null;
@@ -68,6 +70,7 @@ interface RunRow {
   status: string | null;
   title: string | null;
   cadence?: string | null;
+  special_report_set?: string | null;
   error_message?: string | null;
   processing_note?: string | null;
   created_at: string;
@@ -99,6 +102,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
   status: asStatus(row.status),
   title: row.title,
   cadence: asCadence(row.cadence),
+  specialReportSet: row.special_report_set ?? null,
   fileCount: row.report_source_files?.[0]?.count ?? 0,
   errorMessage: row.error_message ?? null,
   processingNote: row.processing_note ?? null,
@@ -106,7 +110,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, cadence, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */
@@ -197,6 +201,8 @@ export interface CreateReportRunInput {
   title: string;
   sourceType?: string;
   cadence?: ReportCadence;
+  /** Optional add-on slide set on top of the standard pack. */
+  specialReportSet?: string | null;
 }
 
 export function useReportRunMutations() {
@@ -226,6 +232,7 @@ export function useReportRunMutations() {
           source_type: isReportSourceKey(input.sourceType)
             ? input.sourceType
             : DEFAULT_REPORT_SOURCE,
+          special_report_set: input.specialReportSet ?? null,
           status: "draft",
           previous_run_id: previous?.id ?? null,
           created_by: auth.user?.id ?? null,
@@ -272,7 +279,18 @@ export function useReportRunMutations() {
     onSuccess: invalidate,
   });
 
-  return { createRun, deleteRun, deleteFile, invalidate };
+  const setSpecialReportSet = useMutation({
+    mutationFn: async ({ runId, value }: { runId: string; value: string | null }) => {
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ special_report_set: value })
+        .eq("id", runId);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
+  return { createRun, deleteRun, deleteFile, setSpecialReportSet, invalidate };
 }
 
 export interface BaselineCandidate {

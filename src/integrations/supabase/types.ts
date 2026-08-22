@@ -8576,6 +8576,7 @@ export type Database = {
           processing_note: string | null
           property_id: string
           source_type: string
+          special_report_set: string | null
           status: string
           title: string | null
           updated_at: string
@@ -8599,6 +8600,7 @@ export type Database = {
           processing_note?: string | null
           property_id: string
           source_type?: string
+          special_report_set?: string | null
           status?: string
           title?: string | null
           updated_at?: string
@@ -8622,6 +8624,7 @@ export type Database = {
           processing_note?: string | null
           property_id?: string
           source_type?: string
+          special_report_set?: string | null
           status?: string
           title?: string | null
           updated_at?: string
