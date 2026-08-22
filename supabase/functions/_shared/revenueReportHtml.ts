@@ -1290,7 +1290,7 @@ ${pagesHtml}
       ),
     })),
 
-    pages: pageDefs.map((def, index) => ({ page: index + 2, title: def.title })),
+    pages: pageDefs.map((def, index) => ({ page: index + 2, key: def.key, title: def.title })),
     charts: charts.map((chart) => ({ id: chart.id, title: chart.title, file: `charts/${chart.id}.svg` })),
     tables: tables.map((table) => ({ name: table.name, file: `tables/${table.name}.csv` })),
 
