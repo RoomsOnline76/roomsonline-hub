@@ -812,13 +812,14 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
         title: heading,
         body: `
     <div class="block">
-      <div class="shots one-up">
+      <div class="shots one-up full-page">
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(heading)}" />
+          <span class="frame"><img src="${esc(image.url)}" alt="${esc(heading)}" /></span>
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>
       </div>
     </div>`,
+
       });
     });
   }
@@ -850,7 +851,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           .map(
             (image) => `
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(group.heading)}" />
+          <span class="frame"><img src="${esc(image.url)}" alt="${esc(group.heading)}" /></span>
+
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>`,
           )
@@ -1211,19 +1213,49 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   .legend .swatch { width: 3mm; height: 3mm; border-radius: 0.6mm; display: inline-block; }
   .legend .legend-note { font-style: italic; }
 
-  /* Pasted screenshots */
+  /* Pasted screenshots — every shot sits in a uniform frame and is scaled to
+     fit inside it, so odd/tall/small uploads all print the same width and
+     never run off the sheet. */
   .shots { display: grid; gap: 3mm; }
   .shots.one-up { grid-template-columns: 1fr; }
   .shots.two-up { grid-template-columns: 1fr 1fr; }
-  figure.shot { margin: 0; break-inside: avoid; }
-  figure.shot img {
+  figure.shot {
+    margin: 0;
+    break-inside: avoid;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  figure.shot .frame {
     width: 100%;
-    height: auto;
-    display: block;
+    height: 120mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 1.5mm;
+    background: #fff;
+    padding: 1.5mm;
   }
-  figure.shot figcaption { margin-top: 1.5mm; font-size: 8pt; color: var(--muted); }
+  .shots.two-up figure.shot .frame { height: 110mm; }
+  /* A media page holding a single screenshot gives it the whole page height. */
+  .shots.one-up.full-page figure.shot .frame { height: 232mm; }
+  figure.shot img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
+    object-fit: contain;
+  }
+  figure.shot figcaption {
+    margin-top: 1.5mm;
+    font-size: 8pt;
+    color: var(--muted);
+    width: 100%;
+  }
+
 
 
 
