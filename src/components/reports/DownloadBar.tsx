@@ -3,6 +3,7 @@ import { FileArchive, FileSpreadsheet, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
+import { downloadFile } from "@/lib/reportDraftHtml";
 
 interface Props {
   hasSnapshot: boolean;
