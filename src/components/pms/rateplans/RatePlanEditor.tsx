@@ -280,6 +280,30 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     };
   }, [propertyId, ratePlanId, roomTypes]);
 
+  // Candidate parent plans: same property, active, not this plan, and not derived themselves.
+  useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name, derived_from_plan_id")
+        .eq("property_id", propertyId)
+        .is("deleted_at", null)
+        .order("name");
+      if (cancelled) return;
+      setParentOptions(
+        (data ?? [])
+          .filter((p) => p.id !== ratePlanId && !p.derived_from_plan_id)
+          .map((p) => ({ id: String(p.id), name: String(p.name ?? "Untitled plan") })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, ratePlanId]);
+
+
   // Mirror the Calendar's seasons into the shared season table so saves can reference them.
   useEffect(() => {
     if (!propertyId) return;
