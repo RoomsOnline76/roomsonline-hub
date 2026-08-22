@@ -10,6 +10,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
   buildNationalityTable,
   isNationalityGrid,
@@ -176,7 +177,9 @@ Deno.serve(async (req) => {
 
       let sheets: Record<string, Grid>;
       try {
-        sheets = readSheets(await download.data.arrayBuffer());
+        sheets = readSheets(
+          (await repairWorkbookBuffer(await download.data.arrayBuffer())).buffer,
+        );
       } catch (error) {
         nationalityNotes.push(
           `${file.original_filename}: unreadable workbook (${error instanceof Error ? error.message : "unknown"})`,

@@ -105,6 +105,10 @@ export default function ReportsRunReview() {
   const specialSet = run
     ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
     : null;
+  /** Only Cheetah Plains properties (or runs already carrying the set) see it. */
+  const ownerSlidesOffered =
+    propertySettings?.specialReportSet === "cheetaplains" ||
+    run?.specialReportSet === "cheetaplains";
   const { setSpecialReportSet } = useReportRunMutations();
   const handleToggleExtras = useCallback(
     async (enabled: boolean) => {
@@ -514,7 +518,8 @@ export default function ReportsRunReview() {
       {runId && <SlideOrganizerCard runId={runId} sourceType={run.sourceType} />}
 
 
-      {runId && (
+      {/* Owner slides are a Cheetah Plains-only add-on. */}
+      {runId && ownerSlidesOffered && (
         <SpecialReportsCard
           runId={runId}
           enabled={specialSet === "cheetaplains"}

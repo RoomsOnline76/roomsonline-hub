@@ -134,7 +134,7 @@ const STEPS: { step: Step; label: string }[] = [
   { step: 1, label: "Property" },
   { step: 2, label: "Details" },
   { step: 3, label: "Files" },
-  { step: 4, label: "Notes" },
+  { step: 4, label: "Notes (optional)" },
 ];
 
 export default function ReportsNewRun() {
@@ -143,6 +143,9 @@ export default function ReportsNewRun() {
   const [search, setSearch] = useState("");
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
+  // Owner slides are a Cheetah Plains-only add-on: offered only when the
+  // property's report settings configure that set.
+  const [ownerSlidesOffered, setOwnerSlidesOffered] = useState(false);
   const { properties, isLoading } = useReportProperties(search);
   const { createRun } = useReportRunMutations();
 
@@ -179,7 +182,9 @@ export default function ReportsNewRun() {
     if (isReportSourceKey(next)) dispatch({ type: "sourceType", value: next });
     // The property's configured set is only a suggestion — the reviewer can untick it.
     const suggested = (data as { special_report_set?: string | null } | null)?.special_report_set;
-    dispatch({ type: "specialSet", value: suggested ?? null });
+    const offered = suggested === "cheetaplains";
+    setOwnerSlidesOffered(offered);
+    dispatch({ type: "specialSet", value: offered ? "cheetaplains" : null });
   }, []);
 
   // Pre-fill the narrative notes from this property's most recent run.
@@ -456,25 +461,27 @@ export default function ReportsNewRun() {
               </div>
             </div>
 
-            {/* Optional extras layered on top of the standard pack */}
-            <div className="rounded-md border px-3 py-3 space-y-2">
-              <p className="text-sm font-medium">Optional extras</p>
-              <label className="flex items-start gap-3 cursor-pointer">
-                <Checkbox
-                  checked={state.specialSet === "cheetaplains"}
-                  onCheckedChange={(checked) =>
-                    dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
-                  }
-                  aria-label="Add Cheetah Plains owner slides"
-                />
-                <span className="space-y-1">
-                  <span className="block text-sm">Add Cheetah Plains owner slides</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Nationality and travel-partner slides, built on top of the regular report.
+            {/* Optional extras — Cheetah Plains owner slides only */}
+            {ownerSlidesOffered && (
+              <div className="rounded-md border px-3 py-3 space-y-2">
+                <p className="text-sm font-medium">Optional extras</p>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={state.specialSet === "cheetaplains"}
+                    onCheckedChange={(checked) =>
+                      dispatch({ type: "specialSet", value: checked ? "cheetaplains" : null })
+                    }
+                    aria-label="Add Cheetah Plains owner slides"
+                  />
+                  <span className="space-y-1">
+                    <span className="block text-sm">Add Cheetah Plains owner slides</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Nationality and travel-partner slides, built on top of the regular report.
+                    </span>
                   </span>
-                </span>
-              </label>
-            </div>
+                </label>
+              </div>
+            )}
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => dispatch({ type: "step", step: 1 })}>
@@ -508,7 +515,11 @@ export default function ReportsNewRun() {
               onFilesAdded={handleAddFiles}
               onRemove={handleRemoveFile}
             />
-            <div className="flex justify-between">
+            <p className="text-xs text-muted-foreground">
+              Notes are optional — create the run now and add them on the review page, or
+              continue to capture them here.
+            </p>
+            <div className="flex justify-between gap-2">
               <Button
                 variant="ghost"
                 onClick={() => dispatch({ type: "step", step: 2 })}
@@ -517,13 +528,20 @@ export default function ReportsNewRun() {
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              <Button
-                onClick={() => dispatch({ type: "step", step: 4 })}
-                disabled={!canProcess || busy}
-              >
-                Continue
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => dispatch({ type: "step", step: 4 })}
+                  disabled={!canProcess || busy}
+                >
+                  Add notes
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+                <Button onClick={() => void handleCreate()} disabled={!canProcess || busy}>
+                  {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Create run
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

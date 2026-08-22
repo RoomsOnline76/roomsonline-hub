@@ -12,6 +12,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { parsePriorReportWorkbook } from "../_shared/priorReportWorkbook.ts";
+import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -108,7 +109,9 @@ Deno.serve(async (req) => {
 
     // The run's own as-of date decides which OTB column is the comparison
     // baseline — the newest one strictly older than this run.
-    const extract = parsePriorReportWorkbook(await download.data.arrayBuffer(), {
+    // protel-sourced workbooks arrive UTF-16 encoded; transcode before reading.
+    const priorRepair = await repairWorkbookBuffer(await download.data.arrayBuffer());
+    const extract = parsePriorReportWorkbook(priorRepair.buffer, {
       runAsOfDate: run.as_of_date ? String(run.as_of_date).slice(0, 10) : null,
     });
 

@@ -2,6 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
   aggregateLedger,
   type LedgerRow,
@@ -299,8 +300,8 @@ Deno.serve(async (req) => {
       // Parse one workbook at a time and release the buffer before the next file.
       let parsed: ParsedFile;
       {
-        const buffer = await download.data.arrayBuffer();
-        parsed = parseWorkbook(buffer, file.original_filename);
+        const repair = await repairWorkbookBuffer(await download.data.arrayBuffer());
+        parsed = parseWorkbook(repair.buffer, file.original_filename);
       }
       const ok = parsed.rows.length > 0;
       if (ok) {
