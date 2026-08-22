@@ -160,7 +160,7 @@ const formatShortDate = (iso: string): string => {
 export function pdfDocumentTitle(
   propertyName: string,
   reportKind: string,
-  asOfIso: string,
+  asOfIso?: string | null,
 ): string {
   const clean = (value: string) =>
     value
@@ -169,9 +169,10 @@ export function pdfDocumentTitle(
       .replace(/\s+/g, " ")
       .trim();
 
-  return clean(
-    `${propertyName} - ${reportKind} - ${formatShortDate(asOfIso)} by RoomsOnline - Sleep in Africa`,
-  );
+  const dateLabel = asOfIso ? formatShortDate(asOfIso) : "";
+  const stamp = dateLabel ? ` - ${dateLabel}` : "";
+
+  return clean(`${propertyName} - ${reportKind}${stamp} by RoomsOnline - Sleep in Africa`);
 }
 
 const csvCell = (value: string | number): string => {
