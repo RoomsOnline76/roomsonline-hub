@@ -196,24 +196,82 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     if (chart) charts.push(chart);
   };
 
+  // Per-month derived series shared by the charts and the metric grids.
+  const num = (map: Record<string, number> | undefined, key: string) => Number(map?.[key]) || 0;
+  const otbNow = months.map((key) => num(snapshot.otb_revenue, key));
+  const otbPrev = months.map((key) => num(snapshot.previous_otb_revenue, key));
+  const otbLy = months.map((key) => num(snapshot.last_year_actual, key));
+  const nightsNow = months.map((key) => num(snapshot.room_nights, key));
+  const nightsPrev = months.map((key) => num(snapshot.previous_room_nights, key));
+  const nightsLy = months.map((key) => num(snapshot.last_year_room_nights, key));
+  const capacity = months.map((key) => num(snapshot.capacity_days, key));
+  const dinner = months.map((key) => num(inputs.dinner_by_month, key));
+  const room0 = months.map((key) => num(inputs.room0_by_month, key));
+  const compRns = months.map((key) => num(inputs.comp_rns_by_month, key));
+  const additional = months.map((key) => additionalByMonth[key] || 0);
+  const combined = months.map((key) => combinedByMonth[key] || 0);
+
+  const ratio = (top: number, bottom: number) => (bottom > 0 ? top / bottom : 0);
+  const occNow = months.map((_, i) =>
+    (Number(snapshot.occupancy[months[i]]) || ratio(nightsNow[i], capacity[i])) * 100,
+  );
+  const occPrev = months.map((_, i) => ratio(nightsPrev[i], capacity[i]) * 100);
+  const occLy = months.map((_, i) => ratio(nightsLy[i], capacity[i]) * 100);
+  const adrNow = months.map((_, i) => Number(snapshot.adr[months[i]]) || ratio(otbNow[i], nightsNow[i]));
+  const adrPrev = months.map((_, i) => ratio(otbPrev[i], nightsPrev[i]));
+  const adrLy = months.map((_, i) => ratio(otbLy[i], nightsLy[i]));
+
+  const prevLabel = options.previousAsOfDate
+    ? `OTB ${formatLongDate(options.previousAsOfDate)}`
+    : "Previous OTB";
+
   pushChart(
     groupedBarChart({
-      id: "otb-vs-last-year",
-      title: "On the books vs last year",
+      id: "revenue-grouped",
+      title: "Revenue — on the books, previous review, last year and combined",
       labels,
       series: [
-        {
-          name: "OTB now",
-          colour: primary,
-          values: months.map((key) => Number(snapshot.otb_revenue[key]) || 0),
-        },
-        {
-          name: "Last year actual",
-          colour: secondary,
-          values: months.map((key) => Number(snapshot.last_year_actual[key]) || 0),
-        },
+        { name: `OTB ${asOfLabel}`, colour: primary, values: otbNow },
+        { name: prevLabel, colour: "#F5A3D0", values: otbPrev },
+        { name: "Last year actual", colour: secondary, values: otbLy },
+        { name: "Additional revenue", colour: "#9CA3AF", values: additional },
+        { name: "Total combined", colour: "#4B5563", values: combined },
       ],
       theme,
+      height: 320,
+    }),
+  );
+
+  pushChart(
+    groupedBarChart({
+      id: "occupancy-grouped",
+      title: "Occupancy % — on the books, previous review and last year",
+      labels,
+      series: [
+        { name: `OTB ${asOfLabel}`, colour: primary, values: occNow },
+        { name: prevLabel, colour: "#F5A3D0", values: occPrev },
+        { name: "Last year actual", colour: secondary, values: occLy },
+      ],
+      theme,
+      height: 275,
+      format: (value) => `${Math.round(value)}%`,
+      valueLabels: months.length <= 8,
+    }),
+  );
+
+  pushChart(
+    groupedBarChart({
+      id: "adr-grouped",
+      title: "Average daily rate — on the books, previous review and last year",
+      labels,
+      series: [
+        { name: `OTB ${asOfLabel}`, colour: primary, values: adrNow },
+        { name: prevLabel, colour: "#F5A3D0", values: adrPrev },
+        { name: "Last year actual", colour: secondary, values: adrLy },
+      ],
+      theme,
+      height: 275,
+      valueLabels: months.length <= 8,
     }),
   );
 
@@ -223,12 +281,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       title: options.previousAsOfDate
         ? `Pickup since ${formatLongDate(options.previousAsOfDate)}`
         : "Pickup since previous review",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value:
-          (Number(snapshot.otb_revenue[key]) || 0) -
-          (Number(snapshot.previous_otb_revenue[key]) || 0),
-      })),
+      points: months.map((key, i) => ({ label: monthLabel(key), value: otbNow[i] - otbPrev[i] })),
       theme,
     }),
   );
@@ -237,13 +290,20 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     lineChart({
       id: "adr-trend",
       title: "Average daily rate trend",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value: Number(snapshot.adr[key]) || 0,
-      })),
+      points: months.map((key, i) => ({ label: monthLabel(key), value: adrNow[i] })),
       theme,
     }),
   );
+
+  pushChart(
+    occupancyStrip({
+      id: "occupancy",
+      title: "Occupancy on the books",
+      points: months.map((key, i) => ({ label: monthLabel(key), value: occNow[i] / 100 })),
+      theme,
+    }),
+  );
+
 
   pushChart(
     occupancyStrip({
