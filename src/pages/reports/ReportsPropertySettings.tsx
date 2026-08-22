@@ -100,6 +100,9 @@ export default function ReportsPropertySettings() {
       setRoomCount(String(rolBrand.roomCount));
       setRoomCountTouched(true);
     }
+  }, [isLoading, settings, rolBrand, roomCountTouched]);
+
+
 
   // Reporting clients: load their editable identity fields.
   useEffect(() => {
