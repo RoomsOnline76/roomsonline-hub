@@ -8,7 +8,11 @@ import {
   type DraftSnapshot,
   type DraftMediaSlot,
 } from "../_shared/revenueReportHtml.ts";
-import { isBuiltInSlotKey, slotsForSource } from "../_shared/reportMediaSlots.ts";
+import {
+  builtInSlotByKey,
+  isBuiltInSlotKey,
+  slotsForSource,
+} from "../_shared/reportMediaSlots.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -177,6 +181,14 @@ Deno.serve(async (req) => {
         ),
         ...slotRows.filter((row) => !isBuiltInSlotKey(row.key)),
       ];
+
+      // Images captured under a slot that this source no longer lists still print.
+      for (const row of mediaRows) {
+        const key = String(row.slot_key);
+        if (definitions.some((definition) => definition.key === key)) continue;
+        const fallback = builtInSlotByKey(key);
+        if (fallback) definitions.push(fallback);
+      }
 
       for (const definition of definitions) {
         const images = mediaRows

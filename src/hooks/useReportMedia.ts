@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
+  builtInSlotByKey,
   isBuiltInSlotKey,
   slotsForSource,
   type MediaSlotDefinition,
@@ -340,8 +341,18 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
         isRenamed: true,
       };
     });
-    return [...builtIns, ...rows.filter((row) => row.isCustom)];
-  }, [customSlots.data, sourceType]);
+    const known = new Set([...builtIns, ...rows].map((slot) => slot.key));
+    // Images captured under another source's slot stay visible (and printable)
+    // so switching a run's source never hides work already done.
+    const orphans: ReportSlotDefinition[] = [];
+    for (const row of query.data ?? []) {
+      if (known.has(row.slot_key) || orphans.some((slot) => slot.key === row.slot_key)) continue;
+      const fallback = builtInSlotByKey(row.slot_key);
+      if (!fallback) continue;
+      orphans.push({ ...fallback, isCustom: false });
+    }
+    return [...builtIns, ...rows.filter((row) => row.isCustom), ...orphans];
+  }, [customSlots.data, query.data, sourceType]);
 
   const slots: ReportMediaSlotState[] = useMemo(
     () =>

@@ -255,3 +255,12 @@ export function isBuiltInSlotKey(key: string): boolean {
     slotsForSource(source).some((slot) => slot.key === key),
   );
 }
+
+/** Any source's definition for a key — used to keep orphaned images visible. */
+export function builtInSlotByKey(key: string): MediaSlotDefinition | undefined {
+  for (const source of REPORT_SOURCE_TYPES) {
+    const found = slotsForSource(source).find((slot) => slot.key === key);
+    if (found) return found;
+  }
+  return undefined;
+}
