@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
       asOfDate: String(run.as_of_date).slice(0, 10),
       previousAsOfDate: previousAsOf,
       cadence: String(run.cadence ?? "bimonthly") === "monthly" ? "monthly" : "bimonthly",
+      sourceType: (run as unknown as { source_type?: string | null }).source_type ?? null,
       branding: {
         logoUrl: settings?.report_logo_url ?? null,
         coverArtworkUrl: settings?.cover_artwork_url ?? null,
