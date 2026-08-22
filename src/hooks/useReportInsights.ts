@@ -78,7 +78,7 @@ export function useReportInsights(runId: string | undefined) {
         narrative: data.narrative ?? null,
         narrativeFinal: data.narrative_final ?? null,
         includeNarrative: data.include_narrative !== false,
-        selections: (data.selections ?? {}) as Record<string, InsightSelection>,
+        selections: (data.selections ?? {}) as unknown as Record<string, InsightSelection>,
         flags: Array.isArray(data.flags) ? (data.flags as unknown as InsightFlag[]) : [],
         suggestions: (data.suggestions ?? {}) as ReportInsights["suggestions"],
         chartRecommendation: data.chart_recommendation ?? null,
