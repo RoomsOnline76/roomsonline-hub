@@ -36,6 +36,13 @@ export const DEFAULT_PAGE_ORDER: string[] = [
   REPORT_NOTES_PAGE.key,
 ];
 
+/** Default order for a specific source's section headings. */
+export const defaultPageOrderForSource = (source: unknown): string[] => [
+  ...REPORT_DATA_PAGES.map((page) => page.key),
+  ...mediaSectionsForSource(source).map(mediaPageKey),
+  REPORT_NOTES_PAGE.key,
+];
+
 export const mediaImagePageKey = (imageId: string): string => `media:img:${imageId}`;
 
 /**
