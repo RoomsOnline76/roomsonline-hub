@@ -1,21 +1,34 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { FileText, Loader2, Printer, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { printFrameWithTitle } from "@/lib/reportDraftHtml";
 
 interface Props {
   url: string | null;
   isGenerating: boolean;
   onGenerate: () => void;
   pageCount?: number;
+  /** The report's own document title — used as the saved PDF filename. */
+  documentTitle?: string | null;
+  /** Same-origin route that opens the report full page. */
+  viewerHref?: string;
 }
 
 /**
  * Embedded A4 preview of the generated draft report. Printing the iframe keeps the
  * report's own @page rules, which is what produces a clean PDF.
  */
-export function DraftReportPreview({ url, isGenerating, onGenerate, pageCount = 5 }: Props) {
+export function DraftReportPreview({
+  url,
+  isGenerating,
+  onGenerate,
+  pageCount = 5,
+  documentTitle,
+  viewerHref,
+}: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [activePage, setActivePage] = useState(1);
 
@@ -25,11 +38,8 @@ export function DraftReportPreview({ url, isGenerating, onGenerate, pageCount = 
   );
 
   const handlePrint = useCallback(() => {
-    const frame = frameRef.current;
-    if (!frame?.contentWindow) return;
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
-  }, []);
+    printFrameWithTitle(frameRef.current, documentTitle);
+  }, [documentTitle]);
 
   const handleJump = useCallback((page: number) => {
     setActivePage(page);
