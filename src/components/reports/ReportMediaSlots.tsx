@@ -200,15 +200,20 @@ function SlotEditor({
 export function ReportMediaSlots({ runId }: ReportMediaSlotsProps) {
   const media = useReportMedia(runId);
   const [open, setOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
 
   const bySection = useMemo(
     () =>
-      MEDIA_SECTIONS.map((section) => ({
+      media.sections.map((section) => ({
         section,
         slots: media.slots.filter((slot) => slot.definition.section === section),
       })),
-    [media.slots],
+    [media.sections, media.slots],
   );
+
+  const addSection = () => {
+    media.createSlot.mutate(newTitle, { onSuccess: () => setNewTitle("") });
+  };
 
   return (
     <Card>
@@ -248,9 +253,44 @@ export function ReportMediaSlots({ runId }: ReportMediaSlotsProps) {
                 </div>
               </div>
             ))}
+
+            <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Add another slide section
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={newTitle}
+                  onChange={(event) => setNewTitle(event.target.value)}
+                  placeholder="e.g. Airbnb performance"
+                  className="h-9 max-w-xs text-sm"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addSection();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addSection}
+                  disabled={media.createSlot.isPending}
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  Add section
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Each section prints as its own page once you paste an image into it. Use the slide
+                organizer below to change where it lands.
+              </p>
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
     </Card>
   );
 }
+
