@@ -201,9 +201,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             .eq("rate_plan_id", ratePlanId),
           supabase
             .from("rolos_rate_plan_season_rates")
-            .select("shared_season_id, room_type_id, base_rate, differential_type, differential_value, extra_adult_rate")
+            .select(
+              "shared_season_id, room_type_id, base_rate, differential_type, differential_value, extra_adult_rate, derivation_value, is_pinned",
+            )
             .eq("rate_plan_id", ratePlanId)
             .is("deleted_at", null),
+
           supabase.from("rolos_policy_rate_links").select("policy_id").eq("rate_plan_id", ratePlanId).maybeSingle(),
         ]);
 
