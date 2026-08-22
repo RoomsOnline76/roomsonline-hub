@@ -53,9 +53,20 @@ Hard rules:
 - No vendor names, no mention of AI, models or providers. No emojis. No markdown headings.
 - British/South African English. Avoid hype words ("skyrocket", "phenomenal").
 
+House style for the narrative — one line per month, in chronological order, blank line
+between lines, no bullets or dashes at the start. Each line reads:
+"<Month> - <what happened>, <gap or lead vs target or last year>!"
+Worked examples of the exact tone and shape (numbers here are illustrative only):
+"July - ended with R144k on the books, R66k (84%) ahead on target!"
+"September - had a pick-up of R11k, trailing last year by R28k (43%)."
+"October - R74k increase, needing R48k (16%) to achieve target."
+Use "k" abbreviations exactly as above for these month lines. Use an exclamation mark only
+where the month is ahead; a full stop otherwise. Cover every month present in the data.
+
 Return STRICT JSON with exactly these keys:
 {
-  "narrative": "two short paragraphs separated by a blank line",
+  "narrative": "one line per month in the house style, separated by blank lines",
+
   "flag_notes": { "<flag id>": "one plain sentence explaining what it means and what to do" },
   "suggestions": {
     "min_stay_notes": "suggested minimum-stay commentary or empty string",
@@ -200,6 +211,9 @@ Deno.serve(async (req) => {
     const record = {
       run_id: runId,
       narrative: clamp(ai.narrative, MAX_NARRATIVE_CHARS),
+      // A fresh generation supersedes the previous reviewer edits and ticks.
+      narrative_final: null,
+      selections: {},
       flags: enrichedFlags,
       suggestions,
       chart_recommendation: clamp(ai.chart_recommendation, 240),
@@ -207,6 +221,7 @@ Deno.serve(async (req) => {
       generated_by: userData.user.id,
       generated_at: new Date().toISOString(),
     };
+
 
     const { error: saveError } = await admin
       .from("report_insights")

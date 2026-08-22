@@ -1,12 +1,15 @@
-import { useCallback, useMemo, useState } from "react";
-import { Check, Copy, Loader2, Sparkles, TriangleAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, Copy, Loader2, Pencil, Sparkles, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   useReportInsights,
+  type InsightSelection,
   type InsightSeverity,
   type SuggestionField,
 } from "@/hooks/useReportInsights";
@@ -38,10 +41,42 @@ interface Props {
 
 /** TOBI's written read on the run: narrative, flags and suggested commentary. */
 export function AiInsightsPanel({ runId }: Props) {
-  const { insights, isLoading, generate, isGenerating, acceptSuggestion } =
+  const { insights, isLoading, generate, isGenerating, acceptSuggestion, saveReview } =
     useReportInsights(runId);
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Record<string, boolean>>({});
+  const [narrativeDraft, setNarrativeDraft] = useState<string>("");
+  const [editingNarrative, setEditingNarrative] = useState(false);
+
+  const narrativeText = insights?.narrativeFinal ?? insights?.narrative ?? "";
+
+  useEffect(() => {
+    setNarrativeDraft(narrativeText);
+  }, [narrativeText]);
+
+  const selections = insights?.selections ?? {};
+
+  const toggleSelection = useCallback(
+    (key: string, fallbackText: string, include: boolean) => {
+      const next: Record<string, InsightSelection> = {
+        ...selections,
+        [key]: { include, text: selections[key]?.text ?? fallbackText },
+      };
+      saveReview.mutate({ selections: next });
+    },
+    [selections, saveReview],
+  );
+
+  const editSelection = useCallback(
+    (key: string, text: string, include: boolean) => {
+      const next: Record<string, InsightSelection> = {
+        ...selections,
+        [key]: { include, text },
+      };
+      saveReview.mutate({ selections: next });
+    },
+    [selections, saveReview],
+  );
 
   const handleGenerate = useCallback(async () => {
     setError(null);
@@ -86,7 +121,7 @@ export function AiInsightsPanel({ runId }: Props) {
 
   const paragraphs = useMemo(
     () =>
-      (insights?.narrative ?? "")
+      (insights?.narrativeFinal ?? insights?.narrative ?? "")
         .split(/\n{2,}/)
         .map((part) => part.trim())
         .filter(Boolean),
@@ -136,22 +171,86 @@ export function AiInsightsPanel({ runId }: Props) {
           </p>
         )}
 
-        {paragraphs.length > 0 && (
-          <div className="space-y-3">
-            {paragraphs.map((text, index) => (
-              <p key={index} className="text-sm leading-relaxed text-foreground">
-                {text}
-              </p>
-            ))}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 px-2 text-xs"
-              onClick={() => void copy(paragraphs.join("\n\n"))}
-            >
-              <Copy className="h-3.5 w-3.5 mr-1.5" />
-              Copy narrative
-            </Button>
+        {narrativeText.trim().length > 0 && (
+          <div className="space-y-3 rounded-lg border border-border p-3">
+            <label className="flex items-start gap-2">
+              <Checkbox
+                checked={insights?.includeNarrative !== false}
+                onCheckedChange={(checked) =>
+                  saveReview.mutate({ includeNarrative: checked === true })
+                }
+                className="mt-0.5"
+              />
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Include this review in the report
+              </span>
+            </label>
+
+            {editingNarrative ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={narrativeDraft}
+                  onChange={(event) => setNarrativeDraft(event.target.value)}
+                  rows={Math.min(20, Math.max(6, narrativeDraft.split("\n").length + 1))}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="h-7 px-3 text-xs"
+                    disabled={saveReview.isPending}
+                    onClick={() => {
+                      saveReview.mutate({ narrativeFinal: narrativeDraft });
+                      setEditingNarrative(false);
+                      toast.success("Review saved");
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-3 text-xs"
+                    onClick={() => {
+                      setNarrativeDraft(narrativeText);
+                      setEditingNarrative(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {paragraphs.map((text, index) => (
+                    <p key={index} className="text-sm leading-relaxed text-foreground whitespace-pre-line">
+                      {text}
+                    </p>
+                  ))}
+                </div>
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditingNarrative(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    Edit wording
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => void copy(narrativeText)}
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                    Copy
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -178,7 +277,18 @@ export function AiInsightsPanel({ runId }: Props) {
                           {SEVERITY_STYLES[flag.severity]?.label}
                         </span>
                       </div>
-                      <p className="text-sm text-foreground">{flag.factText}</p>
+                      <label className="flex items-start gap-2">
+                        <Checkbox
+                          checked={selections[flag.id]?.include === true}
+                          onCheckedChange={(checked) =>
+                            toggleSelection(flag.id, flag.factText, checked === true)
+                          }
+                          className="mt-0.5"
+                        />
+                        <span className="text-sm text-foreground">
+                          {selections[flag.id]?.text ?? flag.factText}
+                        </span>
+                      </label>
                       {flag.note && (
                         <p className="text-sm text-muted-foreground">{flag.note}</p>
                       )}
@@ -200,7 +310,15 @@ export function AiInsightsPanel({ runId }: Props) {
               {suggestionRows.map(({ field, text }) => (
                 <div key={field} className="rounded-lg border border-border p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{FIELD_LABELS[field]}</span>
+                    <label className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selections[field]?.include === true}
+                        onCheckedChange={(checked) =>
+                          toggleSelection(field, text, checked === true)
+                        }
+                      />
+                      <span className="text-sm font-medium">{FIELD_LABELS[field]}</span>
+                    </label>
                     <div className="flex items-center gap-1">
                       <Button
                         size="sm"
@@ -224,7 +342,16 @@ export function AiInsightsPanel({ runId }: Props) {
                       </Button>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>
+                  <Textarea
+                    defaultValue={selections[field]?.text ?? text}
+                    rows={3}
+                    className="text-sm"
+                    onBlur={(event) => {
+                      const value = event.target.value;
+                      if ((selections[field]?.text ?? text) === value) return;
+                      editSelection(field, value, selections[field]?.include === true);
+                    }}
+                  />
                 </div>
               ))}
             </div>

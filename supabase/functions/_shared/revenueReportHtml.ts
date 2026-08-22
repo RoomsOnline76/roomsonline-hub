@@ -52,6 +52,8 @@ export interface DraftBranding {
 export interface DraftMediaImage {
   url: string;
   caption: string | null;
+  /** Optional heading entered by the revenue team for this image's block. */
+  sectionTitle?: string | null;
 }
 
 export interface DraftMediaSlot {
@@ -71,7 +73,10 @@ export interface DraftOptions {
   inputs: DraftInputs;
   /** Screenshots pasted in by the revenue team, already signed for rendering. */
   media?: DraftMediaSlot[];
+  /** TOBI lines the reviewer ticked for inclusion, in final (possibly edited) wording. */
+  tobiCommentary?: string[];
 }
+
 
 
 export interface DraftTable {
@@ -217,55 +222,67 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     ? `OTB ${formatLongDate(options.previousAsOfDate)}`
     : "Previous OTB";
 
+  // Signed comparison series — the same units as their parent chart.
+  const diff = (a: number[], b: number[]) => a.map((value, i) => value - (b[i] ?? 0));
+  const VARIANCE_COLOUR = "#7C3AED";
+  const VS_LY_COLOUR = "#0EA5A4";
+
   pushChart(
     groupedBarChart({
       id: "revenue-grouped",
-      title: "Revenue — on the books, previous review, last year and combined",
+      title: "Revenue — on the books, previous review, last year, variance and combined",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: otbNow },
         { name: prevLabel, colour: "#F5A3D0", values: otbPrev },
         { name: "Last year actual", colour: secondary, values: otbLy },
+        { name: "Variance", colour: VARIANCE_COLOUR, values: diff(otbNow, otbPrev) },
+        { name: "OTB vs LY", colour: VS_LY_COLOUR, values: diff(otbNow, otbLy) },
         { name: "Additional revenue", colour: "#9CA3AF", values: additional },
         { name: "Total combined", colour: "#4B5563", values: combined },
       ],
       theme,
-      height: 320,
+      height: 340,
     }),
   );
 
   pushChart(
     groupedBarChart({
       id: "occupancy-grouped",
-      title: "Occupancy % — on the books, previous review and last year",
+      title: "Occupancy % — on the books, previous review, last year, variance and OTB vs LY",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: occNow },
         { name: prevLabel, colour: "#F5A3D0", values: occPrev },
         { name: "Last year actual", colour: secondary, values: occLy },
+        { name: "Variance (pts)", colour: VARIANCE_COLOUR, values: diff(occNow, occPrev) },
+        { name: "OTB vs LY (pts)", colour: VS_LY_COLOUR, values: diff(occNow, occLy) },
       ],
       theme,
-      height: 275,
+      height: 290,
       format: (value) => `${Math.round(value)}%`,
-      valueLabels: months.length <= 8,
+      valueLabels: months.length <= 6,
     }),
   );
 
   pushChart(
     groupedBarChart({
       id: "adr-grouped",
-      title: "Average daily rate — on the books, previous review and last year",
+      title: "Average daily rate — on the books, previous review, last year, variance and OTB vs LY",
       labels,
       series: [
         { name: `OTB ${asOfLabel}`, colour: primary, values: adrNow },
         { name: prevLabel, colour: "#F5A3D0", values: adrPrev },
         { name: "Last year actual", colour: secondary, values: adrLy },
+        { name: "Variance", colour: VARIANCE_COLOUR, values: diff(adrNow, adrPrev) },
+        { name: "OTB vs LY", colour: VS_LY_COLOUR, values: diff(adrNow, adrLy) },
       ],
       theme,
-      height: 275,
-      valueLabels: months.length <= 8,
+      height: 290,
+      valueLabels: months.length <= 6,
     }),
   );
+
 
   pushChart(
     varianceBarChart({
@@ -719,21 +736,53 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     else mediaSections.push({ section: slot.section, slots: [slot] });
   }
 
-  const mediaSlotHtml = (slot: DraftMediaSlot): string => `
+  // Images within a slot are grouped by the title the reviewer typed, so each
+  // named section prints under its own heading; untitled images keep the slot name.
+  const mediaSlotHtml = (slot: DraftMediaSlot): string => {
+    const groups: { heading: string; images: DraftMediaImage[] }[] = [];
+    for (const image of slot.images) {
+      const heading = (image.sectionTitle ?? "").trim() || slot.title;
+      const existing = groups.find((group) => group.heading === heading);
+      if (existing) existing.images.push(image);
+      else groups.push({ heading, images: [image] });
+    }
+    return groups
+      .map(
+        (group) => `
     <div class="block">
-      <h3 class="block-title">${esc(slot.title)}</h3>
+      <h3 class="block-title">${esc(group.heading)}</h3>
       <div class="shots ${slot.layout === "half" ? "two-up" : "one-up"}">
-        ${slot.images
+        ${group.images
           .map(
             (image) => `
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(slot.title)}" />
+          <img src="${esc(image.url)}" alt="${esc(group.heading)}" />
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>`,
           )
           .join("")}
       </div>
-    </div>`;
+    </div>`,
+      )
+      .join("");
+  };
+
+  // ── TOBI commentary the reviewer ticked for inclusion ─────────────────
+  const tobiLines = (options.tobiCommentary ?? [])
+    .flatMap((entry) => String(entry ?? "").split(/\n+/))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  const tobiHtml =
+    tobiLines.length > 0
+      ? `
+    <div class="notes">
+      <div class="note">
+        <h4>Revenue Commentary</h4>
+        <ul class="tobi">${tobiLines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
+      </div>
+    </div>`
+      : "";
+
 
   const notesPageBody = `
     ${commentary ? `<div class="notes">${commentary}</div>` : ""}
@@ -789,7 +838,10 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     </div>`;
 
   const pageDefs: { title: string; body: string }[] = [
-    { title: "Revenue Performance", body: `${revenueKpis}${revenueTableHtml}${legendHtml}` },
+    {
+      title: "Revenue Performance",
+      body: `${revenueKpis}${revenueTableHtml}${tobiHtml}${legendHtml}`,
+    },
     { title: "Room Nights & Occupancy", body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}` },
     { title: "Rate & Comparison Review", body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}` },
     {
@@ -797,10 +849,6 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       body: `${figure("revenue-grouped")}${figure("occupancy-grouped")}${figure("adr-grouped")}`,
     },
     { title: "Pickup & Rate Trend", body: `${figure("pickup-variance")}${figure("adr-trend")}` },
-    ...mediaSections.map((entry) => ({
-      title: entry.section,
-      body: entry.slots.map(mediaSlotHtml).join(""),
-    })),
     ...(sourceEntries.length > 0
       ? [
           {
@@ -809,8 +857,13 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           },
         ]
       : []),
+    ...mediaSections.map((entry) => ({
+      title: entry.section,
+      body: entry.slots.map(mediaSlotHtml).join(""),
+    })),
     { title: "Process Notes", body: notesPageBody },
   ].filter((def) => def.body.trim().length > 0);
+
 
   const pagesHtml = pageDefs
     .map((def, index) => {
@@ -1059,6 +1112,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     font-weight: 500;
   }
   .note p { margin: 0; font-size: 9.5pt; line-height: 1.5; }
+  ul.tobi { margin: 0; padding-left: 4mm; font-size: 9.5pt; line-height: 1.55; }
+  ul.tobi li { margin: 0 0 1mm; }
+
   .fineprint { font-size: 8.5pt; color: var(--muted); line-height: 1.6; }
   .fineprint li { margin-bottom: 1.5mm; }
   .contact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; font-size: 9pt; }
@@ -1172,13 +1228,18 @@ ${pagesHtml}
       promotions: inputs.promotions_notes,
       rate_overrides: inputs.rate_override_notes,
       free_commentary: inputs.free_commentary,
+      tobi: tobiLines,
     },
     media: mediaSlots.map((slot) => ({
       slot: slot.key,
       section: slot.section,
       title: slot.title,
       images: slot.images.length,
+      section_titles: Array.from(
+        new Set(slot.images.map((image) => (image.sectionTitle ?? "").trim()).filter(Boolean)),
+      ),
     })),
+
     pages: pageDefs.map((def, index) => ({ page: index + 2, title: def.title })),
     charts: charts.map((chart) => ({ id: chart.id, title: chart.title, file: `charts/${chart.id}.svg` })),
     tables: tables.map((table) => ({ name: table.name, file: `tables/${table.name}.csv` })),

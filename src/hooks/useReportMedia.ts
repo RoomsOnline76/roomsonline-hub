@@ -12,6 +12,7 @@ export interface ReportMediaRow {
   slot_key: string;
   storage_path: string;
   caption: string | null;
+  section_title: string | null;
   sort_order: number;
   content_type: string | null;
 }
@@ -49,7 +50,7 @@ export function useReportMedia(runId: string | undefined) {
     queryFn: async (): Promise<ReportMediaImage[]> => {
       const { data, error } = await supabase
         .from("report_media")
-        .select("id, run_id, slot_key, storage_path, caption, sort_order, content_type")
+        .select("id, run_id, slot_key, storage_path, caption, section_title, sort_order, content_type")
         .eq("run_id", runId as string)
         .order("sort_order", { ascending: true });
       if (error) throw error;
@@ -124,6 +125,22 @@ export function useReportMedia(runId: string | undefined) {
     onError: (error: Error) => toast.error(error.message || "Could not save the caption"),
   });
 
+  const setSectionTitle = useMutation({
+    mutationFn: async ({ id, title }: { id: string; title: string }) => {
+      const { error } = await supabase
+        .from("report_media")
+        .update({ section_title: title.trim() || null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Section title saved");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not save the section title"),
+  });
+
+
   const remove = useMutation({
     mutationFn: async (row: ReportMediaRow) => {
       const { error } = await supabase.from("report_media").delete().eq("id", row.id);
@@ -169,6 +186,7 @@ export function useReportMedia(runId: string | undefined) {
     isLoading: query.isLoading,
     upload,
     setCaption,
+    setSectionTitle,
     remove,
     move,
     refresh: invalidate,

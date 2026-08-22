@@ -107,6 +107,15 @@ function SlotEditor({
                 className="w-full rounded border border-border object-contain"
               />
               <Input
+                defaultValue={image.section_title ?? ""}
+                placeholder="Section title (prints as the heading)"
+                className="h-8 text-xs font-medium"
+                onBlur={(event) => {
+                  if ((image.section_title ?? "") === event.target.value.trim()) return;
+                  media.setSectionTitle.mutate({ id: image.id, title: event.target.value });
+                }}
+              />
+              <Input
                 defaultValue={image.caption ?? ""}
                 placeholder="Caption (optional)"
                 className="h-8 text-xs"
@@ -115,6 +124,7 @@ function SlotEditor({
                   media.setCaption.mutate({ id: image.id, caption: event.target.value });
                 }}
               />
+
               <div className="flex items-center justify-between">
                 <div className="flex gap-1">
                   <Button
