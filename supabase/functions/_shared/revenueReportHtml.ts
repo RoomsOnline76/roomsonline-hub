@@ -124,8 +124,6 @@ const sum = (map: Record<string, number>, keys: string[]): number =>
 
 const notesBlock = (title: string, body: string | null): string => {
 
-
-const notesBlock = (title: string, body: string | null): string => {
   if (!body || !body.trim()) return "";
   return `<div class="note"><h4>${esc(title)}</h4><p>${esc(body.trim()).replace(/\n/g, "<br />")}</p></div>`;
 };
