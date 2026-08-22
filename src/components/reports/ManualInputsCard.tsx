@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useReportAdditionalInputs } from "@/hooks/usePropertyReportSettings";
 import { monthLabel } from "@/lib/historicalBaseline";
+import { getAdapter } from "@/lib/report-adapters";
 
 const money = (value: number): string =>
   new Intl.NumberFormat("en-ZA", {
@@ -20,6 +21,8 @@ type Draft = Record<string, { dinner: string; room0: string; comp: string }>;
 
 interface Props {
   runId: string;
+  /** Drives which monthly columns exist — OPERA has no Dinner / Room 0. */
+  sourceType?: string | null;
   months: string[];
   otbRevenue: Record<string, number>;
   onSaved?: () => void | Promise<void>;
@@ -27,15 +30,41 @@ interface Props {
   isProcessing?: boolean;
 }
 
-/** Dinner / Room 0 / complimentary room nights and the narrative notes. */
+/** Adapter-driven monthly extras (Dinner / Room 0 / comp nights) and narrative notes. */
 export function ManualInputsCard({
   runId,
+  sourceType,
   months,
   otbRevenue,
   onSaved,
   onReprocess,
   isProcessing = false,
 }: Props) {
+  const monthlyKeys = useMemo(
+    () =>
+      new Set(
+        getAdapter(sourceType)
+          .getDefaultAdditionalFields()
+          .monthly.map((field) => field.key),
+      ),
+    [sourceType],
+  );
+  const showDinner = monthlyKeys.has("dinner_by_month");
+  const showRoom0 = monthlyKeys.has("room0_by_month");
+  const showComp = monthlyKeys.has("comp_rns_by_month");
+  const showAdditional = showDinner || showRoom0;
+  const gridCols = [
+    "6rem",
+    showDinner ? "1fr" : null,
+    showRoom0 ? "1fr" : null,
+    showComp ? "1fr" : null,
+    showAdditional ? "7rem" : null,
+    "8rem",
+  ]
+    .filter(Boolean)
+    .join("_");
+  const gridClass = `grid grid-cols-[${gridCols}] gap-2`;
+
   const { inputs, save } = useReportAdditionalInputs(runId);
   const [draft, setDraft] = useState<Draft>({});
   const [minStay, setMinStay] = useState("");
@@ -69,7 +98,8 @@ export function ManualInputsCard({
     const perMonth: Record<string, { additional: number; combined: number }> = {};
     for (const key of months) {
       const row = draft[key];
-      const extra = (Number(row?.dinner) || 0) + (Number(row?.room0) || 0);
+      const extra =
+        (showDinner ? Number(row?.dinner) || 0 : 0) + (showRoom0 ? Number(row?.room0) || 0 : 0);
       const base = otbRevenue[key] ?? 0;
       perMonth[key] = { additional: extra, combined: base + extra };
       additional += extra;
@@ -77,7 +107,7 @@ export function ManualInputsCard({
       comp += Number(row?.comp) || 0;
     }
     return { additional, otb, comp, combined: otb + additional, perMonth };
-  }, [draft, months, otbRevenue]);
+  }, [draft, months, otbRevenue, showDinner, showRoom0]);
 
   const handleSave = async () => {
     const dinnerByMonth: Record<string, number> = {};
@@ -86,9 +116,9 @@ export function ManualInputsCard({
     for (const key of months) {
       const row = draft[key];
       if (!row) continue;
-      if (row.dinner.trim()) dinnerByMonth[key] = Number(row.dinner) || 0;
-      if (row.room0.trim()) room0ByMonth[key] = Number(row.room0) || 0;
-      if (row.comp.trim()) compRnsByMonth[key] = Number(row.comp) || 0;
+      if (showDinner && row.dinner.trim()) dinnerByMonth[key] = Number(row.dinner) || 0;
+      if (showRoom0 && row.room0.trim()) room0ByMonth[key] = Number(row.room0) || 0;
+      if (showComp && row.comp.trim()) compRnsByMonth[key] = Number(row.comp) || 0;
     }
     try {
       await save.mutateAsync({
@@ -121,58 +151,68 @@ export function ManualInputsCard({
       <CardContent className="space-y-5">
         <div className="overflow-x-auto">
           <div className="min-w-[40rem] space-y-2">
-            <div className="grid grid-cols-[6rem_1fr_1fr_1fr_7rem_8rem] gap-2 text-xs uppercase tracking-wide text-muted-foreground">
+            <div className={`${gridClass} text-xs uppercase tracking-wide text-muted-foreground`}>
               <span>Month</span>
-              <span>Dinner</span>
-              <span>Room 0</span>
-              <span>Comp RNs</span>
-              <span className="text-right">Additional</span>
-              <span className="text-right">Combined</span>
+              {showDinner && <span>Dinner</span>}
+              {showRoom0 && <span>Room 0</span>}
+              {showComp && <span>Comp RNs</span>}
+              {showAdditional && <span className="text-right">Additional</span>}
+              <span className="text-right">{showAdditional ? "Combined" : "OTB revenue"}</span>
             </div>
             {months.map((key) => (
-              <div
-                key={key}
-                className="grid grid-cols-[6rem_1fr_1fr_1fr_7rem_8rem] items-center gap-2"
-              >
+              <div key={key} className={`${gridClass} items-center`}>
                 <span className="text-sm font-medium">{monthLabel(key)}</span>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={draft[key]?.dinner ?? ""}
-                  onChange={(e) => update(key, "dinner", e.target.value)}
-                  aria-label={`Dinner revenue for ${monthLabel(key)}`}
-                />
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  value={draft[key]?.room0 ?? ""}
-                  onChange={(e) => update(key, "room0", e.target.value)}
-                  aria-label={`Room 0 revenue for ${monthLabel(key)}`}
-                />
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={draft[key]?.comp ?? ""}
-                  onChange={(e) => update(key, "comp", e.target.value)}
-                  aria-label={`Complimentary room nights for ${monthLabel(key)}`}
-                />
-                <span className="text-sm text-right tabular-nums text-muted-foreground">
-                  {money(totals.perMonth[key]?.additional ?? 0)}
-                </span>
+                {showDinner && (
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft[key]?.dinner ?? ""}
+                    onChange={(e) => update(key, "dinner", e.target.value)}
+                    aria-label={`Dinner revenue for ${monthLabel(key)}`}
+                  />
+                )}
+                {showRoom0 && (
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft[key]?.room0 ?? ""}
+                    onChange={(e) => update(key, "room0", e.target.value)}
+                    aria-label={`Room 0 revenue for ${monthLabel(key)}`}
+                  />
+                )}
+                {showComp && (
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={draft[key]?.comp ?? ""}
+                    onChange={(e) => update(key, "comp", e.target.value)}
+                    aria-label={`Complimentary room nights for ${monthLabel(key)}`}
+                  />
+                )}
+                {showAdditional && (
+                  <span className="text-sm text-right tabular-nums text-muted-foreground">
+                    {money(totals.perMonth[key]?.additional ?? 0)}
+                  </span>
+                )}
                 <span className="text-sm text-right tabular-nums font-medium">
                   {money(totals.perMonth[key]?.combined ?? 0)}
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-[6rem_1fr_1fr_1fr_7rem_8rem] items-center gap-2 border-t pt-2 text-sm font-medium">
+            <div className={`${gridClass} items-center border-t pt-2 text-sm font-medium`}>
               <span>Total</span>
-              <span className="col-span-2 text-muted-foreground font-normal">
-                OTB {money(totals.otb)}
-              </span>
-              <span className="text-muted-foreground font-normal tabular-nums">
-                {totals.comp} comp RN(s)
-              </span>
-              <span className="text-right tabular-nums">{money(totals.additional)}</span>
+              {showDinner && (
+                <span className="text-muted-foreground font-normal">OTB {money(totals.otb)}</span>
+              )}
+              {showRoom0 && <span />}
+              {showComp && (
+                <span className="text-muted-foreground font-normal tabular-nums">
+                  {totals.comp} comp RN(s)
+                </span>
+              )}
+              {showAdditional && (
+                <span className="text-right tabular-nums">{money(totals.additional)}</span>
+              )}
               <span className="text-right tabular-nums">{money(totals.combined)}</span>
             </div>
           </div>
