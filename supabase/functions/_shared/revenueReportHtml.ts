@@ -846,7 +846,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
         (group) => `
     <div class="block">
       <h3 class="block-title">${esc(group.heading)}</h3>
-      <div class="shots ${slot.layout === "half" ? "two-up" : "one-up"}">
+      <div class="shots one-up">
         ${group.images
           .map(
             (image) => `
