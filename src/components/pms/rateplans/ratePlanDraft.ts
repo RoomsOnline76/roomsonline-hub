@@ -162,8 +162,10 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   differential_type: "amount",
   differential_value: "",
   extra_adult_rate: "",
+  derivation_value: "",
   unit_rates: {},
 });
+
 
 /** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
 const promoted = (rate: DraftSeasonRate, value: string): DraftSeasonRate =>
