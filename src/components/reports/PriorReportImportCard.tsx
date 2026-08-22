@@ -28,6 +28,11 @@ const formatDate = (iso: string | null): string =>
 interface Props {
   run: ReportRunDetail;
   onChanged: () => void | Promise<void>;
+  /**
+   * The guided builder splits this card in two: stage C only uploads the
+   * workbook, stage D only picks what to ingest. "all" keeps both together.
+   */
+  mode?: "all" | "upload" | "ingest";
 }
 
 /**
@@ -36,7 +41,9 @@ interface Props {
  * first run has no history for — previous OTB, last-year actuals, the manual
  * monthly inputs and the multi-year historical baseline.
  */
-export function PriorReportImportCard({ run, onChanged }: Props) {
+export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
+  const showUpload = mode !== "ingest";
+  const showIngest = mode !== "upload";
   const { inspect, apply, preview, isWorking } = useReportPriorImport(run.id);
   const [pending, setPending] = useState<File[]>([]);
   const [states, setStates] = useState<Record<number, DropZoneFileState>>({});
@@ -154,24 +161,28 @@ export function PriorReportImportCard({ run, onChanged }: Props) {
           </div>
         )}
 
-        <FileDropZone
-          files={pending}
-          states={states}
-          disabled={uploading || isWorking}
-          acceptedExtensions={[...PRIOR_EXTENSIONS]}
-          onFilesAdded={(incoming) => setPending((prev) => [...prev, ...incoming])}
-          onRemove={(index) => setPending((prev) => prev.filter((_, i) => i !== index))}
-        />
+        {showUpload && (
+          <FileDropZone
+            files={pending}
+            states={states}
+            disabled={uploading || isWorking}
+            acceptedExtensions={[...PRIOR_EXTENSIONS]}
+            onFilesAdded={(incoming) => setPending((prev) => [...prev, ...incoming])}
+            onRemove={(index) => setPending((prev) => prev.filter((_, i) => i !== index))}
+          />
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={() => void handleUpload()} disabled={!pending.length || uploading}>
-            {uploading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Upload className="h-4 w-4 mr-2" />
-            )}
-            Upload &amp; read
-          </Button>
+          {showUpload && (
+            <Button onClick={() => void handleUpload()} disabled={!pending.length || uploading}>
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Upload &amp; read
+            </Button>
+          )}
           {priorFiles.length > 0 && (
             <Button variant="outline" onClick={() => void handleInspect()} disabled={isWorking}>
               {isWorking ? (
@@ -179,12 +190,12 @@ export function PriorReportImportCard({ run, onChanged }: Props) {
               ) : (
                 <Search className="h-4 w-4 mr-2" />
               )}
-              Read again
+              {showUpload ? "Read again" : "Read workbook"}
             </Button>
           )}
         </div>
 
-        {preview && (
+        {showIngest && preview && (
           <div className="space-y-3 rounded-md border bg-muted/30 p-3">
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <Badge variant="secondary" className="font-normal">

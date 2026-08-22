@@ -52,6 +52,10 @@ export interface ReportRunSummary {
 export interface ReportRunDetail extends ReportRunSummary {
   previousRunId: string | null;
   baselineLocked: boolean;
+  /** Which builder stage the reviewer last worked on. */
+  buildStage: string | null;
+  /** Reviewer confirmed there is no previous report workbook to import. */
+  priorReportDeclined: boolean;
   files: ReportSourceFile[];
 }
 
@@ -67,6 +71,8 @@ interface RunRow {
   as_of_date: string;
   previous_run_id: string | null;
   baseline_locked?: boolean | null;
+  build_stage?: string | null;
+  prior_report_declined?: boolean | null;
   status: string | null;
   title: string | null;
   cadence?: string | null;
@@ -110,7 +116,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, build_stage, prior_report_declined, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */
@@ -169,6 +175,8 @@ export function useReportRun(runId: string | undefined) {
         fileCount: (files ?? []).filter((f) => (f.file_role ?? "source") !== "prior_report").length,
         previousRunId: row.previous_run_id,
         baselineLocked: Boolean(row.baseline_locked),
+        buildStage: row.build_stage ?? null,
+        priorReportDeclined: Boolean(row.prior_report_declined),
         files: (files ?? []).map((f) => ({
 
           id: f.id,
@@ -290,7 +298,37 @@ export function useReportRunMutations() {
     onSuccess: invalidate,
   });
 
-  return { createRun, deleteRun, deleteFile, setSpecialReportSet, invalidate };
+  /** Remembers which builder stage the reviewer is on so runs resume in place. */
+  const setBuildStage = useMutation({
+    mutationFn: async ({ runId, stage }: { runId: string; stage: string }) => {
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ build_stage: stage })
+        .eq("id", runId);
+      if (error) throw error;
+    },
+  });
+
+  const setPriorReportDeclined = useMutation({
+    mutationFn: async ({ runId, value }: { runId: string; value: boolean }) => {
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ prior_report_declined: value })
+        .eq("id", runId);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+
+  return {
+    createRun,
+    deleteRun,
+    deleteFile,
+    setSpecialReportSet,
+    setBuildStage,
+    setPriorReportDeclined,
+    invalidate,
+  };
 }
 
 export interface BaselineCandidate {

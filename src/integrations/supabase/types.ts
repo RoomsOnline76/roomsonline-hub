@@ -8561,6 +8561,7 @@ export type Database = {
           as_of_date: string
           baseline_locked: boolean
           baseline_source: string
+          build_stage: string
           cadence: string
           created_at: string
           created_by: string | null
@@ -8573,6 +8574,7 @@ export type Database = {
           imported_baseline: Json | null
           page_order: Json | null
           previous_run_id: string | null
+          prior_report_declined: boolean
           processing_note: string | null
           property_id: string
           source_type: string
@@ -8585,6 +8587,7 @@ export type Database = {
           as_of_date: string
           baseline_locked?: boolean
           baseline_source?: string
+          build_stage?: string
           cadence?: string
           created_at?: string
           created_by?: string | null
@@ -8597,6 +8600,7 @@ export type Database = {
           imported_baseline?: Json | null
           page_order?: Json | null
           previous_run_id?: string | null
+          prior_report_declined?: boolean
           processing_note?: string | null
           property_id: string
           source_type?: string
@@ -8609,6 +8613,7 @@ export type Database = {
           as_of_date?: string
           baseline_locked?: boolean
           baseline_source?: string
+          build_stage?: string
           cadence?: string
           created_at?: string
           created_by?: string | null
@@ -8621,6 +8626,7 @@ export type Database = {
           imported_baseline?: Json | null
           page_order?: Json | null
           previous_run_id?: string | null
+          prior_report_declined?: boolean
           processing_note?: string | null
           property_id?: string
           source_type?: string
