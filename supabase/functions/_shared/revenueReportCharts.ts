@@ -51,7 +51,9 @@ export const compactMoney = (value: number): string => {
   const abs = Math.abs(value);
   const sign = value < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${sign}R${round(abs / 1_000_000, 1)}m`;
-  if (abs >= 1_000) return `${sign}R${Math.round(abs / 1_000)}k`;
+  // Keep one decimal below R10k so ADR bars read R1.8k / R2.3k, not a flat R2k.
+  if (abs >= 10_000) return `${sign}R${Math.round(abs / 1_000)}k`;
+  if (abs >= 1_000) return `${sign}R${round(abs / 1_000, 1)}k`;
   return `${sign}R${Math.round(abs)}`;
 };
 
@@ -94,7 +96,9 @@ const axisLabel = (x: number, y: number, text: string, theme: ChartTheme, anchor
   `<text x="${round(x)}" y="${round(y)}" fill="${theme.muted}" font-size="10" text-anchor="${anchor}">${esc(text)}</text>`;
 
 /**
- * Grouped vertical bars — used for OTB vs Last Year.
+ * Grouped vertical bars — the report's signature chart (revenue, occupancy, ADR).
+ * Supports any number of series, signed values around a real zero line, an
+ * optional axis formatter and optional value labels above each bar.
  * Series with no non-zero values are dropped so the chart never prints blank bars.
  */
 export function groupedBarChart(options: {
@@ -105,71 +109,101 @@ export function groupedBarChart(options: {
   theme: ChartTheme;
   width?: number;
   height?: number;
+  /** Axis + label formatter. Defaults to compact ZAR. */
+  format?: (value: number) => string;
+  /** Print a small value label above each bar (skip for dense charts). */
+  valueLabels?: boolean;
 }): Chart | null {
   const { id, title, labels, theme } = options;
+  const format = options.format ?? compactMoney;
   const series = options.series.filter((entry) =>
     entry.values.some((value) => Number.isFinite(value) && value !== 0),
   );
   if (labels.length === 0 || series.length === 0) return null;
 
   const width = options.width ?? 720;
+  const legendRows = Math.ceil(series.length / 3);
   const height = options.height ?? 300;
-  const padding = { top: 34, right: 16, bottom: 46, left: 56 };
+  const padding = { top: 22 + legendRows * 16, right: 16, bottom: 46, left: 62 };
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
 
-  const max = niceMax(
-    Math.max(...series.flatMap((entry) => entry.values.map((value) => Math.abs(value)))),
+  const flat = series.flatMap((entry) =>
+    entry.values.filter((value) => Number.isFinite(value)),
   );
+  const rawMax = Math.max(0, ...flat);
+  const rawMin = Math.min(0, ...flat);
+  const max = niceMax(rawMax);
+  const min = rawMin < 0 ? -niceMax(Math.abs(rawMin)) : 0;
+  const span = max - min || 1;
+  const yFor = (value: number) => padding.top + plotHeight - ((value - min) / span) * plotHeight;
+  const zeroY = yFor(0);
+
   const groupWidth = plotWidth / labels.length;
-  const barGap = 4;
+  const barGap = series.length > 3 ? 1.5 : 3;
   const barWidth = Math.max(
-    6,
-    (groupWidth * 0.66 - barGap * (series.length - 1)) / series.length,
+    3,
+    (groupWidth * 0.74 - barGap * (series.length - 1)) / series.length,
   );
 
   const parts: string[] = [];
 
   // Gridlines + value axis
-  for (let i = 0; i <= 4; i += 1) {
-    const value = (max / 4) * i;
-    const y = padding.top + plotHeight - (plotHeight * i) / 4;
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i += 1) {
+    const value = min + (span / ticks) * i;
+    const y = yFor(value);
     parts.push(
       `<line x1="${padding.left}" y1="${round(y)}" x2="${padding.left + plotWidth}" y2="${round(y)}" stroke="${theme.grid}" stroke-width="1" />`,
     );
-    parts.push(axisLabel(padding.left - 8, y + 3.5, compactMoney(value), theme, "end"));
+    parts.push(axisLabel(padding.left - 8, y + 3.5, format(value), theme, "end"));
+  }
+  // Emphasised zero baseline when the chart crosses it.
+  if (min < 0) {
+    parts.push(
+      `<line x1="${padding.left}" y1="${round(zeroY)}" x2="${padding.left + plotWidth}" y2="${round(zeroY)}" stroke="${theme.ink}" stroke-width="1.2" />`,
+    );
   }
 
   labels.forEach((label, index) => {
     const groupStart =
       padding.left + groupWidth * index + (groupWidth - (barWidth * series.length + barGap * (series.length - 1))) / 2;
     series.forEach((entry, seriesIndex) => {
-      const value = Math.abs(entry.values[index] ?? 0);
-      const barHeight = max === 0 ? 0 : (value / max) * plotHeight;
+      const raw = Number(entry.values[index]);
+      const value = Number.isFinite(raw) ? raw : 0;
+      const top = yFor(Math.max(value, 0));
+      const bottom = yFor(Math.min(value, 0));
+      const barHeight = Math.max(bottom - top, value !== 0 ? 1.5 : 0);
       const x = groupStart + seriesIndex * (barWidth + barGap);
-      const y = padding.top + plotHeight - barHeight;
+      if (barHeight <= 0) return;
       parts.push(
-        `<rect x="${round(x)}" y="${round(y)}" width="${round(barWidth)}" height="${round(Math.max(barHeight, value > 0 ? 1.5 : 0))}" rx="2" fill="${entry.colour}" />`,
+        `<rect x="${round(x)}" y="${round(top)}" width="${round(barWidth)}" height="${round(barHeight)}" rx="1.5" fill="${entry.colour}" />`,
       );
+      if (options.valueLabels && value !== 0) {
+        parts.push(
+          `<text x="${round(x + barWidth / 2)}" y="${round(value >= 0 ? top - 4 : bottom + 9)}" fill="${theme.muted}" font-size="7.5" text-anchor="middle">${esc(format(value))}</text>`,
+        );
+      }
     });
     parts.push(axisLabel(padding.left + groupWidth * (index + 0.5), height - 24, label, theme));
   });
 
-  // Legend
-  const legendY = 16;
-  let legendX = padding.left;
-  series.forEach((entry) => {
+  // Legend — wraps onto extra rows for 4+ series.
+  const perRow = Math.ceil(series.length / legendRows);
+  series.forEach((entry, index) => {
+    const row = Math.floor(index / perRow);
+    const column = index % perRow;
+    const legendY = 14 + row * 16;
+    const legendX = padding.left + column * (plotWidth / perRow);
     parts.push(
-      `<rect x="${round(legendX)}" y="${legendY - 8}" width="10" height="10" rx="2" fill="${entry.colour}" />`,
+      `<rect x="${round(legendX)}" y="${legendY - 8}" width="9" height="9" rx="2" fill="${entry.colour}" />`,
+      `<text x="${round(legendX + 14)}" y="${legendY}" fill="${theme.ink}" font-size="10">${esc(entry.name)}</text>`,
     );
-    parts.push(
-      `<text x="${round(legendX + 15)}" y="${legendY + 1}" fill="${theme.ink}" font-size="11">${esc(entry.name)}</text>`,
-    );
-    legendX += 26 + entry.name.length * 6.2;
   });
 
   return { id, title, svg: wrap(width, height, parts.join("")) };
 }
+
 
 /** Diverging bars around a zero baseline — used for pickup variance. */
 export function varianceBarChart(options: {

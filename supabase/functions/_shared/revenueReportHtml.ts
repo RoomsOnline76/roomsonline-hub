@@ -49,6 +49,19 @@ export interface DraftBranding {
   brandSecondary: string | null;
 }
 
+export interface DraftMediaImage {
+  url: string;
+  caption: string | null;
+}
+
+export interface DraftMediaSlot {
+  key: string;
+  section: string;
+  title: string;
+  layout: "full" | "half";
+  images: DraftMediaImage[];
+}
+
 export interface DraftOptions {
   propertyName: string;
   asOfDate: string;
@@ -56,7 +69,10 @@ export interface DraftOptions {
   branding: DraftBranding;
   snapshot: DraftSnapshot;
   inputs: DraftInputs;
+  /** Screenshots pasted in by the revenue team, already signed for rendering. */
+  media?: DraftMediaSlot[];
 }
+
 
 export interface DraftTable {
   name: string;
@@ -106,16 +122,8 @@ const toCsv = (rows: (string | number)[][]): string =>
 const sum = (map: Record<string, number>, keys: string[]): number =>
   keys.reduce((total, key) => total + (Number(map[key]) || 0), 0);
 
-const varianceCell = (current: number, base: number, theme: ChartTheme): string => {
-  if (!base) return `<span class="muted">—</span>`;
-  const delta = current - base;
-  const pct = delta / Math.abs(base);
-  const colour = delta >= 0 ? theme.primary : theme.secondary;
-  const sign = delta >= 0 ? "+" : "";
-  return `<span style="color:${colour}">${sign}${esc(compactMoney(delta))} <span class="pct">(${sign}${esc(percent(pct, 1))})</span></span>`;
-};
-
 const notesBlock = (title: string, body: string | null): string => {
+
   if (!body || !body.trim()) return "";
   return `<div class="note"><h4>${esc(title)}</h4><p>${esc(body.trim()).replace(/\n/g, "<br />")}</p></div>`;
 };
@@ -180,24 +188,82 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     if (chart) charts.push(chart);
   };
 
+  // Per-month derived series shared by the charts and the metric grids.
+  const num = (map: Record<string, number> | undefined, key: string) => Number(map?.[key]) || 0;
+  const otbNow = months.map((key) => num(snapshot.otb_revenue, key));
+  const otbPrev = months.map((key) => num(snapshot.previous_otb_revenue, key));
+  const otbLy = months.map((key) => num(snapshot.last_year_actual, key));
+  const nightsNow = months.map((key) => num(snapshot.room_nights, key));
+  const nightsPrev = months.map((key) => num(snapshot.previous_room_nights, key));
+  const nightsLy = months.map((key) => num(snapshot.last_year_room_nights, key));
+  const capacity = months.map((key) => num(snapshot.capacity_days, key));
+  const dinner = months.map((key) => num(inputs.dinner_by_month, key));
+  const room0 = months.map((key) => num(inputs.room0_by_month, key));
+  const compRns = months.map((key) => num(inputs.comp_rns_by_month, key));
+  const additional = months.map((key) => additionalByMonth[key] || 0);
+  const combined = months.map((key) => combinedByMonth[key] || 0);
+
+  const ratio = (top: number, bottom: number) => (bottom > 0 ? top / bottom : 0);
+  const occNow = months.map((_, i) =>
+    (Number(snapshot.occupancy[months[i]]) || ratio(nightsNow[i], capacity[i])) * 100,
+  );
+  const occPrev = months.map((_, i) => ratio(nightsPrev[i], capacity[i]) * 100);
+  const occLy = months.map((_, i) => ratio(nightsLy[i], capacity[i]) * 100);
+  const adrNow = months.map((_, i) => Number(snapshot.adr[months[i]]) || ratio(otbNow[i], nightsNow[i]));
+  const adrPrev = months.map((_, i) => ratio(otbPrev[i], nightsPrev[i]));
+  const adrLy = months.map((_, i) => ratio(otbLy[i], nightsLy[i]));
+
+  const prevLabel = options.previousAsOfDate
+    ? `OTB ${formatLongDate(options.previousAsOfDate)}`
+    : "Previous OTB";
+
   pushChart(
     groupedBarChart({
-      id: "otb-vs-last-year",
-      title: "On the books vs last year",
+      id: "revenue-grouped",
+      title: "Revenue — on the books, previous review, last year and combined",
       labels,
       series: [
-        {
-          name: "OTB now",
-          colour: primary,
-          values: months.map((key) => Number(snapshot.otb_revenue[key]) || 0),
-        },
-        {
-          name: "Last year actual",
-          colour: secondary,
-          values: months.map((key) => Number(snapshot.last_year_actual[key]) || 0),
-        },
+        { name: `OTB ${asOfLabel}`, colour: primary, values: otbNow },
+        { name: prevLabel, colour: "#F5A3D0", values: otbPrev },
+        { name: "Last year actual", colour: secondary, values: otbLy },
+        { name: "Additional revenue", colour: "#9CA3AF", values: additional },
+        { name: "Total combined", colour: "#4B5563", values: combined },
       ],
       theme,
+      height: 320,
+    }),
+  );
+
+  pushChart(
+    groupedBarChart({
+      id: "occupancy-grouped",
+      title: "Occupancy % — on the books, previous review and last year",
+      labels,
+      series: [
+        { name: `OTB ${asOfLabel}`, colour: primary, values: occNow },
+        { name: prevLabel, colour: "#F5A3D0", values: occPrev },
+        { name: "Last year actual", colour: secondary, values: occLy },
+      ],
+      theme,
+      height: 275,
+      format: (value) => `${Math.round(value)}%`,
+      valueLabels: months.length <= 8,
+    }),
+  );
+
+  pushChart(
+    groupedBarChart({
+      id: "adr-grouped",
+      title: "Average daily rate — on the books, previous review and last year",
+      labels,
+      series: [
+        { name: `OTB ${asOfLabel}`, colour: primary, values: adrNow },
+        { name: prevLabel, colour: "#F5A3D0", values: adrPrev },
+        { name: "Last year actual", colour: secondary, values: adrLy },
+      ],
+      theme,
+      height: 275,
+      valueLabels: months.length <= 8,
     }),
   );
 
@@ -207,12 +273,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       title: options.previousAsOfDate
         ? `Pickup since ${formatLongDate(options.previousAsOfDate)}`
         : "Pickup since previous review",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value:
-          (Number(snapshot.otb_revenue[key]) || 0) -
-          (Number(snapshot.previous_otb_revenue[key]) || 0),
-      })),
+      points: months.map((key, i) => ({ label: monthLabel(key), value: otbNow[i] - otbPrev[i] })),
       theme,
     }),
   );
@@ -221,10 +282,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     lineChart({
       id: "adr-trend",
       title: "Average daily rate trend",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value: Number(snapshot.adr[key]) || 0,
-      })),
+      points: months.map((key, i) => ({ label: monthLabel(key), value: adrNow[i] })),
       theme,
     }),
   );
@@ -233,13 +291,12 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     occupancyStrip({
       id: "occupancy",
       title: "Occupancy on the books",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value: Number(snapshot.occupancy[key]) || 0,
-      })),
+      points: months.map((key, i) => ({ label: monthLabel(key), value: occNow[i] / 100 })),
       theme,
     }),
   );
+
+
 
   const sourceEntries = Object.entries(snapshot.source_breakdown ?? {})
     .map(([name, value]) => ({
@@ -267,7 +324,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     return `<figure class="chart"><figcaption>${esc(caption ?? chart.title)}</figcaption>${chart.svg}</figure>`;
   };
 
-  // ── Tables ────────────────────────────────────────────────────────────
+  // ── Totals for the derived series ─────────────────────────────────────
+  const add = (values: number[]) => values.reduce((total, value) => total + value, 0);
+  const totalDinner = add(dinner);
+  const totalRoom0 = add(room0);
+  const totalCompRns = add(compRns);
+  const totalNightsPrev = add(nightsPrev);
+  const totalNightsLy = add(nightsLy);
+  const totalOccPrev = totalCapacity > 0 ? (totalNightsPrev / totalCapacity) * 100 : 0;
+  const totalOccLy = totalCapacity > 0 ? (totalNightsLy / totalCapacity) * 100 : 0;
+  const totalAdrPrev = totalNightsPrev > 0 ? totalPrevious / totalNightsPrev : 0;
+  const totalAdrLy = totalNightsLy > 0 ? totalLastYear / totalNightsLy : 0;
+
+  // ── Tables (CSV for the designer pack) ────────────────────────────────
   const revenueRows: (string | number)[][] = [
     [
       "Month",
@@ -275,20 +344,25 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       "Previous OTB",
       "Variance",
       "Last year actual",
+      "OTB vs last year",
+      "Dinner",
+      "Room 0",
+      "Comp room nights",
       "Additional revenue",
       "Total combined",
     ],
-    ...months.map((key) => [
+    ...months.map((key, i) => [
       monthLabel(key),
-      Math.round(Number(snapshot.otb_revenue[key]) || 0),
-      Math.round(Number(snapshot.previous_otb_revenue[key]) || 0),
-      Math.round(
-        (Number(snapshot.otb_revenue[key]) || 0) -
-          (Number(snapshot.previous_otb_revenue[key]) || 0),
-      ),
-      Math.round(Number(snapshot.last_year_actual[key]) || 0),
-      Math.round(additionalByMonth[key] || 0),
-      Math.round(combinedByMonth[key] || 0),
+      Math.round(otbNow[i]),
+      Math.round(otbPrev[i]),
+      Math.round(otbNow[i] - otbPrev[i]),
+      Math.round(otbLy[i]),
+      Math.round(otbNow[i] - otbLy[i]),
+      Math.round(dinner[i]),
+      Math.round(room0[i]),
+      Math.round(compRns[i]),
+      Math.round(additional[i]),
+      Math.round(combined[i]),
     ]),
     [
       "Total",
@@ -296,30 +370,63 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       Math.round(totalPrevious),
       Math.round(totalOtb - totalPrevious),
       Math.round(totalLastYear),
+      Math.round(totalOtb - totalLastYear),
+      Math.round(totalDinner),
+      Math.round(totalRoom0),
+      Math.round(totalCompRns),
       Math.round(totalAdditional),
       Math.round(totalCombined),
     ],
   ];
 
-  const performanceRows: (string | number)[][] = [
-    ["Month", "Room nights", "Capacity nights", "Occupancy %", "ADR", "Comp room nights"],
-    ...months.map((key) => [
-      monthLabel(key),
-      Math.round(Number(snapshot.room_nights[key]) || 0),
-      Math.round(Number(snapshot.capacity_days[key]) || 0),
-      Number(((Number(snapshot.occupancy[key]) || 0) * 100).toFixed(1)),
-      Math.round(Number(snapshot.adr[key]) || 0),
-      Math.round(Number(inputs.comp_rns_by_month[key]) || 0),
-    ]),
-    [
-      "Total",
-      Math.round(totalNights),
-      Math.round(totalCapacity),
-      Number((blendedOccupancy * 100).toFixed(1)),
-      Math.round(blendedAdr),
-      Math.round(sum(inputs.comp_rns_by_month, months)),
-    ],
-  ];
+  const metricCsv = (
+    header: string,
+    now: number[],
+    prev: number[],
+    ly: number[],
+    totals: { now: number; prev: number; ly: number },
+    dp = 0,
+  ): (string | number)[][] => {
+    const fix = (value: number) => Number(value.toFixed(dp));
+    return [
+      ["Month", `${header} OTB`, `${header} previous`, "Variance", `${header} last year`, "OTB vs last year"],
+      ...months.map((key, i) => [
+        monthLabel(key),
+        fix(now[i]),
+        fix(prev[i]),
+        fix(now[i] - prev[i]),
+        fix(ly[i]),
+        fix(now[i] - ly[i]),
+      ]),
+      [
+        "Total",
+        fix(totals.now),
+        fix(totals.prev),
+        fix(totals.now - totals.prev),
+        fix(totals.ly),
+        fix(totals.now - totals.ly),
+      ],
+    ];
+  };
+
+  const performanceRows = metricCsv("Room nights", nightsNow, nightsPrev, nightsLy, {
+    now: totalNights,
+    prev: totalNightsPrev,
+    ly: totalNightsLy,
+  });
+  const occupancyRows = metricCsv(
+    "Occupancy %",
+    occNow,
+    occPrev,
+    occLy,
+    { now: blendedOccupancy * 100, prev: totalOccPrev, ly: totalOccLy },
+    1,
+  );
+  const adrRows = metricCsv("ADR", adrNow, adrPrev, adrLy, {
+    now: blendedAdr,
+    prev: totalAdrPrev,
+    ly: totalAdrLy,
+  });
 
   const sourceRows: (string | number)[][] = [
     ["Source", "Revenue", "Room nights", "ADR", "Share of revenue %"],
@@ -334,7 +441,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
   const tables: DraftTable[] = [
     { name: "revenue-performance", csv: toCsv(revenueRows) },
-    { name: "nights-occupancy-adr", csv: toCsv(performanceRows) },
+    { name: "room-nights", csv: toCsv(performanceRows) },
+    { name: "occupancy", csv: toCsv(occupancyRows) },
+    { name: "adr", csv: toCsv(adrRows) },
   ];
   if (sourceEntries.length > 0) {
     tables.push({ name: "source-mix", csv: toCsv(sourceRows) });
@@ -348,35 +457,60 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${hint ? `<span class="kpi-hint">${esc(hint)}</span>` : ""}
     </div>`;
 
+  /** Signed delta with a percentage, formatted for the metric in question. */
+  const deltaCell = (
+    current: number,
+    base: number,
+    format: (value: number) => string,
+    withPct = true,
+  ): string => {
+    const delta = current - base;
+    if (!base && !current) return `<span class="muted">—</span>`;
+    const colour = delta >= 0 ? primary : secondary;
+    const sign = delta > 0 ? "+" : delta < 0 ? "-" : "";
+    const pct = base ? Math.abs(delta / base) : 0;
+    return `<span style="color:${colour}">${sign}${esc(format(Math.abs(delta)))}${
+      withPct && base ? ` <span class="pct">(${sign}${esc(percent(pct, 1))})</span>` : ""
+    }</span>`;
+  };
+
+  const zar = (value: number) => money(value);
+  const nightsFmt = (value: number) => Math.round(value).toLocaleString("en-ZA");
+  const pctFmt = (value: number) => `${value.toFixed(1)}%`;
+
   const revenueTableHtml = `
-    <table class="grid">
+    <table class="grid tight">
       <thead>
         <tr>
           <th class="left">Month</th>
-          <th>OTB now</th>
-          <th>Previous</th>
+          <th>OTB ${esc(asOfLabel)}</th>
+          <th>${esc(options.previousAsOfDate ? `OTB ${formatLongDate(options.previousAsOfDate)}` : "Previous OTB")}</th>
           <th>Variance</th>
-          <th>Last year</th>
+          <th>Last year actual</th>
+          <th>OTB vs LY</th>
+          <th>Dinner</th>
+          <th>Room 0</th>
+          <th>Comp RNs</th>
           <th>Additional</th>
-          <th>Combined</th>
+          <th>Total combined</th>
         </tr>
       </thead>
       <tbody>
         ${months
           .map(
-            (key) => `
+            (key, i) => `
         <tr>
           <td class="left">${esc(monthLabel(key))}</td>
-          <td>${esc(money(Number(snapshot.otb_revenue[key]) || 0))}</td>
-          <td class="muted">${esc(money(Number(snapshot.previous_otb_revenue[key]) || 0))}</td>
-          <td>${varianceCell(
-            Number(snapshot.otb_revenue[key]) || 0,
-            Number(snapshot.previous_otb_revenue[key]) || 0,
-            theme,
-          )}</td>
-          <td class="muted">${esc(money(Number(snapshot.last_year_actual[key]) || 0))}</td>
-          <td class="muted">${esc(money(additionalByMonth[key] || 0))}</td>
-          <td class="strong">${esc(money(combinedByMonth[key] || 0))}</td>
+          <td>${esc(zar(otbNow[i]))}</td>
+          <td class="muted">${esc(zar(otbPrev[i]))}</td>
+          <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
+          <td class="muted">${esc(zar(otbLy[i]))}</td>
+          <td>${deltaCell(otbNow[i], otbLy[i], compactMoney)}</td>
+          <td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
+          <td class="muted">${room0[i] ? esc(zar(room0[i])) : "—"}</td>
+          <td class="muted">${compRns[i] ? nightsFmt(compRns[i]) : "—"}</td>
+          <td class="muted">${additional[i] ? esc(zar(additional[i])) : "—"}</td>
+          <td class="strong">${esc(zar(combined[i]))}</td>
         </tr>`,
           )
           .join("")}
@@ -384,51 +518,155 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       <tfoot>
         <tr>
           <td class="left">Total</td>
-          <td>${esc(money(totalOtb))}</td>
-          <td>${esc(money(totalPrevious))}</td>
-          <td>${varianceCell(totalOtb, totalPrevious, theme)}</td>
-          <td>${esc(money(totalLastYear))}</td>
-          <td>${esc(money(totalAdditional))}</td>
-          <td class="strong">${esc(money(totalCombined))}</td>
+          <td>${esc(zar(totalOtb))}</td>
+          <td>${esc(zar(totalPrevious))}</td>
+          <td>${deltaCell(totalOtb, totalPrevious, compactMoney)}</td>
+          <td>${esc(zar(totalLastYear))}</td>
+          <td>${deltaCell(totalOtb, totalLastYear, compactMoney)}</td>
+          <td>${totalDinner ? esc(zar(totalDinner)) : "—"}</td>
+          <td>${totalRoom0 ? esc(zar(totalRoom0)) : "—"}</td>
+          <td>${totalCompRns ? nightsFmt(totalCompRns) : "—"}</td>
+          <td>${esc(zar(totalAdditional))}</td>
+          <td class="strong">${esc(zar(totalCombined))}</td>
         </tr>
       </tfoot>
     </table>`;
 
-  const performanceTableHtml = `
-    <table class="grid">
-      <thead>
-        <tr>
-          <th class="left">Month</th>
-          <th>Room nights</th>
-          <th>Capacity</th>
-          <th>Occupancy</th>
-          <th>ADR</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${months
-          .map(
-            (key) => `
-        <tr>
-          <td class="left">${esc(monthLabel(key))}</td>
-          <td>${Math.round(Number(snapshot.room_nights[key]) || 0).toLocaleString("en-ZA")}</td>
-          <td class="muted">${Math.round(Number(snapshot.capacity_days[key]) || 0).toLocaleString("en-ZA")}</td>
-          <td>${esc(percent(Number(snapshot.occupancy[key]) || 0, 1))}</td>
-          <td>${esc(money(Number(snapshot.adr[key]) || 0))}</td>
-        </tr>`,
-          )
-          .join("")}
-      </tbody>
-      <tfoot>
-        <tr>
-          <td class="left">Total</td>
-          <td>${Math.round(totalNights).toLocaleString("en-ZA")}</td>
-          <td>${Math.round(totalCapacity).toLocaleString("en-ZA")}</td>
-          <td>${esc(percent(blendedOccupancy, 1))}</td>
-          <td>${esc(money(blendedAdr))}</td>
-        </tr>
-      </tfoot>
-    </table>`;
+  /** Month × (OTB / previous / variance / last year / OTB vs LY) block. */
+  const metricGrid = (
+    caption: string,
+    now: number[],
+    prev: number[],
+    ly: number[],
+    totals: { now: number; prev: number; ly: number },
+    format: (value: number) => string,
+  ): string => `
+    <div class="block">
+      <h3 class="block-title">${esc(caption)}</h3>
+      <table class="grid tight">
+        <thead>
+          <tr>
+            <th class="left">Month</th>
+            <th>OTB ${esc(asOfLabel)}</th>
+            <th>${esc(options.previousAsOfDate ? formatLongDate(options.previousAsOfDate) : "Previous")}</th>
+            <th>Variance</th>
+            <th>Last year</th>
+            <th>OTB vs LY</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${months
+            .map(
+              (key, i) => `
+          <tr>
+            <td class="left">${esc(monthLabel(key))}</td>
+            <td>${esc(format(now[i]))}</td>
+            <td class="muted">${esc(format(prev[i]))}</td>
+            <td>${deltaCell(now[i], prev[i], format)}</td>
+            <td class="muted">${esc(format(ly[i]))}</td>
+            <td>${deltaCell(now[i], ly[i], format)}</td>
+          </tr>`,
+            )
+            .join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="left">${caption === "Occupancy" || caption === "Average daily rate" ? "Blended" : "Total"}</td>
+            <td>${esc(format(totals.now))}</td>
+            <td>${esc(format(totals.prev))}</td>
+            <td>${deltaCell(totals.now, totals.prev, format)}</td>
+            <td>${esc(format(totals.ly))}</td>
+            <td>${deltaCell(totals.now, totals.ly, format)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+
+  const nightsTableHtml = metricGrid(
+    "Room nights",
+    nightsNow,
+    nightsPrev,
+    nightsLy,
+    { now: totalNights, prev: totalNightsPrev, ly: totalNightsLy },
+    nightsFmt,
+  );
+  const occupancyTableHtml = metricGrid(
+    "Occupancy",
+    occNow,
+    occPrev,
+    occLy,
+    { now: blendedOccupancy * 100, prev: totalOccPrev, ly: totalOccLy },
+    pctFmt,
+  );
+  const adrTableHtml = metricGrid(
+    "Average daily rate",
+    adrNow,
+    adrPrev,
+    adrLy,
+    { now: blendedAdr, prev: totalAdrPrev, ly: totalAdrLy },
+    zar,
+  );
+
+  /** Revenue Comparison Review — OTB vs last year on revenue and ADR. */
+  const comparisonReviewHtml = `
+    <div class="block">
+      <h3 class="block-title">Revenue comparison review</h3>
+      <table class="grid tight">
+        <thead>
+          <tr>
+            <th class="left">Month</th>
+            <th>Revenue OTB</th>
+            <th>Revenue last year</th>
+            <th>Revenue %</th>
+            <th>ADR OTB</th>
+            <th>ADR last year</th>
+            <th>ADR %</th>
+            <th>Occupancy OTB</th>
+            <th>Occupancy last year</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${months
+            .map(
+              (key, i) => `
+          <tr>
+            <td class="left">${esc(monthLabel(key))}</td>
+            <td>${esc(zar(otbNow[i]))}</td>
+            <td class="muted">${esc(zar(otbLy[i]))}</td>
+            <td>${otbLy[i] ? deltaCell(otbNow[i], otbLy[i], compactMoney) : `<span class="muted">—</span>`}</td>
+            <td>${esc(zar(adrNow[i]))}</td>
+            <td class="muted">${esc(zar(adrLy[i]))}</td>
+            <td>${adrLy[i] ? deltaCell(adrNow[i], adrLy[i], zar) : `<span class="muted">—</span>`}</td>
+            <td>${esc(pctFmt(occNow[i]))}</td>
+            <td class="muted">${esc(pctFmt(occLy[i]))}</td>
+          </tr>`,
+            )
+            .join("")}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td class="left">Total</td>
+            <td>${esc(zar(totalOtb))}</td>
+            <td>${esc(zar(totalLastYear))}</td>
+            <td>${totalLastYear ? deltaCell(totalOtb, totalLastYear, compactMoney) : `<span class="muted">—</span>`}</td>
+            <td>${esc(zar(blendedAdr))}</td>
+            <td>${esc(zar(totalAdrLy))}</td>
+            <td>${totalAdrLy ? deltaCell(blendedAdr, totalAdrLy, zar) : `<span class="muted">—</span>`}</td>
+            <td>${esc(pctFmt(blendedOccupancy * 100))}</td>
+            <td>${esc(pctFmt(totalOccLy))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+
+  const legendHtml = `
+    <ul class="legend">
+      <li><span class="swatch" style="background:${primary}"></span> OTB as at ${esc(asOfLabel)}</li>
+      <li><span class="swatch" style="background:#F5A3D0"></span> ${esc(options.previousAsOfDate ? `OTB as at ${formatLongDate(options.previousAsOfDate)}` : "Previous review")}</li>
+      <li><span class="swatch" style="background:${secondary}"></span> Last year actual</li>
+      <li class="legend-note">All provisional bookings are included in these figures.</li>
+    </ul>`;
+
 
   const sourceTableHtml =
     sourceEntries.length === 0
@@ -472,10 +710,119 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const chrome = (title: string, page: number) =>
     pageChrome(propertyName, asOfLabel, branding.logoUrl, title, page);
 
-  const performancePage = chrome("Revenue Performance", 2);
-  const reviewPage = chrome("Revenue Review", 3);
-  const sourcePage = chrome("Traveller Trends", 4);
-  const notesPage = chrome("Process Notes", sourceEntries.length > 0 ? 5 : 4);
+  // ── Pasted media (revenue-team screenshots) ───────────────────────────
+  const mediaSlots = (options.media ?? []).filter((slot) => slot.images.length > 0);
+  const mediaSections: { section: string; slots: DraftMediaSlot[] }[] = [];
+  for (const slot of mediaSlots) {
+    const existing = mediaSections.find((entry) => entry.section === slot.section);
+    if (existing) existing.slots.push(slot);
+    else mediaSections.push({ section: slot.section, slots: [slot] });
+  }
+
+  const mediaSlotHtml = (slot: DraftMediaSlot): string => `
+    <div class="block">
+      <h3 class="block-title">${esc(slot.title)}</h3>
+      <div class="shots ${slot.layout === "half" ? "two-up" : "one-up"}">
+        ${slot.images
+          .map(
+            (image) => `
+        <figure class="shot">
+          <img src="${esc(image.url)}" alt="${esc(slot.title)}" />
+          ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
+        </figure>`,
+          )
+          .join("")}
+      </div>
+    </div>`;
+
+  const notesPageBody = `
+    ${commentary ? `<div class="notes">${commentary}</div>` : ""}
+    <ul class="fineprint">
+      <li><strong>OTB</strong> — On The Books: confirmed and provisional reservations captured at the as-of date.</li>
+      <li>All provisional bookings are included in the figures above, in line with the standard revenue review.</li>
+      <li>Revenue and room nights are allocated to the month of arrival.</li>
+      <li>Occupancy uses ${snapshot.room_count} sellable room${snapshot.room_count === 1 ? "" : "s"}; Room 0, events and holding-in-credit rows are excluded from the denominator.</li>
+      <li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>
+      <li>This is a draft for the revenue team — screenshots and commentary can be added before it is issued.</li>
+    </ul>
+    <div class="contact">
+      <div>
+        <h4>Prepared by</h4>
+        Rooms Online Revenue Team
+      </div>
+      <div>
+        <h4>Property</h4>
+        ${esc(propertyName)}
+      </div>
+      <div>
+        <h4>Online</h4>
+        ${CONTACT_SITE}
+      </div>
+    </div>`;
+
+  const revenueKpis = `
+    <div class="kpis">
+      ${kpi("OTB revenue", money(totalOtb), `${months.length} month window`)}
+      ${kpi(
+        "vs previous review",
+        `${totalOtb - totalPrevious >= 0 ? "+" : "-"}${compactMoney(Math.abs(totalOtb - totalPrevious))}`,
+        options.previousAsOfDate
+          ? `since ${formatLongDate(options.previousAsOfDate)}`
+          : "no previous review",
+      )}
+      ${kpi(
+        "vs last year",
+        totalLastYear > 0
+          ? `${totalOtb - totalLastYear >= 0 ? "+" : "-"}${compactMoney(Math.abs(totalOtb - totalLastYear))}`
+          : "—",
+        totalLastYear > 0 ? `LY ${compactMoney(totalLastYear)}` : "no baseline captured",
+      )}
+      ${kpi("Total combined", money(totalCombined), `incl. ${compactMoney(totalAdditional)} additional`)}
+    </div>`;
+
+  const performanceKpis = `
+    <div class="kpis">
+      ${kpi("Room nights", nightsFmt(totalNights), `of ${nightsFmt(totalCapacity)} available`)}
+      ${kpi("Occupancy", pctFmt(blendedOccupancy * 100), "on the books")}
+      ${kpi("Blended ADR", money(blendedAdr), "OTB revenue / room nights")}
+      ${kpi("Additional revenue", money(totalAdditional), "dinner + room 0")}
+    </div>`;
+
+  const pageDefs: { title: string; body: string }[] = [
+    { title: "Revenue Performance", body: `${revenueKpis}${revenueTableHtml}${legendHtml}` },
+    { title: "Room Nights & Occupancy", body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}` },
+    { title: "Rate & Comparison Review", body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}` },
+    {
+      title: "Revenue Review",
+      body: `${figure("revenue-grouped")}${figure("occupancy-grouped")}${figure("adr-grouped")}`,
+    },
+    { title: "Pickup & Rate Trend", body: `${figure("pickup-variance")}${figure("adr-trend")}` },
+    ...mediaSections.map((entry) => ({
+      title: entry.section,
+      body: entry.slots.map(mediaSlotHtml).join(""),
+    })),
+    ...(sourceEntries.length > 0
+      ? [
+          {
+            title: "Traveller Trends",
+            body: `${figure("source-mix")}${sourceTableHtml}${figure("occupancy")}`,
+          },
+        ]
+      : []),
+    { title: "Process Notes", body: notesPageBody },
+  ].filter((def) => def.body.trim().length > 0);
+
+  const pagesHtml = pageDefs
+    .map((def, index) => {
+      const page = chrome(def.title, index + 2);
+      return `<section class="page">
+  ${page.header}
+  <div class="body">${def.body}</div>
+  ${page.footer}
+</section>`;
+    })
+    .join("\n\n");
+
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -517,11 +864,11 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     box-shadow: 0 1px 12px rgba(15, 23, 42, 0.12);
     display: flex;
     flex-direction: column;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    overflow: hidden;
   }
+  /* Only break between pages — never inside one, and never on an empty page. */
   .page + .page { break-before: page; page-break-before: always; }
+  .page:empty { display: none; }
+
   .page-head {
     display: flex;
     align-items: center;
@@ -644,6 +991,61 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   table.grid .muted { color: var(--muted); }
   table.grid .strong { font-weight: 600; }
   .pct { font-size: 8pt; }
+  /* Wide 9-11 column grids — tighter type so nothing wraps or clips. */
+  table.grid.tight { font-size: 7.2pt; table-layout: fixed; }
+  table.grid.tight th {
+    font-size: 6.2pt;
+    letter-spacing: 0.03em;
+    white-space: normal;
+    line-height: 1.2;
+    vertical-align: bottom;
+  }
+  table.grid.tight th, table.grid.tight td { padding: 1.1mm 1mm; }
+  table.grid.tight td { white-space: normal; }
+  /* Variance percentage drops under the amount so wide grids never clip. */
+  table.grid.tight .pct { display: block; font-size: 6.2pt; }
+
+  /* Titled content blocks */
+  .block { display: flex; flex-direction: column; gap: 2mm; break-inside: avoid; }
+  .block-title {
+    margin: 0;
+    font-size: 8.5pt;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  /* Legend under the grids */
+  .legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2mm 6mm;
+    font-size: 8pt;
+    color: var(--muted);
+  }
+  .legend li { display: flex; align-items: center; gap: 1.5mm; }
+  .legend .swatch { width: 3mm; height: 3mm; border-radius: 0.6mm; display: inline-block; }
+  .legend .legend-note { font-style: italic; }
+
+  /* Pasted screenshots */
+  .shots { display: grid; gap: 3mm; }
+  .shots.one-up { grid-template-columns: 1fr; }
+  .shots.two-up { grid-template-columns: 1fr 1fr; }
+  figure.shot { margin: 0; break-inside: avoid; }
+  figure.shot img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 1.5mm;
+  }
+  figure.shot figcaption { margin-top: 1.5mm; font-size: 8pt; color: var(--muted); }
+
+
 
   /* Notes */
   .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; }
@@ -671,9 +1073,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
   @page { size: A4; margin: 0; }
   @media print {
-    body { background: #fff; }
-    .page { margin: 0; box-shadow: none; min-height: var(--page-h); }
+    html, body { margin: 0; padding: 0; background: #fff; width: auto; }
+    /* Exactly one sheet per .page: no outer margin (which triggers Chromium's
+       shrink-to-fit) and a hair under 297mm so rounding never spills over. */
+    .page {
+      margin: 0;
+      box-shadow: none;
+      width: auto;
+      min-height: 0;
+      height: 296.6mm;
+      overflow: hidden;
+    }
   }
+
 </style>
 </head>
 <body>
@@ -706,96 +1118,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   </div>
 </section>
 
-<!-- Revenue performance -->
-<section class="page">
-  ${performancePage.header}
-  <div class="body">
-    <div class="kpis">
-      ${kpi("OTB revenue", money(totalOtb), `${months.length} month window`)}
-      ${kpi(
-        "vs previous review",
-        `${totalOtb - totalPrevious >= 0 ? "+" : ""}${compactMoney(totalOtb - totalPrevious)}`,
-        options.previousAsOfDate
-          ? `since ${formatLongDate(options.previousAsOfDate)}`
-          : "no previous review",
-      )}
-      ${kpi(
-        "vs last year",
-        totalLastYear > 0
-          ? `${totalOtb - totalLastYear >= 0 ? "+" : ""}${compactMoney(totalOtb - totalLastYear)}`
-          : "—",
-        totalLastYear > 0 ? `LY ${compactMoney(totalLastYear)}` : "no baseline captured",
-      )}
-      ${kpi("Total combined", money(totalCombined), `incl. ${compactMoney(totalAdditional)} additional`)}
-    </div>
-    ${figure("otb-vs-last-year")}
-    ${revenueTableHtml}
-  </div>
-  ${performancePage.footer}
-</section>
+${pagesHtml}
 
-<!-- Revenue review -->
-<section class="page">
-  ${reviewPage.header}
-  <div class="body">
-    <div class="kpis">
-      ${kpi("Room nights", Math.round(totalNights).toLocaleString("en-ZA"), `of ${Math.round(totalCapacity).toLocaleString("en-ZA")} available`)}
-      ${kpi("Occupancy", percent(blendedOccupancy, 1), "on the books")}
-      ${kpi("Blended ADR", money(blendedAdr), "OTB revenue / room nights")}
-      ${kpi("Additional revenue", money(totalAdditional), "dinner + room 0")}
-    </div>
-    ${figure("pickup-variance")}
-    ${figure("adr-trend")}
-    ${performanceTableHtml}
-  </div>
-  ${reviewPage.footer}
-</section>
-
-${
-  sourceEntries.length > 0
-    ? `<!-- Traveller trends -->
-<section class="page">
-  ${sourcePage.header}
-  <div class="body">
-    ${figure("source-mix")}
-    ${sourceTableHtml}
-    ${figure("occupancy")}
-  </div>
-  ${sourcePage.footer}
-</section>`
-    : ""
-}
-
-<!-- Notes -->
-<section class="page">
-  ${notesPage.header}
-  <div class="body">
-    ${commentary ? `<div class="notes">${commentary}</div>` : ""}
-    <ul class="fineprint">
-      <li><strong>OTB</strong> — On The Books: confirmed and provisional reservations captured at the as-of date.</li>
-      <li>All provisional bookings are included in the figures above, in line with the standard revenue review.</li>
-      <li>Revenue and room nights are allocated to the month of arrival.</li>
-      <li>Occupancy uses ${snapshot.room_count} sellable room${snapshot.room_count === 1 ? "" : "s"}; Room 0, events and holding-in-credit rows are excluded from the denominator.</li>
-      <li>Additional revenue covers dinner and Room 0 as captured by the reviewer, and is shown separately from accommodation revenue.</li>
-      <li>This is a draft for review — final design polish is applied before the report is issued.</li>
-    </ul>
-    <div class="contact">
-      <div>
-        <h4>Prepared by</h4>
-        Rooms Online Revenue Team
-      </div>
-      <div>
-        <h4>Property</h4>
-        ${esc(propertyName)}
-      </div>
-      <div>
-        <h4>Online</h4>
-        ${CONTACT_SITE}
-      </div>
-    </div>
-  </div>
-  ${notesPage.footer}
-</section>
 
 </body>
 </html>`;
@@ -828,9 +1152,13 @@ ${
       additional_revenue: Math.round(additionalByMonth[key] || 0),
       total_combined: Math.round(combinedByMonth[key] || 0),
       room_nights: Math.round(Number(snapshot.room_nights[key]) || 0),
+      previous_room_nights: Math.round(Number(snapshot.previous_room_nights?.[key]) || 0),
+      last_year_room_nights: Math.round(Number(snapshot.last_year_room_nights?.[key]) || 0),
       capacity_nights: Math.round(Number(snapshot.capacity_days[key]) || 0),
       adr: Math.round(Number(snapshot.adr[key]) || 0),
       occupancy: Number(((Number(snapshot.occupancy[key]) || 0) * 100).toFixed(1)),
+      dinner: Math.round(Number(inputs.dinner_by_month[key]) || 0),
+      room0: Math.round(Number(inputs.room0_by_month[key]) || 0),
       comp_room_nights: Math.round(Number(inputs.comp_rns_by_month[key]) || 0),
     })),
     source_mix: sourceEntries.map((entry) => ({
@@ -845,8 +1173,16 @@ ${
       rate_overrides: inputs.rate_override_notes,
       free_commentary: inputs.free_commentary,
     },
+    media: mediaSlots.map((slot) => ({
+      slot: slot.key,
+      section: slot.section,
+      title: slot.title,
+      images: slot.images.length,
+    })),
+    pages: pageDefs.map((def, index) => ({ page: index + 2, title: def.title })),
     charts: charts.map((chart) => ({ id: chart.id, title: chart.title, file: `charts/${chart.id}.svg` })),
     tables: tables.map((table) => ({ name: table.name, file: `tables/${table.name}.csv` })),
+
   };
 
   return { html, charts, tables, manifest };
