@@ -93,6 +93,12 @@ export interface DraftResult {
 
 const CONTACT_SITE = "www.roomsonline.co.za";
 
+/** Brand marks live in public storage so the printed HTML resolves them from any origin. */
+const BRAND_ASSET_BASE =
+  "https://qmprswbgkpzcvexmmcbf.supabase.co/storage/v1/object/public/property-images/reports%2Fbrand%2F";
+const ROL_WREATH_URL = `${BRAND_ASSET_BASE}rol-wreath-black.png`;
+const ROL_STRAPLINE_URL = `${BRAND_ASSET_BASE}roomsonline-strapline.png`;
+
 const esc = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
