@@ -25,6 +25,8 @@ export default function ReportsDashboard() {
   const [search, setSearch] = useState("");
   const { properties, total, isLoading, error } = useReportProperties(search);
   const { runs, isLoading: runsLoading } = useReportRuns();
+  const reportsClientCount = properties.filter((p) => p.isReportsClient).length;
+
 
 
   usePageSEO({
