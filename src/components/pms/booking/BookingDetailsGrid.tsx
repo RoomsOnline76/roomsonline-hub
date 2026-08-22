@@ -389,7 +389,12 @@ export function BookingDetailsGrid({
     const { error } = await supabase.from("bookings").update({
       guest_name: form.guest_name,
       guest_email: form.guest_email,
-      guest_phone: ensureE164(form.guest_phone, guestPhoneIso) || null,
+      /* Legacy numbers stored without an international prefix must never be
+       * silently re-homed to the picker's default country. Only normalise when
+       * the user actually edited the phone field. */
+      guest_phone: (form.guest_phone.trim() === (booking.guest_phone ?? "").trim()
+        ? (booking.guest_phone ?? "")
+        : ensureE164(form.guest_phone, guestPhoneIso)) || null,
       guest_company: form.guest_company || null,
       second_guest_name: form.second_guest_name || null,
       booking_made_by: form.booking_made_by || null,
