@@ -149,7 +149,8 @@ const pageChrome = (
   header: `
     <header class="page-head">
       <div class="brand">
-        ${logoUrl ? `<img class="logo" src="${esc(logoUrl)}" alt="" />` : `<span class="wreath">ROL</span>`}
+        ${logoUrl ? `<img class="logo" src="${esc(logoUrl)}" alt="" />` : ""}
+        <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
         <span class="brandline">roomsonline <span class="divider">|</span> ${esc(propertyName)}</span>
       </div>
       <span class="asof">As at ${esc(asOf)}</span>
