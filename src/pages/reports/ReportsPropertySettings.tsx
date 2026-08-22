@@ -33,6 +33,7 @@ import {
   type ReadinessItem,
 } from "@/components/reports/ReportReadinessChecklist";
 import {
+import { reportsPath } from "@/lib/config";
   Select,
   SelectContent,
   SelectItem,
@@ -169,7 +170,7 @@ export default function ReportsPropertySettings() {
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-        <Link to="/">
+        <Link to={reportsPath("/")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Dashboard
         </Link>
@@ -189,7 +190,7 @@ export default function ReportsPropertySettings() {
           <Label htmlFor="property-switch">Property</Label>
           <Select
             value={propertyId ?? ""}
-            onValueChange={(next) => navigate(`/settings/${next}`)}
+            onValueChange={(next) => navigate(reportsPath(`/settings/${next}`))}
           >
             <SelectTrigger id="property-switch">
               <SelectValue placeholder="Choose a property" />

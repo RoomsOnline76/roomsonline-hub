@@ -30,6 +30,7 @@ import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 import { getAdapter } from "@/lib/report-adapters";
 import { SpecialReportsCard } from "@/components/reports/SpecialReportsCard";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import { reportsPath } from "@/lib/config";
 
 
 const formatDate = (iso: string): string =>
@@ -192,7 +193,7 @@ export default function ReportsRunReview() {
     try {
       await deleteRun.mutateAsync(run.id);
       toast.success("Run deleted");
-      navigate("/");
+      navigate(reportsPath("/"));
     } catch (error) {
       toast.error("Could not delete the run", {
         description: error instanceof Error ? error.message : undefined,
@@ -216,7 +217,7 @@ export default function ReportsRunReview() {
         <CardContent className="py-12 text-center space-y-3">
           <p className="text-sm font-medium">Run not found</p>
           <Button asChild variant="outline" size="sm">
-            <Link to="/">Back to dashboard</Link>
+            <Link to={reportsPath("/")}>Back to dashboard</Link>
           </Button>
         </CardContent>
       </Card>
@@ -228,7 +229,7 @@ export default function ReportsRunReview() {
   return (
     <div className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground">
-        <Link to="/">
+        <Link to={reportsPath("/")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Dashboard
         </Link>

@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+import { reportsPath } from "@/lib/config";
   DEFAULT_REPORT_SOURCE,
   getAdapter,
   isReportSourceKey,
@@ -235,7 +236,7 @@ export default function ReportsNewRun() {
       } else {
         toast.success(`Run created with ${result.uploaded} file(s)`);
       }
-      navigate(`/runs/${runId}`);
+      navigate(reportsPath(`/runs/${runId}`));
     } catch (error) {
       toast.error("Could not create the run", {
         description: error instanceof Error ? error.message : undefined,

@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import rolWreathLogo from "@/assets/rol-wreath-logo.jpg";
+import { reportsPath } from "@/lib/config";
 
 const NAV_ITEMS = [
   { label: "Dashboard", to: "/", icon: BarChart3, end: true },
@@ -88,7 +89,7 @@ export function ReportsLayout() {
         {/* ─── Top bar ────────────────────────────────────────── */}
         <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
           <div className="flex h-16 items-center justify-between px-4 sm:px-6">
-            <Link to="/" className="flex items-center gap-2.5 shrink-0">
+            <Link to={reportsPath("/")} className="flex items-center gap-2.5 shrink-0">
               <img
                 src={rolWreathLogo}
                 alt="Rooms Online"
@@ -128,7 +129,7 @@ export function ReportsLayout() {
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
-                  to={item.to}
+                  to={reportsPath(item.to)}
                   end={item.end}
                   onClick={() => setMobileOpen(false)}
                   className={({ isActive }) =>
@@ -154,7 +155,7 @@ export function ReportsLayout() {
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
-                to={item.to}
+                to={reportsPath(item.to)}
                 end={item.end}
                 className={({ isActive }) =>
                   cn(
