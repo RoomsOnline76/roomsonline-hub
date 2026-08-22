@@ -88,3 +88,26 @@ export function pastMonthsNote(past: PastMonthActual[]): string {
   const months = past.map((entry) => entry.month).join(", ");
   return `${past.length} uploaded month(s) fall before this review window (${months}) — used as last-year actuals instead of report months.`;
 }
+
+/** How many months the printed report shows: the review month plus five ahead. */
+export const REPORT_WINDOW_MONTHS = 6;
+
+const addMonths = (key: string, delta: number): string => {
+  const year = Number(key.slice(0, 4));
+  const month = Number(key.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return key;
+  const date = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${`${date.getUTCMonth() + 1}`.padStart(2, "0")}`;
+};
+
+/** `YYYY-MM` of the last month the printed report may show. */
+export function windowEndMonth(asOfDate: string): string {
+  return addMonths(windowStartMonth(asOfDate), REPORT_WINDOW_MONTHS - 1);
+}
+
+/** The months a report is allowed to display: review month + the next five. */
+export function monthsInWindow(months: string[], asOfDate: string): string[] {
+  const start = windowStartMonth(asOfDate);
+  const end = windowEndMonth(asOfDate);
+  return (months ?? []).filter((key) => Boolean(key) && key >= start && key <= end);
+}
