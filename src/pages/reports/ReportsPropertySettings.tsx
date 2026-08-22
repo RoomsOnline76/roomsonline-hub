@@ -271,7 +271,75 @@ export default function ReportsPropertySettings() {
         </div>
       )}
 
+      {isReportsClient && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              Client details
+              <Badge variant="outline" className="text-[11px] font-normal">
+                Reporting only
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              This is a standalone reporting client. It exists for Revenue Reports only and
+              never appears in the property list, on the website, or on the channel manager.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-name">Client name</Label>
+                <Input
+                  id="client-edit-name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-city">City / area</Label>
+                <Input
+                  id="client-edit-city"
+                  value={clientCity}
+                  onChange={(e) => setClientCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-country">Country</Label>
+                <Input
+                  id="client-edit-country"
+                  value={clientCountry}
+                  onChange={(e) => setClientCountry(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void handleArchiveClient()}
+                disabled={archiveClient.isPending}
+              >
+                {archiveClient.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Archive className="h-4 w-4 mr-2" />
+                )}
+                Archive client
+              </Button>
+              <Button onClick={() => void handleClientSave()} disabled={updateClient.isPending}>
+                {updateClient.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save client details
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <ReportReadinessChecklist items={readiness} />
+
 
       <Card>
         <CardHeader className="pb-3">
