@@ -432,6 +432,10 @@ export function draftToPayload(draft: RatePlanDraft) {
     is_primary_sell: draft.is_primary_sell,
     push_to_channels: draft.push_to_channels,
     sell_priority: numeric(draft.sell_priority) ?? 100,
+    derived_from_plan_id: draft.derived_from_plan_id,
+    derivation_type: draft.derived_from_plan_id ? draft.derivation_type : null,
+    derivation_value: draft.derived_from_plan_id ? numeric(draft.derivation_value) : null,
+    derivation_rounding: draft.derivation_rounding || "nearest_10",
     units: draft.units.map((u) => ({
       room_type_id: u.room_type_id,
       differential_type: u.differential_type,
@@ -449,13 +453,16 @@ export function draftToPayload(draft: RatePlanDraft) {
         return {
           calendar_season_id: s.calendar_season_id,
           mode: s.mode,
-          base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
+          // A derived column's typed cells are pinned absolute rates.
+          base_rate: s.mode === "absolute" || s.mode === "derived" ? numeric(s.base_rate) : null,
           differential_type: s.mode === "differential" ? s.differential_type : "none",
           differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
+          derivation_value: s.mode === "derived" ? numeric(s.derivation_value ?? "") : null,
           extra_adult_rate: numeric(s.extra_adult_rate),
           unit_values,
         };
       }),
+
   };
 }
 
