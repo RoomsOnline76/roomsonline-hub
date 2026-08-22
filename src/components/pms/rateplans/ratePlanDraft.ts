@@ -77,6 +77,16 @@ export interface RatePlanDraft {
   push_to_channels: boolean;
   /** Tie-break when several plans price the same unit — lower wins. */
   sell_priority: string;
+  /**
+   * Derived pricing: when set, this plan's nightly price follows another plan on the
+   * same property (a static RACK for Tour Operator rates, a yielded BAR for BAR Net)
+   * with an offset applied. One level only — a derived plan cannot be a parent.
+   */
+  derived_from_plan_id: string | null;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  /** "nearest_10" (default) or "none". */
+  derivation_rounding: string;
   units: DraftUnit[];
   season_rates: DraftSeasonRate[];
 }
@@ -101,9 +111,28 @@ export const emptyDraft = (): RatePlanDraft => ({
   is_primary_sell: false,
   push_to_channels: true,
   sell_priority: "100",
+  derived_from_plan_id: null,
+  derivation_type: "percent",
+  derivation_value: "",
+  derivation_rounding: "nearest_10",
   units: [],
   season_rates: [],
 });
+
+/** Preview the nightly price a derived plan produces off a parent amount. */
+export function derivedPreview(
+  parentPrice: number,
+  type: DerivationType,
+  value: string,
+  rounding: string,
+): number | null {
+  const v = Number(value);
+  if (!Number.isFinite(parentPrice) || parentPrice <= 0 || !Number.isFinite(v) || value === "") return null;
+  const raw = type === "percent" ? parentPrice * (1 + v / 100) : parentPrice + v;
+  const next = rounding === "none" ? Math.round(raw * 100) / 100 : Math.round(raw / 10) * 10;
+  return next > 0 ? next : null;
+}
+
 
 /** Live nightly rates the booking engine currently resolves: season id -> unit id -> amount. */
 export type LiveSeasonMatrix = Map<string, Map<string, number>>;
