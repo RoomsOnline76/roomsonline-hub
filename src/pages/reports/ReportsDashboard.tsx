@@ -10,7 +10,9 @@ import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { useReportRuns } from "@/hooks/useReportRuns";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
+import { NewReportsClientDialog } from "@/components/reports/NewReportsClientDialog";
 import { reportsPath } from "@/lib/config";
+
 
 const formatRunDate = (iso: string): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
@@ -23,6 +25,8 @@ export default function ReportsDashboard() {
   const [search, setSearch] = useState("");
   const { properties, total, isLoading, error } = useReportProperties(search);
   const { runs, isLoading: runsLoading } = useReportRuns();
+  const reportsClientCount = properties.filter((p) => p.isReportsClient).length;
+
 
 
   usePageSEO({
@@ -41,12 +45,16 @@ export default function ReportsDashboard() {
             Consolidated bi-monthly revenue reviews per property.
           </p>
         </div>
-        <Button asChild>
-          <Link to={reportsPath("/new")}>
-            <FilePlus2 className="h-4 w-4 mr-2" />
-            New report
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <NewReportsClientDialog />
+          <Button asChild>
+            <Link to={reportsPath("/new")}>
+              <FilePlus2 className="h-4 w-4 mr-2" />
+              New report
+            </Link>
+          </Button>
+        </div>
+
       </div>
 
       {/* ─── Recent runs ─────────────────────────────────────── */}
@@ -105,8 +113,12 @@ export default function ReportsDashboard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-medium tracking-tight">
             Properties{" "}
-            <span className="text-sm font-normal text-muted-foreground">({total})</span>
+            <span className="text-sm font-normal text-muted-foreground">
+              ({total}
+              {reportsClientCount > 0 ? ` · ${reportsClientCount} reporting-only` : ""})
+            </span>
           </h2>
+
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -164,9 +176,17 @@ export default function ReportsDashboard() {
                       {property.city ?? "Location not set"}
                       {property.roomCount ? ` · ${property.roomCount} rooms` : ""}
                     </p>
-                    <Badge variant="secondary" className="text-[11px] font-normal">
-                      Last run: —
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="text-[11px] font-normal">
+                        Last run: —
+                      </Badge>
+                      {property.isReportsClient && (
+                        <Badge variant="outline" className="text-[11px] font-normal">
+                          Reporting only
+                        </Badge>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               </Link>

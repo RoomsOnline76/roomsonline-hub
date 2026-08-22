@@ -1,7 +1,11 @@
 import { reportsPath } from "@/lib/config";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
+import { Archive, ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useReportsClients } from "@/hooks/useReportsClients";
+import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,8 +52,15 @@ export default function ReportsPropertySettings() {
   const navigate = useNavigate();
   const { properties } = useReportProperties();
   const property = properties.find((p) => p.id === propertyId);
+  const isReportsClient = Boolean(property?.isReportsClient);
   const { settings, isLoading, save } = usePropertyReportSettings(propertyId);
   const { brand: rolBrand } = useReportPropertyBrand(propertyId);
+  const { updateClient, archiveClient } = useReportsClients();
+
+  const [clientName, setClientName] = useState("");
+  const [clientCity, setClientCity] = useState("");
+  const [clientCountry, setClientCountry] = useState("");
+
 
   const [roomCount, setRoomCount] = useState("1");
   const [logoUrl, setLogoUrl] = useState("");
@@ -75,7 +86,12 @@ export default function ReportsPropertySettings() {
     setCoverUrl(settings.coverArtworkUrl ?? "");
     setPrimary(settings.brandPrimary ?? "");
     setSecondary(settings.brandSecondary ?? "");
-    setBrandSource(settings.brandSource ?? "custom");
+    setBrandSource(
+      settings.brandSource === "property" && isReportsClient
+        ? "custom"
+        : settings.brandSource ?? "custom",
+    );
+
     setBaseline(settings.historicalBaseline ?? {});
     setSpecialSet(settings.specialReportSet ?? "none");
     setSourceType(
@@ -84,7 +100,7 @@ export default function ReportsPropertySettings() {
         : DEFAULT_REPORT_SOURCE,
     );
     setRoomCountTouched(true);
-  }, [settings]);
+  }, [settings, isReportsClient]);
 
   // No saved settings yet → seed capacity from ROL inventory.
   useEffect(() => {
@@ -94,6 +110,60 @@ export default function ReportsPropertySettings() {
       setRoomCountTouched(true);
     }
   }, [isLoading, settings, rolBrand, roomCountTouched]);
+
+
+
+  // Reporting clients: load their editable identity fields.
+  useEffect(() => {
+    if (!isReportsClient || !propertyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("name, city, country")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setClientName(data.name ?? "");
+      setClientCity(data.city ?? "");
+      setClientCountry(data.country ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReportsClient, propertyId]);
+
+  const handleClientSave = async () => {
+    if (!propertyId) return;
+    try {
+      await updateClient.mutateAsync({
+        id: propertyId,
+        name: clientName,
+        city: clientCity,
+        country: clientCountry,
+      });
+      toast.success("Client details saved");
+    } catch (error) {
+      toast.error("Could not save client details", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
+  const handleArchiveClient = async () => {
+    if (!propertyId) return;
+    try {
+      await archiveClient.mutateAsync({ id: propertyId, archived: true });
+      toast.success("Reporting client archived");
+      navigate(reportsPath("/"));
+    } catch (error) {
+      toast.error("Could not archive client", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
+
 
   const resolved = useMemo(
     () =>
@@ -206,7 +276,75 @@ export default function ReportsPropertySettings() {
         </div>
       )}
 
+      {isReportsClient && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              Client details
+              <Badge variant="outline" className="text-[11px] font-normal">
+                Reporting only
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              This is a standalone reporting client. It exists for Revenue Reports only and
+              never appears in the property list, on the website, or on the channel manager.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-name">Client name</Label>
+                <Input
+                  id="client-edit-name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-city">City / area</Label>
+                <Input
+                  id="client-edit-city"
+                  value={clientCity}
+                  onChange={(e) => setClientCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="client-edit-country">Country</Label>
+                <Input
+                  id="client-edit-country"
+                  value={clientCountry}
+                  onChange={(e) => setClientCountry(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => void handleArchiveClient()}
+                disabled={archiveClient.isPending}
+              >
+                {archiveClient.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Archive className="h-4 w-4 mr-2" />
+                )}
+                Archive client
+              </Button>
+              <Button onClick={() => void handleClientSave()} disabled={updateClient.isPending}>
+                {updateClient.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save client details
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <ReportReadinessChecklist items={readiness} />
+
 
       <Card>
         <CardHeader className="pb-3">
@@ -303,8 +441,9 @@ export default function ReportsPropertySettings() {
             <div className="space-y-1">
               <Label>Branding source</Label>
               <p className="text-xs text-muted-foreground">
-                Follow the property's own branding, fall back to the Rooms Online house
-                brand, or set report-only colours.
+                {isReportsClient
+                  ? "Standalone reporting clients have no ROL brand — set report-only logo and colours below, or follow the Rooms Online house brand."
+                  : "Follow the property's own branding, fall back to the Rooms Online house brand, or set report-only colours."}
               </p>
             </div>
             <ToggleGroup
@@ -313,12 +452,15 @@ export default function ReportsPropertySettings() {
               onValueChange={(v) => v && setBrandSource(v as ReportBrandSource)}
               className="justify-start flex-wrap"
             >
-              {(["property", "rol", "custom"] as ReportBrandSource[]).map((source) => (
+              {((isReportsClient
+                ? ["rol", "custom"]
+                : ["property", "rol", "custom"]) as ReportBrandSource[]).map((source) => (
                 <ToggleGroupItem key={source} value={source} className="text-xs px-3">
                   {REPORT_BRAND_SOURCE_LABEL[source]}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+
 
             {brandSource === "property" && !rolBrand?.primary && (
               <p className="text-xs text-muted-foreground">
