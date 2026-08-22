@@ -36,6 +36,16 @@ export const isReportsDomain = typeof window !== 'undefined' && (
 export const connectPath = (path: string) =>
   isConnectDomain ? (path === "/connect" ? "/" : path.replace(/^\/connect/, "")) : path;
 
+// Path helper for the Revenue Reports app. On reports.roomsonline.co.za the app
+// lives at the root; everywhere else (preview, admin domain) it is mounted under
+// /reports so the pages remain reachable without the subdomain.
+export const reportsPath = (path: string): string => {
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  if (isReportsDomain) return clean;
+  return clean === "/" ? "/reports" : `/reports${clean}`;
+};
+
+
 // Helper to generate branded staff login URL (never use window.location.origin)
 export const getStaffLoginUrl = (propertySlug: string) =>
   `${ADMIN_DOMAIN}/staff-login?property=${propertySlug}`;
