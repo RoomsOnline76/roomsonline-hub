@@ -93,6 +93,12 @@ export interface DraftResult {
 
 const CONTACT_SITE = "www.roomsonline.co.za";
 
+/** Brand marks live in public storage so the printed HTML resolves them from any origin. */
+const BRAND_ASSET_BASE =
+  "https://qmprswbgkpzcvexmmcbf.supabase.co/storage/v1/object/public/property-images/reports%2Fbrand%2F";
+const ROL_WREATH_URL = `${BRAND_ASSET_BASE}rol-wreath-black.png`;
+const ROL_STRAPLINE_URL = `${BRAND_ASSET_BASE}roomsonline-strapline.png`;
+
 const esc = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -143,7 +149,8 @@ const pageChrome = (
   header: `
     <header class="page-head">
       <div class="brand">
-        ${logoUrl ? `<img class="logo" src="${esc(logoUrl)}" alt="" />` : `<span class="wreath">ROL</span>`}
+        ${logoUrl ? `<img class="logo" src="${esc(logoUrl)}" alt="" />` : ""}
+        <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
         <span class="brandline">roomsonline <span class="divider">|</span> ${esc(propertyName)}</span>
       </div>
       <span class="asof">As at ${esc(asOf)}</span>
@@ -932,17 +939,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   .brand { display: flex; align-items: center; gap: 3mm; min-width: 0; }
   .logo { height: 12mm; width: auto; max-width: 40mm; object-fit: contain; }
-  .wreath {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 11mm; height: 11mm;
-    border: 1.5px solid var(--primary);
-    border-radius: 50%;
-    color: var(--primary);
-    font-size: 8pt;
-    letter-spacing: 0.06em;
-  }
+  .wreath-mark { height: 10mm; width: auto; object-fit: contain; }
+  .cover .wreath-mark { height: 16mm; }
   .brandline { font-size: 10pt; letter-spacing: 0.02em; }
   .brandline .divider { color: var(--muted); margin: 0 1mm; }
   .asof { font-size: 9pt; color: var(--muted); white-space: nowrap; }
@@ -968,11 +966,17 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   /* Cover */
   .cover { padding: 0; }
   .cover-art {
-    height: 128mm;
-    background: linear-gradient(160deg, var(--secondary), color-mix(in srgb, var(--secondary) 65%, #000));
-    background-size: cover;
+    height: 118mm;
+    max-height: 118mm;
+    background-color: var(--paper, #fdfcf9);
+    background-size: contain;
+    background-repeat: no-repeat;
     background-position: center;
     position: relative;
+  }
+  .cover-art.is-placeholder {
+    background-image: linear-gradient(160deg, var(--secondary), color-mix(in srgb, var(--secondary) 65%, #000));
+    background-size: cover;
   }
   .cover-body { padding: 14mm; display: flex; flex-direction: column; flex: 1; gap: 6mm; }
   .cover-kicker {
@@ -981,6 +985,13 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     text-transform: uppercase;
     color: var(--primary);
   }
+  .cover-titlerow {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 8mm;
+  }
+  .cover-strapline { height: 22mm; max-width: 78mm; width: auto; object-fit: contain; }
   .cover-title {
     font-family: 'Italiana', Georgia, serif;
     font-size: 40pt;
@@ -1148,7 +1159,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 
 <!-- Cover -->
 <section class="page cover">
-  <div class="cover-art"${
+  <div class="cover-art${branding.coverArtworkUrl ? "" : " is-placeholder"}"${
     branding.coverArtworkUrl
       ? ` style="background-image:url('${esc(branding.coverArtworkUrl)}')"`
       : ""
@@ -1158,12 +1169,16 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       ${
         branding.logoUrl
           ? `<img class="logo" src="${esc(branding.logoUrl)}" alt="" />`
-          : `<span class="wreath">ROL</span>`
+          : ""
       }
+      <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
       <span class="brandline">roomsonline</span>
     </div>
     <span class="cover-kicker">Bi-monthly revenue review</span>
-    <h1 class="cover-title">Revenue<br />Review</h1>
+    <div class="cover-titlerow">
+      <h1 class="cover-title">Revenue<br />Review</h1>
+      <img class="cover-strapline" src="${ROL_STRAPLINE_URL}" alt="roomsonline — strategize, optimize, maximize" />
+    </div>
     <div class="cover-rule"></div>
     <div class="cover-property">${esc(propertyName)}</div>
     <div class="cover-meta">
