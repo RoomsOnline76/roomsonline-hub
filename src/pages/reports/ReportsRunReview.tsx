@@ -101,7 +101,22 @@ export default function ReportsRunReview() {
   const adapter = getAdapter(run?.sourceType);
   /** CheetaPlains and friends add bespoke slides to the standard pack. */
   const { settings: propertySettings } = usePropertyReportSettings(run?.propertyId);
-  const specialSet = propertySettings?.specialReportSet ?? null;
+  /** Run-level choice wins; older runs fall back to the property default. */
+  const specialSet = run
+    ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
+    : null;
+  const { setSpecialReportSet } = useReportRunMutations();
+  const handleToggleExtras = useCallback(
+    async (enabled: boolean) => {
+      if (!runId) return;
+      await setSpecialReportSet.mutateAsync({
+        runId,
+        value: enabled ? "cheetaplains" : null,
+      });
+      await refetch();
+    },
+    [runId, setSpecialReportSet, refetch],
+  );
 
 
 
@@ -498,7 +513,14 @@ export default function ReportsRunReview() {
       {runId && <SlideOrganizerCard runId={runId} sourceType={run.sourceType} />}
 
 
-      {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
+      {runId && (
+        <SpecialReportsCard
+          runId={runId}
+          enabled={specialSet === "cheetaplains"}
+          onToggle={handleToggleExtras}
+          isToggling={setSpecialReportSet.isPending}
+        />
+      )}
 
       <RunEventTimeline runId={runId} isLive={run.status === "processing"} />
     </div>
