@@ -12,6 +12,10 @@ export interface ReportProperty {
   roomCount: number | null;
   /** Standalone reporting client — exists for reports only, not in ROL. */
   isReportsClient: boolean;
+  /** As-of date (yyyy-mm-dd) of the most recent run, or null when never run. */
+  lastRunDate: string | null;
+  /** Id of that most recent run, for deep links. */
+  lastRunId: string | null;
 }
 
 
@@ -70,16 +74,33 @@ export function useReportProperties(search: string = "") {
       const ids = eligible.map((row) => row.id);
       if (ids.length === 0) return [];
 
-      const [settingsRes, roomTypesRes] = await Promise.all([
+      const [settingsRes, roomTypesRes, runsRes] = await Promise.all([
         supabase.from("property_report_settings").select("property_id, room_count").in("property_id", ids),
         supabase
           .from("hostfully_room_types")
           .select("property_id, total_units, is_active")
           .in("property_id", ids)
           .eq("is_active", true),
+        // Every run for the eligible set — the newest as-of date per property wins.
+        supabase
+          .from("report_runs")
+          .select("id, property_id, as_of_date, created_at")
+          .in("property_id", ids)
+          .order("as_of_date", { ascending: false })
+          .order("created_at", { ascending: false }),
       ]);
       if (settingsRes.error) throw settingsRes.error;
       if (roomTypesRes.error) throw roomTypesRes.error;
+      if (runsRes.error) throw runsRes.error;
+
+      const lastRuns = new Map<string, { id: string; asOfDate: string }>();
+      for (const row of runsRes.data ?? []) {
+        if (!row.property_id || !row.as_of_date) continue;
+        // Rows arrive newest-first, so the first hit per property is the latest.
+        if (!lastRuns.has(row.property_id)) {
+          lastRuns.set(row.property_id, { id: row.id, asOfDate: String(row.as_of_date).slice(0, 10) });
+        }
+      }
 
       const overrides = new Map<string, number>();
       for (const row of settingsRes.data ?? []) {
@@ -108,6 +129,8 @@ export function useReportProperties(search: string = "") {
               ? overrides.get(row.id) ?? null
               : overrides.get(row.id) ?? inventory.get(row.id) ?? null,
             isReportsClient,
+            lastRunDate: lastRuns.get(row.id)?.asOfDate ?? null,
+            lastRunId: lastRuns.get(row.id)?.id ?? null,
           };
         })
         .sort((a, b) => a.name.localeCompare(b.name));
