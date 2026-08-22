@@ -431,6 +431,9 @@ export default function ReportsRunReview() {
 
       {runId && <ReportMediaSlots runId={runId} />}
 
+      {runId && <SlideOrganizerCard runId={runId} />}
+
+
       {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
 
       <RunEventTimeline runId={runId} isLive={run.status === "processing"} />
