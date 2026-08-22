@@ -515,7 +515,11 @@ export default function ReportsNewRun() {
               onFilesAdded={handleAddFiles}
               onRemove={handleRemoveFile}
             />
-            <div className="flex justify-between">
+            <p className="text-xs text-muted-foreground">
+              Notes are optional — create the run now and add them on the review page, or
+              continue to capture them here.
+            </p>
+            <div className="flex justify-between gap-2">
               <Button
                 variant="ghost"
                 onClick={() => dispatch({ type: "step", step: 2 })}
@@ -524,13 +528,20 @@ export default function ReportsNewRun() {
                 <ChevronLeft className="h-4 w-4 mr-2" />
                 Back
               </Button>
-              <Button
-                onClick={() => dispatch({ type: "step", step: 4 })}
-                disabled={!canProcess || busy}
-              >
-                Continue
-                <ChevronRight className="h-4 w-4 ml-2" />
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => dispatch({ type: "step", step: 4 })}
+                  disabled={!canProcess || busy}
+                >
+                  Add notes
+                  <ChevronRight className="h-4 w-4 ml-2" />
+                </Button>
+                <Button onClick={() => void handleCreate()} disabled={!canProcess || busy}>
+                  {busy && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Create run
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
