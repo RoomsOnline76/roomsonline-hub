@@ -900,20 +900,107 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     .flatMap((entry) => String(entry ?? "").split(/\n+/))
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-  const tobiHtml =
-    tobiLines.length > 0
+
+  // Commentary is split into calendar-style month blocks so long text never runs
+  // off the page: a line that opens with one of the window's months belongs to
+  // that month, anything else is overall commentary printed underneath.
+  const MONTH_NAMES = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const monthByToken = new Map<string, string>();
+  for (const key of months) {
+    const [year, monthNo] = key.split("-").map(Number);
+    const name = MONTH_NAMES[(monthNo || 1) - 1] ?? "";
+    const short = name.slice(0, 3);
+    const yy = `${year}`.slice(-2);
+    for (const token of [
+      key,
+      name,
+      short,
+      `${name} ${year}`,
+      `${short} ${year}`,
+      `${name} ${yy}`,
+      `${short} ${yy}`,
+      `${name} '${yy}`,
+      `${short} '${yy}`,
+    ]) {
+      if (!monthByToken.has(token)) monthByToken.set(token, key);
+    }
+  }
+  const monthCommentary = new Map<string, string[]>();
+  const overallCommentary: string[] = [];
+  for (const raw of tobiLines) {
+    const line = raw.replace(/^[•\-\u2022\*]\s*/, "").trim();
+    const match = line.match(/^([A-Za-z]{3,9}\s*'?\s*\d{0,4}|\d{4}-\d{2})\s*[:\u2013\u2014-]\s*(.+)$/);
+    const token = match ? match[1].replace(/\s+/g, " ").trim().toLowerCase() : "";
+    const key = token ? monthByToken.get(token) : undefined;
+    if (key && match) {
+      monthCommentary.set(key, [...(monthCommentary.get(key) ?? []), match[2].trim()]);
+    } else {
+      overallCommentary.push(line);
+    }
+  }
+
+  const overallHtml =
+    overallCommentary.length > 0
       ? `
-    <div class="notes">
       <div class="note">
-        <h4>Revenue Commentary</h4>
-        <ul class="tobi">${tobiLines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
-      </div>
-    </div>`
+        <h4>Overall commentary</h4>
+        <ul class="tobi">${overallCommentary.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>
+      </div>`
       : "";
+
+  const monthCells = months
+    .filter((key) => (monthCommentary.get(key) ?? []).length > 0)
+    .map(
+      (key) => `
+        <div class="cal-cell">
+          <h4>${esc(monthLabel(key))}</h4>
+          <ul class="tobi">${(monthCommentary.get(key) ?? [])
+            .map((line) => `<li>${esc(line)}</li>`)
+            .join("")}</ul>
+        </div>`,
+    );
+
+  const CELLS_PER_PAGE = 6;
+  const commentaryChunks: string[][] = [];
+  for (let i = 0; i < monthCells.length; i += CELLS_PER_PAGE) {
+    commentaryChunks.push(monthCells.slice(i, i + CELLS_PER_PAGE));
+  }
+  const notesFooter = commentary || overallHtml ? `<div class="notes">${commentary}${overallHtml}</div>` : "";
+  const commentaryPages: { key: string; title: string; body: string }[] = [];
+  if (commentaryChunks.length === 0) {
+    if (notesFooter) {
+      commentaryPages.push({
+        key: "revenue_commentary",
+        title: "Revenue Commentary",
+        body: notesFooter,
+      });
+    }
+  } else {
+    commentaryChunks.forEach((chunk, index) => {
+      const last = index === commentaryChunks.length - 1;
+      commentaryPages.push({
+        key: index === 0 ? "revenue_commentary" : `revenue_commentary_${index + 1}`,
+        title: index === 0 ? "Revenue Commentary" : `Revenue Commentary (${index + 1})`,
+        body: `<div class="cal-grid">${chunk.join("")}</div>${last ? notesFooter : ""}`,
+      });
+    });
+  }
 
 
   const notesPageBody = `
-    ${commentary ? `<div class="notes">${commentary}</div>` : ""}
     <ul class="fineprint">
       <li><strong>OTB</strong> — On The Books: confirmed and provisional reservations captured at the as-of date.</li>
       <li>All provisional bookings are included in the figures above, in line with the standard revenue review.</li>
@@ -989,8 +1076,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     {
       key: "revenue_performance",
       title: "Revenue Performance",
-      body: `${revenueKpis}${revenueTableHtml}${tobiHtml}${legendHtml}`,
+      body: `${revenueKpis}${revenueTableHtml}${legendHtml}`,
     },
+    ...commentaryPages,
     {
       key: "nights_occupancy",
       title: "Room Nights & Occupancy",
@@ -1321,6 +1409,10 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   .note p { margin: 0; font-size: 9.5pt; line-height: 1.5; }
   ul.tobi { margin: 0; padding-left: 4mm; font-size: 9.5pt; line-height: 1.55; }
+  .cal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin-bottom: 4mm; }
+  .cal-cell { border: 0.3mm solid #E5E7EB; border-radius: 1.5mm; padding: 2.5mm 3mm; break-inside: avoid; overflow-wrap: anywhere; }
+  .cal-cell h4 { margin: 0 0 1.5mm; font-size: 8.5pt; letter-spacing: 0.08em; text-transform: uppercase; }
+  .cal-cell ul.tobi { padding-left: 3.5mm; font-size: 8.5pt; line-height: 1.45; }
   ul.tobi li { margin: 0 0 1mm; }
 
   .fineprint { font-size: 8.5pt; color: var(--muted); line-height: 1.6; }
