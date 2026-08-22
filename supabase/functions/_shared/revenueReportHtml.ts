@@ -305,17 +305,6 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   );
 
 
-  pushChart(
-    occupancyStrip({
-      id: "occupancy",
-      title: "Occupancy on the books",
-      points: months.map((key) => ({
-        label: monthLabel(key),
-        value: Number(snapshot.occupancy[key]) || 0,
-      })),
-      theme,
-    }),
-  );
 
   const sourceEntries = Object.entries(snapshot.source_breakdown ?? {})
     .map(([name, value]) => ({
