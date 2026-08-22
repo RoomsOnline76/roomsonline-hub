@@ -202,7 +202,13 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                       >
                         <ToggleGroupItem value="none" className="h-6 px-1.5 text-[10px]">Not priced</ToggleGroupItem>
                         <ToggleGroupItem value="absolute" className="h-6 px-1.5 text-[10px]">Fixed</ToggleGroupItem>
-                        <ToggleGroupItem value="differential" className="h-6 px-1.5 text-[10px]">Diff</ToggleGroupItem>
+                        {isDerivedPlan ? (
+                          <ToggleGroupItem value="derived" className="h-6 px-1.5 text-[10px]" title="Track the parent plan with an offset">
+                            Tracked
+                          </ToggleGroupItem>
+                        ) : (
+                          <ToggleGroupItem value="differential" className="h-6 px-1.5 text-[10px]">Diff</ToggleGroupItem>
+                        )}
                       </ToggleGroup>
 
                       {rate.mode === "differential" && (
@@ -221,7 +227,17 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </ToggleGroup>
                       )}
 
-                      {rate.mode !== "none" && (
+                      {rate.mode === "derived" ? (
+                        <Input
+                          type="number"
+                          inputMode="decimal"
+                          className="h-7 text-xs"
+                          placeholder={`Offset (${derivationSuffix})`}
+                          title="This season's offset off the parent plan. Blank follows the plan offset."
+                          value={rate.derivation_value ?? ""}
+                          onChange={(e) => onChange(season.calendar_season_id, { derivation_value: e.target.value })}
+                        />
+                      ) : rate.mode !== "none" ? (
                         <div className="flex items-center gap-1">
                           <Input
                             type="number"
@@ -254,7 +270,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                             Fill
                           </Button>
                         </div>
-                      )}
+                      ) : null}
+
 
                       {(legacyPendingBySeason?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
                         <Button
