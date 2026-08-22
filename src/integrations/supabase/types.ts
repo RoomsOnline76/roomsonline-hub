@@ -12982,12 +12982,14 @@ export type Database = {
           base_rate: number | null
           created_at: string
           deleted_at: string | null
+          derivation_value: number | null
           differential_type: string
           differential_value: number | null
           extra_adult_rate: number | null
           extra_child_rate: number | null
           id: string
           is_active: boolean
+          is_pinned: boolean
           legacy_season_id: string | null
           rate_plan_id: string
           room_type_id: string | null
@@ -12998,12 +13000,14 @@ export type Database = {
           base_rate?: number | null
           created_at?: string
           deleted_at?: string | null
+          derivation_value?: number | null
           differential_type?: string
           differential_value?: number | null
           extra_adult_rate?: number | null
           extra_child_rate?: number | null
           id?: string
           is_active?: boolean
+          is_pinned?: boolean
           legacy_season_id?: string | null
           rate_plan_id: string
           room_type_id?: string | null
@@ -13014,12 +13018,14 @@ export type Database = {
           base_rate?: number | null
           created_at?: string
           deleted_at?: string | null
+          derivation_value?: number | null
           differential_type?: string
           differential_value?: number | null
           extra_adult_rate?: number | null
           extra_child_rate?: number | null
           id?: string
           is_active?: boolean
+          is_pinned?: boolean
           legacy_season_id?: string | null
           rate_plan_id?: string
           room_type_id?: string | null
@@ -13130,6 +13136,10 @@ export type Database = {
           deleted_at: string | null
           deposit_amount: number | null
           deposit_percentage: number | null
+          derivation_rounding: string | null
+          derivation_type: string | null
+          derivation_value: number | null
+          derived_from_plan_id: string | null
           description: string | null
           id: string
           infant_rate: number | null
@@ -13170,6 +13180,10 @@ export type Database = {
           deleted_at?: string | null
           deposit_amount?: number | null
           deposit_percentage?: number | null
+          derivation_rounding?: string | null
+          derivation_type?: string | null
+          derivation_value?: number | null
+          derived_from_plan_id?: string | null
           description?: string | null
           id?: string
           infant_rate?: number | null
@@ -13210,6 +13224,10 @@ export type Database = {
           deleted_at?: string | null
           deposit_amount?: number | null
           deposit_percentage?: number | null
+          derivation_rounding?: string | null
+          derivation_type?: string | null
+          derivation_value?: number | null
+          derived_from_plan_id?: string | null
           description?: string | null
           id?: string
           infant_rate?: number | null
@@ -13240,6 +13258,13 @@ export type Database = {
             columns: ["breakfast_charge_id"]
             isOneToOne: false
             referencedRelation: "property_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rolos_rate_plans_derived_from_plan_id_fkey"
+            columns: ["derived_from_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
             referencedColumns: ["id"]
           },
           {

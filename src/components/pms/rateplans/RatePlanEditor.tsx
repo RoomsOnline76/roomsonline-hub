@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
 import { Loader2, Save } from "lucide-react";
 import { BREAKFAST_BASIS_LABELS, normalizeBreakfastBasis } from "@/components/charges/ChargeCalculator";
 import { useReservationPolicies } from "@/hooks/useReservationPolicies";
@@ -57,7 +59,10 @@ interface StoredSeasonRateRow {
   differential_type: string | null;
   differential_value: number | null;
   extra_adult_rate: number | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean | null;
 }
+
 
 /** A unit/season cell that is priced only by the legacy Calendar grid. */
 interface LegacyPendingCell {
@@ -76,6 +81,7 @@ interface LegacyPendingCell {
 function groupSeasonRates(
   rows: StoredSeasonRateRow[],
   calendarIdBySharedId: Map<string, string>,
+  isDerivedPlan = false,
 ): DraftSeasonRate[] {
   const byCalendarSeason = new Map<string, DraftSeasonRate>();
   for (const row of rows) {
@@ -83,23 +89,31 @@ function groupSeasonRates(
     if (!calendarSeasonId) continue;
     const isDifferential = !!row.differential_type && row.differential_type !== "none";
     const value = str(isDifferential ? row.differential_value : row.base_rate);
+    // On a derived plan a row is a tracked season (offset) unless the cell was pinned.
+    const derived = isDerivedPlan && !isDifferential;
     let column = byCalendarSeason.get(calendarSeasonId);
     if (!column) {
       column = {
         calendar_season_id: calendarSeasonId,
-        mode: isDifferential ? "differential" : "absolute",
-        base_rate: isDifferential ? "" : value,
+        mode: derived ? "derived" : isDifferential ? "differential" : "absolute",
+        base_rate: isDifferential || derived ? "" : value,
         differential_type: (isDifferential ? (row.differential_type as "amount" | "percent") : "amount"),
         differential_value: isDifferential ? value : "",
+        derivation_value: derived ? str(row.derivation_value) : "",
         extra_adult_rate: str(row.extra_adult_rate),
         unit_rates: {},
       };
       byCalendarSeason.set(calendarSeasonId, column);
     }
-    if (row.room_type_id) column.unit_rates[String(row.room_type_id)] = value;
+    if (derived && !column.derivation_value) column.derivation_value = str(row.derivation_value);
+    // Only a pinned amount belongs in a derived column's cells.
+    if (row.room_type_id && (!derived || row.is_pinned)) {
+      column.unit_rates[String(row.room_type_id)] = value;
+    }
   }
   return [...byCalendarSeason.values()];
 }
+
 
 export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes, onSaved, onCancel }: Props) {
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
@@ -107,6 +121,10 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
   const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
   const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
+  /** Other plans on this property that may act as a parent (one level of derivation only). */
+  const [parentOptions, setParentOptions] = useState<{ id: string; name: string }[]>([]);
+
+
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -189,9 +207,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             .eq("rate_plan_id", ratePlanId),
           supabase
             .from("rolos_rate_plan_season_rates")
-            .select("shared_season_id, room_type_id, base_rate, differential_type, differential_value, extra_adult_rate")
+            .select(
+              "shared_season_id, room_type_id, base_rate, differential_type, differential_value, extra_adult_rate, derivation_value, is_pinned",
+            )
             .eq("rate_plan_id", ratePlanId)
             .is("deleted_at", null),
+
           supabase.from("rolos_policy_rate_links").select("policy_id").eq("rate_plan_id", ratePlanId).maybeSingle(),
         ]);
 
@@ -217,15 +238,25 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             is_primary_sell: (plan as { is_primary_sell?: boolean }).is_primary_sell === true,
             push_to_channels: (plan as { push_to_channels?: boolean }).push_to_channels !== false,
             sell_priority: str((plan as { sell_priority?: number }).sell_priority ?? 100),
+            derived_from_plan_id: (plan as { derived_from_plan_id?: string | null }).derived_from_plan_id ?? null,
+            derivation_type:
+              ((plan as { derivation_type?: string | null }).derivation_type as "percent" | "amount" | null) ?? "percent",
+            derivation_value: str((plan as { derivation_value?: number | null }).derivation_value),
+            derivation_rounding: str((plan as { derivation_rounding?: string | null }).derivation_rounding) || "nearest_10",
             units: (links ?? []).map((l) => ({
               room_type_id: String(l.room_type_id),
               differential_type: (l.differential_type as DifferentialType) ?? "none",
               differential_value: str(l.differential_value),
             })),
-            season_rates: groupSeasonRates(seasonRates ?? [], calendarIdBySharedId),
+            season_rates: groupSeasonRates(
+              seasonRates ?? [],
+              calendarIdBySharedId,
+              Boolean((plan as { derived_from_plan_id?: string | null }).derived_from_plan_id),
+            ),
           };
         }
       } else {
+
         // A brand-new plan sells every unit by default — the common case.
         next = { ...next, units: roomTypes.map((rt) => ({ room_type_id: rt.id, differential_type: "none", differential_value: "" })) };
       }
@@ -248,6 +279,30 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       cancelled = true;
     };
   }, [propertyId, ratePlanId, roomTypes]);
+
+  // Candidate parent plans: same property, active, not this plan, and not derived themselves.
+  useEffect(() => {
+    if (!propertyId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name, derived_from_plan_id")
+        .eq("property_id", propertyId)
+        .is("deleted_at", null)
+        .order("name");
+      if (cancelled) return;
+      setParentOptions(
+        (data ?? [])
+          .filter((p) => p.id !== ratePlanId && !p.derived_from_plan_id)
+          .map((p) => ({ id: String(p.id), name: String(p.name ?? "Untitled plan") })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, ratePlanId]);
+
 
   // Mirror the Calendar's seasons into the shared season table so saves can reference them.
   useEffect(() => {
@@ -469,6 +524,58 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               placeholder="Used whenever no season is priced"
             />
           </div>
+          <div className="space-y-2 rounded-md border p-3 md:col-span-2">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Derive this plan off another plan (optional)</Label>
+                <Select
+                  value={draft.derived_from_plan_id ?? "none"}
+                  onValueChange={(v) => setField("derived_from_plan_id", v === "none" ? null : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Priced on its own" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Priced on its own</SelectItem>
+                    {parentOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  A Tour Operator rate can follow the static rack, and a BAR Net can follow the yielded BAR. The derived
+                  price tracks the parent's final nightly price — including daily yield changes — then applies the offset
+                  below. One level only.
+                </p>
+              </div>
+              {draft.derived_from_plan_id && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="rp-derivation">Offset off the parent</Label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      id="rp-derivation"
+                      type="number"
+                      inputMode="decimal"
+                      value={draft.derivation_value}
+                      onChange={(e) => setField("derivation_value", e.target.value)}
+                      placeholder="-25"
+                    />
+                    <ToggleGroup
+                      type="single"
+                      size="sm"
+                      variant="outline"
+                      value={draft.derivation_type}
+                      onValueChange={(v) => v && setField("derivation_type", v as "percent" | "amount")}
+                    >
+                      <ToggleGroupItem value="percent" className="h-9 px-2 text-xs">%</ToggleGroupItem>
+                      <ToggleGroupItem value="amount" className="h-9 px-2 text-xs">R</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Negative discounts, positive adds. Rounded to the nearest 10.
+                  </p>
+                </div>
+              )}
+            </div>
+
           <div className="space-y-1.5">
             <Label>Cancellation policy</Label>
             <Select

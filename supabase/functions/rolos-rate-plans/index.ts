@@ -60,6 +60,8 @@ interface DraftSeasonRate {
   base_rate?: number | null;
   differential_type?: DifferentialType;
   differential_value?: number | null;
+  /** Derived columns: this season's offset override off the parent plan. */
+  derivation_value?: number | null;
   extra_adult_rate?: number | null;
   /** Per-unit cell values from the unit x season matrix; interpreted per `mode`. */
   unit_values?: Record<string, number | null>;
@@ -85,9 +87,15 @@ interface Draft {
   is_primary_sell?: boolean;
   push_to_channels?: boolean;
   sell_priority?: number | null;
+  /** Derived pricing: track another plan on the same property, offset and rounded. */
+  derived_from_plan_id?: string | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  derivation_rounding?: string | null;
   units?: DraftUnit[];
   season_rates?: DraftSeasonRate[];
 }
+
 
 const num = (v: unknown): number | null => {
   const n = Number(v);
@@ -551,8 +559,11 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     if (!sharedByCalendarId.has(s.calendar_season_id)) sharedByCalendarId.set(s.calendar_season_id, s.shared_season_id);
   }
 
+  const parentPlanId = draft.derived_from_plan_id ? String(draft.derived_from_plan_id) : null;
+
   const payload: Record<string, unknown> = {
     property_id: propertyId,
+
     name: draft.name,
     code: draft.code || null,
     description: draft.description || null,
@@ -571,8 +582,15 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     is_primary_sell: draft.is_primary_sell === true,
     push_to_channels: draft.push_to_channels !== false,
     sell_priority: intOrNull(draft.sell_priority) ?? 100,
+    // Derived pricing. The database trigger rejects self-references, chains and
+    // cross-property parents, so a bad parent fails the save rather than mispricing.
+    derived_from_plan_id: parentPlanId,
+    derivation_type: parentPlanId ? (draft.derivation_type === "amount" ? "amount" : "percent") : null,
+    derivation_value: parentPlanId ? (num(draft.derivation_value) ?? 0) : null,
+    derivation_rounding: draft.derivation_rounding === "none" ? "none" : "nearest_10",
     updated_at: new Date().toISOString(),
   };
+
 
   // Only one plan per property may be the live/direct plan — demote the incumbent
   // before writing this one (a partial unique index enforces it in the database).
@@ -632,6 +650,30 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   for (const sr of draft.season_rates ?? []) {
     const sharedId = sharedByCalendarId.get(String(sr?.calendar_season_id ?? ""));
     if (!sharedId) continue;
+
+    // A derived column stores this season's offset override, plus any cell the user
+    // typed as a pinned rate that stops tracking the parent for that unit.
+    if (sr.mode === "derived") {
+      const seasonOffset = num(sr.derivation_value);
+      for (const unit of units) {
+        const pinned = positive(seasonUnitValue(sr, String(unit.room_type_id)));
+        if (pinned === null && seasonOffset === null) continue;
+        seasonRows.push({
+          rate_plan_id: planId,
+          shared_season_id: sharedId,
+          room_type_id: unit.room_type_id,
+          base_rate: pinned,
+          extra_adult_rate: positive(sr.extra_adult_rate),
+          differential_type: "none",
+          differential_value: null,
+          derivation_value: seasonOffset,
+          is_pinned: pinned !== null,
+          is_active: true,
+        });
+      }
+      continue;
+    }
+
     const isDiff = sr.mode === "differential";
     const columnAbsolute = positive(sr.base_rate);
     const columnDiff = num(sr.differential_value);
@@ -654,6 +696,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       });
     }
   }
+
   if (seasonRows.length > 0) {
     const { error: srErr } = await sb.from("rolos_rate_plan_season_rates").insert(seasonRows);
     if (srErr) return { error: `Saved the plan but could not store season pricing: ${srErr.message}` };

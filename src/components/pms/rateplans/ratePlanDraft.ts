@@ -12,7 +12,14 @@ import type { Json } from "@/integrations/supabase/types";
 import { filterLiveSeasons } from "@/lib/seasonLifecycle";
 
 export type DifferentialType = "none" | "amount" | "percent";
-export type SeasonPricingMode = "none" | "absolute" | "differential";
+/**
+ * "derived" columns belong to a plan that tracks a parent plan: the column holds the
+ * offset for that season, and any cell typed in it pins that unit to a fixed rate.
+ */
+export type SeasonPricingMode = "none" | "absolute" | "differential" | "derived";
+/** How a derived plan is offset from its parent's nightly price. */
+export type DerivationType = "percent" | "amount";
+
 
 export interface CalendarSeason {
   /** properties.amenities.seasons[].id — the Calendar's own identifier. */
@@ -37,9 +44,15 @@ export interface DraftSeasonRate {
   differential_type: Exclude<DifferentialType, "none">;
   differential_value: string;
   extra_adult_rate: string;
+  /**
+   * Derived columns: this season's offset override off the parent plan. Blank means
+   * the season follows the plan-level offset.
+   */
+  derivation_value?: string;
   /** Per-unit cell values, interpreted per the column mode. room_type_id -> raw input. */
   unit_rates: Record<string, string>;
 }
+
 
 export interface RatePlanDraft {
   rate_plan_id: string | null;
@@ -64,6 +77,16 @@ export interface RatePlanDraft {
   push_to_channels: boolean;
   /** Tie-break when several plans price the same unit — lower wins. */
   sell_priority: string;
+  /**
+   * Derived pricing: when set, this plan's nightly price follows another plan on the
+   * same property (a static RACK for Tour Operator rates, a yielded BAR for BAR Net)
+   * with an offset applied. One level only — a derived plan cannot be a parent.
+   */
+  derived_from_plan_id: string | null;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  /** "nearest_10" (default) or "none". */
+  derivation_rounding: string;
   units: DraftUnit[];
   season_rates: DraftSeasonRate[];
 }
@@ -88,9 +111,28 @@ export const emptyDraft = (): RatePlanDraft => ({
   is_primary_sell: false,
   push_to_channels: true,
   sell_priority: "100",
+  derived_from_plan_id: null,
+  derivation_type: "percent",
+  derivation_value: "",
+  derivation_rounding: "nearest_10",
   units: [],
   season_rates: [],
 });
+
+/** Preview the nightly price a derived plan produces off a parent amount. */
+export function derivedPreview(
+  parentPrice: number,
+  type: DerivationType,
+  value: string,
+  rounding: string,
+): number | null {
+  const v = Number(value);
+  if (!Number.isFinite(parentPrice) || parentPrice <= 0 || !Number.isFinite(v) || value === "") return null;
+  const raw = type === "percent" ? parentPrice * (1 + v / 100) : parentPrice + v;
+  const next = rounding === "none" ? Math.round(raw * 100) / 100 : Math.round(raw / 10) * 10;
+  return next > 0 ? next : null;
+}
+
 
 /** Live nightly rates the booking engine currently resolves: season id -> unit id -> amount. */
 export type LiveSeasonMatrix = Map<string, Map<string, number>>;
@@ -120,8 +162,10 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   differential_type: "amount",
   differential_value: "",
   extra_adult_rate: "",
+  derivation_value: "",
   unit_rates: {},
 });
+
 
 /** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
 const promoted = (rate: DraftSeasonRate, value: string): DraftSeasonRate =>
@@ -388,6 +432,10 @@ export function draftToPayload(draft: RatePlanDraft) {
     is_primary_sell: draft.is_primary_sell,
     push_to_channels: draft.push_to_channels,
     sell_priority: numeric(draft.sell_priority) ?? 100,
+    derived_from_plan_id: draft.derived_from_plan_id,
+    derivation_type: draft.derived_from_plan_id ? draft.derivation_type : null,
+    derivation_value: draft.derived_from_plan_id ? numeric(draft.derivation_value) : null,
+    derivation_rounding: draft.derivation_rounding || "nearest_10",
     units: draft.units.map((u) => ({
       room_type_id: u.room_type_id,
       differential_type: u.differential_type,
@@ -405,13 +453,16 @@ export function draftToPayload(draft: RatePlanDraft) {
         return {
           calendar_season_id: s.calendar_season_id,
           mode: s.mode,
-          base_rate: s.mode === "absolute" ? numeric(s.base_rate) : null,
+          // A derived column's typed cells are pinned absolute rates.
+          base_rate: s.mode === "absolute" || s.mode === "derived" ? numeric(s.base_rate) : null,
           differential_type: s.mode === "differential" ? s.differential_type : "none",
           differential_value: s.mode === "differential" ? numeric(s.differential_value) : null,
+          derivation_value: s.mode === "derived" ? numeric(s.derivation_value ?? "") : null,
           extra_adult_rate: numeric(s.extra_adult_rate),
           unit_values,
         };
       }),
+
   };
 }
 

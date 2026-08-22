@@ -42,6 +42,7 @@ export interface PricingSeason {
 }
 
 export type DifferentialType = "none" | "amount" | "percent";
+export type DerivationType = "percent" | "amount";
 
 /** The rate plan link for one unit (rolos_rate_plan_room_types + rolos_rate_plans). */
 export interface PricingRatePlan {
@@ -56,6 +57,28 @@ export interface PricingRatePlan {
   /** Unit-level differential applied to plan-derived amounts (tiers 3-5). */
   differential_type?: DifferentialType;
   differential_value?: number | null;
+  /** When set, this plan tracks another plan's nightly price (single level only). */
+  derived_from_plan_id?: string | null;
+  derivation_type?: DerivationType | null;
+  derivation_value?: number | null;
+  /** Currently only "nearest_10" | "none". Defaults to nearest_10. */
+  derivation_rounding?: string | null;
+}
+
+/**
+ * A parent plan a derived plan tracks. Held plan-centric (not unit-centric) because
+ * a parent may price nothing itself — e.g. a static RACK that no unit sells directly.
+ */
+export interface ParentPlanPricing {
+  rate_plan_id: string;
+  name?: string | null;
+  base_rate: number;
+  extra_adult_rate?: number;
+  is_active: boolean;
+  /** Season rates that apply to every unit of the parent plan. */
+  seasonRates: PlanSeasonRate[];
+  /** Season rates scoped to one room type id. */
+  seasonRatesByRoom: Record<string, PlanSeasonRate[]>;
 }
 
 /** A plan-centric seasonal rate keyed to a Calendar season or its own window. */
@@ -72,7 +95,12 @@ export interface PlanSeasonRate {
   differential_value?: number | null;
   min_stay?: number | null;
   max_stay?: number | null;
+  /** Derived plans: per-season offset override (same type as the plan's offset). */
+  derivation_value?: number | null;
+  /** Derived plans: a manually typed rate that stops tracking the parent. */
+  is_pinned?: boolean;
 }
+
 
 /** Legacy relational season window (rolos_rate_seasons + rolos_rate_prices). */
 export interface PricingRelationalRate {
@@ -114,7 +142,10 @@ export interface PricingInputs {
   dailyOverrides: Record<string, Record<string, DailyOverride>>;
   /** Stop-sell dates per linked_rolos_id. */
   closedDates?: Record<string, Set<string> | string[]>;
+  /** Parent plans keyed by rate_plan_id, for plans other plans derive from. */
+  parentPlans?: Record<string, ParentPlanPricing>;
 }
+
 
 export interface StayRules {
   min_stay: number;
@@ -160,6 +191,7 @@ function emptyInputs(): PricingInputs {
     unitDailyRates: {},
     dailyOverrides: {},
     closedDates: {},
+    parentPlans: {},
   };
 }
 
@@ -178,8 +210,10 @@ export function normalizePricingInputs(partial: Partial<PricingInputs>): Pricing
     unitDailyRates: partial.unitDailyRates ?? base.unitDailyRates,
     dailyOverrides: partial.dailyOverrides ?? base.dailyOverrides,
     closedDates: partial.closedDates ?? base.closedDates,
+    parentPlans: partial.parentPlans ?? base.parentPlans,
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Lookups — all read-only
@@ -315,6 +349,124 @@ function activePlan(inputs: PricingInputs, unit: UnitRateContext): PricingRatePl
 }
 
 // ---------------------------------------------------------------------------
+// Derived plans (Tour Operator off static RACK, BAR Net off yielded BAR)
+// ---------------------------------------------------------------------------
+
+/** Round a derived amount. Only "none" skips the nearest-10 rule. */
+export function roundDerived(amount: number, rounding?: string | null): number {
+  if (!Number.isFinite(amount)) return amount;
+  if (rounding === "none") return Math.round(amount * 100) / 100;
+  return Math.round(amount / 10) * 10;
+}
+
+/** Apply a derived plan's offset to a parent nightly price. */
+export function applyDerivation(
+  parentPrice: number,
+  type: DerivationType | null | undefined,
+  value: number | null | undefined,
+  rounding?: string | null,
+): number | null {
+  if (!Number.isFinite(parentPrice) || parentPrice <= 0) return null;
+  const v = Number(value);
+  if (!type || !Number.isFinite(v)) return null;
+  const raw = type === "percent" ? parentPrice * (1 + v / 100) : parentPrice + v;
+  const next = roundDerived(raw, rounding);
+  return next > 0 ? next : null;
+}
+
+/** The parent plan's own nightly price for a unit: season rate, else its base rate. */
+function parentNightPrice(
+  parent: ParentPlanPricing,
+  inputs: PricingInputs,
+  unit: UnitRateContext,
+  date: string,
+  calendarSeasonId: string | null,
+): { price: number; extra_guest_price?: number } | null {
+  const roomKey = unit?.linked_rolos_id ? String(unit.linked_rolos_id) : null;
+  const scoped = (roomKey ? parent.seasonRatesByRoom?.[roomKey] : undefined) ?? [];
+  const candidates = [...scoped, ...(parent.seasonRates ?? [])];
+  const season = planSeasonRateForDate(candidates, date, calendarSeasonId);
+  if (season) {
+    const absolute = positive(season.base_rate);
+    const diff = season.differential_type && season.differential_type !== "none"
+      ? positive(applyDifferential(parent.base_rate, season.differential_type, season.differential_value))
+      : undefined;
+    const price = absolute ?? diff;
+    if (price) {
+      return { price, extra_guest_price: positive(season.extra_adult_rate) ?? positive(parent.extra_adult_rate) };
+    }
+  }
+  const base = positive(parent.base_rate);
+  if (base) return { price: base, extra_guest_price: positive(parent.extra_adult_rate) };
+  return null;
+}
+
+/**
+ * Price one night for a plan that derives off another plan.
+ *
+ * 1. A pinned (manually typed) season rate on the derived plan wins outright.
+ * 2. Otherwise the parent's resolved nightly price — including the Calendar's
+ *    manual daily override, so a yielded BAR flows straight through — with the
+ *    plan offset (or that season's offset override) applied and rounded.
+ * 3. If the parent cannot price the night, the derived plan does not either.
+ */
+export function resolveDerivedNight(
+  inputs: PricingInputs,
+  unit: UnitRateContext,
+  plan: PricingRatePlan,
+  date: string,
+): DayRate | null {
+  const rolosId = unit?.linked_rolos_id ? String(unit.linked_rolos_id) : null;
+  const season = seasonForDate(inputs.seasons, date);
+  const ownSeason = rolosId
+    ? planSeasonRateForDate(inputs.planSeasonRates?.[rolosId], date, season?.id ?? null)
+    : null;
+
+  // 1. Pinned rate — a typed amount beats the derivation.
+  const pinned = ownSeason?.is_pinned ? positive(ownSeason.base_rate) : undefined;
+  if (pinned) {
+    return {
+      date,
+      price: applyDifferential(pinned, plan.differential_type, plan.differential_value),
+      extra_guest_price: positive(ownSeason?.extra_adult_rate) ?? positive(plan.extra_adult_rate),
+      source: "plan_season" as RateSource,
+      season_name: season?.name,
+    };
+  }
+
+  const parent = plan.derived_from_plan_id
+    ? inputs.parentPlans?.[String(plan.derived_from_plan_id)]
+    : undefined;
+  if (!parent || parent.is_active === false) return null;
+
+  // 2a. The Calendar's manual daily override is the parent's yielded price for the night.
+  const override = overrideFor(inputs, unit, date);
+  const parentResolved = positive(override?.price)
+    ? { price: positive(override?.price)!, extra_guest_price: positive(override?.extra_guest_price) }
+    : parentNightPrice(parent, inputs, unit, date, season?.id ?? null);
+  if (!parentResolved) return null;
+
+  const offsetValue = ownSeason && ownSeason.derivation_value != null
+    ? ownSeason.derivation_value
+    : plan.derivation_value;
+  const price = applyDerivation(
+    parentResolved.price,
+    plan.derivation_type ?? null,
+    offsetValue,
+    plan.derivation_rounding,
+  );
+  if (!price) return null;
+
+  return {
+    date,
+    price: applyDifferential(price, plan.differential_type, plan.differential_value),
+    extra_guest_price: parentResolved.extra_guest_price,
+    source: "derived" as RateSource,
+    season_name: season?.name,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The calculation
 // ---------------------------------------------------------------------------
 
@@ -329,6 +481,12 @@ export function resolveNightRate(
   const diffType = plan?.differential_type;
   const diffValue = plan?.differential_value;
 
+  // 0. A derived plan tracks its parent and nothing else — no rack fallback,
+  //    so an unpriced parent night is reported rather than silently substituted.
+  if (plan?.derived_from_plan_id) {
+    return resolveDerivedNight(inputs, unit, plan, date);
+  }
+
   // 1. Daily override — Calendar-owned, always final, no differential.
   const override = overrideFor(inputs, unit, date);
   const overridePrice = positive(override?.price);
@@ -340,6 +498,7 @@ export function resolveNightRate(
       source: "daily_override" as RateSource,
     };
   }
+
 
   const season = seasonForDate(inputs.seasons, date);
 
