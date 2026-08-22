@@ -579,8 +579,15 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     is_primary_sell: draft.is_primary_sell === true,
     push_to_channels: draft.push_to_channels !== false,
     sell_priority: intOrNull(draft.sell_priority) ?? 100,
+    // Derived pricing. The database trigger rejects self-references, chains and
+    // cross-property parents, so a bad parent fails the save rather than mispricing.
+    derived_from_plan_id: parentPlanId,
+    derivation_type: parentPlanId ? (draft.derivation_type === "amount" ? "amount" : "percent") : null,
+    derivation_value: parentPlanId ? (num(draft.derivation_value) ?? 0) : null,
+    derivation_rounding: draft.derivation_rounding === "none" ? "none" : "nearest_10",
     updated_at: new Date().toISOString(),
   };
+
 
   // Only one plan per property may be the live/direct plan — demote the incumbent
   // before writing this one (a partial unique index enforces it in the database).
