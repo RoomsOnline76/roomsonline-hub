@@ -6,7 +6,9 @@ import { zipSync, strToU8 } from "npm:fflate@0.8.2";
 import {
   buildDraftReport,
   type DraftSnapshot,
+  type DraftMediaSlot,
 } from "../_shared/revenueReportHtml.ts";
+import { REPORT_MEDIA_SLOTS } from "../_shared/reportMediaSlots.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -172,6 +174,7 @@ Deno.serve(async (req) => {
         rate_override_notes: inputs?.rate_override_notes ?? null,
         free_commentary: inputs?.free_commentary ?? null,
       },
+      media: mediaSlots,
     });
 
     const asOf = String(run.as_of_date).slice(0, 10);
