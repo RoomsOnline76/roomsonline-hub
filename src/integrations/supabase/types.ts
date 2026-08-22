@@ -8357,9 +8357,12 @@ export type Database = {
           flags: Json
           generated_at: string | null
           generated_by: string | null
+          include_narrative: boolean
           narrative: string | null
+          narrative_final: string | null
           provider: string | null
           run_id: string
+          selections: Json
           suggestions: Json
           updated_at: string
         }
@@ -8369,9 +8372,12 @@ export type Database = {
           flags?: Json
           generated_at?: string | null
           generated_by?: string | null
+          include_narrative?: boolean
           narrative?: string | null
+          narrative_final?: string | null
           provider?: string | null
           run_id: string
+          selections?: Json
           suggestions?: Json
           updated_at?: string
         }
@@ -8381,9 +8387,12 @@ export type Database = {
           flags?: Json
           generated_at?: string | null
           generated_by?: string | null
+          include_narrative?: boolean
           narrative?: string | null
+          narrative_final?: string | null
           provider?: string | null
           run_id?: string
+          selections?: Json
           suggestions?: Json
           updated_at?: string
         }
@@ -8406,6 +8415,7 @@ export type Database = {
           created_by: string | null
           id: string
           run_id: string
+          section_title: string | null
           slot_key: string
           sort_order: number
           storage_path: string
@@ -8419,6 +8429,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           run_id: string
+          section_title?: string | null
           slot_key: string
           sort_order?: number
           storage_path: string
@@ -8432,6 +8443,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           run_id?: string
+          section_title?: string | null
           slot_key?: string
           sort_order?: number
           storage_path?: string
