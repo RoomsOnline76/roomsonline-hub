@@ -1228,7 +1228,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   figure.shot .frame {
     width: 100%;
-    height: 120mm;
+    max-height: 120mm;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1238,17 +1238,18 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     background: #fff;
     padding: 1.5mm;
   }
-  .shots.two-up figure.shot .frame { height: 110mm; }
+  .shots.two-up figure.shot .frame { max-height: 110mm; }
   /* A media page holding a single screenshot gives it the whole page height. */
-  .shots.one-up.full-page figure.shot .frame { height: 232mm; }
+  .shots.one-up.full-page figure.shot .frame { max-height: 232mm; }
   figure.shot img {
+    width: 100%;
+    height: auto;
     max-width: 100%;
     max-height: 100%;
-    width: auto;
-    height: auto;
     display: block;
     object-fit: contain;
   }
+
   figure.shot figcaption {
     margin-top: 1.5mm;
     font-size: 8pt;
