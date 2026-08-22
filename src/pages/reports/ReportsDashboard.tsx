@@ -10,7 +10,9 @@ import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { useReportRuns } from "@/hooks/useReportRuns";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
+import { NewReportsClientDialog } from "@/components/reports/NewReportsClientDialog";
 import { reportsPath } from "@/lib/config";
+
 
 const formatRunDate = (iso: string): string =>
   new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-ZA", {
