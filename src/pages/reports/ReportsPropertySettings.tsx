@@ -1,7 +1,11 @@
 import { reportsPath } from "@/lib/config";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
+import { Archive, ArrowLeft, Loader2, RefreshCw, Save } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useReportsClients } from "@/hooks/useReportsClients";
+import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
