@@ -19,6 +19,8 @@ import {
 } from "@/hooks/useReportRuns";
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { uploadSourceFiles } from "@/lib/reportUpload";
+import { defaultRunTitle } from "@/lib/reportTitle";
+
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import {
