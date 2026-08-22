@@ -100,7 +100,58 @@ export default function ReportsPropertySettings() {
       setRoomCount(String(rolBrand.roomCount));
       setRoomCountTouched(true);
     }
-  }, [isLoading, settings, rolBrand, roomCountTouched]);
+
+  // Reporting clients: load their editable identity fields.
+  useEffect(() => {
+    if (!isReportsClient || !propertyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("properties")
+        .select("name, city, country")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (cancelled || !data) return;
+      setClientName(data.name ?? "");
+      setClientCity(data.city ?? "");
+      setClientCountry(data.country ?? "");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isReportsClient, propertyId]);
+
+  const handleClientSave = async () => {
+    if (!propertyId) return;
+    try {
+      await updateClient.mutateAsync({
+        id: propertyId,
+        name: clientName,
+        city: clientCity,
+        country: clientCountry,
+      });
+      toast.success("Client details saved");
+    } catch (error) {
+      toast.error("Could not save client details", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
+  const handleArchiveClient = async () => {
+    if (!propertyId) return;
+    try {
+      await archiveClient.mutateAsync({ id: propertyId, archived: true });
+      toast.success("Reporting client archived");
+      navigate(reportsPath("/"));
+    } catch (error) {
+      toast.error("Could not archive client", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+
+
 
   const resolved = useMemo(
     () =>
