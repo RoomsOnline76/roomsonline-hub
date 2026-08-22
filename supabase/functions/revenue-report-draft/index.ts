@@ -220,8 +220,10 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
-
+      pageOrder: savedPageOrder,
+      hiddenPages: hiddenPages,
     });
+
 
     const asOf = String(run.as_of_date).slice(0, 10);
 
