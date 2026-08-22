@@ -8,9 +8,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Plus, Trash2, Upload } from "lucide-react";
 import { useReportMedia, type ReportMediaSlotState } from "@/hooks/useReportMedia";
-import { MEDIA_SECTIONS } from "@/lib/reportMediaSlots";
+
 
 interface ReportMediaSlotsProps {
   runId: string;
@@ -42,14 +42,41 @@ function SlotEditor({
   return (
     <div className="space-y-3 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">{slot.definition.title}</p>
-          <p className="text-xs text-muted-foreground">{slot.definition.hint}</p>
+        <div className="min-w-[240px] flex-1">
+          {slot.definition.isCustom ? (
+            <Input
+              defaultValue={slot.definition.title}
+              placeholder="Slide section title"
+              className="h-8 text-sm font-medium"
+              onBlur={(event) => {
+                if (event.target.value.trim() === slot.definition.title) return;
+                media.updateSlot.mutate({ id: slot.definition.id!, title: event.target.value });
+              }}
+            />
+          ) : (
+            <p className="text-sm font-medium">{slot.definition.title}</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">{slot.definition.hint}</p>
         </div>
-        <Badge variant={slot.images.length > 0 ? "secondary" : "outline"}>
-          {slot.images.length} image{slot.images.length === 1 ? "" : "s"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={slot.images.length > 0 ? "secondary" : "outline"}>
+            {slot.images.length} image{slot.images.length === 1 ? "" : "s"}
+          </Badge>
+          {slot.definition.isCustom && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive"
+              aria-label="Remove slide section"
+              onClick={() => media.deleteSlot.mutate(slot.definition)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
       </div>
+
 
       <div
         tabIndex={0}
@@ -173,15 +200,20 @@ function SlotEditor({
 export function ReportMediaSlots({ runId }: ReportMediaSlotsProps) {
   const media = useReportMedia(runId);
   const [open, setOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
 
   const bySection = useMemo(
     () =>
-      MEDIA_SECTIONS.map((section) => ({
+      media.sections.map((section) => ({
         section,
         slots: media.slots.filter((slot) => slot.definition.section === section),
       })),
-    [media.slots],
+    [media.sections, media.slots],
   );
+
+  const addSection = () => {
+    media.createSlot.mutate(newTitle, { onSuccess: () => setNewTitle("") });
+  };
 
   return (
     <Card>
@@ -221,9 +253,44 @@ export function ReportMediaSlots({ runId }: ReportMediaSlotsProps) {
                 </div>
               </div>
             ))}
+
+            <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Add another slide section
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  value={newTitle}
+                  onChange={(event) => setNewTitle(event.target.value)}
+                  placeholder="e.g. Airbnb performance"
+                  className="h-9 max-w-xs text-sm"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      addSection();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addSection}
+                  disabled={media.createSlot.isPending}
+                >
+                  <Plus className="mr-2 h-3.5 w-3.5" />
+                  Add section
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Each section prints as its own page once you paste an image into it. Use the slide
+                organizer below to change where it lands.
+              </p>
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
     </Card>
   );
 }
+

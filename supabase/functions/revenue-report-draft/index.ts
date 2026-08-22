@@ -55,11 +55,12 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, title, properties(name)")
+      .select("id, property_id, as_of_date, previous_run_id, title, page_order, properties(name)")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
+
 
     const { data: snapshot, error: snapshotError } = await admin
       .from("report_snapshots")
@@ -92,6 +93,14 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .order("sort_order", { ascending: true });
 
+    // Custom "additional slide" sections the reviewer created for this run.
+    const { data: customSlotRows } = await admin
+      .from("report_media_slots")
+      .select("slot_key, section, title, layout, sort_order")
+      .eq("run_id", runId)
+      .order("sort_order", { ascending: true });
+
+
     // TOBI commentary the reviewer ticked for inclusion (edited wording wins).
     const { data: insightRow } = await admin
       .from("report_insights")
@@ -113,7 +122,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Slide organizer state: { order: string[], hidden: string[] } (a bare array
+    // is accepted too, for runs saved before hiding existed).
+    const rawOrder = (run as unknown as { page_order?: unknown }).page_order;
+    const orderObject = (rawOrder && typeof rawOrder === "object" && !Array.isArray(rawOrder)
+      ? rawOrder
+      : {}) as { order?: unknown; hidden?: unknown };
+    const stringList = (value: unknown): string[] =>
+      Array.isArray(value) ? value.map((entry) => String(entry)).filter(Boolean) : [];
+    const savedPageOrder = Array.isArray(rawOrder)
+      ? stringList(rawOrder)
+      : stringList(orderObject.order);
+    const hiddenPages = stringList(orderObject.hidden);
+
     const mediaSlots: DraftMediaSlot[] = [];
+
     if (mediaRows && mediaRows.length > 0) {
       const paths = mediaRows.map((row) => String(row.storage_path));
       const { data: signed } = await admin.storage
@@ -124,7 +147,18 @@ Deno.serve(async (req) => {
         if (entry?.signedUrl) urlByPath.set(paths[index], entry.signedUrl);
       });
 
-      for (const definition of REPORT_MEDIA_SLOTS) {
+      const definitions = [
+        ...REPORT_MEDIA_SLOTS,
+        ...(customSlotRows ?? []).map((row) => ({
+          key: String(row.slot_key),
+          section: String(row.section ?? row.title ?? "Additional Slides"),
+          title: String(row.title ?? "Additional slides"),
+          hint: "",
+          layout: (row.layout === "half" ? "half" : "full") as "half" | "full",
+        })),
+      ];
+
+      for (const definition of definitions) {
         const images = mediaRows
           .filter((row) => row.slot_key === definition.key)
           .map((row) => ({
@@ -143,6 +177,7 @@ Deno.serve(async (req) => {
         });
       }
     }
+
 
 
     let previousAsOf: string | null = null;
@@ -199,8 +234,10 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
-
+      pageOrder: savedPageOrder,
+      hiddenPages: hiddenPages,
     });
+
 
     const asOf = String(run.as_of_date).slice(0, 10);
 

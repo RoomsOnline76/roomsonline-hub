@@ -22,10 +22,19 @@ export interface ReportMediaImage extends ReportMediaRow {
   url: string;
 }
 
+/** A slot definition plus the custom-slot bookkeeping the editor needs. */
+export interface ReportSlotDefinition extends MediaSlotDefinition {
+  /** Custom slots are per-run rows the reviewer created. */
+  isCustom: boolean;
+  /** `report_media_slots.id` for custom slots. */
+  id?: string;
+}
+
 export interface ReportMediaSlotState {
-  definition: MediaSlotDefinition;
+  definition: ReportSlotDefinition;
   images: ReportMediaImage[];
 }
+
 
 const extensionFor = (file: File): string => {
   const fromName = file.name.split(".").pop();
@@ -72,9 +81,36 @@ export function useReportMedia(runId: string | undefined) {
     },
   });
 
+  const slotsQueryKey = useMemo(() => ["report-media-slots", runId], [runId]);
+
+  const customSlots = useQuery({
+    queryKey: slotsQueryKey,
+    enabled: Boolean(runId),
+    staleTime: 60_000,
+    queryFn: async (): Promise<ReportSlotDefinition[]> => {
+      const { data, error } = await supabase
+        .from("report_media_slots")
+        .select("id, slot_key, section, title, hint, layout, sort_order")
+        .eq("run_id", runId as string)
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.id as string,
+        key: row.slot_key as string,
+        section: (row.section as string) ?? (row.title as string),
+        title: (row.title as string) ?? "Additional slides",
+        hint: (row.hint as string) ?? "Paste anything else the revenue team needs in the report.",
+        layout: row.layout === "half" ? "half" : "full",
+        isCustom: true,
+      }));
+    },
+  });
+
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey });
-  }, [queryClient, queryKey]);
+    void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
+  }, [queryClient, queryKey, slotsQueryKey]);
+
 
   const upload = useMutation({
     mutationFn: async ({ slotKey, files }: { slotKey: string; files: File[] }) => {
@@ -169,19 +205,105 @@ export function useReportMedia(runId: string | undefined) {
     onError: (error: Error) => toast.error(error.message || "Could not reorder the images"),
   });
 
+  // ── Custom "additional slide" sections ────────────────────────────────
+  const createSlot = useMutation({
+    mutationFn: async (title: string) => {
+      if (!runId) throw new Error("No run selected");
+      const clean = title.trim() || "Additional slide";
+      const nextOrder =
+        (customSlots.data ?? []).length > 0
+          ? (customSlots.data ?? []).length + 1
+          : 1;
+
+      const { error } = await supabase.from("report_media_slots").insert({
+        run_id: runId,
+        slot_key: `custom_${crypto.randomUUID().slice(0, 8)}`,
+        section: clean,
+        title: clean,
+        layout: "full",
+        sort_order: nextOrder,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Slide section added");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not add the slide section"),
+  });
+
+  const updateSlot = useMutation({
+    mutationFn: async ({
+      id,
+      title,
+      layout,
+    }: {
+      id: string;
+      title?: string;
+      layout?: "full" | "half";
+    }) => {
+      const patch: Record<string, string> = {};
+      if (typeof title === "string") {
+        const clean = title.trim() || "Additional slide";
+        patch.title = clean;
+        patch.section = clean;
+      }
+      if (layout) patch.layout = layout;
+      if (Object.keys(patch).length === 0) return;
+      const { error } = await supabase.from("report_media_slots").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+    onError: (error: Error) => toast.error(error.message || "Could not update the slide section"),
+  });
+
+  const deleteSlot = useMutation({
+    mutationFn: async (definition: ReportSlotDefinition) => {
+      if (!definition.id) return;
+      const images = (query.data ?? []).filter((row) => row.slot_key === definition.key);
+      if (images.length > 0) {
+        await supabase.from("report_media").delete().eq("slot_key", definition.key).eq("run_id", runId as string);
+        await supabase.storage.from(BUCKET).remove(images.map((row) => row.storage_path));
+      }
+      const { error } = await supabase.from("report_media_slots").delete().eq("id", definition.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Slide section removed");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not remove the slide section"),
+  });
+
+  const definitions: ReportSlotDefinition[] = useMemo(
+    () => [
+      ...REPORT_MEDIA_SLOTS.map((definition) => ({ ...definition, isCustom: false })),
+      ...(customSlots.data ?? []),
+    ],
+    [customSlots.data],
+  );
+
   const slots: ReportMediaSlotState[] = useMemo(
     () =>
-      REPORT_MEDIA_SLOTS.map((definition) => ({
+      definitions.map((definition) => ({
         definition,
         images: (query.data ?? [])
           .filter((row) => row.slot_key === definition.key)
           .sort((a, b) => a.sort_order - b.sort_order),
       })),
-    [query.data],
+    [definitions, query.data],
   );
 
   return {
     slots,
+    /** Sections in print order — built-in sections first, then custom ones. */
+    sections: useMemo(() => {
+      const out: string[] = [];
+      for (const definition of definitions) {
+        if (!out.includes(definition.section)) out.push(definition.section);
+      }
+      return out;
+    }, [definitions]),
     total: query.data?.length ?? 0,
     isLoading: query.isLoading,
     upload,
@@ -189,6 +311,10 @@ export function useReportMedia(runId: string | undefined) {
     setSectionTitle,
     remove,
     move,
+    createSlot,
+    updateSlot,
+    deleteSlot,
     refresh: invalidate,
   };
+
 }

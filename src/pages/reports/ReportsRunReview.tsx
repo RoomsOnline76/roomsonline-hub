@@ -13,6 +13,8 @@ import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { ReportMediaSlots } from "@/components/reports/ReportMediaSlots";
+import { SlideOrganizerCard } from "@/components/reports/SlideOrganizerCard";
+
 import { BaselineCard } from "@/components/reports/BaselineCard";
 import { PriorReportImportCard } from "@/components/reports/PriorReportImportCard";
 import { DownloadBar } from "@/components/reports/DownloadBar";
@@ -430,6 +432,9 @@ export default function ReportsRunReview() {
       )}
 
       {runId && <ReportMediaSlots runId={runId} />}
+
+      {runId && <SlideOrganizerCard runId={runId} />}
+
 
       {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
 
