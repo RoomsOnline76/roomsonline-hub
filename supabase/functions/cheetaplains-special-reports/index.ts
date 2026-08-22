@@ -146,6 +146,7 @@ Deno.serve(async (req) => {
     };
     const context = {
       propertyName: property?.name ?? "Property",
+      asOfDate: String(run.as_of_date ?? "").slice(0, 10),
       footerLabel: footerLabel(run.as_of_date),
       branding,
     };

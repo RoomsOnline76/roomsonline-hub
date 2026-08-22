@@ -140,6 +140,41 @@ const formatLongDate = (iso: string): string => {
   });
 };
 
+const formatShortDate = (iso: string): string => {
+  const date = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  });
+};
+
+/**
+ * Browsers name the saved PDF after the printed document title, so this builds the
+ * agreed filename pattern and strips characters that break filenames.
+ *
+ *   "Torburnlea Homestead - Bi-Monthly Revenue Review - 14 Aug 2026 by RoomsOnline - Sleep in Africa"
+ */
+export function pdfDocumentTitle(
+  propertyName: string,
+  reportKind: string,
+  asOfIso?: string | null,
+): string {
+  const clean = (value: string) =>
+    value
+      .replace(/[\\/:*?"<>|]/g, " ")
+      .replace(/[·–—]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const dateLabel = asOfIso ? formatShortDate(asOfIso) : "";
+  const stamp = dateLabel ? ` - ${dateLabel}` : "";
+
+  return clean(`${propertyName} - ${reportKind}${stamp} by RoomsOnline - Sleep in Africa`);
+}
+
 const csvCell = (value: string | number): string => {
   const text = String(value ?? "");
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -970,7 +1005,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(propertyName)} · ${esc(cadenceLabel)} Revenue Review ${esc(asOfLabel)}</title>
+<title>${esc(pdfDocumentTitle(propertyName, `${cadenceLabel === "Bi-monthly" ? "Bi-Monthly" : cadenceLabel} Revenue Review`, asOfIso))}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />

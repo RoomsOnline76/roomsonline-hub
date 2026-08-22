@@ -9,6 +9,8 @@
  * configured.
  */
 
+import { pdfDocumentTitle } from "../revenueReportHtml.ts";
+
 export interface SpecialReportBranding {
   logoUrl: string | null;
   brandPrimary: string | null;
@@ -17,6 +19,8 @@ export interface SpecialReportBranding {
 
 export interface SpecialReportContext {
   propertyName: string;
+  /** ISO as-of date — drives the PDF filename. */
+  asOfDate?: string;
   /** Footer stamp, e.g. `OWNER'S REPORT AUGUST 26`. */
   footerLabel: string;
   branding: SpecialReportBranding;
@@ -85,7 +89,7 @@ function shell(
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(context.propertyName)} — ${esc(title.replace(/\n/g, " "))}</title>
+<title>${esc(pdfDocumentTitle(context.propertyName, title.replace(/\n/g, " "), context.asOfDate ?? ""))}</title>
 <style>
   @page { size: A4 landscape; margin: 0; }
   * { box-sizing: border-box; }
