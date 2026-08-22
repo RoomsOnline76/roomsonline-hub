@@ -53,6 +53,27 @@ export default function ReportsRunReview() {
   const navigate = useNavigate();
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
+  const [savingCadence, setSavingCadence] = useState(false);
+
+  /** Cadence drives the printed wording, so the draft is stale after a change. */
+  const setCadence = useCallback(
+    async (cadence: ReportCadence) => {
+      if (!runId) return;
+      setSavingCadence(true);
+      const { error } = await supabase.from("report_runs").update({ cadence }).eq("id", runId);
+      setSavingCadence(false);
+      if (error) {
+        toast.error("Could not change the cadence", { description: error.message });
+        return;
+      }
+      await refetch();
+      toast.success(`${CADENCE_LABEL[cadence]} review`, {
+        description: "Regenerate the draft to update the printed wording.",
+      });
+    },
+    [runId, refetch],
+  );
+
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
   const { generate, isGenerating } = useReportExcel(runId);
