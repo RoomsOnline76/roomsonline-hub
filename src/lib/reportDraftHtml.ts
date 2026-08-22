@@ -79,8 +79,7 @@ export function printFrameWithTitle(
   if (!documentTitle) restore();
 }
 
-/** Saves a remote file without navigating the user to a foreign host. */
-export function downloadFile(url: string, filename?: string): void {
+const clickDownload = (url: string, filename?: string) => {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.rel = "noopener";
@@ -89,4 +88,22 @@ export function downloadFile(url: string, filename?: string): void {
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
+};
+
+/**
+ * Saves a remote file without ever showing the user a foreign host. The file is
+ * fetched and handed to the browser as a local blob, because `download` is
+ * ignored on cross-origin links (which would navigate instead of saving).
+ */
+export async function downloadFile(url: string, filename?: string): Promise<void> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("fetch failed");
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    clickDownload(objectUrl, filename ?? url.split("/").pop()?.split("?")[0]);
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch {
+    clickDownload(url, filename);
+  }
 }
