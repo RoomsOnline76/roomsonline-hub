@@ -2,7 +2,12 @@ import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { REPORT_MEDIA_SLOTS, type MediaSlotDefinition } from "@/lib/reportMediaSlots";
+import {
+  builtInSlotByKey,
+  isBuiltInSlotKey,
+  slotsForSource,
+  type MediaSlotDefinition,
+} from "@/lib/reportMediaSlots";
 
 const BUCKET = "revenue-reports";
 
@@ -26,8 +31,10 @@ export interface ReportMediaImage extends ReportMediaRow {
 export interface ReportSlotDefinition extends MediaSlotDefinition {
   /** Custom slots are per-run rows the reviewer created. */
   isCustom: boolean;
-  /** `report_media_slots.id` for custom slots. */
+  /** `report_media_slots.id` for custom slots or title overrides. */
   id?: string;
+  /** True when a built-in heading has been renamed for this run. */
+  isRenamed?: boolean;
 }
 
 export interface ReportMediaSlotState {
@@ -48,7 +55,7 @@ const extensionFor = (file: File): string => {
  * Manages the pasted screenshots for a report run: upload (file or clipboard),
  * caption, reorder and delete. Signed URLs are refreshed with the query.
  */
-export function useReportMedia(runId: string | undefined) {
+export function useReportMedia(runId: string | undefined, sourceType?: string | null) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["report-media", runId], [runId]);
 
@@ -102,7 +109,7 @@ export function useReportMedia(runId: string | undefined) {
         hint: (row.hint as string) ?? "Paste anything else the revenue team needs in the report.",
         layout: row.layout === "half" ? "half" : "full",
         explode: true,
-        isCustom: true,
+        isCustom: !isBuiltInSlotKey(row.slot_key as string),
       }));
     },
   });
@@ -276,13 +283,76 @@ export function useReportMedia(runId: string | undefined) {
     onError: (error: Error) => toast.error(error.message || "Could not remove the slide section"),
   });
 
-  const definitions: ReportSlotDefinition[] = useMemo(
-    () => [
-      ...REPORT_MEDIA_SLOTS.map((definition) => ({ ...definition, isCustom: false })),
-      ...(customSlots.data ?? []),
-    ],
-    [customSlots.data],
-  );
+  /**
+   * Renames a built-in section heading for this run. Stored as a
+   * `report_media_slots` row whose `slot_key` matches the built-in slot.
+   */
+  const renameSection = useMutation({
+    mutationFn: async ({ slotKey, title }: { slotKey: string; title: string }) => {
+      if (!runId) throw new Error("No run selected");
+      const clean = title.trim();
+      const existing = (customSlots.data ?? []).find(
+        (row) => row.key === slotKey && !row.isCustom,
+      );
+      if (!clean) {
+        if (existing?.id) {
+          const { error } = await supabase.from("report_media_slots").delete().eq("id", existing.id);
+          if (error) throw error;
+        }
+        return;
+      }
+      if (existing?.id) {
+        const { error } = await supabase
+          .from("report_media_slots")
+          .update({ section: clean, title: clean })
+          .eq("id", existing.id);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await supabase.from("report_media_slots").insert({
+        run_id: runId,
+        slot_key: slotKey,
+        section: clean,
+        title: clean,
+        layout: "full",
+        sort_order: 0,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Section heading saved");
+      invalidate();
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not save the heading"),
+  });
+
+  const definitions: ReportSlotDefinition[] = useMemo(() => {
+    const rows = customSlots.data ?? [];
+    const overrides = new Map(rows.filter((row) => !row.isCustom).map((row) => [row.key, row]));
+    const builtIns = slotsForSource(sourceType).map((definition) => {
+      const override = overrides.get(definition.key);
+      if (!override) return { ...definition, isCustom: false };
+      return {
+        ...definition,
+        section: override.section || definition.section,
+        title: override.title || definition.title,
+        id: override.id,
+        isCustom: false,
+        isRenamed: true,
+      };
+    });
+    const known = new Set([...builtIns, ...rows].map((slot) => slot.key));
+    // Images captured under another source's slot stay visible (and printable)
+    // so switching a run's source never hides work already done.
+    const orphans: ReportSlotDefinition[] = [];
+    for (const row of query.data ?? []) {
+      if (known.has(row.slot_key) || orphans.some((slot) => slot.key === row.slot_key)) continue;
+      const fallback = builtInSlotByKey(row.slot_key);
+      if (!fallback) continue;
+      orphans.push({ ...fallback, isCustom: false });
+    }
+    return [...builtIns, ...rows.filter((row) => row.isCustom), ...orphans];
+  }, [customSlots.data, query.data, sourceType]);
 
   const slots: ReportMediaSlotState[] = useMemo(
     () =>
@@ -314,6 +384,7 @@ export function useReportMedia(runId: string | undefined) {
     move,
     createSlot,
     updateSlot,
+    renameSection,
     deleteSlot,
     refresh: invalidate,
   };

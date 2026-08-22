@@ -1,7 +1,7 @@
 // Canonical page catalogue for the draft revenue report. Mirrors
 // supabase/functions/_shared/reportPages.ts — keep both in step.
 
-import { MEDIA_SECTIONS } from "./reportMediaSlots";
+import { MEDIA_SECTIONS, mediaSectionsForSource } from "./reportMediaSlots";
 
 export interface ReportPageDefinition {
   key: string;
@@ -33,6 +33,13 @@ export const mediaPageKey = (section: string): string => `media:${section}`;
 export const DEFAULT_PAGE_ORDER: string[] = [
   ...REPORT_DATA_PAGES.map((page) => page.key),
   ...MEDIA_SECTIONS.map(mediaPageKey),
+  REPORT_NOTES_PAGE.key,
+];
+
+/** Default order for a specific source's section headings. */
+export const defaultPageOrderForSource = (source: unknown): string[] => [
+  ...REPORT_DATA_PAGES.map((page) => page.key),
+  ...mediaSectionsForSource(source).map(mediaPageKey),
   REPORT_NOTES_PAGE.key,
 ];
 
