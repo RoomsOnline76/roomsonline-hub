@@ -2,12 +2,15 @@ import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toRenderableReport } from "@/lib/reportDraftHtml";
 
 export interface DraftResult {
   ok: boolean;
   message?: string;
   url?: string;
   path?: string;
+  /** The report's own document title — used as the saved PDF filename. */
+  documentTitle?: string | null;
 }
 
 const readError = async (error: unknown): Promise<string> => {
@@ -20,22 +23,6 @@ const readError = async (error: unknown): Promise<string> => {
     }
   }
   return error instanceof Error ? error.message : "Unknown error";
-};
-
-/**
- * Storage serves stored HTML as plain text, so the raw signed URL renders as source
- * code. Re-wrap the document in a blob URL with an explicit HTML type so the iframe
- * (and the Open link) render the real report.
- */
-const toRenderableUrl = async (signedUrl: string): Promise<string> => {
-  try {
-    const response = await fetch(signedUrl);
-    if (!response.ok) return signedUrl;
-    const html = await response.text();
-    return URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
-  } catch {
-    return signedUrl;
-  }
 };
 
 /** Builds the branded draft report and the optional Canva asset pack. */
@@ -54,8 +41,10 @@ export function useReportDraft(runId: string | undefined) {
       if (data?.error) return { ok: false, message: String(data.error) };
       if (!data?.url) return { ok: false, message: "No link returned" };
       const signedUrl = String(data.url);
-      const url = action === "report" ? await toRenderableUrl(signedUrl) : signedUrl;
-      return { ok: true, url, path: data.path ? String(data.path) : undefined };
+      const path = data.path ? String(data.path) : undefined;
+      if (action !== "report") return { ok: true, url: signedUrl, path };
+      const rendered = await toRenderableReport(signedUrl);
+      return { ok: true, url: rendered.url, documentTitle: rendered.documentTitle, path };
     },
     [runId],
   );

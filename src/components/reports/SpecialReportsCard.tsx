@@ -1,10 +1,12 @@
 import { useCallback } from "react";
+import { Link } from "react-router-dom";
 import { ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useSpecialReports } from "@/hooks/useSpecialReports";
+import { reportsPath } from "@/lib/config";
 
 interface SpecialReportsCardProps {
   runId: string;
@@ -15,7 +17,7 @@ interface SpecialReportsCardProps {
  * Only rendered for properties flagged with that report set.
  */
 export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
-  const { reports, generate, isGenerating, open } = useSpecialReports(runId);
+  const { reports, generate, isGenerating } = useSpecialReports(runId);
 
   const handleGenerate = useCallback(async () => {
     const result = await generate();
@@ -25,18 +27,6 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
       toast.error("Could not build the specialised slides", { description: result.message });
     }
   }, [generate]);
-
-  const handleOpen = useCallback(
-    async (path: string) => {
-      const url = await open(path);
-      if (!url) {
-        toast.error("Could not create a view link");
-        return;
-      }
-      window.open(url, "_blank", "noopener");
-    },
-    [open],
-  );
 
   return (
     <Card>
@@ -82,9 +72,15 @@ export function SpecialReportsCard({ runId }: SpecialReportsCardProps) {
                     {report.warnings.length} note(s)
                   </Badge>
                 )}
-                <Button size="sm" variant="ghost" onClick={() => void handleOpen(report.storagePath)}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View
+                <Button size="sm" variant="ghost" asChild>
+                  <Link
+                    to={reportsPath(`/runs/${runId}/draft?slide=${report.id}`)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    View
+                  </Link>
                 </Button>
               </div>
             </div>

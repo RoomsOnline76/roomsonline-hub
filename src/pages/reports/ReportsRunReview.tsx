@@ -84,6 +84,7 @@ export default function ReportsRunReview() {
     isPacking,
   } = useReportDraft(runId);
   const [draftUrl, setDraftUrl] = useState<string | null>(null);
+  const [draftTitle, setDraftTitle] = useState<string | null>(null);
   const [pending, setPending] = useState<File[]>([]);
   const [fileStates, setFileStates] = useState<Record<number, DropZoneFileState>>({});
   const [busy, setBusy] = useState(false);
@@ -122,7 +123,10 @@ export default function ReportsRunReview() {
 
   const handleDraft = useCallback(async () => {
     const result = await generateDraft();
-    if (result.ok && result.url) setDraftUrl(result.url);
+    if (result.ok && result.url) {
+      setDraftUrl(result.url);
+      setDraftTitle(result.documentTitle ?? null);
+    }
     return result;
   }, [generateDraft]);
 
@@ -442,6 +446,8 @@ export default function ReportsRunReview() {
       {snapshot && (
         <DraftReportPreview
           url={draftUrl}
+          documentTitle={draftTitle}
+          viewerHref={reportsPath(`/runs/${runId}/draft`)}
           isGenerating={isDraftBusy}
           onGenerate={() => void handleDraft()}
           pageCount={Object.keys(snapshot.sourceBreakdown ?? {}).length > 0 ? 5 : 4}

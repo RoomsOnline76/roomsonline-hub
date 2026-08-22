@@ -168,6 +168,7 @@ import { isConnectDomain, isReportsDomain } from "./lib/config";
 const ReportsDashboard = lazy(() => import("./pages/reports/ReportsDashboard"));
 const ReportsNewRun = lazy(() => import("./pages/reports/ReportsNewRun"));
 const ReportsRunReview = lazy(() => import("./pages/reports/ReportsRunReview"));
+const ReportsDraftView = lazy(() => import("./pages/reports/ReportsDraftView"));
 const ReportsPropertySettings = lazy(() => import("./pages/reports/ReportsPropertySettings"));
 const ReportsHelp = lazy(() => import("./pages/reports/ReportsHelp"));
 
@@ -284,6 +285,7 @@ const App = () => (
                             <Route index element={<ReportsDashboard />} />
                             <Route path="new" element={<ReportsNewRun />} />
                             <Route path="runs/:runId" element={<ReportsRunReview />} />
+                            <Route path="runs/:runId/draft" element={<ReportsDraftView />} />
                             <Route path="settings" element={<ReportsDashboard />} />
                             <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
                             <Route path="help" element={<ReportsHelp />} />
@@ -308,6 +310,7 @@ const App = () => (
                           <Route index element={<ReportsDashboard />} />
                           <Route path="new" element={<ReportsNewRun />} />
                           <Route path="runs/:runId" element={<ReportsRunReview />} />
+                          <Route path="runs/:runId/draft" element={<ReportsDraftView />} />
                           <Route path="settings" element={<ReportsDashboard />} />
                           <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
                           <Route path="help" element={<ReportsHelp />} />
