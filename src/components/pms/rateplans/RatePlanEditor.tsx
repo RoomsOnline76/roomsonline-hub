@@ -494,6 +494,58 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               placeholder="Used whenever no season is priced"
             />
           </div>
+          <div className="space-y-2 rounded-md border p-3 md:col-span-2">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>Derive this plan off another plan (optional)</Label>
+                <Select
+                  value={draft.derived_from_plan_id ?? "none"}
+                  onValueChange={(v) => setField("derived_from_plan_id", v === "none" ? null : v)}
+                >
+                  <SelectTrigger><SelectValue placeholder="Priced on its own" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Priced on its own</SelectItem>
+                    {parentOptions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  A Tour Operator rate can follow the static rack, and a BAR Net can follow the yielded BAR. The derived
+                  price tracks the parent's final nightly price — including daily yield changes — then applies the offset
+                  below. One level only.
+                </p>
+              </div>
+              {draft.derived_from_plan_id && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="rp-derivation">Offset off the parent</Label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      id="rp-derivation"
+                      type="number"
+                      inputMode="decimal"
+                      value={draft.derivation_value}
+                      onChange={(e) => setField("derivation_value", e.target.value)}
+                      placeholder="-25"
+                    />
+                    <ToggleGroup
+                      type="single"
+                      size="sm"
+                      variant="outline"
+                      value={draft.derivation_type}
+                      onValueChange={(v) => v && setField("derivation_type", v)}
+                    >
+                      <ToggleGroupItem value="percent" className="h-9 px-2 text-xs">%</ToggleGroupItem>
+                      <ToggleGroupItem value="amount" className="h-9 px-2 text-xs">R</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Negative discounts, positive adds. Rounded to the nearest 10.
+                  </p>
+                </div>
+              )}
+            </div>
+
           <div className="space-y-1.5">
             <Label>Cancellation policy</Label>
             <Select
