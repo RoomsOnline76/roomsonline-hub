@@ -12,7 +12,14 @@ import type { Json } from "@/integrations/supabase/types";
 import { filterLiveSeasons } from "@/lib/seasonLifecycle";
 
 export type DifferentialType = "none" | "amount" | "percent";
-export type SeasonPricingMode = "none" | "absolute" | "differential";
+/**
+ * "derived" columns belong to a plan that tracks a parent plan: the column holds the
+ * offset for that season, and any cell typed in it pins that unit to a fixed rate.
+ */
+export type SeasonPricingMode = "none" | "absolute" | "differential" | "derived";
+/** How a derived plan is offset from its parent's nightly price. */
+export type DerivationType = "percent" | "amount";
+
 
 export interface CalendarSeason {
   /** properties.amenities.seasons[].id — the Calendar's own identifier. */
