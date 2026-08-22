@@ -14,6 +14,8 @@ import { useReportMedia, type ReportMediaSlotState } from "@/hooks/useReportMedi
 
 interface ReportMediaSlotsProps {
   runId: string;
+  /** Report source (`nightsbridge` | `opera` | `protel`) — drives the headings. */
+  sourceType?: string | null;
 }
 
 function SlotEditor({
@@ -43,19 +45,23 @@ function SlotEditor({
     <div className="space-y-3 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-[240px] flex-1">
-          {slot.definition.isCustom ? (
-            <Input
-              defaultValue={slot.definition.title}
-              placeholder="Slide section title"
-              className="h-8 text-sm font-medium"
-              onBlur={(event) => {
-                if (event.target.value.trim() === slot.definition.title) return;
+          <Input
+            key={slot.definition.title}
+            defaultValue={slot.definition.title}
+            placeholder="Section heading (prints on the page)"
+            className="h-8 text-sm font-medium"
+            onBlur={(event) => {
+              if (event.target.value.trim() === slot.definition.title) return;
+              if (slot.definition.isCustom) {
                 media.updateSlot.mutate({ id: slot.definition.id!, title: event.target.value });
-              }}
-            />
-          ) : (
-            <p className="text-sm font-medium">{slot.definition.title}</p>
-          )}
+                return;
+              }
+              media.renameSection.mutate({
+                slotKey: slot.definition.key,
+                title: event.target.value,
+              });
+            }}
+          />
           <p className="mt-1 text-xs text-muted-foreground">{slot.definition.hint}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -197,8 +203,8 @@ function SlotEditor({
  * Screenshot capture for the revenue team: one paste target per report slot,
  * grouped by the page the images print on.
  */
-export function ReportMediaSlots({ runId }: ReportMediaSlotsProps) {
-  const media = useReportMedia(runId);
+export function ReportMediaSlots({ runId, sourceType }: ReportMediaSlotsProps) {
+  const media = useReportMedia(runId, sourceType);
   const [open, setOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
 

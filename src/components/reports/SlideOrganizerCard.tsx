@@ -11,8 +11,14 @@ import { SlideOrganizer } from "./SlideOrganizer";
  * reviewer created — contribute one row per image, each carrying its own title
  * and caption so it can be placed individually in the printed order.
  */
-export function SlideOrganizerCard({ runId }: { runId: string }) {
-  const media = useReportMedia(runId);
+export function SlideOrganizerCard({
+  runId,
+  sourceType,
+}: {
+  runId: string;
+  sourceType?: string | null;
+}) {
+  const media = useReportMedia(runId, sourceType);
 
   const { mediaPages, legacyExpansions } = useMemo(() => {
     const sections: { section: string; images: number; titles: string[] }[] = [];

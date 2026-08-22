@@ -493,9 +493,9 @@ export default function ReportsRunReview() {
         />
       )}
 
-      {runId && <ReportMediaSlots runId={runId} />}
+      {runId && <ReportMediaSlots runId={runId} sourceType={run.sourceType} />}
 
-      {runId && <SlideOrganizerCard runId={runId} />}
+      {runId && <SlideOrganizerCard runId={runId} sourceType={run.sourceType} />}
 
 
       {specialSet === "cheetaplains" && runId && <SpecialReportsCard runId={runId} />}
