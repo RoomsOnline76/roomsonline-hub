@@ -52,6 +52,8 @@ export interface DraftBranding {
 export interface DraftMediaImage {
   url: string;
   caption: string | null;
+  /** Optional heading entered by the revenue team for this image's block. */
+  sectionTitle?: string | null;
 }
 
 export interface DraftMediaSlot {
@@ -71,7 +73,10 @@ export interface DraftOptions {
   inputs: DraftInputs;
   /** Screenshots pasted in by the revenue team, already signed for rendering. */
   media?: DraftMediaSlot[];
+  /** TOBI lines the reviewer ticked for inclusion, in final (possibly edited) wording. */
+  tobiCommentary?: string[];
 }
+
 
 
 export interface DraftTable {
