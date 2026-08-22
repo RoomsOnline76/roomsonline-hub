@@ -70,12 +70,13 @@ export function useReportInsights(runId: string | undefined) {
       const { data, error } = await supabase
         .from("report_insights")
         .select(
-          "narrative, narrative_final, include_narrative, selections, flags, suggestions, chart_recommendation, generated_at",
+          "narrative, narrative_final, include_narrative, selections, flags, suggestions, chart_recommendation, slides_considered, generated_at",
         )
         .eq("run_id", runId)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
+      const slides = (data.slides_considered ?? {}) as { count?: number; titles?: unknown };
       return {
         narrative: data.narrative ?? null,
         narrativeFinal: data.narrative_final ?? null,
@@ -84,6 +85,10 @@ export function useReportInsights(runId: string | undefined) {
         flags: Array.isArray(data.flags) ? (data.flags as unknown as InsightFlag[]) : [],
         suggestions: (data.suggestions ?? {}) as ReportInsights["suggestions"],
         chartRecommendation: data.chart_recommendation ?? null,
+        slidesConsidered: {
+          count: Number(slides.count ?? 0) || 0,
+          titles: Array.isArray(slides.titles) ? slides.titles.map(String) : [],
+        },
         generatedAt: data.generated_at ?? null,
       };
     },
