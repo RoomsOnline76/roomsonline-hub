@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toRenderableReport, type RenderableReport } from "@/lib/reportDraftHtml";
 
 /** Bespoke owner slides generated outside the standard pack. */
 export interface SpecialReport {
