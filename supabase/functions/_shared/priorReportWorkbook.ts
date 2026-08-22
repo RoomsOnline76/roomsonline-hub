@@ -320,8 +320,9 @@ function parseOtbSheet(rows: Row[], runAsOfDate?: string | null): OtbResult | nu
       const otb = toNum(row[otbCol]);
       const ly = lyCol === null ? null : toNum(row[lyCol]);
       if (isNights) {
-        if (otb !== null) result.nights[key] = otb;
-        if (ly !== null) result.lastYearNights[key] = ly;
+        if (otb !== null && plausibleNights(otb)) result.nights[key] = otb;
+        if (ly !== null && plausibleNights(ly)) result.lastYearNights[key] = ly;
+
       } else {
         if (otb !== null) result.revenue[key] = otb;
         if (ly !== null) result.lastYearRevenue[key] = ly;
