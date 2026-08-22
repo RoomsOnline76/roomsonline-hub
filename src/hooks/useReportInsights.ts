@@ -24,8 +24,18 @@ export type SuggestionField =
   | "rate_override_notes"
   | "free_commentary";
 
+export interface InsightSelection {
+  include: boolean;
+  text: string;
+}
+
 export interface ReportInsights {
   narrative: string | null;
+  /** Reviewer-edited narrative; falls back to `narrative` when unset. */
+  narrativeFinal: string | null;
+  includeNarrative: boolean;
+  /** Keyed by suggestion field / flag id — inclusion flag plus final wording. */
+  selections: Record<string, InsightSelection>;
   flags: InsightFlag[];
   suggestions: Partial<Record<SuggestionField, string>>;
   chartRecommendation: string | null;
@@ -57,13 +67,18 @@ export function useReportInsights(runId: string | undefined) {
       if (!runId) return null;
       const { data, error } = await supabase
         .from("report_insights")
-        .select("narrative, flags, suggestions, chart_recommendation, generated_at")
+        .select(
+          "narrative, narrative_final, include_narrative, selections, flags, suggestions, chart_recommendation, generated_at",
+        )
         .eq("run_id", runId)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
       return {
         narrative: data.narrative ?? null,
+        narrativeFinal: data.narrative_final ?? null,
+        includeNarrative: data.include_narrative !== false,
+        selections: (data.selections ?? {}) as Record<string, InsightSelection>,
         flags: Array.isArray(data.flags) ? (data.flags as unknown as InsightFlag[]) : [],
         suggestions: (data.suggestions ?? {}) as ReportInsights["suggestions"],
         chartRecommendation: data.chart_recommendation ?? null,
@@ -88,6 +103,29 @@ export function useReportInsights(runId: string | undefined) {
     }
   }, [runId, queryClient]);
 
+  /** Persists the reviewer's tick boxes and edited wording. */
+  const saveReview = useMutation({
+    mutationFn: async (patch: {
+      narrativeFinal?: string | null;
+      includeNarrative?: boolean;
+      selections?: Record<string, InsightSelection>;
+    }) => {
+      if (!runId) throw new Error("No run selected");
+      const row: Record<string, unknown> = { run_id: runId };
+      if (patch.narrativeFinal !== undefined) row.narrative_final = patch.narrativeFinal;
+      if (patch.includeNarrative !== undefined) row.include_narrative = patch.includeNarrative;
+      if (patch.selections !== undefined) row.selections = patch.selections;
+      const { error } = await supabase
+        .from("report_insights")
+        .update(row)
+        .eq("run_id", runId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["reports", "insights", runId] });
+    },
+  });
+
   const acceptSuggestion = useMutation({
     mutationFn: async ({ field, text }: { field: SuggestionField; text: string }) => {
       if (!runId) throw new Error("No run selected");
@@ -107,5 +145,6 @@ export function useReportInsights(runId: string | undefined) {
     generate,
     isGenerating,
     acceptSuggestion,
+    saveReview,
   };
 }
