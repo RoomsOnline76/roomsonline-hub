@@ -2,6 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
   aggregateLedger,
   type LedgerRow,
