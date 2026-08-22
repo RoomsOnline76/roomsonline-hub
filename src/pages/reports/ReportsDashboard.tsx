@@ -13,6 +13,7 @@ import { useReportRuns } from "@/hooks/useReportRuns";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { NewReportsClientDialog } from "@/components/reports/NewReportsClientDialog";
 import { reportsPath } from "@/lib/config";
+import { sourceLabel } from "@/lib/report-adapters";
 
 
 const formatRunDate = (iso: string): string =>
@@ -150,7 +151,8 @@ export default function ReportsDashboard() {
                 </span>
                 <span className="block text-xs text-muted-foreground truncate">
                   As-of {formatRunDate(run.asOfDate)} · {run.fileCount} file
-                  {run.fileCount === 1 ? "" : "s"}
+                  {run.fileCount === 1 ? "" : "s"} · {sourceLabel(run.sourceType)}
+                  {run.specialReportSet ? " · + extras" : ""}
                 </span>
               </span>
               <RunStatusPill status={run.status} />
