@@ -24,6 +24,7 @@ import {
   parseProtelProduction,
 } from "../_shared/protel/production.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { repairWorkbookBuffer, workbookRepairNote } from "../_shared/xlsxRepair.ts";
 import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
   applyImportedBaseline,
