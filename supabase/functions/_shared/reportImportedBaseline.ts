@@ -157,9 +157,10 @@ export function substituteThinMonths(
     swapped.push({ month, parsed_revenue: parsed, imported_revenue: importedRevenue });
     aggregate.otb_revenue[month] = importedRevenue;
     const importedNights = Number(nights[month]);
-    if (Number.isFinite(importedNights) && importedNights > 0) {
+    if (isPlausibleNights(importedNights)) {
       aggregate.room_nights[month] = importedNights;
     }
+
     const monthNights = aggregate.room_nights[month] ?? 0;
     const capacity = aggregate.capacity_days[month] ?? 0;
     aggregate.adr[month] =
