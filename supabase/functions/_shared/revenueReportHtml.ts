@@ -812,13 +812,14 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
         title: heading,
         body: `
     <div class="block">
-      <div class="shots one-up">
+      <div class="shots one-up full-page">
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(heading)}" />
+          <span class="frame"><img src="${esc(image.url)}" alt="${esc(heading)}" /></span>
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>
       </div>
     </div>`,
+
       });
     });
   }
