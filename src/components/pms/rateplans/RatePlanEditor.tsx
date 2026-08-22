@@ -57,7 +57,10 @@ interface StoredSeasonRateRow {
   differential_type: string | null;
   differential_value: number | null;
   extra_adult_rate: number | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean | null;
 }
+
 
 /** A unit/season cell that is priced only by the legacy Calendar grid. */
 interface LegacyPendingCell {
