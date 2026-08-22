@@ -24,7 +24,7 @@ import {
   PERCENT,
   sheetTitle,
   type WorkbookOptions,
-} from "./shared.ts";
+} from "./workbookPart-shared.ts";
 
 /** Row/column map shared with the PDF draft and Canva pack. */
 export function buildLayout(monthCount: number) {

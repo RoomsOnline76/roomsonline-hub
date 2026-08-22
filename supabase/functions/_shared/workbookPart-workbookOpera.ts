@@ -27,7 +27,7 @@ import {
   PERCENT,
   sheetTitle,
   type WorkbookOptions,
-} from "./shared.ts";
+} from "./workbookPart-shared.ts";
 
 const pad = (n: number) => `${n}`.padStart(2, "0");
 

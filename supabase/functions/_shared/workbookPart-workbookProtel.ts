@@ -27,7 +27,7 @@ import {
   sheetTitle,
   writeCarryForwardSheets,
   type WorkbookOptions,
-} from "./shared.ts";
+} from "./workbookPart-shared.ts";
 
 export const PROTEL_CARRY_FORWARD_SHEETS = ["Online Res", "Web Comparison"];
 
