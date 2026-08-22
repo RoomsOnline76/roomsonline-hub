@@ -121,6 +121,10 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
   const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
   const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
+  /** Other plans on this property that may act as a parent (one level of derivation only). */
+  const [parentOptions, setParentOptions] = useState<{ id: string; name: string }[]>([]);
+
+
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
