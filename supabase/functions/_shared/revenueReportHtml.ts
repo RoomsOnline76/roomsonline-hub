@@ -260,9 +260,17 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const otbNow = months.map((key) => num(snapshot.otb_revenue, key));
   const otbPrev = months.map((key) => num(snapshot.previous_otb_revenue, key));
   const otbLy = months.map((key) => num(snapshot.last_year_actual, key));
-  const nightsNow = months.map((key) => num(snapshot.room_nights, key));
-  const nightsPrev = months.map((key) => num(snapshot.previous_room_nights, key));
-  const nightsLy = months.map((key) => num(snapshot.last_year_room_nights, key));
+  // Room nights are counts. A fractional value is an occupancy figure that came
+  // in through the wrong column — treat it as missing rather than dividing
+  // revenue by 0.4 and rescaling every chart into the millions.
+  const nights = (map: Record<string, number> | undefined, key: string) => {
+    const value = Number(map?.[key]);
+    return Number.isFinite(value) && value >= 1 ? value : 0;
+  };
+  const nightsNow = months.map((key) => nights(snapshot.room_nights, key));
+  const nightsPrev = months.map((key) => nights(snapshot.previous_room_nights, key));
+  const nightsLy = months.map((key) => nights(snapshot.last_year_room_nights, key));
+
   const capacity = months.map((key) => num(snapshot.capacity_days, key));
   const dinner = months.map((key) => num(inputs.dinner_by_month, key));
   const room0 = months.map((key) => num(inputs.room0_by_month, key));
