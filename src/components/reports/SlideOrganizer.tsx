@@ -19,8 +19,8 @@ import { useReportPageOrder } from "@/hooks/useReportPageOrder";
 
 interface SlideOrganizerProps {
   runId: string;
-  /** Media sections that will print, with their image counts. */
-  mediaSections: { section: string; images: number }[];
+  /** Media sections that will print, with their image counts and titles. */
+  mediaSections: { section: string; images: number; titles: string[] }[];
 }
 
 /**

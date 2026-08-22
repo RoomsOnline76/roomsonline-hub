@@ -37,7 +37,7 @@ const parse = (raw: unknown): PageOrderState => {
  */
 export function useReportPageOrder(
   runId: string | undefined,
-  mediaSections: { section: string; images: number }[],
+  mediaSections: { section: string; images: number; titles: string[] }[],
 ) {
   const queryClient = useQueryClient();
   const queryKey = useMemo(() => ["report-page-order", runId], [runId]);
@@ -62,11 +62,18 @@ export function useReportPageOrder(
   const available: ReportPageDefinition[] = useMemo(
     () => [
       ...REPORT_DATA_PAGES,
-      ...mediaSections.map((entry) => ({
-        key: mediaPageKey(entry.section),
-        title: entry.section,
-        summary: `${entry.images} pasted image${entry.images === 1 ? "" : "s"}`,
-      })),
+      ...mediaSections.map((entry) => {
+        const countLabel =
+          entry.images === 0
+            ? "No images yet"
+            : `${entry.images} image${entry.images === 1 ? "" : "s"}`;
+        const titleList = entry.titles.filter(Boolean).join(", ");
+        return {
+          key: mediaPageKey(entry.section),
+          title: entry.section,
+          summary: titleList ? `${countLabel} · ${titleList}` : countLabel,
+        };
+      }),
       REPORT_NOTES_PAGE,
     ],
     [mediaSections],
