@@ -49,6 +49,19 @@ export interface DraftBranding {
   brandSecondary: string | null;
 }
 
+export interface DraftMediaImage {
+  url: string;
+  caption: string | null;
+}
+
+export interface DraftMediaSlot {
+  key: string;
+  section: string;
+  title: string;
+  layout: "full" | "half";
+  images: DraftMediaImage[];
+}
+
 export interface DraftOptions {
   propertyName: string;
   asOfDate: string;
@@ -56,7 +69,10 @@ export interface DraftOptions {
   branding: DraftBranding;
   snapshot: DraftSnapshot;
   inputs: DraftInputs;
+  /** Screenshots pasted in by the revenue team, already signed for rendering. */
+  media?: DraftMediaSlot[];
 }
+
 
 export interface DraftTable {
   name: string;
