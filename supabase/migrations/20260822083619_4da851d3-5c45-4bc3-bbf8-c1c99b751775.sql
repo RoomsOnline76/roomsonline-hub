@@ -1,0 +1,1 @@
+ALTER TABLE public.report_insights ADD COLUMN IF NOT EXISTS slides_considered jsonb NOT NULL DEFAULT '{"count": 0, "titles": []}'::jsonb;

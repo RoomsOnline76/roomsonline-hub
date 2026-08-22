@@ -14,6 +14,10 @@ import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const MAX_SUGGESTION_CHARS = 480;
 const MAX_NARRATIVE_CHARS = 1800;
+/** Provider link caps are small, so slides are inlined as base64 — keep the pass bounded. */
+const MAX_SLIDE_IMAGES = 12;
+const MAX_SLIDE_BYTES = 4_500_000;
+const MEDIA_BUCKET = "revenue-reports";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -42,6 +46,99 @@ const clamp = (value: unknown, max: number): string | null => {
   if (!trimmed) return null;
   return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed;
 };
+
+interface SlideImage {
+  /** Human label used in the report and in TOBI's references. */
+  label: string;
+  caption: string | null;
+  dataUrl: string;
+}
+
+/**
+ * Loads every pasted screenshot on the run — standard slots and custom
+ * additional slides — in the reviewer's slide order, inlined as base64 so the
+ * provider never has to fetch a link.
+ */
+const loadSlideImages = async (
+  admin: ReturnType<typeof createClient>,
+  runId: string,
+  pageOrder: unknown,
+): Promise<SlideImage[]> => {
+  const { data: rows } = await admin
+    .from("report_media")
+    .select("slot_key, storage_path, caption, section_title, sort_order, content_type")
+    .eq("run_id", runId)
+    .order("sort_order", { ascending: true });
+  if (!rows || rows.length === 0) return [];
+
+  const { data: slots } = await admin
+    .from("report_media_slots")
+    .select("slot_key, section, title, sort_order")
+    .eq("run_id", runId);
+  const slotTitle = new Map<string, string>();
+  for (const slot of slots ?? []) {
+    slotTitle.set(
+      String(slot.slot_key),
+      String(slot.section ?? slot.title ?? "Additional slide"),
+    );
+  }
+
+  // Respect the reviewer's page order where it names media pages.
+  const order = Array.isArray((pageOrder as { order?: unknown })?.order)
+    ? ((pageOrder as { order: unknown[] }).order.map(String))
+    : [];
+  const rank = (slotKey: string): number => {
+    const idx = order.findIndex((key) => key === slotKey || key === `media:${slotKey}`);
+    return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+  };
+
+  const sorted = [...rows].sort((a, b) => {
+    const diff = rank(String(a.slot_key)) - rank(String(b.slot_key));
+    if (diff !== 0) return diff;
+    return Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0);
+  });
+
+  const slides: SlideImage[] = [];
+  let budget = MAX_SLIDE_BYTES;
+  for (const row of sorted) {
+    if (slides.length >= MAX_SLIDE_IMAGES) break;
+    const path = String(row.storage_path ?? "");
+    if (!path) continue;
+    const { data: blob, error } = await admin.storage.from(MEDIA_BUCKET).download(path);
+    if (error || !blob) continue;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > budget) continue;
+    budget -= bytes.byteLength;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    }
+    const mime = String(row.content_type ?? blob.type ?? "image/png") || "image/png";
+    if (!mime.startsWith("image/")) continue;
+    slides.push({
+      label:
+        clamp(row.section_title, 120) ??
+        slotTitle.get(String(row.slot_key)) ??
+        String(row.slot_key),
+      caption: clamp(row.caption, 240),
+      dataUrl: `data:${mime};base64,${btoa(binary)}`,
+    });
+  }
+  return slides;
+};
+
+const SLIDES_PROMPT = `
+
+Slides:
+The user message may include extra screenshots the revenue team pasted into the report
+(channel mixes, competitor rates, market or portal screenshots), each with the slide
+title it sits under. Read them and let what you see shape the recommendations.
+- Never take a number, month or percentage for the "narrative" from a screenshot — the
+  narrative is built only from "facts" and "snapshot".
+- Screenshot-derived observations may appear only in "suggestions" and "flag_notes",
+  and must name the slide they came from, e.g. "the Airbnb performance slide shows…".
+- If a slide has a title but nothing legible or relevant, ignore it silently. Never guess
+  at figures you cannot read.`;
 
 const SYSTEM_PROMPT = `You are TOBI, the revenue analyst for a South African hospitality group.
 You write the commentary for a monthly revenue outlook report that an owner reads.
@@ -104,7 +201,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, title, properties(name)")
+      .select("id, property_id, as_of_date, title, page_order, properties(name)")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -161,22 +258,61 @@ Deno.serve(async (req) => {
       },
     };
 
-    const outcome = await aiChat(
+    const slides = await loadSlideImages(admin, runId, run.page_order);
+    const slideTitles = [...new Set(slides.map((slide) => slide.label))];
+
+    const textOnlyMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: JSON.stringify(userPayload) },
+    ];
+
+    const visionMessages = [
+      { role: "system", content: `${SYSTEM_PROMPT}${SLIDES_PROMPT}` },
       {
-        model: modelForTask("revenue_report_insights"),
-        temperature: AI_TEMPERATURE.prose,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: JSON.stringify(userPayload) },
+        role: "user",
+        content: [
+          { type: "text", text: JSON.stringify(userPayload) },
+          ...slides.flatMap((slide) => [
+            {
+              type: "text",
+              text: `Slide: ${slide.label}${slide.caption ? ` — ${slide.caption}` : ""}`,
+            },
+            { type: "image_url", image_url: { url: slide.dataUrl } },
+          ]),
         ],
       },
-      { label: "revenue-report-insights", preferFallback: true },
-    );
+    ];
+
+    const runPass = async (withSlides: boolean) =>
+      await aiChat(
+        {
+          model: modelForTask(
+            withSlides ? "revenue_report_insights_vision" : "revenue_report_insights",
+          ),
+          temperature: AI_TEMPERATURE.prose,
+          response_format: { type: "json_object" },
+          messages: withSlides ? visionMessages : textOnlyMessages,
+        },
+        { label: "revenue-report-insights", preferFallback: true },
+      );
+
+    let usedSlides = slides.length > 0;
+    let outcome = await runPass(usedSlides);
+
+    // The narrative must always land: drop back to the text-only pass when the
+    // vision request is terminally refused (bad body, credits, policy).
+    if (!outcome.ok && usedSlides && [400, 402, 403, 413].includes(outcome.status)) {
+      console.warn(
+        `[revenue-report-insights] slide pass refused (${outcome.status}); retrying without slides`,
+      );
+      usedSlides = false;
+      outcome = await runPass(false);
+    }
 
     if (!outcome.ok) {
       return json({ error: outcome.error ?? "TOBI could not build the insights." }, outcome.status);
     }
+
 
     const content = String(
       (outcome.data as { choices?: Array<{ message?: { content?: string } }> })?.choices?.[0]
@@ -217,6 +353,10 @@ Deno.serve(async (req) => {
       flags: enrichedFlags,
       suggestions,
       chart_recommendation: clamp(ai.chart_recommendation, 240),
+      slides_considered: {
+        count: usedSlides ? slides.length : 0,
+        titles: usedSlides ? slideTitles : [],
+      },
       provider: outcome.provider,
       generated_by: userData.user.id,
       generated_at: new Date().toISOString(),
@@ -232,10 +372,13 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "insights_generated",
-      "TOBI insights generated",
-      { provider: outcome.provider },
+      usedSlides
+        ? `TOBI insights generated from ${slides.length} pasted slide${slides.length === 1 ? "" : "s"}`
+        : "TOBI insights generated",
+      { provider: outcome.provider, slides_considered: usedSlides ? slideTitles : [] },
       userData.user.id,
     );
+
 
     return json({ success: true, insights: record });
   } catch (err) {

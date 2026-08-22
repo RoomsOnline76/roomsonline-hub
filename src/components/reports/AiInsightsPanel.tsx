@@ -141,6 +141,19 @@ export function AiInsightsPanel({ runId }: Props) {
               ? `Last generated ${new Date(insights.generatedAt).toLocaleString("en-ZA")}`
               : "Written commentary and anomaly flags for this outlook."}
           </p>
+          {insights?.generatedAt && (
+            <p className="text-xs text-muted-foreground">
+              {insights.slidesConsidered.count > 0
+                ? `Read ${insights.slidesConsidered.count} pasted slide${
+                    insights.slidesConsidered.count === 1 ? "" : "s"
+                  }${
+                    insights.slidesConsidered.titles.length > 0
+                      ? `: ${insights.slidesConsidered.titles.join(", ")}`
+                      : ""
+                  }`
+                : "No pasted slides were read — regenerate after adding screenshots."}
+            </p>
+          )}
         </div>
         <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
           {isGenerating ? (

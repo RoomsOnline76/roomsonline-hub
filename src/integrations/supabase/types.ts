@@ -8369,6 +8369,7 @@ export type Database = {
           provider: string | null
           run_id: string
           selections: Json
+          slides_considered: Json
           suggestions: Json
           updated_at: string
         }
@@ -8384,6 +8385,7 @@ export type Database = {
           provider?: string | null
           run_id: string
           selections?: Json
+          slides_considered?: Json
           suggestions?: Json
           updated_at?: string
         }
@@ -8399,6 +8401,7 @@ export type Database = {
           provider?: string | null
           run_id?: string
           selections?: Json
+          slides_considered?: Json
           suggestions?: Json
           updated_at?: string
         }
