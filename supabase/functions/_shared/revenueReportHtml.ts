@@ -838,7 +838,10 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     </div>`;
 
   const pageDefs: { title: string; body: string }[] = [
-    { title: "Revenue Performance", body: `${revenueKpis}${revenueTableHtml}${legendHtml}` },
+    {
+      title: "Revenue Performance",
+      body: `${revenueKpis}${revenueTableHtml}${tobiHtml}${legendHtml}`,
+    },
     { title: "Room Nights & Occupancy", body: `${performanceKpis}${nightsTableHtml}${occupancyTableHtml}` },
     { title: "Rate & Comparison Review", body: `${adrTableHtml}${comparisonReviewHtml}${legendHtml}` },
     {
@@ -846,10 +849,6 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       body: `${figure("revenue-grouped")}${figure("occupancy-grouped")}${figure("adr-grouped")}`,
     },
     { title: "Pickup & Rate Trend", body: `${figure("pickup-variance")}${figure("adr-trend")}` },
-    ...mediaSections.map((entry) => ({
-      title: entry.section,
-      body: entry.slots.map(mediaSlotHtml).join(""),
-    })),
     ...(sourceEntries.length > 0
       ? [
           {
@@ -858,8 +857,13 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           },
         ]
       : []),
+    ...mediaSections.map((entry) => ({
+      title: entry.section,
+      body: entry.slots.map(mediaSlotHtml).join(""),
+    })),
     { title: "Process Notes", body: notesPageBody },
   ].filter((def) => def.body.trim().length > 0);
+
 
   const pagesHtml = pageDefs
     .map((def, index) => {
