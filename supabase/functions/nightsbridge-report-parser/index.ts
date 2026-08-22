@@ -7,6 +7,7 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
   applyImportedBaseline,
   reconcileWithImportedBaseline,
