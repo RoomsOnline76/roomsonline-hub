@@ -299,8 +299,8 @@ Deno.serve(async (req) => {
       // Parse one workbook at a time and release the buffer before the next file.
       let parsed: ParsedFile;
       {
-        const buffer = await download.data.arrayBuffer();
-        parsed = parseWorkbook(buffer, file.original_filename);
+        const repair = await repairWorkbookBuffer(await download.data.arrayBuffer());
+        parsed = parseWorkbook(repair.buffer, file.original_filename);
       }
       const ok = parsed.rows.length > 0;
       if (ok) {
