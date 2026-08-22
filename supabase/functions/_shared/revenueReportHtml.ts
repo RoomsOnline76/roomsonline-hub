@@ -1112,6 +1112,9 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     font-weight: 500;
   }
   .note p { margin: 0; font-size: 9.5pt; line-height: 1.5; }
+  ul.tobi { margin: 0; padding-left: 4mm; font-size: 9.5pt; line-height: 1.55; }
+  ul.tobi li { margin: 0 0 1mm; }
+
   .fineprint { font-size: 8.5pt; color: var(--muted); line-height: 1.6; }
   .fineprint li { margin-bottom: 1.5mm; }
   .contact { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; font-size: 9pt; }
