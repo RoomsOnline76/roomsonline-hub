@@ -1,7 +1,7 @@
 // Canonical page catalogue for the draft revenue report. Mirrors
 // supabase/functions/_shared/reportPages.ts — keep both in step.
 
-import { MEDIA_SECTIONS } from "./reportMediaSlots";
+import { MEDIA_SECTIONS, mediaSectionsForSource } from "./reportMediaSlots";
 
 export interface ReportPageDefinition {
   key: string;
