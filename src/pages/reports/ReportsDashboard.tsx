@@ -41,12 +41,16 @@ export default function ReportsDashboard() {
             Consolidated bi-monthly revenue reviews per property.
           </p>
         </div>
-        <Button asChild>
-          <Link to={reportsPath("/new")}>
-            <FilePlus2 className="h-4 w-4 mr-2" />
-            New report
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <NewReportsClientDialog />
+          <Button asChild>
+            <Link to={reportsPath("/new")}>
+              <FilePlus2 className="h-4 w-4 mr-2" />
+              New report
+            </Link>
+          </Button>
+        </div>
+
       </div>
 
       {/* ─── Recent runs ─────────────────────────────────────── */}
