@@ -86,7 +86,12 @@ export default function ReportsPropertySettings() {
     setCoverUrl(settings.coverArtworkUrl ?? "");
     setPrimary(settings.brandPrimary ?? "");
     setSecondary(settings.brandSecondary ?? "");
-    setBrandSource(settings.brandSource ?? "custom");
+    setBrandSource(
+      settings.brandSource === "property" && isReportsClient
+        ? "custom"
+        : settings.brandSource ?? "custom",
+    );
+
     setBaseline(settings.historicalBaseline ?? {});
     setSpecialSet(settings.specialReportSet ?? "none");
     setSourceType(
