@@ -170,9 +170,17 @@ export default function ReportsDashboard() {
                       {property.city ?? "Location not set"}
                       {property.roomCount ? ` · ${property.roomCount} rooms` : ""}
                     </p>
-                    <Badge variant="secondary" className="text-[11px] font-normal">
-                      Last run: —
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant="secondary" className="text-[11px] font-normal">
+                        Last run: —
+                      </Badge>
+                      {property.isReportsClient && (
+                        <Badge variant="outline" className="text-[11px] font-normal">
+                          Reporting only
+                        </Badge>
+                      )}
+                    </div>
+
                   </div>
                 </div>
               </Link>
