@@ -575,6 +575,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
                 </div>
               )}
             </div>
+          </div>
+
+
 
           <div className="space-y-1.5">
             <Label>Cancellation policy</Label>
