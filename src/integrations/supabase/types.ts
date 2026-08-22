@@ -8561,6 +8561,7 @@ export type Database = {
           as_of_date: string
           baseline_locked: boolean
           baseline_source: string
+          cadence: string
           created_at: string
           created_by: string | null
           draft_generated_at: string | null
@@ -8583,6 +8584,7 @@ export type Database = {
           as_of_date: string
           baseline_locked?: boolean
           baseline_source?: string
+          cadence?: string
           created_at?: string
           created_by?: string | null
           draft_generated_at?: string | null
@@ -8605,6 +8607,7 @@ export type Database = {
           as_of_date?: string
           baseline_locked?: boolean
           baseline_source?: string
+          cadence?: string
           created_at?: string
           created_by?: string | null
           draft_generated_at?: string | null

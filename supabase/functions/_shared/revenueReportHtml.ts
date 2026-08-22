@@ -81,6 +81,8 @@ export interface DraftOptions {
   pageOrder?: string[] | null;
   /** Page keys the reviewer hid in the slide organizer. */
   hiddenPages?: string[] | null;
+  /** How often the review is produced — drives the printed wording. */
+  cadence?: "monthly" | "bimonthly" | null;
 }
 
 
@@ -152,6 +154,7 @@ const pageChrome = (
   logoUrl: string | null,
   sectionTitle: string,
   pageNumber: number,
+  cadenceLabel: string,
 ): { header: string; footer: string } => ({
   header: `
     <header class="page-head">
@@ -165,7 +168,7 @@ const pageChrome = (
     <h2 class="section-title">${esc(sectionTitle)}</h2>`,
   footer: `
     <footer class="page-foot">
-      <span>${esc(propertyName)} · Bi-monthly revenue review</span>
+      <span>${esc(propertyName)} · ${esc(cadenceLabel)} revenue review</span>
       <span>${CONTACT_SITE}</span>
       <span>${pageNumber}</span>
     </footer>`,
@@ -175,6 +178,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const { propertyName, snapshot, inputs, branding } = options;
   const asOfIso = options.asOfDate.slice(0, 10);
   const asOfLabel = formatLongDate(asOfIso);
+  const cadenceLabel = options.cadence === "monthly" ? "Monthly" : "Bi-monthly";
   const months = snapshot.months.filter(Boolean);
   const labels = months.map(monthLabel);
 
@@ -739,7 +743,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     .join("");
 
   const chrome = (title: string, page: number) =>
-    pageChrome(propertyName, asOfLabel, branding.logoUrl, title, page);
+    pageChrome(propertyName, asOfLabel, branding.logoUrl, title, page, cadenceLabel);
 
   // ── Pasted media (revenue-team screenshots) ───────────────────────────
   const mediaSlots = (options.media ?? []).filter((slot) => slot.images.length > 0);
@@ -924,7 +928,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(propertyName)} · Revenue Review ${esc(asOfLabel)}</title>
+<title>${esc(propertyName)} · ${esc(cadenceLabel)} Revenue Review ${esc(asOfLabel)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Italiana&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -1209,7 +1213,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
       <span class="brandline">roomsonline</span>
     </div>
-    <span class="cover-kicker">Bi-monthly revenue review</span>
+    <span class="cover-kicker">${esc(cadenceLabel)} revenue review</span>
     <div class="cover-titlerow">
       <h1 class="cover-title">Revenue<br />Review</h1>
       <img class="cover-strapline" src="${ROL_STRAPLINE_URL}" alt="roomsonline — strategize, optimize, maximize" />
@@ -1232,6 +1236,7 @@ ${pagesHtml}
 
   const manifest = {
     property: propertyName,
+    cadence: options.cadence === "monthly" ? "monthly" : "bimonthly",
     as_of_date: asOfIso,
     previous_as_of_date: options.previousAsOfDate,
     generated_at: new Date().toISOString(),

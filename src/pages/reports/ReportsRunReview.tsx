@@ -7,7 +7,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
-import { useReportRun, useReportRunMutations } from "@/hooks/useReportRuns";
+import {
+  useReportRun,
+  useReportRunMutations,
+  CADENCE_LABEL,
+  type ReportCadence,
+} from "@/hooks/useReportRuns";
+import { supabase } from "@/integrations/supabase/client";
 import { useProcessReportRun, useReportExcel, useReportSnapshot } from "@/hooks/useReportSnapshot";
 import { RunStatusPill } from "@/components/reports/RunStatusPill";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
@@ -47,6 +53,27 @@ export default function ReportsRunReview() {
   const navigate = useNavigate();
   const { run, isLoading, refetch } = useReportRun(runId);
   const { deleteRun, deleteFile } = useReportRunMutations();
+  const [savingCadence, setSavingCadence] = useState(false);
+
+  /** Cadence drives the printed wording, so the draft is stale after a change. */
+  const setCadence = useCallback(
+    async (cadence: ReportCadence) => {
+      if (!runId) return;
+      setSavingCadence(true);
+      const { error } = await supabase.from("report_runs").update({ cadence }).eq("id", runId);
+      setSavingCadence(false);
+      if (error) {
+        toast.error("Could not change the cadence", { description: error.message });
+        return;
+      }
+      await refetch();
+      toast.success(`${CADENCE_LABEL[cadence]} review`, {
+        description: "Regenerate the draft to update the printed wording.",
+      });
+    },
+    [runId, refetch],
+  );
+
   const { snapshot, refetch: refetchSnapshot } = useReportSnapshot(runId);
   const { process, isProcessing } = useProcessReportRun(runId, run?.sourceType);
   const { generate, isGenerating } = useReportExcel(runId);
@@ -259,7 +286,25 @@ export default function ReportsRunReview() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-md border overflow-hidden">
+            {(["monthly", "bimonthly"] as ReportCadence[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                disabled={savingCadence}
+                onClick={() => setCadence(option)}
+                className={
+                  "px-3 py-1.5 text-xs transition-colors " +
+                  (run.cadence === option
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background text-muted-foreground hover:bg-muted")
+                }
+              >
+                {CADENCE_LABEL[option]}
+              </button>
+            ))}
+          </div>
           <RunStatusPill status={run.status} />
           <Badge variant="secondary" className="font-normal">
             {adapter.label}

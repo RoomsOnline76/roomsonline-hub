@@ -12,7 +12,11 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties, type ReportProperty } from "@/hooks/useReportProperties";
-import { useReportRunMutations } from "@/hooks/useReportRuns";
+import {
+  useReportRunMutations,
+  CADENCE_LABEL,
+  type ReportCadence,
+} from "@/hooks/useReportRuns";
 import { FileDropZone, type DropZoneFileState } from "@/components/reports/FileDropZone";
 import { uploadSourceFiles } from "@/lib/reportUpload";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +50,7 @@ interface WizardState {
   property: ReportProperty | null;
   sourceType: ReportSourceKey;
   asOfDate: string;
+  cadence: ReportCadence;
   title: string;
   titleEdited: boolean;
   files: File[];
@@ -57,6 +62,7 @@ type WizardAction =
   | { type: "property"; property: ReportProperty }
   | { type: "sourceType"; value: ReportSourceKey }
   | { type: "asOfDate"; value: string }
+  | { type: "cadence"; value: ReportCadence }
   | { type: "title"; value: string }
   | { type: "addFiles"; files: File[] }
   | { type: "removeFile"; index: number }
@@ -65,15 +71,16 @@ type WizardAction =
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
-const defaultTitle = (dateIso: string): string => {
+const defaultTitle = (dateIso: string, cadence: ReportCadence): string => {
+  const prefix = `${CADENCE_LABEL[cadence]} Revenue Review`;
   const parsed = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return "Bi-Monthly Revenue Review";
+  if (Number.isNaN(parsed.getTime())) return prefix;
   const formatted = parsed.toLocaleDateString("en-ZA", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-  return `Bi-Monthly Revenue Review – ${formatted}`;
+  return `${prefix} – ${formatted}`;
 };
 
 const initialState: WizardState = {
@@ -81,7 +88,8 @@ const initialState: WizardState = {
   property: null,
   sourceType: DEFAULT_REPORT_SOURCE,
   asOfDate: todayIso(),
-  title: defaultTitle(todayIso()),
+  cadence: "bimonthly",
+  title: defaultTitle(todayIso(), "bimonthly"),
   titleEdited: false,
   files: [],
   notes: { minStay: "", promotions: "", rateOverrides: "", commentary: "" },
@@ -99,7 +107,13 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
       return {
         ...state,
         asOfDate: action.value,
-        title: state.titleEdited ? state.title : defaultTitle(action.value),
+        title: state.titleEdited ? state.title : defaultTitle(action.value, state.cadence),
+      };
+    case "cadence":
+      return {
+        ...state,
+        cadence: action.value,
+        title: state.titleEdited ? state.title : defaultTitle(state.asOfDate, action.value),
       };
     case "title":
       return { ...state, title: action.value, titleEdited: true };
@@ -202,8 +216,9 @@ export default function ReportsNewRun() {
       const runId = await createRun.mutateAsync({
         propertyId: state.property.id,
         asOfDate: state.asOfDate,
-        title: state.title.trim() || defaultTitle(state.asOfDate),
+        title: state.title.trim() || defaultTitle(state.asOfDate, state.cadence),
         sourceType: state.sourceType,
+        cadence: state.cadence,
       });
 
       const result = await uploadSourceFiles({
@@ -406,6 +421,25 @@ export default function ReportsNewRun() {
                 />
                 <p className="text-xs text-muted-foreground">
                   The date the on-the-books snapshot is taken.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Report cadence</Label>
+                <div className="flex gap-2">
+                  {(["monthly", "bimonthly"] as ReportCadence[]).map((option) => (
+                    <Button
+                      key={option}
+                      type="button"
+                      variant={state.cadence === option ? "default" : "outline"}
+                      className="flex-1"
+                      onClick={() => dispatch({ type: "cadence", value: option })}
+                    >
+                      {CADENCE_LABEL[option]}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Sets the title and the wording printed on the report.
                 </p>
               </div>
               <div className="space-y-2">
