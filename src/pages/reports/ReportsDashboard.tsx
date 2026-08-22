@@ -119,9 +119,9 @@ export default function ReportsDashboard() {
       <section className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-medium tracking-tight">
-            Properties{" "}
+            Properties with reports{" "}
             <span className="text-sm font-normal text-muted-foreground">
-              ({total}
+              ({withRuns.length}
               {reportsClientCount > 0 ? ` · ${reportsClientCount} reporting-only` : ""})
             </span>
           </h2>
@@ -150,46 +150,26 @@ export default function ReportsDashboard() {
               <Skeleton key={i} className="h-24 w-full rounded-lg" />
             ))}
           </div>
-        ) : properties.length === 0 ? (
-          <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
-            No properties match “{search}”.
+        ) : withRuns.length === 0 ? (
+          <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground space-y-1">
+            <p>{search ? `No property with reports matches “${search}”.` : "No property has reports yet."}</p>
+            <p>
+              Configure a property under{" "}
+              <Link to={reportsPath("/settings")} className="underline">
+                reporting settings
+              </Link>
+              .
+            </p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {withRuns.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    With reports ({withRuns.length})
-                  </h3>
-                  <Separator className="flex-1" />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {withRuns.map((property) => (
-                    <PropertyCard key={property.id} property={property} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {withoutRuns.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-sm font-medium text-muted-foreground">
-                    No reports yet ({withoutRuns.length})
-                  </h3>
-                  <Separator className="flex-1" />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {withoutRuns.map((property) => (
-                    <PropertyCard key={property.id} property={property} />
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {withRuns.map((property) => (
+              <ReportPropertyCard key={property.id} property={property} />
+            ))}
           </div>
         )}
       </section>
+
     </div>
   );
 }
