@@ -8397,6 +8397,56 @@ export type Database = {
           },
         ]
       }
+      report_media: {
+        Row: {
+          byte_size: number | null
+          caption: string | null
+          content_type: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          run_id: string
+          slot_key: string
+          sort_order: number
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          byte_size?: number | null
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          run_id: string
+          slot_key: string
+          sort_order?: number
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          byte_size?: number | null
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          run_id?: string
+          slot_key?: string
+          sort_order?: number
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_media_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_run_events: {
         Row: {
           actor_id: string | null
