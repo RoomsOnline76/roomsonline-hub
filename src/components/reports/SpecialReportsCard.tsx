@@ -20,7 +20,7 @@ interface SpecialReportsCardProps {
 
 /**
  * CheetaPlains owner-pack extras: the nationality and booking-partner slides.
- * Only rendered for properties flagged with that report set.
+ * An optional extra picked per report run, on top of the standard pack.
  */
 export function SpecialReportsCard({
   runId,
@@ -62,7 +62,7 @@ export function SpecialReportsCard({
         </div>
       </CardHeader>
       {enabled && (
-      <CardContent className="pb-3">
+      <CardContent className="space-y-3">
         <Button size="sm" variant="outline" onClick={() => void handleGenerate()} disabled={isGenerating}>
           {isGenerating ? (
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -71,10 +71,6 @@ export function SpecialReportsCard({
           )}
           {reports.length ? "Rebuild" : "Build slides"}
         </Button>
-      </CardContent>
-      )}
-      {enabled && (
-      <CardContent className="space-y-3">
         {reports.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Upload the Bookings by Nationality workbook and the reservation-list export, then
@@ -120,6 +116,7 @@ export function SpecialReportsCard({
           ))
         )}
       </CardContent>
+      )}
     </Card>
   );
 }
