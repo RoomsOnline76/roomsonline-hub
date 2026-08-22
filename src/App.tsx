@@ -285,7 +285,7 @@ const App = () => (
                             <Route index element={<ReportsDashboard />} />
                             <Route path="new" element={<ReportsNewRun />} />
                             <Route path="runs/:runId" element={<ReportsRunReview />} />
-                          <Route path="runs/:runId/draft" element={<ReportsDraftView />} />
+                            <Route path="runs/:runId/draft" element={<ReportsDraftView />} />
                             <Route path="settings" element={<ReportsDashboard />} />
                             <Route path="settings/:propertyId" element={<ReportsPropertySettings />} />
                             <Route path="help" element={<ReportsHelp />} />
