@@ -8465,6 +8465,56 @@ export type Database = {
           },
         ]
       }
+      report_media_slots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          hint: string | null
+          id: string
+          layout: string
+          run_id: string
+          section: string
+          slot_key: string
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          hint?: string | null
+          id?: string
+          layout?: string
+          run_id: string
+          section?: string
+          slot_key: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          hint?: string | null
+          id?: string
+          layout?: string
+          run_id?: string
+          section?: string
+          slot_key?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_media_slots_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_run_events: {
         Row: {
           actor_id: string | null
@@ -8517,6 +8567,7 @@ export type Database = {
           excel_path: string | null
           id: string
           imported_baseline: Json | null
+          page_order: Json | null
           previous_run_id: string | null
           processing_note: string | null
           property_id: string
@@ -8538,6 +8589,7 @@ export type Database = {
           excel_path?: string | null
           id?: string
           imported_baseline?: Json | null
+          page_order?: Json | null
           previous_run_id?: string | null
           processing_note?: string | null
           property_id: string
@@ -8559,6 +8611,7 @@ export type Database = {
           excel_path?: string | null
           id?: string
           imported_baseline?: Json | null
+          page_order?: Json | null
           previous_run_id?: string | null
           processing_note?: string | null
           property_id?: string
