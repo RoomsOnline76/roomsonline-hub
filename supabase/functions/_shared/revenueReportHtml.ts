@@ -851,7 +851,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           .map(
             (image) => `
         <figure class="shot">
-          <img src="${esc(image.url)}" alt="${esc(group.heading)}" />
+          <span class="frame"><img src="${esc(image.url)}" alt="${esc(group.heading)}" /></span>
+
           ${image.caption ? `<figcaption>${esc(image.caption)}</figcaption>` : ""}
         </figure>`,
           )
