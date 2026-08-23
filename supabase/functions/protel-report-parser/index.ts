@@ -510,7 +510,12 @@ Deno.serve(async (req) => {
     }
 
     // Months the prior workbook covers but the uploads do not, plus thin months.
-    reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
+    // The owner's-report grid is already complete for its own window — only a
+    // parsed House State grid needs topping up from the prior import.
+    if (!ownerAggregate) {
+      reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
+    }
+
 
     let previousRunId = run.previous_run_id;
     if (!previousRunId && !run.baseline_locked) {
