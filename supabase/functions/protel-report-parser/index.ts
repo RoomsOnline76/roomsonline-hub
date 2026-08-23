@@ -27,9 +27,11 @@ import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { repairWorkbookBuffer, workbookRepairNote } from "../_shared/xlsxRepair.ts";
 import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
+  aggregateFromImportedBaseline,
   applyImportedBaseline,
   reconcileWithImportedBaseline,
 } from "../_shared/reportImportedBaseline.ts";
+
 import {
   pastMonthsNote,
   trimToReportWindow,
