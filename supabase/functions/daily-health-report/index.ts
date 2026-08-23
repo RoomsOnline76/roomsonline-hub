@@ -489,6 +489,7 @@ function generateEmailHtml(
         </ul>
       </div>` : ''}
       <p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Cadence: reservations pull &amp; lead lifecycle every 30 min · ARI refresh every 6h · content push weekly · notification (RLNM) refresh daily.</p>
+      ${ruWl.retired_accounts.length > 0 ? `<p style="margin:4px 0 0 0;font-size:11px;color:#9ca3af;">Excluded as retired sub-account${ruWl.retired_accounts.length === 1 ? '' : 's'}: ${ruWl.retired_accounts.map(a => `OwnerID ${a.ru_owner_id}${a.portal_email ? ` (${a.portal_email})` : ''}`).join(' · ')}${ruWl.retired_rows_excluded > 0 ? ` — ${ruWl.retired_rows_excluded} row(s) dropped from every number above` : ''}.</p>` : ''}
     </div>
   ` : '';
 
