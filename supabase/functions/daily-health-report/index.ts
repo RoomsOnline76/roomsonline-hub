@@ -63,9 +63,10 @@ Account conflicts RECENTLY RECONCILED (successes to note, do NOT recommend work)
 
 Wizard-gate refusals STILL outstanding (work genuinely needed): ${channelHealth.blocked_outstanding.length > 0 ? channelHealth.blocked_outstanding.map(b => `${b.blocker} ×${b.count}${b.properties.length > 0 ? ` (${b.properties.join(', ')})` : ''}`).join('; ') : 'None'}
 Wizard-gate refusals ALREADY CLEARED (do NOT recommend these): ${channelHealth.blocked_cleared.length > 0 ? channelHealth.blocked_cleared.map(b => `${b.blocker}${b.cleared_at ? ` cleared ${b.cleared_at}` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+Retired distribution sub-accounts (dead — excluded from all data above; NEVER recommend any work on them): ${channelHealth?.retired_accounts && channelHealth.retired_accounts.length > 0 ? channelHealth.retired_accounts.map(a => `OwnerID ${a.ru_owner_id}${a.portal_email ? ` (${a.portal_email})` : ''}`).join('; ') : 'None'}
 
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes. Wizard-gate refusals are not pipeline failures: never recommend a step listed as already cleared, and only raise refusals listed as still outstanding. Never mention or recommend action on a retired sub-account.
 
-Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes. Wizard-gate refusals are not pipeline failures: never recommend a step listed as already cleared, and only raise refusals listed as still outstanding.
 
 Respond with exactly this JSON format:
 {
