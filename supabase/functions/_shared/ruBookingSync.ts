@@ -602,7 +602,10 @@ export async function confirmRuRequest(
       const queuedId = await enqueueRuCall(supabase, {
         methodKey: `confirm_request:${reservationId}`,
         action: 'confirm_request',
-        payload: { reservation_id: reservationId, comments: opts.comments ?? '', ...auth },
+        // The verb MUST travel with the payload: the drainer replays the payload verbatim, so a
+        // payload without `action` reached the API as `Action "undefined" is not supported` and no
+        // queued acceptance ever landed.
+        payload: { action: 'confirm_request', reservation_id: reservationId, comments: opts.comments ?? '', ...auth },
         propertyId: booking.property_id,
         priority: 1,
         delayMs: 65_000,

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@2';
 import { AI_MODELS } from "../_shared/aiModels.ts";
+import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,6 +34,8 @@ async function generateAIDigest(
 
     blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
     blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
+    /** Retired sub-accounts — dead, excluded, and never valid work to recommend. */
+    retired_accounts?: Array<{ ru_owner_id: string; portal_email: string | null }>;
   } | null,
 
 ): Promise<AIDigest | null> {
@@ -60,9 +63,10 @@ Account conflicts RECENTLY RECONCILED (successes to note, do NOT recommend work)
 
 Wizard-gate refusals STILL outstanding (work genuinely needed): ${channelHealth.blocked_outstanding.length > 0 ? channelHealth.blocked_outstanding.map(b => `${b.blocker} ×${b.count}${b.properties.length > 0 ? ` (${b.properties.join(', ')})` : ''}`).join('; ') : 'None'}
 Wizard-gate refusals ALREADY CLEARED (do NOT recommend these): ${channelHealth.blocked_cleared.length > 0 ? channelHealth.blocked_cleared.map(b => `${b.blocker}${b.cleared_at ? ` cleared ${b.cleared_at}` : ''}`).join('; ') : 'None'}` : 'Channel/distribution pipelines: no data in window'}
+Retired distribution sub-accounts (dead — excluded from all data above; NEVER recommend any work on them): ${channelHealth?.retired_accounts && channelHealth.retired_accounts.length > 0 ? channelHealth.retired_accounts.map(a => `OwnerID ${a.ru_owner_id}${a.portal_email ? ` (${a.portal_email})` : ''}`).join('; ') : 'None'}
 
+Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes. Wizard-gate refusals are not pipeline failures: never recommend a step listed as already cleared, and only raise refusals listed as still outstanding. Never mention or recommend action on a retired sub-account.
 
-Rules: never report all-clear while a pipeline above is listed as currently failing. Distinguish a currently failing pipeline from one that has recovered. Treat repeated upstream 5xx errors as a third-party outage, not a code defect. Never present rate-limit deferrals or owner-setup gaps as failures or incidents — mention them only as informational notes. Wizard-gate refusals are not pipeline failures: never recommend a step listed as already cleared, and only raise refusals listed as still outstanding.
 
 Respond with exactly this JSON format:
 {
@@ -205,7 +209,13 @@ interface RuWlMetrics {
 
   /** Background call queue: work parked by the rate gate and replayed by the drainer. */
   call_queue: { waiting: number; oldest_waiting_minutes: number | null; drained_24h: number; gave_up: number };
+
+  /** Retired sub-accounts whose traffic was excluded from every number above. */
+  retired_accounts: Array<{ ru_owner_id: string; portal_email: string | null }>;
+  /** How many rows were dropped because they belong to a retired sub-account. */
+  retired_rows_excluded: number;
 }
+
 
 interface RunLike {
   success?: boolean | null;
@@ -482,6 +492,7 @@ function generateEmailHtml(
         </ul>
       </div>` : ''}
       <p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Cadence: reservations pull &amp; lead lifecycle every 30 min · ARI refresh every 6h · content push weekly · notification (RLNM) refresh daily.</p>
+      ${ruWl.retired_accounts.length > 0 ? `<p style="margin:4px 0 0 0;font-size:11px;color:#9ca3af;">Excluded as retired sub-account${ruWl.retired_accounts.length === 1 ? '' : 's'}: ${ruWl.retired_accounts.map(a => `OwnerID ${a.ru_owner_id}${a.portal_email ? ` (${a.portal_email})` : ''}`).join(' · ')}${ruWl.retired_rows_excluded > 0 ? ` — ${ruWl.retired_rows_excluded} row(s) dropped from every number above` : ''}.</p>` : ''}
     </div>
   ` : '';
 
@@ -943,7 +954,7 @@ Deno.serve(async (req) => {
     // ---- Channel Manager (Rentals United white-label) metrics, last 24h ----
     let ruWl: RuWlMetrics | null = null;
     try {
-      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { count: ownerCount }] = await Promise.all([
+      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { data: ownerRows }, retiredAccounts] = await Promise.all([
         supabase
           .from('ru_sync_runs')
           .select('action, success, error_code, error_message, elapsed_ms, created_at, property_id')
@@ -961,23 +972,52 @@ Deno.serve(async (req) => {
           .select('status, passed, total, finished_at, created_at')
           .order('created_at', { ascending: false })
           .limit(1),
-        supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
+        supabase.from('ru_owner_accounts').select('id, ru_owner_id'),
+        fetchRetiredRuAccounts(),
       ]);
 
       // Previous window (48h → 24h ago): used only to celebrate conflicts that have stopped.
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
       const { data: priorRuns } = await supabase
         .from('ru_sync_runs')
-        .select('success, error_code, error_message')
+        .select('success, error_code, error_message, property_id')
         .gte('created_at', fortyEightHoursAgo.toISOString())
         .lt('created_at', twentyFourHoursAgo.toISOString())
         .limit(5000);
 
-      const allRuns = syncRuns || [];
+      /* Retired sub-accounts are dead: their historic rows would otherwise keep being graded for a
+         full 24h window and make the report ask for work on an account nobody can act on. Rows are
+         matched by the property they were bound to and by the OwnerID appearing in the message. */
+      const retiredOwnerIds = new Set(retiredAccounts.map(a => a.ru_owner_id).filter(Boolean));
+      const retiredPropertyIds = new Set<string>();
+      if (retiredOwnerIds.size > 0) {
+        const { data: retiredProps } = await supabase
+          .from('properties')
+          .select('id, ru_listings_verified_owner')
+          .not('ru_listings_verified_owner', 'is', null);
+        for (const p of retiredProps ?? []) {
+          const tag = String((p as { ru_listings_verified_owner?: string | null }).ru_listings_verified_owner ?? '');
+          for (const id of retiredOwnerIds) {
+            if (tag.includes(id)) { retiredPropertyIds.add(String((p as { id: string }).id)); break; }
+          }
+        }
+      }
+      const belongsToRetiredAccount = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean => {
+        if (retiredOwnerIds.size === 0) return false;
+        if (r.property_id && retiredPropertyIds.has(String(r.property_id))) return true;
+        const text = `${r.error_message ?? ''} ${r.error_code ?? ''}`;
+        for (const id of retiredOwnerIds) if (text.includes(id)) return true;
+        return false;
+      };
+
+      const allRunsUnfiltered = syncRuns || [];
+      const allRuns = allRunsUnfiltered.filter(r => !belongsToRetiredAccount(r));
+      const retiredRowsExcluded = allRunsUnfiltered.length - allRuns.length;
 
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
       const refusalRuns = allRuns.filter(isRefusalRecord);
+
       const byAction = new Map<string, typeof runs>();
       for (const r of runs) {
         const key = r.action || 'unknown';
@@ -1092,7 +1132,7 @@ Deno.serve(async (req) => {
       );
       const priorConflictCounts = new Map<string, number>();
       for (const r of priorRuns ?? []) {
-        if (r.success !== false || !isAccountConflict(r)) continue;
+        if (r.success !== false || !isAccountConflict(r) || belongsToRetiredAccount(r)) continue;
         const reason = (r.error_message || 'Account conflict').slice(0, 120);
         if (currentConflictReasons.has(reason)) continue;
         priorConflictCounts.set(reason, (priorConflictCounts.get(reason) ?? 0) + 1);
@@ -1297,7 +1337,10 @@ Deno.serve(async (req) => {
         ari_stale_hours: hoursSince(lastAri),
         cert,
         live_properties: livePropertyCount,
-        distribution_accounts: ownerCount ?? 0,
+        distribution_accounts: (ownerRows ?? []).filter(
+          (o: { ru_owner_id?: string | number | null }) =>
+            !retiredOwnerIds.has(String(o.ru_owner_id ?? '').trim()),
+        ).length,
         blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
         reconciled,
@@ -1311,6 +1354,9 @@ Deno.serve(async (req) => {
           ).length,
           gave_up: queued.filter((q: any) => q.status === 'failed').length,
         },
+        retired_accounts: retiredAccounts.map(a => ({ ru_owner_id: a.ru_owner_id, portal_email: a.portal_email })),
+        retired_rows_excluded: retiredRowsExcluded,
+
       };
 
 
@@ -1343,6 +1389,7 @@ Deno.serve(async (req) => {
 
             blocked_outstanding: ruWl.blocked.outstanding,
             blocked_cleared: ruWl.blocked.cleared,
+            retired_accounts: ruWl.retired_accounts,
 
           }
         : null,

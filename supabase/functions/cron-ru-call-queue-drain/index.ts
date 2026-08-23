@@ -57,14 +57,19 @@ function isPermanent(message: string | null | undefined): boolean {
 
 /**
  * Terminal, but not a defect: the channel says the work is already unnecessary (e.g. cancelling a
- * reservation it never had). These land as `no_op` so certification review and the health report
- * stop reading them as unhealed failures.
+ * reservation it never had), or the listing needs republishing before the call can mean anything.
+ * These land as `no_op` so certification review and the health report stop reading them as
+ * unhealed failures.
  */
 function isNoOp(message: string | null | undefined): boolean {
-  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)/i.test(
+  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)|no\s+listing\s+\d+\s+for\s+this\s+unit|republish\s+the\s+unit/i.test(
     String(message ?? ''),
   );
 }
+
+/** A stay in one of these states can never be accepted at the channel again. */
+const TERMINAL_BOOKING_STATUSES = new Set(['cancelled', 'canceled', 'checked_in', 'checked_out', 'completed', 'departed', 'no_show']);
+
 
 async function invokeErrorMessage(error: unknown): Promise<string> {
   const body = await readInvokeErrorBody(error);
@@ -102,18 +107,41 @@ Deno.serve(async (req) => {
     const startedAt = Date.now();
     let failure: string | null = null;
     let result: unknown = null;
+    let terminalNoOp: string | null = null;
 
-    try {
-      // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
-      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { ...(row.payload ?? {}), deferrable: false, queued_replay: true },
-      });
-      if (error) throw new Error(await invokeErrorMessage(error));
-      if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
-      result = data ?? null;
-    } catch (err) {
-      failure = err instanceof Error ? err.message : String(err);
+    // An acceptance for a stay that is already in-house, departed or cancelled can never succeed —
+    // the channel refuses it ("not available for a given dates") and the row retries every pass.
+    // Close it off before spending a call.
+    if (row.action === 'confirm_request') {
+      const reservationId = String((row.payload as { reservation_id?: unknown })?.reservation_id ?? '').trim();
+      if (reservationId) {
+        const { data: existing } = await supabase
+          .from('bookings')
+          .select('id, status')
+          .eq('external_reservation_id', reservationId)
+          .maybeSingle();
+        const status = String((existing as { status?: string } | null)?.status ?? '').toLowerCase();
+        if (status && TERMINAL_BOOKING_STATUSES.has(status)) {
+          terminalNoOp = `Stay is already ${status} in ROL\u2019OS — acceptance is no longer possible at the channel.`;
+        }
+      }
     }
+
+    if (terminalNoOp === null) {
+      try {
+        // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
+        // `action` is taken from the row so legacy payloads queued without it still replay.
+        const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: row.action, ...(row.payload ?? {}), deferrable: false, queued_replay: true },
+        });
+        if (error) throw new Error(await invokeErrorMessage(error));
+        if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
+        result = data ?? null;
+      } catch (err) {
+        failure = err instanceof Error ? err.message : String(err);
+      }
+    }
+
 
     // A replayed acceptance that the channel refuses because the request's OWN nights read as
     // closed is our own hold, and the raw replay above cannot heal it (the reopen lives in
@@ -149,7 +177,19 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString();
 
+    if (terminalNoOp !== null) {
+      summary.noOp++;
+      await supabase
+        .from('ru_call_queue')
+        .update({ status: 'no_op', last_error: terminalNoOp, completed_at: nowIso, claimed_at: null })
+        .eq('id', row.id);
+      console.log(`[cron-ru-call-queue-drain] ${row.action} skipped → ${terminalNoOp}`);
+      if (Date.now() < deadline) await new Promise((r) => setTimeout(r, SPACING_MS));
+      continue;
+    }
+
     if (failure === null) {
+
       summary.succeeded++;
       await supabase
         .from('ru_call_queue')
