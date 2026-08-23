@@ -201,10 +201,21 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
               <Badge variant="secondary" className="font-normal">
                 {preview.otbColumnLabel ?? `OTB @ ${formatDate(preview.asOfDate)}`}
               </Badge>
+              {preview.baselineSheet && (
+                <Badge variant="outline" className="font-normal">
+                  from “{preview.baselineSheet}”
+                </Badge>
+              )}
+              {preview.months.length > 0 && (
+                <span className="text-muted-foreground">
+                  Months: {preview.months[0]} – {preview.months[preview.months.length - 1]}
+                </span>
+              )}
               <span className="text-muted-foreground">
                 Sheets read: {preview.sheetsRead.join(", ") || "none"}
               </span>
             </div>
+
 
             <div className="space-y-2 text-sm">
               <label className="flex items-start gap-2">
