@@ -139,9 +139,12 @@ Deno.serve(async (req) => {
       file: { id: file.id, filename: file.original_filename },
       as_of_date: extract.asOfDate,
       otb_column_label: extract.otbColumnLabel,
+      baseline_sheet: extract.baselineSheet,
       months: extract.months,
       previous_otb_revenue: extract.previousOtbRevenue,
+      current_otb_revenue: extract.currentOtbRevenue,
       previous_room_nights: extract.previousRoomNights,
+
       last_year_actual: extract.lastYearActual,
       last_year_room_nights: extract.lastYearRoomNights,
       dinner_by_month: extract.dinnerByMonth,
