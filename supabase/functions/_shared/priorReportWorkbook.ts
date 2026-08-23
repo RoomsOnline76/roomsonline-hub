@@ -316,7 +316,19 @@ interface OtbResult {
   warnings: string[];
 }
 
+/** True when a column's values change down the block (a constant is metadata). */
+const varies = (rows: Row[], from: number, to: number, col: number): boolean => {
+  const seen = new Set<number>();
+  for (let r = from; r < to; r += 1) {
+    const value = toNum((rows[r] ?? [])[col]);
+    if (value !== null) seen.add(value);
+    if (seen.size > 1) return true;
+  }
+  return false;
+};
+
 type FormulaAt = (row: number, col: number) => string | null;
+
 
 function parseOtbSheet(
   rows: Row[],
