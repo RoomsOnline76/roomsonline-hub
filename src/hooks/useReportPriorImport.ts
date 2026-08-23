@@ -26,6 +26,9 @@ export interface PriorImportFound {
   declined_rows?: number;
   nationality_rows?: number;
   partner_rows?: number;
+  narrative_pages?: number;
+  partner_trend_tables?: number;
+
 }
 
 export interface PriorImportPreview {

@@ -293,13 +293,16 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
                     }
                   />
                   <span>
-                    Owner-report tables (slides)
+                    Owner-report pack (slides)
                     <span className="text-muted-foreground">
                       {" "}
-                      — declined {found?.declined_rows ?? 0}, nationality{" "}
-                      {found?.nationality_rows ?? 0}, partners {found?.partner_rows ?? 0}
+                      — commentary {found?.narrative_pages ?? 0}, declined{" "}
+                      {found?.declined_rows ?? 0}, nationality{" "}
+                      {found?.nationality_rows ?? 0}, partners {found?.partner_rows ?? 0}, partner
+                      trends {found?.partner_trend_tables ?? 0}
                     </span>
                   </span>
+
                 </label>
               )}
 

@@ -87,7 +87,7 @@ export async function repairWorkbookBuffer(buffer: ArrayBuffer): Promise<Workboo
 
     const output = (await rebuilt.generateAsync({ type: "uint8array" })) as Uint8Array;
     return {
-      buffer: output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength),
+      buffer: (output.buffer as ArrayBuffer).slice(output.byteOffset, output.byteOffset + output.byteLength),
       repaired: true,
       parts,
       encoding,

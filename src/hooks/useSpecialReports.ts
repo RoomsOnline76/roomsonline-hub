@@ -16,6 +16,9 @@ export interface SpecialReport {
   priorLabel: string | null;
   warnings: string[];
   generatedAt: string | null;
+  /** Printed position in the owner pack; large for legacy rows. */
+  packIndex: number;
+
 }
 
 const BUCKET = "revenue-reports";
@@ -47,21 +50,27 @@ export function useSpecialReports(runId: string | undefined) {
         .eq("run_id", runId)
         .order("report_key", { ascending: true });
       if (error) throw error;
-      return (data ?? []).map((row) => {
-        const payload = (row.payload ?? {}) as Record<string, unknown>;
-        return {
-          id: row.id,
-          runId: row.run_id,
-          reportKey: row.report_key,
-          title: row.title ?? row.report_key,
-          storagePath: row.storage_path,
-          rowCount: Number(payload.row_count) || 0,
-          currentLabel: typeof payload.current_label === "string" ? payload.current_label : null,
-          priorLabel: typeof payload.prior_label === "string" ? payload.prior_label : null,
-          warnings: Array.isArray(row.warnings) ? (row.warnings as string[]) : [],
-          generatedAt: row.generated_at ?? null,
-        };
-      });
+      return (data ?? [])
+        .map((row) => {
+          const payload = (row.payload ?? {}) as Record<string, unknown>;
+          return {
+            id: row.id,
+            runId: row.run_id,
+            reportKey: row.report_key,
+            title: row.title ?? row.report_key,
+            storagePath: row.storage_path,
+            rowCount: Number(payload.row_count) || 0,
+            currentLabel: typeof payload.current_label === "string" ? payload.current_label : null,
+            priorLabel: typeof payload.prior_label === "string" ? payload.prior_label : null,
+            warnings: Array.isArray(row.warnings) ? (row.warnings as string[]) : [],
+            generatedAt: row.generated_at ?? null,
+            // Owner packs carry their printed position; older rows fall back to name order.
+            packIndex:
+              typeof payload.pack_index === "number" ? payload.pack_index : Number.MAX_SAFE_INTEGER,
+          };
+        })
+        .sort((a, b) => a.packIndex - b.packIndex || a.reportKey.localeCompare(b.reportKey));
+
     },
   });
 

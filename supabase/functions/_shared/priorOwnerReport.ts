@@ -71,6 +71,28 @@ export interface PartnerRow {
   revenue: number;
 }
 
+/** One prose paragraph group — a bold heading plus its lines. */
+export interface OwnerNarrativeBlock {
+  heading: string | null;
+  lines: string[];
+}
+
+/** A commentary page (BOB analysis, distribution & reservations update). */
+export interface OwnerNarrative {
+  page: number;
+  title: string;
+  subtitle: string | null;
+  blocks: OwnerNarrativeBlock[];
+}
+
+/** Multi-year producing-partner table, one column per financial year. */
+export interface PartnerTrendTable {
+  page: number;
+  title: string;
+  columns: string[];
+  rows: Array<{ partner: string; values: Array<number | null> }>;
+}
+
 export interface OwnerReportExtract {
   /** As-of date printed on the grid headers ("as per 31/07/2026"), if found. */
   asOfDate: string | null;
@@ -93,10 +115,15 @@ export interface OwnerReportExtract {
   partnersPrior: PartnerRow[];
   partnersCurrentLabel: string | null;
   partnersPriorLabel: string | null;
+  /** Commentary pages, in printed order. */
+  narratives: OwnerNarrative[];
+  /** Multi-year partner trend tables, when they carry a text layer. */
+  partnerTrends: PartnerTrendTable[];
   pagesRead: string[];
   pagesSkipped: string[];
   warnings: string[];
 }
+
 
 /* ── Text extraction ───────────────────────────────────────── */
 
@@ -414,7 +441,7 @@ function parseDeclined(
       : null;
 
     rows.push({
-      month: year ? `${year}-${pad(monthIndex)}` : null,
+      month: year !== null && monthIndex !== null ? `${year}-${pad(monthIndex)}` : null,
       monthLabel: first.text,
       value,
       agents,
@@ -545,7 +572,108 @@ function parsePartners(page: Page): {
   };
 }
 
+/* ── Commentary pages ──────────────────────────────────────── */
+
+/** Rows whose text reads as prose rather than as table cells. */
+const proseLines = (page: Page): string[] =>
+  page.rows
+    .map((row) => row.cells.map((cell) => cell.text).join(" ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+/**
+ * True when a page is commentary: mostly long sentences and no numeric
+ * column structure. Table pages are claimed by their own parsers first.
+ */
+const isNarrativePage = (page: Page): boolean => {
+  const lines = proseLines(page);
+  if (lines.length < 4) return false;
+  const sentences = lines.filter((line) => line.length >= 60).length;
+  return sentences >= 3;
+};
+
+/** A short line that does not close a sentence is a bold sub-heading. */
+const looksLikeHeading = (line: string): boolean =>
+  line.length <= 80 && !/[.:;]$/.test(line) && /[A-Za-z]/.test(line);
+
+function parseNarrative(page: Page): OwnerNarrative | null {
+  const lines = proseLines(page);
+  if (!lines.length) return null;
+
+  const title = lines[0];
+  let index = 1;
+  let subtitle: string | null = null;
+  if (lines[1] && lines[1].length <= 60 && lines[1] === lines[1].toUpperCase()) {
+    subtitle = lines[1];
+    index = 2;
+  }
+
+  const blocks: OwnerNarrativeBlock[] = [];
+  for (; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (looksLikeHeading(line) && line.length <= 70) {
+      blocks.push({ heading: line, lines: [] });
+      continue;
+    }
+    if (!blocks.length) blocks.push({ heading: null, lines: [] });
+    blocks[blocks.length - 1].lines.push(line);
+  }
+
+  const kept = blocks.filter((block) => block.heading || block.lines.length);
+  return kept.length ? { page: page.number, title, subtitle, blocks: kept } : null;
+}
+
+/* ── Multi-year partner trends ─────────────────────────────── */
+
+/** `2023`, `2023/4`, `FY2026` → the printed heading, else null. */
+const yearHeading = (text: string): string | null => {
+  const trimmed = text.trim();
+  return /^(FY\s*)?20\d{2}(\s*\/\s*\d{1,4})?$/i.test(trimmed) ? trimmed : null;
+};
+
+function parsePartnerTrend(page: Page): PartnerTrendTable | null {
+  let header: RowLine | null = null;
+  let columns: Array<{ label: string; x: number }> = [];
+  for (const row of page.rows) {
+    const years = row.cells
+      .map((cell) => ({ label: yearHeading(cell.text), x: cell.x }))
+      .filter((entry): entry is { label: string; x: number } => entry.label !== null);
+    if (years.length >= 2 && years.length > columns.length) {
+      header = row;
+      columns = years;
+    }
+  }
+  if (!header || columns.length < 2) return null;
+
+  const titleRow = page.rows.find(
+    (row) => row.y > header!.y && row.cells.length <= 4 && row.cells[0].text.length >= 6,
+  );
+  const rows: PartnerTrendTable["rows"] = [];
+  for (const row of page.rows) {
+    if (row === header) continue;
+    const cells = row.cells.filter((cell) => cell.x >= 40);
+    const name = cells.find((cell) => !isNumeric(cell) && cell.x < columns[0].x - 20);
+    const numerics = cells.filter(isNumeric);
+    if (!name || numerics.length < 2) continue;
+    if (yearHeading(name.text)) continue;
+    const values = columns.map((column) => {
+      const hit = numerics.find((cell) => Math.abs(cell.x - column.x) <= 45);
+      return hit ? printedNumber(hit.text) : null;
+    });
+    if (values.every((value) => value === null)) continue;
+    rows.push({ partner: name.text, values });
+  }
+  if (!rows.length) return null;
+
+  return {
+    page: page.number,
+    title: (titleRow?.cells.map((cell) => cell.text).join(" ") ?? "Top producing partners").trim(),
+    columns: columns.map((column) => column.label),
+    rows,
+  };
+}
+
 /* ── Entry point ───────────────────────────────────────────── */
+
 
 export interface OwnerReportOptions {
   /** The run's own as-of date — decides which grid is "current". */
@@ -574,7 +702,10 @@ export async function parsePriorOwnerReport(
   let partnersPrior: PartnerRow[] = [];
   let partnersCurrentLabel: string | null = null;
   let partnersPriorLabel: string | null = null;
+  const narratives: OwnerNarrative[] = [];
+  const partnerTrends: PartnerTrendTable[] = [];
   let asOfDate: string | null = null;
+
 
   for (const page of pages) {
     const text = pageText(page);
@@ -634,12 +765,28 @@ export async function parsePriorOwnerReport(
       continue;
     }
 
-    if (/TREND/i.test(upper) && page.rows.length < 40) {
-      pagesSkipped.push(`p${page.number} multi-year trend chart (image only)`);
+    if (/TREND/i.test(upper)) {
+      const trend = parsePartnerTrend(page);
+      if (trend) {
+        partnerTrends.push(trend);
+        pagesRead.push(`p${page.number} partner trend (${trend.rows.length} row(s))`);
+      } else {
+        pagesSkipped.push(`p${page.number} multi-year trend chart (image only)`);
+      }
       continue;
+    }
+
+    if (isNarrativePage(page)) {
+      const narrative = parseNarrative(page);
+      if (narrative) {
+        narratives.push(narrative);
+        pagesRead.push(`p${page.number} commentary — ${narrative.title.slice(0, 48)}`);
+        continue;
+      }
     }
     pagesSkipped.push(`p${page.number}`);
   }
+
 
   if (!grids.length) {
     warnings.push(
@@ -688,6 +835,9 @@ export async function parsePriorOwnerReport(
     partnersPrior,
     partnersCurrentLabel,
     partnersPriorLabel,
+    narratives,
+    partnerTrends,
+
     pagesRead,
     pagesSkipped,
     warnings,

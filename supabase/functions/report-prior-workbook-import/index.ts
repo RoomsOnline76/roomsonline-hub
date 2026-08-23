@@ -9,9 +9,9 @@
  * apply, and only then is anything stored. Existing values are never overwritten
  * unless `replace_existing` is set.
  *
- * Owner-report PDFs (CheetaPlains-style) additionally carry the declined
- * bookings, travel-partner and nationality tables — those are written as
- * special-report slides on the run.
+ * Owner-report PDFs (CheetaPlains-style) additionally carry the pack's own
+ * commentary, revenue grids, declined bookings, travel-partner, partner-trend
+ * and nationality pages — those are written as special-report slides on the run.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -24,13 +24,12 @@ import {
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { windowMonths } from "../_shared/reportWindow.ts";
+import { buildOwnerPackSlides } from "../_shared/cheetaplains/ownerPack.ts";
 import {
-  buildDeclinedSlide,
-  buildNationalitySlide,
-  buildPartnersSlide,
   type SpecialReportBranding,
   type SpecialReportContext,
 } from "../_shared/cheetaplains/specialReportHtml.ts";
+
 
 const BUCKET = "revenue-reports";
 
@@ -246,6 +245,8 @@ Deno.serve(async (req) => {
       declined_rows: owner?.declined.length ?? 0,
       nationality_rows: owner?.nationality.length ?? 0,
       partner_rows: owner?.partnersCurrent.length ?? 0,
+      narrative_pages: owner?.narratives.length ?? 0,
+      partner_trend_tables: owner?.partnerTrends.length ?? 0,
     };
 
 
@@ -303,6 +304,8 @@ Deno.serve(async (req) => {
       nationality: owner?.nationality ?? [],
       partners_current: owner?.partnersCurrent ?? [],
       partners_prior: owner?.partnersPrior ?? [],
+      narratives: owner?.narratives ?? [],
+      partner_trends: owner?.partnerTrends ?? [],
       found,
     };
 
@@ -461,12 +464,19 @@ Deno.serve(async (req) => {
 
 
 
-    /* ── Owner's-report side tables → special-report slides ──── */
+    /* ── Owner's-report pages → special-report slides ──── */
     if (
       owner &&
       selections.owner_tables !== false &&
-      (owner.declined.length || owner.nationality.length || owner.partnersCurrent.length)
+      (owner.declined.length ||
+        owner.nationality.length ||
+        owner.partnersCurrent.length ||
+        owner.narratives.length ||
+        owner.partnerTrends.length ||
+        owner.currentYear ||
+        owner.forwardYear)
     ) {
+
       const { data: property } = await admin
         .from("properties")
         .select("name")
@@ -527,80 +537,24 @@ Deno.serve(async (req) => {
       const currentLabel =
         owner.nationalityCurrentLabel ??
         owner.partnersCurrentLabel ??
+        owner.currentYear?.label ??
         fiscalLabelFallback(owner.asOfDate ?? runAsOf);
       const priorLabel =
         owner.nationalityPriorLabel ?? owner.partnersPriorLabel ?? priorFiscalLabel(currentLabel);
 
-      if (owner.nationality.length) {
-        await writeSlide(
-          "nationality",
-          "Bookings by nationality",
-          buildNationalitySlide({
-            ...context,
-            currentLabel,
-            priorLabel,
-            rows: owner.nationality,
-            hasPrior: owner.nationality.some((row) => row.priorNights || row.priorRevenue),
-          }),
-          owner.nationality.length,
-          { current_label: currentLabel, prior_label: priorLabel, rows: owner.nationality },
-          [],
-        );
-        applied.push(`${owner.nationality.length} nationality row(s)`);
+      // The full pack, in printed order. Slides with no source data are absent.
+      const packSlides = buildOwnerPackSlides(owner, context, { currentLabel, priorLabel });
+      for (const [index, slide] of packSlides.entries()) {
+        await writeSlide(slide.key, slide.title, slide.html, slide.rowCount, {
+          ...slide.payload,
+          pack_index: index,
+        }, slide.warnings);
       }
-
-      if (owner.partnersCurrent.length) {
-        const partnerCurrentLabel = owner.partnersCurrentLabel ?? currentLabel;
-        const partnerPriorLabel = owner.partnersPriorLabel ?? priorLabel;
-        await writeSlide(
-          "partners",
-          "Top booking travel partners",
-          buildPartnersSlide({
-            ...context,
-            currentLabel: partnerCurrentLabel,
-            priorLabel: partnerPriorLabel,
-            current: owner.partnersCurrent,
-            prior: owner.partnersPrior,
-          }),
-          owner.partnersCurrent.length,
-          {
-            current_label: partnerCurrentLabel,
-            prior_label: partnerPriorLabel,
-            current: owner.partnersCurrent,
-            prior: owner.partnersPrior,
-          },
-          [],
-        );
-        applied.push(`${owner.partnersCurrent.length} travel partner row(s)`);
-      }
-
-      if (owner.declined.length) {
-        await writeSlide(
-          "declined",
-          "Declined bookings",
-          buildDeclinedSlide({
-            ...context,
-            periodLabel: owner.declinedPeriod,
-            rows: owner.declined.map((row) => ({
-              monthLabel: row.monthLabel,
-              value: row.value,
-              agents: row.agents,
-              reason: row.reason,
-              shareOfMonthRevenue: row.shareOfMonthRevenue,
-            })),
-            total: owner.declinedTotal,
-          }),
-          owner.declined.length,
-          {
-            period: owner.declinedPeriod,
-            total: owner.declinedTotal,
-            rows: owner.declined,
-          },
-          [],
-        );
-        applied.push(`${owner.declined.length} declined booking row(s)`);
+      if (packSlides.length) {
+        applied.push(`${packSlides.length} owner-pack slide(s): ${packSlides.map((slide) => slide.title).join(", ")}`);
       }
     }
+
 
 
     await logRunEvent(
