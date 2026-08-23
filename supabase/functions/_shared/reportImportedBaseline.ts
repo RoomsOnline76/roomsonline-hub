@@ -227,3 +227,66 @@ export function reconcileWithImportedBaseline(
   aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
   return { addedMonths, substituted };
 }
+
+/**
+ * Builds a report aggregate straight from an owner's-report import.
+ *
+ * Some properties (the Cheetah Plains owner pack) never produce a PMS day grid
+ * for the reporting period — the owner's report *is* the revenue source. The
+ * printed grid carries revenue and occupancy but no room nights, so nights and
+ * ADR stay empty rather than being invented; occupancy is used as printed.
+ */
+export function aggregateFromImportedBaseline(
+  imported: unknown,
+  months: string[],
+  roomCount: number,
+): TotalledAggregate | null {
+  const baseline = asBaseline(imported);
+  if (!baseline) return null;
+  const revenueMap = baseline.current_otb_revenue ?? {};
+  const occupancyMap = baseline.current_otb_occupancy ?? {};
+  const rooms = roomCount > 0 ? Math.floor(roomCount) : 1;
+
+  const keys = months.length
+    ? months
+    : [...new Set(Object.keys(revenueMap).filter((key) => /^\d{4}-\d{2}$/.test(key)))].sort();
+  if (!keys.length) return null;
+
+  const aggregate: TotalledAggregate = {
+    months: [...keys].sort(),
+    otb_revenue: {},
+    room_nights: {},
+    capacity_days: {},
+    adr: {},
+    occupancy: {},
+    totals: { revenue: 0, nights: 0, capacity_days: 0, adr: 0, occupancy: 0 },
+  };
+
+  let revenue = 0;
+  let capacity = 0;
+  let occupancySum = 0;
+  let occupancyCount = 0;
+  for (const key of aggregate.months) {
+    const monthRevenue = Number(revenueMap[key]);
+    const value = Number.isFinite(monthRevenue) ? monthRevenue : 0;
+    const capacityDays = rooms * daysIn(key);
+    const occupancy = Number(occupancyMap[key]);
+    aggregate.otb_revenue[key] = value;
+    aggregate.room_nights[key] = 0;
+    aggregate.capacity_days[key] = capacityDays;
+    aggregate.adr[key] = 0;
+    aggregate.occupancy[key] = Number.isFinite(occupancy) ? occupancy : 0;
+    revenue += value;
+    capacity += capacityDays;
+    if (Number.isFinite(occupancy)) {
+      occupancySum += occupancy;
+      occupancyCount += 1;
+    }
+  }
+
+  if (revenue <= 0) return null;
+  aggregate.totals.revenue = Math.round(revenue * 100) / 100;
+  aggregate.totals.capacity_days = capacity;
+  aggregate.totals.occupancy = occupancyCount ? occupancySum / occupancyCount : 0;
+  return aggregate;
+}
