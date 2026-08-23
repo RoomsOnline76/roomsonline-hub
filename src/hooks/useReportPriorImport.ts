@@ -25,11 +25,16 @@ export interface PriorImportPreview {
   file: { id: string; filename: string };
   asOfDate: string | null;
   otbColumnLabel: string | null;
+  /** Sheet the baseline figures were lifted from. */
+  baselineSheet: string | null;
   months: string[];
   previousOtbRevenue: Record<string, number>;
+  currentOtbRevenue: Record<string, number>;
   previousRoomNights: Record<string, number>;
   lastYearActual: Record<string, number>;
   lastYearRoomNights: Record<string, number>;
+  previousAdr: Record<string, number>;
+  lastYearAdr: Record<string, number>;
   dinnerByMonth: Record<string, number>;
   room0ByMonth: Record<string, number>;
   compRnsByMonth: Record<string, number>;
@@ -40,6 +45,7 @@ export interface PriorImportPreview {
   warnings: string[];
   found: PriorImportFound;
 }
+
 
 export interface PriorImportSelections {
   previousOtb: boolean;
