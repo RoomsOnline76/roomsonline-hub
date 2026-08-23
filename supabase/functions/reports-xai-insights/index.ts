@@ -209,7 +209,9 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, title, page_order, properties(name)")
+      .select(
+        "id, property_id, as_of_date, report_month, source_type, title, page_order, properties(name)",
+      )
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -231,23 +233,70 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .maybeSingle();
 
+    /* ── The reporting period ────────────────────────────────────
+       Snapshots also carry last-year and historical comparative months
+       (folded in by the source parsers and the prior-report import). TOBI
+       reads the printed window only: the anchor month plus the next five. */
+    const asOfDate = String(run.as_of_date ?? "").slice(0, 10);
+    const reportMonth = run.report_month ? String(run.report_month).slice(0, 7) : null;
+    const anchorMonth = reportMonthAnchor(asOfDate, reportMonth);
+    const periodMonths = windowMonths(asOfDate, reportMonth);
+    const inPeriod = (key: string) => periodMonths.includes(key);
+    const scoped = (map: Record<string, number>): Record<string, number> =>
+      Object.fromEntries(Object.entries(map).filter(([key]) => inPeriod(key)));
+
+    const allMonths = Array.isArray(snapshotRow.months) ? (snapshotRow.months as string[]) : [];
+    const otbRevenue = scoped(numberMap(snapshotRow.otb_revenue));
+    const roomNights = scoped(numberMap(snapshotRow.room_nights));
+    const capacityDays = scoped(numberMap(snapshotRow.capacity_days));
+    const additionalRevenue = scoped(numberMap(snapshotRow.additional_revenue));
+    const adr = scoped(numberMap(snapshotRow.adr));
+    const occupancy = scoped(numberMap(snapshotRow.occupancy));
+
+    const sumOf = (map: Record<string, number>) =>
+      Object.values(map).reduce((total, value) => total + value, 0);
+    const totalNights = sumOf(roomNights);
+    const totalCapacity = sumOf(capacityDays);
+    const priorTotals = (snapshotRow.totals as Record<string, number>) ?? {};
+
     const snapshot: AnomalySnapshot = {
-      months: Array.isArray(snapshotRow.months) ? (snapshotRow.months as string[]) : [],
-      otb_revenue: numberMap(snapshotRow.otb_revenue),
-      previous_otb_revenue: numberMap(snapshotRow.previous_otb_revenue),
-      last_year_actual: numberMap(snapshotRow.last_year_actual),
-      room_nights: numberMap(snapshotRow.room_nights),
-      previous_room_nights: numberMap(snapshotRow.previous_room_nights),
-      last_year_room_nights: numberMap(snapshotRow.last_year_room_nights),
-      capacity_days: numberMap(snapshotRow.capacity_days),
-      additional_revenue: numberMap(snapshotRow.additional_revenue),
-      adr: numberMap(snapshotRow.adr),
-      occupancy: numberMap(snapshotRow.occupancy),
+      months: periodMonths,
+      otb_revenue: otbRevenue,
+      previous_otb_revenue: scoped(numberMap(snapshotRow.previous_otb_revenue)),
+      last_year_actual: scoped(numberMap(snapshotRow.last_year_actual)),
+      room_nights: roomNights,
+      previous_room_nights: scoped(numberMap(snapshotRow.previous_room_nights)),
+      last_year_room_nights: scoped(numberMap(snapshotRow.last_year_room_nights)),
+      capacity_days: capacityDays,
+      additional_revenue: additionalRevenue,
+      adr,
+      occupancy,
       source_breakdown:
         (snapshotRow.source_breakdown as AnomalySnapshot["source_breakdown"]) ?? {},
       room_count: Number(snapshotRow.room_count ?? 0) || 0,
-      totals: (snapshotRow.totals as Record<string, number>) ?? {},
+      // Totals rebuilt over the period so no all-years figure reaches the model.
+      totals: {
+        revenue: sumOf(otbRevenue),
+        extras: sumOf(additionalRevenue),
+        nights: totalNights,
+        capacity_days: totalCapacity,
+        adr: totalNights > 0 ? sumOf(otbRevenue) / totalNights : undefined,
+        occupancy: totalCapacity > 0 ? totalNights / totalCapacity : undefined,
+        bookings: priorTotals.bookings,
+      },
     };
+
+    if (Object.keys(otbRevenue).length === 0) {
+      return json(
+        {
+          error:
+            `No figures fall inside this run's reporting period (${periodMonths[0]} to ` +
+            `${periodMonths[periodMonths.length - 1]}). Set the run's report month, or reprocess ` +
+            `the source files, before asking TOBI for a read.`,
+        },
+        409,
+      );
+    }
 
     const flags: AnomalyFlag[] = detectAnomalies(snapshot);
     const propertyName =
@@ -256,6 +305,15 @@ Deno.serve(async (req) => {
     const userPayload = {
       property: propertyName,
       as_of_date: run.as_of_date,
+      period: {
+        report_month: anchorMonth,
+        months: periodMonths,
+        source: run.source_type ?? "unknown",
+        note:
+          "Write about period.months only. The uploads also held " +
+          `${allMonths.filter((key) => !inPeriod(key)).length} earlier comparative month(s); ` +
+          "they are not part of this report.",
+      },
       facts: flags.map((flag) => ({ id: flag.id, severity: flag.severity, fact: flag.factText })),
       snapshot: summariseSnapshot(snapshot),
       existing_notes: {
@@ -265,6 +323,7 @@ Deno.serve(async (req) => {
         free_commentary: inputs?.free_commentary ?? "",
       },
     };
+
 
     const slides = await loadSlideImages(admin, runId, run.page_order);
     const slideTitles = [...new Set(slides.map((slide) => slide.label))];
