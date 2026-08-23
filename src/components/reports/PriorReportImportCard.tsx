@@ -204,6 +204,12 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
               <Badge variant="secondary" className="font-normal">
                 {preview.otbColumnLabel ?? `OTB @ ${formatDate(preview.asOfDate)}`}
               </Badge>
+              {preview.sourceKind === "owner_report_pdf" && (
+                <Badge variant="outline" className="font-normal">
+                  owner-report PDF
+                  {preview.fiscalYearLabel ? ` · ${preview.fiscalYearLabel}` : ""}
+                </Badge>
+              )}
               {preview.baselineSheet && (
                 <Badge variant="outline" className="font-normal">
                   from “{preview.baselineSheet}”
@@ -215,9 +221,11 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
                 </span>
               )}
               <span className="text-muted-foreground">
-                Sheets read: {preview.sheetsRead.join(", ") || "none"}
+                {preview.sourceKind === "owner_report_pdf" ? "Pages read" : "Sheets read"}:{" "}
+                {preview.sheetsRead.join(", ") || "none"}
               </span>
             </div>
+
 
 
             <div className="space-y-2 text-sm">
