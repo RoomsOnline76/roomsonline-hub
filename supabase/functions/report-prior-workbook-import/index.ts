@@ -154,9 +154,13 @@ Deno.serve(async (req) => {
       historical_room_nights: extract.historicalRoomNights,
       previous_occupancy: extract.previousOccupancy,
       last_year_occupancy: extract.lastYearOccupancy,
+      previous_adr: extract.previousAdr,
+      last_year_adr: extract.lastYearAdr,
       targets: extract.targets,
       target_uplift: extract.targetUplift,
       historical_occupancy: extract.historicalOccupancy,
+      historical_adr: extract.historicalAdr,
+
       carry_forward_sheets: Object.keys(extract.carryForward),
       sheets_read: extract.sheetsRead,
       sheets_skipped: extract.sheetsSkipped,
