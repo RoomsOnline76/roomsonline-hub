@@ -360,6 +360,24 @@ function parseOtbSheet(
   });
   if (!headers.length) return null;
 
+  // Stale dated headings sit above empty columns in every hand-kept pack
+  // ("as @ 8 Nov 2017" beside a decade of blanks). A column only counts as an
+  // OTB column when its own block actually holds numbers.
+  for (let h = 0; h < headers.length; h += 1) {
+    const from = headers[h].row + 1;
+    const to = h + 1 < headers.length ? headers[h + 1].row : rows.length;
+    headers[h].columns = headers[h].columns.filter((column) => {
+      for (let r = from; r < to; r += 1) {
+        if (toNum((rows[r] ?? [])[column.col]) !== null) return true;
+      }
+      return false;
+    });
+  }
+  const populated = headers.filter((header) => header.columns.length);
+  if (!populated.length) return null;
+  headers.length = 0;
+  headers.push(...populated);
+
   const dates = [
     ...new Set(
       headers
@@ -369,10 +387,10 @@ function parseOtbSheet(
   ].sort();
 
   // The workbook usually carries several OTB columns. What this run needs is a
-  // *comparison* baseline, so pick the newest column strictly older than the
-  // run's own as-of date; only fall back to the newest when nothing is older.
+  // *comparison* baseline: the newest column dated no later than the run's own
+  // as-of date; only fall back to the newest of all when none qualifies.
   const runDate = runAsOfDate ? runAsOfDate.slice(0, 10) : null;
-  const older = runDate ? dates.filter((d) => d < runDate) : [];
+  const older = runDate ? dates.filter((d) => d <= runDate) : [];
   result.asOfDate = older.length
     ? older[older.length - 1]
     : dates.length
@@ -385,12 +403,13 @@ function parseOtbSheet(
     : headers[0].columns[0].heading;
   if (!result.asOfDate) {
     result.warnings.push("Could not read the as-of date from the OTB column heading.");
-  } else if (runDate && !older.length && result.asOfDate >= runDate) {
+  } else if (runDate && !older.length) {
     result.warnings.push(
       `The workbook's only OTB column (${result.asOfDate}) is not older than this run — variances will read as zero.`,
     );
   }
   const currentDate = dates.length ? dates[dates.length - 1] : null;
+
 
 
 
