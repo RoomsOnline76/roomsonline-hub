@@ -9,9 +9,9 @@
  * apply, and only then is anything stored. Existing values are never overwritten
  * unless `replace_existing` is set.
  *
- * Owner-report PDFs (CheetaPlains-style) additionally carry the declined
- * bookings, travel-partner and nationality tables — those are written as
- * special-report slides on the run.
+ * Owner-report PDFs (CheetaPlains-style) additionally carry the pack's own
+ * commentary, revenue grids, declined bookings, travel-partner, partner-trend
+ * and nationality pages — those are written as special-report slides on the run.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -24,13 +24,12 @@ import {
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { windowMonths } from "../_shared/reportWindow.ts";
+import { buildOwnerPackSlides } from "../_shared/cheetaplains/ownerPack.ts";
 import {
-  buildDeclinedSlide,
-  buildNationalitySlide,
-  buildPartnersSlide,
   type SpecialReportBranding,
   type SpecialReportContext,
 } from "../_shared/cheetaplains/specialReportHtml.ts";
+
 
 const BUCKET = "revenue-reports";
 
