@@ -264,29 +264,31 @@ export function aggregateFromImportedBaseline(
 
   let revenue = 0;
   let capacity = 0;
-  let occupancySum = 0;
-  let occupancyCount = 0;
+  let nights = 0;
   for (const key of aggregate.months) {
     const monthRevenue = Number(revenueMap[key]);
     const value = Number.isFinite(monthRevenue) ? monthRevenue : 0;
     const capacityDays = rooms * daysIn(key);
     const occupancy = Number(occupancyMap[key]);
+    const monthOccupancy = Number.isFinite(occupancy) ? occupancy : 0;
+    // The report prints occupancy, not nights: nights are that occupancy read
+    // back against capacity so the totals row reconciles with the months.
+    const monthNights = Math.round(monthOccupancy * capacityDays);
     aggregate.otb_revenue[key] = value;
-    aggregate.room_nights[key] = 0;
+    aggregate.room_nights[key] = monthNights;
     aggregate.capacity_days[key] = capacityDays;
     aggregate.adr[key] = 0;
-    aggregate.occupancy[key] = Number.isFinite(occupancy) ? occupancy : 0;
+    aggregate.occupancy[key] = monthOccupancy;
     revenue += value;
     capacity += capacityDays;
-    if (Number.isFinite(occupancy)) {
-      occupancySum += occupancy;
-      occupancyCount += 1;
-    }
+    nights += monthNights;
   }
 
   if (revenue <= 0) return null;
   aggregate.totals.revenue = Math.round(revenue * 100) / 100;
   aggregate.totals.capacity_days = capacity;
-  aggregate.totals.occupancy = occupancyCount ? occupancySum / occupancyCount : 0;
+  aggregate.totals.nights = nights;
+  aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
   return aggregate;
 }
+
