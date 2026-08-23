@@ -177,7 +177,19 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString();
 
+    if (terminalNoOp !== null) {
+      summary.noOp++;
+      await supabase
+        .from('ru_call_queue')
+        .update({ status: 'no_op', last_error: terminalNoOp, completed_at: nowIso, claimed_at: null })
+        .eq('id', row.id);
+      console.log(`[cron-ru-call-queue-drain] ${row.action} skipped → ${terminalNoOp}`);
+      if (Date.now() < deadline) await new Promise((r) => setTimeout(r, SPACING_MS));
+      continue;
+    }
+
     if (failure === null) {
+
       summary.succeeded++;
       await supabase
         .from('ru_call_queue')
