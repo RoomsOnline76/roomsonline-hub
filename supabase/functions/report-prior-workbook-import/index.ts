@@ -526,80 +526,24 @@ Deno.serve(async (req) => {
       const currentLabel =
         owner.nationalityCurrentLabel ??
         owner.partnersCurrentLabel ??
+        owner.currentYear?.label ??
         fiscalLabelFallback(owner.asOfDate ?? runAsOf);
       const priorLabel =
         owner.nationalityPriorLabel ?? owner.partnersPriorLabel ?? priorFiscalLabel(currentLabel);
 
-      if (owner.nationality.length) {
-        await writeSlide(
-          "nationality",
-          "Bookings by nationality",
-          buildNationalitySlide({
-            ...context,
-            currentLabel,
-            priorLabel,
-            rows: owner.nationality,
-            hasPrior: owner.nationality.some((row) => row.priorNights || row.priorRevenue),
-          }),
-          owner.nationality.length,
-          { current_label: currentLabel, prior_label: priorLabel, rows: owner.nationality },
-          [],
-        );
-        applied.push(`${owner.nationality.length} nationality row(s)`);
+      // The full pack, in printed order. Slides with no source data are absent.
+      const packSlides = buildOwnerPackSlides(owner, context, { currentLabel, priorLabel });
+      for (const [index, slide] of packSlides.entries()) {
+        await writeSlide(slide.key, slide.title, slide.html, slide.rowCount, {
+          ...slide.payload,
+          pack_index: index,
+        }, slide.warnings);
       }
-
-      if (owner.partnersCurrent.length) {
-        const partnerCurrentLabel = owner.partnersCurrentLabel ?? currentLabel;
-        const partnerPriorLabel = owner.partnersPriorLabel ?? priorLabel;
-        await writeSlide(
-          "partners",
-          "Top booking travel partners",
-          buildPartnersSlide({
-            ...context,
-            currentLabel: partnerCurrentLabel,
-            priorLabel: partnerPriorLabel,
-            current: owner.partnersCurrent,
-            prior: owner.partnersPrior,
-          }),
-          owner.partnersCurrent.length,
-          {
-            current_label: partnerCurrentLabel,
-            prior_label: partnerPriorLabel,
-            current: owner.partnersCurrent,
-            prior: owner.partnersPrior,
-          },
-          [],
-        );
-        applied.push(`${owner.partnersCurrent.length} travel partner row(s)`);
-      }
-
-      if (owner.declined.length) {
-        await writeSlide(
-          "declined",
-          "Declined bookings",
-          buildDeclinedSlide({
-            ...context,
-            periodLabel: owner.declinedPeriod,
-            rows: owner.declined.map((row) => ({
-              monthLabel: row.monthLabel,
-              value: row.value,
-              agents: row.agents,
-              reason: row.reason,
-              shareOfMonthRevenue: row.shareOfMonthRevenue,
-            })),
-            total: owner.declinedTotal,
-          }),
-          owner.declined.length,
-          {
-            period: owner.declinedPeriod,
-            total: owner.declinedTotal,
-            rows: owner.declined,
-          },
-          [],
-        );
-        applied.push(`${owner.declined.length} declined booking row(s)`);
+      if (packSlides.length) {
+        applied.push(`${packSlides.length} owner-pack slide(s): ${packSlides.map((slide) => slide.title).join(", ")}`);
       }
     }
+
 
 
     await logRunEvent(
