@@ -107,18 +107,41 @@ Deno.serve(async (req) => {
     const startedAt = Date.now();
     let failure: string | null = null;
     let result: unknown = null;
+    let terminalNoOp: string | null = null;
 
-    try {
-      // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
-      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { ...(row.payload ?? {}), deferrable: false, queued_replay: true },
-      });
-      if (error) throw new Error(await invokeErrorMessage(error));
-      if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
-      result = data ?? null;
-    } catch (err) {
-      failure = err instanceof Error ? err.message : String(err);
+    // An acceptance for a stay that is already in-house, departed or cancelled can never succeed —
+    // the channel refuses it ("not available for a given dates") and the row retries every pass.
+    // Close it off before spending a call.
+    if (row.action === 'confirm_request') {
+      const reservationId = String((row.payload as { reservation_id?: unknown })?.reservation_id ?? '').trim();
+      if (reservationId) {
+        const { data: existing } = await supabase
+          .from('bookings')
+          .select('id, status')
+          .eq('external_reservation_id', reservationId)
+          .maybeSingle();
+        const status = String((existing as { status?: string } | null)?.status ?? '').toLowerCase();
+        if (status && TERMINAL_BOOKING_STATUSES.has(status)) {
+          terminalNoOp = `Stay is already ${status} in ROL\u2019OS — acceptance is no longer possible at the channel.`;
+        }
+      }
     }
+
+    if (terminalNoOp === null) {
+      try {
+        // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
+        // `action` is taken from the row so legacy payloads queued without it still replay.
+        const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+          body: { action: row.action, ...(row.payload ?? {}), deferrable: false, queued_replay: true },
+        });
+        if (error) throw new Error(await invokeErrorMessage(error));
+        if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
+        result = data ?? null;
+      } catch (err) {
+        failure = err instanceof Error ? err.message : String(err);
+      }
+    }
+
 
     // A replayed acceptance that the channel refuses because the request's OWN nights read as
     // closed is our own hold, and the raw replay above cannot heal it (the reopen lives in
