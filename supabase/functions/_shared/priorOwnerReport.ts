@@ -835,6 +835,9 @@ export async function parsePriorOwnerReport(
     partnersPrior,
     partnersCurrentLabel,
     partnersPriorLabel,
+    narratives,
+    partnerTrends,
+
     pagesRead,
     pagesSkipped,
     warnings,
