@@ -23,7 +23,14 @@ export interface ImportedBaseline {
   /** Sheets the revenue team maintains by hand (PROTEL Online Res / Web Comparison). */
   carry_forward?: Record<string, Array<Array<string | number | null>>>;
   as_of_date?: string | null;
+  /** Owner's-report packs: the printed on-the-books grid for the run's own year. */
+  current_otb_revenue?: Record<string, number>;
+  current_otb_occupancy?: Record<string, number>;
+  provisional_revenue?: Record<string, number>;
+  source_kind?: string;
+  fiscal_year_label?: string | null;
 }
+
 
 export interface BaselineMaps {
   previousRevenue: Record<string, number>;
