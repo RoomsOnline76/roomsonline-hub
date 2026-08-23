@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, previous_run_id, title, cadence, source_type, page_order, properties(name)",
+        "id, property_id, as_of_date, report_month, previous_run_id, title, cadence, source_type, page_order, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
@@ -249,6 +249,7 @@ Deno.serve(async (req) => {
     const draft = buildDraftReport({
       propertyName,
       asOfDate: String(run.as_of_date).slice(0, 10),
+      reportMonth: run.report_month ? String(run.report_month).slice(0, 7) : null,
       previousAsOfDate: previousAsOf,
       cadence: String(run.cadence ?? "bimonthly") === "monthly" ? "monthly" : "bimonthly",
       sourceType: (run as unknown as { source_type?: string | null }).source_type ?? null,

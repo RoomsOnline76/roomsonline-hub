@@ -8577,6 +8577,7 @@ export type Database = {
           prior_report_declined: boolean
           processing_note: string | null
           property_id: string
+          report_month: string | null
           source_type: string
           special_report_set: string | null
           status: string
@@ -8603,6 +8604,7 @@ export type Database = {
           prior_report_declined?: boolean
           processing_note?: string | null
           property_id: string
+          report_month?: string | null
           source_type?: string
           special_report_set?: string | null
           status?: string
@@ -8629,6 +8631,7 @@ export type Database = {
           prior_report_declined?: boolean
           processing_note?: string | null
           property_id?: string
+          report_month?: string | null
           source_type?: string
           special_report_set?: string | null
           status?: string

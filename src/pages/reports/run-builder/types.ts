@@ -12,6 +12,10 @@ export interface RunBuilderContext {
   runId: string;
   adapter: ReportSourceAdapter;
   snapshot: ReportSnapshot | null;
+  /** Window months the uploads did not cover. */
+  missingMonths: string[];
+  /** `YYYY-MM` the review covers, editable in the review stage. */
+  onSetReportMonth: (month: string) => Promise<void>;
   editable: boolean;
 
   refresh: () => Promise<void>;

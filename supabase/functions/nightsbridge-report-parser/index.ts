@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, previous_run_id, baseline_locked, imported_baseline, status")
+      .select("id, property_id, as_of_date, report_month, previous_run_id, baseline_locked, imported_baseline, status")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -417,7 +417,7 @@ Deno.serve(async (req) => {
 
     // months: lift them out and keep them as last-year figures.
 
-    const pastMonths: PastMonthActual[] = trimToReportWindow(aggregate, String(run.as_of_date));
+    const pastMonths: PastMonthActual[] = trimToReportWindow(aggregate, String(run.as_of_date), (run as { report_month?: string | null }).report_month ?? null);
 
     const pastRevenue: Record<string, number> = {};
 

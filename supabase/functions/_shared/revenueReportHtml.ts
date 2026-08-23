@@ -14,7 +14,7 @@ import {
   percent,
   varianceBarChart,
 } from "./revenueReportCharts.ts";
-import { monthsInWindow } from "./reportWindow.ts";
+import { monthsInWindow, windowMonths } from "./reportWindow.ts";
 import {
   expandLegacyMediaKeys,
   mediaImagePageKey,
@@ -79,6 +79,8 @@ export interface DraftMediaSlot {
 export interface DraftOptions {
   propertyName: string;
   asOfDate: string;
+  /** `YYYY-MM` (or date) the review covers; falls back to the as-of date. */
+  reportMonth?: string | null;
   previousAsOfDate: string | null;
   branding: DraftBranding;
   snapshot: DraftSnapshot;
@@ -226,8 +228,14 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const asOfIso = options.asOfDate.slice(0, 10);
   const asOfLabel = formatLongDate(asOfIso);
   const cadenceLabel = options.cadence === "monthly" ? "Monthly" : "Bi-monthly";
-  // A review only ever prints the month it covers plus the next five.
-  const months = monthsInWindow(snapshot.months.filter(Boolean), asOfIso);
+  // A review always prints the month it covers plus the next five — months with
+  // no uploaded figures still get a row, printed as dashes, so a gap is visible.
+  const months = windowMonths(asOfIso, options.reportMonth ?? null);
+  const withData = new Set(monthsInWindow(snapshot.months.filter(Boolean), asOfIso, options.reportMonth ?? null));
+  const dash = `<span class="muted">—</span>`;
+  /** Value cell that prints a dash when the month carries no uploaded data. */
+  const dataCell = (index: number, formatted: string): string =>
+    withData.has(months[index]) ? esc(formatted) : dash;
   const labels = months.map(monthLabel);
 
   const primary = hex(branding.brandPrimary, DEFAULT_THEME.primary);
@@ -608,7 +616,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
             (key, i) => `
         <tr>
           <td class="left">${esc(monthLabel(key))}</td>
-          <td>${esc(zar(otbNow[i]))}</td>
+          <td>${dataCell(i, zar(otbNow[i]))}</td>
           <td class="muted">${esc(zar(otbPrev[i]))}</td>
           <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
           <td class="muted">${esc(zar(otbLy[i]))}</td>
@@ -619,7 +627,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td class="muted">${room0[i] ? esc(zar(room0[i])) : "—"}</td>
           <td class="muted">${compRns[i] ? nightsFmt(compRns[i]) : "—"}</td>
           <td class="muted">${additional[i] ? esc(zar(additional[i])) : "—"}</td>
-          <td class="strong">${esc(zar(combined[i]))}</td>`
+          <td class="strong">${dataCell(i, zar(combined[i]))}</td>`
               : ""
           }
         </tr>`,
@@ -675,7 +683,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
               (key, i) => `
           <tr>
             <td class="left">${esc(monthLabel(key))}</td>
-            <td>${esc(format(now[i]))}</td>
+            <td>${dataCell(i, format(now[i]))}</td>
             <td class="muted">${esc(format(prev[i]))}</td>
             <td>${deltaCell(now[i], prev[i], format)}</td>
             <td class="muted">${esc(format(ly[i]))}</td>
@@ -746,7 +754,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
               (key, i) => `
           <tr>
             <td class="left">${esc(monthLabel(key))}</td>
-            <td>${esc(zar(otbNow[i]))}</td>
+            <td>${dataCell(i, zar(otbNow[i]))}</td>
             <td class="muted">${esc(zar(otbLy[i]))}</td>
             <td>${otbLy[i] ? deltaCell(otbNow[i], otbLy[i], compactMoney) : `<span class="muted">—</span>`}</td>
             <td>${esc(zar(adrNow[i]))}</td>
@@ -980,17 +988,23 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       </div>`
       : "";
 
-  const monthCells = months
-    .filter((key) => (monthCommentary.get(key) ?? []).length > 0)
-    .map(
-      (key) => `
+  // Every month in the window gets a card, in chronological order, so the grid
+  // reads like a calendar even when a month has nothing said about it.
+  const monthCells =
+    monthCommentary.size === 0
+      ? []
+      : months.map((key) => {
+          const lines = monthCommentary.get(key) ?? [];
+          return `
         <div class="cal-cell">
           <h4>${esc(monthLabel(key))}</h4>
-          <ul class="tobi">${(monthCommentary.get(key) ?? [])
-            .map((line) => `<li>${esc(line)}</li>`)
-            .join("")}</ul>
-        </div>`,
-    );
+          ${
+            lines.length > 0
+              ? `<ul class="tobi">${lines.map((line) => `<li>${esc(line)}</li>`).join("")}</ul>`
+              : `<p class="muted">No commentary for this month.</p>`
+          }
+        </div>`;
+        });
 
   const CELLS_PER_PAGE = 6;
   const commentaryChunks: string[][] = [];

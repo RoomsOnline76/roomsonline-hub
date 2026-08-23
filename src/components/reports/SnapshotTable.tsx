@@ -23,10 +23,12 @@ const sumMap = (map: Record<string, number>, months: string[]): number =>
 
 interface Props {
   snapshot: ReportSnapshot;
+  /** Window months with no parsed data — printed as dashes, not zeros. */
+  missingMonths?: string[];
 }
 
 /** Month-by-month view of the computed snapshot with previous / last-year comparison. */
-export function SnapshotTable({ snapshot }: Props) {
+export function SnapshotTable({ snapshot, missingMonths = [] }: Props) {
   const sources = useMemo(
     () =>
       Object.entries(snapshot.sourceBreakdown ?? {})
@@ -43,6 +45,7 @@ export function SnapshotTable({ snapshot }: Props) {
     return { previous, lastYear, variance: current - previous, lyVariance: current - lastYear };
   }, [snapshot]);
 
+  const missing = useMemo(() => new Set(missingMonths), [missingMonths]);
   const nonSellableRows = snapshot.totals.non_sellable_rows ?? 0;
   const hasComparison =
     Object.keys(snapshot.previousOtbRevenue).length > 0 ||
@@ -71,6 +74,16 @@ export function SnapshotTable({ snapshot }: Props) {
               const previous = snapshot.previousOtbRevenue[key] ?? 0;
               const variance = current - previous;
               const percentChange = previous === 0 ? null : variance / previous;
+              if (missing.has(key)) {
+                return (
+                  <tr key={key} className="border-b last:border-0 text-muted-foreground">
+                    <td className="py-2 pr-3 font-medium">{monthLabel(key)}</td>
+                    <td className="py-2 px-3 text-right" colSpan={8}>
+                      No source file uploaded for this month
+                    </td>
+                  </tr>
+                );
+              }
               return (
                 <tr key={key} className="border-b last:border-0">
                   <td className="py-2 pr-3 font-medium">{monthLabel(key)}</td>

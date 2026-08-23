@@ -26,7 +26,7 @@ import type { DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
-import { monthsInWindow } from "@/lib/reportWindow";
+import { monthsInWindow, windowMonths } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
 import {
   deriveStageCompletion,
@@ -126,11 +126,42 @@ export default function ReportsRunReview() {
     setStage(resumeStage(run.buildStage, completion));
   }, [run, stage, completion]);
 
-  /** Everything downstream only ever sees the review month plus five ahead. */
+  /**
+   * Everything downstream sees the review month plus five ahead — every one of
+   * them, so a month with no uploaded extract shows as a gap rather than
+   * disappearing from the review.
+   */
   const windowedSnapshot = useMemo(() => {
     if (!snapshot || !run) return snapshot ?? null;
-    return { ...snapshot, months: monthsInWindow(snapshot.months, run.asOfDate) };
+    return { ...snapshot, months: windowMonths(run.asOfDate, run.reportMonth) };
   }, [snapshot, run]);
+
+  /** Window months the parsed sources did not cover. */
+  const missingMonths = useMemo(() => {
+    if (!snapshot || !run) return [] as string[];
+    const present = new Set(monthsInWindow(snapshot.months, run.asOfDate, run.reportMonth));
+    return windowMonths(run.asOfDate, run.reportMonth).filter((key) => !present.has(key));
+  }, [snapshot, run]);
+
+  /** The month the review covers — the anchor for the six-month window. */
+  const handleSetReportMonth = useCallback(
+    async (month: string) => {
+      if (!runId || !/^\d{4}-\d{2}$/.test(month)) return;
+      const { error } = await supabase
+        .from("report_runs")
+        .update({ report_month: `${month}-01` })
+        .eq("id", runId);
+      if (error) {
+        toast.error("Could not change the report month", { description: error.message });
+        return;
+      }
+      await refetch();
+      toast.success("Report month updated", {
+        description: "Re-process the run so the window and figures line up.",
+      });
+    },
+    [runId, refetch],
+  );
 
   const goToStage = useCallback(
     (next: RunBuildStage) => {
@@ -353,6 +384,8 @@ export default function ReportsRunReview() {
     runId,
     adapter,
     snapshot: windowedSnapshot ?? null,
+    missingMonths,
+    onSetReportMonth: handleSetReportMonth,
     editable: run.status === "draft",
     refresh,
     reparsingId,
