@@ -468,9 +468,13 @@ function parseOtbSheet(
       if (/^dinner/.test(heading)) dinnerCol = col;
       if (/room\s*0/.test(heading)) room0Col = col;
       if (/comp\.?\s*(rns?|room nights?)/.test(heading)) compCol = col;
-      // An undated "Room Nights" / "RM NITES" column inside any block still
-      // carries the counts (Grande Roche prints it beside occupancy).
-      if (/^(room nights?|rn|rm nites)$/.test(heading)) nightsCol = col;
+      // An undated "Room Nights" column beside an occupancy block is often the
+      // rooms-available constant, not nights sold; only trust it when its
+      // values actually vary month to month.
+      if (/^(room nights?|rn|rm nites)$/.test(heading) && varies(rows, dataFrom, end, col)) {
+        nightsCol = col;
+      }
+
     });
     let lyCol: number | null = lyCandidates.length ? lyCandidates[0] : null;
     if (isNights && lyCandidates.length > 1) {
