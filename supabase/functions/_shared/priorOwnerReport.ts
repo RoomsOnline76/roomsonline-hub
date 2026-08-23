@@ -702,7 +702,10 @@ export async function parsePriorOwnerReport(
   let partnersPrior: PartnerRow[] = [];
   let partnersCurrentLabel: string | null = null;
   let partnersPriorLabel: string | null = null;
+  const narratives: OwnerNarrative[] = [];
+  const partnerTrends: PartnerTrendTable[] = [];
   let asOfDate: string | null = null;
+
 
   for (const page of pages) {
     const text = pageText(page);
