@@ -284,6 +284,25 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
                   </span>
                 </span>
               </label>
+              {preview.sourceKind === "owner_report_pdf" && (
+                <label className="flex items-start gap-2">
+                  <Checkbox
+                    checked={selections.ownerTables}
+                    onCheckedChange={(value) =>
+                      setSelections((prev) => ({ ...prev, ownerTables: value === true }))
+                    }
+                  />
+                  <span>
+                    Owner-report tables (slides)
+                    <span className="text-muted-foreground">
+                      {" "}
+                      — declined {found?.declined_rows ?? 0}, nationality{" "}
+                      {found?.nationality_rows ?? 0}, partners {found?.partner_rows ?? 0}
+                    </span>
+                  </span>
+                </label>
+              )}
+
               <label className="flex items-start gap-2 pt-1">
                 <Checkbox
                   checked={replaceExisting}
