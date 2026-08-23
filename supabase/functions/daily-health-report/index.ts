@@ -949,7 +949,7 @@ Deno.serve(async (req) => {
     // ---- Channel Manager (Rentals United white-label) metrics, last 24h ----
     let ruWl: RuWlMetrics | null = null;
     try {
-      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { count: ownerCount }] = await Promise.all([
+      const [{ data: syncRuns }, { data: ruNotifs }, { data: certRuns }, { data: ownerRows }, retiredAccounts] = await Promise.all([
         supabase
           .from('ru_sync_runs')
           .select('action, success, error_code, error_message, elapsed_ms, created_at, property_id')
@@ -967,23 +967,52 @@ Deno.serve(async (req) => {
           .select('status, passed, total, finished_at, created_at')
           .order('created_at', { ascending: false })
           .limit(1),
-        supabase.from('ru_owner_accounts').select('id', { count: 'exact', head: true }),
+        supabase.from('ru_owner_accounts').select('id, ru_owner_id'),
+        fetchRetiredRuAccounts(),
       ]);
 
       // Previous window (48h → 24h ago): used only to celebrate conflicts that have stopped.
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000);
       const { data: priorRuns } = await supabase
         .from('ru_sync_runs')
-        .select('success, error_code, error_message')
+        .select('success, error_code, error_message, property_id')
         .gte('created_at', fortyEightHoursAgo.toISOString())
         .lt('created_at', twentyFourHoursAgo.toISOString())
         .limit(5000);
 
-      const allRuns = syncRuns || [];
+      /* Retired sub-accounts are dead: their historic rows would otherwise keep being graded for a
+         full 24h window and make the report ask for work on an account nobody can act on. Rows are
+         matched by the property they were bound to and by the OwnerID appearing in the message. */
+      const retiredOwnerIds = new Set(retiredAccounts.map(a => a.ru_owner_id).filter(Boolean));
+      const retiredPropertyIds = new Set<string>();
+      if (retiredOwnerIds.size > 0) {
+        const { data: retiredProps } = await supabase
+          .from('properties')
+          .select('id, ru_listings_verified_owner')
+          .not('ru_listings_verified_owner', 'is', null);
+        for (const p of retiredProps ?? []) {
+          const tag = String((p as { ru_listings_verified_owner?: string | null }).ru_listings_verified_owner ?? '');
+          for (const id of retiredOwnerIds) {
+            if (tag.includes(id)) { retiredPropertyIds.add(String((p as { id: string }).id)); break; }
+          }
+        }
+      }
+      const belongsToRetiredAccount = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean => {
+        if (retiredOwnerIds.size === 0) return false;
+        if (r.property_id && retiredPropertyIds.has(String(r.property_id))) return true;
+        const text = `${r.error_message ?? ''} ${r.error_code ?? ''}`;
+        for (const id of retiredOwnerIds) if (text.includes(id)) return true;
+        return false;
+      };
+
+      const allRunsUnfiltered = syncRuns || [];
+      const allRuns = allRunsUnfiltered.filter(r => !belongsToRetiredAccount(r));
+      const retiredRowsExcluded = allRunsUnfiltered.length - allRuns.length;
 
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
       const refusalRuns = allRuns.filter(isRefusalRecord);
+
       const byAction = new Map<string, typeof runs>();
       for (const r of runs) {
         const key = r.action || 'unknown';
