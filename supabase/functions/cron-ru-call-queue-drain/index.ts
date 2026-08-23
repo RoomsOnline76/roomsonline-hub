@@ -57,14 +57,19 @@ function isPermanent(message: string | null | undefined): boolean {
 
 /**
  * Terminal, but not a defect: the channel says the work is already unnecessary (e.g. cancelling a
- * reservation it never had). These land as `no_op` so certification review and the health report
- * stop reading them as unhealed failures.
+ * reservation it never had), or the listing needs republishing before the call can mean anything.
+ * These land as `no_op` so certification review and the health report stop reading them as
+ * unhealed failures.
  */
 function isNoOp(message: string | null | undefined): boolean {
-  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)/i.test(
+  return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)|no\s+listing\s+\d+\s+for\s+this\s+unit|republish\s+the\s+unit/i.test(
     String(message ?? ''),
   );
 }
+
+/** A stay in one of these states can never be accepted at the channel again. */
+const TERMINAL_BOOKING_STATUSES = new Set(['cancelled', 'canceled', 'checked_in', 'checked_out', 'completed', 'departed', 'no_show']);
+
 
 async function invokeErrorMessage(error: unknown): Promise<string> {
   const body = await readInvokeErrorBody(error);
