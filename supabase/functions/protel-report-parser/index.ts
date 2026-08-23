@@ -397,9 +397,11 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, historical_baseline")
+      .select("room_count, historical_baseline, special_report_set")
       .eq("property_id", run.property_id)
       .maybeSingle();
+    const isSpecialSet = Boolean(settings?.special_report_set);
+
 
     let roomCount = settings?.room_count ?? 0;
     if (!roomCount) {
