@@ -1021,9 +1021,38 @@ Deno.serve(async (req) => {
         return false;
       };
 
+      /* Accounts still working through channel onboarding are not graded: the sync gate refuses
+         their traffic on purpose (`WIZARD_SYNC_NOT_READY`), so counting it would report a fault
+         against an account that is not connected yet. A property counts as connected when every
+         ledger step has passed, or when only the final `connect` step is outstanding. */
+      const inProgressPropertyIds = new Set<string>();
+      {
+        const { data: stepRows } = await supabase
+          .from('property_channel_step_status')
+          .select('property_id, step_key, status')
+          .limit(20000);
+        for (const s of stepRows ?? []) {
+          const row = s as { property_id: string; step_key: string; status: string | null };
+          const status = String(row.status ?? '').toLowerCase();
+          const done = ['passed', 'skipped', 'not_applicable', 'n/a'].includes(status);
+          if (!done && row.step_key !== 'connect') inProgressPropertyIds.add(String(row.property_id));
+        }
+      }
+      const isWizardNotReady = (r: { error_message?: string | null; error_code?: string | null }): boolean =>
+        String(r.error_code ?? '') === 'WIZARD_SYNC_NOT_READY' ||
+        /channel manager connection is not complete|wizard.*not (yet )?(ready|complete)/i.test(r.error_message ?? '');
+
+      const belongsToUnconnectedAccount = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean =>
+        isWizardNotReady(r) ||
+        (!!r.property_id && inProgressPropertyIds.has(String(r.property_id)));
+
+      const isExcludedRow = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean =>
+        belongsToRetiredAccount(r) || belongsToUnconnectedAccount(r);
+
       const allRunsUnfiltered = syncRuns || [];
-      const allRuns = allRunsUnfiltered.filter(r => !belongsToRetiredAccount(r));
+      const allRuns = allRunsUnfiltered.filter(r => !isExcludedRow(r));
       const retiredRowsExcluded = allRunsUnfiltered.length - allRuns.length;
+
 
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
