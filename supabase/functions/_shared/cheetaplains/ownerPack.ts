@@ -178,8 +178,6 @@ const gridSlides = (
       : null;
 
   const months = monthsInFiscalOrder(grid);
-  const primaryColour = grid.label ? undefined : undefined;
-
   const slides: OwnerPackSlide[] = [
     {
       key: `revenue_grid_${scope}`,
@@ -216,7 +214,7 @@ const gridSlides = (
       }),
       rowCount: months.length,
       payload: { fiscal_label: grid.label, scope, chart: "bob_budget_ly" },
-      warnings: primaryColour ? [] : [],
+      warnings: [],
     });
   }
 
