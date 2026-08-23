@@ -20,10 +20,11 @@ export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
-  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending";
+  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending" | "confirm_pending";
   error?: string;
   blockers?: string[];
 }
+
 
 /** ru_sync_runs.action used to park an ARI delta refused by the readiness / phase gate. */
 export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
