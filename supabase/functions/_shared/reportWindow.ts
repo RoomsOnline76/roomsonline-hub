@@ -20,17 +20,32 @@ export interface PastMonthActual {
   nights: number;
 }
 
-/** `YYYY-MM` of the earliest month a run's window may contain. */
-export function windowStartMonth(asOfDate: string): string {
+/**
+ * The month a run reports on. `report_month` is authoritative when the reviewer
+ * has set it; otherwise a run dated in the first days of a month is taken to
+ * cover the month just closed, anything later covers its own month.
+ */
+export function reportMonthAnchor(
+  asOfDate: string,
+  reportMonth?: string | null,
+): string {
+  const explicit = String(reportMonth ?? "").slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(explicit)) return explicit;
   const iso = String(asOfDate ?? "").slice(0, 10);
   const year = Number(iso.slice(0, 4));
   const month = Number(iso.slice(5, 7));
+  const day = Number(iso.slice(8, 10));
   if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
     return "0000-01";
   }
-  // The month immediately before the as-of date is still part of the review.
-  const start = new Date(Date.UTC(year, month - 2, 1));
+  const offset = Number.isFinite(day) && day < 5 ? -1 : 0;
+  const start = new Date(Date.UTC(year, month - 1 + offset, 1));
   return `${start.getUTCFullYear()}-${`${start.getUTCMonth() + 1}`.padStart(2, "0")}`;
+}
+
+/** `YYYY-MM` of the earliest month a run's window may contain. */
+export function windowStartMonth(asOfDate: string, reportMonth?: string | null): string {
+  return reportMonthAnchor(asOfDate, reportMonth);
 }
 
 /**
@@ -40,8 +55,9 @@ export function windowStartMonth(asOfDate: string): string {
 export function trimToReportWindow(
   aggregate: WindowAggregate,
   asOfDate: string,
+  reportMonth?: string | null,
 ): PastMonthActual[] {
-  const start = windowStartMonth(asOfDate);
+  const start = windowStartMonth(asOfDate, reportMonth);
   const past: PastMonthActual[] = [];
   const kept: string[] = [];
 
@@ -101,13 +117,27 @@ const addMonths = (key: string, delta: number): string => {
 };
 
 /** `YYYY-MM` of the last month the printed report may show. */
-export function windowEndMonth(asOfDate: string): string {
-  return addMonths(windowStartMonth(asOfDate), REPORT_WINDOW_MONTHS - 1);
+export function windowEndMonth(asOfDate: string, reportMonth?: string | null): string {
+  return addMonths(windowStartMonth(asOfDate, reportMonth), REPORT_WINDOW_MONTHS - 1);
+}
+
+/**
+ * Every month the report prints — the review month plus the next five, whether
+ * or not data was uploaded for them. Months with no figures print as dashes so
+ * a gap in the uploads is visible rather than silently dropped.
+ */
+export function windowMonths(asOfDate: string, reportMonth?: string | null): string[] {
+  const start = windowStartMonth(asOfDate, reportMonth);
+  return Array.from({ length: REPORT_WINDOW_MONTHS }, (_, i) => addMonths(start, i));
 }
 
 /** The months a report is allowed to display: review month + the next five. */
-export function monthsInWindow(months: string[], asOfDate: string): string[] {
-  const start = windowStartMonth(asOfDate);
-  const end = windowEndMonth(asOfDate);
+export function monthsInWindow(
+  months: string[],
+  asOfDate: string,
+  reportMonth?: string | null,
+): string[] {
+  const start = windowStartMonth(asOfDate, reportMonth);
+  const end = windowEndMonth(asOfDate, reportMonth);
   return (months ?? []).filter((key) => Boolean(key) && key >= start && key <= end);
 }
