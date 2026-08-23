@@ -74,23 +74,9 @@ function tint(color: string, amount: number): string {
   return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 }
 
-function shell(
-  context: SpecialReportContext,
-  title: string,
-  notes: string[],
-  tableHtml: string,
-): string {
-  const primary = hex(context.branding.brandPrimary, HOUSE_PRIMARY);
-  const rowTint = context.branding.brandPrimary ? tint(primary, 0.78) : HOUSE_TINT;
-  const ink = HOUSE_INK;
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(pdfDocumentTitle(context.propertyName, title.replace(/\n/g, " "), context.asOfDate ?? ""))}</title>
-<style>
+/** Shared print CSS for every slide in the pack. */
+function css(primary: string, rowTint: string, ink: string): string {
+  return `
   @page { size: A4 landscape; margin: 0; }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; background: #E7E5E2; }
@@ -111,7 +97,9 @@ function shell(
     gap: 10mm;
     page-break-after: always;
   }
+  .slide.stack { display: block; }
   .rail { width: 46mm; flex: 0 0 46mm; padding-top: 8mm; }
+  .rail.wide { width: 54mm; flex: 0 0 54mm; }
   .rail h1 {
     margin: 0 0 6mm 0;
     font-size: 11.5pt;
@@ -123,7 +111,10 @@ function shell(
   }
   .rail p, .rail li { font-size: 7.5pt; line-height: 1.45; margin: 0 0 2mm 0; }
   .rail ul { margin: 0; padding-left: 3.5mm; }
-  .board { flex: 1 1 auto; }
+  .rail .callout { margin: 0 0 5mm 0; }
+  .rail .callout span { display: block; font-size: 7.5pt; line-height: 1.35; }
+  .rail .callout strong { display: block; font-size: 10pt; margin-top: 1mm; }
+  .board { flex: 1 1 auto; min-width: 0; }
   table { width: 100%; border-collapse: separate; border-spacing: 0 0.6mm; }
   th {
     background: ${primary};
@@ -137,6 +128,7 @@ function shell(
     border-right: 0.6mm solid #FFFFFF;
   }
   th:last-child { border-right: 0; }
+  th.span { letter-spacing: 0.1em; }
   td {
     font-size: 7.5pt;
     padding: 1.6mm 3mm;
@@ -146,8 +138,50 @@ function shell(
   td:last-child { border-right: 0; }
   tbody tr:nth-child(odd) td { background: ${rowTint}; }
   tbody tr:nth-child(even) td { background: #FBF8F7; }
+  tbody tr.quarter td { background: #E9E7E4; font-weight: 600; }
+  tbody tr.total td { background: ${rowTint}; font-weight: 700; }
   td.name { text-align: center; font-weight: 500; }
+  td.left { text-align: left; }
+  .pos { color: #1F9254; }
+  .neg { color: #C4302B; }
   .empty { color: #9A8F8A; }
+  .grid td, .grid th { padding: 1.25mm 1.6mm; font-size: 6.4pt; }
+  .prose h1 {
+    margin: 0;
+    font-size: 15pt;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+  .prose h2 {
+    margin: 2mm 0 0 0;
+    font-size: 9.5pt;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #5C514C;
+  }
+  .prose .underline { width: 34mm; border-bottom: 0.7mm solid ${primary}; margin: 4mm 0 7mm 0; }
+  .prose section { margin: 0 0 5mm 0; }
+  .prose h3 {
+    margin: 0 0 1.5mm 0;
+    font-size: 9pt;
+    font-weight: 700;
+  }
+  .prose p { margin: 0 0 1.2mm 0; font-size: 8.2pt; line-height: 1.45; }
+  .prose .columns { column-count: 2; column-gap: 10mm; }
+  .chartcard { border: 0.3mm solid #D9D5D1; padding: 6mm 6mm 4mm 6mm; height: 100%; }
+  .chartcard h1 {
+    margin: 0 0 4mm 0;
+    text-align: center;
+    font-size: 13pt;
+    font-weight: 600;
+    color: #4A4340;
+  }
+  .chartcard svg { width: 100%; height: auto; display: block; }
+  .legend { display: flex; justify-content: center; gap: 8mm; margin-top: 3mm; }
+  .legend span { font-size: 7.5pt; display: flex; align-items: center; gap: 2mm; }
+  .legend i { width: 2.4mm; height: 2.4mm; display: inline-block; }
   .foot {
     position: absolute;
     left: 16mm;
@@ -166,16 +200,40 @@ function shell(
   }
   .foot .rule { flex: 1 1 auto; border-bottom: 0.4mm solid ${ink}; margin-bottom: 1mm; }
   .foot img { height: 9mm; width: auto; object-fit: contain; }
-  @media screen { .slide { box-shadow: 0 2px 18px rgba(0,0,0,.14); margin: 8mm auto; } }
+  @media screen { .slide { box-shadow: 0 2px 18px rgba(0,0,0,.14); margin: 8mm auto; } }`;
+}
+
+/** Palette resolved from the property's report branding. */
+function palette(context: SpecialReportContext) {
+  const primary = hex(context.branding.brandPrimary, HOUSE_PRIMARY);
+  return {
+    primary,
+    rowTint: context.branding.brandPrimary ? tint(primary, 0.78) : HOUSE_TINT,
+    ink: HOUSE_INK,
+  };
+}
+
+/** One landscape slide: shared head, body markup and the footer stamp. */
+function frame(
+  context: SpecialReportContext,
+  documentTitle: string,
+  bodyHtml: string,
+  slideClass = "",
+): string {
+  const { primary, rowTint, ink } = palette(context);
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(pdfDocumentTitle(context.propertyName, documentTitle.replace(/\n/g, " "), context.asOfDate ?? ""))}</title>
+<style>${css(primary, rowTint, ink)}
 </style>
 </head>
 <body>
-  <section class="slide">
-    <aside class="rail">
-      <h1>${esc(title)}</h1>
-      <ul>${notes.map((note) => `<li>${esc(note)}</li>`).join("")}</ul>
-    </aside>
-    <div class="board">${tableHtml}</div>
+  <section class="slide${slideClass ? ` ${slideClass}` : ""}">
+    ${bodyHtml}
     <div class="foot">
       <span>${esc(context.footerLabel)}</span>
       <div class="rule"></div>
@@ -189,6 +247,28 @@ function shell(
 </body>
 </html>`;
 }
+
+function shell(
+  context: SpecialReportContext,
+  title: string,
+  notes: string[],
+  tableHtml: string,
+  options: { railHtml?: string; boardClass?: string; wideRail?: boolean } = {},
+): string {
+  const rail = `<aside class="rail${options.wideRail ? " wide" : ""}">
+      <h1>${esc(title)}</h1>
+      ${options.railHtml ?? ""}
+      ${notes.length ? `<ul>${notes.map((note) => `<li>${esc(note)}</li>`).join("")}</ul>` : ""}
+    </aside>`;
+
+  return frame(
+    context,
+    title,
+    `${rail}
+    <div class="board${options.boardClass ? ` ${options.boardClass}` : ""}">${tableHtml}</div>`,
+  );
+}
+
 
 export interface NationalitySlideOptions extends SpecialReportContext {
   currentLabel: string; // e.g. "2026/7"
