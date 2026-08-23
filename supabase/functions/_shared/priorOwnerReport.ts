@@ -765,12 +765,28 @@ export async function parsePriorOwnerReport(
       continue;
     }
 
-    if (/TREND/i.test(upper) && page.rows.length < 40) {
-      pagesSkipped.push(`p${page.number} multi-year trend chart (image only)`);
+    if (/TREND/i.test(upper)) {
+      const trend = parsePartnerTrend(page);
+      if (trend) {
+        partnerTrends.push(trend);
+        pagesRead.push(`p${page.number} partner trend (${trend.rows.length} row(s))`);
+      } else {
+        pagesSkipped.push(`p${page.number} multi-year trend chart (image only)`);
+      }
       continue;
+    }
+
+    if (isNarrativePage(page)) {
+      const narrative = parseNarrative(page);
+      if (narrative) {
+        narratives.push(narrative);
+        pagesRead.push(`p${page.number} commentary — ${narrative.title.slice(0, 48)}`);
+        continue;
+      }
     }
     pagesSkipped.push(`p${page.number}`);
   }
+
 
   if (!grids.length) {
     warnings.push(
