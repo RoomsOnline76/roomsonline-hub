@@ -448,7 +448,8 @@ Deno.serve(async (req) => {
       usedSlides
         ? `TOBI insights generated from ${slides.length} pasted slide${slides.length === 1 ? "" : "s"}`
         : "TOBI insights generated",
-      { provider: outcome.provider, slides_considered: usedSlides ? slideTitles : [] },
+      { provider: outcome.provider, slides_considered: usedSlides ? slideTitles : [], period: periodMonths },
+
       userData.user.id,
     );
 
