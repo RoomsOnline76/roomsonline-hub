@@ -175,21 +175,27 @@ Deno.serve(async (req) => {
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
 
-    // Newest prior-report upload on the run, unless one was named.
+    // Newest prior-report upload on the run, unless one was named. A designed
+    // owner's-report PDF always wins over a spreadsheet dropped at the same step
+    // (reservation lists land here by mistake and hold no baseline figures).
     let fileQuery = admin
       .from("report_source_files")
       .select("id, storage_path, original_filename")
       .eq("run_id", runId)
       .eq("file_role", "prior_report");
     if (fileId) fileQuery = fileQuery.eq("id", fileId);
-    const { data: files, error: filesError } = await fileQuery
-      .order("created_at", { ascending: false })
-      .limit(1);
+    const { data: files, error: filesError } = await fileQuery.order("created_at", {
+      ascending: false,
+    });
     if (filesError) return json({ error: filesError.message }, 500);
-    const file = files?.[0];
+    const candidates = files ?? [];
+    const file =
+      candidates.find((row) => /\.pdf$/i.test(String(row.original_filename ?? ""))) ??
+      candidates[0];
     if (!file) {
       return json({ error: "No previous report uploaded on this run" }, 400);
     }
+
 
     const download = await admin.storage.from(BUCKET).download(file.storage_path);
     if (download.error || !download.data) {
