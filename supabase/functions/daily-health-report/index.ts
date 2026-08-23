@@ -1389,6 +1389,7 @@ Deno.serve(async (req) => {
 
             blocked_outstanding: ruWl.blocked.outstanding,
             blocked_cleared: ruWl.blocked.cleared,
+            retired_accounts: ruWl.retired_accounts,
 
           }
         : null,
