@@ -271,11 +271,13 @@ Deno.serve(async (req) => {
         revenue?: NumberMap;
         room_nights?: NumberMap;
         occupancy?: NumberMap;
+        adr?: NumberMap;
         sources?: Record<string, string>;
       };
       const revenue = mergeMap(baseline.revenue ?? {}, extract.historicalRevenue, replace);
       const roomNights = mergeMap(baseline.room_nights ?? {}, extract.historicalRoomNights, replace);
       const occupancy = mergeMap(baseline.occupancy ?? {}, extract.historicalOccupancy, replace);
+      const adr = mergeMap(baseline.adr ?? {}, extract.historicalAdr, replace);
       const sources = { ...(baseline.sources ?? {}) };
       for (const key of Object.keys({ ...extract.historicalRevenue, ...extract.historicalRoomNights })) {
         if (replace || sources[key] === undefined) sources[key] = "prior_report";
@@ -290,8 +292,9 @@ Deno.serve(async (req) => {
         {
           property_id: run.property_id,
           room_count: settings?.room_count ?? 1,
-          historical_baseline: { years, revenue, room_nights: roomNights, occupancy, sources },
+          historical_baseline: { years, revenue, room_nights: roomNights, occupancy, adr, sources },
         },
+
         { onConflict: "property_id" },
       );
       if (error) return json({ error: error.message }, 500);
