@@ -282,3 +282,69 @@ export function buildPartnersSlide(options: PartnerSlideOptions): string {
     table,
   );
 }
+
+export interface DeclinedSlideRow {
+  monthLabel: string;
+  value: number;
+  agents: string[];
+  reason: string;
+  /** 0.24 prints as "24%". */
+  shareOfMonthRevenue: number | null;
+}
+
+export interface DeclinedSlideOptions extends SpecialReportContext {
+  /** Period the table covers, e.g. `01 March 2026 – 28 February 2027`. */
+  periodLabel: string | null;
+  rows: DeclinedSlideRow[];
+  total: number | null;
+}
+
+/** "Bookings declined due to no availability" — value, agents and reason. */
+export function buildDeclinedSlide(options: DeclinedSlideOptions): string {
+  const share = (value: number | null) =>
+    value === null ? `<span class="empty">—</span>` : `${Math.round(value * 100)}%`;
+
+  const body = options.rows
+    .map(
+      (row) => `<tr>
+        <td class="name">${esc(row.monthLabel)}</td>
+        <td>R ${zar(row.value)}</td>
+        <td>${row.agents.length ? esc(row.agents.join(", ")) : `<span class="empty">—</span>`}</td>
+        <td>${row.reason ? esc(row.reason) : `<span class="empty">—</span>`}</td>
+        <td>${share(row.shareOfMonthRevenue)}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const totalRow =
+    options.total === null
+      ? ""
+      : `<tr>
+          <td class="name">Total</td>
+          <td>R ${zar(options.total)}</td>
+          <td></td><td></td><td></td>
+        </tr>`;
+
+  const table = `<table>
+    <thead>
+      <tr>
+        <th style="width:11%">Month</th>
+        <th style="width:15%">Value of bookings</th>
+        <th style="width:30%">Agent / direct</th>
+        <th style="width:30%">Reason</th>
+        <th>% relative to monthly revenue</th>
+      </tr>
+    </thead>
+    <tbody>${body}${totalRow}</tbody>
+  </table>`;
+
+  return shell(
+    options,
+    "Declined\nbookings",
+    [
+      "Bookings declined due to no availability",
+      ...(options.periodLabel ? [options.periodLabel] : []),
+    ],
+    table,
+  );
+}

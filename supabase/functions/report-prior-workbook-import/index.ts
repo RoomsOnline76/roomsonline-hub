@@ -1,19 +1,36 @@
 /**
- * Reads a property's existing consolidated revenue report workbook (uploaded on
- * the run as a `prior_report` file) and — on confirmation — folds its numbers
- * into a first run: previous-OTB, last-year actuals, the reviewer's manual
- * inputs and the property's historical baseline.
+ * Reads a property's existing consolidated revenue report — a spreadsheet pack
+ * or a designed owner's-report PDF, uploaded on the run as a `prior_report`
+ * file — and, on confirmation, folds its numbers into a first run:
+ * previous-OTB, last-year actuals, the reviewer's manual inputs and the
+ * property's historical baseline.
  *
  * Preview first, write second: the caller inspects what was found, ticks what to
  * apply, and only then is anything stored. Existing values are never overwritten
  * unless `replace_existing` is set.
+ *
+ * Owner-report PDFs (CheetaPlains-style) additionally carry the declined
+ * bookings, travel-partner and nationality tables — those are written as
+ * special-report slides on the run.
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { parsePriorReportWorkbook } from "../_shared/priorReportWorkbook.ts";
+import { parsePriorReportWorkbook, type PriorReportExtract } from "../_shared/priorReportWorkbook.ts";
+import {
+  parsePriorOwnerReport,
+  type OwnerReportExtract,
+} from "../_shared/priorOwnerReport.ts";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { windowMonths } from "../_shared/reportWindow.ts";
+import {
+  buildDeclinedSlide,
+  buildNationalitySlide,
+  buildPartnersSlide,
+  type SpecialReportBranding,
+  type SpecialReportContext,
+} from "../_shared/cheetaplains/specialReportHtml.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -30,6 +47,8 @@ interface Selections {
   last_year?: boolean;
   additional_inputs?: boolean;
   historical?: boolean;
+  /** Owner-report PDFs only. */
+  owner_tables?: boolean;
 }
 
 /** Merge `incoming` into `base`; existing keys win unless replacing. */
@@ -43,6 +62,80 @@ const mergeMap = (base: NumberMap, incoming: NumberMap, replace: boolean): Numbe
 };
 
 const count = (map: NumberMap): number => Object.keys(map).length;
+
+/**
+ * Owner's-report PDF → the same extract shape the spreadsheet reader produces.
+ *
+ * The pack has no previous-month OTB snapshot; its comparison column is
+ * "BOB STLY" (same time last year), so that is what fills previous-OTB — the
+ * substitution is stated in the warnings so nobody reads it as last month.
+ * Room nights are not printed anywhere in the pack, so those maps stay empty
+ * (rather than borrowing occupancy, which would wreck derived ADR).
+ */
+const ownerToExtract = (owner: OwnerReportExtract): PriorReportExtract => {
+  const current = owner.currentYear;
+  const warnings = [...owner.warnings];
+  if (current) {
+    warnings.push(
+      'This pack compares against "BOB STLY" (same time last year), so the previous-OTB column holds STLY figures, not a previous-month snapshot.',
+    );
+    warnings.push("Owner's-report packs do not print room nights, so nights are left blank.");
+  }
+  return {
+    asOfDate: owner.asOfDate,
+    otbColumnLabel: owner.otbColumnLabel,
+    baselineSheet: owner.baselineSheet,
+    months: owner.months,
+    previousOtbRevenue: current?.bobStly ?? {},
+    previousRoomNights: {},
+    lastYearActual: current?.lastYearActual ?? {},
+    lastYearRoomNights: {},
+    dinnerByMonth: {},
+    room0ByMonth: {},
+    compRnsByMonth: {},
+    previousOccupancy: current?.occupancyStly ?? {},
+    lastYearOccupancy: current?.occupancyLastYear ?? {},
+    previousAdr: {},
+    lastYearAdr: {},
+    currentOtbRevenue: current?.confirmedBob ?? {},
+    targets: current?.budget ?? {},
+    targetUplift: null,
+    historicalRevenue: {},
+    historicalRoomNights: {},
+    historicalOccupancy: {},
+    historicalAdr: {},
+    carryForward: {},
+    sheetsRead: owner.pagesRead,
+    sheetsSkipped: owner.pagesSkipped,
+    warnings,
+  };
+};
+
+const fiscalLabelFallback = (asOf: string | null): string => {
+  const iso = (asOf ?? "").slice(0, 10);
+  const year = Number(iso.slice(0, 4));
+  const month = Number(iso.slice(5, 7));
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return "current";
+  const start = month >= 3 ? year : year - 1;
+  return `${start}/${`${start + 1}`.slice(2)}`;
+};
+
+const priorFiscalLabel = (label: string): string => {
+  const match = /^(\d{4})\s*\/\s*(\d{1,4})$/.exec(label.trim());
+  if (!match) return "prior";
+  const start = Number(match[1]) - 1;
+  return `${start}/${`${start + 1}`.slice(2)}`;
+};
+
+/** `OWNER'S REPORT JULY 26` — the footer stamp the owner packs carry. */
+const footerLabel = (asOf: string | null): string => {
+  const iso = (asOf ?? "").slice(0, 10);
+  const date = new Date(`${iso || "1970-01-01"}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return "REVENUE REPORT";
+  const month = date.toLocaleDateString("en-ZA", { month: "long", timeZone: "UTC" }).toUpperCase();
+  return `OWNER'S REPORT ${month} ${`${date.getUTCFullYear()}`.slice(2)}`;
+};
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -77,7 +170,7 @@ Deno.serve(async (req) => {
 
     const { data: run, error: runError } = await admin
       .from("report_runs")
-      .select("id, property_id, as_of_date, title")
+      .select("id, property_id, as_of_date, report_month, title")
       .eq("id", runId)
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
@@ -96,7 +189,7 @@ Deno.serve(async (req) => {
     if (filesError) return json({ error: filesError.message }, 500);
     const file = files?.[0];
     if (!file) {
-      return json({ error: "No prior report workbook uploaded on this run" }, 400);
+      return json({ error: "No previous report uploaded on this run" }, 400);
     }
 
     const download = await admin.storage.from(BUCKET).download(file.storage_path);
@@ -107,14 +200,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // The run's own as-of date decides which OTB column is the comparison
-    // baseline — the newest one strictly older than this run.
-    // protel-sourced workbooks arrive UTF-16 encoded; transcode before reading.
-    const priorRepair = await repairWorkbookBuffer(await download.data.arrayBuffer());
-    const extract = parsePriorReportWorkbook(priorRepair.buffer, {
-      runAsOfDate: run.as_of_date ? String(run.as_of_date).slice(0, 10) : null,
-    });
+    const runAsOf = run.as_of_date ? String(run.as_of_date).slice(0, 10) : null;
+    const buffer = await download.data.arrayBuffer();
+    const isOwnerPdf = /\.pdf$/i.test(file.original_filename);
 
+    let extract: PriorReportExtract;
+    let owner: OwnerReportExtract | null = null;
+    if (isOwnerPdf) {
+      // Designed owner's-report pack: position-aware PDF reader.
+      owner = await parsePriorOwnerReport(buffer, {
+        runAsOfDate: runAsOf,
+        windowMonths: runAsOf
+          ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
+          : [],
+      });
+      extract = ownerToExtract(owner);
+    } else {
+      // The run's own as-of date decides which OTB column is the comparison
+      // baseline — the newest one strictly older than this run.
+      // protel-sourced workbooks arrive UTF-16 encoded; transcode before reading.
+      const priorRepair = await repairWorkbookBuffer(buffer);
+      extract = parsePriorReportWorkbook(priorRepair.buffer, { runAsOfDate: runAsOf });
+    }
 
     const found = {
       previous_otb_months: count(extract.previousOtbRevenue),
@@ -132,8 +239,15 @@ Deno.serve(async (req) => {
       historical_occupancy_months: count(extract.historicalOccupancy),
       historical_adr_months: count(extract.historicalAdr),
       carry_forward_sheets: Object.keys(extract.carryForward).length,
-
+      // Owner's-report PDFs only.
+      current_otb_months: count(extract.currentOtbRevenue),
+      provisional_months: owner ? count(owner.currentYear?.activeEnquiries ?? {}) : 0,
+      forward_year_months: owner?.forwardYear?.months.length ?? 0,
+      declined_rows: owner?.declined.length ?? 0,
+      nationality_rows: owner?.nationality.length ?? 0,
+      partner_rows: owner?.partnersCurrent.length ?? 0,
     };
+
 
     const preview = {
       file: { id: file.id, filename: file.original_filename },
@@ -165,8 +279,33 @@ Deno.serve(async (req) => {
       sheets_read: extract.sheetsRead,
       sheets_skipped: extract.sheetsSkipped,
       warnings: extract.warnings,
+      // Owner's-report PDF extras — absent for spreadsheet packs.
+      source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+      fiscal_year_label: owner?.currentYear?.label ?? null,
+      provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
+      combined_revenue: owner?.currentYear?.combined ?? {},
+      current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+      forward_year: owner?.forwardYear
+        ? {
+            label: owner.forwardYear.label,
+            months: owner.forwardYear.months,
+            confirmed_bob: owner.forwardYear.confirmedBob,
+            budget: owner.forwardYear.budget,
+            active_enquiries: owner.forwardYear.activeEnquiries,
+            bob_stly: owner.forwardYear.bobStly,
+            last_year_actual: owner.forwardYear.lastYearActual,
+            occupancy_bob: owner.forwardYear.occupancyBob,
+          }
+        : null,
+      declined: owner?.declined ?? [],
+      declined_total: owner?.declinedTotal ?? null,
+      declined_period: owner?.declinedPeriod ?? null,
+      nationality: owner?.nationality ?? [],
+      partners_current: owner?.partnersCurrent ?? [],
+      partners_prior: owner?.partnersPrior ?? [],
       found,
     };
+
 
     if (!apply) return json({ applied: false, preview });
 
@@ -197,9 +336,28 @@ Deno.serve(async (req) => {
         historical_occupancy: extract.historicalOccupancy,
         historical_adr: extract.historicalAdr,
         carry_forward: extract.carryForward,
-
-        carry_forward: extract.carryForward,
+        // Owner's-report packs also print budget, provisional and forward-year
+        // figures; they ride along so the workbook builder can reproduce them.
+        source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+        fiscal_year_label: owner?.currentYear?.label ?? null,
+        current_otb_revenue: extract.currentOtbRevenue,
+        current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+        provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
+        combined_revenue: owner?.currentYear?.combined ?? {},
+        forward_year: owner?.forwardYear
+          ? {
+              label: owner.forwardYear.label,
+              months: owner.forwardYear.months,
+              confirmed_bob: owner.forwardYear.confirmedBob,
+              budget: owner.forwardYear.budget,
+              active_enquiries: owner.forwardYear.activeEnquiries,
+              bob_stly: owner.forwardYear.bobStly,
+              last_year_actual: owner.forwardYear.lastYearActual,
+              occupancy_bob: owner.forwardYear.occupancyBob,
+            }
+          : null,
       };
+
       const { error } = await admin
         .from("report_runs")
         .update({
@@ -300,6 +458,150 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 500);
       applied.push(`${years.length} year(s) historical baseline`);
     }
+
+
+
+    /* ── Owner's-report side tables → special-report slides ──── */
+    if (
+      owner &&
+      selections.owner_tables !== false &&
+      (owner.declined.length || owner.nationality.length || owner.partnersCurrent.length)
+    ) {
+      const { data: property } = await admin
+        .from("properties")
+        .select("name")
+        .eq("id", run.property_id)
+        .maybeSingle();
+      const { data: brandSettings } = await admin
+        .from("property_report_settings")
+        .select("brand_source, report_logo_url, brand_primary, brand_secondary")
+        .eq("property_id", run.property_id)
+        .maybeSingle();
+
+      const branding: SpecialReportBranding = {
+        logoUrl: brandSettings?.report_logo_url ?? null,
+        brandPrimary:
+          brandSettings?.brand_source === "rol" ? null : (brandSettings?.brand_primary ?? null),
+        brandSecondary:
+          brandSettings?.brand_source === "rol" ? null : (brandSettings?.brand_secondary ?? null),
+      };
+      const context: SpecialReportContext = {
+        propertyName: property?.name ?? "Property",
+        asOfDate: (owner.asOfDate ?? runAsOf ?? "").slice(0, 10),
+        footerLabel: footerLabel(owner.asOfDate ?? runAsOf),
+        branding,
+      };
+
+      const stamp = Date.now();
+      const writeSlide = async (
+        key: string,
+        title: string,
+        html: string,
+        rowCount: number,
+        payload: Record<string, unknown>,
+        warnings: string[],
+      ) => {
+        const path = `${run.property_id}/${runId}/special/${key}-${stamp}.html`;
+        const { error: uploadError } = await admin.storage
+          .from(BUCKET)
+          .upload(path, new Blob([html], { type: "text/html" }), {
+            contentType: "text/html; charset=utf-8",
+            upsert: true,
+          });
+        if (uploadError) throw new Error(`${key}: ${uploadError.message}`);
+        const { error: recordError } = await admin.from("report_special_reports").upsert(
+          {
+            run_id: runId,
+            report_key: key,
+            title,
+            storage_path: path,
+            payload: { ...payload, row_count: rowCount, source: "owner_report_pdf" },
+            warnings: warnings.filter(Boolean),
+            generated_at: new Date().toISOString(),
+          },
+          { onConflict: "run_id,report_key" },
+        );
+        if (recordError) throw new Error(`${key}: ${recordError.message}`);
+      };
+
+      const currentLabel =
+        owner.nationalityCurrentLabel ??
+        owner.partnersCurrentLabel ??
+        fiscalLabelFallback(owner.asOfDate ?? runAsOf);
+      const priorLabel =
+        owner.nationalityPriorLabel ?? owner.partnersPriorLabel ?? priorFiscalLabel(currentLabel);
+
+      if (owner.nationality.length) {
+        await writeSlide(
+          "nationality",
+          "Bookings by nationality",
+          buildNationalitySlide({
+            ...context,
+            currentLabel,
+            priorLabel,
+            rows: owner.nationality,
+            hasPrior: owner.nationality.some((row) => row.priorNights || row.priorRevenue),
+          }),
+          owner.nationality.length,
+          { current_label: currentLabel, prior_label: priorLabel, rows: owner.nationality },
+          [],
+        );
+        applied.push(`${owner.nationality.length} nationality row(s)`);
+      }
+
+      if (owner.partnersCurrent.length) {
+        const partnerCurrentLabel = owner.partnersCurrentLabel ?? currentLabel;
+        const partnerPriorLabel = owner.partnersPriorLabel ?? priorLabel;
+        await writeSlide(
+          "partners",
+          "Top booking travel partners",
+          buildPartnersSlide({
+            ...context,
+            currentLabel: partnerCurrentLabel,
+            priorLabel: partnerPriorLabel,
+            current: owner.partnersCurrent,
+            prior: owner.partnersPrior,
+          }),
+          owner.partnersCurrent.length,
+          {
+            current_label: partnerCurrentLabel,
+            prior_label: partnerPriorLabel,
+            current: owner.partnersCurrent,
+            prior: owner.partnersPrior,
+          },
+          [],
+        );
+        applied.push(`${owner.partnersCurrent.length} travel partner row(s)`);
+      }
+
+      if (owner.declined.length) {
+        await writeSlide(
+          "declined",
+          "Declined bookings",
+          buildDeclinedSlide({
+            ...context,
+            periodLabel: owner.declinedPeriod,
+            rows: owner.declined.map((row) => ({
+              monthLabel: row.monthLabel,
+              value: row.value,
+              agents: row.agents,
+              reason: row.reason,
+              shareOfMonthRevenue: row.shareOfMonthRevenue,
+            })),
+            total: owner.declinedTotal,
+          }),
+          owner.declined.length,
+          {
+            period: owner.declinedPeriod,
+            total: owner.declinedTotal,
+            rows: owner.declined,
+          },
+          [],
+        );
+        applied.push(`${owner.declined.length} declined booking row(s)`);
+      }
+    }
+
 
     await logRunEvent(
       admin,
