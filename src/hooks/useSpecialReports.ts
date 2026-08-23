@@ -16,6 +16,9 @@ export interface SpecialReport {
   priorLabel: string | null;
   warnings: string[];
   generatedAt: string | null;
+  /** Printed position in the owner pack; large for legacy rows. */
+  packIndex: number;
+
 }
 
 const BUCKET = "revenue-reports";
