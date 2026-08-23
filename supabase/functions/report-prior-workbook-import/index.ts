@@ -245,6 +245,8 @@ Deno.serve(async (req) => {
       declined_rows: owner?.declined.length ?? 0,
       nationality_rows: owner?.nationality.length ?? 0,
       partner_rows: owner?.partnersCurrent.length ?? 0,
+      narrative_pages: owner?.narratives.length ?? 0,
+      partner_trend_tables: owner?.partnerTrends.length ?? 0,
     };
 
 
@@ -302,6 +304,8 @@ Deno.serve(async (req) => {
       nationality: owner?.nationality ?? [],
       partners_current: owner?.partnersCurrent ?? [],
       partners_prior: owner?.partnersPrior ?? [],
+      narratives: owner?.narratives ?? [],
+      partner_trends: owner?.partnerTrends ?? [],
       found,
     };
 
