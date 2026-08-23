@@ -23,7 +23,14 @@ export interface ImportedBaseline {
   /** Sheets the revenue team maintains by hand (PROTEL Online Res / Web Comparison). */
   carry_forward?: Record<string, Array<Array<string | number | null>>>;
   as_of_date?: string | null;
+  /** Owner's-report packs: the printed on-the-books grid for the run's own year. */
+  current_otb_revenue?: Record<string, number>;
+  current_otb_occupancy?: Record<string, number>;
+  provisional_revenue?: Record<string, number>;
+  source_kind?: string;
+  fiscal_year_label?: string | null;
 }
+
 
 export interface BaselineMaps {
   previousRevenue: Record<string, number>;
@@ -220,3 +227,69 @@ export function reconcileWithImportedBaseline(
   aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
   return { addedMonths, substituted };
 }
+
+/**
+ * Builds a report aggregate straight from an owner's-report import.
+ *
+ * Some properties (the Cheetah Plains owner pack) never produce a PMS day grid
+ * for the reporting period — the owner's report *is* the revenue source. The
+ * printed grid carries revenue and occupancy but no room nights: occupancy is
+ * used as printed and nights are read back from it against capacity, so the
+ * totals reconcile. ADR is left empty rather than being invented.
+ */
+export function aggregateFromImportedBaseline(
+  imported: unknown,
+  months: string[],
+  roomCount: number,
+): TotalledAggregate | null {
+  const baseline = asBaseline(imported);
+  if (!baseline) return null;
+  const revenueMap = baseline.current_otb_revenue ?? {};
+  const occupancyMap = baseline.current_otb_occupancy ?? {};
+  const rooms = roomCount > 0 ? Math.floor(roomCount) : 1;
+
+  const keys = months.length
+    ? months
+    : [...new Set(Object.keys(revenueMap).filter((key) => /^\d{4}-\d{2}$/.test(key)))].sort();
+  if (!keys.length) return null;
+
+  const aggregate: TotalledAggregate = {
+    months: [...keys].sort(),
+    otb_revenue: {},
+    room_nights: {},
+    capacity_days: {},
+    adr: {},
+    occupancy: {},
+    totals: { revenue: 0, nights: 0, capacity_days: 0, adr: 0, occupancy: 0 },
+  };
+
+  let revenue = 0;
+  let capacity = 0;
+  let nights = 0;
+  for (const key of aggregate.months) {
+    const monthRevenue = Number(revenueMap[key]);
+    const value = Number.isFinite(monthRevenue) ? monthRevenue : 0;
+    const capacityDays = rooms * daysIn(key);
+    const occupancy = Number(occupancyMap[key]);
+    const monthOccupancy = Number.isFinite(occupancy) ? occupancy : 0;
+    // The report prints occupancy, not nights: nights are that occupancy read
+    // back against capacity so the totals row reconciles with the months.
+    const monthNights = Math.round(monthOccupancy * capacityDays);
+    aggregate.otb_revenue[key] = value;
+    aggregate.room_nights[key] = monthNights;
+    aggregate.capacity_days[key] = capacityDays;
+    aggregate.adr[key] = 0;
+    aggregate.occupancy[key] = monthOccupancy;
+    revenue += value;
+    capacity += capacityDays;
+    nights += monthNights;
+  }
+
+  if (revenue <= 0) return null;
+  aggregate.totals.revenue = Math.round(revenue * 100) / 100;
+  aggregate.totals.capacity_days = capacity;
+  aggregate.totals.nights = nights;
+  aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
+  return aggregate;
+}
+

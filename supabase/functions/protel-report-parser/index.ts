@@ -27,9 +27,11 @@ import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { repairWorkbookBuffer, workbookRepairNote } from "../_shared/xlsxRepair.ts";
 import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
+  aggregateFromImportedBaseline,
   applyImportedBaseline,
   reconcileWithImportedBaseline,
 } from "../_shared/reportImportedBaseline.ts";
+
 import {
   pastMonthsNote,
   trimToReportWindow,
@@ -367,17 +369,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (ledger.length === 0) {
-      const message =
-        fileResults.flatMap((result) => result.errors)[0] ??
-        "No usable protel House State rows found — upload the monthly House State export";
-      await admin
-        .from("report_runs")
-        .update({ status: "failed", error_message: message, processing_note: null })
-        .eq("id", runId);
-      await logRunEvent(admin, runId, "processing_failed", message, { files: fileResults }, actorId);
-      return json({ error: message, files: fileResults }, 422);
-    }
+    // A run with no House State grid is only fatal when there is no imported
+    // owner's-report baseline to fall back on — checked once room count is known.
+
+
 
     // Re-apply the market-code split now that every file has been seen.
     const finalLedger = segments.length > 1 ? protelDaysToLedger(allDays, segments) : ledger;
@@ -397,9 +392,11 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, historical_baseline")
+      .select("room_count, historical_baseline, special_report_set")
       .eq("property_id", run.property_id)
       .maybeSingle();
+    const isSpecialSet = Boolean(settings?.special_report_set);
+
 
     let roomCount = settings?.room_count ?? 0;
     if (!roomCount) {
@@ -438,7 +435,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    const aggregate = aggregateLedger(finalLedger, roomCount);
+    // The Cheetah Plains owner pack has no House State grid: the owner's report
+    // itself is the revenue source, imported at the prior-ingest stage.
+    const ownerAggregate =
+      finalLedger.length === 0
+        ? aggregateFromImportedBaseline(run.imported_baseline, [], roomCount)
+        : null;
+
+    if (finalLedger.length === 0) {
+      if (!ownerAggregate) {
+        const message = isSpecialSet
+          ? "No revenue grid available — import the owner's report at the previous-report step, or upload a protel House State export"
+          : (fileResults.flatMap((result) => result.errors)[0] ??
+            "No usable protel House State rows found — upload the monthly House State export");
+        await admin
+          .from("report_runs")
+          .update({ status: "failed", error_message: message, processing_note: null })
+          .eq("id", runId);
+        await logRunEvent(admin, runId, "processing_failed", message, { files: fileResults }, actorId);
+        return json({ error: message, files: fileResults }, 422);
+      }
+      await logRunEvent(
+        admin,
+        runId,
+        "owner_report_baseline_used",
+        `No protel House State export on this run — the revenue grid was taken from the imported owner's report (${ownerAggregate.months.length} month(s))`,
+        { months: ownerAggregate.months, source: "owner_report_pdf" },
+        actorId,
+      );
+    }
+
+    const aggregate = ownerAggregate ?? aggregateLedger(finalLedger, roomCount);
+
 
 
     // Uploaded extracts for months before this review window (last year's
@@ -482,7 +510,12 @@ Deno.serve(async (req) => {
     }
 
     // Months the prior workbook covers but the uploads do not, plus thin months.
-    reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
+    // The owner's-report grid is already complete for its own window — only a
+    // parsed House State grid needs topping up from the prior import.
+    if (!ownerAggregate) {
+      reconcileWithImportedBaseline(aggregate, run.imported_baseline, roomCount);
+    }
+
 
     let previousRunId = run.previous_run_id;
     if (!previousRunId && !run.baseline_locked) {

@@ -12,7 +12,9 @@ import {
   useReportPriorImport,
   type PriorImportSelections,
 } from "@/hooks/useReportPriorImport";
+import { useSpecialReports } from "@/hooks/useSpecialReports";
 import type { ReportRunDetail } from "@/hooks/useReportRuns";
+
 
 const PRIOR_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
 
@@ -45,6 +47,8 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
   const showUpload = mode !== "ingest";
   const showIngest = mode !== "upload";
   const { inspect, apply, preview, isWorking } = useReportPriorImport(run.id);
+  const { generate: generateSpecial } = useSpecialReports(run.id);
+
   const [pending, setPending] = useState<File[]>([]);
   const [states, setStates] = useState<Record<number, DropZoneFileState>>({});
   const [uploading, setUploading] = useState(false);
@@ -127,8 +131,17 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
         ? `${result.summary.join(", ")}. Re-process the run to see it in the table.`
         : "Re-process the run to refresh the comparison columns.",
     });
+    // An owner's-report pack also feeds the bespoke slides built from the
+    // nationality and reservation workbooks — refresh them without being asked.
+    if ((result.preview ?? preview)?.sourceKind === "owner_report_pdf") {
+      const slides = await generateSpecial();
+      if (slides.ok && slides.count) {
+        toast.success(`${slides.count} owner slide(s) refreshed`);
+      }
+    }
     await onChanged();
-  }, [apply, onChanged, replaceExisting, selections]);
+  }, [apply, generateSpecial, onChanged, preview, replaceExisting, selections]);
+
 
   const found = preview?.found;
 
