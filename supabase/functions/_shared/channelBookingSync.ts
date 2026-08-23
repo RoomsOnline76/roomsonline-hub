@@ -295,7 +295,21 @@ export async function syncBookingToChannel(
     // A held request cannot be modified — it is accepted or rejected. Checking a guest in (or
     // confirming the stay) is the operator saying "this stay is happening", so accept the request
     // at the channel now; otherwise the channel keeps the stay as a pending request forever.
-    if (change === 'confirmed' || CONFIRMING_STATUSES.has(status)) {
+    const reservationId = String(row.external_reservation_id ?? '').trim();
+    const closed = CLOSED_STAY_STATUSES.has(status);
+    const exhausted = !closed && IN_HOUSE_STATUSES.has(status) &&
+      (await confirmAlreadyAttempted(supabase, propertyId, reservationId));
+
+    if (closed || exhausted) {
+      // Never retry an acceptance that cannot land: the reservation's own nights are held by the
+      // stay itself, so the channel will refuse it every time. This is a non-event, not a failure.
+      result.reservation = 'skipped';
+      result.reservation_reason = `stay_already_${status || 'closed'}`;
+      result.message = closed
+        ? 'The stay is closed in ROL\u2019OS — the channel request was not re-sent.'
+        : 'The stay is already in-house and the channel acceptance was attempted before — not re-sent.';
+    } else if (change === 'confirmed' || CONFIRMING_STATUSES.has(status)) {
+
       const push = await confirmRuRequest(supabase, row as never, {
         comments: 'Accepted on check-in in ROL\u2019OS',
       });
