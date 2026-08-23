@@ -127,9 +127,12 @@ Deno.serve(async (req) => {
       historical_revenue_months: count(extract.historicalRevenue),
       historical_nights_months: count(extract.historicalRoomNights),
       occupancy_months: count(extract.previousOccupancy) + count(extract.lastYearOccupancy),
+      adr_months: count(extract.previousAdr) + count(extract.lastYearAdr),
       target_months: count(extract.targets),
       historical_occupancy_months: count(extract.historicalOccupancy),
+      historical_adr_months: count(extract.historicalAdr),
       carry_forward_sheets: Object.keys(extract.carryForward).length,
+
     };
 
     const preview = {
