@@ -460,12 +460,19 @@ Deno.serve(async (req) => {
 
 
 
-    /* ── Owner's-report side tables → special-report slides ──── */
+    /* ── Owner's-report pages → special-report slides ──── */
     if (
       owner &&
       selections.owner_tables !== false &&
-      (owner.declined.length || owner.nationality.length || owner.partnersCurrent.length)
+      (owner.declined.length ||
+        owner.nationality.length ||
+        owner.partnersCurrent.length ||
+        owner.narratives.length ||
+        owner.partnerTrends.length ||
+        owner.currentYear ||
+        owner.forwardYear)
     ) {
+
       const { data: property } = await admin
         .from("properties")
         .select("name")
