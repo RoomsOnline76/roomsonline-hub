@@ -127,8 +127,17 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
         ? `${result.summary.join(", ")}. Re-process the run to see it in the table.`
         : "Re-process the run to refresh the comparison columns.",
     });
+    // An owner's-report pack also feeds the bespoke slides built from the
+    // nationality and reservation workbooks — refresh them without being asked.
+    if ((result.preview ?? preview)?.sourceKind === "owner_report_pdf") {
+      const slides = await generateSpecial();
+      if (slides.ok && slides.count) {
+        toast.success(`${slides.count} owner slide(s) refreshed`);
+      }
+    }
     await onChanged();
-  }, [apply, onChanged, replaceExisting, selections]);
+  }, [apply, generateSpecial, onChanged, preview, replaceExisting, selections]);
+
 
   const found = preview?.found;
 
