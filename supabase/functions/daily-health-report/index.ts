@@ -253,8 +253,19 @@ const isAccountConflict = (r: RunLike): boolean =>
     String((r as { error_code?: string | null }).error_code ?? ''),
   );
 
+/**
+ * A held request whose own nights are closed by the very stay it belongs to. The stay is already
+ * in-house or closed in ROL'OS, so the channel is right to refuse — nothing is broken.
+ */
+const isTerminalStayConfirm = (r: RunLike): boolean =>
+  ['RU_CONFIRM_BLOCKED_DATES'].includes(String((r as { error_code?: string | null }).error_code ?? '')) ||
+  /not available for a given dates|can't check in or check out|cannot check in or check out/i
+    .test(r.error_message ?? '');
+
 /** Neither a defect nor an outage: owner setup work or account reconciliation work. */
-const isNonFault = (r: RunLike): boolean => isSetupGap(r) || isAccountConflict(r);
+const isNonFault = (r: RunLike): boolean =>
+  isSetupGap(r) || isAccountConflict(r) || isTerminalStayConfirm(r);
+
 
 /**
  * Refusal records are audit evidence, not pipelines: `phase_blocked` only ever writes
