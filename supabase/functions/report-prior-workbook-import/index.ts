@@ -318,10 +318,24 @@ Deno.serve(async (req) => {
 
     if (!apply) return json({ applied: false, preview });
 
+    // A file that yielded nothing must never replace a baseline that already
+    // holds figures — reservation lists dropped at this step read as empty.
+    const yielded = Object.values(found).some((value) => Number(value) > 0);
+    if (!yielded) {
+      return json(
+        {
+          error: `${file.original_filename} holds no baseline figures — nothing was changed. Upload the owner's report (PDF) or the consolidated revenue workbook.`,
+          preview,
+        },
+        422,
+      );
+    }
+
     /* ── Apply ─────────────────────────────────────────────── */
     const applied: string[] = [];
 
     if (selections.previous_otb !== false || selections.last_year !== false) {
+
       const importedBaseline = {
         source: "prior_report",
         filename: file.original_filename,
