@@ -127,18 +127,24 @@ Deno.serve(async (req) => {
       historical_revenue_months: count(extract.historicalRevenue),
       historical_nights_months: count(extract.historicalRoomNights),
       occupancy_months: count(extract.previousOccupancy) + count(extract.lastYearOccupancy),
+      adr_months: count(extract.previousAdr) + count(extract.lastYearAdr),
       target_months: count(extract.targets),
       historical_occupancy_months: count(extract.historicalOccupancy),
+      historical_adr_months: count(extract.historicalAdr),
       carry_forward_sheets: Object.keys(extract.carryForward).length,
+
     };
 
     const preview = {
       file: { id: file.id, filename: file.original_filename },
       as_of_date: extract.asOfDate,
       otb_column_label: extract.otbColumnLabel,
+      baseline_sheet: extract.baselineSheet,
       months: extract.months,
       previous_otb_revenue: extract.previousOtbRevenue,
+      current_otb_revenue: extract.currentOtbRevenue,
       previous_room_nights: extract.previousRoomNights,
+
       last_year_actual: extract.lastYearActual,
       last_year_room_nights: extract.lastYearRoomNights,
       dinner_by_month: extract.dinnerByMonth,
@@ -148,9 +154,13 @@ Deno.serve(async (req) => {
       historical_room_nights: extract.historicalRoomNights,
       previous_occupancy: extract.previousOccupancy,
       last_year_occupancy: extract.lastYearOccupancy,
+      previous_adr: extract.previousAdr,
+      last_year_adr: extract.lastYearAdr,
       targets: extract.targets,
       target_uplift: extract.targetUplift,
       historical_occupancy: extract.historicalOccupancy,
+      historical_adr: extract.historicalAdr,
+
       carry_forward_sheets: Object.keys(extract.carryForward),
       sheets_read: extract.sheetsRead,
       sheets_skipped: extract.sheetsSkipped,
@@ -170,18 +180,24 @@ Deno.serve(async (req) => {
         file_id: file.id,
         as_of_date: extract.asOfDate,
         otb_column_label: extract.otbColumnLabel,
+        baseline_sheet: extract.baselineSheet,
         imported_at: new Date().toISOString(),
         previous_otb_revenue: selections.previous_otb === false ? {} : extract.previousOtbRevenue,
         previous_room_nights: selections.previous_otb === false ? {} : extract.previousRoomNights,
         last_year_actual: selections.last_year === false ? {} : extract.lastYearActual,
         last_year_room_nights: selections.last_year === false ? {} : extract.lastYearRoomNights,
-        // Occupancy, targets and hand-kept sheets ride along with the baseline
-        // so the workbook builder can reproduce the client's own layout.
+        // Occupancy, ADR, targets and hand-kept sheets ride along with the
+        // baseline so the workbook builder can reproduce the client's layout.
         previous_occupancy: selections.previous_otb === false ? {} : extract.previousOccupancy,
         last_year_occupancy: selections.last_year === false ? {} : extract.lastYearOccupancy,
+        previous_adr: selections.previous_otb === false ? {} : extract.previousAdr,
+        last_year_adr: selections.last_year === false ? {} : extract.lastYearAdr,
         targets: extract.targets,
         target_uplift: extract.targetUplift,
         historical_occupancy: extract.historicalOccupancy,
+        historical_adr: extract.historicalAdr,
+        carry_forward: extract.carryForward,
+
         carry_forward: extract.carryForward,
       };
       const { error } = await admin
@@ -255,11 +271,13 @@ Deno.serve(async (req) => {
         revenue?: NumberMap;
         room_nights?: NumberMap;
         occupancy?: NumberMap;
+        adr?: NumberMap;
         sources?: Record<string, string>;
       };
       const revenue = mergeMap(baseline.revenue ?? {}, extract.historicalRevenue, replace);
       const roomNights = mergeMap(baseline.room_nights ?? {}, extract.historicalRoomNights, replace);
       const occupancy = mergeMap(baseline.occupancy ?? {}, extract.historicalOccupancy, replace);
+      const adr = mergeMap(baseline.adr ?? {}, extract.historicalAdr, replace);
       const sources = { ...(baseline.sources ?? {}) };
       for (const key of Object.keys({ ...extract.historicalRevenue, ...extract.historicalRoomNights })) {
         if (replace || sources[key] === undefined) sources[key] = "prior_report";
@@ -274,8 +292,9 @@ Deno.serve(async (req) => {
         {
           property_id: run.property_id,
           room_count: settings?.room_count ?? 1,
-          historical_baseline: { years, revenue, room_nights: roomNights, occupancy, sources },
+          historical_baseline: { years, revenue, room_nights: roomNights, occupancy, adr, sources },
         },
+
         { onConflict: "property_id" },
       );
       if (error) return json({ error: error.message }, 500);
