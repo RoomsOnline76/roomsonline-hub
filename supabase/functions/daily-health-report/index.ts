@@ -205,7 +205,13 @@ interface RuWlMetrics {
 
   /** Background call queue: work parked by the rate gate and replayed by the drainer. */
   call_queue: { waiting: number; oldest_waiting_minutes: number | null; drained_24h: number; gave_up: number };
+
+  /** Retired sub-accounts whose traffic was excluded from every number above. */
+  retired_accounts: Array<{ ru_owner_id: string; portal_email: string | null }>;
+  /** How many rows were dropped because they belong to a retired sub-account. */
+  retired_rows_excluded: number;
 }
+
 
 interface RunLike {
   success?: boolean | null;
