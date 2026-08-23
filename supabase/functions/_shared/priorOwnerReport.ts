@@ -71,6 +71,28 @@ export interface PartnerRow {
   revenue: number;
 }
 
+/** One prose paragraph group — a bold heading plus its lines. */
+export interface OwnerNarrativeBlock {
+  heading: string | null;
+  lines: string[];
+}
+
+/** A commentary page (BOB analysis, distribution & reservations update). */
+export interface OwnerNarrative {
+  page: number;
+  title: string;
+  subtitle: string | null;
+  blocks: OwnerNarrativeBlock[];
+}
+
+/** Multi-year producing-partner table, one column per financial year. */
+export interface PartnerTrendTable {
+  page: number;
+  title: string;
+  columns: string[];
+  rows: Array<{ partner: string; values: Array<number | null> }>;
+}
+
 export interface OwnerReportExtract {
   /** As-of date printed on the grid headers ("as per 31/07/2026"), if found. */
   asOfDate: string | null;
@@ -93,10 +115,15 @@ export interface OwnerReportExtract {
   partnersPrior: PartnerRow[];
   partnersCurrentLabel: string | null;
   partnersPriorLabel: string | null;
+  /** Commentary pages, in printed order. */
+  narratives: OwnerNarrative[];
+  /** Multi-year partner trend tables, when they carry a text layer. */
+  partnerTrends: PartnerTrendTable[];
   pagesRead: string[];
   pagesSkipped: string[];
   warnings: string[];
 }
+
 
 /* ── Text extraction ───────────────────────────────────────── */
 
