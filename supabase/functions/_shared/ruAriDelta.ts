@@ -93,6 +93,11 @@ export async function queueRuAriDelta(
     if (!(await isRuConnected(supabase, propertyId))) {
       return { queued: false, reason: "not_connected" };
     }
+    if (await confirmAcceptancePending(supabase, propertyId)) {
+      console.log(`[ruAriDelta] ${trigger} delta held: a channel acceptance is pending for ${propertyId}`);
+      return { queued: false, reason: "confirm_pending" };
+    }
+
     if (!options.force && (await recentlyPushed(supabase, propertyId))) {
       console.log(`[ruAriDelta] Debounced ${trigger} delta for property ${propertyId}`);
       return { queued: false, reason: "debounced" };
