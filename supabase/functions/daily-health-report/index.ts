@@ -1127,7 +1127,7 @@ Deno.serve(async (req) => {
       );
       const priorConflictCounts = new Map<string, number>();
       for (const r of priorRuns ?? []) {
-        if (r.success !== false || !isAccountConflict(r)) continue;
+        if (r.success !== false || !isAccountConflict(r) || belongsToRetiredAccount(r)) continue;
         const reason = (r.error_message || 'Account conflict').slice(0, 120);
         if (currentConflictReasons.has(reason)) continue;
         priorConflictCounts.set(reason, (priorConflictCounts.get(reason) ?? 0) + 1);
