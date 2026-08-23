@@ -12,7 +12,9 @@ import {
   useReportPriorImport,
   type PriorImportSelections,
 } from "@/hooks/useReportPriorImport";
+import { useSpecialReports } from "@/hooks/useSpecialReports";
 import type { ReportRunDetail } from "@/hooks/useReportRuns";
+
 
 const PRIOR_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
 
