@@ -45,6 +45,8 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
   const showUpload = mode !== "ingest";
   const showIngest = mode !== "upload";
   const { inspect, apply, preview, isWorking } = useReportPriorImport(run.id);
+  const { generate: generateSpecial } = useSpecialReports(run.id);
+
   const [pending, setPending] = useState<File[]>([]);
   const [states, setStates] = useState<Record<number, DropZoneFileState>>({});
   const [uploading, setUploading] = useState(false);
