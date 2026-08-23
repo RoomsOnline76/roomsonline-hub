@@ -11,6 +11,8 @@ import {
 } from "../_shared/reportAnomalies.ts";
 import { aiChat, modelForTask, AI_TEMPERATURE } from "../_shared/aiModels.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { reportMonthAnchor, windowMonths } from "../_shared/reportWindow.ts";
+
 
 const MAX_SUGGESTION_CHARS = 480;
 const MAX_NARRATIVE_CHARS = 1800;
