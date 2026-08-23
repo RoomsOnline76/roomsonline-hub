@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
         months: monthsInWindow(
           Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
           String(run.as_of_date).slice(0, 10),
+          run.report_month ? String(run.report_month).slice(0, 7) : null,
         ),
         otb_revenue: numberMap(snapshot.otb_revenue),
         previous_otb_revenue: numberMap(snapshot.previous_otb_revenue),
