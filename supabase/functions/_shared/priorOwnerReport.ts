@@ -441,7 +441,7 @@ function parseDeclined(
       : null;
 
     rows.push({
-      month: year ? `${year}-${pad(monthIndex)}` : null,
+      month: year !== null && monthIndex !== null ? `${year}-${pad(monthIndex)}` : null,
       monthLabel: first.text,
       value,
       agents,
