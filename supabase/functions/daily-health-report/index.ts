@@ -253,8 +253,19 @@ const isAccountConflict = (r: RunLike): boolean =>
     String((r as { error_code?: string | null }).error_code ?? ''),
   );
 
+/**
+ * A held request whose own nights are closed by the very stay it belongs to. The stay is already
+ * in-house or closed in ROL'OS, so the channel is right to refuse — nothing is broken.
+ */
+const isTerminalStayConfirm = (r: RunLike): boolean =>
+  ['RU_CONFIRM_BLOCKED_DATES'].includes(String((r as { error_code?: string | null }).error_code ?? '')) ||
+  /not available for a given dates|can't check in or check out|cannot check in or check out/i
+    .test(r.error_message ?? '');
+
 /** Neither a defect nor an outage: owner setup work or account reconciliation work. */
-const isNonFault = (r: RunLike): boolean => isSetupGap(r) || isAccountConflict(r);
+const isNonFault = (r: RunLike): boolean =>
+  isSetupGap(r) || isAccountConflict(r) || isTerminalStayConfirm(r);
+
 
 /**
  * Refusal records are audit evidence, not pipelines: `phase_blocked` only ever writes
@@ -492,7 +503,7 @@ function generateEmailHtml(
         </ul>
       </div>` : ''}
       <p style="margin:8px 0 0 0;font-size:11px;color:#9ca3af;">Cadence: reservations pull &amp; lead lifecycle every 30 min · ARI refresh every 6h · content push weekly · notification (RLNM) refresh daily.</p>
-      ${ruWl.retired_accounts.length > 0 ? `<p style="margin:4px 0 0 0;font-size:11px;color:#9ca3af;">Excluded as retired sub-account${ruWl.retired_accounts.length === 1 ? '' : 's'}: ${ruWl.retired_accounts.map(a => `OwnerID ${a.ru_owner_id}${a.portal_email ? ` (${a.portal_email})` : ''}`).join(' · ')}${ruWl.retired_rows_excluded > 0 ? ` — ${ruWl.retired_rows_excluded} row(s) dropped from every number above` : ''}.</p>` : ''}
+      ${/* Retired and in-progress accounts are excluded on purpose — the exclusion is not printed. */ ''}
     </div>
   ` : '';
 
@@ -1010,9 +1021,38 @@ Deno.serve(async (req) => {
         return false;
       };
 
+      /* Accounts still working through channel onboarding are not graded: the sync gate refuses
+         their traffic on purpose (`WIZARD_SYNC_NOT_READY`), so counting it would report a fault
+         against an account that is not connected yet. A property counts as connected when every
+         ledger step has passed, or when only the final `connect` step is outstanding. */
+      const inProgressPropertyIds = new Set<string>();
+      {
+        const { data: stepRows } = await supabase
+          .from('property_channel_step_status')
+          .select('property_id, step_key, status')
+          .limit(20000);
+        for (const s of stepRows ?? []) {
+          const row = s as { property_id: string; step_key: string; status: string | null };
+          const status = String(row.status ?? '').toLowerCase();
+          const done = ['passed', 'skipped', 'not_applicable', 'n/a'].includes(status);
+          if (!done && row.step_key !== 'connect') inProgressPropertyIds.add(String(row.property_id));
+        }
+      }
+      const isWizardNotReady = (r: { error_message?: string | null; error_code?: string | null }): boolean =>
+        String(r.error_code ?? '') === 'WIZARD_SYNC_NOT_READY' ||
+        /channel manager connection is not complete|wizard.*not (yet )?(ready|complete)/i.test(r.error_message ?? '');
+
+      const belongsToUnconnectedAccount = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean =>
+        isWizardNotReady(r) ||
+        (!!r.property_id && inProgressPropertyIds.has(String(r.property_id)));
+
+      const isExcludedRow = (r: { property_id?: string | null; error_message?: string | null; error_code?: string | null }): boolean =>
+        belongsToRetiredAccount(r) || belongsToUnconnectedAccount(r);
+
       const allRunsUnfiltered = syncRuns || [];
-      const allRuns = allRunsUnfiltered.filter(r => !belongsToRetiredAccount(r));
+      const allRuns = allRunsUnfiltered.filter(r => !isExcludedRow(r));
       const retiredRowsExcluded = allRunsUnfiltered.length - allRuns.length;
+
 
       // Wizard refusals are not calls: they must not pad totals or grade an action.
       const runs = allRuns.filter(r => !isRefusalRecord(r));
@@ -1132,7 +1172,7 @@ Deno.serve(async (req) => {
       );
       const priorConflictCounts = new Map<string, number>();
       for (const r of priorRuns ?? []) {
-        if (r.success !== false || !isAccountConflict(r) || belongsToRetiredAccount(r)) continue;
+        if (r.success !== false || !isAccountConflict(r) || isExcludedRow(r)) continue;
         const reason = (r.error_message || 'Account conflict').slice(0, 120);
         if (currentConflictReasons.has(reason)) continue;
         priorConflictCounts.set(reason, (priorConflictCounts.get(reason) ?? 0) + 1);

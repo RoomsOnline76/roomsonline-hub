@@ -20,10 +20,11 @@ export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
-  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending";
+  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending" | "confirm_pending";
   error?: string;
   blockers?: string[];
 }
+
 
 /** ru_sync_runs.action used to park an ARI delta refused by the readiness / phase gate. */
 export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
@@ -51,6 +52,28 @@ async function recentlyPushed(supabase: any, propertyId: string): Promise<boolea
 }
 
 /**
+ * A parked acceptance needs the reservation's own nights to stay open until it lands. An
+ * availability delta in that window re-closes them (the stay itself holds those nights locally),
+ * which is exactly what made every queued `confirm_request` fail on "not available for a given
+ * dates". While an acceptance is pending for this property, the delta waits.
+ */
+async function confirmAcceptancePending(supabase: any, propertyId: string): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("ru_call_queue")
+      .select("id")
+      .eq("action", "confirm_request")
+      .eq("property_id", propertyId)
+      .eq("status", "pending")
+      .limit(1);
+    return (data?.length ?? 0) > 0;
+  } catch (_err) {
+    return false;
+  }
+}
+
+
+/**
  * Fire an ARI delta for one property. Awaiting it is optional — callers in a request path
  * should not block on the RU round-trip.
  */
@@ -70,6 +93,11 @@ export async function queueRuAriDelta(
     if (!(await isRuConnected(supabase, propertyId))) {
       return { queued: false, reason: "not_connected" };
     }
+    if (await confirmAcceptancePending(supabase, propertyId)) {
+      console.log(`[ruAriDelta] ${trigger} delta held: a channel acceptance is pending for ${propertyId}`);
+      return { queued: false, reason: "confirm_pending" };
+    }
+
     if (!options.force && (await recentlyPushed(supabase, propertyId))) {
       console.log(`[ruAriDelta] Debounced ${trigger} delta for property ${propertyId}`);
       return { queued: false, reason: "debounced" };

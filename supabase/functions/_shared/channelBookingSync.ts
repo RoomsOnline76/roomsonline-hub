@@ -130,8 +130,49 @@ const CONFIRMING_STATUSES = new Set(['checked_in', 'in_house', 'checked_out', 'c
 
 const CANCELLED_STATUSES = new Set(['cancelled', 'canceled', 'no_show', 'rejected', 'declined']);
 
+/**
+ * Stays whose life at the channel is over. Accepting a held request for one of these can never
+ * succeed — the channel refuses the reservation's own (now closed) nights — so it must never be
+ * attempted, otherwise the 30-minute reservations poll regenerates the same refusal forever.
+ */
+const CLOSED_STAY_STATUSES = new Set([
+  'checked_out',
+  'departed',
+  'completed',
+  'cancelled',
+  'canceled',
+  'no_show',
+  'noshow',
+  'rejected',
+  'declined',
+]);
+
+/** In-house stays get exactly one acceptance attempt; after that they are left alone. */
+const IN_HOUSE_STATUSES = new Set(['checked_in', 'in_house']);
+
+/** Has this reservation already been through an acceptance attempt at the channel? */
+async function confirmAlreadyAttempted(
+  supabase: Db,
+  propertyId: string,
+  reservationId: string,
+): Promise<boolean> {
+  if (!reservationId) return false;
+  try {
+    const { data } = await supabase
+      .from('ru_sync_runs')
+      .select('id')
+      .eq('property_id', propertyId)
+      .in('parent_action', ['ruBookingSync:confirm', 'ruBookingSync:confirm:reopen'])
+      .limit(1);
+    return (data?.length ?? 0) > 0;
+  } catch (_err) {
+    return false;
+  }
+}
+
 /** Changes that carry no information the channel's reservation record holds. */
 const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
+
 
 function guestCount(row: Record<string, unknown>): number | null {
   const total = (Number(row.adults ?? 0) || 0) + (Number(row.children ?? 0) || 0) +
@@ -254,7 +295,21 @@ export async function syncBookingToChannel(
     // A held request cannot be modified — it is accepted or rejected. Checking a guest in (or
     // confirming the stay) is the operator saying "this stay is happening", so accept the request
     // at the channel now; otherwise the channel keeps the stay as a pending request forever.
-    if (change === 'confirmed' || CONFIRMING_STATUSES.has(status)) {
+    const reservationId = String(row.external_reservation_id ?? '').trim();
+    const closed = CLOSED_STAY_STATUSES.has(status);
+    const exhausted = !closed && IN_HOUSE_STATUSES.has(status) &&
+      (await confirmAlreadyAttempted(supabase, propertyId, reservationId));
+
+    if (closed || exhausted) {
+      // Never retry an acceptance that cannot land: the reservation's own nights are held by the
+      // stay itself, so the channel will refuse it every time. This is a non-event, not a failure.
+      result.reservation = 'skipped';
+      result.reservation_reason = `stay_already_${status || 'closed'}`;
+      result.message = closed
+        ? 'The stay is closed in ROL\u2019OS — the channel request was not re-sent.'
+        : 'The stay is already in-house and the channel acceptance was attempted before — not re-sent.';
+    } else if (change === 'confirmed' || CONFIRMING_STATUSES.has(status)) {
+
       const push = await confirmRuRequest(supabase, row as never, {
         comments: 'Accepted on check-in in ROL\u2019OS',
       });
