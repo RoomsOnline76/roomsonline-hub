@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { Resend } from 'npm:resend@2';
 import { AI_MODELS } from "../_shared/aiModels.ts";
+import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
