@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, previous_run_id, title, cadence, source_type, page_order, properties(name)",
+        "id, property_id, as_of_date, report_month, previous_run_id, title, cadence, source_type, page_order, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
