@@ -152,14 +152,21 @@ Deno.serve(async (req) => {
       branding,
     };
 
-    const { data: files, error: filesError } = await admin
+    // Every spreadsheet on the run is offered to the specialised readers, whatever
+    // role it was uploaded under: a nationality or reservation list dropped at the
+    // previous-report step is still the source for these slides. Owner's-report
+    // PDFs are handled by the prior-report importer, not here.
+    const { data: allFiles, error: filesError } = await admin
       .from("report_source_files")
       .select("id, storage_path, original_filename")
       .eq("run_id", runId)
-      .or("file_role.is.null,file_role.neq.prior_report")
       .order("created_at", { ascending: true });
     if (filesError) return json({ error: filesError.message }, 500);
-    if (!files?.length) return json({ error: "No source files uploaded for this run" }, 400);
+    const files = (allFiles ?? []).filter(
+      (file) => !/\.pdf$/i.test(String(file.original_filename ?? "")),
+    );
+    if (!files.length) return json({ error: "No source files uploaded for this run" }, 400);
+
 
     let nationalityCurrent: NationalityYear | null = null;
     let nationalityPrior: NationalityYear | null = null;
