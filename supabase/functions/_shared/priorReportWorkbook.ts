@@ -595,10 +595,27 @@ function parseOtbSheet(
       }
     }
   }
-
+  // Packs that print revenue and ADR but no nights column still state the
+  // nights implicitly — revenue ÷ ADR — so the run gets occupancy-capable data.
+  const deriveNights = (
+    nights: Record<string, number>,
+    revenue: Record<string, number>,
+    adr: Record<string, number>,
+  ) => {
+    for (const [month, value] of Object.entries(revenue)) {
+      if (nights[month] !== undefined) continue;
+      const rate = adr[month];
+      if (!rate || rate <= 0) continue;
+      const derived = Math.round(value / rate);
+      if (plausibleNights(derived)) nights[month] = derived;
+    }
+  };
+  deriveNights(result.nights, result.revenue, result.adr);
+  deriveNights(result.lastYearNights, result.lastYearRevenue, result.lastYearAdr);
 
   result.months.sort();
   return result;
+
 }
 
 /* ───────────────── Year grids (Fin Year / Historical) ───────────────── */
