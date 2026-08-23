@@ -14,7 +14,7 @@ import {
 } from "@/hooks/useReportPriorImport";
 import type { ReportRunDetail } from "@/hooks/useReportRuns";
 
-const PRIOR_EXTENSIONS = [".xlsx", ".xls"] as const;
+const PRIOR_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
 
 const formatDate = (iso: string | null): string =>
   iso
@@ -54,7 +54,9 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
     lastYear: true,
     additionalInputs: true,
     historical: true,
+    ownerTables: true,
   });
+
 
   const priorFiles = useMemo(
     () => run.files.filter((file) => file.fileRole === "prior_report"),
@@ -141,9 +143,10 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {run.previousRunId
-            ? "This run already has an earlier run as its baseline. Importing a previous workbook overrides it."
-            : "This is the property's first run, so there is no previous run to compare against. Upload the consolidated revenue report the owner currently receives and its figures will fill the gaps."}
+            ? "This run already has an earlier run as its baseline. Importing a previous report overrides it."
+            : "This is the property's first run, so there is no previous run to compare against. Upload the consolidated revenue report the owner currently receives — spreadsheet or owner's-report PDF — and its figures will fill the gaps."}
         </p>
+
 
         {priorFiles.length > 0 && (
           <div className="space-y-1.5">

@@ -19,14 +19,25 @@ export interface PriorImportFound {
   comp_months: number;
   historical_revenue_months: number;
   historical_nights_months: number;
+  /** Owner's-report PDF packs only. */
+  current_otb_months?: number;
+  provisional_months?: number;
+  forward_year_months?: number;
+  declined_rows?: number;
+  nationality_rows?: number;
+  partner_rows?: number;
 }
 
 export interface PriorImportPreview {
   file: { id: string; filename: string };
   asOfDate: string | null;
   otbColumnLabel: string | null;
-  /** Sheet the baseline figures were lifted from. */
+  /** Sheet (or PDF page) the baseline figures were lifted from. */
   baselineSheet: string | null;
+  /** `workbook` for spreadsheet packs, `owner_report_pdf` for owner's reports. */
+  sourceKind: "workbook" | "owner_report_pdf";
+  /** Financial-year heading printed on an owner's report, e.g. `2026/27`. */
+  fiscalYearLabel: string | null;
   months: string[];
   previousOtbRevenue: Record<string, number>;
   currentOtbRevenue: Record<string, number>;
@@ -40,6 +51,8 @@ export interface PriorImportPreview {
   compRnsByMonth: Record<string, number>;
   historicalRevenue: Record<string, number>;
   historicalRoomNights: Record<string, number>;
+  provisionalRevenue: Record<string, number>;
+  forwardYearLabel: string | null;
   sheetsRead: string[];
   sheetsSkipped: string[];
   warnings: string[];
@@ -52,7 +65,10 @@ export interface PriorImportSelections {
   lastYear: boolean;
   additionalInputs: boolean;
   historical: boolean;
+  /** Declined bookings, travel partners and nationality slides (PDF packs). */
+  ownerTables: boolean;
 }
+
 
 export interface PriorImportResult {
   ok: boolean;
@@ -82,6 +98,8 @@ const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
   asOfDate: typeof raw.as_of_date === "string" ? raw.as_of_date : null,
   otbColumnLabel: typeof raw.otb_column_label === "string" ? raw.otb_column_label : null,
   baselineSheet: typeof raw.baseline_sheet === "string" ? raw.baseline_sheet : null,
+  sourceKind: raw.source_kind === "owner_report_pdf" ? "owner_report_pdf" : "workbook",
+  fiscalYearLabel: typeof raw.fiscal_year_label === "string" ? raw.fiscal_year_label : null,
   months: strings(raw.months),
   previousOtbRevenue: numberMap(raw.previous_otb_revenue),
   currentOtbRevenue: numberMap(raw.current_otb_revenue),
@@ -96,10 +114,16 @@ const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
 
   historicalRevenue: numberMap(raw.historical_revenue),
   historicalRoomNights: numberMap(raw.historical_room_nights),
+  provisionalRevenue: numberMap(raw.provisional_revenue),
+  forwardYearLabel:
+    typeof (raw.forward_year as { label?: unknown } | null)?.label === "string"
+      ? String((raw.forward_year as { label: string }).label)
+      : null,
   sheetsRead: strings(raw.sheets_read),
   sheetsSkipped: strings(raw.sheets_skipped),
   warnings: strings(raw.warnings),
   found: (raw.found ?? {}) as PriorImportFound,
+
 });
 
 const readError = async (error: unknown): Promise<string> => {
@@ -152,6 +176,8 @@ export function useReportPriorImport(runId: string | undefined) {
           last_year: selections.lastYear,
           additional_inputs: selections.additionalInputs,
           historical: selections.historical,
+          owner_tables: selections.ownerTables,
+
         },
       });
       if (result.ok) await queryClient.invalidateQueries({ queryKey: ["reports"] });
