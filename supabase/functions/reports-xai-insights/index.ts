@@ -423,7 +423,13 @@ Deno.serve(async (req) => {
       slides_considered: {
         count: usedSlides ? slides.length : 0,
         titles: usedSlides ? slideTitles : [],
+        period: {
+          report_month: anchorMonth,
+          months: periodMonths,
+          source: run.source_type ?? null,
+        },
       },
+
       provider: outcome.provider,
       generated_by: userData.user.id,
       generated_at: new Date().toISOString(),
