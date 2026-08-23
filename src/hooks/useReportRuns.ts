@@ -38,6 +38,8 @@ export interface ReportRunSummary {
   propertyLogoUrl: string | null;
   sourceType: string;
   asOfDate: string;
+  /** `YYYY-MM` the review covers; drives the six-month display window. */
+  reportMonth: string | null;
   status: ReportRunStatus;
   title: string | null;
   cadence: ReportCadence;
@@ -69,6 +71,7 @@ interface RunRow {
   property_id: string;
   source_type: string;
   as_of_date: string;
+  report_month?: string | null;
   previous_run_id: string | null;
   baseline_locked?: boolean | null;
   build_stage?: string | null;
@@ -105,6 +108,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
   propertyLogoUrl: row.properties?.brand_logo_url ?? null,
   sourceType: row.source_type,
   asOfDate: row.as_of_date,
+  reportMonth: row.report_month ? String(row.report_month).slice(0, 7) : null,
   status: asStatus(row.status),
   title: row.title,
   cadence: asCadence(row.cadence),
@@ -116,7 +120,7 @@ const mapSummary = (row: RunRow): ReportRunSummary => ({
 });
 
 const RUN_SELECT =
-  "id, property_id, source_type, as_of_date, previous_run_id, baseline_locked, build_stage, prior_report_declined, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
+  "id, property_id, source_type, as_of_date, report_month, previous_run_id, baseline_locked, build_stage, prior_report_declined, status, title, cadence, special_report_set, error_message, processing_note, created_at, properties(name, brand_logo_url), report_source_files(count)";
 
 
 /** Recent report runs, newest first. */

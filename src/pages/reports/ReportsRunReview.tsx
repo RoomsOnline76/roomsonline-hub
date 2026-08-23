@@ -26,7 +26,7 @@ import type { DropZoneFileState } from "@/components/reports/FileDropZone";
 import { getSourceFileUrl, uploadSourceFiles } from "@/lib/reportUpload";
 import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
-import { monthsInWindow } from "@/lib/reportWindow";
+import { monthsInWindow, windowMonths } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
 import {
   deriveStageCompletion,
@@ -126,10 +126,21 @@ export default function ReportsRunReview() {
     setStage(resumeStage(run.buildStage, completion));
   }, [run, stage, completion]);
 
-  /** Everything downstream only ever sees the review month plus five ahead. */
+  /**
+   * Everything downstream sees the review month plus five ahead — every one of
+   * them, so a month with no uploaded extract shows as a gap rather than
+   * disappearing from the review.
+   */
   const windowedSnapshot = useMemo(() => {
     if (!snapshot || !run) return snapshot ?? null;
-    return { ...snapshot, months: monthsInWindow(snapshot.months, run.asOfDate) };
+    return { ...snapshot, months: windowMonths(run.asOfDate, run.reportMonth) };
+  }, [snapshot, run]);
+
+  /** Window months the parsed sources did not cover. */
+  const missingMonths = useMemo(() => {
+    if (!snapshot || !run) return [] as string[];
+    const present = new Set(monthsInWindow(snapshot.months, run.asOfDate, run.reportMonth));
+    return windowMonths(run.asOfDate, run.reportMonth).filter((key) => !present.has(key));
   }, [snapshot, run]);
 
   const goToStage = useCallback(
