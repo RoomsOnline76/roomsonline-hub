@@ -367,17 +367,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (ledger.length === 0) {
-      const message =
-        fileResults.flatMap((result) => result.errors)[0] ??
-        "No usable protel House State rows found — upload the monthly House State export";
-      await admin
-        .from("report_runs")
-        .update({ status: "failed", error_message: message, processing_note: null })
-        .eq("id", runId);
-      await logRunEvent(admin, runId, "processing_failed", message, { files: fileResults }, actorId);
-      return json({ error: message, files: fileResults }, 422);
-    }
+    // A run with no House State grid is only fatal when there is no imported
+    // owner's-report baseline to fall back on — checked once room count is known.
+
+
 
     // Re-apply the market-code split now that every file has been seen.
     const finalLedger = segments.length > 1 ? protelDaysToLedger(allDays, segments) : ledger;
