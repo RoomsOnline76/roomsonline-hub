@@ -438,7 +438,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    const aggregate = aggregateLedger(finalLedger, roomCount);
+    // The Cheetah Plains owner pack has no House State grid: the owner's report
+    // itself is the revenue source, imported at the prior-ingest stage.
+    const ownerAggregate =
+      finalLedger.length === 0
+        ? aggregateFromImportedBaseline(run.imported_baseline, [], roomCount)
+        : null;
+
+    if (finalLedger.length === 0) {
+      if (!ownerAggregate) {
+        const message = isSpecialSet
+          ? "No revenue grid available — import the owner's report at the previous-report step, or upload a protel House State export"
+          : (fileResults.flatMap((result) => result.errors)[0] ??
+            "No usable protel House State rows found — upload the monthly House State export");
+        await admin
+          .from("report_runs")
+          .update({ status: "failed", error_message: message, processing_note: null })
+          .eq("id", runId);
+        await logRunEvent(admin, runId, "processing_failed", message, { files: fileResults }, actorId);
+        return json({ error: message, files: fileResults }, 422);
+      }
+      await logRunEvent(
+        admin,
+        runId,
+        "owner_report_baseline_used",
+        `No protel House State export on this run — the revenue grid was taken from the imported owner's report (${ownerAggregate.months.length} month(s))`,
+        { months: ownerAggregate.months, source: "owner_report_pdf" },
+        actorId,
+      );
+    }
+
+    const aggregate = ownerAggregate ?? aggregateLedger(finalLedger, roomCount);
+
 
 
     // Uploaded extracts for months before this review window (last year's
