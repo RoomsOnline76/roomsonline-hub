@@ -180,18 +180,24 @@ Deno.serve(async (req) => {
         file_id: file.id,
         as_of_date: extract.asOfDate,
         otb_column_label: extract.otbColumnLabel,
+        baseline_sheet: extract.baselineSheet,
         imported_at: new Date().toISOString(),
         previous_otb_revenue: selections.previous_otb === false ? {} : extract.previousOtbRevenue,
         previous_room_nights: selections.previous_otb === false ? {} : extract.previousRoomNights,
         last_year_actual: selections.last_year === false ? {} : extract.lastYearActual,
         last_year_room_nights: selections.last_year === false ? {} : extract.lastYearRoomNights,
-        // Occupancy, targets and hand-kept sheets ride along with the baseline
-        // so the workbook builder can reproduce the client's own layout.
+        // Occupancy, ADR, targets and hand-kept sheets ride along with the
+        // baseline so the workbook builder can reproduce the client's layout.
         previous_occupancy: selections.previous_otb === false ? {} : extract.previousOccupancy,
         last_year_occupancy: selections.last_year === false ? {} : extract.lastYearOccupancy,
+        previous_adr: selections.previous_otb === false ? {} : extract.previousAdr,
+        last_year_adr: selections.last_year === false ? {} : extract.lastYearAdr,
         targets: extract.targets,
         target_uplift: extract.targetUplift,
         historical_occupancy: extract.historicalOccupancy,
+        historical_adr: extract.historicalAdr,
+        carry_forward: extract.carryForward,
+
         carry_forward: extract.carryForward,
       };
       const { error } = await admin
