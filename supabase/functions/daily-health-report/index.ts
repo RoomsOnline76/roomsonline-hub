@@ -34,6 +34,8 @@ async function generateAIDigest(
 
     blocked_outstanding: Array<{ blocker: string; count: number; properties: string[] }>;
     blocked_cleared: Array<{ blocker: string; count: number; properties: string[]; cleared_at: string | null }>;
+    /** Retired sub-accounts — dead, excluded, and never valid work to recommend. */
+    retired_accounts?: Array<{ ru_owner_id: string; portal_email: string | null }>;
   } | null,
 
 ): Promise<AIDigest | null> {
