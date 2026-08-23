@@ -13,7 +13,7 @@
  * to "nothing found" with a warning instead of importing nonsense.
  */
 
-import * as XLSX from "xlsx";
+import * as XLSX from "npm:xlsx@0.18.5";
 
 export interface PriorReportExtract {
   /** As-of date of the workbook's newest OTB column, when it could be read. */
