@@ -1332,7 +1332,10 @@ Deno.serve(async (req) => {
         ari_stale_hours: hoursSince(lastAri),
         cert,
         live_properties: livePropertyCount,
-        distribution_accounts: ownerCount ?? 0,
+        distribution_accounts: (ownerRows ?? []).filter(
+          (o: { ru_owner_id?: string | number | null }) =>
+            !retiredOwnerIds.has(String(o.ru_owner_id ?? '').trim()),
+        ).length,
         blocked: { outstanding: blockedOutstanding, cleared: blockedCleared },
         setup_gaps: setupGaps,
         reconciled,
@@ -1346,6 +1349,9 @@ Deno.serve(async (req) => {
           ).length,
           gave_up: queued.filter((q: any) => q.status === 'failed').length,
         },
+        retired_accounts: retiredAccounts.map(a => ({ ru_owner_id: a.ru_owner_id, portal_email: a.portal_email })),
+        retired_rows_excluded: retiredRowsExcluded,
+
       };
 
 
