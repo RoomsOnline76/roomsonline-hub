@@ -233,8 +233,9 @@ export function reconcileWithImportedBaseline(
  *
  * Some properties (the Cheetah Plains owner pack) never produce a PMS day grid
  * for the reporting period — the owner's report *is* the revenue source. The
- * printed grid carries revenue and occupancy but no room nights, so nights and
- * ADR stay empty rather than being invented; occupancy is used as printed.
+ * printed grid carries revenue and occupancy but no room nights: occupancy is
+ * used as printed and nights are read back from it against capacity, so the
+ * totals reconcile. ADR is left empty rather than being invented.
  */
 export function aggregateFromImportedBaseline(
   imported: unknown,
