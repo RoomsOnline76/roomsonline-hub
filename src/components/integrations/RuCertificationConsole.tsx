@@ -1022,6 +1022,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
 
         {/* Runs */}
