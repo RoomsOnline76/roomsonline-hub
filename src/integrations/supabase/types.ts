@@ -8449,6 +8449,10 @@ export type Database = {
         Row: {
           chart_recommendation: string | null
           created_at: string
+          experimental: Json
+          experimental_error: string | null
+          experimental_generated_at: string | null
+          experimental_provider: string | null
           flags: Json
           generated_at: string | null
           generated_by: string | null
@@ -8465,6 +8469,10 @@ export type Database = {
         Insert: {
           chart_recommendation?: string | null
           created_at?: string
+          experimental?: Json
+          experimental_error?: string | null
+          experimental_generated_at?: string | null
+          experimental_provider?: string | null
           flags?: Json
           generated_at?: string | null
           generated_by?: string | null
@@ -8481,6 +8489,10 @@ export type Database = {
         Update: {
           chart_recommendation?: string | null
           created_at?: string
+          experimental?: Json
+          experimental_error?: string | null
+          experimental_generated_at?: string | null
+          experimental_provider?: string | null
           flags?: Json
           generated_at?: string | null
           generated_by?: string | null
