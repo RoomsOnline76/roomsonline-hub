@@ -1795,7 +1795,7 @@ const Dashboard = () => {
                       <Area type="monotone" dataKey="forecastRevenueLower80" stroke="none" fill="hsl(var(--background))" fillOpacity={1} connectNulls={false} legendType="none" />
                       <Bar dataKey="revenue" name="Revenue" radius={[3, 3, 0, 0]} cursor="pointer" onClick={(data) => data?.label && setDrillDownDate(data.label)}>
                         {chartData.map((entry, index) => (
-                          <Cell key={`cell-revenue-${index}`} fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} />
+                          <Cell key={`cell-revenue-${index}`} fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : entry.isFuture ? "#0ea5e9" : "#22c55e"} />
                         ))}
                       </Bar>
                       <Line type="monotone" dataKey="smaRevenue" name="Trend" stroke="#f97316" strokeWidth={1.5} dot={false} connectNulls />
