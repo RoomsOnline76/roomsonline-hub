@@ -658,79 +658,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     // Steps whose blocker is a mandatory field / check still route to the fix;
     // only the distribution actions themselves wait on a prerequisite.
     const gatedAction = !!reason;
-    if (macro.macro.key === "push_owner" && isPlatformUser) {
-      return {
-        label: "Create distribution identity",
-        disabled: gatedAction || busy === "ensure_owner",
-        run: () => void openOwnerPlan(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "company_profile" && isPlatformUser) {
-      return {
-        label: companyProfile.sending ? "Sending company profile…" : "Send company profile",
-        disabled: gatedAction || companyProfile.sending || busy === "company_details",
-        run: () => void pushCompanyDetails(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "pull_listings" && isPlatformUser) {
-      return {
-        label: "Pull listings",
-        disabled: gatedAction || busy === "pull_listings",
-        run: () => void pullListings(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "publish") {
-      if (publishedOk) {
-        return {
-          label: "Published — review step",
-          disabled: false,
-          run: () => selectMacro("publish"),
-          reason,
-        };
-      }
-      return {
-        label: isPlatformUser ? "Publish listing" : "Review publish step",
-        disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
-        run: () => (isPlatformUser ? void publishListing() : selectMacro("publish")),
-        reason,
-      };
-    }
+    // Steps 6–14 (distribution identity, publish, connect, sign-off) are no longer
+    // wizard steps — the Channel Monitor runs them — so the primary action here is
+    // always "fix the outstanding Ready-to-sell requirement".
 
-    if (macro.macro.key === "entitlement") {
-      if (!isPlatformUser) {
-        return {
-          label: "Waiting on ROL to enable Channel Manager",
-          disabled: true,
-          run: () => undefined,
-          reason: "Your account manager switches this on — nothing for you to do here.",
-        };
-      }
-      return {
-        label: "Enable Channel Manager",
-        disabled: gatedAction || busy === "entitlement",
-        run: () => void enableChannelManager(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "connect") {
-      return {
-        label: "Connect a channel below",
-        disabled: gatedAction,
-        run: () => selectMacro("connect"),
-        reason,
-      };
-    }
-    if (macro.macro.key === "signoff" && !isPlatformUser) {
-      return {
-        label: "Waiting on ROL sign-off",
-        disabled: true,
-        run: () => undefined,
-        reason: "A ROL admin confirms the live sub-account.",
-      };
-    }
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
     // Never point the primary action at a check the resolver could not judge —
     // there is no field behind it, so the button would go nowhere.
