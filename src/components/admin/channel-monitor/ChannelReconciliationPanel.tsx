@@ -399,6 +399,34 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
               </div>
             )}
 
+            {/* Detached sub-accounts: the master no longer lists them, so our keys can
+                no longer read them. Excluded from every count, but kept visible — a
+                non-zero (or unknown) last listing count is a billing question. */}
+            {(result.detached_accounts?.length ?? 0) > 0 && (
+              <details className="rounded-md border border-border p-3 text-xs text-muted-foreground">
+                <summary className="cursor-pointer text-sm font-medium text-foreground">
+                  {result.detached_accounts!.length} sub-account
+                  {result.detached_accounts!.length === 1 ? "" : "s"} excluded — no longer under the master account
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {result.detached_accounts!.map((a) => (
+                    <p key={a.owner_id}>
+                      {a.owner_label}
+                      {a.last_known_listing_count === null
+                        ? " — last listing count unknown"
+                        : ` — held ${a.last_known_listing_count} listing${a.last_known_listing_count === 1 ? "" : "s"} on the last recorded pass`}
+                      {a.last_seen_at ? ` (${new Date(a.last_seen_at).toLocaleDateString()})` : ""}
+                      {a.needs_billing_verification && (
+                        <span className="ml-1 text-amber-600">
+                          — confirm with the channel that this account and its listings moved off our master invoice.
+                        </span>
+                      )}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            )}
+
             {/* Retired test sub-accounts: kept visible so the excluded rows are auditable,
                 but deliberately collapsed — nothing here is read, counted or pushed to. */}
             {(result.retired_accounts?.length ?? 0) > 0 && (

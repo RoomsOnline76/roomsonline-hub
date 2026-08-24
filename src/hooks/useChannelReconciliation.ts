@@ -162,6 +162,17 @@ export interface ReconRetiredAccount {
   retired_at: string | null;
 }
 
+/** A bound sub-account the master account no longer lists — excluded from all counts. */
+export interface ReconDetachedAccount {
+  owner_id: string;
+  owner_label: string;
+  login_email: string | null;
+  /** Live listings it held on the last stored pass; null when never recorded. */
+  last_known_listing_count: number | null;
+  last_seen_at: string | null;
+  needs_billing_verification: boolean;
+}
+
 export interface ChannelReconciliation {
   reconciled_at: string;
   accounts: ReconAccount[];
@@ -198,6 +209,8 @@ export interface ChannelReconciliation {
   unverifiable_accounts?: ReconUnverifiableAccount[];
   /** Retired test sub-accounts — excluded from every count above, shown for audit only. */
   retired_accounts?: ReconRetiredAccount[];
+  /** Detached sub-accounts — no longer under the master, excluded from every count. */
+  detached_accounts?: ReconDetachedAccount[];
 
 
 }
@@ -294,6 +307,7 @@ export function useChannelReconciliation() {
         owner_violations: payload.owner_violations || [],
         unverifiable_accounts: payload.unverifiable_accounts || [],
         retired_accounts: payload.retired_accounts || [],
+        detached_accounts: payload.detached_accounts || [],
 
       });
       return true;
