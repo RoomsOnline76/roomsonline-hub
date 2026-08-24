@@ -185,8 +185,63 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
       }
 
       if (cancelled) return;
-      setProperties(eligible);
+
+      // Group the eligible properties by portfolio: a channel account is
+      // inherited portfolio-wide, so the portfolio is onboarded once (anchored
+      // to its first eligible member) and its members leave the flat list.
+      let options: OnboardOption[] = eligible.map((p) => ({
+        id: p.id,
+        label: p.name,
+        kind: "property" as const,
+        memberCount: 1,
+      }));
+
+      if (eligible.length > 0) {
+        const eligibleIds = eligible.map((p) => p.id);
+        const { data: members } = await supabase
+          .from("property_portfolio_members")
+          .select("portfolio_id, property_id")
+          .in("property_id", eligibleIds);
+        const portfolioIds = [...new Set((members ?? []).map((m) => m.portfolio_id))];
+        if (portfolioIds.length > 0) {
+          const { data: portfolios } = await supabase
+            .from("property_portfolios")
+            .select("id, name")
+            .in("id", portfolioIds);
+          const names = new Map((portfolios ?? []).map((p) => [p.id, p.name as string]));
+          const order = new Map(eligible.map((p, i) => [p.id, i]));
+          const grouped = new Map<string, string[]>();
+          for (const m of members ?? []) {
+            if (!names.has(m.portfolio_id)) continue;
+            const list = grouped.get(m.portfolio_id) ?? [];
+            list.push(m.property_id);
+            grouped.set(m.portfolio_id, list);
+          }
+          const claimed = new Set<string>();
+          const portfolioOptions: OnboardOption[] = [];
+          for (const [pid, memberIds] of grouped) {
+            const sorted = [...memberIds].sort(
+              (a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0),
+            );
+            sorted.forEach((id) => claimed.add(id));
+            portfolioOptions.push({
+              id: sorted[0],
+              label: `${names.get(pid)} (portfolio · ${sorted.length} ${sorted.length === 1 ? "property" : "properties"})`,
+              kind: "portfolio",
+              memberCount: sorted.length,
+            });
+          }
+          options = [
+            ...portfolioOptions.sort((a, b) => a.label.localeCompare(b.label)),
+            ...options.filter((o) => !claimed.has(o.id)),
+          ];
+        }
+      }
+
+      if (cancelled) return;
+      setProperties(options);
       setPropertiesLoading(false);
+
     })();
     return () => {
       cancelled = true;
