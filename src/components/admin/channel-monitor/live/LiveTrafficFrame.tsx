@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useRuLiveTraffic, type RuLiveTrafficRow } from "@/hooks/useRuLiveTraffic";
+import { adminUrl } from "@/lib/config";
 import { RU_ENDPOINT_CADENCE_LABELS, RU_ENDPOINT_FAMILY_LABELS, resolveRuEndpoint } from "@/config/ruEndpointLibrary";
 import { EndpointCounterTable } from "./EndpointCounterTable";
 import { TrafficPulseStrip } from "./TrafficPulseStrip";
@@ -97,7 +98,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
 
   const openPopout = () => {
     const features = "popup=yes,width=1180,height=820,noopener=no";
-    const child = window.open(LIVE_ROUTE, "rol-live-traffic", features);
+    const child = window.open(adminUrl(LIVE_ROUTE), "rol-live-traffic", features);
     child?.focus();
   };
 
