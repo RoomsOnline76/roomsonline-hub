@@ -1179,7 +1179,9 @@ export function RuCertificationConsole({
         </TabsContent>
 
         {/* Discounts */}
+        {shows("discounts") && (
         <TabsContent value="discounts">
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Long-stay & last-minute discounts</CardTitle>
