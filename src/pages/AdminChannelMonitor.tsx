@@ -341,14 +341,7 @@ export default function AdminChannelMonitor() {
   // Every chip below reads state the page already has in memory — no extra queries.
   const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string }>>(() => {
     const loading = data.loading || railStatus.loading;
-    const live = data.properties.filter((p) => p.state === "live").length;
-    const withoutFootprint = data.subAccountPropertiesWithoutFootprint;
     const neverPushed = data.properties.filter((p) => p.neverPushed).length;
-    const lastPush = data.properties
-      .map((p) => p.lastPushAt)
-      .filter((v): v is string => !!v)
-      .sort()
-      .pop();
     const run = railStatus.latestRun;
     const keys = railStatus.keys;
 
@@ -358,14 +351,11 @@ export default function AdminChannelMonitor() {
         onboard: pending,
         accounts: pending,
         cost: pending,
-        binding: pending,
-        mapping: pending,
-        ari: pending,
-        reservations: pending,
         cert: pending,
         advanced: { tone: "muted", label: "Engineers only" },
       };
     }
+
 
     return {
       onboard:
