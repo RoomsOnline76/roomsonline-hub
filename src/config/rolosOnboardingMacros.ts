@@ -77,6 +77,12 @@ export interface MacroDef {
   /** Manual macros are completed by a human, not by a resolver. */
   manual?: boolean;
   adminOnly?: boolean;
+  /**
+   * Steps 6–14 are executed as the two-step flow on Channel Monitor → Onboard Property.
+   * They stay listed here so the roadmap still shows the full journey, but the wizard
+   * points at the monitor rather than asking the owner to drive each channel call.
+   */
+  monitorOwned?: boolean;
 }
 
 export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
@@ -148,6 +154,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "push_owner",
+    monitorOwned: true,
     order: 6,
     title: "Push owner: create the distribution sub-user",
     goal: "The owner exists as a distribution identity.",
@@ -162,6 +169,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "keys",
+    monitorOwned: true,
     order: 7,
     title: "Create key & secret for the sub-account",
     goal: "The sub-account authenticates with its own credentials.",
@@ -181,6 +189,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "company_profile",
+    monitorOwned: true,
     order: 8,
     title: "Company profile on the sub-account",
     goal: "The sub-account carries the owner's company profile, sent with its own verified keys.",
@@ -195,6 +204,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "signoff",
+    monitorOwned: true,
     order: 9,
     title: "Sub-account verification",
     goal: "A human confirms the live sub-account is correct before anything is published.",
@@ -210,6 +220,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "pull_listings",
+    monitorOwned: true,
     order: 10,
     title: "Pull listings (if any)",
     goal: "Any listing already present under the sub-account is adopted, so the push never duplicates.",
@@ -224,6 +235,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "publish",
+    monitorOwned: true,
     order: 11,
     title: "Push property & full ARI publish",
     goal: "The property is live on the distribution layer with a stable identity.",
@@ -244,6 +256,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "currency",
+    monitorOwned: true,
     order: 12,
     title: "Location & currency verification",
     goal: "The published location and currency agree on both sides.",
@@ -252,6 +265,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "entitlement",
+    monitorOwned: true,
     order: 13,
     title: "Enable Channel Manager",
     goal: "Channel Manager is on the billing profile so channels can connect.",
@@ -264,6 +278,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
   },
   {
     key: "connect",
+    monitorOwned: true,
     order: 14,
     title: "Connect channels",
     goal: "The owner activates the sales channels they want to trade on.",
