@@ -1503,6 +1503,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Users */}
         {shows("users") && (
