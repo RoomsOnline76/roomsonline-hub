@@ -185,6 +185,34 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     return { total, complete, percent, allComplete: total > 0 && complete === total };
   }, [macros]);
 
+  /**
+   * Passing the five steps writes the durable Ready-to-sell verdict to the gate
+   * monitor, so the Channel Monitor can pick the property up without re-grading.
+   * Graded once per mount per property.
+   */
+  const [gradeState, setGradeState] = useState<"idle" | "saving" | "done">("idle");
+  useEffect(() => {
+    if (!readyOverall.allComplete || gradeState !== "idle") return;
+    let cancelled = false;
+    setGradeState("saving");
+    void (async () => {
+      try {
+        await supabase.functions.invoke("ru-onboard-property", {
+          body: { action: "grade_ready_to_sell", property_id: propertyId },
+        });
+      } catch {
+        // Grading is advisory here — the monitor grades again before it pushes.
+      } finally {
+        if (!cancelled) setGradeState("done");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gradeState, propertyId, readyOverall.allComplete]);
+
+
+
   const unitScope = useMemo(
     () => ({ sole: soleUnitName ?? null, all: unitNames ?? [] }),
     [soleUnitName, unitNames],
