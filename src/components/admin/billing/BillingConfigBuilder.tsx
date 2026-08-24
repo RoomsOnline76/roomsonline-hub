@@ -681,7 +681,7 @@ export function summarizeBuilderValue(v: BillingConfigValue): string {
   }
 
   if (v.volume_tiers_enabled) parts.push("per-unit volume tiers");
-  if (v.facilitator_surcharge_enabled && v.transaction_fee) parts.push(`${v.transaction_fee}% ROL surcharge`);
+  if (v.facilitator_surcharge_enabled) parts.push("ROL processing on the active gateway schedule");
   if (v.byo_gateway_enabled && v.byo_gateway_fee) parts.push(`R${v.byo_gateway_fee}/mo BYO gateway`);
   if (v.white_label_enabled && v.white_label_monthly_fee) parts.push(`R${v.white_label_monthly_fee}/${v.white_label_billing_mode === "annual" ? "yr" : "mo"} white-label`);
   if (v.pricelabs_enabled && v.pricelabs_monthly_fee) parts.push(`R${v.pricelabs_monthly_fee}/mo PriceLabs`);
