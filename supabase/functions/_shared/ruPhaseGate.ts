@@ -34,7 +34,10 @@ export interface PhaseGateResult {
   property_id: string;
   phases: PhaseResult[];
   current_phase: PhaseKey;
+  /** The authority for writes: Step A + Ready-to-sell ledger state. */
+  step_gate?: StepGateState;
   ready_for_push: boolean;
+
   ru_owner_id: number | null;
   owner_scope: "portfolio" | "property" | "master";
   portfolio_id: string | null;
