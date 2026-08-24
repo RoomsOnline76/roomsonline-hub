@@ -721,7 +721,21 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
   // against the channel (which is what closed the rate window in the first place).
   const startIndex = ctx.startAtTaskId ? Math.max(0, allTasks.findIndex((t) => t.id === ctx.startAtTaskId)) : 0;
   const tasks = allTasks.slice(startIndex);
+  const stepKeyForLedger = step === "a" ? "monitor_step_a" : "monitor_step_b";
+  /**
+   * A resume must not erase the legs it deliberately skipped. Recording only the resumed
+   * tasks left the earlier ones (review, push) with no outcome on the ledger, so a passed
+   * step rendered them as never-run. Carry their last recorded outcome forward instead.
+   */
+  const recordedTasks =
+    ((snapshot.steps?.[stepKeyForLedger]?.details as { tasks?: TaskResult[] } | null | undefined)?.tasks ?? [])
+      .filter((r): r is TaskResult => Boolean(r && typeof r.id === "string"));
+  const carriedResults: TaskResult[] = allTasks
+    .slice(0, startIndex)
+    .map((t) => recordedTasks.find((r) => r.id === t.id))
+    .filter((r): r is TaskResult => Boolean(r));
   const results: TaskResult[] = [];
+
   let pending = false;
   let failed = false;
   let retryAfterMs: number | undefined;
@@ -760,14 +774,16 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     .map((r) => `${CHANNEL_ONBOARD_TASKS.find((t) => t.id === r.id)?.title ?? r.id}: ${r.detail}`)
     .join(" · ");
 
-  const stepKey = step === "a" ? "monitor_step_a" : "monitor_step_b";
+  const stepKey = stepKeyForLedger;
+  const ledgerTasks = [...carriedResults, ...results];
   await recordStep(
     ctx.propertyId,
     stepKey,
     passed ? "passed" : pending && !failed ? "pending" : "blocked",
     summary,
-    { tasks: results },
+    { tasks: ledgerTasks },
   );
+
 
   // Step B completing is what makes the property sellable — and what opens the ordinary
   // delta path, so the edit gate's cached verdict must go.
@@ -777,5 +793,5 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     notifyRuAccountsChanged();
   }
 
-  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results, summary };
+  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results: ledgerTasks, summary };
 }
