@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
+import { GatewayScheduleSection } from "@/components/connect/GatewayScheduleSection";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
@@ -42,7 +43,9 @@ const CHARGEABLE_AFTER: { item: string; note: string }[] = [
   { item: "Revenue management & yield tools", note: "Priced on your agreement" },
   { item: "Bring your own payment gateway", note: "Priced on your agreement" },
   { item: "Booking fee on ROL'OS-delivered bookings", note: "Continues as agreed" },
+  { item: "Card processing on our gateway", note: "On the schedule below — from day one" },
 ];
+
 
 
 /** Grouped capability list — the promo surface for what "included" means. */
@@ -126,6 +129,8 @@ const COMPETITOR_COSTS = [
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
   { item: "Setup fee", typical: "Common", rolos: "Waived if you start in your 60 days" },
+  { item: "Card processing on the platform gateway", typical: "Flat rate, no volume relief", rolos: "Hybrid rate that drops as volume grows" },
+
 ];
 
 
@@ -218,10 +223,15 @@ export default function ConnectPricing() {
                 <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
                   <p className="text-xs leading-relaxed">
                     <span className="font-semibold">One exception:</span> if you take payments through
-                    our payment gateway, the card processing fees on that gateway are payable by you —
-                    including during the free 60 days.
+                    our payment gateway, card processing is charged on the payment-processing
+                    schedule — payable from day one, including during the free 60 days.{" "}
+                    <a href="#payment-processing" className="text-primary underline underline-offset-2">
+                      See the schedule
+                    </a>
+                    .
                   </p>
                 </div>
+
                 <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
                   The booking fee is agreed per property and negotiable for volume and portfolios.
                   We put it in writing before you go live.
@@ -250,13 +260,22 @@ export default function ConnectPricing() {
               ))}
             </ul>
             <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
-              Third-party pass-through costs stay with the third party — an external
-              revenue-management licence, or your payment gateway's transaction fees, are billed
-              at cost where they apply.
+              A third-party licence you already hold — an external revenue-management tool, for
+              instance — stays with that provider at cost. Card processing on the RoomsOnline
+              gateway is charged on its own{" "}
+              <a href="#payment-processing" className="text-primary underline underline-offset-2">
+                payment-processing schedule
+              </a>
+              , and if you bring your own gateway its fees stay with your provider.
             </p>
           </motion.div>
         </div>
       </section>
+
+      {/* Payment processing — reads the active schedule */}
+      <GatewayScheduleSection />
+
+
 
 
       {/* Everything unlocked in the trial */}
@@ -311,10 +330,14 @@ export default function ConnectPricing() {
           </motion.div>
 
           <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
-            Third-party pass-through costs stay with the third party — an external revenue-management
-            licence you already hold, or your own payment gateway's transaction fees, are billed at cost
-            where they apply.
+            A third-party licence you already hold stays with that provider at cost. Card processing
+            on our gateway is charged on the{" "}
+            <a href="#payment-processing" className="text-primary underline underline-offset-2">
+              payment-processing schedule
+            </a>
+            ; bring your own gateway and its fees stay with your provider.
           </p>
+
 
         </div>
       </section>

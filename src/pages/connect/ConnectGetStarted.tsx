@@ -96,11 +96,24 @@ export default function ConnectGetStarted() {
           >
             Free for your first 60 days — the full ROL'OS stack, no subscription, and the setup fee waived when you start in that period.
             In that period you pay only the booking fee on bookings taken through ROL'OS, plus card
-            processing fees if you use our payment gateway. From day 61 the PMS subscription and any
-            add-ons you keep — channel manager, white label, branding, revenue management — are billed
-            as set out in your agreement.
-
+            processing on our payment-processing schedule if you use our gateway. From day 61 the PMS
+            subscription and any add-ons you keep — channel manager, white label, branding, revenue
+            management — are billed as set out in your agreement.
           </motion.p>
+          <motion.p
+            initial="hidden" animate="visible" variants={fadeUp}
+            transition={{ duration: 0.7, delay: 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-3 text-sm text-muted-foreground max-w-2xl mx-auto"
+          >
+            Every commercial term — the booking fee, the add-ons you keep and the payment-processing
+            schedule — is confirmed in the contract you sign, and the rate quoted there is the rate
+            that gets billed.{" "}
+            <Link to={connectPath("/connect/pricing")} className="text-primary underline underline-offset-2">
+              See the current schedule
+            </Link>
+            .
+          </motion.p>
+
         </div>
       </section>
 
