@@ -49,12 +49,36 @@ export interface EstimatorAddOns {
 
 export type PaymentMode = "rol" | "byo" | "reservation_only";
 
+export type WidgetCommissionMode = "flat" | "tiered";
+
+/** Volume band for widget (direct) booking commission — by bookings per month. */
+export interface WidgetTier {
+  min_bookings: number;
+  rate: number;
+}
+
+/** Fallback bands used when the preset carries no widget tiers. */
+export const DEFAULT_WIDGET_TIERS: WidgetTier[] = [
+  { min_bookings: 0, rate: 5 },
+  { min_bookings: 10, rate: 4 },
+  { min_bookings: 25, rate: 3 },
+  { min_bookings: 50, rate: 2 },
+];
+
 export interface EstimatorInput {
   properties: EstimatorProperty[];
-  /** Bookings per month across the whole estimate. */
+  /** OTA / platform bookings per month across the whole estimate. */
   monthlyBookings: number;
-  /** Booking value per month across the whole estimate. */
+  /** OTA / platform booking value per month across the whole estimate. */
   monthlyBookingValue: number;
+  /** Bookings per month taken through the booking widget (direct). */
+  widgetBookings?: number;
+  /** Booking value per month taken through the booking widget (direct). */
+  widgetBookingValue?: number;
+  /** Flat percentage or volume-tiered widget commission. */
+  widgetCommissionMode?: WidgetCommissionMode;
+  /** Optional custom bands; defaults to DEFAULT_WIDGET_TIERS. */
+  widgetTiers?: WidgetTier[];
   addOns: EstimatorAddOns;
   paymentMode: PaymentMode;
 }
@@ -62,6 +86,7 @@ export interface EstimatorInput {
 /** Only the preset fields the estimate needs. */
 export interface EstimatorPreset {
   default_commission_rate?: number | null;
+  widget_flat_commission_rate?: number | null;
   default_subscription_fee?: number | null;
   default_transaction_fee?: number | null;
   channel_manager_per_unit_fee?: number | null;
@@ -75,11 +100,16 @@ export interface EstimatorPreset {
   tier_pricing_json?: unknown;
 }
 
+/** Transaction-driven fees are grouped apart from monthly recurring charges. */
+export type EstimateGroup = "transaction" | "recurring";
+
 export interface EstimateLine {
   key: string;
   label: string;
   /** How the number was arrived at, shown under the label. */
   detail: string;
+  /** Which block of the breakdown the line belongs to. */
+  group: EstimateGroup;
   /** Monthly amount during the first 60 days. */
   freePeriod: number;
   /** Monthly amount from day 61. */
@@ -87,6 +117,7 @@ export interface EstimateLine {
   /** True when the line is waived during the free window. */
   waivedInFreePeriod: boolean;
 }
+
 
 export interface SetupLine {
   key: string;
