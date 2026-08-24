@@ -530,6 +530,16 @@ export async function resolveBillingContractVariables(
       out.billing_config_version = cfg.version != null ? String(cfg.version) : "";
       if (banded && tiers.length) out.billing_volume_tiers_summary = summariseVolumeTiers(tiers, rate.currency);
 
+      // The schedule is the single source for the processing rate, so the
+      // facilitator variables quote it rather than the legacy flat percentage.
+      out.payment_facilitator_fee = String(rate.percentage);
+      const facFeePart =
+        rate.fixed_fee > 0
+          ? `${ratePhrase(rate.percentage)} of the amount processed plus ${money(rate.fixed_fee)} per transaction`
+          : `${ratePhrase(rate.percentage)} of the amount processed`;
+      out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator. A transaction fee of ${facFeePart} is recovered, and amounts due to the Property are settled net of commission and fees.`;
+
+
       const feePart =
         rate.fixed_fee > 0
           ? `${ratePhrase(rate.percentage)} of the amount processed plus ${money(rate.fixed_fee)} per transaction`

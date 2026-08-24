@@ -296,3 +296,14 @@ export async function loadPeriodVolume(propertyId: string, days = 30): Promise<n
     .filter((r) => ["paid", "completed", "partially_paid"].includes(String(r.payment_status ?? "").toLowerCase()))
     .reduce((sum, r) => sum + (Number(r.total_price) || 0), 0);
 }
+
+/**
+ * A schedule is billable whenever one resolved — including the active global
+ * schedule. Only `none` (no active schedule at all) falls back to the legacy
+ * flat facilitator percentage.
+ */
+export function isBillableScheduleSource(
+  source: ResolvedGatewaySchedule["source"] | null | undefined,
+): boolean {
+  return source === "property" || source === "portfolio" || source === "global";
+}

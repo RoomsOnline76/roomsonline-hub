@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Info } from "lucide-react";
 import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { DEFAULT_TIERS, PricingTier } from "@/lib/billingTierResolver";
+import { GatewayScheduleMirror } from "@/components/admin/billing/GatewayScheduleMirror";
 
 /**
  * Shape of a billing configuration — either a preset (Admin → Billing Defaults)
@@ -491,8 +492,8 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
 
       {/* ── ROL facilitator surcharge ──────────────────────────────── */}
       <ToggleRow
-        title="ROL payment facilitator surcharge"
-        description="Per-booking % added when ROL processes payments via PayFast. Charged on the booking amount only — does not compound on commission or add-ons. Stacks on top of commission. Sales reps do not earn commission on this fee. Mutually exclusive with the BYO gateway add-on; turn both off for a reservation-only property."
+        title="ROL payment processing"
+        description="Charged per booking when ROL processes payments. The rate comes from the active Gateway Schedule — it is not editable here. Charged on the booking amount only, never compounding on commission or add-ons. Sales reps do not earn commission on this fee. Mutually exclusive with the BYO gateway add-on; turn both off for a reservation-only property."
         enabled={value.facilitator_surcharge_enabled}
         onToggle={(v) => {
           if (v) {
@@ -504,17 +505,9 @@ export function BillingConfigBuilder({ value, onChange, scope, placeholders = {}
           }
         }}
       >
-        <div className="grid grid-cols-[1fr_auto] items-center gap-2">
-          <Input
-            type="number" step="0.1" min="0" max="100"
-            value={value.transaction_fee}
-            onChange={(e) => set("transaction_fee", e.target.value)}
-            placeholder={String(placeholders.transaction_fee ?? "2.5")}
-            className="h-8 text-xs"
-          />
-          <span className="text-xs text-muted-foreground">%</span>
-        </div>
+        <GatewayScheduleMirror fallbackRate={value.transaction_fee || String(placeholders.transaction_fee ?? "")} />
       </ToggleRow>
+
 
       {/* ── BYO gateway add-on ─────────────────────────────────────── */}
       <ToggleRow
