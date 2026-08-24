@@ -33,6 +33,7 @@ import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/Archiv
 import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
+import { LiveTrafficFrame } from "@/components/admin/channel-monitor/live/LiveTrafficFrame";
 
 
 import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
@@ -568,6 +569,12 @@ export default function AdminChannelMonitor() {
                 </Collapsible>
 
                 <ChannelCallQueuePanel />
+
+                {/* Always-on: the live feed is the one frame an engineer keeps open while pushing. */}
+                <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+                  <LiveTrafficFrame />
+                </Suspense>
+
 
               </>
             )}
