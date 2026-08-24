@@ -18,6 +18,10 @@ import {
 
 
 import { usePropertyReadiness, type ReadinessItem } from "@/hooks/usePropertyReadiness";
+
+/** The five Ready-to-sell steps. Kept local to avoid a config ↔ hook import cycle. */
+const READY_TO_SELL_KEYS = ["identity", "location", "rooms", "media", "commercial"];
+const isReadyToSellMacro = (key: string) => READY_TO_SELL_KEYS.includes(key);
 import { useAuth } from "@/hooks/useAuth";
 import { useBillingConfig } from "@/hooks/useBillingConfig";
 import {
