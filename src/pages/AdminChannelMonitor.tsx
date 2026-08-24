@@ -33,7 +33,6 @@ import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/Archiv
 import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
-import { ChannelLedgerMetricsPanel } from "@/components/admin/channel-monitor/ChannelLedgerMetricsPanel";
 
 
 import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
@@ -570,12 +569,6 @@ export default function AdminChannelMonitor() {
 
                 <ChannelCallQueuePanel />
 
-                <section className="space-y-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Channel step ledger
-                  </h2>
-                  <ChannelLedgerMetricsPanel />
-                </section>
               </>
             )}
 
