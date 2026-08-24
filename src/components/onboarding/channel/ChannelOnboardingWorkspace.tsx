@@ -35,6 +35,7 @@ import {
 import {
   buildStageProgress,
   editorSectionForMacro,
+  isReadyToSellMacro,
   macroKeyForSection,
   EDITOR_SECTIONS,
   editorSectionsForMacro,
