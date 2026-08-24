@@ -1817,6 +1817,7 @@ const Dashboard = () => {
                       </Bar>
                       <Line type="monotone" dataKey="smaRevenue" name="Trend" stroke="#f97316" strokeWidth={1.5} dot={false} connectNulls />
                       {comparePrevYear && <Line type="monotone" dataKey="prevRevenue" name="Prev" stroke="#eab308" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />}
+                      {comparePrevYear && stats.periodHasFuture && <Line type="monotone" dataKey="stlyRevenue" name="STLY (pace)" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="2 2" dot={false} />}
                       <Line type="monotone" dataKey="forecastRevenue" name="Forecast" stroke="#0ea5e9" strokeWidth={1.5} strokeDasharray="6 3" dot={false} connectNulls={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
