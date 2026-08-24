@@ -81,7 +81,19 @@ async function portal(
 
 /** The gate as the backend sees it: readiness, monitor steps and the current binding. */
 export interface OnboardGateSnapshot {
-  property: { id: string; name: string; owner_email: string | null; listing_id: string | null; push_enabled: boolean };
+  property: {
+    id: string;
+    name: string;
+    owner_email: string | null;
+    listing_id: string | null;
+    push_enabled: boolean;
+    /** Room types that carry a channel listing id — how standalone-unit properties publish. */
+    unit_listings_recorded?: number | null;
+    unit_listings_verified?: number | null;
+    unit_listings_expected?: number | null;
+    listings_verified_at?: string | null;
+  };
+
   binding: {
     portfolio_id: string | null;
     account_id: string | null;
@@ -109,6 +121,43 @@ export interface OnboardGateSnapshot {
     }
   >;
 }
+
+/**
+ * One place that decides how the Owner binding panel words the listing state.
+ * A property publishes either as a single property-level listing or — far more
+ * commonly here — as standalone unit listings recorded per room type, so the
+ * property-level id alone must never decide "not published".
+ */
+export function describeListingState(property: OnboardGateSnapshot["property"] | null | undefined): string {
+  if (!property) return "not published";
+  if (property.listing_id) return property.listing_id;
+
+  const verified = Number(property.unit_listings_verified ?? 0);
+  const expected = Number(property.unit_listings_expected ?? 0);
+  const recorded = Number(property.unit_listings_recorded ?? 0);
+
+  if (verified > 0) {
+    const total = expected > 0 ? expected : verified;
+    const when = property.listings_verified_at
+      ? ` · verified ${new Date(property.listings_verified_at).toLocaleDateString()}`
+      : "";
+    return `${verified} of ${total} units published${when}`;
+  }
+  if (recorded > 0) {
+    return `${recorded} unit${recorded === 1 ? "" : "s"} recorded · not verified`;
+  }
+  return "not published";
+}
+
+/** Total properties served by the bound account, including the selected one. */
+export function describeAccountScope(binding: OnboardGateSnapshot["binding"] | null | undefined): string {
+  if (!binding?.account_id) return "not bound";
+  if (binding.account_scope !== "portfolio") return "This property only";
+  const total = (binding.sibling_properties?.length ?? 0) + 1;
+  return `Portfolio-wide (${total} propert${total === 1 ? "y" : "ies"})`;
+}
+
+
 
 async function gate(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const { data, error } = await supabase.functions.invoke("ru-onboard-property", { body });

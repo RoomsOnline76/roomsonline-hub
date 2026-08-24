@@ -232,9 +232,12 @@ Deno.serve(async (req) => {
 
     const { data: property } = await admin
       .from("properties")
-      .select("id, name, owner_email, owner_name, rentalsunited_property_id, ru_push_enabled, is_active")
+      .select(
+        "id, name, owner_email, owner_name, rentalsunited_property_id, ru_push_enabled, is_active, ru_listings_verified_units, ru_listings_expected_units, ru_listings_verified_at",
+      )
       .eq("id", propertyId)
       .maybeSingle();
+
     if (!property) {
       return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
     }
@@ -259,7 +262,18 @@ Deno.serve(async (req) => {
 
     // ── gate_status ─────────────────────────────────────────────────────────
     if (action === "gate_status") {
-      const [steps, binding] = await Promise.all([readSteps(admin, propertyId), readBinding(admin, propertyId)]);
+      // Standalone-unit properties never carry a property-level listing id: publishing
+      // is recorded per room type, so count those too or the panel reads "not published"
+      // while every unit is live on the channel.
+      const [steps, binding, unitListings] = await Promise.all([
+        readSteps(admin, propertyId),
+        readBinding(admin, propertyId),
+        admin
+          .from("hostfully_room_types")
+          .select("id", { count: "exact", head: true })
+          .eq("property_id", propertyId)
+          .not("rentalsunited_property_id", "is", null),
+      ]);
       return json({
         success: true,
         property: {
@@ -268,11 +282,16 @@ Deno.serve(async (req) => {
           owner_email: property.owner_email ?? null,
           listing_id: property.rentalsunited_property_id ?? null,
           push_enabled: property.ru_push_enabled !== false,
+          unit_listings_recorded: Number(unitListings?.count ?? 0),
+          unit_listings_verified: property.ru_listings_verified_units ?? null,
+          unit_listings_expected: property.ru_listings_expected_units ?? null,
+          listings_verified_at: property.ru_listings_verified_at ?? null,
         },
         binding,
         steps,
       });
     }
+
 
     // ── grade_ready_to_sell ─────────────────────────────────────────────────
     if (action === "grade_ready_to_sell") {
