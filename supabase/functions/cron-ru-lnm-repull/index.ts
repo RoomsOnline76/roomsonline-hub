@@ -123,7 +123,11 @@ Deno.serve(async (req) => {
         if (data?.success === false) throw new Error(data?.error?.message ?? 'static re-push failed');
         methods.push('Push_PutProperty_RQ (differential)');
       } else {
-        for (const apiAction of ['get_availability', 'get_prices'] as const) {
+        // Availability only. The notification is almost always the echo of our own ARI write, and
+        // ROL'OS is the source of truth for rates — pulling the channel's prices back here told us
+        // nothing and was the single largest source of `Pull_ListPropertyPrices_RQ` traffic. The
+        // availability read stays: that is how a channel-side booking gets noticed.
+        for (const apiAction of ['get_availability'] as const) {
           const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
             body: {
               action: apiAction,
@@ -140,11 +144,7 @@ Deno.serve(async (req) => {
           if (error) throw new Error(await invokeErrorMessage(error));
           if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
           if (data?.queued === true) queuedHere = true;
-          methods.push(
-            apiAction === 'get_availability'
-              ? 'Pull_ListPropertyAvailabilityCalendar_RQ'
-              : 'Pull_ListPropertyPrices_RQ',
-          );
+          methods.push('Pull_ListPropertyAvailabilityCalendar_RQ');
         }
       }
     } catch (err) {
