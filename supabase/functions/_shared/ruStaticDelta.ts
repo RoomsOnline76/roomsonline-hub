@@ -49,6 +49,7 @@ export const RU_STATIC_DELTA_PENDING_ACTION = 'static_delta_pending';
 /** Gate refusals that mean "correct content, not yet allowed" rather than a hard failure. */
 export const RU_GATE_ERROR_CODES = [
   'PHASE_BLOCKED',
+  'ONBOARDING_INCOMPLETE',
   'READINESS_UNVERIFIED',
   'READINESS_FAILED',
   RU_WIZARD_SYNC_CODE,
