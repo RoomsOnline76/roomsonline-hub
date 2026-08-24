@@ -1089,7 +1089,9 @@ export function RuCertificationConsole({
         </TabsContent>
 
         {/* Cadence */}
+        {shows("cadence") && (
         <TabsContent value="cadence">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
