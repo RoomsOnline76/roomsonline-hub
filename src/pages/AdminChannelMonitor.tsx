@@ -343,12 +343,19 @@ export default function AdminChannelMonitor() {
 
 
     return {
+      // Account/key health now reports on the Onboard chip — Step A owns that surface.
       onboard:
-        neverPushed === 0
-          ? { tone: "ok", label: "All properties pushed" }
-          : { tone: "warn", label: `${neverPushed} awaiting go-live` },
+        keys.total > 0 && keys.verified < keys.total
+          ? {
+              tone: keys.withKeys < keys.total ? "bad" : "warn",
+              label: `${keys.total - keys.verified} account key(s) unverified`,
+            }
+          : neverPushed === 0
+            ? { tone: "ok", label: "All properties pushed" }
+            : { tone: "warn", label: `${neverPushed} awaiting go-live` },
       cost: { tone: "muted", label: `${data.billableListings} listings billable` },
       // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
+
 
       cert: run
         ? {
