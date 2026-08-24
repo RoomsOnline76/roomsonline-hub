@@ -585,7 +585,39 @@ export async function confirmRuRequest(
     console.log(`[ruBookingSync] took over ${superseded} parked confirm_request for reservation ${reservationId}`);
   }
 
+  /**
+   * Circuit breaker. A blocked-dates refusal is a channel-side state we cannot fix from here
+   * (the request's nights are closed at the channel, or a changeover rule bars the arrival /
+   * departure day). Repeating the call produced retry storms — 52 identical refusals on one
+   * reservation in a day — so once the same reservation has been refused for blocked dates
+   * three times in the last hour, refuse locally without spending a channel slot.
+   */
+  const { data: recentRefusals } = await supabase
+    .from('ru_sync_runs')
+    .select('error_message')
+    .eq('action', 'confirm_request')
+    .eq('success', false)
+    .contains('details', { reservation_id: reservationId })
+    .gte('created_at', new Date(Date.now() - 3_600_000).toISOString())
+    .limit(20);
+  const blockedRefusals = ((recentRefusals ?? []) as Array<{ error_message?: string | null }>)
+    .filter((r) => isBlockedDatesMsg(r?.error_message)).length;
+  if (blockedRefusals >= 3) {
+    return {
+      ok: false,
+      method: 'confirm_request',
+      code: 'RU_CONFIRM_BLOCKED_DATES',
+      message:
+        'The channel has refused to accept this request three times in the last hour because its own nights ' +
+        'read as closed (no units left, or a check-in/check-out restriction on the arrival or departure day). ' +
+        'Further attempts are suppressed for an hour: open those dates at the channel and accept the request ' +
+        'there, then resend the change.',
+      traceId,
+    };
+  }
+
   let result = await attemptConfirm();
+
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
   // In practice that is our own hold: the request's nights were pushed as 0 units (and/or with a
