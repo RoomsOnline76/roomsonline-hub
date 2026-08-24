@@ -57,12 +57,15 @@ import {
   type ChannelOnboardTaskId,
 } from "@/config/channelOnboard";
 import {
+  describeAccountScope,
+  describeListingState,
   planOwnerAccount,
   rebindOwner,
   runOnboardStep,
   type OwnerAccountPlan,
   type TaskOutcome,
 } from "@/lib/channelOnboardOrchestrator";
+
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 
 interface PropertyOption {
