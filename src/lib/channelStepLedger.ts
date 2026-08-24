@@ -55,6 +55,7 @@ export async function markChannelStepsStale(
   } catch (err) {
     console.warn("[channel-ledger] mark_stale error:", err instanceof Error ? err.message : err);
     return null;
+  }
 }
 
 /**
