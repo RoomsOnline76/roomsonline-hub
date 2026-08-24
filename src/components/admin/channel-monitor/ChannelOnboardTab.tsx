@@ -71,6 +71,20 @@ interface PropertyOption {
   owner_email: string | null;
 }
 
+/**
+ * A pick in the onboarding dropdown. Channel accounts are inherited from the
+ * portfolio, so an eligible portfolio is offered as a single entry (anchored to
+ * its first eligible member) and its members are dropped from the flat list.
+ */
+interface OnboardOption {
+  /** The property id the orchestrator actually runs against. */
+  id: string;
+  label: string;
+  kind: "portfolio" | "property";
+  memberCount: number;
+}
+
+
 type TaskState = { state: "idle" | "running" | TaskOutcome; detail?: string };
 
 const STATUS_BADGE: Record<GateStepStatus, { label: string; className: string }> = {
@@ -100,7 +114,7 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
 }
 
 export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: string | null }) {
-  const [properties, setProperties] = useState<PropertyOption[]>([]);
+  const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertyId, setPropertyId] = useState<string>(initialPropertyId ?? "");
 
@@ -171,8 +185,63 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
       }
 
       if (cancelled) return;
-      setProperties(eligible);
+
+      // Group the eligible properties by portfolio: a channel account is
+      // inherited portfolio-wide, so the portfolio is onboarded once (anchored
+      // to its first eligible member) and its members leave the flat list.
+      let options: OnboardOption[] = eligible.map((p) => ({
+        id: p.id,
+        label: p.name,
+        kind: "property" as const,
+        memberCount: 1,
+      }));
+
+      if (eligible.length > 0) {
+        const eligibleIds = eligible.map((p) => p.id);
+        const { data: members } = await supabase
+          .from("property_portfolio_members")
+          .select("portfolio_id, property_id")
+          .in("property_id", eligibleIds);
+        const portfolioIds = [...new Set((members ?? []).map((m) => m.portfolio_id))];
+        if (portfolioIds.length > 0) {
+          const { data: portfolios } = await supabase
+            .from("property_portfolios")
+            .select("id, name")
+            .in("id", portfolioIds);
+          const names = new Map((portfolios ?? []).map((p) => [p.id, p.name as string]));
+          const order = new Map(eligible.map((p, i) => [p.id, i]));
+          const grouped = new Map<string, string[]>();
+          for (const m of members ?? []) {
+            if (!names.has(m.portfolio_id)) continue;
+            const list = grouped.get(m.portfolio_id) ?? [];
+            list.push(m.property_id);
+            grouped.set(m.portfolio_id, list);
+          }
+          const claimed = new Set<string>();
+          const portfolioOptions: OnboardOption[] = [];
+          for (const [pid, memberIds] of grouped) {
+            const sorted = [...memberIds].sort(
+              (a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0),
+            );
+            sorted.forEach((id) => claimed.add(id));
+            portfolioOptions.push({
+              id: sorted[0],
+              label: `${names.get(pid)} (portfolio · ${sorted.length} ${sorted.length === 1 ? "property" : "properties"})`,
+              kind: "portfolio",
+              memberCount: sorted.length,
+            });
+          }
+          options = [
+            ...portfolioOptions.sort((a, b) => a.label.localeCompare(b.label)),
+            ...options.filter((o) => !claimed.has(o.id)),
+          ];
+        }
+      }
+
+      if (cancelled) return;
+      setProperties(options);
       setPropertiesLoading(false);
+
     })();
     return () => {
       cancelled = true;
@@ -385,14 +454,15 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Onboard a property</CardTitle>
           <CardDescription className="text-xs">
-            Only properties with the Channel Manager add-on activated and a signed contract are listed. Pick one, clear
-            the Ready-to-sell gate, then run Step A and Step B.
+            Only properties and portfolios with the Channel Manager add-on activated and a signed contract are listed.
+            Portfolios are onboarded once — their member properties inherit the same channel account. Pick one, clear the
+            Ready-to-sell gate, then run Step A and Step B.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[260px] flex-1">
-              <Label className="text-xs">Property</Label>
+              <Label className="text-xs">Property or portfolio</Label>
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
@@ -400,19 +470,22 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
                   <SelectTrigger className="mt-1">
                     <SelectValue
                       placeholder={
-                        properties.length === 0 ? "No eligible properties (add-on + signed contract)" : "Select a property"
+                        properties.length === 0
+                          ? "Nothing eligible (add-on + signed contract)"
+                          : "Select a property or portfolio"
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
                     {properties.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.name}
+                        {p.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
+
 
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
