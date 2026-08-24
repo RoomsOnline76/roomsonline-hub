@@ -71,8 +71,8 @@ const LIVE_PROBE_GROUPS = /365d|availability|pricing/i;
 export function ruMandatoryCheckSummary(
   readiness: RuReadinessSignals | null | undefined,
   opts?: { liveProbeDegraded?: boolean },
-): { known: boolean; pass: boolean; percent: number } {
-  if (!readiness) return { known: false, pass: false, percent: 0 };
+): { known: boolean; pass: boolean; percent: number; outstanding: number } {
+  if (!readiness) return { known: false, pass: false, percent: 0, outstanding: 0 };
 
   const groups = readiness.groups ?? [];
   const gaps = Array.isArray(readiness.blocking_gaps) ? readiness.blocking_gaps : [];
@@ -105,6 +105,22 @@ export function ruMandatoryCheckSummary(
     percent = Math.round((readiness.checks_passed / readiness.checks_total) * 100);
   }
 
+  // How many mandatory items are still outstanding — used by the queue label.
+  let outstanding = groups.reduce(
+    (sum, g) => sum + (g.failed ?? []).filter((f) => f.mandatory !== false).length,
+    0,
+  );
+  if (outstanding === 0) {
+    if (
+      typeof readiness.mandatory_total === "number" &&
+      typeof readiness.mandatory_passed === "number"
+    ) {
+      outstanding = Math.max(0, readiness.mandatory_total - readiness.mandatory_passed);
+    } else {
+      outstanding = gaps.length;
+    }
+  }
+
   if (
     blocked &&
     opts?.liveProbeDegraded &&
@@ -113,11 +129,12 @@ export function ruMandatoryCheckSummary(
   ) {
     // Nothing about the property's own content is failing — the live verdict is
     // simply unavailable right now.
-    return { known: false, pass: false, percent };
+    return { known: false, pass: false, percent, outstanding };
   }
 
-  return { known: true, pass: !blocked, percent };
+  return { known: true, pass: !blocked, percent, outstanding: blocked ? outstanding : 0 };
 }
+
 
 
 /** Website bar uses the listing wizard only — never diluted by ROL Spec. */
