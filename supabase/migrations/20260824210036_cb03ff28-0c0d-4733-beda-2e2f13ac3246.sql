@@ -1,0 +1,1 @@
+GRANT ALL ON public.ru_roster_cache TO service_role;
