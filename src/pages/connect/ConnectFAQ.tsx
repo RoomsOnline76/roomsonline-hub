@@ -127,6 +127,12 @@ const FAQ_CATEGORIES = [
         q: "What happens after the first 60 days?",
         a: "The PMS subscription begins, and the add-ons you have chosen to keep are billed as set out in your agreement — channel manager per unit, white label, branding, revenue management, bring-your-own gateway. The booking fee on bookings taken through ROL'OS continues as before. We agree every amount with you in writing beforehand, and you can drop any add-on you do not want.",
       },
+      {
+        q: "Are payment gateway fees included in the free 60 days?",
+        a: "No. If you take payments through our payment gateway, the card processing fees on that gateway are payable by you — including during the free 60 days. Those are acquiring costs charged to us and passed through to you at cost. If you bring your own gateway, its fees stay with your provider and the ROL'OS gateway add-on applies from day 61.",
+      },
+
+
 
       {
         q: "What static content can I pull for a property?",
