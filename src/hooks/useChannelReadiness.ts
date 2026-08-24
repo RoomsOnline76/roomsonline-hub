@@ -69,10 +69,8 @@ export function useChannelReadiness(propertyId: string | null | undefined) {
     // Only the first (local) paint is a real loading state.
     isLoading: local.isLoading && !report,
     isPending: local.isPending && !report,
-    refetch: async () => {
-      await local.refetch();
-      return query.refetch();
-    },
+    refetch: () => local.refetch(),
+
     readiness,
   };
 
