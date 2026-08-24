@@ -616,9 +616,6 @@ export function ChannelOnboardTab({
           </Card>
 
           {/* 3 — the two steps. Owner binding and the account preview live in the Step A dialog. */}
-
-
-          {/* 4 — the two steps */}
           {renderStep("a")}
           {renderStep("b")}
         </>
