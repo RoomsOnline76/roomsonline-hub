@@ -2566,6 +2566,19 @@ async function verifyAvailability(
   return report;
 }
 
+/**
+ * Price read-backs are OPT-IN.
+ *
+ * ROL'OS is the source of truth for rates, so re-reading the channel's stored prices after every
+ * push was pure cost: each unit push fired `Pull_ListPropertyPrices_RQ` twice (post-push
+ * verification + coverage audit), and with the notification repull loop and the ARI refresh
+ * fan-out that reached thousands of price pulls a day. The read-back now only runs when a caller
+ * explicitly asks for it (`verify_readback: true`) — onboarding Step B, the certification suite,
+ * or an operator re-check. The transport-failure recovery read is deliberately NOT gated: it only
+ * fires when a push looked like it failed, and it prevents a false negative.
+ */
+let PRICE_READBACK_ENABLED = false;
+
 async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}, currency?: CurrencyDecision | null) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
@@ -2929,45 +2942,65 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
 
       } else {
         result.prices_pushed = true;
-        // 7.2 — Verify prices post-push
-        const priceVerification = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
-        result.prices_verification = priceVerification;
-        console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
 
-        // Independent coverage audit: derive the answer from the channel's own stored prices for the
-        // next year, not from the seasons we just sent. A read that could not be performed stays
-        // `unverified` instead of quietly passing.
-        try {
-          const coverage = await auditChannelPriceCoverage(supabase, {
-            propertyId: property.id,
-            ruPropertyId,
-            unitName: unit?.name ?? null,
-            roomTypeId: unit?.id ?? null,
-            childAuth,
-          });
-          result.price_coverage_audit = coverage;
-          result.prices_year_verified = coverage.verdict === 'verified';
-          await persistPriceCoverage(supabase, coverage, { details: { trigger: 'post_push' } });
-          console.log(`[pushARI] Price coverage audit RU ${ruPropertyId}: ${coverage.verdict} (${coverage.channel_priced_days}/${coverage.expected_days} nights priced at the channel)`);
-        } catch (coverageErr) {
-          console.warn('[pushARI] Price coverage audit failed:', coverageErr);
-        }
+        if (!PRICE_READBACK_ENABLED) {
+          // We authored these rates, the channel accepted the push, and nothing downstream reads
+          // the channel's copy — so no price pull happens here. Onboarding / certification / an
+          // operator re-check ask for the read-back explicitly (`verify_readback: true`).
+          console.log(`[pushARI] RU ${ruPropertyId}: price read-back skipped (ROL'OS is the source of truth)`);
+          try {
+            await supabase.from('sync_logs').insert({
+              property_id: property.id,
+              external_system: 'rentals_united',
+              sync_type: 'prices_verification',
+              status: 'success',
+              message: `Prices pushed; channel read-back skipped (ROL'OS is the source of truth) — ${priceEntries.length} season(s) sent (${result.price_coverage?.summary ?? 'coverage unknown'})`,
+              request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3), rate_coverage: result.price_coverage ?? null },
+              response_data: { verification: null, readback: 'skipped' },
+            });
+          } catch (logErr) {
+            console.warn(`[pushARI] Failed to persist price push log:`, logErr);
+          }
+        } else {
+          // 7.2 — Verify prices post-push
+          const priceVerification = await verifyPrices(supabase, ruPropertyId, outboundPrices, todayStr, oneYearStr, childAuth);
+          result.prices_verification = priceVerification;
+          console.log(`[pushARI] Price verification: ${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates${priceVerification.error ? ` (error: ${priceVerification.error})` : ''}`);
 
-        try {
-          await supabase.from('sync_logs').insert({
-            property_id: property.id,
-            external_system: 'rentals_united',
-            sync_type: 'prices_verification',
-            status: priceVerification.error ? 'error' : (priceVerification.mismatches.length === 0 && priceVerification.missing_dates.length === 0 ? 'success' : 'partial'),
-            message: priceVerification.error
-              ? `Price verification error: ${priceVerification.error}`
-              : `${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates (${result.price_coverage?.summary ?? 'coverage unknown'})`,
-            request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3), rate_coverage: result.price_coverage ?? null },
-            response_data: { verification: { ...priceVerification, missing_dates: priceVerification.missing_dates.slice(0, 50) } },
+          // Independent coverage audit: derive the answer from the channel's own stored prices for the
+          // next year, not from the seasons we just sent. A read that could not be performed stays
+          // `unverified` instead of quietly passing.
+          try {
+            const coverage = await auditChannelPriceCoverage(supabase, {
+              propertyId: property.id,
+              ruPropertyId,
+              unitName: unit?.name ?? null,
+              roomTypeId: unit?.id ?? null,
+              childAuth,
+            });
+            result.price_coverage_audit = coverage;
+            result.prices_year_verified = coverage.verdict === 'verified';
+            await persistPriceCoverage(supabase, coverage, { details: { trigger: 'post_push' } });
+            console.log(`[pushARI] Price coverage audit RU ${ruPropertyId}: ${coverage.verdict} (${coverage.channel_priced_days}/${coverage.expected_days} nights priced at the channel)`);
+          } catch (coverageErr) {
+            console.warn('[pushARI] Price coverage audit failed:', coverageErr);
+          }
 
-          });
-        } catch (logErr) {
-          console.warn(`[pushARI] Failed to persist price verification log:`, logErr);
+          try {
+            await supabase.from('sync_logs').insert({
+              property_id: property.id,
+              external_system: 'rentals_united',
+              sync_type: 'prices_verification',
+              status: priceVerification.error ? 'error' : (priceVerification.mismatches.length === 0 && priceVerification.missing_dates.length === 0 ? 'success' : 'partial'),
+              message: priceVerification.error
+                ? `Price verification error: ${priceVerification.error}`
+                : `${priceVerification.matches}/${priceVerification.total_seasons} seasons matched, ${priceVerification.mismatches.length} mismatches, ${priceVerification.missing_dates.length} missing dates (${result.price_coverage?.summary ?? 'coverage unknown'})`,
+              request_data: { ru_property_id: ruPropertyId, unit_id: unit?.id ?? null, seasons: priceEntries.length, sample: priceEntries.slice(0, 3), rate_coverage: result.price_coverage ?? null },
+              response_data: { verification: { ...priceVerification, missing_dates: priceVerification.missing_dates.slice(0, 50) } },
+            });
+          } catch (logErr) {
+            console.warn(`[pushARI] Failed to persist price verification log:`, logErr);
+          }
         }
       }
     } catch (e) { result.prices_error = e instanceof Error ? e.message : 'Unknown error'; }
@@ -3162,6 +3195,12 @@ Deno.serve(async (req) => {
   try {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action, batch_size, batch_id: incomingBatchId } = reqBody;
+    /**
+     * Price read-back opt-in. Onboarding Step B, the certification suite and an operator re-check
+     * send `verify_readback: true`; every routine save, booking-driven refresh, cron refresh and
+     * notification re-push leaves it off so no `Pull_ListPropertyPrices_RQ` is issued.
+     */
+    PRICE_READBACK_ENABLED = reqBody.verify_readback === true;
     /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a

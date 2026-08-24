@@ -3398,7 +3398,7 @@ Deno.serve(async (req) => {
       const pushes: Record<string, unknown>[] = [];
       for (let i = 0; i < passes; i++) {
         const { data: pushData, error: pushErr } = await admin.functions.invoke("push-property-to-ru", {
-          body: { property_id: propertyId, action: "refresh_ari", trigger: `cert_${action}_pass${i + 1}` },
+          body: { property_id: propertyId, action: "refresh_ari", verify_readback: true, trigger: `cert_${action}_pass${i + 1}` },
         });
         pushes.push({
           pass: i + 1,
@@ -3521,7 +3521,7 @@ Deno.serve(async (req) => {
       const pushes: Record<string, unknown>[] = [];
       for (let i = 0; i < passes; i++) {
         const { data: pushData, error: pushErr } = await admin.functions.invoke("push-property-to-ru", {
-          body: { property_id: propertyId, action: "refresh_ari", trigger: `cert_${action}_pass${i + 1}` },
+          body: { property_id: propertyId, action: "refresh_ari", verify_readback: true, trigger: `cert_${action}_pass${i + 1}` },
         });
         pushes.push({
           pass: i + 1,
@@ -8086,7 +8086,7 @@ Deno.serve(async (req) => {
           // Content + ARI push via the property pipeline (keeps payload mapping in one place)
           for (const [name, fnBody, method] of [
             ["Push property content", { property_id: propertyId }, "Push_PutProperty_RQ"],
-            ["Push availability + prices (ARI)", { property_id: propertyId, action: "push_ari" }, "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
+            ["Push availability + prices (ARI)", { property_id: propertyId, action: "push_ari", verify_readback: true }, "Push_PutAvbUnits_RQ + Push_PutPrices_RQ"],
           ] as [string, Record<string, unknown>, string][]) {
             stepNo += 1;
             const t0 = Date.now();

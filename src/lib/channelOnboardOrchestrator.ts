@@ -502,6 +502,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
+        // Onboarding is the one flow that must prove the channel holds our rates, so it asks for
+        // the price read-back explicitly. Routine saves never do.
+        verifyReadback: true,
         ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });
