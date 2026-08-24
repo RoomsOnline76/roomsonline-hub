@@ -190,13 +190,37 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   const freeHead = `Days 1–${estimate.freeDays}`;
   const steadyHead = `From day ${estimate.freeDays + 1}`;
 
+  /** Overwrite the single remembered setup — never adds a second one. */
+  const saveCurrent = () => {
+    const at = new Date().toISOString();
+    const payload: SavedEstimatorState = {
+      presetId: preset?.id ?? null,
+      rows,
+      bookings,
+      bookingValue,
+      paymentMode,
+      widgetBookings,
+      widgetValue,
+      widgetMode,
+      addOns,
+      savedAt: at,
+    };
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(payload));
+      setSavedAt(at);
+      toast.success("Estimator setup saved", { description: "This is now the setup the estimator opens with." });
+    } catch {
+      toast.error("Could not save the estimator setup");
+    }
+  };
+
   return (
     <Card>
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="py-3 cursor-pointer">
-            <div className="flex items-center justify-between gap-3">
-              <div>
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between gap-3">
+            <CollapsibleTrigger asChild>
+              <div className="flex-1 cursor-pointer">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Calculator className="h-4 w-4 text-primary" /> Cost estimator
                   <span className="text-xs font-normal text-muted-foreground">
@@ -207,11 +231,29 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
                 <CardDescription className="text-xs">
                   Tick or change anything on the left — the {freeHead.toLowerCase()} and day {estimate.freeDays + 1}{" "}
                   costs update on the same line.
+                  {savedAt && (
+                    <span className="ml-1 text-muted-foreground">
+                      Last saved {new Date(savedAt).toLocaleString()}.
+                    </span>
+                  )}
                 </CardDescription>
               </div>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+            </CollapsibleTrigger>
+            <div className="flex items-center gap-1.5">
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={saveCurrent}>
+                <Save className="h-3.5 w-3.5 mr-1" /> Save setup
+              </Button>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <ChevronDown
+                    className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
             </div>
-          </CardHeader>
+          </div>
+        </CardHeader>
+
         </CollapsibleTrigger>
 
         <CollapsibleContent>
