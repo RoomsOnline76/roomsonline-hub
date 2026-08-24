@@ -47,7 +47,7 @@ const COMPARISON = [
   { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
   { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
   { feature: "Night Audit Automation", rolos: true, others: false, othersNote: "Manual process" },
-  { feature: "No Monthly Subscription", rolos: true, others: false, othersNote: "Fixed monthly tiers" },
+  { feature: "No Subscription for Your First 60 Days", rolos: true, others: false, othersNote: "Fixed monthly tiers from day one" },
 ];
 
 const TRUST_LOGOS = ["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"];
