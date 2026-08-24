@@ -24,6 +24,20 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { DateRange } from "react-day-picker";
 import { toast } from "sonner";
 import { isRevenuePaymentStatus, isChannelSettled } from "@/lib/revenueStatuses";
+import {
+  addToOtbSplit,
+  buildBookingCurve,
+  daysBetween,
+  emptyOtbSplit,
+  forecastWithPickup,
+  isDeadBooking,
+  provisionalRealisationRate,
+  stlyCutoff,
+  summariseOtb,
+  wasOnBooksAt,
+  type OtbSplit,
+  type PulseBookingLike,
+} from "@/lib/pulseOnTheBooks";
 
 // Colors for pie charts - using HSL values that work in both light/dark modes
 const PIE_COLORS = [
@@ -326,6 +340,36 @@ const Dashboard = () => {
     return filteredProperties.map(p => p.id);
   }, [filteredProperties, selectedPropertyId]);
 
+  /**
+   * PMS reservations carry their settlements in a `payments` array rather than
+   * the flat columns native bookings use. Normalising the cash here is what lets
+   * the on-the-books view separate paid, deposit-only and unpaid business.
+   */
+  const normalizePmsReservation = useCallback((res: any) => {
+    const total = Number(res.total_amount || 0);
+    const paid = Array.isArray(res.payments)
+      ? res.payments.reduce((sum: number, p: any) => {
+          const amount = Number(p?.amount ?? p?.value ?? 0);
+          return sum + (Number.isFinite(amount) ? amount : 0);
+        }, 0)
+      : 0;
+    return {
+      id: res.id,
+      property_id: res.property_id,
+      check_in_date: res.arrival_date,
+      check_out_date: res.departure_date,
+      total_price: total,
+      status: (res.status || 'pending').toLowerCase(),
+      guest_name: res.contact_name,
+      guest_email: res.contact_email,
+      created_at: res.created_at,
+      amount_paid: paid,
+      balance_due: Math.max(0, total - paid),
+      payment_status: paid <= 0 ? 'unpaid' : paid + 0.01 >= total ? 'paid' : 'partial',
+      source: 'pms',
+    };
+  }, []);
+
   // Fetch current period bookings (from both internal bookings and PMS reservations)
   const { data: bookings = [], isLoading: bookingsLoading } = useQuery({
     queryKey: ["dashboard-bookings", propertyIds, dateRange],
@@ -349,18 +393,7 @@ const Dashboard = () => {
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
       // Normalize PMS reservations to match booking structure
-      const normalizedPmsBookings = (pmsResult.data || []).map(res => ({
-        id: res.id,
-        property_id: res.property_id,
-        check_in_date: res.arrival_date,
-        check_out_date: res.departure_date,
-        total_price: res.total_amount || 0,
-        status: (res.status || 'pending').toLowerCase(),
-        guest_name: res.contact_name,
-        guest_email: res.contact_email,
-        created_at: res.created_at,
-        source: 'pms',
-      }));
+      const normalizedPmsBookings = (pmsResult.data || []).map(normalizePmsReservation);
       
       const internalBookings = (internalResult.data || []).map(b => ({ ...b, source: 'internal' }));
       
@@ -391,18 +424,7 @@ const Dashboard = () => {
       const [internalResult, pmsResult] = await Promise.all([internalQuery, pmsQuery]);
       
       // Normalize PMS reservations
-      const normalizedPmsBookings = (pmsResult.data || []).map(res => ({
-        id: res.id,
-        property_id: res.property_id,
-        check_in_date: res.arrival_date,
-        check_out_date: res.departure_date,
-        total_price: res.total_amount || 0,
-        status: (res.status || 'pending').toLowerCase(),
-        guest_name: res.contact_name,
-        guest_email: res.contact_email,
-        created_at: res.created_at,
-        source: 'pms',
-      }));
+      const normalizedPmsBookings = (pmsResult.data || []).map(normalizePmsReservation);
       
       const internalBookings = (internalResult.data || []).map(b => ({ ...b, source: 'internal' }));
       
@@ -410,6 +432,55 @@ const Dashboard = () => {
     },
     enabled: propertyIds.length > 0 && comparePrevYear && !!prevYearDateRange,
   });
+
+  /**
+   * Booking-curve history: bookings that have already arrived, used to learn how
+   * far ahead this portfolio sells. Without it, future periods could only be
+   * forecast blind — the very problem that hid on-the-books business.
+   */
+  const { data: pickupHistory = [] } = useQuery({
+    queryKey: ["dashboard-pickup-history", propertyIds],
+    queryFn: async () => {
+      if (propertyIds.length === 0) return [] as PulseBookingLike[];
+      const today = format(new Date(), "yyyy-MM-dd");
+      const from = format(subMonths(new Date(), 24), "yyyy-MM-dd");
+
+      const [internalResult, pmsResult] = await Promise.all([
+        supabase
+          .from("bookings")
+          .select("check_in_date, check_out_date, created_at, total_price, status")
+          .in("property_id", propertyIds)
+          .gte("check_in_date", from)
+          .lt("check_in_date", today),
+        supabase
+          .from("pms_reservations")
+          .select("arrival_date, departure_date, created_at, total_amount, status")
+          .in("property_id", propertyIds)
+          .gte("arrival_date", from)
+          .lt("arrival_date", today),
+      ]);
+
+      const pms: PulseBookingLike[] = (pmsResult.data || []).map((res: any) => ({
+        check_in_date: res.arrival_date,
+        check_out_date: res.departure_date,
+        created_at: res.created_at,
+        total_price: res.total_amount || 0,
+        status: (res.status || "pending").toLowerCase(),
+      }));
+      return [...((internalResult.data || []) as PulseBookingLike[]), ...pms];
+    },
+    enabled: propertyIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  /** How this portfolio sells: lead-time curve + provisional conversion rate. */
+  const pickupModel = useMemo(
+    () => ({
+      curve: buildBookingCurve(pickupHistory),
+      realisation: provisionalRealisationRate(pickupHistory),
+    }),
+    [pickupHistory],
+  );
 
   // Filter bookings by selected property
   const filteredBookings = useMemo(() => {
@@ -481,12 +552,50 @@ const Dashboard = () => {
     const prevOccupancy = availableNights > 0 ? (prevBookedNights / availableNights) * 100 : 0;
     const prevRevpar = availableNights > 0 ? prevTotalRevenue / availableNights : 0;
     
+    // === On-the-books (future arrivals inside the period) ===
+    // Business already sold for dates still to come. Reported separately so a
+    // forward-looking period reads as "held" rather than "achieved".
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const futureArrivals = filteredBookings.filter(b => {
+      if (!b.check_in_date) return false;
+      return new Date(b.check_in_date) >= todayStart;
+    });
+    const otb = summariseOtb(futureArrivals as PulseBookingLike[]);
+    const periodHasFuture = !!dateRange?.to && dateRange.to >= todayStart;
+
     // Y-o-Y % changes
     const calcYoY = (current: number, prev: number) => {
       if (prev === 0) return current > 0 ? 100 : 0;
       return ((current - prev) / prev) * 100;
     };
-    
+
+    // Pace (same-time-last-year) baseline: for forward-looking periods, compare
+    // only against prior-year business that was already sold at the equivalent
+    // point in the cycle. Comparing today's part-sold period against a fully
+    // matured prior year would show a false collapse.
+    const cutoff = stlyCutoff();
+    const stlyBookings = filteredPrevYearBookings.filter(
+      b => !isDeadBooking(b as PulseBookingLike) && wasOnBooksAt(b as PulseBookingLike, cutoff),
+    );
+    const stlyRevenue = stlyBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+    const stlyNights = stlyBookings.reduce((sum, b) => {
+      if (b.check_in_date && b.check_out_date) {
+        return sum + Math.max(1, differenceInDays(new Date(b.check_out_date), new Date(b.check_in_date)));
+      }
+      return sum + 1;
+    }, 0);
+    const stlyAdr = stlyBookings.length > 0 ? stlyRevenue / stlyBookings.length : 0;
+    const stlyOccupancy = availableNights > 0 ? (stlyNights / availableNights) * 100 : 0;
+    const stlyRevpar = availableNights > 0 ? stlyRevenue / availableNights : 0;
+
+    // Forward-looking periods compare pace-to-pace; settled periods compare final-to-final.
+    const baseBookings = periodHasFuture ? stlyBookings.length : prevTotalBookings;
+    const baseRevenue = periodHasFuture ? stlyRevenue : prevTotalRevenue;
+    const baseAdr = periodHasFuture ? stlyAdr : prevAdr;
+    const baseOccupancy = periodHasFuture ? stlyOccupancy : prevOccupancy;
+    const baseRevpar = periodHasFuture ? stlyRevpar : prevRevpar;
+
     return {
       totalBookings,
       confirmedBookings,
@@ -501,13 +610,26 @@ const Dashboard = () => {
       occupancy,
       bookedNights,
       availableNights,
-      // Y-o-Y changes
-      yoyBookings: calcYoY(totalBookings, prevTotalBookings),
+      // On-the-books
+      periodHasFuture,
+      otbBookings: otb.bookings,
+      otbFirmBookings: otb.firmBookings,
+      otbProvisionalBookings: otb.provisionalBookings,
+      otbRevenue: otb.revenue,
+      otbFirmRevenue: otb.firmRevenue,
+      otbProvisionalRevenue: otb.provisionalRevenue,
+      otbPaid: otb.paid,
+      otbDeposit: otb.deposit,
+      otbOutstanding: otb.outstanding,
+      otbNights: otb.nights,
+      // Y-o-Y changes (pace-aware for forward-looking periods)
+      yoyIsPace: periodHasFuture,
+      yoyBookings: calcYoY(totalBookings, baseBookings),
       yoyCancellations: calcYoY(cancelledBookings, prevCancelledBookings),
-      yoyRevenue: calcYoY(totalRevenue, prevTotalRevenue),
-      yoyAdr: calcYoY(adr, prevAdr),
-      yoyRevpar: calcYoY(revpar, prevRevpar),
-      yoyOccupancy: occupancy - prevOccupancy, // Absolute difference for occupancy
+      yoyRevenue: calcYoY(totalRevenue, baseRevenue),
+      yoyAdr: calcYoY(adr, baseAdr),
+      yoyRevpar: calcYoY(revpar, baseRevpar),
+      yoyOccupancy: occupancy - baseOccupancy, // Absolute difference for occupancy
     };
   }, [filteredBookings, filteredPrevYearBookings, properties, roomsByProperty, dateRange, selectedPropertyId]);
 
@@ -561,6 +683,13 @@ const Dashboard = () => {
       "Bookings",
       "Cancellations",
       "Revenue",
+      "On The Books Bookings",
+      "On The Books Revenue",
+      "OTB Confirmed Revenue",
+      "OTB Provisional Revenue",
+      "OTB Paid",
+      "OTB Deposit Only",
+      "OTB Outstanding",
       "SMA Bookings (Trend)",
       "SMA Revenue (Trend)",
       "Forecast Bookings",
@@ -573,7 +702,7 @@ const Dashboard = () => {
       "Forecast Revenue Lower 80%",
       "Forecast Revenue Upper 95%",
       "Forecast Revenue Lower 95%",
-      ...(comparePrevYear ? ["Prev Year Bookings", "Prev Year Cancellations", "Prev Year Revenue"] : [])
+      ...(comparePrevYear ? ["Prev Year Bookings", "Prev Year Cancellations", "Prev Year Revenue", "STLY Bookings (pace)", "STLY Revenue (pace)"] : [])
     ];
     
     const rows = chartData.map(d => [
@@ -582,6 +711,13 @@ const Dashboard = () => {
       d.bookings,
       d.cancellations,
       d.revenue,
+      d.otbBookings ?? "",
+      d.otbRevenue ?? "",
+      d.otbFirmRevenue ?? "",
+      d.otbProvisionalRevenue ?? "",
+      d.otbPaid ?? "",
+      d.otbDeposit ?? "",
+      d.otbOutstanding ?? "",
       d.smaBookings ?? "",
       d.smaRevenue ?? "",
       d.forecastBookings ?? "",
@@ -594,7 +730,7 @@ const Dashboard = () => {
       d.forecastRevenueLower80 ?? "",
       d.forecastRevenueUpper95 ?? "",
       d.forecastRevenueLower95 ?? "",
-      ...(comparePrevYear ? [d.prevBookings ?? "", d.prevCancellations ?? "", d.prevRevenue ?? ""] : [])
+      ...(comparePrevYear ? [d.prevBookings ?? "", d.prevCancellations ?? "", d.prevRevenue ?? "", d.stlyBookings ?? "", d.stlyRevenue ?? ""] : [])
     ]);
     
     const csvContent = [
@@ -836,11 +972,25 @@ const Dashboard = () => {
       // Gap detection
       isDataGap?: boolean;
       isInterpolated?: boolean;
+      // On-the-books (future periods): business already sold for this date
+      isFuture?: boolean;
+      split?: OtbSplit;
+      otbBookings?: number;
+      otbRevenue?: number;
+      otbFirmRevenue?: number;
+      otbProvisionalRevenue?: number;
+      otbPaid?: number;
+      otbDeposit?: number;
+      otbOutstanding?: number;
+      /** Prior-year value at the equivalent point in the booking cycle. */
+      stlyBookings?: number;
+      stlyRevenue?: number;
     }
     
     const data: ChartDataPoint[] = [];
     const today = new Date();
     today.setHours(23, 59, 59, 999);
+    const paceCutoff = stlyCutoff();
     
     if (shouldAggregateByMonth) {
       // Aggregate by month
@@ -862,6 +1012,10 @@ const Dashboard = () => {
             prevBookings: 0,
             prevRevenue: 0,
             prevCancellations: 0,
+            stlyBookings: 0,
+            stlyRevenue: 0,
+            isFuture: endOfMonth(current) > today,
+            split: emptyOtbSplit(),
           });
         }
         current.setMonth(current.getMonth() + 1);
@@ -877,6 +1031,7 @@ const Dashboard = () => {
           if (b.status !== "cancelled") {
             entry.bookings++;
             entry.revenue += Number(b.total_price || 0);
+            addToOtbSplit(entry.split!, b as PulseBookingLike);
           } else {
             entry.cancellations++;
           }
@@ -897,6 +1052,12 @@ const Dashboard = () => {
             if (b.status !== "cancelled") {
               entry.prevBookings = (entry.prevBookings || 0) + 1;
               entry.prevRevenue = (entry.prevRevenue || 0) + Number(b.total_price || 0);
+              // Same-time-last-year: only what had actually been sold by this
+              // point in the prior year's cycle.
+              if (wasOnBooksAt(b as PulseBookingLike, paceCutoff)) {
+                entry.stlyBookings = (entry.stlyBookings || 0) + 1;
+                entry.stlyRevenue = (entry.stlyRevenue || 0) + Number(b.total_price || 0);
+              }
             } else {
               entry.prevCancellations = (entry.prevCancellations || 0) + 1;
             }
@@ -922,14 +1083,19 @@ const Dashboard = () => {
           { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === dateStr; }
         );
         
+        // Future dates are no longer zeroed: what is already sold for that night
+        // is real business and belongs on the chart.
+        const liveBookings = dayBookings.filter(b => !isDeadBooking(b as PulseBookingLike));
+        const split = summariseOtb(dayBookings as PulseBookingLike[]);
+        
         const entry: ChartDataPoint = {
           date: dateStr,
           label,
-          bookings: isFuture ? 0 : dayBookings.filter(b => b.status !== "cancelled").length,
-          revenue: isFuture ? 0 : dayBookings
-            .filter(b => b.status !== "cancelled")
-            .reduce((sum, b) => sum + Number(b.total_price || 0), 0),
-          cancellations: isFuture ? 0 : dayBookings.filter(b => b.status === "cancelled").length,
+          isFuture,
+          split,
+          bookings: liveBookings.length,
+          revenue: split.revenue,
+          cancellations: dayBookings.filter(b => b.status === "cancelled").length,
         };
         
         // Add previous year data
@@ -939,18 +1105,33 @@ const Dashboard = () => {
           const prevDayBookings = prevYearBookings.filter(b => 
             { const sd = stayDateOf(b); return !!sd && format(sd, "yyyy-MM-dd") === prevDateStr; }
           );
+          const prevLive = prevDayBookings.filter(b => b.status !== "cancelled");
           
-          entry.prevBookings = prevDayBookings.filter(b => b.status !== "cancelled").length;
-          entry.prevRevenue = prevDayBookings
-            .filter(b => b.status !== "cancelled")
-            .reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+          entry.prevBookings = prevLive.length;
+          entry.prevRevenue = prevLive.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
           entry.prevCancellations = prevDayBookings.filter(b => b.status === "cancelled").length;
+          
+          const prevPace = prevLive.filter(b => wasOnBooksAt(b as PulseBookingLike, paceCutoff));
+          entry.stlyBookings = prevPace.length;
+          entry.stlyRevenue = prevPace.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
         }
         
         data.push(entry);
         current.setDate(current.getDate() + 1);
       }
     }
+    
+    // Publish the OTB split as flat fields for the charts, tooltips and CSV.
+    data.forEach(d => {
+      const s = d.split || emptyOtbSplit();
+      d.otbBookings = s.bookings;
+      d.otbRevenue = Math.round(s.revenue);
+      d.otbFirmRevenue = Math.round(s.firmRevenue);
+      d.otbProvisionalRevenue = Math.round(s.provisionalRevenue);
+      d.otbPaid = Math.round(s.paid);
+      d.otbDeposit = Math.round(s.deposit);
+      d.otbOutstanding = Math.round(s.outstanding);
+    });
     
     // === Gap Detection and Interpolation ===
     // Detect consecutive zero periods (data gaps) in actual data
@@ -1059,18 +1240,62 @@ const Dashboard = () => {
           lastActual.forecastRevenueLower95 = lastActual.revenue;
         }
         
-        // Apply forecasts to future data with widening confidence intervals
+        /**
+         * Future periods = what we already hold + what history says still books.
+         * The statistical model alone ignored on-the-books business, so a
+         * heavily pre-sold month could be forecast below what was already paid
+         * for. Uncertainty now applies to the pickup component only, and the
+         * bands never fall below firm (confirmed) business.
+         */
+        const now = new Date();
         futureData.forEach((d, i) => {
-          d.forecastBookings = Math.round(bookingForecast.forecast[i] || 0);
-          d.forecastBookingsUpper80 = Math.round(bookingForecast.upper80[i] || 0);
-          d.forecastBookingsLower80 = Math.round(bookingForecast.lower80[i] || 0);
-          d.forecastBookingsUpper95 = Math.round(bookingForecast.upper95[i] || 0);
-          d.forecastBookingsLower95 = Math.round(bookingForecast.lower95[i] || 0);
-          d.forecastRevenue = Math.round(revenueForecast.forecast[i] || 0);
-          d.forecastRevenueUpper80 = Math.round(revenueForecast.upper80[i] || 0);
-          d.forecastRevenueLower80 = Math.round(revenueForecast.lower80[i] || 0);
-          d.forecastRevenueUpper95 = Math.round(revenueForecast.upper95[i] || 0);
-          d.forecastRevenueLower95 = Math.round(revenueForecast.lower95[i] || 0);
+          const arrival = d.date.length === 7 ? new Date(`${d.date}-01T00:00:00`) : new Date(`${d.date}T00:00:00`);
+          const daysOut = Math.max(0, daysBetween(now, arrival));
+          const split = d.split || emptyOtbSplit();
+
+          const revenueView = forecastWithPickup({
+            otb: split.revenue,
+            firm: split.firmRevenue,
+            daysOut,
+            curve: pickupModel.curve,
+            realisation: pickupModel.realisation,
+            trend: revenueForecast.forecast[i] ?? null,
+          });
+          const bookingsView = forecastWithPickup({
+            otb: split.bookings,
+            firm: split.firmBookings,
+            daysOut,
+            curve: pickupModel.curve,
+            realisation: pickupModel.realisation,
+            trend: bookingForecast.forecast[i] ?? null,
+          });
+
+          // Pickup is the only uncertain part, and it gets less certain the
+          // further out the arrival sits.
+          const spread = Math.min(0.9, 0.3 + i * 0.04);
+          const bandFor = (view: typeof revenueView, z: number) => {
+            const sigma = view.pickup * spread;
+            return {
+              upper: view.forecast + z * sigma,
+              lower: Math.max(view.floor, view.forecast - z * sigma),
+            };
+          };
+
+          const rev80 = bandFor(revenueView, 1.28);
+          const rev95 = bandFor(revenueView, 1.96);
+          const bkg80 = bandFor(bookingsView, 1.28);
+          const bkg95 = bandFor(bookingsView, 1.96);
+
+          d.forecastBookings = Math.round(bookingsView.forecast);
+          d.forecastBookingsUpper80 = Math.round(bkg80.upper);
+          d.forecastBookingsLower80 = Math.round(bkg80.lower);
+          d.forecastBookingsUpper95 = Math.round(bkg95.upper);
+          d.forecastBookingsLower95 = Math.round(bkg95.lower);
+          d.forecastRevenue = Math.round(revenueView.forecast);
+          d.forecastRevenueUpper80 = Math.round(rev80.upper);
+          d.forecastRevenueLower80 = Math.round(rev80.lower);
+          d.forecastRevenueUpper95 = Math.round(rev95.upper);
+          d.forecastRevenueLower95 = Math.round(rev95.lower);
         });
       } else if (dataForAnalysis.length > 0) {
         // For fully historical ranges, show extended trend/forecast line
@@ -1099,7 +1324,7 @@ const Dashboard = () => {
     }
     
     return data;
-  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth, stayDateOf]);
+  }, [bookings, prevYearBookings, dateRange, comparePrevYear, shouldAggregateByMonth, stayDateOf, pickupModel]);
 
   return (
     <AppLayout>
