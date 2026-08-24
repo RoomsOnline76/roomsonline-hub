@@ -144,10 +144,13 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
 export function ChannelOnboardTab({
   initialPropertyId,
   initialPortfolioId,
+  /** Deep link from the onboarding queue for an already-connected property. */
+  focusConnect = false,
   onSelectionChange,
 }: {
   initialPropertyId?: string | null;
   initialPortfolioId?: string | null;
+  focusConnect?: boolean;
   onSelectionChange?: (propertyId: string) => void;
 }) {
   const [properties, setProperties] = useState<OnboardOption[]>([]);
@@ -167,6 +170,10 @@ export function ChannelOnboardTab({
 
 
   const gate = useChannelOnboardGate(propertyId || null);
+
+  /** The white-label connector frame — the landing target for "Configure channels". */
+  const connectFrameRef = useRef<HTMLDivElement | null>(null);
+  const scrolledToConnect = useRef(false);
 
   const [taskStates, setTaskStates] = useState<Record<string, TaskState>>({});
   const [runningStep, setRunningStep] = useState<ChannelOnboardStep | null>(null);
@@ -801,7 +808,7 @@ export function ChannelOnboardTab({
 
           {/* 4 — Connect channels via the white-label integration, once Step B completes. */}
           {gate.stepBStatus === "passed" && (
-            <Card>
+            <Card ref={connectFrameRef}>
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
