@@ -17982,12 +17982,43 @@ export type Database = {
         Args: { _property_id: string; _room_type_id: string }
         Returns: number
       }
+      ru_api_log_endpoint_stats: {
+        Args: { _hours?: number }
+        Returns: {
+          action: string
+          avg_ms: number
+          deferred: number
+          direction: string
+          failed: number
+          last_at: string
+          ok: number
+          p95_ms: number
+          req_bytes: number
+          res_bytes: number
+          total: number
+        }[]
+      }
       ru_api_log_facets: {
         Args: { _days?: number }
         Returns: {
           count: number
           kind: string
           value: string
+        }[]
+      }
+      ru_api_log_traffic_pulse: {
+        Args: never
+        Returns: {
+          calls: number
+          deferred: number
+          failed: number
+          inbound: number
+          ok: number
+          p50_ms: number
+          p95_ms: number
+          req_bytes: number
+          res_bytes: number
+          window_minutes: number
         }[]
       }
       ru_claim_queued_call: {
