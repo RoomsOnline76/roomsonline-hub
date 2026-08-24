@@ -721,7 +721,21 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
   // against the channel (which is what closed the rate window in the first place).
   const startIndex = ctx.startAtTaskId ? Math.max(0, allTasks.findIndex((t) => t.id === ctx.startAtTaskId)) : 0;
   const tasks = allTasks.slice(startIndex);
+  const stepKeyForLedger = step === "a" ? "monitor_step_a" : "monitor_step_b";
+  /**
+   * A resume must not erase the legs it deliberately skipped. Recording only the resumed
+   * tasks left the earlier ones (review, push) with no outcome on the ledger, so a passed
+   * step rendered them as never-run. Carry their last recorded outcome forward instead.
+   */
+  const recordedTasks =
+    ((snapshot.steps?.[stepKeyForLedger]?.details as { tasks?: TaskResult[] } | null | undefined)?.tasks ?? [])
+      .filter((r): r is TaskResult => Boolean(r && typeof r.id === "string"));
+  const carriedResults: TaskResult[] = allTasks
+    .slice(0, startIndex)
+    .map((t) => recordedTasks.find((r) => r.id === t.id))
+    .filter((r): r is TaskResult => Boolean(r));
   const results: TaskResult[] = [];
+
   let pending = false;
   let failed = false;
   let retryAfterMs: number | undefined;
