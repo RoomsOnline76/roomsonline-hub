@@ -1087,6 +1087,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Cadence */}
         {shows("cadence") && (
