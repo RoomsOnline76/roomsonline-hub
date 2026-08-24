@@ -1,32 +1,40 @@
-# Step A: one "Preview account" modal, no separate company push
+# Channel Monitor: strip the dead sub-tabs, consolidate engineering surfaces
 
-Step A's preview becomes a full modal that shows exactly what will happen, carries the owner binding controls and the distribution account manager, and lists the company details that will be sent. The separate "Accounts & Company" rail tab is removed, and pushing company details is no longer a manual action.
+The left rail goes from nine items to five: Onboard Property, Accounts & Company, Cost Monitor, Cert Status & Logs, Advanced (Dev only). Everything an engineer needs but an operator never touches ends up in Advanced; the rest is deleted.
 
-## What the modal contains
+## Rail after the change
 
-Opened from Step A's "Preview account" button (loads the plan preview before it renders):
+```text
+Onboard Property        (unchanged)
+Accounts & Company      (unchanged)
+Cost Monitor            (unchanged — keeps the single "Reconcile with channel" panel)
+Cert Status & Logs      (certification console + channel step ledger)
+Advanced (Dev only)     (call queue + exchange log + cert runs + refresh compliance
+                         + error handling + sync observability)
+```
 
-1. **What will happen** — plain-language outcome: create a new distribution account or adopt the existing one, the login email and where it came from, contact first/last name, account scope (this property only, or portfolio-wide with the member count), country/location resolution, and the OwnerID when one already exists. Any warnings from the preview (shared platform login skipped, already linked to a different login, no resolvable location) are shown as amber notices, and a blocking reason disables the confirm action.
-2. **Owner binding** — the panel currently on the Onboard tab and the corrections previously only possible on the Accounts tab: owner email, account login, scope, listing state, plus "Re-assign to owner email" with the existing confirm dialog. Corrections are made here.
-3. **Distribution account management** — moved out of the retired rail tab: the account list for the selected property/portfolio with create, archive, key/secret storage, password save, verify, and OwnerID visibility. The "Push company details" button and its result block are not carried over.
-4. **Company details to be sent** — collapsed by default. Expanded it lists every field that goes to the channel with its resolved value and where it came from (property name/portfolio name, address, city, country, postal code, phone, website, contact name, VAT/registration, legal representative fields). An "Edit company details" link deep-links to the property editor's Company Information frame, which opens in a new tab so the modal state is not lost.
-5. **Footer** — "Run Step A" (runs the same task chain with the previewed identity confirmed) and "Close".
+## Deletions
 
-## Company details push
+- **Property Binding** — removed as a rail item. The building-container panel is deleted, and its "Reconcile with channel" duplicate goes with it (the Cost Monitor copy stays as the only one).
+- **Room & Rate Mapping** — removed entirely, including the "Open certification coverage" shortcut.
+- **ARI Live Lab** — removed entirely: property picker, availability playground and pricing playground.
+- **Reservation Round-Trip** — removed, except the **Booking sync trail**, which moves into Advanced. The reservation ingest / lookup panel is dropped.
+- **Channel Diagnostics page** (`/admin/integrations/rentals-united`) is archived: the route and page are removed, along with its Currency, Live notifications, Content quality, Buildings, Onboarding-redirect, Reservations and Coverage panels. Its Sync observability and Error handling panels survive by moving into Advanced.
+- **Verify channel calendar** is removed from Advanced, and so is the "Open channel diagnostics" card.
 
-- The manual push action is retired. Step A keeps a company-profile task that runs **only when the profile is missing or not yet accepted** — an already-accepted profile is skipped, and re-verifying credentials no longer makes it look stale.
-- A changed profile (edited in the property editor) marks it un-accepted so the next Step A run re-sends it.
+## Cert Status & Logs after the change
 
-## Rail tab removal
+Keeps the certification console (milestones, coverage, availability window, pricing window, discounts, WL readiness, user management) and the Channel step ledger. Its **Exchange log**, **Recent certification runs** and **Refresh compliance** move to Advanced.
 
-- "Accounts & Company" is removed from the Channel Monitor rail. Existing `?tab=accounts` links redirect to the Onboard tab so no bookmark breaks.
-- `PortfolioRuAccountsTab` is refactored into a modal-embeddable account-manager panel scoped to the selected property/portfolio; the company-details push UI in it is deleted.
+## Advanced (Dev only) after the change
+
+In order: channel call queue, exchange log (searchable, still the deep-link target from the booking sync trail), booking sync trail, recent certification runs, refresh compliance (cadence), error handling, sync observability (KPIs, endpoint progress tracker, manual run triggers).
 
 ## Technical notes
 
-- New `src/components/admin/channel-monitor/StepAccountDialog.tsx` holds the modal; `ChannelOnboardTab.tsx` loses the inline binding card and inline preview block and opens the dialog instead, passing the gate snapshot, plan, rebind handlers and step runner it already owns.
-- The plan preview already returns everything panel 1 needs (`plan_owner_account`): outcome, login/source, contact names, company name, country, scope, portfolio name and count, existing OwnerID, location ids, warnings, `can_create`/`blocked_reason`.
-- Panel 4 needs a read-only company preview. `ru-cert-portal` gets a `preview_company_details` action that reuses the existing payload builder to return the resolved field/value/source list without sending anything; the modal renders it inside a collapsible.
-- `PortfolioRuAccountsTab` is split: the account-manager body becomes `RuAccountManagerPanel` (accepts an optional property/portfolio scope), the company push block is removed, and the old page-level wrapper is deleted along with the rail entry in `src/pages/AdminChannelMonitor.tsx`.
-- The deep link uses the editor's existing section/focus params (`/properties/<id>/edit?section=general&focus=…`) targeting the Company Information card.
-- Step A's `company_profile` task keeps its skip-when-accepted behaviour; no new push button anywhere.
+- `src/pages/AdminChannelMonitor.tsx`: `TabKey` and `RAIL` shrink to the five keys; `railChips` loses the `binding`/`mapping`/`ari`/`reservations` entries; legacy `?tab=` values (`binding`, `mapping`, `ari`, `reservations`, `diagnostics`) map onto surviving tabs via `LEGACY_TAB_MAP` so existing deep links and health-report links don't 404 into the default view. `ariPropertyId`, `openCert` and the coverage/availability/pricing shortcuts are dropped; the exchange-log collapsible, its ref and `exchangeSearch` move to the Advanced branch so the booking-trail deep link keeps scrolling to it (no cross-tab hop needed any more).
+- The certification console (`RuCertificationConsole` via `ChannelCertificationTab`) is split by moving its `runs` and `cadence` tab content into standalone panels rendered from Advanced; the console keeps the remaining tabs and its default tab becomes `milestones`.
+- Sync observability and error handling become extracted panels under `src/components/admin/channel-monitor/` (KPI/tracker/manual-runs block and `RuErrorHandlingTab` wrapper with the runs query they need) so Advanced can render them without the diagnostics page.
+- Files deleted: `src/pages/AdminRentalsUnited.tsx` and its route in `src/App.tsx`, `RuBuildingsPanel`, `RuAvailabilityPlayground`, `RuPricingPlayground`, `RuCalendarVerifyPanel`, `RuCoverageTab`'s monitor mount (the component stays only if the cert console's Coverage tab still uses it), `RuCurrencyPanel`, `RuLnmPanel`, `RuMcqReportPanel`, `RuReservationsPanel` monitor mount.
+- Any remaining links to `/admin/integrations/rentals-united` elsewhere in the app (health report, nav, admin index) are repointed at `/admin/channel-monitor?tab=advanced`.
+- No database or edge-function changes; this is a UI consolidation only.
