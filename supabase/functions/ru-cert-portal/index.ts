@@ -5427,7 +5427,7 @@ Deno.serve(async (req) => {
         ? false
         : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
-        readiness = await scorePropertyWithinBudget(prop as any, probeAri) as any;
+        readiness = await scorePropertyWithinBudget(prop as any, probeAri, body.probe_ari === true) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
