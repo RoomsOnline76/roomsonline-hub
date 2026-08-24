@@ -4616,7 +4616,7 @@ Deno.serve(async (req) => {
           action: 'force_push_override',
           success: false,
           error_code: 'PHASE_GATE_BYPASSED',
-          error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
+          error_message: `Onboarding gate bypassed (force push)`,
           details: { phases: phaseGate.phases, acting_user_id: forceActorId },
         });
       } catch (_e) { /* audit only */ }
