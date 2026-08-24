@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import { CHANNEL_LEDGER_STEP_KEYS, CHANNEL_STEP_LEDGER_SETTING_KEY, type ChannelLedgerStepKey } from "@/config/channelStepLedger";
+import {
+  CHANNEL_LEDGER_STEP_KEYS,
+  CHANNEL_STEP_LEDGER_SETTING_KEY,
+  READY_TO_SELL_GATE_STEP_KEY,
+  READY_TO_SELL_LEDGER_STEP_KEYS,
+  type ChannelLedgerStepKey,
+} from "@/config/channelStepLedger";
 
 /**
  * Is the channel step ledger rollout enabled?
