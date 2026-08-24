@@ -1390,7 +1390,9 @@ export function RuCertificationConsole({
         </TabsContent>
 
         {/* Readiness */}
+        {shows("readiness") && (
         <TabsContent value="readiness">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
