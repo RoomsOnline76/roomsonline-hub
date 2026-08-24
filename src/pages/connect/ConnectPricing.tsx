@@ -164,9 +164,9 @@ export default function ConnectPricing() {
         </div>
       </section>
 
-      {/* The single offer */}
+      {/* Two phases */}
       <section className="py-12 sm:py-16">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-6">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -178,10 +178,10 @@ export default function ConnectPricing() {
 
             <div className="grid md:grid-cols-2 gap-8 md:gap-10">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-bold">One plan. Everything in it.</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold">Your first 60 days</h2>
                 <div className="mt-3 flex items-baseline gap-2 flex-wrap">
                   <span className="text-3xl sm:text-4xl font-bold text-primary">R 0</span>
-                  <span className="text-sm text-muted-foreground">/month, on every tier and every room count</span>
+                  <span className="text-sm text-muted-foreground">/month for the full stack, every add-on unlocked</span>
                 </div>
                 <ul className="mt-6 space-y-2.5">
                   {FREE_POINTS.map((f) => (
@@ -193,14 +193,14 @@ export default function ConnectPricing() {
                 </ul>
                 <Link to={connectPath("/connect/get-started")} className="inline-block mt-7">
                   <Button size="lg" className="gap-2">
-                    Get started free <ArrowRight className="h-4 w-4" />
+                    Start your 60 days <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>
 
               <div className="rounded-xl border bg-card p-5 sm:p-6">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  The only charge
+                  What you pay during the free period
                 </h3>
                 <p className="mt-2 text-xl font-bold">
                   A booking fee — <span className="text-primary">competitive and surprisingly low</span>
@@ -213,15 +213,49 @@ export default function ConnectPricing() {
                     </li>
                   ))}
                 </ul>
-                <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-                  The fee is agreed per property and negotiable for volume and portfolios.
-                  Talk to us and we'll put it in writing before you go live.
+                <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
+                  <p className="text-xs leading-relaxed">
+                    <span className="font-semibold">One exception:</span> if you take payments through
+                    our payment gateway, the card processing fees on that gateway are payable by you —
+                    including during the free 60 days.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                  The booking fee is agreed per property and negotiable for volume and portfolios.
+                  We put it in writing before you go live.
                 </p>
               </div>
             </div>
           </motion.div>
+
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl border bg-card p-6 sm:p-10"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold">From day 61</h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              The PMS subscription starts, and you keep only the add-ons you actually want.
+              Each item below is priced per property in your agreement — no public tiers,
+              no forced bundles, and nothing switches on without your say-so.
+            </p>
+            <ul className="mt-6 grid sm:grid-cols-2 gap-3">
+              {CHARGEABLE_AFTER.map((c) => (
+                <li key={c.item} className="flex items-start justify-between gap-3 rounded-lg border bg-background p-3">
+                  <span className="text-sm">{c.item}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{c.note}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
+              Third-party pass-through costs stay with the third party — an external
+              revenue-management licence, or your payment gateway's transaction fees, are billed
+              at cost where they apply.
+            </p>
+          </motion.div>
         </div>
       </section>
+
 
       {/* Everything included */}
       <section className="py-10 sm:py-12 lg:py-16 border-t">
