@@ -32,6 +32,9 @@ import {
   type PaymentMode,
   type WidgetCommissionMode,
 } from "@/lib/billingEstimate";
+import { RepCommissionPanel } from "./RepCommissionPanel";
+import type { RepGlobalsLike } from "@/lib/repCommissionEstimate";
+
 
 const ADD_ON_LABELS: Array<{ key: keyof EstimatorAddOns; label: string; hint: string }> = [
   { key: "pms", label: "ROL'OS PMS subscription", hint: "room-count tier" },
