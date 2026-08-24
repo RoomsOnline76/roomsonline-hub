@@ -214,10 +214,12 @@ export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueue
 
   if (checksKnown) {
     const raw = signals.ruMandatoryPercent;
-    const percent =
-      typeof raw === "number" && Number.isFinite(raw)
-        ? Math.max(0, Math.min(99, Math.round(raw)))
-        : 0;
+    // Ready to sell is five steps, so the bar may only read a fifth. A field-level
+    // pass rate (87%, 71%…) is snapped down to the last fully complete step, and
+    // never to 100 — 100 belongs to `ruMandatoryPass === true` alone.
+    const bounded =
+      typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.min(99, raw)) : 0;
+    const percent = Math.min(80, Math.floor(bounded / 20) * 20);
     const outstanding =
       typeof signals.ruOutstanding === "number" && signals.ruOutstanding > 0
         ? signals.ruOutstanding
@@ -233,6 +235,7 @@ export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueue
         : "Mandatory fields across steps 1–5 (identity, location, rooms, media, commercial) are not all complete yet.",
     };
   }
+
 
   return {
     percent: 0,

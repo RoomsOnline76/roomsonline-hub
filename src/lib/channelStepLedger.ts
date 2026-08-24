@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import { CHANNEL_LEDGER_STEP_KEYS, CHANNEL_STEP_LEDGER_SETTING_KEY, type ChannelLedgerStepKey } from "@/config/channelStepLedger";
+import {
+  CHANNEL_LEDGER_STEP_KEYS,
+  CHANNEL_STEP_LEDGER_SETTING_KEY,
+  READY_TO_SELL_GATE_STEP_KEY,
+  READY_TO_SELL_LEDGER_STEP_KEYS,
+  type ChannelLedgerStepKey,
+} from "@/config/channelStepLedger";
 
 /**
  * Is the channel step ledger rollout enabled?
@@ -358,15 +364,24 @@ export interface PropertyLedgerVerdict {
   seeded: boolean;
   /** Any rows at all, graded or not — a seeded property never needs re-seeding. */
   hasRows: boolean;
-  /** Every step complete (a prior pass survives stale/unknown). */
+  /** All five Ready-to-sell steps complete (a prior pass survives stale/unknown). */
   allComplete: boolean;
-  /** 0-100 over the canonical step list. */
+  /**
+   * Progress over the five Ready-to-sell steps only, so the queue bar can only ever
+   * read 0 / 20 / 40 / 60 / 80 / 100. Post-readiness execution (Step A / Step B) is
+   * not part of this measurement.
+   */
   percent: number;
+  /** How many of the five Ready-to-sell steps are complete. */
+  readyStepsComplete: number;
+  /** Always 5 — the canonical Ready-to-sell step count. */
+  readyStepsTotal: number;
   /** A channel-class step needs a live probe (never graded, blocked or dirty). */
   needsChannelProbe: boolean;
   /** Most recent grading timestamp across the rows, ISO string or null. */
   lastCheckedAt: string | null;
 }
+
 
 /**
  * One batched read of `property_channel_step_status` for many properties.
@@ -403,8 +418,23 @@ export async function fetchChannelLedgerBatch(
   for (const id of propertyIds) {
     const steps = byProperty.get(id) ?? [];
     const byKey = new Map(steps.map((s) => [String(s.step_key), s]));
-    const complete = CHANNEL_LEDGER_STEP_KEYS.filter((key) => ledgerStepComplete(byKey.get(key)));
-    const graded = steps.some((step) => ledgerHasVerdict(step));
+    // The queue bar measures Ready to sell (steps 1–5) and nothing else, so the
+    // percentage can only land on a fifth. Post-readiness execution rows
+    // (push_owner, signoff, connect, entitlement…) must never dilute it.
+    const gateComplete = ledgerStepComplete(byKey.get(READY_TO_SELL_GATE_STEP_KEY));
+    const completeReady = READY_TO_SELL_LEDGER_STEP_KEYS.filter((key) =>
+      ledgerStepComplete(byKey.get(key)),
+    );
+    const readyStepsTotal = READY_TO_SELL_LEDGER_STEP_KEYS.length;
+    // A recorded `ready_to_sell` pass is the gate's own verdict — it outranks any
+    // individual row that has since gone stale.
+    const readyStepsComplete = gateComplete ? readyStepsTotal : completeReady.length;
+    const graded =
+      gateComplete ||
+      READY_TO_SELL_LEDGER_STEP_KEYS.some((key) => {
+        const step = byKey.get(key);
+        return !!step && ledgerHasVerdict(step);
+      });
     const needsChannelProbe = CHANNEL_CLASS_LEDGER_STEPS.some((key) => {
       const step = byKey.get(key);
       if (!step) return true;
@@ -418,12 +448,15 @@ export async function fetchChannelLedgerBatch(
       // to spend a live probe on it.
       seeded: graded,
       hasRows: steps.length > 0,
-      allComplete: complete.length === CHANNEL_LEDGER_STEP_KEYS.length,
-      percent: Math.round((complete.length / CHANNEL_LEDGER_STEP_KEYS.length) * 100),
+      allComplete: readyStepsComplete === readyStepsTotal,
+      percent: Math.round((readyStepsComplete / readyStepsTotal) * 100),
+      readyStepsComplete,
+      readyStepsTotal,
       needsChannelProbe,
       lastCheckedAt: newestCheck(steps),
     });
   }
+
   return result;
 }
 
