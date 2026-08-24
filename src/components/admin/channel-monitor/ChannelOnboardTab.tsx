@@ -152,6 +152,7 @@ export function ChannelOnboardTab({
 
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
 
   const [rebindEmail, setRebindEmail] = useState("");
   const [rebindOpen, setRebindOpen] = useState(false);
