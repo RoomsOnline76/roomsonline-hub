@@ -17,6 +17,7 @@ export type DistributionCheckKey =
   | "location_id"
   | "google_place_id"
   | "content_quality"
+  | "unit_content_quality"
   | "address_geo"
   | "rooms_beds"
   | "photos"
@@ -123,6 +124,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "fields", sections: ["rooms", "info-facilities"], label: "Room & facility fields" },
       { kind: "state", key: "rooms_beds" },
+      { kind: "state", key: "unit_content_quality" },
     ],
     notes: ["Use TOBI amenity scouting to pre-fill unit amenities, then confirm each unit."],
   },
