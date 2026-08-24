@@ -41,7 +41,7 @@ const INTEGRATIONS = [
     icon: Users,
     desc: "Project your guests, trade partners, bookings and enquiries into HubSpot as contacts, companies and deals. Opt-in per owner, encrypted tokens, delta sync every 15 minutes.",
     features: ["Contacts & companies", "Booking deals", "Enquiry pipeline", "Trade/Direct segmentation", "15-min delta sync"],
-    badge: "Included Free",
+    badge: "No Fee",
   },
   {
     name: "Hostfully",
@@ -126,7 +126,7 @@ export default function ConnectIntegrations() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold">ROL'OS + HubSpot</h2>
                 <span className="rounded-full bg-primary/10 text-primary text-xs font-medium px-2.5 py-1">
-                  Included free
+                  Owner CRM add-on — no fee
                 </span>
               </div>
               <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">

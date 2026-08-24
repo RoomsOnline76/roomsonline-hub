@@ -201,13 +201,13 @@ const TRUST = [
   "Verified before it is saved: an invalid token is refused",
   "Isolated adapter — it cannot touch calendars, rates or availability",
   "One-click disconnect; your ROL'OS data stays exactly where it is",
-  "Included free. No add-on fee, no plan gate, no per-contact charge",
+  "This add-on carries no fee: no add-on charge, no plan gate, no per-contact charge",
 ];
 
 const FAQS = [
   {
     q: "Does the HubSpot add-on cost extra?",
-    a: "No. It is included free with ROL'OS, on every property, with no plan gating and no per-contact fee. You only need a HubSpot account — their free tier works.",
+    a: "No. The HubSpot owner CRM add-on carries no fee at all — before or after your first 60 days — on every property, with no plan gating and no per-contact fee. It sits alongside your ROL'OS PMS subscription, which starts from day 61. You only need a HubSpot account; their free tier works.",
   },
   {
     q: "Do I have to use HubSpot to get the CRM features?",
@@ -257,7 +257,7 @@ export default function ConnectHubSpot() {
           <motion.div initial="hidden" animate="visible" variants={fadeUp} transition={{ duration: 0.6 }}>
             <Badge className="mb-4 gap-1.5">
               <Gift className="h-3.5 w-3.5" />
-              Included free with ROL'OS
+              Owner CRM add-on — no fee, ever
             </Badge>
           </motion.div>
           <motion.h1

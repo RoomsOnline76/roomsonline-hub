@@ -89,7 +89,7 @@ If you are entering into these terms on behalf of a company or other legal entit
       {
         subtitle: "5.1 Pricing",
         items: [
-          "The first 60 days from your engagement date are free of subscription and add-on charges",
+          "The first 60 days from your engagement date are free of subscription and add-on charges, and any setup fee is waived where onboarding begins within that period",
           "During that period, commission/booking fees remain payable on bookings taken through ROL'OS infrastructure, and card processing fees on our payment gateway are payable by you",
           "From day 61, the PMS subscription and any add-ons you retain (channel manager charged per unit, white label, branding, revenue management, bring-your-own gateway) are billed as set out in your agreement",
           "Service fees are set out in your subscription agreement or as displayed on the Connect portal",

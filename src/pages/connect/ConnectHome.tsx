@@ -14,8 +14,8 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "R 0", label: "Monthly Fee" },
-  { value: "R 0", label: "Setup Fee" },
+  { value: "R 0", label: "First 60 Days" },
+  { value: "No", label: "Setup Fee in Your 60 Days" },
   { value: "24/7", label: "TOBI Assistant" },
   { value: "Flexible", label: "Negotiable Plans" },
 ];
@@ -47,7 +47,7 @@ const COMPARISON = [
   { feature: "White-Label Branding", rolos: true, others: false, othersNote: "Enterprise only" },
   { feature: "Revenue Management", rolos: true, others: true, othersNote: "Limited" },
   { feature: "Night Audit Automation", rolos: true, others: false, othersNote: "Manual process" },
-  { feature: "No Monthly Subscription", rolos: true, others: false, othersNote: "Fixed monthly tiers" },
+  { feature: "No Subscription for Your First 60 Days", rolos: true, others: false, othersNote: "Fixed monthly tiers from day one" },
 ];
 
 const TRUST_LOGOS = ["Hostfully", "Benson", "Rentals United", "WordPress", "Elementor"];
@@ -323,7 +323,8 @@ export default function ConnectHome() {
           >
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Free for your first 60 days — the full stack, no subscription, no setup fee, no
+              Free for your first 60 days — the full stack, no subscription, no setup fee when you
+              start in that period, no
               credit card. In that period you pay only the booking fee on bookings taken through
               ROL'OS (plus card processing fees if you use our payment gateway). From day 61 the
               PMS subscription and the add-ons you keep are billed as agreed.
@@ -346,7 +347,7 @@ export default function ConnectHome() {
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60 days free
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No setup fee
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Setup fee waived in your 60 days
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only for 60 days

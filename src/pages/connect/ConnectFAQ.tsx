@@ -113,7 +113,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "What does ROL'OS cost?",
-        a: "Your first 60 days are free: the full ROL'OS PMS and every add-on, with no subscription and no setup fee. In that period the only ROL'OS charge is the booking fee on bookings taken through ROL OTA and channel listings or the widget/embed booking engine. From day 61 the PMS subscription starts, along with any add-ons you keep — channel manager (per unit), white label, branding, revenue management, bring-your-own gateway. Each is priced per property in your agreement.",
+        a: "Your first 60 days are free: the full ROL'OS PMS and every add-on, with no subscription, and the setup fee waived when you start in that period. In that period the only ROL'OS charge is the booking fee on bookings taken through ROL OTA and channel listings or the widget/embed booking engine. From day 61 the PMS subscription starts, along with any add-ons you keep — channel manager (per unit), white label, branding, revenue management, bring-your-own gateway. Each is priced per property in your agreement.",
       },
       {
         q: "What is the booking fee?",

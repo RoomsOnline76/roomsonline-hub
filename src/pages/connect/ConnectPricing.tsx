@@ -28,7 +28,7 @@ const FEE_APPLIES_TO = [
 
 const FREE_POINTS = [
   "Full ROL'OS PMS and every add-on switched on for 60 days",
-  "No subscription, no setup fee and no per-room charge in that period",
+  "No subscription and no per-room charge in that period — setup fee waived when you start in your 60 days",
   "Onboarding, setup, training and support at no charge",
   "You pay only the booking fee on bookings taken through ROL'OS",
 ];
@@ -107,7 +107,8 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
 ];
 
 const GUARANTEES = [
-  "60 days free on the full stack",
+  "60 days free on the full stack — no subscription in that period",
+  "Setup fee waived when you start inside your 60 days",
   "No annual lock-in — cancel anytime",
   "Keep your data, full export included",
   "Free onboarding, training and support",
@@ -124,7 +125,7 @@ const COMPETITOR_COSTS = [
   { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
-  { item: "Setup fee", typical: "Common", rolos: "None" },
+  { item: "Setup fee", typical: "Common", rolos: "Waived if you start in your 60 days" },
 ];
 
 
@@ -156,9 +157,10 @@ export default function ConnectPricing() {
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             For 60 days you run the full ROL'OS stack — PMS, channel manager, white label,
-            revenue management and every add-on — with no subscription and no setup fee.
-            You pay only the booking fee on bookings taken through ROL'OS. From day 61 the
-            PMS subscription and the add-ons you keep are billed as set out in your agreement.
+            revenue management and every add-on — with no subscription, and the setup fee
+            waived when you start in that period. You pay only the booking fee on bookings
+            taken through ROL'OS. From day 61 the PMS subscription and the add-ons you keep
+            are billed as set out in your agreement.
           </motion.p>
 
         </div>
