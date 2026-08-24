@@ -4191,7 +4191,7 @@ Deno.serve(async (req) => {
             error: {
               code: 'RU_OWNER_UNRESOLVED',
               message:
-                'No Rentals United OwnerID is linked to this property (or its portfolio). Complete Phase 1 (create the RU sub-user + company details) before pushing — inventory is never attributed to the RoomsOnline master account.',
+                'No Rentals United OwnerID is linked to this property (or its portfolio). Complete Step A (create the distribution sub-account + company details) before pushing — inventory is never attributed to the RoomsOnline master account.',
               details: { owner_scope: phaseGate.owner_scope, portfolio_id: phaseGate.portfolio_id },
             },
           }),
