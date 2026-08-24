@@ -504,6 +504,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
             />
           )}
 
+          {/* ── Processing schedule (only when ROL processes payments) ── */}
+          {builder.facilitator_surcharge_enabled && <GatewayScheduleCard propertyId={propertyId} />}
+
+
 
 
           {/* Live summary */}
