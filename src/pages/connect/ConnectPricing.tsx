@@ -255,13 +255,22 @@ export default function ConnectPricing() {
               ))}
             </ul>
             <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
-              Third-party pass-through costs stay with the third party — an external
-              revenue-management licence, or your payment gateway's transaction fees, are billed
-              at cost where they apply.
+              A third-party licence you already hold — an external revenue-management tool, for
+              instance — stays with that provider at cost. Card processing on the RoomsOnline
+              gateway is charged on its own{" "}
+              <a href="#payment-processing" className="text-primary underline underline-offset-2">
+                payment-processing schedule
+              </a>
+              , and if you bring your own gateway its fees stay with your provider.
             </p>
           </motion.div>
         </div>
       </section>
+
+      {/* Payment processing — reads the active schedule */}
+      <GatewayScheduleSection />
+
+
 
 
       {/* Everything unlocked in the trial */}
