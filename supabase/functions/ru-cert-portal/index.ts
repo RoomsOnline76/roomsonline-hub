@@ -4617,76 +4617,29 @@ Deno.serve(async (req) => {
       }
 
       const portalPassword = await decrypt(account?.ru_login_password_enc);
-      const authBody: Record<string, unknown> = { action: "create_child_api_key", key_label: keyLabel };
-      if (existingKey && existingSecret) {
-        authBody.auth_access_key = existingKey;
-        authBody.auth_secret_key = existingSecret;
-      } else if (loginEmail && portalPassword) {
-        authBody.auth_username = loginEmail;
-        authBody.auth_password = portalPassword;
-      } else {
+      const minted = await mintChildKeyPair({
+        ownerId,
+        loginEmail,
+        accountId: account?.id && String(account.ru_owner_id ?? "").trim() === ownerId ? account.id : null,
+        keyLabel,
+        plainPassword: portalPassword,
+        authAccessKey: existingKey,
+        authSecretKey: existingSecret,
+      });
+      if (!minted.ok) {
         return json({
           success: false,
           error: {
-            code: "NO_CHILD_CREDENTIALS",
-            message: "No usable sub-user credential is stored. Create the first API key pair in the RU dashboard (Security settings) and save it here.",
+            code: minted.code ?? "RU_CREATE_KEY_FAILED",
+            message: minted.code === "NO_CHILD_CREDENTIALS"
+              ? "No usable sub-user credential is stored. Save the sub-account's portal password here, or create the account under a fresh login, and the key pair is minted automatically."
+              : minted.message ?? "Rentals United did not return a new API key pair.",
           },
-        }, 422);
+          ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
+        }, minted.rateDeferred ? 429 : minted.code === "NO_CHILD_CREDENTIALS" ? 422 : 422);
       }
 
-      const { data: created, error: createError } = await admin.functions.invoke("rentalsunited-api", { body: authBody });
-      if (createError || created?.success !== true || !created?.access_key || !created?.secret_key) {
-        return json({
-          success: false,
-          error: {
-            code: "RU_CREATE_KEY_FAILED",
-            message: created?.error?.message ?? createError?.message ?? "Rentals United did not return a new API key pair.",
-          },
-        }, 422);
-      }
-
-      const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
-      if (encErr || !enc) {
-        return json({ success: false, error: { code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the new secret key" } }, 500);
-      }
-
-      if (ownerId) {
-        const { error: credErr } = await admin.from("ru_api_credentials").upsert({
-          ru_owner_id: ownerId,
-          login_email: loginEmail,
-          access_key: created.access_key,
-          secret_enc: enc,
-          key_label: keyLabel,
-          verified_at: new Date().toISOString(),
-        }, { onConflict: "ru_owner_id" });
-        if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
-      }
-
-      if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
-        const update: Record<string, unknown> = {
-          ru_api_access_key: created.access_key,
-          ru_api_secret_enc: enc,
-          ru_api_key_label: keyLabel,
-          ru_api_keys_verified_at: new Date().toISOString(),
-        };
-        const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
-        if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
-      }
-
-      await admin.from("audit_logs").insert({
-        user_id: user.id,
-        user_email: user.email ?? "unknown",
-        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
-        action_type: "other",
-        table_name: "ru_api_credentials",
-        record_id: account?.id ?? null,
-        request_origin: "edge_function",
-        edge_function_name: "ru-cert-portal",
-        is_sensitive: true,
-        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${loginEmail ?? "unknown"} (OwnerID ${ownerId || "?"})`,
-      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
-
-      return json({ success: true, access_key: created.access_key, label: keyLabel, login_email: loginEmail, ru_owner_id: ownerId });
+      return json({ success: true, access_key: minted.accessKey, label: keyLabel, login_email: loginEmail, ru_owner_id: ownerId });
     }
 
     /**
