@@ -17,7 +17,8 @@ The commercial model that all public Connect copy must reflect:
 - Booking fee continues.
 
 **Copy rules**
-- Never say "free to run", "free forever", "no subscription" (unqualified), or "nothing paywalled".
+- Never say "free to run", "free forever", "no subscription" (unqualified), "no setup fee" (unqualified), or "nothing paywalled".
+- The HubSpot owner CRM add-on is the only thing described as carrying no fee ever — phrase it as "owner CRM add-on — no fee", never "included free with ROL'OS".
 - Never publish amounts on public pages — name each chargeable item and say "priced on your agreement". Volume/portfolio terms negotiable.
 - Genuinely free items that may be described as such: onboarding/training/support, developer API and webhooks, TOBI, HubSpot owner CRM add-on.
 - Admin billing defaults remain the authority for actual amounts; add-on names in public copy must mirror those labels.
