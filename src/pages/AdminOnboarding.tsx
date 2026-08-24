@@ -350,6 +350,11 @@ export default function AdminOnboarding() {
   const [statusFilter, setStatusFilter] = useState<QueueFilter>("all");
   const queueRef = useRef<HTMLDivElement | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  /**
+   * The queue is a channel queue by default: only ROL'OS properties entitled to the
+   * Channel Manager. Switching it off widens the list to website-wizard properties too.
+   */
+  const [ruOnly, setRuOnly] = useState(true);
 
   // Send modal state
   const [sendModalOpen, setSendModalOpen] = useState(false);
