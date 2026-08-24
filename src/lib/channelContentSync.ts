@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { channelLedgerStepsForTrigger, markChannelStepsStale } from "@/lib/channelStepLedger";
+import { channelLedgerStepsForTrigger, regradeChannelStepsAfterSave } from "@/lib/channelStepLedger";
 import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEditGate";
 
 
@@ -65,7 +65,7 @@ export async function queueChannelContentSync(
   if (!propertyId) return null;
   // Phase 2 ledger bookkeeping: the section data is already persisted by the time a
   // delta is queued, so this is the safe place to mark only the affected steps stale.
-  void markChannelStepsStale(propertyId, channelLedgerStepsForTrigger(trigger, "content"));
+  void regradeChannelStepsAfterSave(propertyId, channelLedgerStepsForTrigger(trigger, "content"));
   if (await gateBlocks(propertyId, options.manual)) {
     return { queued: false, reason: CHANNEL_EDIT_GATE_REASON };
   }
@@ -116,7 +116,7 @@ export async function queueChannelRatesSync(
   options: ChannelSyncOptions = {},
 ): Promise<ChannelSyncOutcome | null> {
   if (!propertyId) return null;
-  void markChannelStepsStale(propertyId, channelLedgerStepsForTrigger(trigger, "rates"));
+  void regradeChannelStepsAfterSave(propertyId, channelLedgerStepsForTrigger(trigger, "rates"));
   if (await gateBlocks(propertyId, options.manual)) {
     return { queued: false, reason: CHANNEL_EDIT_GATE_REASON };
   }
