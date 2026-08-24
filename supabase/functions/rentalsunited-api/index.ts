@@ -92,7 +92,14 @@ interface RUCredentials {
   api_secret: string;
   endpoint: string;
   source: 'runtime_secrets' | 'database';
+  /**
+   * Which account the credentials speak for. Set by `effectiveCreds()` and carried through to
+   * every `<Authentication>` envelope so a master credential object is never mistaken for a
+   * sub-user one in logs or evidence exports.
+   */
+  auth_scope?: 'master' | 'child_keys' | 'child_password';
 }
+
 
 interface RUAmenity {
   id: number;
