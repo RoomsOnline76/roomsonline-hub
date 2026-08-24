@@ -1206,17 +1206,22 @@ export default function AdminOnboarding() {
                 // The Channels wizard only exists once the Channel Manager is
                 // enabled and billed for the property (or its portfolio).
                 const channelWizardAvailable = row.isRolos && row.channelManagerEnabled;
+                // Already connected: onboarding is done, so the action is no longer
+                // "onboard" — it is channel configuration, which lives in the
+                // white-label connector frame on the Channel Monitor.
+                const channelConnected = row.channelStage === "live";
                 const nextLabel = channelWizardAvailable
-                  ? row.channelStage === "live"
-                    ? row.show_on_website
-                      ? "Finished"
-                      : "Activate website"
+                  ? channelConnected
+                    ? "Configure channels"
                     : row.channelStage === "connect"
                       ? "Connect a channel"
                       : "Channel wizard"
                   : status === "live"
                     ? "On website"
                     : "Website profile";
+                const channelHref = channelConnected
+                  ? `/admin/channel-monitor?tab=onboard&property=${row.id}&focus=connect`
+                  : `/admin/onboarding/${row.id}`;
                 return (
                   <TableRow
                     key={row.id}
@@ -1224,11 +1229,12 @@ export default function AdminOnboarding() {
                     onClick={() =>
                       navigate(
                         channelWizardAvailable
-                          ? `/admin/onboarding/${row.id}`
+                          ? channelHref
                           : `/admin/properties/${row.id}?section=onboarding`,
                       )
                     }
                   >
+
                     <TableCell>
                       <button
                         onClick={(e) => {
