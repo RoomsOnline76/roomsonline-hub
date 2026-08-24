@@ -8,11 +8,79 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  experimentalKey,
   useReportInsights,
   type InsightSelection,
   type InsightSeverity,
   type SuggestionField,
 } from "@/hooks/useReportInsights";
+
+/** One labelled opinion inside a flag or commentary topic. */
+interface ReplyBlockProps {
+  index: 1 | 2;
+  tone: "conservative" | "experimental";
+  text: string;
+  note: string | null;
+  editable?: boolean;
+  checked: boolean;
+  onToggle: (next: boolean) => void;
+  onEdit: (value: string) => void;
+  onCopy: (text: string) => void | Promise<void>;
+}
+
+function ReplyBlock({
+  index,
+  tone,
+  text,
+  note,
+  editable = false,
+  checked,
+  onToggle,
+  onEdit,
+  onCopy,
+}: ReplyBlockProps) {
+  const label = tone === "conservative" ? "Conservative" : "Experimental";
+  return (
+    <div
+      className={`rounded-md border p-2.5 space-y-2 ${
+        tone === "experimental" ? "border-primary/40 bg-muted" : "border-border"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex items-start gap-2">
+          <Checkbox checked={checked} onCheckedChange={(next) => onToggle(next === true)} className="mt-0.5" />
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {index}. {label}
+          </span>
+        </label>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs"
+          onClick={() => void onCopy(text)}
+          aria-label={`Copy ${label.toLowerCase()} reply`}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {editable ? (
+        <Textarea
+          key={text}
+          defaultValue={text}
+          rows={3}
+          className="text-sm"
+          onBlur={(event) => {
+            if (event.target.value === text) return;
+            onEdit(event.target.value);
+          }}
+        />
+      ) : (
+        <p className="text-sm text-foreground whitespace-pre-line">{text}</p>
+      )}
+      {note && <p className="text-sm text-muted-foreground">{note}</p>}
+    </div>
+  );
+}
 
 const FIELD_LABELS: Record<SuggestionField, string> = {
   min_stay_notes: "Minimum stay",
@@ -114,8 +182,12 @@ export function AiInsightsPanel({ runId }: Props) {
   const suggestionRows = useMemo(
     () =>
       (Object.keys(FIELD_LABELS) as SuggestionField[])
-        .map((field) => ({ field, text: insights?.suggestions?.[field] ?? "" }))
-        .filter((row) => row.text.trim().length > 0),
+        .map((field) => ({
+          field,
+          text: insights?.suggestions?.[field] ?? "",
+          experimental: insights?.experimental?.suggestions?.[field] ?? "",
+        }))
+        .filter((row) => row.text.trim().length > 0 || row.experimental.trim().length > 0),
     [insights],
   );
 
@@ -267,6 +339,22 @@ export function AiInsightsPanel({ runId }: Props) {
           </div>
         )}
 
+        {insights?.experimental?.headline && (
+          <>
+            <Separator />
+            <p className="text-sm">
+              <span className="font-medium">Consultant's first point: </span>
+              <span className="text-muted-foreground">{insights.experimental.headline}</span>
+            </p>
+          </>
+        )}
+
+        {insights?.generatedAt && insights.experimental?.error && (
+          <p className="text-xs text-muted-foreground">
+            Second opinion unavailable for this generation — {insights.experimental.error}
+          </p>
+        )}
+
         {(insights?.flags?.length ?? 0) > 0 && (
           <>
             <Separator />
@@ -274,14 +362,14 @@ export function AiInsightsPanel({ runId }: Props) {
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Flags
               </h4>
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {insights!.flags.map((flag) => (
                   <li key={flag.id} className="flex gap-3">
                     <span
                       className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${SEVERITY_STYLES[flag.severity]?.dot ?? "bg-muted-foreground"}`}
                       aria-hidden
                     />
-                    <div className="space-y-1">
+                    <div className="flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline" className="text-[10px] font-normal">
                           {monthLabel(flag.month)}
@@ -290,21 +378,47 @@ export function AiInsightsPanel({ runId }: Props) {
                           {SEVERITY_STYLES[flag.severity]?.label}
                         </span>
                       </div>
-                      <label className="flex items-start gap-2">
-                        <Checkbox
-                          checked={selections[flag.id]?.include === true}
-                          onCheckedChange={(checked) =>
-                            toggleSelection(flag.id, flag.factText, checked === true)
+
+                      <ReplyBlock
+                        index={1}
+                        tone="conservative"
+                        text={selections[flag.id]?.text ?? flag.factText}
+                        note={flag.note ?? null}
+                        checked={selections[flag.id]?.include === true}
+                        onToggle={(next) => toggleSelection(flag.id, flag.factText, next)}
+                        onEdit={(value) =>
+                          editSelection(flag.id, value, selections[flag.id]?.include === true)
+                        }
+                        onCopy={copy}
+                      />
+
+                      {insights!.experimental.flagNotes[flag.id] ? (
+                        <ReplyBlock
+                          index={2}
+                          tone="experimental"
+                          text={
+                            selections[experimentalKey(flag.id)]?.text ??
+                            insights!.experimental.flagNotes[flag.id]
                           }
-                          className="mt-0.5"
+                          note={null}
+                          checked={selections[experimentalKey(flag.id)]?.include === true}
+                          onToggle={(next) =>
+                            toggleSelection(
+                              experimentalKey(flag.id),
+                              insights!.experimental.flagNotes[flag.id],
+                              next,
+                            )
+                          }
+                          onEdit={(value) =>
+                            editSelection(
+                              experimentalKey(flag.id),
+                              value,
+                              selections[experimentalKey(flag.id)]?.include === true,
+                            )
+                          }
+                          onCopy={copy}
                         />
-                        <span className="text-sm text-foreground">
-                          {selections[flag.id]?.text ?? flag.factText}
-                        </span>
-                      </label>
-                      {flag.note && (
-                        <p className="text-sm text-muted-foreground">{flag.note}</p>
-                      )}
+                      ) : null}
                     </div>
                   </li>
                 ))}
@@ -320,51 +434,61 @@ export function AiInsightsPanel({ runId }: Props) {
               <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Suggested commentary
               </h4>
-              {suggestionRows.map(({ field, text }) => (
-                <div key={field} className="rounded-lg border border-border p-3 space-y-2">
+              {suggestionRows.map(({ field, text, experimental }) => (
+                <div key={field} className="rounded-lg border border-border p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <label className="flex items-center gap-2">
-                      <Checkbox
-                        checked={selections[field]?.include === true}
-                        onCheckedChange={(checked) =>
-                          toggleSelection(field, text, checked === true)
-                        }
-                      />
-                      <span className="text-sm font-medium">{FIELD_LABELS[field]}</span>
-                    </label>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => void copy(text)}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
+                    <span className="text-sm font-medium">{FIELD_LABELS[field]}</span>
+                    {text.trim().length > 0 && (
                       <Button
                         size="sm"
                         variant="secondary"
                         className="h-7 px-2 text-xs"
                         disabled={acceptSuggestion.isPending}
-                        onClick={() => void handleAccept(field, text)}
+                        onClick={() => void handleAccept(field, selections[field]?.text ?? text)}
                       >
-                        {accepted[field] ? (
-                          <Check className="h-3.5 w-3.5 mr-1.5" />
-                        ) : null}
+                        {accepted[field] ? <Check className="h-3.5 w-3.5 mr-1.5" /> : null}
                         {accepted[field] ? "Saved" : "Accept"}
                       </Button>
-                    </div>
+                    )}
                   </div>
-                  <Textarea
-                    defaultValue={selections[field]?.text ?? text}
-                    rows={3}
-                    className="text-sm"
-                    onBlur={(event) => {
-                      const value = event.target.value;
-                      if ((selections[field]?.text ?? text) === value) return;
-                      editSelection(field, value, selections[field]?.include === true);
-                    }}
-                  />
+
+                  {text.trim().length > 0 && (
+                    <ReplyBlock
+                      index={1}
+                      tone="conservative"
+                      text={selections[field]?.text ?? text}
+                      note={null}
+                      editable
+                      checked={selections[field]?.include === true}
+                      onToggle={(next) => toggleSelection(field, text, next)}
+                      onEdit={(value) =>
+                        editSelection(field, value, selections[field]?.include === true)
+                      }
+                      onCopy={copy}
+                    />
+                  )}
+
+                  {experimental.trim().length > 0 && (
+                    <ReplyBlock
+                      index={2}
+                      tone="experimental"
+                      text={selections[experimentalKey(field)]?.text ?? experimental}
+                      note={null}
+                      editable
+                      checked={selections[experimentalKey(field)]?.include === true}
+                      onToggle={(next) =>
+                        toggleSelection(experimentalKey(field), experimental, next)
+                      }
+                      onEdit={(value) =>
+                        editSelection(
+                          experimentalKey(field),
+                          value,
+                          selections[experimentalKey(field)]?.include === true,
+                        )
+                      }
+                      onCopy={copy}
+                    />
+                  )}
                 </div>
               ))}
             </div>

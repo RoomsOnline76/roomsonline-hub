@@ -12,6 +12,7 @@ import {
 import { aiChat, modelForTask, AI_TEMPERATURE } from "../_shared/aiModels.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { reportMonthAnchor, windowMonths } from "../_shared/reportWindow.ts";
+import { runConsultantPass } from "../_shared/reportConsultant.ts";
 
 
 const MAX_SUGGESTION_CHARS = 480;
@@ -411,6 +412,42 @@ Deno.serve(async (req) => {
       if (value) suggestions[key] = value;
     }
 
+
+    /* ── Second opinion (experimental) ───────────────────────────
+       An experienced revenue consultant's read, on Grok/xAI only. It never
+       replaces the conservative narrative: a failure here just records why the
+       second opinion is missing. */
+    const consultantSlides = usedSlides ? slides : [];
+    const consultant = await runConsultantPass(userPayload, consultantSlides, {
+      label: "revenue-report-consultant",
+    });
+
+    const experimental: {
+      headline: string | null;
+      flag_notes: Record<string, string>;
+      suggestions: Record<string, string>;
+      slides_considered: number;
+    } = { headline: null, flag_notes: {}, suggestions: {}, slides_considered: consultantSlides.length };
+
+    if (consultant.ok && consultant.data) {
+      const expNotes = (consultant.data.flag_notes ?? {}) as Record<string, unknown>;
+      for (const flag of flags) {
+        const value = clamp(expNotes[flag.id], MAX_SUGGESTION_CHARS);
+        if (value) experimental.flag_notes[flag.id] = value;
+      }
+      const expSuggestions = (consultant.data.suggestions ?? {}) as Record<string, unknown>;
+      for (const key of [
+        "min_stay_notes",
+        "promotions_notes",
+        "rate_override_notes",
+        "free_commentary",
+      ]) {
+        const value = clamp(expSuggestions[key], MAX_SUGGESTION_CHARS);
+        if (value) experimental.suggestions[key] = value;
+      }
+      experimental.headline = clamp(consultant.data.headline, MAX_SUGGESTION_CHARS);
+    }
+
     const record = {
       run_id: runId,
       narrative: clamp(ai.narrative, MAX_NARRATIVE_CHARS),
@@ -429,6 +466,11 @@ Deno.serve(async (req) => {
           source: run.source_type ?? null,
         },
       },
+
+      experimental,
+      experimental_provider: consultant.ok ? "xai" : null,
+      experimental_generated_at: consultant.ok ? new Date().toISOString() : null,
+      experimental_error: consultant.ok ? null : consultant.error ?? "The second opinion is unavailable.",
 
       provider: outcome.provider,
       generated_by: userData.user.id,
