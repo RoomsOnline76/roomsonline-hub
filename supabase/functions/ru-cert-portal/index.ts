@@ -220,6 +220,13 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
 const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
+/**
+ * Durable probe guard. The in-memory cache above dies with the isolate, so it almost never
+ * hits and every page load used to re-pull prices + availability for every unit. A stored
+ * ARI verdict younger than this is reused instead — only `force_probe` overrides it.
+ */
+const ARI_SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
+
 
 /** How far back a logged channel answer is still trusted when the live read is rate limited. */
 const RU_LAST_GOOD_XML_MAX_AGE_MS = 6 * 60 * 60 * 1000;
