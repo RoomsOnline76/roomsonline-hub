@@ -18,7 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, ChevronDown, Plus, Trash2, X } from "lucide-react";
+import { Calculator, ChevronDown, Plus, Save, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
+
 import { listGatewaySchedules } from "@/lib/gatewayBillingRate";
 import { presetLabel, type BillingDefault } from "@/hooks/useBillingDefaults";
 import {
