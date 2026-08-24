@@ -360,7 +360,8 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Onboard a property</CardTitle>
           <CardDescription className="text-xs">
-            Pick a property, clear the Ready-to-sell gate, then run Step A and Step B. Nothing else is needed to go live.
+            Only properties with the Channel Manager add-on activated and a signed contract are listed. Pick one, clear
+            the Ready-to-sell gate, then run Step A and Step B.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -370,9 +371,13 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={setPropertyId}>
+                <Select value={propertyId} onValueChange={setPropertyId} disabled={properties.length === 0}>
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select a property" />
+                    <SelectValue
+                      placeholder={
+                        properties.length === 0 ? "No eligible properties (add-on + signed contract)" : "Select a property"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {properties.map((p) => (
@@ -383,6 +388,7 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
                   </SelectContent>
                 </Select>
               )}
+
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
