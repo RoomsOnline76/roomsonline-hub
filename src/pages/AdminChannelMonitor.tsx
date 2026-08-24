@@ -527,7 +527,20 @@ export default function AdminChannelMonitor() {
           <div className="min-w-0 space-y-4">
             {tab === "onboard" && (
               <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <ChannelOnboardTab initialPropertyId={params.get("property") ?? undefined} />
+                <ChannelOnboardTab
+                  initialPropertyId={params.get("property") ?? undefined}
+                  initialPortfolioId={params.get("portfolio") ?? undefined}
+                  onSelectionChange={(id) => {
+                    // Keep the deep link honest so a refresh or a shared URL lands
+                    // on the same target the operator is looking at.
+                    const next = new URLSearchParams(params);
+                    if (id) next.set("property", id);
+                    else next.delete("property");
+                    next.delete("portfolio");
+                    setParams(next, { replace: true });
+                  }}
+                />
+
               </Suspense>
             )}
 
