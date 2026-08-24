@@ -6369,6 +6369,84 @@ Deno.serve(async (req) => {
         });
       }
 
+      /**
+       * Read-only company-details preview for the Step A account dialog. It composes the
+       * exact payload the push would send and reports it as a field / value / source list.
+       * Nothing is written locally and nothing reaches the channel.
+       */
+      if (isCompanyPreview) {
+        const stub = { id: "00000000-0000-0000-0000-000000000000", ru_owner_id: null } as Record<string, any>;
+        const result = (await submitCompanyDetails(
+          (existing.account as Record<string, any> | null) ?? stub,
+          null,
+          { dryRun: true },
+        )) as Record<string, any>;
+
+        if (result?.dry_run !== true) {
+          return json({
+            success: true,
+            preview: {
+              fields: [],
+              blocked_reason: String(result?.error ?? "The company details could not be composed"),
+              scope: portfolioId ? "portfolio" : "property",
+            },
+          });
+        }
+
+        const company = (result.company ?? {}) as Record<string, unknown>;
+        const scopeSource = portfolioId
+          ? `portfolio${portfolioRow?.name ? ` (${portfolioRow.name})` : ""}`
+          : "this property";
+        const LABELS: Array<{ key: string; label: string; source: string }> = [
+          { key: "name", label: "Company / portfolio name", source: scopeSource },
+          { key: "first_name", label: "Contact first name", source: "Company Information" },
+          { key: "last_name", label: "Contact last name", source: "Company Information" },
+          { key: "email", label: "Contact email (login)", source: "owner email" },
+          { key: "phone", label: "Contact phone", source: "Company Information / property contact" },
+          { key: "birth_date", label: "Contact date of birth", source: "Company Information" },
+          { key: "address", label: "Address", source: "property address" },
+          { key: "city", label: "City", source: "property address" },
+          { key: "zip_code", label: "Postal code", source: "property address" },
+          { key: "country_id", label: "Country", source: "property country" },
+          { key: "website", label: "Website", source: "Company Information" },
+          { key: "vat_number", label: "VAT number", source: "banking block" },
+          { key: "manager_identification_number", label: "Company registration", source: "banking block" },
+          { key: "number_of_properties", label: "Number of properties", source: "portfolio size" },
+          { key: "number_of_employees", label: "Number of employees", source: "Company Information" },
+          { key: "years_in_business", label: "Years in business", source: "Company Information" },
+        ];
+
+        const fields = LABELS.filter((f) => company[f.key] !== undefined && company[f.key] !== null && String(company[f.key]).trim() !== "")
+          .map((f) => ({ key: f.key, label: f.label, value: String(company[f.key]), source: f.source }));
+
+        const rep = (company.legal_rep ?? null) as Record<string, unknown> | null;
+        if (rep && typeof rep === "object") {
+          for (const [k, v] of Object.entries(rep)) {
+            if (v === null || v === undefined || String(v).trim() === "") continue;
+            fields.push({
+              key: `legal_rep.${k}`,
+              label: `Legal representative — ${k.replace(/_/g, " ")}`,
+              value: String(v),
+              source: "Company Information",
+            });
+          }
+        }
+
+        return json({
+          success: true,
+          preview: {
+            fields,
+            missing: (result.incomplete ?? []) as string[],
+            blocked_reason: null,
+            scope: portfolioId ? "portfolio" : "property",
+            source_property_id: result.source_property_id ?? propertyId,
+            portfolio_id: portfolioId,
+          },
+        });
+      }
+
+
+
       // The RU identity is only stale when Rentals United no longer lists an owner that
       // matches the stored OwnerID (or, when we never stored one, the stored login email).
       // A login rename in the RU portal must NOT erase the OwnerID or the password.
