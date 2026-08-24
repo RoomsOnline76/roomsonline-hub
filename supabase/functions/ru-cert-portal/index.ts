@@ -5577,7 +5577,7 @@ Deno.serve(async (req) => {
       if (!ownerEmail) {
         let q = admin
           .from("ru_owner_accounts")
-          .select("owner_email, owner_name, ru_owner_id, property_id, portfolio_id")
+          .select("owner_email, ru_owner_id, property_id, portfolio_id")
           .not("owner_email", "is", null);
         q = portfolioId && propertyId
           ? q.or(`portfolio_id.eq.${portfolioId},property_id.eq.${propertyId}`)
