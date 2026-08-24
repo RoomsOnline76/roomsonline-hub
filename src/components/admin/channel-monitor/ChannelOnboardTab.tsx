@@ -461,29 +461,22 @@ export function ChannelOnboardTab({
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground">
-                  Preview exactly what will be created or adopted before anything is sent.
+                  Preview the account, the owner binding and the company details that will be sent — nothing leaves here
+                  until you run the step.
                 </span>
-                <Button size="sm" variant="outline" onClick={() => void openPlan()} disabled={planLoading || !propertyId}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void openPlan()}
+                  disabled={planLoading || !propertyId}
+                >
                   {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                   Preview account
                 </Button>
               </div>
-              {plan && (
-                <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-muted-foreground">Login</dt>
-                    <dd className="font-medium">{plan.login_email ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Outcome</dt>
-                    <dd className="font-medium">
-                      {plan.adopt || plan.ru_owner_id ? "Adopt the existing account" : "Create a new account"}
-                    </dd>
-                  </div>
-                </dl>
-              )}
             </div>
           )}
+
 
           {tasks.map((task) => {
             const live = taskStates[task.id];
