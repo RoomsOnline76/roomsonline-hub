@@ -168,6 +168,12 @@ export function ChannelOnboardTab({
   const [taskStates, setTaskStates] = useState<Record<string, TaskState>>({});
   const [runningStep, setRunningStep] = useState<ChannelOnboardStep | null>(null);
   const [pushProgress, setPushProgress] = useState<{ pushed: number; total: number } | null>(null);
+  /** Steps parked on the channel's rate window — waiting, not failed. */
+  const [waiting, setWaiting] = useState<Partial<Record<ChannelOnboardStep, WaitingState>>>({});
+  /** Ticks once a second so the waiting countdowns stay live. */
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  /** Operator override: keep a passed Step A expanded. */
+  const [stepDetailOpen, setStepDetailOpen] = useState<Partial<Record<ChannelOnboardStep, boolean>>>({});
 
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
