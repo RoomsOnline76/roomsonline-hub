@@ -176,6 +176,19 @@ export async function channelEditGateState(
   return work;
 }
 
+/**
+ * Wording for "what happens next" after a save, resolved from the gate so no surface
+ * promises channel delivery for a property that is still inside onboarding.
+ */
+export async function channelSaveOutcomeCopy(
+  propertyId: string | null | undefined,
+): Promise<{ willPush: boolean; sentence: string }> {
+  const gate = await channelEditGateState(propertyId);
+  return gate.open
+    ? { willPush: true, sentence: "channel delivery is being confirmed." }
+    : { willPush: false, sentence: "Channel delivery starts once onboarding is complete." };
+}
+
 /** True when ordinary edits may talk to the channel (and raise push toasts). */
 export async function isChannelEditPushAllowed(
   propertyId: string | null | undefined,

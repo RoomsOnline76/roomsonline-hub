@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Lock, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
 import {
   buildRatePlanClosureSpans,
@@ -140,9 +139,10 @@ export function RestrictionsManagerDialog({
     void refetch();
     onChanged?.();
     if (span.kind !== "rate_plan_closure") {
+      // syncRestrictionsToChannels already stays silent for properties that are not yet
+      // connected; only a genuine throw is worth an error toast.
       void syncRestrictionsToChannels([span.propertyId], "stop_sell").catch((error) => {
         console.error("Restriction change saved but the channel push failed:", error);
-        toast.error("Saved, but the Channel Manager update could not be queued");
       });
     }
   };

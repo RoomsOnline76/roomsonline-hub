@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { queueChannelRatesSync } from "@/lib/channelContentSync";
+import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEditGate";
 
 /**
  * Manual restrictions (stop sell / min stay / max stay / lead days) are stored in
@@ -21,10 +22,20 @@ export async function syncRestrictionsToChannels(
   const summary = { pushed: 0, skipped: 0, failed: 0, pending: 0 };
   if (unique.length === 0) return summary;
 
+  // Properties still inside Channel onboarding own no channel delivery: no spinner, no
+  // toast, no queued delta. Silence here keeps the save honest.
+  const gated: string[] = [];
+  for (const propertyId of unique) {
+    const gate = await channelEditGateState(propertyId);
+    if (gate.open) gated.push(propertyId);
+    else summary.skipped += 1;
+  }
+  if (gated.length === 0) return summary;
+
   const toastId = toast.loading("Updating the Channel Manager…");
   const failures: string[] = [];
 
-  for (const propertyId of unique) {
+  for (const propertyId of gated) {
     try {
       // Not awaited to completion at the channel: the delta is queued server-side and the push
       // continues in the background so the save never hangs on the round-trip.
@@ -35,7 +46,11 @@ export async function syncRestrictionsToChannels(
         summary.pending += 1;
         continue;
       }
-      if (result?.reason === "not_connected" || result?.reason === "no_property") {
+      if (
+        result?.reason === "not_connected" ||
+        result?.reason === "no_property" ||
+        result?.reason === CHANNEL_EDIT_GATE_REASON
+      ) {
         summary.skipped += 1;
         continue;
       }
