@@ -350,7 +350,7 @@ export function RuSyncProgressTracker({
                   ? `Last run ${formatDistanceToNow(new Date(lastRun.created_at), { addSuffix: true })}`
                   : "No runs in 7 days"}
               </span>
-              {ep.fn && (
+              {ep.fn && onTrigger && (
                 <Button
                   size="sm"
                   variant="outline"
