@@ -2518,7 +2518,11 @@ Deno.serve(async (req) => {
       if (!prop) {
         return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
       }
-      const report = await scorePropertyWithinBudget(prop, body.probe_ari !== false);
+      // Reading the channel is now strictly opt-in: mounting a property editor or wizard used to
+      // omit `probe_ari` and silently pull prices + availability for every unit. Only an explicit
+      // `probe_ari: true` (operator recheck / scheduled refresh) touches the channel, and it may
+      // bypass the stored verdict.
+      const report = await scorePropertyWithinBudget(prop, body.probe_ari === true, body.probe_ari === true);
       // Certification requires changes to reach the channel without operator action: any delta
       // parked behind the gate is re-fired in the background as soon as readiness reads clean.
       if (report && (report as { blocked?: boolean }).blocked === false) {
