@@ -7,7 +7,7 @@
  * writes to the database — the presets are the source of the numbers.
  */
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -351,8 +351,8 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
                         ? estimate.transactionSteadyStateTotal
                         : estimate.recurringSteadyStateTotal;
                     return (
-                      <>
-                        <tr key={`${group}_head`} className="bg-muted/40">
+                      <Fragment key={group}>
+                        <tr className="bg-muted/40">
                           <td colSpan={3} className="py-1.5 pr-3 font-medium uppercase tracking-wide text-[10px]">
                             {GROUP_LABELS[group]}
                           </td>
@@ -375,12 +375,12 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
                             <td className="py-2 pl-3 text-right whitespace-nowrap">{money(l.steadyState)}</td>
                           </tr>
                         ))}
-                        <tr key={`${group}_sub`} className="border-b border-border">
+                        <tr className="border-b border-border">
                           <td className="py-1.5 pr-3 font-medium">{GROUP_LABELS[group]} subtotal</td>
                           <td className="py-1.5 px-3 text-right font-medium">{money(subFree)}</td>
                           <td className="py-1.5 pl-3 text-right font-medium">{money(subSteady)}</td>
                         </tr>
-                      </>
+                      </Fragment>
                     );
                   })}
                   <tr className="font-semibold">
