@@ -68,6 +68,7 @@ import {
 
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
+import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
 
 interface PropertyOption {
   id: string;
@@ -753,26 +754,26 @@ export function ChannelOnboardTab({
 
       {!propertyId ? null : (
         <>
-          {/* 2 — readiness gate */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-base">Ready to sell (steps 1–5)</CardTitle>
-                  <CardDescription className="text-xs">
-                    {READY_TO_SELL_GROUP_LABELS.join(" · ")}
-                  </CardDescription>
+          {/* 2 — readiness gate (hidden once passed — the work is done) */}
+          {gate.readyToSellStatus !== "passed" && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">Ready to sell (steps 1–5)</CardTitle>
+                    <CardDescription className="text-xs">
+                      {READY_TO_SELL_GROUP_LABELS.join(" · ")}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={gate.readyToSellStatus} />
+                    <Button size="sm" variant="outline" onClick={() => void gate.regrade()} disabled={gate.grading}>
+                      {gate.grading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      Re-check
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge status={gate.readyToSellStatus} />
-                  <Button size="sm" variant="outline" onClick={() => void gate.regrade()} disabled={gate.grading}>
-                    {gate.grading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Re-check
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            {gate.readyToSellStatus !== "passed" && (
+              </CardHeader>
               <CardContent className="space-y-2">
                 <div className="flex items-start gap-2 text-xs text-muted-foreground">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
@@ -791,12 +792,32 @@ export function ChannelOnboardTab({
                   </ul>
                 )}
               </CardContent>
-            )}
-          </Card>
+            </Card>
+          )}
 
           {/* 3 — the two steps. Owner binding and the account preview live in the Step A dialog. */}
           {renderStep("a")}
           {renderStep("b")}
+
+          {/* 4 — Connect channels via the white-label integration, once Step B completes. */}
+          {gate.stepBStatus === "passed" && (
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">Connect channels</CardTitle>
+                    <CardDescription className="text-xs">
+                      Your property is live on the distribution layer — connect sales channels through the Channel Manager below.
+                    </CardDescription>
+                  </div>
+                  <StatusBadge status="passed" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <RuWhiteLabelEmbed propertyId={propertyId} />
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
