@@ -5577,7 +5577,7 @@ Deno.serve(async (req) => {
       if (!ownerEmail) {
         let q = admin
           .from("ru_owner_accounts")
-          .select("owner_email, owner_name, ru_owner_id, property_id, portfolio_id")
+          .select("owner_email, ru_owner_id, property_id, portfolio_id")
           .not("owner_email", "is", null);
         q = portfolioId && propertyId
           ? q.or(`portfolio_id.eq.${portfolioId},property_id.eq.${propertyId}`)
@@ -5589,7 +5589,7 @@ Deno.serve(async (req) => {
         if (row) {
           ownerEmail = row.owner_email;
           ownerEmailSource = "the distribution account already on file";
-          ownerName = ownerName || row.owner_name || portfolioRow?.name || "Property Owner";
+          ownerName = ownerName || portfolioRow?.name || "Property Owner";
         }
       }
 
