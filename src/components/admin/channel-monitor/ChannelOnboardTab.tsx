@@ -119,6 +119,9 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
 
   // Only properties that are active, entitled to the Channel Manager add-on and
   // hold a signed (or overridden) contract may be onboarded to a channel.
+  // Archived properties (and the members of archived portfolios) are excluded —
+  // archiving flips `ru_archived` on the property row, so it must be filtered
+  // here explicitly: it does not touch `is_active` or the billing toggle.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -126,6 +129,9 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         .from("properties")
         .select("id, name, owner_email")
         .eq("is_active", true)
+        // Exclude archived listings. `ru_archived` is nullable, so accept null
+        // or false — only `true` means "held off the distribution layer".
+        .or("ru_archived.is.null,ru_archived.eq.false")
         .order("name");
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
