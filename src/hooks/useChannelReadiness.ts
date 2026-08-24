@@ -31,8 +31,10 @@ export function useChannelReadiness(propertyId: string | null | undefined) {
     return (data.property ?? null) as RuReadinessReport | null;
   };
 
-  // Local-first: the ROL'OS-scored report paints immediately, then the live channel
-  // read-back refines it in the background instead of holding the panel open.
+  // Local-only by design. The background "live" query used to fire get_prices +
+  // get_availability for every unit on every mount of the editor, wizard and monitor —
+  // the stored verdict already carries the last real channel answer, and a live re-read
+  // only happens on an operator recheck or the scheduled refresh.
   const local = useQuery({
     queryKey: ["channel-readiness", propertyId, "local"],
     enabled: !!propertyId,
@@ -40,14 +42,10 @@ export function useChannelReadiness(propertyId: string | null | undefined) {
     queryFn: () => fetchReadiness(false),
   });
 
-  const query = useQuery({
-    queryKey: ["channel-readiness", propertyId, "live"],
-    enabled: !!propertyId && !local.isLoading,
-    staleTime: 180_000,
-    queryFn: () => fetchReadiness(true),
-  });
+  const query = local;
 
-  const report = query.data ?? local.data ?? null;
+  const report = query.data ?? null;
+
 
   const checks = report?.checks ?? [];
   const mandatory = checks.filter((c) => c.mandatory);
@@ -71,10 +69,8 @@ export function useChannelReadiness(propertyId: string | null | undefined) {
     // Only the first (local) paint is a real loading state.
     isLoading: local.isLoading && !report,
     isPending: local.isPending && !report,
-    refetch: async () => {
-      await local.refetch();
-      return query.refetch();
-    },
+    refetch: () => local.refetch(),
+
     readiness,
   };
 

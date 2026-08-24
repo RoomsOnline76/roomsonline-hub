@@ -220,6 +220,13 @@ const LOGGED_PORTAL_ACTIONS = new Set<string>([
 const ARI_PROBE_TTL_MS = 180_000;
 const ARI_PROBE_TIMEOUT_MS = 12_000;
 const ariProbeCache = new Map<string, { at: number; probe: any }>();
+/**
+ * Durable probe guard. The in-memory cache above dies with the isolate, so it almost never
+ * hits and every page load used to re-pull prices + availability for every unit. A stored
+ * ARI verdict younger than this is reused instead — only `force_probe` overrides it.
+ */
+const ARI_SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
+
 
 /** How far back a logged channel answer is still trusted when the live read is rate limited. */
 const RU_LAST_GOOD_XML_MAX_AGE_MS = 6 * 60 * 60 * 1000;
@@ -1756,7 +1763,7 @@ Deno.serve(async (req) => {
       id: string;
       name: string;
       rentalsunited_property_id?: string | null;
-    }, opts: { probe_ari?: boolean } = {}) => {
+    }, opts: { probe_ari?: boolean; force_probe?: boolean } = {}) => {
       // A cold/loaded worker occasionally drops the first dry-run invoke (the tail of a
       // portfolio-wide sweep used to report a false "payload could not be built"), so the
       // build is retried once before it is scored as a real content gap.
@@ -1878,15 +1885,24 @@ Deno.serve(async (req) => {
       // Last known good live verdict — used when a probe is skipped, throttled or times out
       // so an earned verification never regresses to "not ready".
       const ariSnapshot = ruIds.length > 0 ? await loadAriSnapshot(admin, p.id) : null;
-
-
-
+      /**
+       * A stored verdict younger than the snapshot TTL is good enough: re-pulling every unit's
+       * calendar on top of it is what filled the background call queue with thousands of
+       * `get_prices` / `get_availability` replays. `force_probe` is the only override.
+       */
+      const snapshotAt = ariSnapshot?.probed_at ? Date.parse(ariSnapshot.probed_at) : NaN;
+      const snapshotFresh = Number.isFinite(snapshotAt) && Date.now() - snapshotAt < ARI_SNAPSHOT_TTL_MS;
+      const wantProbe = opts.probe_ari !== false && (opts.force_probe === true || !snapshotFresh);
+      if (opts.probe_ari !== false && !wantProbe) {
+        console.log(`[scoreProperty] "${p.name}": reusing stored ARI verdict (${ariSnapshot?.probed_at}) — no channel read`);
+      }
 
       // Phase 2 must mean the SAME thing everywhere: when the live channel calendar is not
       // read (probing off, or nothing published yet) the two mandatory rules are still scored
       // on the ROL'OS calendar — exactly as the live push gate does. Skipping them made the
       // pipeline card green while the push refused with PHASE_BLOCKED.
-      if (opts.probe_ari !== false && ruIds.length > 0) {
+      if (wantProbe && ruIds.length > 0) {
+
 
         const from = isoDate(0);
         const to = isoDate(365);
@@ -1903,14 +1919,18 @@ Deno.serve(async (req) => {
           // Each pull passes the shared one-call-per-minute channel gate, which can sleep for
           // seconds. A slow or throttled account must never hold the readiness panel open:
           // the probe is time-boxed and a timeout is reported as "verification pending".
+          // `deferrable: false` keeps a throttled read OUT of the retry queue — the scorer
+          // already falls back to the last good XML, so parking + replaying it five times
+          // only amplified the traffic.
           const [avbRes, priceRes] = await Promise.all([
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
+              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
+              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
           ]);
+
           // A rate-limited read comes back as 202 { success: true, queued: true } with no XML.
           // That is "not read", never "answered with an empty calendar" — reuse the last real
           // answer the channel gave for this unit instead of inventing a zero-day verdict.
@@ -2369,6 +2389,7 @@ Deno.serve(async (req) => {
     const scorePropertyWithinBudget = async (
       p: Parameters<typeof scoreProperty>[0],
       probeAri: boolean,
+      forceProbe = false,
     ) => {
       if (!probeAri) return await scoreProperty(p, { probe_ari: false });
       const timeout = Symbol("score_timeout");
@@ -2377,7 +2398,8 @@ Deno.serve(async (req) => {
         timer = setTimeout(() => resolve(timeout), SCORE_PROBE_BUDGET_MS);
       });
       try {
-        const result = await Promise.race([scoreProperty(p, { probe_ari: true }), budget]);
+        const result = await Promise.race([scoreProperty(p, { probe_ari: true, force_probe: forceProbe }), budget]);
+
         if (result !== timeout) return result;
         console.warn(`[scoreProperty] live probe exceeded ${SCORE_PROBE_BUDGET_MS}ms — scoring locally`);
         return await scoreProperty(p, { probe_ari: false });
@@ -2457,7 +2479,8 @@ Deno.serve(async (req) => {
         await seedLedger(admin, propertyId);
         // The drain is local-only by construction: it ignores any `probe_ari` in the body.
         const probeAri = action === "ledger_drain_recheck" ? false : body.probe_ari !== false;
-        const report = await scorePropertyWithinBudget(prop, probeAri);
+        // An explicit `probe_ari: true` is an operator recheck: it may bypass the stored verdict.
+        const report = await scorePropertyWithinBudget(prop, probeAri, body.probe_ari === true);
         const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
         const written = await writeLedgerRows(admin, propertyId, rows);
         logLedgerEvent({
@@ -2495,7 +2518,11 @@ Deno.serve(async (req) => {
       if (!prop) {
         return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
       }
-      const report = await scorePropertyWithinBudget(prop, body.probe_ari !== false);
+      // Reading the channel is now strictly opt-in: mounting a property editor or wizard used to
+      // omit `probe_ari` and silently pull prices + availability for every unit. Only an explicit
+      // `probe_ari: true` (operator recheck / scheduled refresh) touches the channel, and it may
+      // bypass the stored verdict.
+      const report = await scorePropertyWithinBudget(prop, body.probe_ari === true, body.probe_ari === true);
       // Certification requires changes to reach the channel without operator action: any delta
       // parked behind the gate is re-fired in the background as soon as readiness reads clean.
       if (report && (report as { blocked?: boolean }).blocked === false) {
@@ -5400,7 +5427,7 @@ Deno.serve(async (req) => {
         ? false
         : body.probe_ari === true || (hasChannelListing && !storedVerdict);
       try {
-        readiness = await scorePropertyWithinBudget(prop as any, probeAri) as any;
+        readiness = await scorePropertyWithinBudget(prop as any, probeAri, body.probe_ari === true) as any;
         // Only mandatory failures may block a phase — optional quality advice must not.
         gaps = ((readiness as any)?.blocking_gaps ?? []) as string[];
       } catch (_e) {
