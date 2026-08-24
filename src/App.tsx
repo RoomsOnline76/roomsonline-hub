@@ -92,6 +92,7 @@ const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
 const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
 const AdminChannelMonitor = lazy(() => import("./pages/AdminChannelMonitor"));
+const AdminChannelTrafficLive = lazy(() => import("./pages/AdminChannelTrafficLive"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const ApiDocsViewer = lazy(() => import("./pages/ApiDocsViewer"));
 const HyperGuestCertificationPortal = lazy(() => import("./pages/HyperGuestCertificationPortal"));
@@ -430,6 +431,7 @@ const App = () => (
                         <Route path="/admin/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
                         <Route path="/admin/integrations" element={<ProtectedRoute><AdminIntegrations /></ProtectedRoute>} />
                         <Route path="/admin/channel-monitor" element={<ProtectedRoute requireAdmin><AdminChannelMonitor /></ProtectedRoute>} />
+                        <Route path="/admin/channel-monitor/live" element={<ProtectedRoute requireAdmin><AdminChannelTrafficLive /></ProtectedRoute>} />
                         <Route path="/admin/account" element={<ProtectedRoute><OwnerAccount /></ProtectedRoute>} />
 
 
