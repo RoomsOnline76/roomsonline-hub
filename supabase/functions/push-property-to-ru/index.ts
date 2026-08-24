@@ -2566,6 +2566,19 @@ async function verifyAvailability(
   return report;
 }
 
+/**
+ * Price read-backs are OPT-IN.
+ *
+ * ROL'OS is the source of truth for rates, so re-reading the channel's stored prices after every
+ * push was pure cost: each unit push fired `Pull_ListPropertyPrices_RQ` twice (post-push
+ * verification + coverage audit), and with the notification repull loop and the ARI refresh
+ * fan-out that reached thousands of price pulls a day. The read-back now only runs when a caller
+ * explicitly asks for it (`verify_readback: true`) — onboarding Step B, the certification suite,
+ * or an operator re-check. The transport-failure recovery read is deliberately NOT gated: it only
+ * fires when a push looked like it failed, and it prevents a false negative.
+ */
+let PRICE_READBACK_ENABLED = false;
+
 async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}, currency?: CurrencyDecision | null) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
