@@ -41,7 +41,7 @@ const INTEGRATIONS = [
     icon: Users,
     desc: "Project your guests, trade partners, bookings and enquiries into HubSpot as contacts, companies and deals. Opt-in per owner, encrypted tokens, delta sync every 15 minutes.",
     features: ["Contacts & companies", "Booking deals", "Enquiry pipeline", "Trade/Direct segmentation", "15-min delta sync"],
-    badge: "Included Free",
+    badge: "No Fee",
   },
   {
     name: "Hostfully",
