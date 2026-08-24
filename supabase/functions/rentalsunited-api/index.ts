@@ -2698,35 +2698,52 @@ Deno.serve(async (req) => {
     const childAuth = childResolution.auth;
     const scopedCreds = effectiveCreds(creds, childAuth);
     const authMode = childAuthMode(childAuth);
+    const ownerScope = body.owner_id == null ? '' : String(body.owner_id).trim();
     if (childScoped) {
-      console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${body.owner_id ?? 'n/a'}`);
+      console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${ownerScope || 'n/a'}`);
     }
-    // Hard stop: an OwnerID was supplied (i.e. this is a white-label sub-user's inventory)
-    // but we could not authenticate as that sub-user. Falling back to the master account
-    // makes RU answer "You are not the owner of the apartment" or, worse, writes to us.
-    if (
-      childScoped &&
-      !childAuth &&
-      CHILD_AUTH_STRICT_ACTIONS.has(action) &&
-      body.owner_id != null &&
-      String(body.owner_id).trim() !== ''
-    ) {
-      // Certification evidence: a cancel/reject/push that never left ROLOS must still be
-      // retrievable, otherwise "no log row" is indistinguishable from "it worked".
-      await logRuNotAttempted(getLogClient(), {
-        ...(ruLogContext.getStore() ?? {}),
-        action: RU_VERB_BY_ACTION[action] ?? `rentalsunited-api:${action}`,
-        error_reason: `no_subuser_keys: ${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
-      });
-      return jsonResponse({
-        success: false,
-        auth_mode: 'master',
-        error: {
-          code: 'RU_CHILD_AUTH_REQUIRED',
-          message: `${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
-        },
-      }, 422);
+
+    if (childScoped && !childAuth) {
+      // One rule for every child-scoped action (there is no longer a second, laxer set):
+      //  • a named OwnerID that is not OUR master account ⇒ sub-user keys are mandatory;
+      //  • a WRITE with no OwnerID at all ⇒ the credential choice would be inferred, refuse;
+      //  • a READ with no OwnerID ⇒ explicit master-account scope, allowed and logged.
+      const failure = ownerScope
+        ? isMasterOwnerId(ownerScope)
+          ? null
+          : {
+              code: 'RU_CHILD_AUTH_REQUIRED',
+              message: `${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
+              reason: `no_subuser_keys: ${childResolution.reason ?? CHILD_AUTH_REQUIRED_MESSAGE} Master-account fallback is prohibited for sub-user inventory.`,
+            }
+        : CHILD_SCOPED_WRITE_ACTIONS.has(action)
+          ? {
+              code: 'RU_OWNER_ID_REQUIRED',
+              message: `${action} writes to a single Rentals United account, so it must name the owner_id it is writing to. Master-account fallback is prohibited.`,
+              reason: `missing_owner_id: ${action} was invoked without an owner_id; master-account fallback is prohibited for sub-user writes.`,
+            }
+          : null;
+
+      if (failure) {
+        // Certification evidence: a cancel/reject/push that never left ROLOS must still be
+        // retrievable, otherwise "no log row" is indistinguishable from "it worked".
+        await logRuNotAttempted(getLogClient(), {
+          ...(ruLogContext.getStore() ?? {}),
+          action: RU_VERB_BY_ACTION[action] ?? `rentalsunited-api:${action}`,
+          error_reason: failure.reason,
+        });
+        return jsonResponse({
+          success: false,
+          auth_mode: 'master',
+          error: { code: failure.code, message: failure.message },
+        }, 422);
+      }
+
+      console.log(
+        `[rentalsunited-api] ${action} running on MASTER credentials (owner_id=${ownerScope || 'unscoped read'})`,
+      );
     }
+
 
 
     // ── list_properties ──
