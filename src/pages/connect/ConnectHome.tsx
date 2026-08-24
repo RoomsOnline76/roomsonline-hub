@@ -347,7 +347,7 @@ export default function ConnectHome() {
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60 days free
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No setup fee
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Setup fee waived in your 60 days
               </span>
               <span className="flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only for 60 days
