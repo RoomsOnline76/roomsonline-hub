@@ -127,11 +127,14 @@ export default function AdminChannelMonitor() {
   // Deep link between the booking trail (decision) and the exchange log (raw payload).
   const [exchangeSearch, setExchangeSearch] = useState("");
   const [exchangeOpen, setExchangeOpen] = useState(false);
+  // Every Advanced frame opens closed: engineers reach for one tool at a time.
+  const [trailOpen, setTrailOpen] = useState(false);
+  const [complianceOpen, setComplianceOpen] = useState(false);
+  const [observabilityOpen, setObservabilityOpen] = useState(false);
   const exchangeLogRef = useRef<HTMLElement | null>(null);
 
 
   const { isDev, isFearlessLeader } = useAuth();
-  const [certSubTab, setCertSubTab] = useState<string | undefined>(undefined);
 
   const rawTab = params.get("tab");
   const mapped = rawTab ? (LEGACY_TAB_MAP[rawTab] ?? (rawTab as TabKey)) : null;
