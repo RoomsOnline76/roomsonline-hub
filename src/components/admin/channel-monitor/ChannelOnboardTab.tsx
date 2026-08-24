@@ -330,11 +330,14 @@ export function ChannelOnboardTab({
     rebindEmail.trim().length > 0 &&
     rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
 
+  // The preview modal only renders once the plan is in hand, so the operator never
+  // sees an empty dialog while the resolution is still running.
   const openPlan = useCallback(async () => {
     if (!propertyId) return;
     setPlanLoading(true);
     try {
       setPlan(await planOwnerAccount(propertyId));
+      setAccountDialogOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not preview the distribution account");
     } finally {
