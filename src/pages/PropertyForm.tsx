@@ -71,6 +71,7 @@ import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/cha
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { validateStayTimes } from "@/lib/stayTimes";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
+import { channelSaveOutcomeCopy } from "@/lib/channelEditGate";
 import { RuRateGateTimer } from "@/components/property/RuRateGateTimer";
 import { normalizeRoomIdentityName, resolvePersistedRoomIdentity } from "@/lib/roomIdentity";
 import { buildPropertySavePatch, samePersistedValue } from "@/lib/propertySavePatch";
@@ -4144,10 +4145,17 @@ export default function PropertyForm({
 
 
       const changedLabels = Array.from(new Set(changedChannelFields.map((field) => field.label)));
+      // Never promise channel activity for a property that has not cleared the onboarding
+      // gate — the push helper stays silent there, so the toast must say so too.
+      const saveOutcome = changedLabels.length > 0 && savedPropertyId
+        ? await channelSaveOutcomeCopy(savedPropertyId)
+        : { willPush: false, sentence: "" };
       toast({
         title: propertyChanged ? "Property saved" : "No changes detected",
         description: changedLabels.length > 0
-          ? `${changedLabels.join(", ")} saved; channel delivery is being confirmed.`
+          ? saveOutcome.willPush
+            ? `${changedLabels.join(", ")} saved; ${saveOutcome.sentence}`
+            : `${changedLabels.join(", ")} saved. ${saveOutcome.sentence}`
           : propertyChanged
             ? "Local changes saved. No channel update is required."
             : "Everything is already up to date.",
