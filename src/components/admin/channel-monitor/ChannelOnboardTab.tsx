@@ -22,7 +22,6 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
-  UserCog,
   X,
 } from "lucide-react";
 
@@ -57,8 +56,6 @@ import {
   type ChannelOnboardTaskId,
 } from "@/config/channelOnboard";
 import {
-  describeAccountScope,
-  describeListingState,
   planOwnerAccount,
   rebindOwner,
   runOnboardStep,
@@ -67,6 +64,7 @@ import {
 } from "@/lib/channelOnboardOrchestrator";
 
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
+import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 
 interface PropertyOption {
   id: string;
