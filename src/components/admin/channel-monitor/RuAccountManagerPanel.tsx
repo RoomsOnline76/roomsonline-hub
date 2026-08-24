@@ -39,7 +39,6 @@ import {
   Loader2,
   Mail,
   RotateCcw,
-  Send,
   ShieldCheck,
   Trash2,
   Unlink,
