@@ -163,7 +163,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     isFetching,
     propertyName,
     ownerEmail,
-    websiteLive,
+    
     soleUnitName,
     unitNames,
   } = progress;
