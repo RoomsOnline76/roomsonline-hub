@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   CalendarCheck, Users, BarChart3, Blocks, Shield, Zap,
   Home, CreditCard, ClipboardList, BedDouble, Star, Globe,
-  ArrowRight, Cat, Sun, Moon, Clock, FileText
+  ArrowRight, Cat, Sun, Moon, Clock, FileText, Wallet
 } from "lucide-react";
 
 const fadeUp = {
