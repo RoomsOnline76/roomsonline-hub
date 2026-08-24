@@ -81,7 +81,19 @@ async function portal(
 
 /** The gate as the backend sees it: readiness, monitor steps and the current binding. */
 export interface OnboardGateSnapshot {
-  property: { id: string; name: string; owner_email: string | null; listing_id: string | null; push_enabled: boolean };
+  property: {
+    id: string;
+    name: string;
+    owner_email: string | null;
+    listing_id: string | null;
+    push_enabled: boolean;
+    /** Room types that carry a channel listing id — how standalone-unit properties publish. */
+    unit_listings_recorded?: number | null;
+    unit_listings_verified?: number | null;
+    unit_listings_expected?: number | null;
+    listings_verified_at?: string | null;
+  };
+
   binding: {
     portfolio_id: string | null;
     account_id: string | null;
