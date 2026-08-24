@@ -825,10 +825,24 @@ export function RuAccountManagerPanel({
     });
   }, [uniqueAccounts, members, portfolioById, propById, properties]);
 
+  // When embedded we only ever show the accounts that serve the selected
+  // property/portfolio — an account is in scope when it is bound to the portfolio,
+  // to the property itself, or reaches either through its linked properties.
+  const scoped = useMemo(() => {
+    if (!propertyId && !portfolioId) return rows;
+    const inScope = new Set<string>([...(memberIds ?? []), ...(propertyId ? [propertyId] : [])]);
+    return rows.filter(
+      (r) =>
+        (portfolioId && r.acc.portfolio_id === portfolioId) ||
+        (propertyId && r.acc.property_id === propertyId) ||
+        r.linked.some((p) => inScope.has(p.id)),
+    );
+  }, [rows, propertyId, portfolioId, memberIds]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter(
+    if (!q) return scoped;
+    return scoped.filter(
       (r) =>
         r.scopeName.toLowerCase().includes(q) ||
         r.acc.owner_email.toLowerCase().includes(q) ||
@@ -836,7 +850,7 @@ export function RuAccountManagerPanel({
         (r.acc.ru_owner_id || "").toLowerCase().includes(q) ||
         r.linked.some((p) => p.name.toLowerCase().includes(q))
     );
-  }, [rows, search]);
+  }, [scoped, search]);
 
   // Scoped to the sub-account footprint and trading properties only, so this
   // counter matches the Channel Monitor card it links to.
