@@ -218,10 +218,15 @@ export default function ConnectPricing() {
                 <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
                   <p className="text-xs leading-relaxed">
                     <span className="font-semibold">One exception:</span> if you take payments through
-                    our payment gateway, the card processing fees on that gateway are payable by you —
-                    including during the free 60 days.
+                    our payment gateway, card processing is charged on the payment-processing
+                    schedule — payable from day one, including during the free 60 days.{" "}
+                    <a href="#payment-processing" className="text-primary underline underline-offset-2">
+                      See the schedule
+                    </a>
+                    .
                   </p>
                 </div>
+
                 <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
                   The booking fee is agreed per property and negotiable for volume and portfolios.
                   We put it in writing before you go live.
