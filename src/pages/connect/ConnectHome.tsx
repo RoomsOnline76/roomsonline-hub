@@ -323,7 +323,8 @@ export default function ConnectHome() {
           >
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Free for your first 60 days — the full stack, no subscription, no setup fee, no
+              Free for your first 60 days — the full stack, no subscription, no setup fee when you
+              start in that period, no
               credit card. In that period you pay only the booking fee on bookings taken through
               ROL'OS (plus card processing fees if you use our payment gateway). From day 61 the
               PMS subscription and the add-ons you keep are billed as agreed.
