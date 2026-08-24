@@ -56,23 +56,28 @@ export async function ruCompanyDetailsSatisfied(
   const filled = filledAt ? new Date(filledAt).getTime() : 0;
 
   let verifiedAt: string | null = null;
+  let keysCreatedAt: string | null = null;
   if (ownerId) {
     const { data: cred } = await admin
       .from("ru_api_credentials")
-      .select("verified_at")
+      .select("verified_at, created_at")
       .eq("ru_owner_id", ownerId)
       .maybeSingle();
     verifiedAt = cred?.verified_at ?? null;
+    keysCreatedAt = cred?.created_at ?? null;
   }
 
   if (!pushed || !filled) {
     return { satisfied: false, via: "none", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
   }
 
-  const verified = verifiedAt ? new Date(verifiedAt).getTime() : 0;
-  // No verified credentials yet → the push cannot have reached the sub-account.
-  if (!verified || filled < verified - SKEW_MS) {
+  // The proof point is when the sub-account FIRST had its own key pair, not the latest
+  // re-verification: re-running Step A re-verifies the keys, and comparing against that
+  // newer timestamp made an accepted profile read as "stale" and blocked every push.
+  const firstProof = new Date(keysCreatedAt ?? verifiedAt ?? 0).getTime();
+  if (!verifiedAt || (firstProof && filled < firstProof - SKEW_MS)) {
     return { satisfied: false, via: "stale", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
   }
   return { satisfied: true, via: "pushed", pushedAt: filledAt ?? null, keysVerifiedAt: verifiedAt };
 }
+
