@@ -890,33 +890,35 @@ export function RuAccountManagerPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[
-          { value: uniqueAccounts.length, label: "RU sub-accounts", focus: "accounts" },
-          {
-            value: footprintLinkedIds.size,
-            label: "Properties under sub-accounts",
-            focus: "sub-account-properties",
-          },
-          { value: totalPushEnabled, label: "RU push enabled", focus: "push-enabled" },
-        ].map((card) => (
-          <RouterLink
-            key={card.focus}
-            to={`/admin/channel-monitor?focus=${card.focus}`}
-            className="block focus-visible:outline-none"
-          >
-            <Card className="transition-colors hover:border-primary">
-              <CardContent className="py-4">
-                <div className="text-2xl font-semibold">{card.value}</div>
-                <p className="text-xs text-muted-foreground">{card.label}</p>
-                <p className="mt-1 flex items-center gap-1 text-[10px] text-primary">
-                  Channel Monitor <ChevronRight className="h-3 w-3" />
-                </p>
-              </CardContent>
-            </Card>
-          </RouterLink>
-        ))}
-      </div>
+      {!embedded && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { value: uniqueAccounts.length, label: "RU sub-accounts", focus: "accounts" },
+            {
+              value: footprintLinkedIds.size,
+              label: "Properties under sub-accounts",
+              focus: "sub-account-properties",
+            },
+            { value: totalPushEnabled, label: "RU push enabled", focus: "push-enabled" },
+          ].map((card) => (
+            <RouterLink
+              key={card.focus}
+              to={`/admin/channel-monitor?focus=${card.focus}`}
+              className="block focus-visible:outline-none"
+            >
+              <Card className="transition-colors hover:border-primary">
+                <CardContent className="py-4">
+                  <div className="text-2xl font-semibold">{card.value}</div>
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                  <p className="mt-1 flex items-center gap-1 text-[10px] text-primary">
+                    Channel Monitor <ChevronRight className="h-3 w-3" />
+                  </p>
+                </CardContent>
+              </Card>
+            </RouterLink>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Input
@@ -925,13 +927,15 @@ export function RuAccountManagerPanel({
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm text-sm"
         />
-        <Button asChild size="sm" variant="outline" className="gap-1.5">
-          <RouterLink to="/admin/channel-monitor?tab=cert">
-            Certification console <ChevronRight className="h-4 w-4" />
-          </RouterLink>
-        </Button>
-
+        {!embedded && (
+          <Button asChild size="sm" variant="outline" className="gap-1.5">
+            <RouterLink to="/admin/channel-monitor?tab=cert">
+              Certification console <ChevronRight className="h-4 w-4" />
+            </RouterLink>
+          </Button>
+        )}
       </div>
+
 
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
