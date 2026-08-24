@@ -33,7 +33,6 @@ import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/Archiv
 import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
-import { ChannelLedgerMetricsPanel } from "@/components/admin/channel-monitor/ChannelLedgerMetricsPanel";
 
 
 import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
