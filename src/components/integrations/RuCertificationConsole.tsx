@@ -412,11 +412,19 @@ const PHASE_LABELS: Record<string, string> = {
 export function RuCertificationConsole({
   properties,
   initialTab,
+  variant = "cert",
 }: {
   properties: PropertyLite[];
-  /** Optional deep-open target sub-tab. Omitted = today's default ("runs"). */
+  /** Optional deep-open target sub-tab. Omitted = the variant's first tab. */
   initialTab?: string;
+  /**
+   * `cert` = the operator console (milestones, coverage, windows, discounts, readiness, users).
+   * `advanced` = the engineers' surface: the certification runner, its recent runs and refresh
+   * compliance, rendered from the Channel Monitor's Advanced tab.
+   */
+  variant?: "cert" | "advanced";
 }) {
+
   const [suite, setSuite] = useState("read_only");
   const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
   const [propertyId, setPropertyId] = useState<string>("none");
