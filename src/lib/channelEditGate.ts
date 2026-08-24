@@ -78,6 +78,30 @@ async function entitlementEnabled(propertyId: string): Promise<boolean> {
 async function resolve(propertyId: string): Promise<ChannelEditGateState> {
   const missing: string[] = [];
   try {
+    /**
+     * Fast path — the two-step Channel Monitor flow records a durable `ready_to_connect`
+     * verdict once Step A and Step B have both passed. That verdict already implies the
+     * published listing, its read-back, currency and entitlement, so honour it directly
+     * instead of re-deriving the same facts from five tables.
+     */
+    const { data: connected } = await supabase
+      .from("property_channel_step_status")
+      .select("status")
+      .eq("property_id", propertyId)
+      .eq("step_key", "ready_to_connect")
+      .maybeSingle();
+    if (connected?.status === "passed") {
+      const { data: pushRow } = await supabase
+        .from("properties")
+        .select("ru_push_enabled")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (pushRow?.ru_push_enabled === false) {
+        return { open: false, missing: ["Channel pushes are switched off for this property"] };
+      }
+      return { open: true, missing: [] };
+    }
+
     const [propertyRes, currencyRes, roadmapRes, entitlement] = await Promise.all([
       supabase
         .from("properties")

@@ -1,0 +1,116 @@
+/**
+ * Two-step channel onboarding — task registry.
+ *
+ * Single source of truth for what Step A and Step B actually do, in order. The monitor
+ * renders this registry; the orchestrator supplies one runner per task id. Nothing here
+ * knows anything about channel wire format.
+ */
+
+export type ChannelOnboardStep = "a" | "b";
+
+export type ChannelOnboardTaskId =
+  | "owner_account"
+  | "api_keys"
+  | "verify_keys"
+  | "company_profile"
+  | "adopt_listings"
+  | "push_property"
+  | "verify_listings"
+  | "verify_currency"
+  | "entitlement";
+
+export interface ChannelOnboardTask {
+  id: ChannelOnboardTaskId;
+  step: ChannelOnboardStep;
+  title: string;
+  /** What the operator gets out of it — plain language, no vendor naming. */
+  detail: string;
+  /** Optional tasks never stop the chain. */
+  optional?: boolean;
+}
+
+export const CHANNEL_ONBOARD_TASKS: ChannelOnboardTask[] = [
+  {
+    id: "owner_account",
+    step: "a",
+    title: "Confirm or create the distribution account",
+    detail: "Adopts an existing account for this owner email, or creates one. Never duplicates an identity.",
+  },
+  {
+    id: "api_keys",
+    step: "a",
+    title: "Account credentials",
+    detail: "Mints the account's own key pair when a portal password is stored; skipped when a pair already exists.",
+  },
+  {
+    id: "verify_keys",
+    step: "a",
+    title: "Verify credentials",
+    detail: "Signs in with the account's own credentials so every later write is correctly scoped.",
+  },
+  {
+    id: "company_profile",
+    step: "a",
+    title: "Company profile",
+    detail: "Sends the owner's company details on the account's own credentials.",
+  },
+  {
+    id: "adopt_listings",
+    step: "a",
+    title: "Adopt existing listings",
+    detail: "Links anything already on the account to this property so the push updates instead of duplicating.",
+  },
+  {
+    id: "push_property",
+    step: "b",
+    title: "Push property, rooms and full ARI",
+    detail: "Publishes content, then availability and pricing for the rolling 365-day horizon.",
+  },
+  {
+    id: "verify_listings",
+    step: "b",
+    title: "Read the listings back",
+    detail: "Confirms every unit exists on the distribution account under the expected identity.",
+  },
+  {
+    id: "verify_currency",
+    step: "b",
+    title: "Verify location & currency",
+    detail: "Checks the published location and currency agree on both sides.",
+  },
+  {
+    id: "entitlement",
+    step: "b",
+    title: "Enable Channel Manager",
+    detail: "Switches Channel Manager on for the billing profile so sales channels can connect.",
+  },
+];
+
+export const CHANNEL_ONBOARD_STEP_META: Record<
+  ChannelOnboardStep,
+  { key: "monitor_step_a" | "monitor_step_b"; title: string; goal: string; cta: string }
+> = {
+  a: {
+    key: "monitor_step_a",
+    title: "Step A — Distribution account",
+    goal: "One correct distribution account for this owner, with verified credentials and company profile.",
+    cta: "Run Step A",
+  },
+  b: {
+    key: "monitor_step_b",
+    title: "Step B — Publish property & ARI",
+    goal: "The property, its rooms and a full year of availability and pricing are live and read back.",
+    cta: "Run Step B",
+  },
+};
+
+/** Readiness groups that make up mandatory steps 1–5 (mirrors the edge gate). */
+export const READY_TO_SELL_GROUP_LABELS = [
+  "Content",
+  "Address & geo",
+  "Rooms & beds",
+  "Photos",
+  "Policies & payments",
+  "Availability 365d",
+  "Pricing 365d",
+];
