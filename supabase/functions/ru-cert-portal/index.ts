@@ -2389,6 +2389,7 @@ Deno.serve(async (req) => {
     const scorePropertyWithinBudget = async (
       p: Parameters<typeof scoreProperty>[0],
       probeAri: boolean,
+      forceProbe = false,
     ) => {
       if (!probeAri) return await scoreProperty(p, { probe_ari: false });
       const timeout = Symbol("score_timeout");
@@ -2397,7 +2398,8 @@ Deno.serve(async (req) => {
         timer = setTimeout(() => resolve(timeout), SCORE_PROBE_BUDGET_MS);
       });
       try {
-        const result = await Promise.race([scoreProperty(p, { probe_ari: true }), budget]);
+        const result = await Promise.race([scoreProperty(p, { probe_ari: true, force_probe: forceProbe }), budget]);
+
         if (result !== timeout) return result;
         console.warn(`[scoreProperty] live probe exceeded ${SCORE_PROBE_BUDGET_MS}ms — scoring locally`);
         return await scoreProperty(p, { probe_ari: false });
