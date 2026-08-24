@@ -285,7 +285,7 @@ type TaskRunner = (ctx: RunContext, snapshot: OnboardGateSnapshot) => Promise<Ta
 const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   // Step A ────────────────────────────────────────────────────────────────────
   owner_account: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       {
         action: "ensure_owner_account",
         property_id: ctx.propertyId,
@@ -294,7 +294,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "Could not confirm the distribution identity",
     );
-    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     notifyRuAccountsChanged();
     return {
       id: "owner_account",
@@ -315,13 +315,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           "No sub-account password is stored, so a key pair cannot be minted here. Generate the first pair in the channel portal (Security settings) and save it on the Accounts tab.",
       };
     }
-    const { ok, pending, detail } = await portal(
+    const { ok, pending, retryAfterMs, detail } = await portal(
       { action: "create_api_key", property_id: ctx.propertyId, ru_owner_id: snapshot.binding.ru_owner_id },
       "Could not mint the sub-account key pair",
     );
     return {
       id: "api_keys",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
+      retryAfterMs,
       detail: ok ? "Key pair minted and stored" : detail,
     };
   },
@@ -330,7 +331,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (!snapshot.binding.ru_owner_id) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       {
         action: "verify_api_keys",
         ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
@@ -338,7 +339,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "The sub-account credentials did not verify",
     );
-    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     if (data.verified === false) {
       return {
         id: "verify_keys",
@@ -353,24 +354,25 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (snapshot.binding.company_details_sent) {
       return { id: "company_profile", outcome: "skipped", detail: "Company profile already accepted" };
     }
-    const { ok, pending, detail } = await portal(
+    const { ok, pending, retryAfterMs, detail } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
     );
     return {
       id: "company_profile",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
+      retryAfterMs,
       detail: ok ? "Company profile accepted" : detail,
     };
   },
 
   adopt_listings: async (ctx) => {
     // Adopting anything already under the sub-account is what stops Step B duplicating.
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "Could not review the sub-account's existing listings",
     );
-    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     const matched = Array.isArray(data.matched) ? (data.matched as unknown[]).length : 0;
     return {
       id: "adopt_listings",
