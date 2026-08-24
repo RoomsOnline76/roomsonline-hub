@@ -82,6 +82,9 @@ interface OnboardOption {
   label: string;
   kind: "portfolio" | "property";
   memberCount: number;
+  /** Portfolio entries only: the portfolio and every eligible member it covers. */
+  portfolioId?: string;
+  memberIds?: string[];
 }
 
 
@@ -113,10 +116,30 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 
-export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: string | null }) {
+export function ChannelOnboardTab({
+  initialPropertyId,
+  initialPortfolioId,
+  onSelectionChange,
+}: {
+  initialPropertyId?: string | null;
+  initialPortfolioId?: string | null;
+  onSelectionChange?: (propertyId: string) => void;
+}) {
   const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
-  const [propertyId, setPropertyId] = useState<string>(initialPropertyId ?? "");
+  const [propertyId, setPropertyId] = useState<string>("");
+  /** Why a deep-linked property could not be selected, or how it was resolved. */
+  const [requestNotice, setRequestNotice] = useState<string | null>(null);
+
+  const selectProperty = useCallback(
+    (next: string) => {
+      setPropertyId(next);
+      setRequestNotice(null);
+      onSelectionChange?.(next);
+    },
+    [onSelectionChange],
+  );
+
 
   const gate = useChannelOnboardGate(propertyId || null);
 
@@ -229,6 +252,8 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
               label: `${names.get(pid)} (portfolio · ${sorted.length} ${sorted.length === 1 ? "property" : "properties"})`,
               kind: "portfolio",
               memberCount: sorted.length,
+              portfolioId: pid,
+              memberIds: sorted,
             });
           }
           options = [
@@ -242,11 +267,49 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
       setProperties(options);
       setPropertiesLoading(false);
 
+      /**
+       * Resolve the deep link from the wizard ("Open Channel Monitor"). A portfolio
+       * member is not itself an option — its portfolio entry is — so a raw property
+       * id must be mapped onto the entry that actually onboards it. When nothing
+       * matches we say why instead of leaving the picker mysteriously blank.
+       */
+      const requestedProperty = initialPropertyId ?? null;
+      const requestedPortfolio = initialPortfolioId ?? null;
+      if (!requestedProperty && !requestedPortfolio) return;
+
+      const byPortfolio = requestedPortfolio
+        ? options.find((o) => o.portfolioId === requestedPortfolio)
+        : undefined;
+      const exact = requestedProperty
+        ? options.find((o) => o.id === requestedProperty)
+        : undefined;
+      const viaMember = requestedProperty
+        ? options.find((o) => o.memberIds?.includes(requestedProperty))
+        : undefined;
+      const resolved = byPortfolio ?? exact ?? viaMember;
+      const requestedName = rows.find((r) => r.id === requestedProperty)?.name ?? null;
+
+      if (resolved) {
+        setPropertyId(resolved.id);
+        setRequestNotice(
+          resolved.kind === "portfolio" && requestedName
+            ? `${requestedName} is onboarded with its portfolio — the portfolio entry is selected.`
+            : null,
+        );
+        return;
+      }
+
+      setRequestNotice(
+        requestedName
+          ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and a signed contract, and must not be archived.`
+          : "The requested property is not available for onboarding (inactive, archived, or not entitled).",
+      );
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialPropertyId, initialPortfolioId]);
+
 
 
   // Switching property resets the live task trail; the durable verdicts come from the gate.
@@ -466,7 +529,7 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={setPropertyId} disabled={properties.length === 0}>
+                <Select value={propertyId} onValueChange={selectProperty} disabled={properties.length === 0}>
                   <SelectTrigger className="mt-1">
                     <SelectValue
                       placeholder={
@@ -486,6 +549,9 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
                 </Select>
               )}
 
+              {requestNotice && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{requestNotice}</p>
+              )}
 
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>

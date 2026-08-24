@@ -1068,7 +1068,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
               <div className="flex flex-wrap gap-2">
                 {isPlatformUser && (
                   <Button asChild size="sm">
-                    <Link to={`/admin/channel-monitor?tab=onboard&property=${propertyId}`}>
+                    <Link
+                      to={`/admin/channel-monitor?tab=onboard&property=${propertyId}${
+                        // A portfolio-scoped party is onboarded as a portfolio at the
+                        // monitor, so hand the portfolio over too — the raw property id
+                        // is not one of the monitor's picker entries.
+                        billing.scope.portfolioId ? `&portfolio=${billing.scope.portfolioId}` : ""
+                      }`}
+                    >
                       Open Channel Monitor
                     </Link>
                   </Button>
