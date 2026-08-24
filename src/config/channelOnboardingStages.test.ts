@@ -24,22 +24,24 @@ function fakeMacro(key: string, complete: boolean): MacroProgress {
 }
 
 describe("channel onboarding stages", () => {
-  it("covers every registered macro exactly once", () => {
+  it("covers the five Ready-to-sell macros only", () => {
     const assigned = CHANNEL_ONBOARDING_STAGES.flatMap((s) => s.macroKeys);
-    const keys = ROLOS_ONBOARDING_MACROS.map((m) => m.key);
-    expect([...assigned].sort()).toEqual([...keys].sort());
+    expect(assigned).toEqual(["identity", "location", "rooms", "media", "commercial"]);
+    assigned.forEach((key) => {
+      expect(ROLOS_ONBOARDING_MACROS.some((m) => m.key === key)).toBe(true);
+    });
   });
 
-  it("locks later stages until earlier ones complete", () => {
+  it("reports the Ready-to-sell stage as incomplete while a step is outstanding", () => {
     const macros = ROLOS_ONBOARDING_MACROS.map((m) =>
       fakeMacro(m.key, ["identity", "location"].includes(m.key)),
     );
     const stages = buildStageProgress(macros);
+    expect(stages).toHaveLength(1);
     expect(stages[0].complete).toBe(false);
     expect(stages[0].locked).toBe(false);
-    expect(stages[1].locked).toBe(true);
-    expect(stages[2].locked).toBe(true);
   });
+
 
   it("routes admin and owner to the same job", () => {
     expect(channelOnboardingPath("abc", "admin")).toBe("/admin/onboarding/abc");
