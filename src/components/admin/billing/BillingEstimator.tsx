@@ -72,6 +72,38 @@ const ALL_ADD_ONS: EstimatorAddOns = {
   hubspot: true,
 };
 
+/**
+ * Last-used estimator setup. One slot only — saving overwrites it, so there is
+ * never more than a single remembered preset.
+ */
+const SAVED_KEY = "rolos.cost-estimator.last";
+
+interface SavedEstimatorState {
+  presetId: string | null;
+  rows: EstimatorProperty[];
+  bookings: string;
+  bookingValue: string;
+  paymentMode: PaymentMode;
+  widgetBookings: string;
+  widgetValue: string;
+  widgetMode: WidgetCommissionMode;
+  addOns: EstimatorAddOns;
+  savedAt: string;
+}
+
+function readSaved(): SavedEstimatorState | null {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedEstimatorState;
+    if (!Array.isArray(parsed?.rows) || !parsed.rows.length || !parsed?.addOns) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+
 export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   const [open, setOpen] = useState(true);
   const [presetId, setPresetId] = useState<string | null>(null);
