@@ -94,8 +94,11 @@ export default function ConnectGetStarted() {
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            Free for your first 60 days — and still free to run after that. No subscription, no setup fees.
-            You only pay a booking fee when we deliver a booking.
+            Free for your first 60 days — the full ROL'OS stack, no subscription and no setup fee.
+            In that period you pay only the booking fee on bookings taken through ROL'OS, plus card
+            processing fees if you use our payment gateway. From day 61 the PMS subscription and any
+            add-ons you keep — channel manager, white label, branding, revenue management — are billed
+            as set out in your agreement.
 
           </motion.p>
         </div>

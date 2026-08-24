@@ -19,19 +19,31 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-/** What the booking fee applies to — the only thing a property ever pays. */
+/** What the booking fee applies to — payable from day one. */
 const FEE_APPLIES_TO = [
   "Bookings delivered through ROL OTA and channel listings",
   "Bookings taken through the widget, embed or WordPress booking engine",
-  "Nothing else — no monthly fee, no setup fee, no per-room or per-user charge",
+  "Agreed per property and negotiable for volume and portfolios",
 ];
 
 const FREE_POINTS = [
-  "Free for your first 60 days — and still free to run after that",
-  "No subscription, no contract, no lock-in",
+  "Full ROL'OS PMS and every add-on switched on for 60 days",
+  "No subscription, no setup fee and no per-room charge in that period",
   "Onboarding, setup, training and support at no charge",
-  "Every module included, on every property, from day one",
+  "You pay only the booking fee on bookings taken through ROL'OS",
 ];
+
+/** What starts being charged once the free period ends. */
+const CHARGEABLE_AFTER: { item: string; note: string }[] = [
+  { item: "ROL'OS PMS subscription", note: "Priced on your agreement" },
+  { item: "Channel manager & OTA distribution (add-on)", note: "Charged per unit" },
+  { item: "White label & your own booking domain", note: "Priced on your agreement" },
+  { item: "Branding pack", note: "Priced on your agreement" },
+  { item: "Revenue management & yield tools", note: "Priced on your agreement" },
+  { item: "Bring your own payment gateway", note: "Priced on your agreement" },
+  { item: "Booking fee on ROL'OS-delivered bookings", note: "Continues as agreed" },
+];
+
 
 /** Grouped capability list — the promo surface for what "included" means. */
 const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] }[] = [
@@ -53,8 +65,8 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     icon: Globe,
     title: "Distribute",
     items: [
-      "Channel manager & OTA distribution",
-      "White-label branding on your own booking domain",
+      "Channel manager & OTA distribution (add-on)",
+      "White-label branding on your own booking domain (add-on)",
       "Booking widgets, embeds & WordPress plugin",
       "Developer REST API (55+ actions)",
       "HMAC-signed webhooks",
@@ -69,7 +81,7 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     items: [
       "Folio, invoicing & pro-forma documents",
       "VAT handling & tax invoices",
-      "Payment gateway integration (or bring your own)",
+      "Payment gateway integration (bring your own is an add-on)",
       "Refund register with approval workflow",
       "F&B and revenue splits",
       "Portfolio reconciliation & payout statements",
@@ -81,7 +93,7 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     icon: TrendingUp,
     title: "Grow",
     items: [
-      "Revenue management, yield rules & rate strategies",
+      "Revenue management, yield rules & rate strategies (add-on)",
       "Reviews & reputation monitoring",
       "Guest CRM & segmentation",
       "HubSpot CRM add-on — free, opt-in",
@@ -95,25 +107,26 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
 ];
 
 const GUARANTEES = [
-  "60 days free, then still free to run",
-  "No subscription and no annual lock-in",
-  "Cancel anytime, keep your data",
-  "Full data export included",
-  "Every module included — nothing paywalled",
+  "60 days free on the full stack",
+  "No annual lock-in — cancel anytime",
+  "Keep your data, full export included",
   "Free onboarding, training and support",
+  "Add-on pricing agreed in writing before day 61",
+  "Volume and portfolio terms negotiable",
 ];
 
 const COMPETITOR_COSTS = [
-  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included" },
-  { item: "Channel manager & OTA distribution", typical: "R 2,000 – R 4,000/mo", rolos: "Included" },
-  { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included" },
-  { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Included" },
-  { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Included" },
+  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Free for 60 days, then subscription" },
+  { item: "Channel manager & OTA distribution (add-on)", typical: "R 2,000 – R 4,000/mo", rolos: "Free for 60 days, then per unit" },
+  { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included, no add-on" },
+  { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Free for 60 days, then add-on" },
+  { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Free for 60 days, then add-on" },
   { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
-  { item: "Monthly subscription", typical: "Always", rolos: "None" },
+  { item: "Setup fee", typical: "Common", rolos: "None" },
 ];
+
 
 export default function ConnectPricing() {
   return (
@@ -126,7 +139,7 @@ export default function ConnectPricing() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-4">
-              60 days free · then still free to run
+              60 days free · then a subscription plus your chosen add-ons
             </span>
           </motion.div>
           <motion.h1
@@ -134,25 +147,26 @@ export default function ConnectPricing() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
-            Free to run.{" "}
-            <span className="text-primary">You only pay when we bring you a booking.</span>
+            Your first 60 days are free.{" "}
+            <span className="text-primary">Start earning before you start paying.</span>
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            No monthly subscription. No setup fee. No per-room or per-user charge.
-            White label, revenue management, PMS, channel integration, API, CRM and the
-            full ROL'OS stack are included — you pay a single booking fee only on the
-            bookings we deliver through OTA listings and the widget booking engine.
+            For 60 days you run the full ROL'OS stack — PMS, channel manager, white label,
+            revenue management and every add-on — with no subscription and no setup fee.
+            You pay only the booking fee on bookings taken through ROL'OS. From day 61 the
+            PMS subscription and the add-ons you keep are billed as set out in your agreement.
           </motion.p>
+
         </div>
       </section>
 
-      {/* The single offer */}
+      {/* Two phases */}
       <section className="py-12 sm:py-16">
-        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 space-y-6">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
             variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -164,10 +178,10 @@ export default function ConnectPricing() {
 
             <div className="grid md:grid-cols-2 gap-8 md:gap-10">
               <div>
-                <h2 className="text-2xl sm:text-3xl font-bold">One plan. Everything in it.</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold">Your first 60 days</h2>
                 <div className="mt-3 flex items-baseline gap-2 flex-wrap">
                   <span className="text-3xl sm:text-4xl font-bold text-primary">R 0</span>
-                  <span className="text-sm text-muted-foreground">/month, on every tier and every room count</span>
+                  <span className="text-sm text-muted-foreground">/month for the full stack, every add-on unlocked</span>
                 </div>
                 <ul className="mt-6 space-y-2.5">
                   {FREE_POINTS.map((f) => (
@@ -179,14 +193,14 @@ export default function ConnectPricing() {
                 </ul>
                 <Link to={connectPath("/connect/get-started")} className="inline-block mt-7">
                   <Button size="lg" className="gap-2">
-                    Get started free <ArrowRight className="h-4 w-4" />
+                    Start your 60 days <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               </div>
 
               <div className="rounded-xl border bg-card p-5 sm:p-6">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  The only charge
+                  What you pay during the free period
                 </h3>
                 <p className="mt-2 text-xl font-bold">
                   A booking fee — <span className="text-primary">competitive and surprisingly low</span>
@@ -199,17 +213,51 @@ export default function ConnectPricing() {
                     </li>
                   ))}
                 </ul>
-                <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
-                  The fee is agreed per property and negotiable for volume and portfolios.
-                  Talk to us and we'll put it in writing before you go live.
+                <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
+                  <p className="text-xs leading-relaxed">
+                    <span className="font-semibold">One exception:</span> if you take payments through
+                    our payment gateway, the card processing fees on that gateway are payable by you —
+                    including during the free 60 days.
+                  </p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                  The booking fee is agreed per property and negotiable for volume and portfolios.
+                  We put it in writing before you go live.
                 </p>
               </div>
             </div>
           </motion.div>
+
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }}
+            variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            className="rounded-2xl border bg-card p-6 sm:p-10"
+          >
+            <h2 className="text-2xl sm:text-3xl font-bold">From day 61</h2>
+            <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+              The PMS subscription starts, and you keep only the add-ons you actually want.
+              Each item below is priced per property in your agreement — no public tiers,
+              no forced bundles, and nothing switches on without your say-so.
+            </p>
+            <ul className="mt-6 grid sm:grid-cols-2 gap-3">
+              {CHARGEABLE_AFTER.map((c) => (
+                <li key={c.item} className="flex items-start justify-between gap-3 rounded-lg border bg-background p-3">
+                  <span className="text-sm">{c.item}</span>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">{c.note}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground mt-5 leading-relaxed">
+              Third-party pass-through costs stay with the third party — an external
+              revenue-management licence, or your payment gateway's transaction fees, are billed
+              at cost where they apply.
+            </p>
+          </motion.div>
         </div>
       </section>
 
-      {/* Everything included */}
+
+      {/* Everything unlocked in the trial */}
       <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -218,15 +266,17 @@ export default function ConnectPricing() {
             className="text-center mb-10"
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-3">
-              Included · Every property, every module
+              Unlocked from day one · Every property, every module
             </span>
-            <h2 className="text-2xl sm:text-3xl font-bold">Everything is in the box.</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold">Everything is in the box for 60 days.</h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              White label, revenue management, PMS, channel integration, the developer API and
-              the rest of the operating stack ship switched on. There are no feature paywalls
-              and no upgrade tiers to climb.
+              PMS, channel integration, white label, revenue management, the developer API and the
+              rest of the operating stack ship switched on — nothing is held back behind a tier.
+              Items marked <span className="text-foreground font-medium">add-on</span> become
+              chargeable after 60 days if you choose to keep them.
             </p>
           </motion.div>
+
 
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
@@ -261,8 +311,9 @@ export default function ConnectPricing() {
           <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
             Third-party pass-through costs stay with the third party — an external revenue-management
             licence you already hold, or your own payment gateway's transaction fees, are billed at cost
-            where they apply. Nothing in ROL'OS itself is charged for.
+            where they apply.
           </p>
+
         </div>
       </section>
 
@@ -276,9 +327,10 @@ export default function ConnectPricing() {
           >
             <h2 className="text-2xl font-bold">What Others Charge for the Same Features</h2>
             <p className="text-muted-foreground mt-2 max-w-lg mx-auto">
-              Most providers sell these as tiers and add-ons. ROL'OS includes them and charges
-              nothing until a booking arrives.
+              Most providers sell these as tiers and add-ons from day one. With ROL'OS you run the
+              lot free for 60 days, then pay only for the pieces you keep.
             </p>
+
           </motion.div>
 
           <motion.div
@@ -331,7 +383,7 @@ export default function ConnectPricing() {
           <div className="mt-8">
             <Link to={connectPath("/connect/get-started")}>
               <Button size="lg" className="gap-2">
-                Get started free <ArrowRight className="h-4 w-4" />
+                Start your 60 days free <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>

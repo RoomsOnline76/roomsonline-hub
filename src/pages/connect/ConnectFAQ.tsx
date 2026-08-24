@@ -38,7 +38,7 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "How do I get API access?",
-        a: "Submit a request through our Get Started page. You will receive your property ID and API key within 24 hours. Full API access is included for every property — no per-call fees and no API add-on.",
+        a: "Submit a request through our Get Started page. You will receive your property ID and API key within 24 hours. API access carries no per-call fee and no separate API add-on.",
       },
       {
         q: "What authentication does the API use?",
@@ -79,7 +79,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Can I white-label the booking experience?",
-        a: "Absolutely. ROL'OS supports full white-labeling: custom logos, color palettes, email templates, and domain configuration. Enterprise plans include dedicated branded instances.",
+        a: "Yes. ROL'OS supports full white-labelling: custom logos, colour palettes, email templates and your own booking domain. It is free during your first 60 days and an add-on after that, priced on your agreement.",
       },
     ],
   },
@@ -92,7 +92,7 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Can I manage multiple properties?",
-        a: "Yes — unlimited properties, with portfolio-level analytics and aggregated KPIs. There are no plan tiers and no per-property subscription.",
+        a: "Yes — unlimited properties, with portfolio-level analytics and aggregated KPIs. Portfolio terms are negotiable; subscription and add-on pricing is agreed per property in your agreement.",
       },
       {
         q: "Do you support OTA channel management?",
@@ -109,11 +109,11 @@ const FAQ_CATEGORIES = [
     items: [
       {
         q: "What support is included?",
-        a: "All of it, free. Onboarding, setup assistance, training and email support are included for every property — there is no support tier to buy.",
+        a: "Onboarding, setup assistance, training and email support are free for every property — there is no support tier to buy.",
       },
       {
         q: "What does ROL'OS cost?",
-        a: "Nothing to run. There is no monthly subscription, no setup fee and no per-room or per-user charge. Your first 60 days are free and it stays free after that. The only charge is a booking fee on bookings we deliver through ROL OTA and channel listings or the widget/embed booking engine.",
+        a: "Your first 60 days are free: the full ROL'OS PMS and every add-on, with no subscription and no setup fee. In that period the only ROL'OS charge is the booking fee on bookings taken through ROL OTA and channel listings or the widget/embed booking engine. From day 61 the PMS subscription starts, along with any add-ons you keep — channel manager (per unit), white label, branding, revenue management, bring-your-own gateway. Each is priced per property in your agreement.",
       },
       {
         q: "What is the booking fee?",
@@ -121,12 +121,18 @@ const FAQ_CATEGORIES = [
       },
       {
         q: "Do I pay extra for White Label, Revenue Management or the Channel Manager?",
-        a: "No. White-label branding on your own booking domain, revenue management and yield tools, PMS, channel integration, the developer API, CRM, folio and invoicing are all included. Nothing in ROL'OS is paywalled.",
+        a: "They are free for your first 60 days, and chargeable after that if you keep them. White label, branding, revenue management and the channel manager (charged per unit) are add-ons priced per property in your agreement. The PMS core, developer API, CRM, folio and invoicing sit inside the PMS subscription.",
       },
       {
         q: "What happens after the first 60 days?",
-        a: "Nothing changes. The system stays free to run — the 60 days simply mark the point from which booking fees apply to bookings we deliver.",
+        a: "The PMS subscription begins, and the add-ons you have chosen to keep are billed as set out in your agreement — channel manager per unit, white label, branding, revenue management, bring-your-own gateway. The booking fee on bookings taken through ROL'OS continues as before. We agree every amount with you in writing beforehand, and you can drop any add-on you do not want.",
       },
+      {
+        q: "Are payment gateway fees included in the free 60 days?",
+        a: "No. If you take payments through our payment gateway, the card processing fees on that gateway are payable by you — including during the free 60 days. Those are acquiring costs charged to us and passed through to you at cost. If you bring your own gateway, its fees stay with your provider and the ROL'OS gateway add-on applies from day 61.",
+      },
+
+
 
       {
         q: "What static content can I pull for a property?",
