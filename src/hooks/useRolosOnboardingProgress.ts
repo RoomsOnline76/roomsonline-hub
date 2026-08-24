@@ -611,18 +611,39 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
               : "Property content checks passed",
         });
       }
+      // Stay times are authored on the Policies tab (macro 5 — commercial), so
+      // unit check-in / check-out failures must not sit on the Rooms step.
+      const isStayTime = (f: (typeof unitFailures)[number]) =>
+        /check-?in|check-?out|checkin|checkout/i.test(`${f.label ?? ""} ${f.detail ?? ""}`);
+      const stayTimeFailures = unitFailures.filter(isStayTime);
+      const otherUnitFailures = unitFailures.filter((f) => !isStayTime(f));
       put(
         "unit_content_quality",
-        "Unit content, stay times & house rules",
-        unitFailures.filter((f) => f.mandatory).length === 0,
+        "Unit content & house rules",
+        otherUnitFailures.filter((f) => f.mandatory).length === 0,
         {
-          failures: unitFailures,
-          detail: unitFailures.length
-            ? unitFailures
+          failures: otherUnitFailures,
+          detail: otherUnitFailures.length
+            ? otherUnitFailures
                 .slice(0, 4)
                 .map((f) => `${f.unit}: ${f.detail ?? f.label}`)
                 .join(" · ")
             : "Unit content checks passed",
+        },
+      );
+      put(
+        "unit_stay_times",
+        "Unit check-in / check-out times",
+        stayTimeFailures.filter((f) => f.mandatory).length === 0,
+        {
+          failures: stayTimeFailures,
+          detail: stayTimeFailures.length
+            ? stayTimeFailures
+                .slice(0, 4)
+                .map((f) => `${f.unit}: ${f.detail ?? f.label}`)
+                .join(" · ")
+            : "Unit stay times passed",
+          hint: "Commercial → Policies → Check-in / check-out times",
         },
       );
     }

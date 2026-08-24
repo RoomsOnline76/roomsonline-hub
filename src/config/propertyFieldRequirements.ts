@@ -1110,7 +1110,9 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   contract: ["owner_email"],
   content: ["name", "property_type", "description"],
   // Unit-scoped content failures (stay times, unit descriptions) are edited in Rooms.
-  unit_content_quality: ["check_times", "room_descriptions"],
+  unit_content_quality: ["room_descriptions"],
+  // Unit stay times are authored on the Policies tab (commercial step).
+  unit_stay_times: ["check_times"],
   media: ["images", "hero_image"],
   commercial: ["banking"],
   location: ["address", "city", "country", "geo", "postal_code"],

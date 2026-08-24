@@ -18,6 +18,7 @@ export type DistributionCheckKey =
   | "google_place_id"
   | "content_quality"
   | "unit_content_quality"
+  | "unit_stay_times"
   | "address_geo"
   | "rooms_beds"
   | "photos"
@@ -149,6 +150,7 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
     tasks: [
       { kind: "fields", sections: ["rates", "policies"], label: "Rates & policy fields" },
       { kind: "state", key: "policies_payments" },
+      { kind: "state", key: "unit_stay_times" },
       { kind: "state", key: "pricing_365" },
       { kind: "state", key: "availability_365" },
     ],
