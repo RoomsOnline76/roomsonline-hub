@@ -254,7 +254,7 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
           </div>
         </CardHeader>
 
-        </CollapsibleTrigger>
+
 
         <CollapsibleContent>
           <CardContent className="space-y-3 pt-0">
