@@ -3196,6 +3196,12 @@ Deno.serve(async (req) => {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action, batch_size, batch_id: incomingBatchId } = reqBody;
     /**
+     * Price read-back opt-in. Onboarding Step B, the certification suite and an operator re-check
+     * send `verify_readback: true`; every routine save, booking-driven refresh, cron refresh and
+     * notification re-push leaves it off so no `Pull_ListPropertyPrices_RQ` is issued.
+     */
+    PRICE_READBACK_ENABLED = reqBody.verify_readback === true;
+    /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
      * brand-new building on each call instead of updating ours — 20+ duplicate "Tidal Pools"
