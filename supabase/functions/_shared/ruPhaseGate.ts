@@ -396,7 +396,7 @@ export async function evaluatePhases(
             .map((u) => u.name ?? "unit")
             .join(", ");
       p3Blockers.push(
-        `Rentals United has not accepted the full inventory yet: ${missingUnits.length} of ${activeUnits.length} unit(s) are not live at the channel${detail ? ` (${detail})` : ""}. Re-run the push — local rates and availability are scored separately in phase 2.`,
+        `Rentals United has not accepted the full inventory yet: ${missingUnits.length} of ${activeUnits.length} unit(s) are not live at the channel${detail ? ` (${detail})` : ""}. Re-run the push — local rates and availability are scored separately by the readiness steps 1–5.`,
       );
     }
   }

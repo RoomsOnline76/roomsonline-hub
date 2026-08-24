@@ -560,7 +560,7 @@ export default function AdminPortfolios() {
           type="email"
         />
         <p className="text-[10px] text-muted-foreground">
-          Used as the portfolio contact and by the Rentals United sub-user (Phase 1). Properties in a
+          Used as the portfolio contact and by the Rentals United sub-user (Step A). Properties in a
           portfolio may have different owners — copy the one that should represent the portfolio.
         </p>
         {ownerEmailCandidates.length > 0 && (
