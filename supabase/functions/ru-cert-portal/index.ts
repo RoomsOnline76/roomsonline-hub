@@ -256,6 +256,44 @@ async function loadLastGoodRuXml(
 }
 
 
+/**
+ * The channel allows one `Pull_ListMyUsers_RQ` per sliding minute, and a throttled call comes
+ * back as `{ success: true, queued: true }` with NO `users` array. Reading that as "the master
+ * account lists no sub-users" is what made binding impossible ("OwnerID not listed under our
+ * master account") and left the bind dialog empty. Poll across the rate window instead, and
+ * report a deferral as a deferral — never as an empty list.
+ */
+const RU_USER_LIST_ATTEMPTS = 4;
+const RU_USER_LIST_WAIT_MS = 20_000;
+
+async function listRuSubUsers(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+): Promise<{ ok: boolean; users: { owner_id?: string; email?: string; user_account_id?: string }[]; deferred: boolean; message?: string }> {
+  let lastMessage = "Rentals United did not return the sub-user list";
+  for (let attempt = 0; attempt < RU_USER_LIST_ATTEMPTS; attempt++) {
+    const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+    if (error) {
+      lastMessage = error.message ?? lastMessage;
+      return { ok: false, users: [], deferred: false, message: lastMessage };
+    }
+    if (data?.success && Array.isArray(data.users)) {
+      return { ok: true, users: data.users, deferred: false };
+    }
+    const queued = data?.queued === true || data?.rate_deferred === true ||
+      data?.error?.code === "RU_RATE_DEFERRED";
+    lastMessage = data?.message ?? data?.error?.message ?? lastMessage;
+    if (!queued) return { ok: false, users: [], deferred: false, message: lastMessage };
+    if (attempt < RU_USER_LIST_ATTEMPTS - 1) {
+      await new Promise((r) => setTimeout(r, RU_USER_LIST_WAIT_MS));
+    }
+  }
+  return { ok: false, users: [], deferred: true, message: lastMessage };
+}
+
+
+
+
 /** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
 const PHASE_STATUS_TTL_MS = 90_000;
 const phaseStatusCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
@@ -4957,14 +4995,21 @@ Deno.serve(async (req) => {
     //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
     //    per owner email, and logins can be renamed in the RU portal).
     if (action === "list_ru_candidates") {
-      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      if (!listed?.success) {
+      const listed = await listRuSubUsers(admin);
+      if (!listed.ok) {
         return json({
           success: false,
-          error: { code: "RU_LIST_FAILED", message: listed?.error?.message || "Rentals United did not return the sub-user list" },
-        }, 502);
+          rate_deferred: listed.deferred,
+          error: {
+            code: listed.deferred ? "RU_RATE_DEFERRED" : "RU_LIST_FAILED",
+            message: listed.deferred
+              ? "The channel is rate limiting the sub-user list right now. Wait a minute and open this dialog again."
+              : listed.message || "Rentals United did not return the sub-user list",
+          },
+        }, listed.deferred ? 429 : 502);
       }
-      return json({ success: true, users: listed.users ?? [] });
+      return json({ success: true, users: listed.users });
+
     }
 
     // ── bind_ru_account: point a local ru_owner_accounts row at a specific RU sub-user.
@@ -5001,13 +5046,12 @@ Deno.serve(async (req) => {
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_users" },
-        });
-        if (listErr || !listed?.success) {
-          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listErr?.message ?? listed?.error?.message);
+        const listed = await listRuSubUsers(admin);
+        if (!listed.ok) {
+          // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
+          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
         } else {
-          const users = (listed.users ?? []) as { owner_id?: string; email?: string; user_account_id?: string }[];
+          const users = listed.users;
           verifiedAgainstRu = true;
           match = users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId);
           if (!match) {
@@ -5020,6 +5064,7 @@ Deno.serve(async (req) => {
             }, 422);
           }
         }
+
       } catch (e) {
         console.warn("[ru-cert-portal] bind: RU list threw, continuing", e instanceof Error ? e.message : e);
       }
@@ -6174,9 +6219,12 @@ Deno.serve(async (req) => {
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
-        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
+        // Rate-deferred reads come back without a `users` array; polling the window keeps a
+        // throttled list from looking like "this owner has no sub-user".
+        const listed = await listRuSubUsers(admin);
+        return listed.ok ? (listed.users as RuUser[]) : [];
       };
+
       // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
       // Pull_ListMyUsers_RQ (that list can lag the portal's contact email), so a lookup
       // must match on either. OwnerID 741765's login and contact are both
