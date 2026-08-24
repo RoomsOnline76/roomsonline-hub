@@ -22,6 +22,8 @@ const FEATURE_SECTIONS = [
       { icon: CalendarCheck, title: "Reservation Engine", desc: "Create, modify, and cancel bookings with automatic inventory validation. No more double-bookings." },
       { icon: ClipboardList, title: "Housekeeping Board", desc: "Digital task assignment, priority management, room inspection workflows. Ditch the paper checklists." },
       { icon: CreditCard, title: "Folios & Billing", desc: "Guest folios with charges, payments, adjustments. One click to generate a professional invoice." },
+      { icon: Wallet, title: "Payment Gateway", desc: "Take card payments on our gateway with hybrid pricing — a percentage plus a small per-transaction fee — that steps down automatically as your monthly volume grows. The schedule on the Pricing page is the one written into your contract and billed. Or bring your own merchant account." },
+
     ],
   },
   {
