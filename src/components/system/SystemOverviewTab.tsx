@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -605,6 +606,24 @@ export function SystemOverviewTab() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Rentals United PMS — full cron registry and endpoint tracker live on their own page */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Rentals United (Channel Manager)
+            </CardTitle>
+            <CardDescription>
+              Cron registry, refresh cadence, health grading and the endpoint progress tracker.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/dev/system-health/ru-sync-pipelines">Open RU sync pipelines</Link>
+            </Button>
           </CardContent>
         </Card>
 
