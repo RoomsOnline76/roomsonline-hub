@@ -126,7 +126,7 @@ export default function ConnectIntegrations() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="text-xl sm:text-2xl font-bold">ROL'OS + HubSpot</h2>
                 <span className="rounded-full bg-primary/10 text-primary text-xs font-medium px-2.5 py-1">
-                  Included free
+                  Owner CRM add-on — no fee
                 </span>
               </div>
               <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">
