@@ -615,77 +615,8 @@ export function ChannelOnboardTab({
             )}
           </Card>
 
-          {/* 3 — owner binding */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <UserCog className="h-4 w-4" />
-                Owner binding
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Re-assigning archives this property's listings, clears the old binding and, when nothing is left on it,
-                archives the old distribution account. All of it runs as one operation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {bindingUnreadable ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
-                  The distribution binding could not be read — this property may well be bound. Re-assigning is blocked
-                  until the lookup succeeds. Detail: {binding?.read_error}
-                </p>
-              ) : null}
-              <dl className="grid gap-2 text-xs sm:grid-cols-4">
-                <div>
-                  <dt className="text-muted-foreground">Owner email</dt>
-                  <dd className="font-medium break-all">{property?.owner_email ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Account login</dt>
-                  <dd className="font-medium break-all">
-                    {bindingUnreadable ? "could not be read" : binding?.login_email ?? "not bound"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Account scope</dt>
-                  <dd className="font-medium">
-                    {bindingUnreadable ? "could not be read" : describeAccountScope(binding)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Listing</dt>
-                  <dd className="font-medium">{describeListingState(property)}</dd>
-                </div>
+          {/* 3 — the two steps. Owner binding and the account preview live in the Step A dialog. */}
 
-              </dl>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-[240px] flex-1">
-                  <Label className="text-xs">Re-assign to owner email</Label>
-                  <Input
-                    className="mt-1"
-                    type="email"
-                    placeholder="new.owner@example.com"
-                    value={rebindEmail}
-                    onChange={(event) => setRebindEmail(event.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!rebindEmail.includes("@") || rebinding || bindingUnreadable}
-                  onClick={() => setRebindOpen(true)}
-                >
-                  {rebinding ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                  Unbind & re-assign
-                </Button>
-              </div>
-              {sameEmailReset ? (
-                <p className="text-xs text-muted-foreground">
-                  That is the owner email already on file — this will reset the binding (archive listings, clear the
-                  account link) and Step A must be run again.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
 
           {/* 4 — the two steps */}
           {renderStep("a")}
