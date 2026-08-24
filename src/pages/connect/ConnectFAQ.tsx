@@ -226,10 +226,22 @@ const FAQ_CATEGORIES = [
 ];
 
 export default function ConnectFAQ() {
+  const gateway = usePublicGatewaySchedule();
+
+  // The gateway answers are expanded from the live schedule, so the accordion
+  // and the FAQ structured data always carry the rate that will be charged.
+  const categories = useMemo(() => {
+    const items = gatewayFaqItems(gateway);
+    return FAQ_CATEGORIES.map((cat) => ({
+      ...cat,
+      items: cat.items.flatMap((item) => (item === GATEWAY_FAQ_MARKER ? items : [item])),
+    }));
+  }, [gateway]);
+
   const faqSchema = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: FAQ_CATEGORIES.flatMap((cat) =>
+    mainEntity: categories.flatMap((cat) =>
       cat.items.map((item) => ({
         "@type": "Question",
         name: item.q,
@@ -237,6 +249,7 @@ export default function ConnectFAQ() {
       }))
     ),
   };
+
 
   usePageSEO({
     title: "ROL'OS Developer FAQ — Connect",
