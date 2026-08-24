@@ -532,6 +532,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 /**
  * Run one step's task chain. Stops at the first mandatory failure so nothing downstream
  * runs against a half-built account, and records the step verdict on the durable ledger.
+ *
+ * A `pending` task means the channel's rate window is closed: the chain stops there so no
+ * downstream task reads against a half-confirmed state, and the caller is told which task
+ * to resume from once the window reopens. That is never a failure.
  */
 export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext): Promise<StepRunResult> {
   const snapshot = await fetchOnboardGate(ctx.propertyId);
@@ -542,10 +546,16 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     throw new Error("Confirm the distribution sub-account (Step A) before pushing.");
   }
 
-  const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
+  const allTasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
+  // A resume picks the chain up at the deferred task, so already-passed legs are not replayed
+  // against the channel (which is what closed the rate window in the first place).
+  const startIndex = ctx.startAtTaskId ? Math.max(0, allTasks.findIndex((t) => t.id === ctx.startAtTaskId)) : 0;
+  const tasks = allTasks.slice(startIndex);
   const results: TaskResult[] = [];
   let pending = false;
   let failed = false;
+  let retryAfterMs: number | undefined;
+  let resumeFromTaskId: ChannelOnboardTaskId | undefined;
 
   for (const task of tasks) {
     ctx.onTask?.(task.id, "running");
@@ -560,9 +570,14 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       };
     }
     results.push(result);
-    ctx.onTask?.(task.id, result.outcome, result.detail);
+    ctx.onTask?.(task.id, result.outcome, result.detail, result.retryAfterMs);
 
-    if (result.outcome === "pending") pending = true;
+    if (result.outcome === "pending") {
+      pending = true;
+      retryAfterMs = result.retryAfterMs ?? DEFAULT_RATE_WINDOW_MS;
+      resumeFromTaskId = task.id;
+      break;
+    }
     if (result.outcome === "failed") {
       failed = true;
       if (!task.optional) break;
