@@ -110,22 +110,27 @@ async function readBinding(admin: any, propertyId: string) {
   const portfolioId = (member?.portfolio_id as string | undefined) ?? null;
 
   let account: Record<string, unknown> | null = null;
+  // Only columns that exist on ru_owner_accounts — a bad column makes PostgREST reject the
+  // whole read, which previously looked identical to "no account is bound".
   const select =
-    "id, scope, property_id, portfolio_id, owner_email, owner_name, ru_owner_id, ru_login_email, ru_api_access_key, ru_api_keys_verified_at, company_details_sent, company_details_status, ru_login_password_enc";
+    "id, scope, property_id, portfolio_id, owner_email, ru_owner_id, ru_login_email, ru_api_access_key, ru_api_keys_verified_at, company_details_sent, company_details_status, ru_login_password_enc";
+  let readError: string | null = null;
 
-  const { data: propScoped } = await admin
+  const { data: propScoped, error: propError } = await admin
     .from("ru_owner_accounts")
     .select(select)
     .eq("property_id", propertyId)
     .maybeSingle();
+  if (propError) readError = propError.message ?? String(propError);
   account = (propScoped as Record<string, unknown> | null) ?? null;
 
-  if (!account && portfolioId) {
-    const { data: pfScoped } = await admin
+  if (!account && !readError && portfolioId) {
+    const { data: pfScoped, error: pfError } = await admin
       .from("ru_owner_accounts")
       .select(select)
       .eq("portfolio_id", portfolioId)
       .maybeSingle();
+    if (pfError) readError = pfError.message ?? String(pfError);
     account = (pfScoped as Record<string, unknown> | null) ?? null;
   }
 
