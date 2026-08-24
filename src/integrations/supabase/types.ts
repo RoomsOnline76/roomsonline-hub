@@ -16143,6 +16143,30 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_roster_cache: {
+        Row: {
+          cache_key: string
+          fetched_at: string
+          source: string | null
+          user_count: number
+          users: Json
+        }
+        Insert: {
+          cache_key: string
+          fetched_at?: string
+          source?: string | null
+          user_count?: number
+          users?: Json
+        }
+        Update: {
+          cache_key?: string
+          fetched_at?: string
+          source?: string | null
+          user_count?: number
+          users?: Json
+        }
+        Relationships: []
+      }
       ru_sync_runs: {
         Row: {
           action: string
