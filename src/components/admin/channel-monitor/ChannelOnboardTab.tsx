@@ -529,7 +529,7 @@ export function ChannelOnboardTab({
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={setPropertyId} disabled={properties.length === 0}>
+                <Select value={propertyId} onValueChange={selectProperty} disabled={properties.length === 0}>
                   <SelectTrigger className="mt-1">
                     <SelectValue
                       placeholder={
@@ -549,6 +549,9 @@ export function ChannelOnboardTab({
                 </Select>
               )}
 
+              {requestNotice && (
+                <p className="mt-1.5 text-xs text-muted-foreground">{requestNotice}</p>
+              )}
 
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
