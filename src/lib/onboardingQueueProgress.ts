@@ -156,8 +156,11 @@ export function websiteQueueProgress(
 }
 
 /**
- * Channel bar follows the RU wizard: Ready → Published → Connect one channel.
- * A property that is fully published at RU sits at 92% until one channel connects.
+ * Channel bar scores the Ready-to-Sell gate only (wizard steps 1–5).
+ *
+ * Everything between Ready to sell and a connected channel is owned by the
+ * Channel Monitor's two-step "Onboard property" processor, so publish /
+ * currency / sign-off signals no longer dilute this score.
  */
 export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueueProgress {
   if (!signals.isRolos) {
@@ -175,75 +178,48 @@ export function channelQueueProgress(signals: ChannelQueueSignals): ChannelQueue
       percent: 100,
       stage: "live",
       label: n === 1 ? "1 channel" : `${n} channels`,
-      hint: "At least one sales channel is connected. The RU onboarding wizard is complete.",
+      hint: "At least one sales channel is connected. Onboarding is complete.",
     };
   }
 
-  const propertyListed = !!String(signals.propertyListingId ?? "").trim();
-  const unitsListed =
-    signals.activeUnits > 0 && signals.publishedUnits >= signals.activeUnits;
-  const someUnitsListed = signals.publishedUnits > 0 && signals.publishedUnits < signals.activeUnits;
-  const published = propertyListed || unitsListed;
   const checksKnown = signals.ruMandatoryPass !== undefined && signals.ruMandatoryPass !== null;
-  const checksPass = signals.ruMandatoryPass === true;
 
-  if (published && checksPass) {
+  if (signals.ruMandatoryPass === true) {
     return {
-      percent: 92,
+      percent: 100,
       stage: "connect",
-      label: "Ready to be connected to Channel",
-      hint: "Listing is on the Channel Manager and RU onboarding tests pass. Connecting one channel finishes the RU wizard.",
+      label: "Ready to sell",
+      hint: "Steps 1–5 all pass. Run Onboard property in the Channel Monitor to create the account, publish and connect.",
     };
   }
 
-  if (published && checksKnown && !checksPass) {
+  if (checksKnown) {
     const raw = signals.ruMandatoryPercent;
-    // Cap just under the "ready to connect" mark so a failing card can never read
-    // higher than the wizard's own ready score.
     const percent =
       typeof raw === "number" && Number.isFinite(raw)
-        ? Math.max(0, Math.min(90, Math.round(raw)))
-        : 60;
+        ? Math.max(0, Math.min(99, Math.round(raw)))
+        : 0;
+    const outstanding =
+      typeof signals.ruOutstanding === "number" && signals.ruOutstanding > 0
+        ? signals.ruOutstanding
+        : null;
     return {
       percent,
-      stage: "publish",
-      label: `${percent}% · RU checks failing`,
-      hint: "Listing IDs exist, but mandatory RU onboarding tests are not all passing. This is not ready to connect.",
-    };
-  }
-
-
-  if (published && !checksKnown) {
-    return {
-      percent: 80,
-      stage: "publish",
-      label: "Confirm RU checks",
-      hint: "Listing IDs exist, but live RU tests have not been confirmed. Ready to connect is withheld until those tests pass.",
-    };
-  }
-
-  if (someUnitsListed) {
-    return {
-      percent: 80,
-      stage: "publish",
-      label: `${signals.publishedUnits}/${signals.activeUnits} units published`,
-      hint: "Publish the remaining units, then connect a channel.",
-    };
-  }
-
-  if (signals.hasDistributionIdentity) {
-    return {
-      percent: 58,
-      stage: "publish",
-      label: "Publish listing",
-      hint: "Distribution identity is in place. Publish the listing to the Channel Manager next.",
+      stage: "ready",
+      label: outstanding
+        ? `${percent}% · ${outstanding} outstanding`
+        : `${percent}% · steps 1–5`,
+      hint: outstanding
+        ? `${outstanding} mandatory item${outstanding === 1 ? "" : "s"} outstanding across steps 1–5 (identity, location, rooms, media, commercial).`
+        : "Mandatory fields across steps 1–5 (identity, location, rooms, media, commercial) are not all complete yet.",
     };
   }
 
   return {
-    percent: 25,
+    percent: 0,
     stage: "ready",
-    label: "Ready to sell",
-    hint: "Complete identity, rooms, photos and rates before publishing to the Channel Manager.",
+    label: "Grade steps 1–5",
+    hint: "Ready to sell has not been graded yet. Open the wizard to grade steps 1–5.",
   };
 }
+
