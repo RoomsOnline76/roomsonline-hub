@@ -172,9 +172,12 @@ export const ROLOS_ONBOARDING_MACROS: MacroDef[] = [
       { kind: "state", key: "api_keys_verified" },
     ],
     notes: [
-      "Sign in to the owner portal with the sub-account login, create the API key and secret, then capture them in the ROL'OS owner panel.",
+      "Sign in to the distribution account portal with the sub-account login, open Security settings, generate the API key and secret, then capture them in the ROL'OS owner panel.",
+      "The secret is shown once. Copy both values before closing the dialog — if it is lost, generate a fresh pair and re-save it here.",
+      "Until the pair is stored and verified, nothing is sent for this account: content, pricing and availability pushes are held rather than sent on the parent account.",
       "This step is done the moment the pair is stored and verified — the company profile is sent for you in the next step.",
     ],
+
   },
   {
     key: "company_profile",
