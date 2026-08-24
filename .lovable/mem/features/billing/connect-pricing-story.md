@@ -7,7 +7,7 @@ type: feature
 The commercial model that all public Connect copy must reflect:
 
 **First 60 days**
-- Full ROL'OS PMS and every add-on unlocked at no charge (no subscription, no setup fee, no per-room fee).
+- Full ROL'OS PMS and every add-on unlocked at no charge (no subscription, no per-room fee). Setup fee is waived only where onboarding begins inside the 60 days — never claim an unconditional "no setup fee".
 - The commission/booking fee is still payable on bookings taken through ROL'OS infrastructure (ROL OTA/channel listings, widget, embed, WordPress engine).
 - Exception: if the property uses our payment gateway, card processing fees on that gateway are payable by them, including during the free period. Never name the gateway provider publicly.
 
