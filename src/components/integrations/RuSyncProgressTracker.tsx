@@ -100,12 +100,13 @@ const ENDPOINTS: EndpointDef[] = [
 
 interface Props {
   runs: TrackerRun[];
-  /** Manual scope; empty means every RU-enabled property. */
-  scopeIds: string[];
+  /** Manual scope; empty/omitted means every RU-enabled property. */
+  scopeIds?: string[];
   /** Number of properties currently expected to sync. */
   expectedProperties: number;
-  triggering: string | null;
-  onTrigger: (fn: string, label: string, scoped: boolean) => void;
+  /** Manual triggering is optional: read-only surfaces omit it. */
+  triggering?: string | null;
+  onTrigger?: (fn: string, label: string, scoped: boolean) => void;
 }
 
 interface Call {
@@ -124,7 +125,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * plus the last 24 hours — so historic failures from a since-fixed implementation
  * cannot hold an endpoint red. The 7-day rate is kept as context only.
  */
-export function RuSyncProgressTracker({ runs, scopeIds, expectedProperties, triggering, onTrigger }: Props) {
+export function RuSyncProgressTracker({
+  runs,
+  scopeIds = [],
+  expectedProperties,
+  triggering = null,
+  onTrigger,
+}: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const rows = useMemo(() => {
