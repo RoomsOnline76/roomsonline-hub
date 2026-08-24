@@ -158,17 +158,22 @@ async function confirmAlreadyAttempted(
 ): Promise<boolean> {
   if (!reservationId) return false;
   try {
+    // Scoped to THIS reservation: the attempt trail lives on ru_api_log, and the reservation id
+    // is only carried inside the request envelope. A previous acceptance on a different stay at
+    // the same property must never suppress this one.
     const { data } = await supabase
-      .from('ru_sync_runs')
+      .from('ru_api_log')
       .select('id')
       .eq('property_id', propertyId)
       .in('parent_action', ['ruBookingSync:confirm', 'ruBookingSync:confirm:reopen'])
+      .ilike('request_xml', `%<ReservationID>${reservationId}</ReservationID>%`)
       .limit(1);
     return (data?.length ?? 0) > 0;
   } catch (_err) {
     return false;
   }
 }
+
 
 /** Changes that carry no information the channel's reservation record holds. */
 const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
