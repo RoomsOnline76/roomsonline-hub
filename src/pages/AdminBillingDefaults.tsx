@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes, Copy, CreditCard } from "lucide-react";
 import { GatewaySchedulesPanel } from "@/components/admin/billing/GatewaySchedulesPanel";
+import { BillingEstimator } from "@/components/admin/billing/BillingEstimator";
+
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
@@ -687,7 +689,11 @@ export default function AdminBillingDefaults() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
+        <>
+        <BillingEstimator defaults={defaults} />
+
         <Tabs value={tab} onValueChange={setTab} className="w-full">
+
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="summary"><Info className="h-3.5 w-3.5 mr-1.5" /> Summary</TabsTrigger>
             <TabsTrigger value="presets"><DollarSign className="h-3.5 w-3.5 mr-1.5" /> Presets</TabsTrigger>
@@ -722,6 +728,8 @@ export default function AdminBillingDefaults() {
             <GatewaySchedulesPanel />
           </TabsContent>
         </Tabs>
+        </>
+
 
       )}
     </div>
