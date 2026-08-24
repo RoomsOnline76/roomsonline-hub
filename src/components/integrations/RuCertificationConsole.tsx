@@ -802,10 +802,22 @@ export function RuCertificationConsole({
 
   const selectedEp = USER_ENDPOINTS.find((e) => e.key === pgEndpoint);
 
+  /**
+   * The runner, its run history and refresh compliance live on the engineers' surface; the
+   * operator console keeps the evidence tabs. One component, two mounts, no duplicated logic.
+   */
+  const allowedTabs = variant === "advanced"
+    ? ["runs", "cadence"]
+    : ["milestones", "coverage", "availability", "pricing", "discounts", "readiness", "users"];
+  const shows = (key: string) => allowedTabs.includes(key);
+  const defaultTab = initialTab && allowedTabs.includes(initialTab) ? initialTab : allowedTabs[0];
+
   return (
     <div className="space-y-6">
-      {/* Runner */}
+      {/* Runner — engineers only; the operator console reads the stored evidence instead. */}
+      {variant === "advanced" && (
       <Card>
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Certification runner</CardTitle>
           <CardDescription>
