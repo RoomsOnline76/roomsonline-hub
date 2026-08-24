@@ -793,5 +793,5 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     notifyRuAccountsChanged();
   }
 
-  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results, summary };
+  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results: ledgerTasks, summary };
 }
