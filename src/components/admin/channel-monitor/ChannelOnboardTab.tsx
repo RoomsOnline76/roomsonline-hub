@@ -114,7 +114,7 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
 }
 
 export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: string | null }) {
-  const [properties, setProperties] = useState<PropertyOption[]>([]);
+  const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertyId, setPropertyId] = useState<string>(initialPropertyId ?? "");
 
