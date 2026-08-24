@@ -1093,14 +1093,28 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
   const overall = useMemo(() => {
     const done = macros.filter((m) => m.complete).length;
     const beforeConnect = macros.filter((m) => m.macro.key !== "connect");
+    /**
+     * The channel gate is the five Ready-to-sell steps only (Step A/B onboarding).
+     * The legacy 14-step wizard count is no longer a gate.
+     */
+    const readySteps = macros.filter((m) => isReadyToSellMacro(m.macro.key));
+    const readyDone = readySteps.filter((m) => m.complete).length;
     return {
       macrosComplete: done,
       macrosTotal: macros.length,
       percent: macros.length ? Math.round((done / macros.length) * 100) : 0,
       /** Published + entitled — the channel console can open. */
       readyToConnect: beforeConnect.length > 0 && beforeConnect.every((m) => m.complete),
+      /** Ready-to-sell (steps 1–5) gate. */
+      readyToSellSteps: readySteps.length,
+      readyToSellComplete: readyDone,
+      readyToSell: readySteps.length > 0 && readyDone === readySteps.length,
+      readyToSellPercent: readySteps.length
+        ? Math.round((readyDone / readySteps.length) * 100)
+        : 0,
     };
   }, [macros]);
+
 
   /**
    * A trading property stays trading. Once a channel is connected the wizard must
