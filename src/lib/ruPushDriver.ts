@@ -62,6 +62,12 @@ interface RuPushOptions {
   onlyUnitIds?: string[];
   dryRun?: boolean;
   subscribeRlnm?: boolean;
+  /**
+   * Ask the channel to be read back after the price push. Off by default: ROL'OS is the source of
+   * truth for rates, so routine pushes never pull the channel's prices. Onboarding and an operator
+   * re-check turn it on because they need proof the channel holds our year.
+   */
+  verifyReadback?: boolean;
   /** Called after every chunk so the UI can show live progress. */
   onProgress?: (progress: { pushed: number; total: number; units: RuPushUnitResult[] }) => void;
 }
@@ -69,7 +75,7 @@ interface RuPushOptions {
 const MAX_CHUNKS = 20;
 
 export async function pushPropertyToRu(propertyId: string, options: RuPushOptions = {}): Promise<RuPushResult> {
-  const { batchSize, onlyUnitIds, dryRun, subscribeRlnm, onProgress } = options;
+  const { batchSize, onlyUnitIds, dryRun, subscribeRlnm, verifyReadback, onProgress } = options;
 
   let remaining: string[] | undefined = onlyUnitIds;
   let batchId: string | undefined;
@@ -82,6 +88,7 @@ export async function pushPropertyToRu(propertyId: string, options: RuPushOption
         property_id: propertyId,
         ...(dryRun ? { dry_run: true } : {}),
         ...(subscribeRlnm ? { subscribe_rlnm: true } : {}),
+        ...(verifyReadback ? { verify_readback: true } : {}),
         ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
         ...(batchSize ? { batch_size: batchSize } : {}),
         ...(batchId ? { batch_id: batchId } : {}),
