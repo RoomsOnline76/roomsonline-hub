@@ -5,6 +5,9 @@ import { useRolosOnboardingProgress } from "@/hooks/useRolosOnboardingProgress";
 import { Loader2 } from "lucide-react";
 import { focusRequirementField } from "@/lib/requirementFocus";
 
+/** The channel gate is the five Ready-to-sell steps only. */
+const READY_TO_SELL_KEYS = ["identity", "location", "rooms", "media", "commercial"];
+
 interface RequirementLegendProps {
   mandatoryOutstanding: number;
   mandatoryTotal: number;
@@ -35,19 +38,24 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
 }) => {
   const { macros, overall, isLoading } = useRolosOnboardingProgress(propertyId ?? null);
 
+  const readyMacros = useMemo(
+    () => macros.filter((m) => READY_TO_SELL_KEYS.includes(m.macro.key)),
+    [macros],
+  );
+
   const channel = useMemo(() => {
     if (!propertyId) return null;
-    const outstanding = macros.filter((m) => !m.complete);
+    const outstanding = readyMacros.filter((m) => !m.complete);
     const labels = outstanding.flatMap((m) =>
       m.outstandingLabels.map((l) => `${m.macro.title}: ${l}`),
     );
     return {
       stepsOutstanding: outstanding.length,
-      stepsTotal: macros.length,
+      stepsTotal: readyMacros.length,
       labels,
-      ready: overall.readyToConnect,
+      ready: overall.readyToSell,
     };
-  }, [macros, overall.readyToConnect, propertyId]);
+  }, [readyMacros, overall.readyToSell, propertyId]);
 
   /**
    * The legend must count exactly what the wizard counts. When the wizard is
@@ -56,7 +64,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
    * never report "all complete" while the wizard still lists due fields.
    */
   const counts = useMemo(() => {
-    if (!propertyId || macros.length === 0) {
+    if (!propertyId || readyMacros.length === 0) {
       return {
         mandatoryOutstanding,
         mandatoryTotal,
@@ -69,7 +77,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
     let mO = 0;
     let rT = 0;
     let rO = 0;
-    for (const m of macros) {
+    for (const m of readyMacros) {
       for (const item of m.fieldItems) {
         if (seen.has(item.key)) continue;
         seen.add(item.key);
@@ -88,7 +96,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
       recommendedOutstanding: rO,
       recommendedTotal: rT,
     };
-  }, [macros, mandatoryOutstanding, mandatoryTotal, propertyId, recommendedOutstanding, recommendedTotal]);
+  }, [readyMacros, mandatoryOutstanding, mandatoryTotal, propertyId, recommendedOutstanding, recommendedTotal]);
 
   /**
    * A bare count ("1 outstanding") is unactionable, so the legend also names the
@@ -97,7 +105,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
   const outstandingFields = useMemo(() => {
     const seen = new Set<string>();
     const out: { key: string; label: string; hint?: string; section?: string }[] = [];
-    for (const m of macros) {
+    for (const m of readyMacros) {
       for (const item of m.fieldItems) {
         if (item.tier !== "mandatory" || item.satisfied) continue;
         if (seen.has(item.key)) continue;
@@ -111,7 +119,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
       }
     }
     return out;
-  }, [macros]);
+  }, [readyMacros]);
 
   if (counts.mandatoryTotal === 0 && counts.recommendedTotal === 0 && !channel) return null;
 
@@ -187,7 +195,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
                   )}
                   aria-hidden
                 />
-                <span className="font-medium">Channel gate</span>
+                <span className="font-medium">Channel gate (steps 1–5)</span>
                 <span
                   className={cn(
                     "text-muted-foreground",
@@ -210,7 +218,7 @@ export const RequirementLegend: React.FC<RequirementLegendProps> = ({
             </TooltipTrigger>
             {!isLoading && channel.labels.length > 0 && (
               <TooltipContent side="bottom" className="max-w-[320px] text-[11px]">
-                <p className="mb-1 font-medium">Channel wizard is still blocking on:</p>
+                <p className="mb-1 font-medium">Ready-to-sell steps still blocking:</p>
                 <ul className="list-disc pl-3.5 space-y-0.5">
                   {channel.labels.slice(0, 8).map((l) => (
                     <li key={l}>{l}</li>
