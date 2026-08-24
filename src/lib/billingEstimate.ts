@@ -324,6 +324,7 @@ export function buildBillingEstimate(
         key: "pms",
         label: "ROL'OS PMS subscription",
         detail: `Enterprise fee of ${money(custom)} per month`,
+        group: "recurring",
         freePeriod: 0,
         steadyState: custom,
         waivedInFreePeriod: true,
@@ -337,6 +338,7 @@ export function buildBillingEstimate(
         detail: tier
           ? `${totalUnits} rooms → ${tier.min_rooms}–${tier.max_rooms ?? "∞"} room band at ${money(tierFee)} per month`
           : `${money(tierFee)} per month`,
+        group: "recurring",
         freePeriod: 0,
         steadyState: tierFee,
         waivedInFreePeriod: true,
@@ -352,24 +354,31 @@ export function buildBillingEstimate(
       key: "channel_manager",
       label: "Channel Manager",
       detail: `${money(perUnit)} x ${totalUnits} units per month`,
+      group: "recurring",
       freePeriod: 0,
       steadyState: total,
       waivedInFreePeriod: true,
     });
   }
 
-  // ── Branding pack ────────────────────────────────────────────────────────
-  if (input.addOns.branding) {
-    const monthly = n(preset?.branding_addon_monthly_fee);
+  // ── Branding pack — bundled free with white label ────────────────────────
+  // White label already carries the full branded surface, so the branding pack
+  // is included at no charge whenever white label is selected.
+  const brandingFreeWithWhiteLabel = input.addOns.white_label;
+  if (input.addOns.branding || brandingFreeWithWhiteLabel) {
+    const monthly = brandingFreeWithWhiteLabel ? 0 : n(preset?.branding_addon_monthly_fee);
     lines.push({
       key: "branding",
       label: "Branding pack",
-      detail: `${money(monthly)} per month`,
+      detail: brandingFreeWithWhiteLabel
+        ? "Included at no charge with white label"
+        : `${money(monthly)} per month`,
+      group: "recurring",
       freePeriod: 0,
       steadyState: monthly,
-      waivedInFreePeriod: true,
+      waivedInFreePeriod: !brandingFreeWithWhiteLabel,
     });
-    const setup = n(preset?.branding_addon_setup_fee);
+    const setup = brandingFreeWithWhiteLabel ? 0 : n(preset?.branding_addon_setup_fee);
     if (setup > 0) setupLines.push({ key: "branding_setup", label: "Branding pack setup", amount: setup });
   }
 
@@ -380,6 +389,7 @@ export function buildBillingEstimate(
       key: "white_label",
       label: "White label",
       detail: `${money(monthly)} per month`,
+      group: "recurring",
       freePeriod: 0,
       steadyState: monthly,
       waivedInFreePeriod: true,
@@ -396,6 +406,7 @@ export function buildBillingEstimate(
       key: "pricelabs",
       label: "PriceLabs",
       detail: `${money(monthly)} x ${Math.max(1, propertyCount)} properties per month`,
+      group: "recurring",
       freePeriod: 0,
       steadyState: total,
       waivedInFreePeriod: true,
@@ -416,14 +427,21 @@ export function buildBillingEstimate(
       key: "hubspot",
       label: "Owner CRM (HubSpot)",
       detail: "Included at no charge",
+      group: "recurring",
       freePeriod: 0,
       steadyState: 0,
       waivedInFreePeriod: false,
     });
   }
 
-  const freePeriodTotal = lines.reduce((sum, l) => sum + l.freePeriod, 0);
-  const steadyStateTotal = lines.reduce((sum, l) => sum + l.steadyState, 0);
+  const sum = (group: EstimateGroup, key: "freePeriod" | "steadyState") =>
+    lines.filter((l) => l.group === group).reduce((total, l) => total + l[key], 0);
+  const transactionFreePeriodTotal = sum("transaction", "freePeriod");
+  const transactionSteadyStateTotal = sum("transaction", "steadyState");
+  const recurringFreePeriodTotal = sum("recurring", "freePeriod");
+  const recurringSteadyStateTotal = sum("recurring", "steadyState");
+  const freePeriodTotal = transactionFreePeriodTotal + recurringFreePeriodTotal;
+  const steadyStateTotal = transactionSteadyStateTotal + recurringSteadyStateTotal;
   const setupTotal = setupLines.reduce((sum, l) => sum + l.amount, 0);
 
   // ── Per-property split ───────────────────────────────────────────────────
@@ -450,10 +468,15 @@ export function buildBillingEstimate(
     perProperty,
     freePeriodTotal,
     steadyStateTotal,
+    transactionFreePeriodTotal,
+    transactionSteadyStateTotal,
+    recurringFreePeriodTotal,
+    recurringSteadyStateTotal,
     setupTotal,
     tier,
     gatewayNote,
     usedLegacyGatewayFallback,
+    widgetRate,
   };
 }
 
