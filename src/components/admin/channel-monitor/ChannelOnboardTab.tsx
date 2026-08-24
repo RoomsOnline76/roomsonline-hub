@@ -356,6 +356,8 @@ export function ChannelOnboardTab({
     setPlan(null);
     setRebindEmail("");
     setAccountDialogOpen(false);
+    setEmailConflict(null);
+    setChosenLoginEmail("");
   }, [propertyId]);
 
   const binding = gate.snapshot?.binding;
@@ -482,7 +484,7 @@ export function ChannelOnboardTab({
         await gate.refresh();
       }
     },
-    [gate, plan, propertyId],
+    [chosenLoginEmail, gate, plan, propertyId],
   );
 
   /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
