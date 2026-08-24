@@ -4323,7 +4323,8 @@ Deno.serve(async (req) => {
       if (!dry_run && !forcePush) {
         if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
           const blockedBody = !phaseGate.ready_for_push
-            ? phaseBlockedResponse(phaseGate)
+            ? pushBlockedResponse(phaseGate)
+
             : {
                 success: false,
                 error: distributionHold ?? {
