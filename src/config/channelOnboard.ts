@@ -14,7 +14,9 @@ export type ChannelOnboardTaskId =
   | "verify_keys"
   | "company_profile"
   | "adopt_listings"
+  | "review_listings"
   | "push_property"
+
   | "verify_listings"
   | "verify_currency"
   | "entitlement";
@@ -61,11 +63,20 @@ export const CHANNEL_ONBOARD_TASKS: ChannelOnboardTask[] = [
     detail: "Links anything already on the account to this property so the push updates instead of duplicating.",
   },
   {
+    id: "review_listings",
+    step: "b",
+    title: "Review what is already published",
+    detail:
+      "Reads the current listings back and compares them with local content, so only changed rooms are re-sent.",
+  },
+  {
     id: "push_property",
     step: "b",
     title: "Push property, rooms and full ARI",
-    detail: "Publishes content, then availability and pricing for the rolling 365-day horizon.",
+    detail:
+      "Publishes changed content, then availability and pricing for the rolling 365-day horizon. Content is skipped when nothing moved.",
   },
+
   {
     id: "verify_listings",
     step: "b",

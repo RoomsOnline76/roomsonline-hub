@@ -41,7 +41,25 @@ export interface TaskResult {
    * outcomes — the UI counts this down and resumes the step on its own.
    */
   retryAfterMs?: number;
+  /** Structured failure code, when the surface named one (e.g. RU_EMAIL_IN_USE). */
+  code?: string;
+  /**
+   * Alternative distribution logins the operator may pick, returned when the resolved
+   * owner email cannot become a login. Only set alongside `RU_EMAIL_IN_USE`.
+   */
+  loginCandidates?: LoginCandidate[];
 }
+
+/** One selectable (or explicitly blocked) distribution login. */
+export interface LoginCandidate {
+  email: string;
+  /** Where the address came from, in plain language. */
+  source: string;
+  usable: boolean;
+  blocked_reason: string | null;
+  on_roster: boolean;
+}
+
 
 export interface StepRunResult {
   step: ChannelOnboardStep;
@@ -71,7 +89,14 @@ interface RunContext {
     retryAfterMs?: number,
   ) => void;
   onPushProgress?: (progress: { pushed: number; total: number }) => void;
+  /**
+   * Filled in by the `review_listings` task and consumed by `push_property`: what the
+   * channel still owes. `unchanged` skips the content push entirely; `unitIds` narrows it
+   * to the rooms whose content moved. Absent means "push everything" (first publish).
+   */
+  pushScope?: { unchanged: boolean; unitIds: string[] | null; changedFields: string[] };
 }
+
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
@@ -86,9 +111,23 @@ function readRetryAfterMs(payload: Record<string, unknown>): number {
 async function portal(
   body: Record<string, unknown>,
   fallback: string,
-): Promise<{ ok: boolean; pending: boolean; retryAfterMs?: number; detail: string; data: Record<string, unknown> }> {
+): Promise<{
+  ok: boolean;
+  pending: boolean;
+  retryAfterMs?: number;
+  detail: string;
+  /** Structured error code, when the surface gave one (e.g. RU_EMAIL_IN_USE). */
+  code?: string;
+  data: Record<string, unknown>;
+}> {
   const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
-  const payload = (data ?? {}) as Record<string, unknown>;
+  let payload = (data ?? {}) as Record<string, unknown>;
+  // A non-2xx answer (409 email conflict, 502 channel refusal) arrives as an error with the
+  // JSON body attached; recover it so the code and any candidate logins survive.
+  if (error && Object.keys(payload).length === 0) {
+    const recovered = await readPortalErrorBody(error);
+    if (recovered) payload = recovered;
+  }
   // The channel allows one identical read per sliding minute; a queued read is progress,
   // not a failure, so it must never be recorded as a blocker.
   if (payload.pending === true || payload.rate_deferred === true) {
@@ -100,15 +139,30 @@ async function portal(
       data: payload,
     };
   }
-  if (error) {
-    return { ok: false, pending: false, detail: await extractFunctionError(error, fallback), data: payload };
-  }
-  if (payload.success !== true) {
-    const err = payload.error as { message?: string } | undefined;
-    return { ok: false, pending: false, detail: err?.message ?? fallback, data: payload };
+  const err = payload.error as { message?: string; code?: string } | undefined;
+  if (payload.success !== true || error) {
+    return {
+      ok: false,
+      pending: false,
+      detail: err?.message ?? (error ? await extractFunctionError(error, fallback) : fallback),
+      code: err?.code,
+      data: payload,
+    };
   }
   return { ok: true, pending: false, detail: "", data: payload };
 }
+
+/** Pull the JSON body off a failed function invocation, when there is one. */
+async function readPortalErrorBody(error: unknown): Promise<Record<string, unknown> | null> {
+  const response = (error as { context?: Response } | null)?.context;
+  if (!response || typeof response.text !== "function") return null;
+  try {
+    return JSON.parse(await response.clone().text()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 
 /** The gate as the backend sees it: readiness, monitor steps and the current binding. */
 export interface OnboardGateSnapshot {
@@ -292,7 +346,7 @@ type TaskRunner = (ctx: RunContext, snapshot: OnboardGateSnapshot) => Promise<Ta
 const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   // Step A ────────────────────────────────────────────────────────────────────
   owner_account: async (ctx) => {
-    const { ok, pending, retryAfterMs, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
         action: "ensure_owner_account",
         property_id: ctx.propertyId,
@@ -301,7 +355,19 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "Could not confirm the distribution identity",
     );
-    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
+    if (!ok) {
+      return {
+        id: "owner_account",
+        outcome: pending ? "pending" : "failed",
+        retryAfterMs,
+        detail,
+        code,
+        ...(Array.isArray(data.login_candidates)
+          ? { loginCandidates: data.login_candidates as LoginCandidate[] }
+          : {}),
+      };
+    }
+
     notifyRuAccountsChanged();
     return {
       id: "owner_account",
@@ -389,14 +455,58 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   // Step B ────────────────────────────────────────────────────────────────────
+  review_listings: async (ctx) => {
+    // Read-only: compare what is published with local content so the push below only
+    // re-sends what actually moved. A failure here is never fatal — the scope simply
+    // stays unset and the push falls back to sending everything.
+    const { data, error } = await supabase.functions.invoke("ru-onboard-property", {
+      body: { action: "plan_push_scope", property_id: ctx.propertyId },
+    });
+    const payload = (data ?? {}) as Record<string, unknown>;
+    if (error || payload.success !== true) {
+      return {
+        id: "review_listings",
+        outcome: "skipped",
+        detail: "Could not compare against the published listings — the push will send everything.",
+      };
+    }
+    const unchanged = payload.unchanged === true;
+    const unitIds = Array.isArray(payload.scope_unit_ids) ? (payload.scope_unit_ids as string[]) : null;
+    const changedFields = Array.isArray(payload.changed_fields) ? (payload.changed_fields as string[]) : [];
+    ctx.pushScope = { unchanged, unitIds, changedFields };
+    if (payload.first_push === true || !payload.listed) {
+      return { id: "review_listings", outcome: "passed", detail: "Nothing published yet — a full publish is needed." };
+    }
+    if (unchanged) {
+      return { id: "review_listings", outcome: "passed", detail: "Published content already matches — no re-push needed." };
+    }
+    return {
+      id: "review_listings",
+      outcome: "passed",
+      detail: unitIds
+        ? `${unitIds.length} room(s) changed — the push is narrowed to those.`
+        : `${changedFields.length} property-level field(s) changed — a full content push is needed.`,
+    };
+  },
+
   push_property: async (ctx) => {
+    const scope = ctx.pushScope;
+    if (scope?.unchanged) {
+      return {
+        id: "push_property",
+        outcome: "skipped",
+        detail: "Content is already current on the channel; availability and pricing stay live on the scheduled sync.",
+      };
+    }
     let result: RuPushResult;
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
+        ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });
     } catch (err) {
+
       return {
         id: "push_property",
         outcome: "failed",

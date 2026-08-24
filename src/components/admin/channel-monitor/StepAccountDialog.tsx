@@ -4,20 +4,22 @@
  * One surface that shows exactly what Step A will do before anything is sent:
  *   1. what will happen (create vs adopt, login and its source, scope, location)
  *   2. owner binding — including the atomic re-assign correction
- *   3. distribution account management (create / archive / keys / verify)
+ *   3. the distribution login Step A registers under, with alternatives when the owner
+ *      email is already taken at the channel outside our master account
  *   4. the company details that will be sent, read-only and collapsed by default
  *
  * Nothing here pushes company details by hand: Step A owns that, and it only sends
  * when the profile is missing or not yet accepted.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
   Building2,
   ChevronDown,
   ExternalLink,
+  KeyRound,
   Loader2,
   ShieldCheck,
   UserCog,
@@ -38,16 +40,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-import { describeAccountScope, describeListingState, type OwnerAccountPlan } from "@/lib/channelOnboardOrchestrator";
+import {
+  describeAccountScope,
+  describeListingState,
+  type LoginCandidate,
+  type OwnerAccountPlan,
+} from "@/lib/channelOnboardOrchestrator";
 
-const RuAccountManagerPanel = lazy(() =>
-  import("@/components/admin/channel-monitor/RuAccountManagerPanel").then((m) => ({
-    default: m.RuAccountManagerPanel,
-  })),
-);
 
 interface CompanyField {
   key: string;
@@ -76,7 +79,16 @@ export interface StepAccountDialogProps {
   runningStepA: boolean;
   stepADisabled: boolean;
   onRunStepA: () => void;
+  /**
+   * Set when the last Step A run reported the owner email is registered at the channel
+   * outside our master account. The modal then asks for a usable login instead.
+   */
+  emailConflict?: { email: string; message: string; candidates: LoginCandidate[] } | null;
+  /** The login the operator picked, sent to Step A as the confirmed sub-account email. */
+  chosenLoginEmail?: string | null;
+  onChosenLoginEmailChange?: (email: string) => void;
 }
+
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -106,12 +118,17 @@ export function StepAccountDialog({
   runningStepA,
   stepADisabled,
   onRunStepA,
+  emailConflict = null,
+  chosenLoginEmail = null,
+  onChosenLoginEmailChange,
 }: StepAccountDialogProps) {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [companyFields, setCompanyFields] = useState<CompanyField[] | null>(null);
   const [companyMissing, setCompanyMissing] = useState<string[]>([]);
   const [companyBlocked, setCompanyBlocked] = useState<string | null>(null);
+  const [newLoginEmail, setNewLoginEmail] = useState("");
+
 
   // Read-only composition of the payload — no channel call, no local write.
   const loadCompany = useCallback(async () => {
@@ -149,9 +166,18 @@ export function StepAccountDialog({
 
   const warnings = ((plan?.warnings ?? []) as unknown[]).map((w) => String(w));
   const blockedReason = plan ? ((plan.blocked_reason ?? null) as string | null) : null;
-  const canRun = !stepADisabled && !blockedReason;
   const adopting = Boolean(plan?.adopt || plan?.ru_owner_id);
   const scopeIsPortfolio = String(plan?.scope ?? "") === "portfolio" || Boolean(portfolioId);
+
+  // Candidates come from the failed run when there is a conflict (they exclude the taken
+  // address), otherwise from the read-only plan.
+  const candidates: LoginCandidate[] = emailConflict
+    ? emailConflict.candidates
+    : ((plan?.login_candidates ?? []) as LoginCandidate[]);
+  const effectiveLogin = chosenLoginEmail || (emailConflict ? "" : String(plan?.login_email ?? ""));
+  // A conflict cannot be re-run against the same address — a usable login must be chosen.
+  const canRun = !stepADisabled && !blockedReason && (!emailConflict || effectiveLogin.includes("@"));
+
 
   const editHref = `/properties/${propertyId}/edit?section=general&focus=company-information`;
 
@@ -299,26 +325,75 @@ export function StepAccountDialog({
             </CardContent>
           </Card>
 
-          {/* 3 — distribution account management */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Distribution accounts</CardTitle>
-              <CardDescription className="text-xs">
-                The accounts that serve this {scopeIsPortfolio ? "portfolio" : "property"} — create, archive, store the
-                key pair and verify access here.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Suspense fallback={<Skeleton className="h-40 w-full" />}>
-                <RuAccountManagerPanel
-                  propertyId={propertyId}
-                  portfolioId={portfolioId}
-                  memberIds={memberIds}
-                  embedded
-                />
-              </Suspense>
-            </CardContent>
-          </Card>
+          {/* 3 — the login Step A will register under */}
+          {(emailConflict || candidates.length > 0) && (
+            <Card className={cn(emailConflict && "border-destructive/50")}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <KeyRound className="h-4 w-4" />
+                  Distribution login
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {emailConflict
+                    ? `${emailConflict.email} is registered at the channel but not under our master account, so it cannot be used. The stale local binding has been cleared — pick another login below, or give a brand-new address. It does not have to be a ROL'OS user or the owner.`
+                    : "Step A registers under this address. Change it only when the owner email cannot be used."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {candidates.length > 0 ? (
+                  <RadioGroup
+                    value={chosenLoginEmail ?? ""}
+                    onValueChange={(value) => onChosenLoginEmailChange?.(value)}
+                    className="space-y-1.5"
+                  >
+                    {candidates.map((candidate) => (
+                      <label
+                        key={candidate.email}
+                        className={cn(
+                          "flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs",
+                          candidate.usable ? "cursor-pointer hover:bg-muted/50" : "opacity-70",
+                        )}
+                      >
+                        <RadioGroupItem
+                          value={candidate.email}
+                          disabled={!candidate.usable}
+                          className="mt-0.5"
+                        />
+                        <span className="min-w-0">
+                          <span className="block font-medium break-all">{candidate.email}</span>
+                          <span className="block text-muted-foreground">
+                            From {candidate.source}
+                            {candidate.on_roster ? " · already on our master account" : ""}
+                          </span>
+                          {candidate.blocked_reason ? (
+                            <span className="mt-0.5 block text-destructive">{candidate.blocked_reason}</span>
+                          ) : null}
+                        </span>
+                      </label>
+                    ))}
+                  </RadioGroup>
+                ) : null}
+                <div>
+                  <Label className="text-xs">Or create the account under a new email</Label>
+                  <Input
+                    className="mt-1"
+                    type="email"
+                    placeholder="distribution@example.com"
+                    value={newLoginEmail}
+                    onChange={(event) => {
+                      setNewLoginEmail(event.target.value);
+                      if (event.target.value.includes("@")) onChosenLoginEmailChange?.(event.target.value.trim());
+                    }}
+                  />
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Used as the sub-account login and identity. The owner email stays the primary contact on the
+                    property.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
 
           {/* 4 — company details to be sent */}
           <Collapsible open={companyOpen} onOpenChange={setCompanyOpen}>

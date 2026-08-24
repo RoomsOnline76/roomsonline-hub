@@ -68,6 +68,53 @@ export interface RuStaticDeltaOutcome {
   blockers?: string[];
 }
 
+/**
+ * Read-only answer to "what does the channel still owe for this property?".
+ *
+ * Step B used to re-push every listing on every run. This reuses the delta's own
+ * fingerprint map (the one stored by the last successful push) so an already-published
+ * property is only re-pushed where content actually moved: `unchanged` means nothing is
+ * owed, `scope_unit_ids` narrows the push to the units that moved, and a null scope means
+ * a full push (first publish, or a property-level field changed).
+ */
+export interface RuPushScopePlan {
+  /** True when the stored fingerprint matches current content — nothing to send. */
+  unchanged: boolean;
+  /** Units to push; null means every listing. */
+  scope_unit_ids: string[] | null;
+  changed_fields: string[];
+  /** True when this property has never been pushed (no fingerprint to diff against). */
+  first_push: boolean;
+  /** True when the property or any active unit already carries a channel listing id. */
+  listed: boolean;
+  content_hash: string;
+}
+
+export async function planStaticPushScope(
+  supabase: any,
+  propertyId: string,
+): Promise<RuPushScopePlan> {
+  const snapshot = await loadSnapshot(supabase, propertyId);
+  const contentHash = await sha256(
+    stableStringify({ property: snapshot.property, units: snapshot.units, charges: snapshot.charges }),
+  );
+  const previous = await lastStaticRun(supabase, propertyId);
+  const currentFields = await fieldFingerprints(snapshot);
+  const changedFields = diffFingerprints(previous.fields, currentFields);
+  const firstPush = !previous.fields || !previous.hash;
+  const unchanged = !firstPush && previous.hash === contentHash;
+  return {
+    unchanged,
+    scope_unit_ids: firstPush ? null : scopeUnitIdsFromChanges(changedFields),
+    changed_fields: changedFields,
+    first_push: firstPush,
+    listed: snapshot.listed,
+    content_hash: contentHash,
+  };
+}
+
+
+
 
 
 /** Property columns that end up inside Push_PutProperty_RQ. */

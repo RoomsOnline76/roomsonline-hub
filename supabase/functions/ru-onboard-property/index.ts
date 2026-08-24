@@ -15,6 +15,8 @@
  *   grade_ready_to_sell  → re-grade steps 1–5 and persist the durable Ready-to-sell flag
  *   record_step          → persist a monitor step verdict (Step A / Step B / ready to connect)
  *   rebind_owner         → atomic archive → unbind → re-assign → archive-if-empty
+ *   plan_push_scope      → read-only: which units (if any) the channel still owes content for
+
  *
  * Long-running work (Step A task chain, property + ARI push) is deliberately NOT here:
  * it is driven task-by-task from the monitor UI so nothing can hit the request idle
@@ -28,6 +30,8 @@ import {
   type OnboardStepKey,
 } from "../_shared/channelOnboardGate.ts";
 import { ledgerFingerprint } from "../_shared/channelStepLedger.ts";
+import { planStaticPushScope } from "../_shared/ruStaticDelta.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -573,7 +577,20 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── plan_push_scope ─────────────────────────────────────────────────────
+    // Read-only: what does the channel still owe for this property? Step B calls it
+    // before pushing so already-published, unchanged units are never re-sent.
+    if (action === "plan_push_scope") {
+      const propertyId = String(body.property_id ?? "");
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const plan = await planStaticPushScope(admin, propertyId);
+      return json({ success: true, ...plan });
+    }
+
     return json({ success: false, error: { code: "BAD_REQUEST", message: `Unknown action: ${action}` } }, 400);
+
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     console.error("[ru-onboard-property]", message);
