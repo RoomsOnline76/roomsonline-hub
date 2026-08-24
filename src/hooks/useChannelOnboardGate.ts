@@ -68,6 +68,18 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
     void refresh();
   }, [refresh]);
 
+  // An ungraded property would look "not ready" purely because nobody pressed Re-check.
+  // Grading is local and cheap, so do it once per property when no verdict exists yet.
+  const gradedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!propertyId || loading || !snapshot) return;
+    const status = snapshot.steps?.ready_to_sell?.status;
+    if (status && status !== "pending" && status !== "unknown") return;
+    if (gradedFor.current === propertyId) return;
+    gradedFor.current = propertyId;
+    void regradeRef.current?.();
+  }, [loading, propertyId, snapshot]);
+
   const regrade = useCallback(async (): Promise<boolean> => {
     if (!propertyId) return false;
     setGrading(true);
@@ -83,6 +95,10 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
       setGrading(false);
     }
   }, [propertyId, refresh]);
+
+  // Kept in a ref so the auto-grade effect never re-runs just because the callback changed.
+  const regradeRef = useRef<(() => Promise<boolean>) | null>(null);
+  regradeRef.current = regrade;
 
   const readyToSellBlockers = useMemo(() => {
     const details = snapshot?.steps?.ready_to_sell?.details as
