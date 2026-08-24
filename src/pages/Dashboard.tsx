@@ -1785,6 +1785,15 @@ const Dashboard = () => {
                               <p className="font-medium mb-0.5">{label}</p>
                               {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Gap</p>}
                               {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Est</p>}
+                              {data?.isFuture && (
+                                <div className="text-sky-500 font-medium">
+                                  <p>On the books: R{Number(data.otbRevenue || 0).toLocaleString()}</p>
+                                  <p className="font-normal text-muted-foreground">
+                                    R{Number(data.otbPaid || 0).toLocaleString()} paid · R{Number(data.otbOutstanding || 0).toLocaleString()} due
+                                    {comparePrevYear && ` · STLY R${Number(data.stlyRevenue || 0).toLocaleString()}`}
+                                  </p>
+                                </div>
+                              )}
                               {payload.map((entry: any, i: number) => (
                                 <p key={i} style={{ color: entry.color }}>
                                   {entry.name}: R{Number(entry.value).toLocaleString()}
