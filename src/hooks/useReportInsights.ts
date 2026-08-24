@@ -84,13 +84,26 @@ export function useReportInsights(runId: string | undefined) {
       const { data, error } = await supabase
         .from("report_insights")
         .select(
-          "narrative, narrative_final, include_narrative, selections, flags, suggestions, chart_recommendation, slides_considered, generated_at",
+          "narrative, narrative_final, include_narrative, selections, flags, suggestions, chart_recommendation, slides_considered, experimental, experimental_generated_at, experimental_error, generated_at",
         )
         .eq("run_id", runId)
         .maybeSingle();
       if (error) throw error;
       if (!data) return null;
       const slides = (data.slides_considered ?? {}) as { count?: number; titles?: unknown };
+      const exp = (data.experimental ?? {}) as {
+        headline?: unknown;
+        flag_notes?: unknown;
+        suggestions?: unknown;
+      };
+      const stringMap = (value: unknown): Record<string, string> => {
+        if (!value || typeof value !== "object") return {};
+        const out: Record<string, string> = {};
+        for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+          if (typeof raw === "string" && raw.trim()) out[key] = raw;
+        }
+        return out;
+      };
       return {
         narrative: data.narrative ?? null,
         narrativeFinal: data.narrative_final ?? null,
@@ -102,6 +115,13 @@ export function useReportInsights(runId: string | undefined) {
         slidesConsidered: {
           count: Number(slides.count ?? 0) || 0,
           titles: Array.isArray(slides.titles) ? slides.titles.map(String) : [],
+        },
+        experimental: {
+          headline: typeof exp.headline === "string" ? exp.headline : null,
+          flagNotes: stringMap(exp.flag_notes),
+          suggestions: stringMap(exp.suggestions) as ReportInsights["suggestions"],
+          error: data.experimental_error ?? null,
+          generatedAt: data.experimental_generated_at ?? null,
         },
         generatedAt: data.generated_at ?? null,
       };
