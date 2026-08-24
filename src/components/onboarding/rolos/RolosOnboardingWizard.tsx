@@ -548,6 +548,9 @@ export function RolosOnboardingWizard({ propertyId, className }: Props) {
                 busyAction={busyAction}
                 isPlatformUser={isPlatformUser}
                 onOpenChannels={() => navigate(`/pms/channels?property=${propertyId}`)}
+                onOpenMonitor={() =>
+                  navigate(`/admin/channel-monitor?tab=onboard&property=${propertyId}`)
+                }
                 units={unitScope}
               />
             ))}
@@ -572,6 +575,8 @@ interface RowProps {
   busyAction: string | null;
   isPlatformUser: boolean;
   onOpenChannels: () => void;
+  /** Steps 6–14 are executed on Channel Monitor → Onboard Property. */
+  onOpenMonitor: () => void;
   /** Unit names, used to route unit-owned failures that arrive without a unit. */
   units: { sole: string | null; all: string[] };
 }
@@ -589,6 +594,7 @@ function MacroRow({
   busyAction,
   isPlatformUser,
   onOpenChannels,
+  onOpenMonitor,
   units,
 }: RowProps) {
 
@@ -709,6 +715,26 @@ function MacroRow({
                 ))}
               </div>
             </>
+          )}
+
+          {macro.monitorOwned && (
+            <div className="rounded-md border border-primary/30 bg-primary/5 p-2">
+              <p className="text-[10px] leading-snug text-muted-foreground">
+                This step runs as part of the two-step go-live on Channel Monitor → Onboard Property. Nothing needs to
+                be driven from here.
+              </p>
+              {isPlatformUser && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-1.5 h-7 text-[11px]"
+                  onClick={onOpenMonitor}
+                >
+                  Open Onboard Property
+                </Button>
+              )}
+            </div>
           )}
 
           {macro.notes?.map((note) => (
