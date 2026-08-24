@@ -1476,8 +1476,44 @@ const Dashboard = () => {
         {/* Stats Cards - Row 1 & 2 combined compact */}
         <div className={cn(
           "grid gap-2 mb-3",
-          showFullPulse ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8" : "grid-cols-2"
+          showFullPulse
+            ? stats.periodHasFuture
+              ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-9"
+              : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
+            : "grid-cols-2"
         )}>
+          {/* On the books — business already sold for dates still to come. */}
+          {stats.periodHasFuture && (
+            <Card className="p-2 border-sky-500/40">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-medium text-muted-foreground">On the books</span>
+                <TooltipProvider>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <HelpCircle className="h-3 w-3 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[240px] text-xs">
+                      Business already sold for arrivals from today onward in this period.
+                      Confirmed is firm; provisional still needs to convert. Y-o-Y comparisons
+                      switch to same-time-last-year pace while the period is still selling.
+                    </TooltipContent>
+                  </UITooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-lg font-bold">R{(stats.otbRevenue / 1000).toFixed(0)}k</span>
+                <span className="text-[9px] text-muted-foreground">{stats.otbBookings} bkg</span>
+              </div>
+              <div className="flex items-center gap-1 text-[9px] text-muted-foreground flex-wrap">
+                <span className="text-green-600">{stats.otbFirmBookings}✓</span>
+                <span className="text-yellow-600">{stats.otbProvisionalBookings}⏳</span>
+                <span>· R{(stats.otbPaid / 1000).toFixed(0)}k paid</span>
+              </div>
+              <div className="text-[9px] text-muted-foreground">
+                R{(stats.otbDeposit / 1000).toFixed(0)}k dep · R{(stats.otbOutstanding / 1000).toFixed(0)}k due
+              </div>
+            </Card>
+          )}
           <Card className="p-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] font-medium text-muted-foreground">Bookings</span>
