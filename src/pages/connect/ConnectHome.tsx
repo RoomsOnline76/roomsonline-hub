@@ -71,7 +71,7 @@ export default function ConnectHome() {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
               <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-6">
-                Free to run — you only pay a booking fee
+                60 days free — then a subscription plus the add-ons you keep
               </span>
             </motion.div>
 
@@ -178,7 +178,7 @@ export default function ConnectHome() {
               className="rounded-2xl border border-primary/20 bg-primary/5 p-6 sm:p-8"
             >
               <h2 className="text-xl font-bold mb-1">What ROL'OS Gives You</h2>
-              <p className="text-sm text-muted-foreground mb-6">From day one, included in every plan.</p>
+              <p className="text-sm text-muted-foreground mb-6">Switched on from day one, free for your first 60 days.</p>
               <ul className="space-y-3">
                 {SOLUTIONS.map((s) => (
                   <li key={s.text} className="flex items-start gap-3 text-sm">
@@ -226,7 +226,7 @@ export default function ConnectHome() {
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2">Meet TOBI — Your 24/7 Operations Manager</h2>
               <p className="text-muted-foreground mb-4 max-w-xl" style={{ textWrap: "pretty" } as React.CSSProperties}>
                 TOBI handles night audits, answers guest queries, generates revenue insights, assists with bookings,
-                and never takes a day off. It's like hiring a full-time operations manager — included free with every plan.
+                and never takes a day off. It's like hiring a full-time operations manager — and TOBI is part of ROL'OS at no extra charge.
               </p>
               <div className="flex flex-wrap gap-2 justify-center md:justify-start mb-6">
                 {["Night Audits", "Revenue Reports", "Guest Support", "Booking Assistance", "Rate Optimization"].map((t) => (
@@ -323,10 +323,10 @@ export default function ConnectHome() {
           >
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-3">Stop Losing Bookings. Start Managing Smarter.</h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Free for your first 60 days — and still free to run after that. No subscription,
-              no setup fee, no credit card. PMS, white label, revenue management, channel
-              integration and the API are all included. You only pay a booking fee on the
-              bookings we deliver.
+              Free for your first 60 days — the full stack, no subscription, no setup fee, no
+              credit card. In that period you pay only the booking fee on bookings taken through
+              ROL'OS (plus card processing fees if you use our payment gateway). From day 61 the
+              PMS subscription and the add-ons you keep are billed as agreed.
             </p>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
               <Link to={connectPath("/connect/get-started")} className="w-full sm:w-auto">
@@ -346,10 +346,10 @@ export default function ConnectHome() {
                 <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> 60 days free
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No subscription
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> No setup fee
               </span>
               <span className="flex items-center gap-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only
+                <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Booking fee only for 60 days
               </span>
 
               <span className="flex items-center gap-1">
