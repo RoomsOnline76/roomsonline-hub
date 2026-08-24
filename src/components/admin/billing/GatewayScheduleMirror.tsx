@@ -41,7 +41,7 @@ export function GatewayScheduleMirror({ fallbackRate }: { fallbackRate?: string 
         <span>
           No active gateway schedule. Billing falls back to the legacy flat rate
           {fallbackRate ? ` of ${fallbackRate}%` : ""}. Publish a schedule in{" "}
-          <Link to="/admin/billing" className="underline">
+          <Link to="/admin/billing-defaults" className="underline">
             Gateway Schedules
           </Link>{" "}
           to take control of the processing rate.
@@ -69,7 +69,7 @@ export function GatewayScheduleMirror({ fallbackRate }: { fallbackRate?: string 
       </p>
       <p className="text-[11px] text-muted-foreground">
         Rates are edited in{" "}
-        <Link to="/admin/billing" className="underline">
+        <Link to="/admin/billing-defaults" className="underline">
           Gateway Schedules
         </Link>
         . A negotiated rate for a single property is set on that property's payment schedule card.
