@@ -19,6 +19,7 @@ import {
   Check,
   CircleDashed,
   Clock,
+  Hourglass,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -89,7 +90,27 @@ interface OnboardOption {
 }
 
 
-type TaskState = { state: "idle" | "running" | TaskOutcome; detail?: string };
+type TaskState = {
+  state: "idle" | "running" | TaskOutcome;
+  detail?: string;
+  /** Wall-clock moment the channel's rate window reopens, for the waiting countdown. */
+  waitingUntil?: number;
+};
+
+/** How many times a rate-deferred step resumes itself before asking the operator. */
+const MAX_AUTO_RESUMES = 4;
+
+/** A rate-deferred step: when to resume, and which task to resume from. */
+interface WaitingState {
+  until: number;
+  resumeFromTaskId: ChannelOnboardTaskId | null;
+  attempts: number;
+}
+
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 const STATUS_BADGE: Record<GateStepStatus, { label: string; className: string }> = {
   passed: { label: "Passed", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
@@ -112,7 +133,7 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
   if (state === "running") return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />;
   if (state === "passed") return <Check className="h-4 w-4 shrink-0 text-emerald-600" />;
   if (state === "skipped") return <Check className="h-4 w-4 shrink-0 text-muted-foreground" />;
-  if (state === "pending") return <Clock className="h-4 w-4 shrink-0 text-amber-600" />;
+  if (state === "pending") return <Hourglass className="h-4 w-4 shrink-0 animate-pulse text-amber-600" />;
   if (state === "failed") return <X className="h-4 w-4 shrink-0 text-destructive" />;
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
