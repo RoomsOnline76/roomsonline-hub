@@ -14,6 +14,11 @@
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
+  getEffectiveBillingRate,
+  loadGatewaySchedule,
+  loadPeriodVolume,
+} from "../_shared/gatewayBillingRate.ts";
+import {
   resolveBookingCommission,
   resolveCommissionType,
   pickGlobals,
@@ -357,6 +362,23 @@ Deno.serve(async (req) => {
 
     const built: { statement: Record<string, unknown>; lines: BuiltLine[]; key: string }[] = [];
 
+    // Gateway schedule + trailing volume, resolved once per property.
+    const scheduleCache = new Map<
+      string,
+      { schedule: Awaited<ReturnType<typeof loadGatewaySchedule>>; volume: number }
+    >();
+    const gatewayScheduleFor = async (propertyId: string) => {
+      const cached = scheduleCache.get(propertyId);
+      if (cached) return cached;
+      const schedule = await loadGatewaySchedule(supabase, propertyId);
+      const usingSchedule = schedule.source === "property" || schedule.source === "portfolio";
+      const volume = usingSchedule ? await loadPeriodVolume(supabase, propertyId) : 0;
+      const entry = { schedule, volume };
+      scheduleCache.set(propertyId, entry);
+      return entry;
+    };
+
+
     for (const [key, bucket] of buckets) {
       const lines: BuiltLine[] = [];
       let grossAmount = 0;
@@ -382,17 +404,24 @@ Deno.serve(async (req) => {
         );
 
         // Pass-through processing cost: prefer what the gateway actually charged us,
-        // fall back to the configured percentage. Never commissionable.
+        // then the property's assigned gateway schedule, then the configured percentage.
+        // Never commissionable.
         const pfEnabled = !!config?.payment_facilitator_enabled;
         let fee = 0;
         if (e.settlement === "rol" && pfEnabled) {
           if (e.gatewayFee != null) {
             fee = round2(e.gatewayFee);
           } else {
-            const pfRate = num(config?.transaction_fee_percentage ?? globalTxFee);
-            fee = round2(e.gross * (pfRate / 100));
+            const { schedule, volume } = await gatewayScheduleFor(e.propertyId);
+            if (schedule.source === "property" || schedule.source === "portfolio") {
+              fee = getEffectiveBillingRate(schedule.config, e.gross, volume, schedule.overrides).amount_charged;
+            } else {
+              const pfRate = num(config?.transaction_fee_percentage ?? globalTxFee);
+              fee = round2(e.gross * (pfRate / 100));
+            }
           }
         }
+
 
 
         grossAmount += e.gross;

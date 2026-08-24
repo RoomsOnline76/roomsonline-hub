@@ -2,6 +2,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolvePropertyTier, isTierStrategy } from "@/lib/billingTierResolver";
 import { DEFAULT_LISTING_RATE, DEFAULT_PMS_RATE } from "@/lib/commissionResolver";
 import { paymentModelLabel, resolvePaymentModel } from "@/lib/paymentMode";
+import {
+  GATEWAY_MODEL_LABELS,
+  getEffectiveBillingRate,
+  loadGatewaySchedule,
+  loadPeriodVolume,
+  normalizeGatewayModel,
+  normalizeVolumeTiers,
+  summariseVolumeTiers,
+} from "@/lib/gatewayBillingRate";
 
 const STRATEGY_LABELS: Record<string, string> = {
   default: "Standard Commission",
@@ -85,6 +94,16 @@ export interface BillingContractVariables {
   /** Emitted only for reservation-only properties (no online payment). */
   reservation_only_clause: string;
 
+  /** Gateway billing schedule actually applied to this Property. */
+  billing_model: string;
+  billing_percentage: string;
+  billing_fixed_fee: string;
+  billing_monthly_fee: string;
+  billing_volume_tiers_summary: string;
+  billing_config_version: string;
+  billing_schedule_clause: string;
+
+
   enterprise_fee: string;
   enterprise_fee_clause: string;
 
@@ -139,6 +158,14 @@ function emptyVars(): BillingContractVariables {
     byo_gateway_fee: "",
     byo_gateway_clause: NA,
     reservation_only_clause: NA,
+    billing_model: NA,
+    billing_percentage: "",
+    billing_fixed_fee: "",
+    billing_monthly_fee: "",
+    billing_volume_tiers_summary: NA,
+    billing_config_version: "",
+    billing_schedule_clause: NA,
+
     enterprise_fee: "",
     enterprise_fee_clause: NA,
     volume_tier_clause: NA,
@@ -482,6 +509,44 @@ export async function resolveBillingContractVariables(
   } else {
     out.reservation_only_clause = `No online payment is processed for this Property. The guest reserves through the RoomsOnline platform and receives the Property's banking details on a pro forma invoice; the Property collects payment directly, confirms settlement in ROL'OS, and commission due to RoomsOnline is invoiced monthly rather than deducted at source. No payment facilitation or gateway integration fee applies.`;
   }
+
+  // ── Gateway billing schedule ─────────────────────────────────────────────
+  // Only ROL-processed properties carry a processing schedule; the contract
+  // quotes the exact version that will be applied.
+  if (paymentModel === "rol") {
+    const schedule = await loadGatewaySchedule(propertyIds[0]);
+    const cfg = schedule.config;
+    if (cfg) {
+      const volume = await loadPeriodVolume(propertyIds[0]);
+      const rate = getEffectiveBillingRate(cfg, 0, volume, schedule.overrides);
+      const model = normalizeGatewayModel(cfg.model);
+      const tiers = normalizeVolumeTiers(cfg.volume_tiers);
+      const banded = model === "hybrid" || model === "volume_tiered";
+
+      out.billing_model = GATEWAY_MODEL_LABELS[model];
+      out.billing_percentage = String(rate.percentage);
+      out.billing_fixed_fee = String(rate.fixed_fee);
+      out.billing_monthly_fee = String(rate.monthly_fee);
+      out.billing_config_version = cfg.version != null ? String(cfg.version) : "";
+      if (banded && tiers.length) out.billing_volume_tiers_summary = summariseVolumeTiers(tiers, rate.currency);
+
+      const feePart =
+        rate.fixed_fee > 0
+          ? `${ratePhrase(rate.percentage)} of the amount processed plus ${money(rate.fixed_fee)} per transaction`
+          : `${ratePhrase(rate.percentage)} of the amount processed`;
+      const monthlyPart = rate.monthly_fee > 0 ? ` A platform fee of ${money(rate.monthly_fee)} per month applies.` : "";
+      const tierPart =
+        banded && tiers.length
+          ? ` The applicable rate is banded on monthly processed volume: ${summariseVolumeTiers(tiers, rate.currency)}.`
+          : "";
+      const overridePart = rate.usedOverride ? " A negotiated rate agreed for this Property applies in place of the standard band." : "";
+      out.billing_schedule_clause = `Payment processing is charged on the ${GATEWAY_MODEL_LABELS[model]} schedule${
+        cfg.version != null ? ` (version ${cfg.version})` : ""
+      }: ${feePart}.${tierPart}${monthlyPart}${overridePart}`;
+    }
+  }
+
+
 
   // ── Enterprise custom fee ────────────────────────────────────────────────
   const entFee = pick("enterprise_fee", {
