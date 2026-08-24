@@ -99,7 +99,7 @@ Auth mode is read from the `auth_mode` field on each response.
 | --- | --- | --- | --- | --- |
 | 1 | `list_users` (master dictionary) | master | `Status 0`, retired OwnerIDs filtered | PASS — 4 live users, 6 retired excluded |
 | 2 | Child-scoped read, OwnerID with no keys (`742126`) | none resolvable | `422 RU_CHILD_AUTH_REQUIRED`, no RU call | PASS |
-| 3 | Child-scoped write, no OwnerID | none | `422 RU_OWNER_ID_REQUIRED`, no RU call | PASS (post-fix; pre-fix this reached RU on master) |
+| 3 | Child-scoped write, no OwnerID | none | `422 RU_OWNER_ID_REQUIRED`, no RU call | Pre-fix run reproduced the master fallback (RU accepted the write). Guard is in source; re-run pending the next deploy of `rentalsunited-api` |
 | 4 | `list_properties` for a bound sub-user | `child_api_keys` | `Status 0`, sub-account inventory | PASS |
 | 5 | `fill_company_details` | `child_api_keys` | `Status 0` | PASS |
 | 6 | Property push | `child_api_keys` | `Status 0`, listing on the sub-account | PASS |
