@@ -116,10 +116,30 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 
-export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: string | null }) {
+export function ChannelOnboardTab({
+  initialPropertyId,
+  initialPortfolioId,
+  onSelectionChange,
+}: {
+  initialPropertyId?: string | null;
+  initialPortfolioId?: string | null;
+  onSelectionChange?: (propertyId: string) => void;
+}) {
   const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
-  const [propertyId, setPropertyId] = useState<string>(initialPropertyId ?? "");
+  const [propertyId, setPropertyId] = useState<string>("");
+  /** Why a deep-linked property could not be selected, or how it was resolved. */
+  const [requestNotice, setRequestNotice] = useState<string | null>(null);
+
+  const selectProperty = useCallback(
+    (next: string) => {
+      setPropertyId(next);
+      setRequestNotice(null);
+      onSelectionChange?.(next);
+    },
+    [onSelectionChange],
+  );
+
 
   const gate = useChannelOnboardGate(propertyId || null);
 
