@@ -37,6 +37,22 @@ interface RecommendedProperty {
   matchReason: string;
 }
 
+/** Row shape pinned on the recommendation query (select string is untyped). */
+interface RecommendationRow {
+  id: string;
+  name: string;
+  slug: string | null;
+  city: string;
+  country: string;
+  price_per_night: number;
+  images: unknown;
+  amenities: unknown;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+
+
 interface PropertyRecommendationsProps {
   currentPropertyId?: string;
   className?: string;
