@@ -252,6 +252,8 @@ export function ChannelOnboardTab({
               label: `${names.get(pid)} (portfolio · ${sorted.length} ${sorted.length === 1 ? "property" : "properties"})`,
               kind: "portfolio",
               memberCount: sorted.length,
+              portfolioId: pid,
+              memberIds: sorted,
             });
           }
           options = [
@@ -265,11 +267,49 @@ export function ChannelOnboardTab({
       setProperties(options);
       setPropertiesLoading(false);
 
+      /**
+       * Resolve the deep link from the wizard ("Open Channel Monitor"). A portfolio
+       * member is not itself an option — its portfolio entry is — so a raw property
+       * id must be mapped onto the entry that actually onboards it. When nothing
+       * matches we say why instead of leaving the picker mysteriously blank.
+       */
+      const requestedProperty = initialPropertyId ?? null;
+      const requestedPortfolio = initialPortfolioId ?? null;
+      if (!requestedProperty && !requestedPortfolio) return;
+
+      const byPortfolio = requestedPortfolio
+        ? options.find((o) => o.portfolioId === requestedPortfolio)
+        : undefined;
+      const exact = requestedProperty
+        ? options.find((o) => o.id === requestedProperty)
+        : undefined;
+      const viaMember = requestedProperty
+        ? options.find((o) => o.memberIds?.includes(requestedProperty))
+        : undefined;
+      const resolved = byPortfolio ?? exact ?? viaMember;
+      const requestedName = rows.find((r) => r.id === requestedProperty)?.name ?? null;
+
+      if (resolved) {
+        setPropertyId(resolved.id);
+        setRequestNotice(
+          resolved.kind === "portfolio" && requestedName
+            ? `${requestedName} is onboarded with its portfolio — the portfolio entry is selected.`
+            : null,
+        );
+        return;
+      }
+
+      setRequestNotice(
+        requestedName
+          ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and a signed contract, and must not be archived.`
+          : "The requested property is not available for onboarding (inactive, archived, or not entitled).",
+      );
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialPropertyId, initialPortfolioId]);
+
 
 
   // Switching property resets the live task trail; the durable verdicts come from the gate.
