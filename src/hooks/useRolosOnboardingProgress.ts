@@ -205,6 +205,9 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     enabled: !!propertyId && ledgerEnabled,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
+    // A save in another tab / page re-grades the ledger; always read it fresh on mount
+    // so the wizard never shows the pre-fix verdict.
+    refetchOnMount: "always" as const,
     queryFn: async (): Promise<ChannelLedgerSnapshot | null> => {
       const id = propertyId as string;
       let snapshot = await fetchChannelLedger(id);

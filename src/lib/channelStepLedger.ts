@@ -59,6 +59,28 @@ export async function markChannelStepsStale(
 }
 
 /**
+ * Mark the steps a save touched stale AND immediately re-grade them locally, so a
+ * corrected blocker re-passes without the operator hunting for a Refresh button.
+ *
+ * Preparation only: the re-grade runs with the live channel probe switched off, so
+ * no channel/RU request is made. Never throws — bookkeeping must not fail a save.
+ */
+export async function regradeChannelStepsAfterSave(
+  propertyId: string | null | undefined,
+  stepKeys: readonly (ChannelLedgerStepKey | string)[],
+): Promise<void> {
+  if (!propertyId) return;
+  try {
+    const marked = await markChannelStepsStale(propertyId, stepKeys);
+    // `markChannelStepsStale` returns null when the ledger is off or nothing matched.
+    if (marked === null) return;
+    await recheckChannelLedger(propertyId, { allowChannelProbe: false });
+  } catch (err) {
+    console.warn("[channel-ledger] post-save regrade skipped:", err instanceof Error ? err.message : err);
+  }
+}
+
+/**
  * Channel sync trigger → macro steps the underlying save touched.
  *
  * The two `queueChannel*Sync` helpers are already called by every surface that

@@ -67,7 +67,7 @@ import { PortfolioCommonsCard } from "@/components/property/PortfolioCommonsCard
 import { runAutoShare } from "@/lib/portfolioCommons";
 import { resetBillingAfterOwnerChange } from "@/lib/ownerBillingReset";
 import { queueChannelContentSync, queueChannelRatesSync } from "@/lib/channelContentSync";
-import { derivePropertyStepsFromChanges, markChannelStepsStale } from "@/lib/channelStepLedger";
+import { derivePropertyStepsFromChanges, regradeChannelStepsAfterSave } from "@/lib/channelStepLedger";
 import { deriveChangedChannelFields } from "@/lib/channelPushFields";
 import { validateStayTimes } from "@/lib/stayTimes";
 import { pushChangedChannelFields } from "@/lib/channelSavePush";
@@ -4141,7 +4141,14 @@ export default function PropertyForm({
 
       if (roomsChanged) persistedRoomTypesRef.current = roomTypes;
       if (ratePlansChanged) persistedRateTypesRef.current = pmsRateTypes;
-      if (changedSteps.length > 0) void markChannelStepsStale(savedPropertyId, changedSteps);
+      if (changedSteps.length > 0) {
+        // Mark stale AND re-grade locally, then repaint the wizard: correcting a
+        // blocker must re-pass the step without any channel call.
+        void regradeChannelStepsAfterSave(savedPropertyId, changedSteps).then(() => {
+          void queryClient.invalidateQueries({ queryKey: ["channel-step-ledger", savedPropertyId] });
+          void queryClient.invalidateQueries({ queryKey: ["rolos-onboarding-distribution", savedPropertyId] });
+        });
+      }
 
 
       const changedLabels = Array.from(new Set(changedChannelFields.map((field) => field.label)));
