@@ -940,7 +940,9 @@ export function RuCertificationConsole({
 
 
         {/* Milestones — core functional certification matrix */}
+        {shows("milestones") && (
         <TabsContent value="milestones">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
