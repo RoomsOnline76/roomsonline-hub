@@ -90,6 +90,8 @@ export interface OnboardGateSnapshot {
     ru_owner_id: string | null;
     login_email: string | null;
     password_stored: boolean;
+    /** Set when the binding lookup itself failed — never read as "not bound". */
+    read_error?: string | null;
     keys_stored: boolean;
     keys_verified: boolean;
     company_details_sent: boolean;
