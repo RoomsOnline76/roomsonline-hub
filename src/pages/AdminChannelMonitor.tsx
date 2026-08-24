@@ -64,7 +64,7 @@ const ChannelSyncObservabilityPanel = lazy(() =>
 
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
-type TabKey = "onboard" | "cost" | "cert" | "advanced";
+type TabKey = "onboard" | "cost" | "advanced";
 
 const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
   {
@@ -78,15 +78,10 @@ const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean
     tests: "Confirms billable listing counts and forecast spend per sub-account.",
   },
   {
-    key: "cert",
-    title: "Cert Status & Logs",
-    tests: "Certification evidence: milestones, coverage, windows, discounts and readiness.",
-  },
-  {
     key: "advanced",
-    title: "Advanced (Dev only)",
-    tests: "Runner, queue, exchange log, sync observability and error handling for engineers.",
-  devOnly: true,
+    title: "Advanced",
+    tests: "Exchange log, booking sync trail, refresh compliance and the background call queue.",
+    devOnly: true,
   },
 ];
 
@@ -102,7 +97,9 @@ const LEGACY_TAB_MAP: Record<string, TabKey> = {
   binding: "advanced",
   ari: "advanced",
   reservations: "advanced",
-  mapping: "cert",
+  // Certification evidence retired: the compliance frame it mattered for lives in Advanced.
+  cert: "advanced",
+  mapping: "advanced",
 };
 
 
@@ -336,7 +333,6 @@ export default function AdminChannelMonitor() {
       return {
         onboard: pending,
         cost: pending,
-        cert: pending,
         advanced: { tone: "muted", label: "Engineers only" },
       };
     }
@@ -357,12 +353,6 @@ export default function AdminChannelMonitor() {
       // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
 
 
-      cert: run
-        ? {
-            tone: run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "warn",
-            label: `${run.passed ?? 0}/${run.total ?? 0} ${run.status ?? "pending"}`,
-          }
-        : { tone: "warn", label: "No cert run yet" },
       advanced: { tone: "muted", label: "Engineers only" },
     };
   }, [data, railStatus]);
