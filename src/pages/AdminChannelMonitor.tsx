@@ -44,6 +44,9 @@ import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/C
 const PortfolioRuAccountsTab = lazy(() =>
   import("@/components/portfolio/PortfolioRuAccountsTab").then((m) => ({ default: m.PortfolioRuAccountsTab })),
 );
+const ChannelOnboardTab = lazy(() =>
+  import("@/components/admin/channel-monitor/ChannelOnboardTab").then((m) => ({ default: m.ChannelOnboardTab })),
+);
 const ChannelCertificationTab = lazy(() =>
   import("@/components/admin/channel-monitor/ChannelCertificationTab").then((m) => ({
     default: m.ChannelCertificationTab,
@@ -83,6 +86,7 @@ const RuCalendarVerifyPanel = lazy(() =>
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
 type TabKey =
+  | "onboard"
   | "accounts"
   | "cost"
   | "binding"
@@ -93,6 +97,11 @@ type TabKey =
   | "advanced";
 
 const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
+  {
+    key: "onboard",
+    title: "Onboard Property",
+    tests: "Readiness gate, owner binding, then the two steps that take a property live.",
+  },
   {
     key: "accounts",
     title: "Accounts & Company",
@@ -382,6 +391,7 @@ export default function AdminChannelMonitor() {
     if (loading) {
       const pending = { tone: "muted" as ChipTone, label: "Checking…" };
       return {
+        onboard: pending,
         accounts: pending,
         cost: pending,
         binding: pending,
@@ -394,6 +404,10 @@ export default function AdminChannelMonitor() {
     }
 
     return {
+      onboard:
+        neverPushed === 0
+          ? { tone: "ok", label: "All properties pushed" }
+          : { tone: "warn", label: `${neverPushed} awaiting go-live` },
       accounts:
         keys.total > 0 && keys.verified === keys.total
           ? { tone: "ok", label: `${keys.verified}/${keys.total} keys verified` }
@@ -511,6 +525,12 @@ export default function AdminChannelMonitor() {
           </nav>
 
           <div className="min-w-0 space-y-4">
+            {tab === "onboard" && (
+              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                <ChannelOnboardTab initialPropertyId={params.get("property") ?? undefined} />
+              </Suspense>
+            )}
+
             {tab === "cost" &&
               (data.loading && data.properties.length === 0 ? (
                 <div className="space-y-3">
