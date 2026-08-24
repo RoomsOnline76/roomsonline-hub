@@ -125,8 +125,44 @@ describe("buildBillingEstimate", () => {
       }),
       hybrid,
     );
-    expect(e.setupTotal).toBe(1500 + 2500 + 400);
+    // Branding is bundled free with white label, so its setup fee falls away.
+    expect(e.setupTotal).toBe(2500 + 400);
     expect(e.lines.some((l) => l.label.toLowerCase().includes("setup"))).toBe(false);
+  });
+
+  it("bundles the branding pack free with white label", () => {
+    const e = buildBillingEstimate(
+      preset,
+      input({
+        addOns: { pms: false, channel_manager: false, branding: false, white_label: true, pricelabs: false, hubspot: false },
+      }),
+      hybrid,
+    );
+    const branding = e.lines.find((l) => l.key === "branding")!;
+    expect(branding.steadyState).toBe(0);
+    expect(branding.detail).toMatch(/no charge with white label/i);
+  });
+
+  it("separates transaction fees from monthly recurring", () => {
+    const e = buildBillingEstimate(preset, input(), hybrid);
+    expect(e.transactionSteadyStateTotal + e.recurringSteadyStateTotal).toBeCloseTo(e.steadyStateTotal, 5);
+    expect(e.lines.find((l) => l.key === "commission")!.group).toBe("transaction");
+  });
+
+  it("prices widget commission flat or by volume band", () => {
+    const flat = buildBillingEstimate(
+      preset,
+      input({ widgetBookings: 40, widgetBookingValue: 100000, widgetCommissionMode: "flat" }),
+      hybrid,
+    );
+    const tiered = buildBillingEstimate(
+      preset,
+      input({ widgetBookings: 40, widgetBookingValue: 100000, widgetCommissionMode: "tiered" }),
+      hybrid,
+    );
+    expect(flat.lines.some((l) => l.key === "widget_commission")).toBe(true);
+    expect(tiered.widgetRate).toBe(3);
+    expect(tiered.lines.find((l) => l.key === "widget_commission")!.steadyState).toBeCloseTo(3000, 5);
   });
 
   it("never charges for the owner CRM", () => {
