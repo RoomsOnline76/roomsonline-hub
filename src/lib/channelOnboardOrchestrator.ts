@@ -62,7 +62,14 @@ interface RunContext {
   /** Operator-confirmed sub-account login, exactly as previewed. Step A only. */
   confirmedOwnerEmail?: string | null;
   confirmedOwnerName?: string | null;
-  onTask?: (id: ChannelOnboardTaskId, state: "running" | TaskOutcome, detail?: string) => void;
+  /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
+  startAtTaskId?: ChannelOnboardTaskId | null;
+  onTask?: (
+    id: ChannelOnboardTaskId,
+    state: "running" | TaskOutcome,
+    detail?: string,
+    retryAfterMs?: number,
+  ) => void;
   onPushProgress?: (progress: { pushed: number; total: number }) => void;
 }
 
