@@ -1732,7 +1732,8 @@ const Dashboard = () => {
                       {chartData.map((entry, index) => (
                         <Cell 
                           key={`cell-bookings-${index}`} 
-                          fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : "#22c55e"} 
+                          fill={entry.isDataGap ? "#ef4444" : entry.isInterpolated ? "#fbbf24" : entry.isFuture ? "#0ea5e9" : "#22c55e"} 
+
                         />
                       ))}
                     </Bar>
