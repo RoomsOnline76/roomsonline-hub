@@ -2479,7 +2479,8 @@ Deno.serve(async (req) => {
         await seedLedger(admin, propertyId);
         // The drain is local-only by construction: it ignores any `probe_ari` in the body.
         const probeAri = action === "ledger_drain_recheck" ? false : body.probe_ari !== false;
-        const report = await scorePropertyWithinBudget(prop, probeAri);
+        // An explicit `probe_ari: true` is an operator recheck: it may bypass the stored verdict.
+        const report = await scorePropertyWithinBudget(prop, probeAri, body.probe_ari === true);
         const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike);
         const written = await writeLedgerRows(admin, propertyId, rows);
         logLedgerEvent({
