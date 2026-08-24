@@ -178,6 +178,12 @@ export function ChannelOnboardTab({
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  /** Set when the channel refused the resolved login; drives the modal's login chooser. */
+  const [emailConflict, setEmailConflict] = useState<
+    { email: string; message: string; candidates: LoginCandidate[] } | null
+  >(null);
+  const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+
 
   const [rebindEmail, setRebindEmail] = useState("");
   const [rebindOpen, setRebindOpen] = useState(false);
