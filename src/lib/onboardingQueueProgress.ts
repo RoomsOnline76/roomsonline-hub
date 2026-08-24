@@ -42,6 +42,8 @@ export interface ChannelQueueSignals {
   ruMandatoryPass?: boolean | null;
   /** 0-100 pass rate of live RU mandatory checks, when known. */
   ruMandatoryPercent?: number | null;
+  /** Count of outstanding mandatory items across steps 1–5, when known. */
+  ruOutstanding?: number | null;
 }
 
 export interface RuReadinessSignals {
