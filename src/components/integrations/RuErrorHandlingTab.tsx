@@ -81,6 +81,30 @@ export const classifyRuError = (run: {
       fix: "None — confirm the follow-up run succeeded if the change is time critical.",
     };
   }
+  if (
+    code === "phase_blocked" || action === "phase_blocked" || action === "static_delta_pending" ||
+    msg.includes("onboarding is blocked at phase")
+  ) {
+    return {
+      key: "phase_blocked",
+      label: "Onboarding gate refused the push",
+      severity: "expected",
+      cause: "The property has an outstanding onboarding requirement (content, coordinates, company profile), so the push was refused before any channel call.",
+      handling: "Refusal only — nothing was sent and the push re-arms itself once the outstanding item clears.",
+      fix: "Clear the item named in the message on the Onboard property step, then re-run the step.",
+    };
+  }
+
+  if (msg.includes("invalid session") || msg.includes("session expired") || code === "invalid_session") {
+    return {
+      key: "session",
+      label: "Operator session expired",
+      severity: "advisory",
+      cause: "The browser session that triggered the action had expired, so the admin call was rejected before reaching the channel.",
+      handling: "Nothing was sent to the channel; the action simply did not run.",
+      fix: "Sign in again and repeat the action. Recurring cases mean the tab was left open past token expiry.",
+    };
+  }
 
   if (msg.includes("incorrect login or password") || code === "auth" || run.http_status === 401) {
     return {
@@ -92,14 +116,17 @@ export const classifyRuError = (run: {
       fix: "Re-enter AccessKey / SecretKey in Admin → Keys, then re-run a manual push to confirm.",
     };
   }
-  if (code === "ru_email_in_use" || msg.includes("email in use") || msg.includes("already registered") || msg.includes("login email")) {
+  if (
+    code === "ru_email_in_use" || msg.includes("email in use") || msg.includes("already registered") ||
+    msg.includes("login email") || msg.includes("under our master account") || msg.includes("does not list ownerid")
+  ) {
     return {
       key: "account_conflict",
       label: "Channel account conflict",
       severity: "blocker",
-      cause: "The channel already holds an account for this login or contact email, so the sub-account cannot be created.",
-      handling: "Creation stops before any listing is written, so no duplicate account or listing is produced.",
-      fix: "Setup gap, not a code defect: bind the existing sub-account under the master instead of registering a new one.",
+      cause: "The login (or the bound OwnerID) is not a sub-account under our master: the channel already holds it elsewhere, or the stored OwnerID is no longer listed under the master account.",
+      handling: "Creation and binding stop before any listing is written, so no duplicate account or orphan listing is produced. Step A clears the stale local binding and offers alternative logins.",
+      fix: "In Step A → Preview account, pick one of the offered logins (owner, portfolio or sibling email) or supply a fresh address, then re-run the step. Ask channel support to release a login they hold outside our master.",
     };
   }
   if (code === "ru_master_auth_refused" || msg.includes("master credentials")) {
@@ -112,6 +139,80 @@ export const classifyRuError = (run: {
       fix: "Bind the property's OwnerID and sub-user keys, then re-run the push.",
     };
   }
+  if (msg.includes("existing reservations")) {
+    return {
+      key: "field_locked",
+      label: "Field locked by existing reservations",
+      severity: "advisory",
+      cause: "The channel refuses to change this listing's location while it still holds reservations for it.",
+      handling: "The rest of the payload is applied and the rejected listings are named on the run — the push is reported as partial, not lost.",
+      fix: "Either leave the location as published, or ask channel support to release the lock once the outstanding stays have departed.",
+    };
+  }
+  if (code === "ru_guest_email_required" || msg.includes("guest email is required")) {
+    return {
+      key: "guest_email",
+      label: "Guest email missing on the reservation",
+      severity: "blocker",
+      cause: "The channel requires a guest email on a confirmed reservation and the booking has none.",
+      handling: "The push is now refused pre-flight — no channel slot is spent and no address is invented for the guest.",
+      fix: "Add the guest's email to the booking, then resend the stay.",
+    };
+  }
+  if (
+    code === "ru_confirm_blocked_dates" || msg.includes("not available for a given dates") ||
+    msg.includes("check in or check out on selected dates")
+  ) {
+    return {
+      key: "stay_dates_closed",
+      label: "Channel reads the stay's nights as closed",
+      severity: "blocker",
+      cause: "The held request cannot be accepted because its own nights show no units at the channel, or a check-in/check-out restriction bars the arrival or departure day.",
+      handling: "The request's own nights are reopened once and the acceptance is retried in the next channel slot. After three refusals in an hour, further attempts are suppressed instead of retried.",
+      fix: "Open those dates at the channel and accept the request there, then resend the change.",
+    };
+  }
+  if (msg.includes("cannot cancel approved, rejected or expired") || msg.includes("cannot cancel")) {
+    return {
+      key: "reservation_state",
+      label: "Reservation is past the state that allows this verb",
+      severity: "expected",
+      cause: "The channel had already moved the reservation on (approved, rejected or expired), so the verb no longer applies to it.",
+      handling: "Recorded on the trail only — the local cancellation still stands.",
+      fix: "None, unless the channel still shows the stay as live; then cancel it in the channel portal.",
+    };
+  }
+  if (msg.includes("doesn't match the property id") || msg.includes("does not match the property id")) {
+    return {
+      key: "reservation_mismatch",
+      label: "Stay sent against the wrong listing",
+      severity: "blocker",
+      cause: "The listing ID in the modification's Current element is not the one the channel holds for that reservation — usually a unit re-assignment or a stale local mapping.",
+      handling: "The modification is refused, so the channel's reservation is left untouched rather than half-applied.",
+      fix: "Re-read the reservation from the channel (Booking sync trail → resync) so the current listing is captured, then resend the change.",
+    };
+  }
+  if (msg.includes("property does not exist")) {
+    return {
+      key: "listing_absent",
+      label: "Listing does not exist at the channel",
+      severity: "blocker",
+      cause: "The push targeted a listing ID the channel does not serve — the listing was deleted, or the mapping was captured under a different account.",
+      handling: "The call is refused and the stale mapping is reported instead of retried.",
+      fix: "Re-run Step B (Publish property & ARI) to mint or adopt the correct listing, then resend.",
+    };
+  }
+  if (msg.includes("latitude") || msg.includes("longitude") || msg.includes("no kitchen is declared")) {
+    return {
+      key: "content_gap",
+      label: "Mandatory property content missing",
+      severity: "blocker",
+      cause: "A mandatory channel field is empty locally (coordinates, kitchen declaration, composition), so the listing cannot be published.",
+      handling: "The push is refused before the channel call and the missing field is named on the run.",
+      fix: "Complete the named field on the property, then re-run the readiness check and the push.",
+    };
+  }
+
   if (code.startsWith("readiness") || msg.includes("readiness") || msg.includes("sync gate")) {
     return {
       key: "readiness",
