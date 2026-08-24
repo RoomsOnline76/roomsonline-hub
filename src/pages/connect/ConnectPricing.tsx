@@ -257,7 +257,7 @@ export default function ConnectPricing() {
       </section>
 
 
-      {/* Everything included */}
+      {/* Everything unlocked in the trial */}
       <section className="py-10 sm:py-12 lg:py-16 border-t">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <motion.div
@@ -266,15 +266,17 @@ export default function ConnectPricing() {
             className="text-center mb-10"
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-3">
-              Included · Every property, every module
+              Unlocked from day one · Every property, every module
             </span>
-            <h2 className="text-2xl sm:text-3xl font-bold">Everything is in the box.</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold">Everything is in the box for 60 days.</h2>
             <p className="text-muted-foreground mt-2 max-w-2xl mx-auto">
-              White label, revenue management, PMS, channel integration, the developer API and
-              the rest of the operating stack ship switched on. There are no feature paywalls
-              and no upgrade tiers to climb.
+              PMS, channel integration, white label, revenue management, the developer API and the
+              rest of the operating stack ship switched on — nothing is held back behind a tier.
+              Items marked <span className="text-foreground font-medium">add-on</span> become
+              chargeable after 60 days if you choose to keep them.
             </p>
           </motion.div>
+
 
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }}
@@ -309,8 +311,9 @@ export default function ConnectPricing() {
           <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
             Third-party pass-through costs stay with the third party — an external revenue-management
             licence you already hold, or your own payment gateway's transaction fees, are billed at cost
-            where they apply. Nothing in ROL'OS itself is charged for.
+            where they apply.
           </p>
+
         </div>
       </section>
 
@@ -324,9 +327,10 @@ export default function ConnectPricing() {
           >
             <h2 className="text-2xl font-bold">What Others Charge for the Same Features</h2>
             <p className="text-muted-foreground mt-2 max-w-lg mx-auto">
-              Most providers sell these as tiers and add-ons. ROL'OS includes them and charges
-              nothing until a booking arrives.
+              Most providers sell these as tiers and add-ons from day one. With ROL'OS you run the
+              lot free for 60 days, then pay only for the pieces you keep.
             </p>
+
           </motion.div>
 
           <motion.div
