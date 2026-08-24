@@ -129,9 +129,14 @@ function formatZar(v: number | null | undefined): string {
  * `gateway_billing_configs` row the Pricing page and the billing run use, so the
  * assistant can never quote a rate that differs from what gets charged.
  */
-async function buildGatewayBlock(supabase: any): Promise<string> {
+async function buildGatewayBlock(): Promise<string> {
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) return "";
+    const supabase = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data, error } = await supabase
+
       .from("gateway_billing_configs")
       .select("name, version, model, base_percentage, fixed_fee_per_txn, monthly_platform_fee, volume_tiers, currency")
       .eq("is_active", true)
