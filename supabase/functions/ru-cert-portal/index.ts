@@ -6974,6 +6974,66 @@ Deno.serve(async (req) => {
 
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
+      /**
+       * Atomic credential provisioning: the sub-account leaves this call already holding
+       * its own AccessKey/SecretKey pair. RU returns the SecretKey once, so it is minted
+       * and stored here — the moment we still hold the password we set — instead of being
+       * a later manual "generate the first pair in the portal" step.
+       *
+       * Never fatal: a rate limit or a missing credential is reported alongside the account
+       * so Step A keeps moving and the key task retries or asks for the password.
+       */
+      let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+      let mintedAccessKey: string | null = null;
+      let keyWarning: string | null = null;
+      let keyRetryAfterMs: number | null = null;
+      const savedOwnerId = String((saved as any)?.ru_owner_id ?? ruOwnerId ?? "").trim();
+      const savedLoginEmail = String((saved as any)?.ru_login_email ?? adoptedEmail ?? ownerEmail ?? "").trim() || null;
+      if (savedOwnerId) {
+        const { data: existingCred } = await admin
+          .from("ru_api_credentials")
+          .select("access_key")
+          .eq("ru_owner_id", savedOwnerId)
+          .maybeSingle();
+        if (existingCred?.access_key) {
+          keySource = "existing";
+          mintedAccessKey = String(existingCred.access_key);
+        } else {
+          // Authenticate as the child: the freshly created password, or the retained one
+          // on an adopted account.
+          let childPassword: string | null = adopted ? null : password;
+          if (!childPassword) {
+            const retained = (saved as any)?.ru_login_password_enc ?? null;
+            if (retained) {
+              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: retained });
+              if (plain && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") childPassword = String(plain);
+            }
+          }
+          if (childPassword) {
+            const mintResult = await mintChildKeyPair({
+              ownerId: savedOwnerId,
+              loginEmail: savedLoginEmail,
+              accountId: (saved as any)?.id ?? null,
+              keyLabel: "ROLOS",
+              plainPassword: childPassword,
+            });
+            if (mintResult.ok) {
+              keySource = "minted";
+              mintedAccessKey = mintResult.accessKey ?? null;
+            } else if (mintResult.rateDeferred) {
+              keySource = "deferred";
+              keyRetryAfterMs = mintResult.retryAfterMs ?? 60_000;
+              keyWarning = "The channel rate-limited the key request — it will be minted on the next attempt.";
+            } else {
+              keyWarning = mintResult.message ?? "The channel did not return a key pair.";
+            }
+          } else {
+            keyWarning =
+              "This account was adopted and no password is held for it, so a key pair cannot be minted automatically. Save its portal password on the Accounts tab, or create the account under a fresh login.";
+          }
+        }
+      }
+
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
       const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
       const needsPassword = Boolean(
@@ -7027,6 +7087,11 @@ Deno.serve(async (req) => {
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
+        key_source: keySource,
+        keys_minted: keySource === "minted",
+        access_key: mintedAccessKey,
+        key_warning: keyWarning,
+        key_retry_after_ms: keyRetryAfterMs,
       });
 
 
