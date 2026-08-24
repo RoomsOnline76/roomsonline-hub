@@ -227,7 +227,8 @@ export function usePropertyReadiness(
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<ChannelCheckMap> => {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "property_readiness", property_id: propertyId },
+        // Never probe the channel from an editor mount — score locally / from the stored verdict.
+        body: { action: "property_readiness", property_id: propertyId, probe_ari: false },
       });
       if (error || !data?.success) return {};
       const readiness = data.readiness as
