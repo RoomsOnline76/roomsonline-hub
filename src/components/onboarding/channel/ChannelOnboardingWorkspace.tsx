@@ -887,6 +887,44 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         </div>
       )}
 
+      {/*
+        The wizard finishes at Ready to sell. Connecting the property to a sales
+        channel (sub-account, push, publish, ARI) is the Channel Monitor's job —
+        the wizard hands over instead of duplicating those steps.
+      */}
+      {readyOverall.allComplete && (
+        <div className="space-y-2 rounded-lg border border-emerald-500/50 bg-emerald-500/5 p-4">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+            <p className="text-sm font-semibold">Ready to sell — all five steps complete</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {gradeState === "saving"
+              ? "Recording the verdict…"
+              : "The verdict is recorded. Connect this party to a sales channel from the Channel Monitor."}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {isPlatformUser && (
+              <Button asChild size="sm">
+                <Link
+                  to={`/admin/channel-monitor?tab=onboard&property=${propertyId}${
+                    // A portfolio-scoped party is onboarded as a portfolio at the
+                    // monitor, so hand the portfolio over too — the raw property id
+                    // is not one of the monitor's picker entries.
+                    billing.scope.portfolioId ? `&portfolio=${billing.scope.portfolioId}` : ""
+                  }`}
+                >
+                  Open Channel Monitor
+                </Link>
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={isFetching}>
+              Re-check
+            </Button>
+          </div>
+        </div>
+      )}
+
       <ChannelPriceCoveragePanel propertyId={propertyId} variant={variant} />
 
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
@@ -1049,43 +1087,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           )}
 
 
-          {/*
-            The wizard finishes at Ready to sell. Connecting the property to a sales
-            channel (sub-account, push, publish, ARI) is the Channel Monitor's job —
-            the wizard hands over instead of duplicating those steps.
-          */}
-          {readyOverall.allComplete && (
-            <div className="space-y-2 rounded-lg border border-emerald-500/50 bg-emerald-500/5 p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-                <p className="text-sm font-semibold">Ready to sell — all five steps complete</p>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {gradeState === "saving"
-                  ? "Recording the verdict…"
-                  : "The verdict is recorded. Connect this party to a sales channel from the Channel Monitor."}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {isPlatformUser && (
-                  <Button asChild size="sm">
-                    <Link
-                      to={`/admin/channel-monitor?tab=onboard&property=${propertyId}${
-                        // A portfolio-scoped party is onboarded as a portfolio at the
-                        // monitor, so hand the portfolio over too — the raw property id
-                        // is not one of the monitor's picker entries.
-                        billing.scope.portfolioId ? `&portfolio=${billing.scope.portfolioId}` : ""
-                      }`}
-                    >
-                      Open Channel Monitor
-                    </Link>
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={isFetching}>
-                  Re-check
-                </Button>
-              </div>
-            </div>
-          )}
 
         </section>
       </div>
