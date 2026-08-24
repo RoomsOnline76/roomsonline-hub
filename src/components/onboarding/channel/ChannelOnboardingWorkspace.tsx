@@ -853,16 +853,15 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             )}
           </div>
           <ScoreChip
-            label="Channels"
-            value={overall.percent}
-            live={channelsConnected > 0}
-            liveLabel={`${channelsConnected} live`}
+            label="Ready to sell"
+            value={readyOverall.percent}
+            live={readyOverall.allComplete}
+            liveLabel="Ready"
           />
           <div className="min-w-[12rem] flex-1">
-            <Progress value={overall.percent} className="h-2" />
+            <Progress value={readyOverall.percent} className="h-2" />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {overall.macrosComplete}/{overall.macrosTotal} steps
-              {!publishedOk && unpublishedUnits > 0 ? ` · ${unpublishedUnits} unit(s) unpublished` : ""}
+              {readyOverall.complete}/{readyOverall.total} steps
             </p>
           </div>
         </div>
