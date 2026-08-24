@@ -1177,6 +1177,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Discounts */}
         {shows("discounts") && (
