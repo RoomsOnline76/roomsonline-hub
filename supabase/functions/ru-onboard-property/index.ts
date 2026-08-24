@@ -391,6 +391,20 @@ Deno.serve(async (req) => {
       }
 
       const binding = await readBinding(admin, propertyId);
+      // Never re-assign blind: a failed binding read looks like "no account", which would
+      // silently skip archiving and unbinding an account that actually exists.
+      if (binding.read_error) {
+        return json(
+          {
+            success: false,
+            error: {
+              code: "BINDING_UNREADABLE",
+              message: `The current distribution binding could not be read (${binding.read_error}). Nothing was changed — resolve the read first.`,
+            },
+          },
+          409,
+        );
+      }
       if (binding.account_scope === "portfolio" && body.confirm_portfolio_scope !== true) {
         return json(
           {
