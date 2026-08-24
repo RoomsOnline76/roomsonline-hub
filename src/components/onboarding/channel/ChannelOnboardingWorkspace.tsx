@@ -245,6 +245,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const [activeMacroKey, setActiveMacroKey] = useState<string | null>(requestedMacro);
   const [editorSection, setEditorSection] = useState(requestedSection || "general");
   const [liveExpanded, setLiveExpanded] = useState(false);
+  /** Manual reveal of the step rail once everything already passes. */
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const stepsVisible = !readyOverall.allComplete || stepsOpen || !!requestedMacro;
+
   const [busy, setBusy] = useState<string | null>(null);
   // Step 6 confirmation gate state.
   const [ownerPlanOpen, setOwnerPlanOpen] = useState(false);
@@ -629,23 +633,10 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   }, [listingsVerified, readBackPending, verifyListings]);
 
 
-  const toggleWebsite = useCallback(
-    async (next: boolean) => {
-      if (!isPlatformUser) return;
-      setBusy("website");
-      try {
-        const { error } = await supabase.from("properties").update({ show_on_website: next }).eq("id", propertyId);
-        if (error) throw error;
-        toast.success(next ? "Property is now on the website" : "Property hidden from the website");
-        await refresh();
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Could not update website visibility");
-      } finally {
-        setBusy(null);
-      }
-    },
-    [isPlatformUser, propertyId, refresh],
-  );
+  // Website visibility is the Website wizard's business — the channel wizard no
+  // longer surfaces the site indicator or its toggle.
+
+
 
   const enableChannelManager = useCallback(async () => {
     if (!isPlatformUser) return;
@@ -767,7 +758,6 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     );
   }
 
-  const websiteScore = readiness.mandatoryScore ?? 0;
 
   return (
     <div className="flex min-h-[70vh] flex-col gap-4">
@@ -839,21 +829,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <ScoreChip label="Website" value={websiteScore} live={websiteLive} liveLabel="On site" />
-            {isPlatformUser && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                disabled={busy === "website"}
-                onClick={() => void toggleWebsite(!websiteLive)}
-              >
-                {websiteLive ? "Hide from site" : "Show on website"}
-              </Button>
-            )}
-          </div>
+
           <ScoreChip
             label="Ready to sell"
             value={readyOverall.percent}
@@ -921,13 +897,20 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={isFetching}>
               Re-check
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => setStepsOpen((v) => !v)}>
+              {stepsOpen ? "Hide steps" : "Open steps"}
+            </Button>
+
           </div>
         </div>
       )}
 
       <ChannelPriceCoveragePanel propertyId={propertyId} variant={variant} />
 
+      {/* Nothing left to do once all five steps pass — the detail collapses until asked for. */}
+      {stepsVisible && (
       <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+
         <nav className="space-y-4" aria-label="Go-live stages">
           {stages.map((stage) => (
             <div key={stage.def.key}>
@@ -1090,6 +1073,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
         </section>
       </div>
+      )}
+
 
       <OwnerAccountConfirmDialog
         open={ownerPlanOpen}

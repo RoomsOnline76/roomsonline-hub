@@ -354,14 +354,18 @@ export function ledgerStepComplete(step: ChannelLedgerStep | undefined | null): 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface PropertyLedgerVerdict {
-  /** Any ledger rows at all for this property? */
+  /** Any graded ledger rows at all for this property? */
   seeded: boolean;
+  /** Any rows at all, graded or not — a seeded property never needs re-seeding. */
+  hasRows: boolean;
   /** Every step complete (a prior pass survives stale/unknown). */
   allComplete: boolean;
   /** 0-100 over the canonical step list. */
   percent: number;
   /** A channel-class step needs a live probe (never graded, blocked or dirty). */
   needsChannelProbe: boolean;
+  /** Most recent grading timestamp across the rows, ISO string or null. */
+  lastCheckedAt: string | null;
 }
 
 /**
@@ -387,17 +391,20 @@ export async function fetchChannelLedgerBatch(
     byProperty.set(id, list);
   }
 
+  const newestCheck = (steps: ChannelLedgerStep[]): string | null => {
+    let newest: string | null = null;
+    for (const step of steps) {
+      const at = step.last_checked_at ?? step.passed_at ?? null;
+      if (at && (!newest || at > newest)) newest = at;
+    }
+    return newest;
+  };
+
   for (const id of propertyIds) {
     const steps = byProperty.get(id) ?? [];
-    // Rows that were seeded but never graded carry no verdict at all. Treating them
-    // as "seeded" would report a finished property as 0% — it counts as unseeded so
-    // the caller grades it instead of trusting empty bookkeeping.
-    if (!steps.some((step) => ledgerHasVerdict(step))) {
-      result.set(id, { seeded: false, allComplete: false, percent: 0, needsChannelProbe: true });
-      continue;
-    }
     const byKey = new Map(steps.map((s) => [String(s.step_key), s]));
     const complete = CHANNEL_LEDGER_STEP_KEYS.filter((key) => ledgerStepComplete(byKey.get(key)));
+    const graded = steps.some((step) => ledgerHasVerdict(step));
     const needsChannelProbe = CHANNEL_CLASS_LEDGER_STEPS.some((key) => {
       const step = byKey.get(key);
       if (!step) return true;
@@ -406,11 +413,17 @@ export async function fetchChannelLedgerBatch(
       return true;
     });
     result.set(id, {
-      seeded: true,
+      // A property whose rows exist but were never graded carries no verdict, yet its
+      // recorded progress (0%) is still the truth to render — the caller decides when
+      // to spend a live probe on it.
+      seeded: graded,
+      hasRows: steps.length > 0,
       allComplete: complete.length === CHANNEL_LEDGER_STEP_KEYS.length,
       percent: Math.round((complete.length / CHANNEL_LEDGER_STEP_KEYS.length) * 100),
       needsChannelProbe,
+      lastCheckedAt: newestCheck(steps),
     });
   }
   return result;
 }
+

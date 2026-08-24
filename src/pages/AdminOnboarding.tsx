@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { applyAdminScope } from "@/lib/adminScope";
@@ -159,7 +159,10 @@ interface PropertyOnboardingRow {
   channelHint: string;
   channelsConnected: number;
   channelManagerEnabled: boolean;
+  /** When the recorded channel verdict was last graded (ISO) — null when never. */
+  channelCheckedAt: string | null;
 }
+
 
 // Calculate ROL Spec completion (applies to ALL properties)
 const calculateROLSpecCompletion = (prop: PropertyData): number => {
@@ -355,6 +358,13 @@ export default function AdminOnboarding() {
    * Channel Manager. Switching it off widens the list to website-wizard properties too.
    */
   const [ruOnly, setRuOnly] = useState(true);
+  /**
+   * Channel readiness is never re-tested on page load: the queue renders the verdicts
+   * recorded in the step ledger and only these explicit re-checks call the channel.
+   */
+  const [recheckingIds, setRecheckingIds] = useState<string[]>([]);
+  const channelInputsRef = useRef(new Map<string, Parameters<typeof channelQueueProgress>[0]>());
+
 
   // Send modal state
   const [sendModalOpen, setSendModalOpen] = useState(false);
@@ -367,6 +377,88 @@ export default function AdminOnboarding() {
   const [extendRow, setExtendRow] = useState<PropertyOnboardingRow | null>(null);
   const [extendDays, setExtendDays] = useState("30");
   const [extending, setExtending] = useState(false);
+
+  /** Re-render one property's channel bar from a verdict, whatever produced it. */
+  const patchChannelRow = useCallback(
+    (
+      propertyId: string,
+      verdict: {
+        pass: boolean | null;
+        percent: number | null;
+        outstanding?: number | null;
+        checkedAt?: string | null;
+      },
+    ) => {
+      const inputs = channelInputsRef.current.get(propertyId);
+      if (!inputs) return;
+      const channel = channelQueueProgress({
+        ...inputs,
+        ruMandatoryPass: verdict.pass,
+        ruMandatoryPercent: verdict.percent,
+        ruOutstanding: verdict.outstanding ?? null,
+      });
+      setPropertyRows((prev) =>
+        prev.map((row) =>
+          row.id === propertyId
+            ? {
+                ...row,
+                channelStage: channel.stage,
+                channelPercent: channel.percent,
+                channelLabel: channel.label,
+                channelHint: channel.hint,
+                channelCheckedAt: verdict.checkedAt ?? row.channelCheckedAt,
+              }
+            : row,
+        ),
+      );
+    },
+    [],
+  );
+
+  /**
+   * The only path that calls the channel. Explicit operator action — a page load
+   * never lands here, so opening the queue costs no channel traffic.
+   */
+  const recheckReadiness = useCallback(
+    async (propertyIds: string[]) => {
+      const ids = propertyIds.filter((id) => channelInputsRef.current.has(id));
+      if (!ids.length) return;
+      setRecheckingIds((prev) => [...new Set([...prev, ...ids])]);
+      const queue = [...ids];
+      const runProbe = async (propertyId: string) => {
+        try {
+          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
+          });
+          if (error || data?.success !== true) return;
+          const listed = !!data?.readiness?.ru_property_id;
+          const summary = ruMandatoryCheckSummary(data.readiness ?? null, {
+            // Listing exists but the scorer fell back to the local calendar:
+            // the live availability verdict is unavailable, not failing.
+            liveProbeDegraded: listed && data?.availability_source !== "channel",
+          });
+          patchChannelRow(propertyId, {
+            pass: summary.known ? summary.pass : null,
+            percent: summary.known ? summary.percent : null,
+            outstanding: summary.known ? summary.outstanding : null,
+            checkedAt: new Date().toISOString(),
+          });
+        } catch {
+          // Leave the recorded verdict in place.
+        } finally {
+          setRecheckingIds((prev) => prev.filter((id) => id !== propertyId));
+        }
+      };
+      // Small concurrency keeps the channel rate limiter happy.
+      await Promise.all(
+        Array.from({ length: Math.min(3, queue.length) }, async () => {
+          for (let id = queue.shift(); id; id = queue.shift()) await runProbe(id);
+        }),
+      );
+    },
+    [patchChannelRow],
+  );
+
 
   useEffect(() => {
     if (!scopeResolved) return;
@@ -558,10 +650,12 @@ export default function AdminOnboarding() {
             billingByProperty.get(prop.id) === true,
         )
         .map((prop) => prop.id);
-      // Live channel probes never block the first paint: the queue renders from
-      // local state, then each probe refines its own row as it lands.
+      // The queue never re-tests the channel on load: rows paint from local state and
+      // are then refined from the recorded step-ledger verdicts (a pure read).
       const ruByProperty = new Map<string, ReturnType<typeof ruMandatoryCheckSummary>>();
-      const channelInputsById = new Map<string, Parameters<typeof channelQueueProgress>[0]>();
+      const channelInputsById = channelInputsRef.current;
+      channelInputsById.clear();
+
 
 
 
@@ -684,98 +778,39 @@ export default function AdminOnboarding() {
           channelHint: channel.hint,
           channelsConnected,
           channelManagerEnabled,
+          channelCheckedAt: null,
         };
       });
+
 
       setPropertyRows(enrichedProperties);
       setLoading(false);
 
-      // Background refinement: probe live channel readiness per ROL'OS property and
-      // patch just that row. Small concurrency keeps the channel rate limiter happy.
-      const patchRow = (
-        propertyId: string,
-        pass: boolean | null,
-        percent: number | null,
-        outstanding: number | null = null,
-      ) => {
-        const inputs = channelInputsById.get(propertyId);
-        if (!inputs) return;
-        const channel = channelQueueProgress({
-          ...inputs,
-          ruMandatoryPass: pass,
-          ruMandatoryPercent: percent,
-          ruOutstanding: outstanding,
-        });
-        setPropertyRows((prev) =>
-          prev.map((row) =>
-            row.id === propertyId
-              ? {
-                  ...row,
-                  channelStage: channel.stage,
-                  channelPercent: channel.percent,
-                  channelLabel: channel.label,
-                  channelHint: channel.hint,
-                }
-              : row,
-          ),
-        );
-      };
-
-      const runProbe = async (propertyId: string) => {
-        try {
-          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-            body: { action: "phase_status", property_id: propertyId, probe_ari: true },
-          });
-          if (error || data?.success !== true) return;
-          const listed = !!data?.readiness?.ru_property_id;
-          const summary = ruMandatoryCheckSummary(data.readiness ?? null, {
-            // Listing exists but the scorer fell back to the local calendar:
-            // the live availability verdict is unavailable, not failing.
-            liveProbeDegraded: listed && data?.availability_source !== "channel",
-          });
-          patchRow(
-            propertyId,
-            summary.known ? summary.pass : null,
-            summary.known ? summary.percent : null,
-            summary.known ? summary.outstanding : null,
-          );
-        } catch {
-          // Leave unknown — the local verdict stands.
-        }
-      };
-
-      // Ledger-first: a property whose stored step verdicts already pass renders
-      // straight from the ledger and never re-tests the channel on page load.
-      const buildProbeQueue = async (): Promise<string[]> => {
-        if (!rolosIds.length) return [];
-        if (!(await isChannelStepLedgerEnabled())) return [...rolosIds];
+      // Ledger-only refinement. One batched read of the recorded step verdicts — no
+      // channel calls at all. Live re-testing is an explicit operator action.
+      void (async () => {
+        if (!rolosIds.length) return;
+        if (!(await isChannelStepLedgerEnabled())) return;
         const ledger = await fetchChannelLedgerBatch(rolosIds);
-        const queue: string[] = [];
         const toSeed: string[] = [];
         for (const propertyId of rolosIds) {
           const verdict: PropertyLedgerVerdict | undefined = ledger.get(propertyId);
-          if (!verdict?.seeded) {
+          if (!verdict) continue;
+          // Properties with no rows yet are seeded (a cheap insert of `pending` rows,
+          // no channel call) so the next visit has bookkeeping to read.
+          if (!verdict.hasRows) {
             toSeed.push(propertyId);
-            queue.push(propertyId);
             continue;
           }
-          patchRow(propertyId, verdict.allComplete, verdict.percent);
-          // Only genuinely unknown or dirty channel-class steps cost a probe.
-          if (verdict.needsChannelProbe) queue.push(propertyId);
+          patchChannelRow(propertyId, {
+            pass: verdict.seeded ? verdict.allComplete : null,
+            percent: verdict.percent,
+            checkedAt: verdict.lastCheckedAt,
+          });
         }
-        // Seed lazily so the next visit already has verdicts to reuse.
         void Promise.all(toSeed.slice(0, 10).map((id) => seedChannelLedger(id)));
-        return queue;
-      };
-
-      void (async () => {
-        const probeQueue = await buildProbeQueue();
-        await Promise.all(
-          Array.from({ length: Math.min(3, probeQueue.length) }, async () => {
-            for (let id = probeQueue.shift(); id; id = probeQueue.shift()) await runProbe(id);
-          }),
-        );
       })();
+
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
       setLoading(false);
@@ -1118,6 +1153,17 @@ export default function AdminOnboarding() {
               Show finished properties
             </Label>
           </div>
+          {/* Readiness is read from the ledger on load; testing the channel is deliberate. */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={recheckingIds.length > 0}
+            onClick={() => void recheckReadiness(filteredProperties.filter((r) => r.isRolos && r.channelManagerEnabled).map((r) => r.id))}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${recheckingIds.length ? "animate-spin" : ""}`} />
+            {recheckingIds.length ? `Re-checking ${recheckingIds.length}…` : "Re-check readiness"}
+          </Button>
+
         </div>
       </div>
 
@@ -1129,8 +1175,9 @@ export default function AdminOnboarding() {
               <TableHead>Property</TableHead>
               <TableHead>Owner</TableHead>
               <TableHead>Contract</TableHead>
-              <TableHead>Website listing</TableHead>
-              <TableHead>RU channels</TableHead>
+              {/* The queue shows one distribution column: the one the toggle is on. */}
+              {!ruOnly && <TableHead>Website listing</TableHead>}
+              {ruOnly && <TableHead>RU channels</TableHead>}
               <TableHead>Next</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -1138,13 +1185,13 @@ export default function AdminOnboarding() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Loading properties...
                 </TableCell>
               </TableRow>
             ) : filteredProperties.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   {propertyRows.length === 0 
                     ? "No active properties found" 
                     : showCompleted 
@@ -1153,6 +1200,7 @@ export default function AdminOnboarding() {
                 </TableCell>
               </TableRow>
             ) : (
+
               filteredProperties.map((row) => {
                 const status = getOnboardingStatus(row);
                 // The Channels wizard only exists once the Channel Manager is
@@ -1204,7 +1252,9 @@ export default function AdminOnboarding() {
                         {row.contractStatus ? row.contractStatus.replace("_", " ") : "—"}
                       </span>
                     </TableCell>
+                    {!ruOnly && (
                     <TableCell>
+
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -1237,7 +1287,11 @@ export default function AdminOnboarding() {
                         </Tooltip>
                       </TooltipProvider>
                     </TableCell>
+                    )}
+
+                    {ruOnly && (
                     <TableCell>
+
                       {row.channelStage === "na" ? (
                         <span className="text-xs text-muted-foreground">Not ROL'OS</span>
                       ) : !row.channelManagerEnabled ? (
@@ -1295,19 +1349,24 @@ export default function AdminOnboarding() {
                         </TooltipProvider>
                       )}
                     </TableCell>
+                    )}
+
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 text-xs"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/admin/properties/${row.id}?section=onboarding`);
-                          }}
-                        >
-                          Website wizard
-                        </Button>
+                        {!ruOnly && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/admin/properties/${row.id}?section=onboarding`);
+                            }}
+                          >
+                            Website wizard
+                          </Button>
+                        )}
+
                         {channelWizardAvailable && (
                           <Button
                             size="sm"
@@ -1341,6 +1400,21 @@ export default function AdminOnboarding() {
                               Open channel wizard
                             </DropdownMenuItem>
                           )}
+                          {channelWizardAvailable && (
+                            <DropdownMenuItem
+                              disabled={recheckingIds.includes(row.id)}
+                              onSelect={(e) => {
+                                e.preventDefault();
+                                void recheckReadiness([row.id]);
+                              }}
+                            >
+                              <RefreshCw
+                                className={`h-4 w-4 mr-2 ${recheckingIds.includes(row.id) ? "animate-spin" : ""}`}
+                              />
+                              {recheckingIds.includes(row.id) ? "Re-checking…" : "Re-check readiness"}
+                            </DropdownMenuItem>
+                          )}
+
                           <DropdownMenuSeparator />
                           {/* Issue/Resend token based on status */}
                           {status === "not_started" && !row.isNightsBridge ? (
