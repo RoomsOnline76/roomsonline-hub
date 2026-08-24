@@ -819,6 +819,10 @@ export function ChannelOnboardTab({
           sameEmailReset={sameEmailReset}
           runningStepA={runningStep === "a"}
           stepADisabled={stepDisabled.a}
+          emailConflict={emailConflict}
+          chosenLoginEmail={chosenLoginEmail}
+          onChosenLoginEmailChange={setChosenLoginEmail}
+
           onRunStepA={() => {
             setAccountDialogOpen(false);
             void runStep("a");
