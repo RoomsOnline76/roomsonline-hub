@@ -569,6 +569,12 @@ export default function AdminChannelMonitor() {
 
                 <ChannelCallQueuePanel />
 
+                {/* Always-on: the live feed is the one frame an engineer keeps open while pushing. */}
+                <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+                  <LiveTrafficFrame />
+                </Suspense>
+
+
               </>
             )}
 
