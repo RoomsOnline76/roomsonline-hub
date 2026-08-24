@@ -484,8 +484,11 @@ export function buildBillingEstimate(
 export function summariseEstimate(estimate: BillingEstimate): string {
   const setupPart = estimate.setupTotal > 0 ? ` Setup of ${money(estimate.setupTotal)} is invoiced on signature.` : "";
   return `First ${estimate.freeDays} days: about ${money(
-    estimate.freePeriodTotal,
-  )} per month — bookings and card processing only, the platform itself is free. From day ${
+    estimate.transactionFreePeriodTotal,
+  )} per month in commission and card processing, with the platform itself free. From day ${
     estimate.freeDays + 1
-  }: about ${money(estimate.steadyStateTotal)} per month including subscriptions and add-ons.${setupPart}`;
+  }: the same transaction fees plus about ${money(
+    estimate.recurringSteadyStateTotal,
+  )} per month in subscriptions and add-ons — ${money(estimate.steadyStateTotal)} in total.${setupPart}`;
 }
+
