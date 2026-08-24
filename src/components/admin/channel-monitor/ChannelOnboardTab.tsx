@@ -625,6 +625,33 @@ export function ChannelOnboardTab({
         </>
       )}
 
+      {propertyId && (
+        <StepAccountDialog
+          open={accountDialogOpen}
+          onOpenChange={setAccountDialogOpen}
+          propertyId={propertyId}
+          portfolioId={selectedOption?.portfolioId ?? null}
+          memberIds={selectedOption?.memberIds}
+          plan={plan}
+          planLoading={planLoading}
+          binding={binding as Record<string, any> | null | undefined}
+          property={property as Record<string, any> | null | undefined}
+          bindingUnreadable={bindingUnreadable}
+          rebindEmail={rebindEmail}
+          onRebindEmailChange={setRebindEmail}
+          onRequestRebind={() => setRebindOpen(true)}
+          rebinding={rebinding}
+          sameEmailReset={sameEmailReset}
+          runningStepA={runningStep === "a"}
+          stepADisabled={stepDisabled.a}
+          onRunStepA={() => {
+            setAccountDialogOpen(false);
+            void runStep("a");
+          }}
+        />
+      )}
+
+
       <AlertDialog open={rebindOpen} onOpenChange={setRebindOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
