@@ -15,7 +15,7 @@ import {
   RU_CERT_MIN_IMAGE_WIDTH,
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
-import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { evaluatePhases, pushBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { markLedgerStaleForScope, writeLedgerRows } from '../_shared/channelStepLedger.ts';
 import { enqueueJob } from '../_shared/jobQueue.ts';
 
@@ -4318,7 +4318,7 @@ Deno.serve(async (req) => {
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
     // at RU. Dashboard bookings/cancels/mods/blockouts always write locally; they only
     // reach RU after a clear Channel wizard pass (bound owner, keys, company details,
-    // explicit push on, phase 1+2). Sub-user keys and a resolved OwnerID are still mandatory.
+    // explicit push on, Step A + Ready-to-sell). Sub-user keys and a resolved OwnerID are still mandatory.
     if (action === 'refresh_ari') {
       if (!dry_run && !forcePush) {
         if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
@@ -4608,7 +4608,7 @@ Deno.serve(async (req) => {
       }
 
       console.warn(
-        `[push-property-to-ru] FORCE PUSH overriding phase gate at ${phaseGate.current_phase} for property ${property_id}`,
+        `[push-property-to-ru] FORCE PUSH overriding the Step A / Ready-to-sell gate for property ${property_id}`,
       );
       try {
         await supabase.from('ru_sync_runs').insert({
