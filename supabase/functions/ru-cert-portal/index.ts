@@ -6240,7 +6240,7 @@ Deno.serve(async (req) => {
       const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
       const NO_LOCATION_MESSAGE =
         "No Channel Manager location could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then review this step again.";
-      if (locationIds.length === 0 && !isPlan) {
+      if (locationIds.length === 0 && !readOnly) {
         return json({
           success: false,
           error: { code: "NO_RU_LOCATION", message: NO_LOCATION_MESSAGE },
