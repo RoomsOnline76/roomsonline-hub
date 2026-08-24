@@ -43,7 +43,9 @@ const CHARGEABLE_AFTER: { item: string; note: string }[] = [
   { item: "Revenue management & yield tools", note: "Priced on your agreement" },
   { item: "Bring your own payment gateway", note: "Priced on your agreement" },
   { item: "Booking fee on ROL'OS-delivered bookings", note: "Continues as agreed" },
+  { item: "Card processing on our gateway", note: "On the schedule below — from day one" },
 ];
+
 
 
 /** Grouped capability list — the promo surface for what "included" means. */
