@@ -125,7 +125,7 @@ const COMPETITOR_COSTS = [
   { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
-  { item: "Setup fee", typical: "Common", rolos: "None" },
+  { item: "Setup fee", typical: "Common", rolos: "Waived if you start in your 60 days" },
 ];
 
 
