@@ -228,7 +228,7 @@ Commission routes:
   • WBE / Widgets / WordPress flat commission: from ${widgetPct}% (negotiable)
   • OTA listing commission on ROL's own OTA: ${otaPct}%
 
-All prices in ZAR. All plans include 60-day free trial, no credit card, cancel any time. Once-off setup fees are billed with the next monthly invoice.`;
+All prices in ZAR. The first 60 days are free (full stack, no subscription, setup fee waived when onboarding starts in that period) — but the booking fee on bookings taken through ROL'OS and card processing on the GATEWAY_SCHEDULE below are payable from day one. From day 61 the PMS subscription and any add-ons kept are billed. Once-off setup fees are billed with the next monthly invoice.`;
   } catch (e) {
     console.error("pricing fetch failed:", e);
     return "";
