@@ -129,6 +129,8 @@ const COMPETITOR_COSTS = [
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
   { item: "Setup fee", typical: "Common", rolos: "Waived if you start in your 60 days" },
+  { item: "Card processing on the platform gateway", typical: "Flat rate, no volume relief", rolos: "Hybrid rate that drops as volume grows" },
+
 ];
 
 
