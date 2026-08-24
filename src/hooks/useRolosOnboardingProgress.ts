@@ -583,6 +583,46 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       };
     });
 
+    /**
+     * The channel groups every content check — including the per-unit check-in /
+     * check-out rules — under "Content". Those unit-scoped failures are edited in
+     * Rooms, so leaving them on step 1 made identity report room errors while the
+     * owning step stayed green. Split them onto their own rooms-owned check.
+     */
+    {
+      const content = map.get("content_quality");
+      const all = content?.failures ?? [];
+      const unitFailures = all.filter((f) => !!f.unit);
+      const propertyFailures = all.filter((f) => !f.unit);
+      if (content) {
+        const blockingProperty = propertyFailures.filter((f) => f.mandatory);
+        map.set("content_quality", {
+          ...content,
+          ok: content.unknown ? content.ok : blockingProperty.length === 0,
+          failures: propertyFailures,
+          detail: propertyFailures.length
+            ? propertyFailures.slice(0, 4).map((f) => f.detail ?? f.label).join(" · ")
+            : content.unknown
+              ? content.detail
+              : "Property content checks passed",
+        });
+      }
+      put(
+        "unit_content_quality",
+        "Unit content, stay times & house rules",
+        unitFailures.filter((f) => f.mandatory).length === 0,
+        {
+          failures: unitFailures,
+          detail: unitFailures.length
+            ? unitFailures
+                .slice(0, 4)
+                .map((f) => `${f.unit}: ${f.detail ?? f.label}`)
+                .join(" · ")
+            : "Unit content checks passed",
+        },
+      );
+    }
+
     // Macro 2 — location
     groupCheck("address_geo", "Address, postal code & coordinates", "Address & geo", () => {
       const missing: string[] = [];
