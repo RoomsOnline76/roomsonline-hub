@@ -28,7 +28,7 @@ const FEE_APPLIES_TO = [
 
 const FREE_POINTS = [
   "Full ROL'OS PMS and every add-on switched on for 60 days",
-  "No subscription, no setup fee and no per-room charge in that period",
+  "No subscription and no per-room charge in that period — setup fee waived when you start in your 60 days",
   "Onboarding, setup, training and support at no charge",
   "You pay only the booking fee on bookings taken through ROL'OS",
 ];
