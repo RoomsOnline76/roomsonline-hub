@@ -68,16 +68,7 @@ const ChannelSyncObservabilityPanel = lazy(() =>
 
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
-type TabKey =
-  | "onboard"
-  | "accounts"
-  | "cost"
-  | "binding"
-  | "mapping"
-  | "ari"
-  | "reservations"
-  | "cert"
-  | "advanced";
+type TabKey = "onboard" | "accounts" | "cost" | "cert" | "advanced";
 
 const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
   {
@@ -96,41 +87,31 @@ const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean
     tests: "Confirms billable listing counts and forecast spend per sub-account.",
   },
   {
-    key: "binding",
-    title: "Property Binding",
-    tests: "Verifies each property is bound to the correct channel listing and building.",
-  },
-  {
-    key: "mapping",
-    title: "Room & Rate Mapping",
-    tests: "Checks room types and rate plans map to live channel listings.",
-  },
-  {
-    key: "ari",
-    title: "ARI Live Lab",
-    tests: "Runs live availability and pricing reads against the channel for a chosen property.",
-  },
-  {
-    key: "reservations",
-    title: "Reservation Round-Trip",
-    tests: "Creates, modifies and cancels reservations end-to-end and shows the sync trail.",
-  },
-  {
     key: "cert",
     title: "Cert Status & Logs",
-    tests: "Full certification console with run history and the searchable RU exchange log.",
+    tests: "Certification evidence: milestones, coverage, windows, discounts and readiness.",
   },
   {
     key: "advanced",
     title: "Advanced (Dev only)",
-    tests: "Queue, retries and low-level channel plumbing for engineers.",
-    devOnly: true,
+    tests: "Runner, queue, exchange log, sync observability and error handling for engineers.",
+  devOnly: true,
   },
 ];
 
 const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
-// Old tab names stay valid so health-report and wizard deep links keep working.
-const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
+/**
+ * Retired rails keep working as deep links: mapping/coverage evidence lives in Cert, while the
+ * engineering surfaces (diagnostics, ARI labs, reservation round-trip, binding) fold into Advanced.
+ */
+const LEGACY_TAB_MAP: Record<string, TabKey> = {
+  diagnostics: "advanced",
+  binding: "advanced",
+  ari: "advanced",
+  reservations: "advanced",
+  mapping: "cert",
+};
+
 
 /** Chip tone: ready / attention / failing / unknown. Presentation only. */
 type ChipTone = "ok" | "warn" | "bad" | "muted";
