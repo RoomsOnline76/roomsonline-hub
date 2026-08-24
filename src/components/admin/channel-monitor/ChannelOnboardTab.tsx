@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
+
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
