@@ -82,6 +82,9 @@ interface OnboardOption {
   label: string;
   kind: "portfolio" | "property";
   memberCount: number;
+  /** Portfolio entries only: the portfolio and every eligible member it covers. */
+  portfolioId?: string;
+  memberIds?: string[];
 }
 
 
