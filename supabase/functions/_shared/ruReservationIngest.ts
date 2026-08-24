@@ -889,15 +889,18 @@ export async function fetchRuReservationById(
     scopes.push({ ownerId, propertyId });
   };
 
-  if (knownOwnerId || opts.propertyId) push(knownOwnerId, opts.propertyId ?? null);
-  if (creatorOwnerId) push(creatorOwnerId);
-
   // Only accounts with usable API credentials can answer an account-scoped read. Enumerating
   // every row blindly is what produced the `no_subuser_keys` failures (e.g. OwnerID 742004)
   // and the -6 rate limits: four wire calls per account, colliding with the 30-minute poll.
   const keyedScopes = await resolveRuOwnerScopes(supabase as unknown as SupabaseClient, '__reservation_lookup__', {
     includeMaster: false,
   });
+  const keyed = new Set(keyedScopes.map((s) => String(s.ownerId)));
+  const usable = (ownerId: string | null) => ownerId === null || keyed.has(String(ownerId));
+
+  // Hints first, but only when the hinted account can actually authenticate.
+  if (usable(knownOwnerId) && (knownOwnerId || opts.propertyId)) push(knownOwnerId, opts.propertyId ?? null);
+  if (creatorOwnerId && usable(creatorOwnerId)) push(creatorOwnerId);
   for (const scope of keyedScopes) push(scope.ownerId);
   push(null); // master last
 
