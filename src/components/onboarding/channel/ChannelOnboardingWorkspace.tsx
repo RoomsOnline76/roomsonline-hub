@@ -135,7 +135,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
   const {
     isRolosPms,
-    macros,
+    macros: allMacros,
     overall,
     channelsConnected,
     channelsLive,
@@ -165,6 +165,25 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     unitNames,
   } = progress;
 
+  /**
+   * The wizard is Ready to sell only — steps 1–5. Steps 6–14 are executed by the
+   * Channel Monitor's two-step "Onboard property" processor, which is the only
+   * onboarding path between Ready to sell and a connected channel.
+   */
+  const macros = useMemo(
+    () => allMacros.filter((m) => isReadyToSellMacro(m.macro.key)),
+    [allMacros],
+  );
+
+  const readyOverall = useMemo(() => {
+    const total = macros.length;
+    const complete = macros.filter((m) => m.complete).length;
+    const percent = total
+      ? Math.round(macros.reduce((sum, m) => sum + m.score, 0) / total)
+      : 0;
+    return { total, complete, percent, allComplete: total > 0 && complete === total };
+  }, [macros]);
+
   const unitScope = useMemo(
     () => ({ sole: soleUnitName ?? null, all: unitNames ?? [] }),
     [soleUnitName, unitNames],
@@ -178,14 +197,15 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const [readBackPending, setReadBackPending] = useState(false);
   const listingsVerified = useMemo(
     () =>
-      macros
+      allMacros
         .flatMap((m) => m.stateChecks)
         .find((c) => c.key === "listings_verified")?.ok === true,
-    [macros],
+    [allMacros],
   );
 
 
   const stages = useMemo(() => buildStageProgress(macros), [macros]);
+
   const firstOpenStage = stages.find((s) => !s.complete) ?? stages[stages.length - 1];
 
   const requestedMacro = searchParams.get("step");
