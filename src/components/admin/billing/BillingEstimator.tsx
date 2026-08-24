@@ -1,10 +1,11 @@
 /**
  * Billing estimator — sits at the top of Billing Defaults.
  *
- * Andim enters properties, units, expected booking volume/value and the add-ons
- * that apply from day 61; the table below recomputes instantly, showing the free
- * first-60-days column beside the steady-state monthly column. Nothing here
- * writes to the database — the presets are the source of the numbers.
+ * Compact two-column layout: configurables on the left, live Day 1–60 and
+ * Day 61+ costs on the right of the same row, so ticking an add-on updates its
+ * own line in place. The property/volume setup strip stays at the top in a
+ * dense grid. Nothing here writes to the database — the presets are the source
+ * of the numbers.
  */
 
 import { Fragment, useMemo, useState } from "react";
@@ -15,10 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, ChevronDown, Plus, Trash2, Building2 } from "lucide-react";
+import { Calculator, ChevronDown, Plus, Trash2, X } from "lucide-react";
 import { listGatewaySchedules } from "@/lib/gatewayBillingRate";
 import { presetLabel, type BillingDefault } from "@/hooks/useBillingDefaults";
 import {
@@ -28,7 +28,7 @@ import {
   DEFAULT_WIDGET_TIERS,
   type EstimatorAddOns,
   type EstimatorProperty,
-  type EstimateGroup,
+  type EstimateLine,
   type PaymentMode,
   type WidgetCommissionMode,
 } from "@/lib/billingEstimate";
@@ -43,8 +43,8 @@ const ADD_ON_LABELS: Array<{ key: keyof EstimatorAddOns; label: string; hint: st
 ];
 
 const PAYMENT_LABELS: Record<PaymentMode, string> = {
-  rol: "ROL'OS gateway",
-  byo: "Own gateway (BYO)",
+  rol: "ROL'OS",
+  byo: "BYO",
   reservation_only: "Bookings only",
 };
 
@@ -54,16 +54,20 @@ const PAYMENT_HINTS: Record<PaymentMode, string> = {
   reservation_only: "Reservation captured, no card payment taken",
 };
 
-const GROUP_LABELS: Record<EstimateGroup, string> = {
-  transaction: "Commission & transaction fees",
-  recurring: "Monthly recurring",
-};
-
 let rowSeq = 0;
 function newRow(index: number): EstimatorProperty {
   rowSeq += 1;
   return { id: `row_${rowSeq}`, name: `Property ${index + 1}`, units: 10 };
 }
+
+const ALL_ADD_ONS: EstimatorAddOns = {
+  pms: true,
+  channel_manager: true,
+  branding: true,
+  white_label: true,
+  pricelabs: true,
+  hubspot: true,
+};
 
 export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   const [open, setOpen] = useState(true);
@@ -83,7 +87,7 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
     pricelabs: false,
     hubspot: true,
   });
-  const [showPerProperty, setShowPerProperty] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
 
   const { data: schedules = [] } = useQuery({
     queryKey: ["gateway-billing-configs", "estimator"],
@@ -96,23 +100,45 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
     [defaults, presetId],
   );
 
+  const baseInput = useMemo(
+    () => ({
+      properties: rows,
+      monthlyBookings: Number(bookings) || 0,
+      monthlyBookingValue: Number(bookingValue) || 0,
+      widgetBookings: Number(widgetBookings) || 0,
+      widgetBookingValue: Number(widgetValue) || 0,
+      widgetCommissionMode: widgetMode,
+      paymentMode,
+    }),
+    [rows, bookings, bookingValue, widgetBookings, widgetValue, widgetMode, paymentMode],
+  );
+
   const estimate = useMemo(
-    () =>
-      buildBillingEstimate(
-        preset,
-        {
-          properties: rows,
-          monthlyBookings: Number(bookings) || 0,
-          monthlyBookingValue: Number(bookingValue) || 0,
-          widgetBookings: Number(widgetBookings) || 0,
-          widgetBookingValue: Number(widgetValue) || 0,
-          widgetCommissionMode: widgetMode,
-          addOns,
-          paymentMode,
-        },
-        activeSchedule,
-      ),
-    [preset, rows, bookings, bookingValue, widgetBookings, widgetValue, widgetMode, addOns, paymentMode, activeSchedule],
+    () => buildBillingEstimate(preset, { ...baseInput, addOns }, activeSchedule),
+    [preset, baseInput, addOns, activeSchedule],
+  );
+
+  /** Shadow run with every add-on on, so unticked rows can show their would-be price. */
+  const shadow = useMemo(
+    () => buildBillingEstimate(preset, { ...baseInput, addOns: ALL_ADD_ONS }, activeSchedule),
+    [preset, baseInput, activeSchedule],
+  );
+
+  const lineByKey = useMemo(() => {
+    const map = new Map<string, EstimateLine>();
+    estimate.lines.forEach((l) => map.set(l.key, l));
+    return map;
+  }, [estimate.lines]);
+
+  const shadowByKey = useMemo(() => {
+    const map = new Map<string, EstimateLine>();
+    shadow.lines.forEach((l) => map.set(l.key, l));
+    return map;
+  }, [shadow.lines]);
+
+  const transactionLines = useMemo(
+    () => estimate.lines.filter((l) => l.group === "transaction"),
+    [estimate.lines],
   );
 
   const setUnits = (id: string, units: string) =>
@@ -121,19 +147,26 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   const applyToAll = () =>
     setRows((prev) => (prev.length ? prev.map((r) => ({ ...r, units: prev[0].units })) : prev));
 
+  const freeHead = `Days 1–${estimate.freeDays}`;
+  const steadyHead = `From day ${estimate.freeDays + 1}`;
+
   return (
     <Card>
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger asChild>
-          <CardHeader className="pb-3 cursor-pointer">
-            <div className="flex items-start justify-between gap-3">
+          <CardHeader className="py-3 cursor-pointer">
+            <div className="flex items-center justify-between gap-3">
               <div>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Calculator className="h-4 w-4 text-primary" /> Cost estimator
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {estimate.propertyCount} properties · {estimate.totalUnits} units ·{" "}
+                    {money(estimate.freePeriodTotal)} → {money(estimate.steadyStateTotal)} /mo
+                  </span>
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Enter properties, units and expected booking volume to see the first {estimate.freeDays} days beside
-                  steady-state monthly billing — priced from the configured defaults.
+                  Tick or change anything on the left — the {freeHead.toLowerCase()} and day {estimate.freeDays + 1}{" "}
+                  costs update on the same line.
                 </CardDescription>
               </div>
               <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
@@ -142,247 +175,252 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <CardContent className="space-y-5">
-            {/* ── Inputs ─────────────────────────────────────────────────── */}
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Priced from preset</Label>
-                <Select value={preset?.id ?? ""} onValueChange={setPresetId}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Select preset" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {defaults.map((d) => (
-                      <SelectItem key={d.id} value={d.id} className="text-sm">
-                        {presetLabel(d)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Bookings per month</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={bookings}
-                  onChange={(e) => setBookings(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Booking value per month (R)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={bookingValue}
-                  onChange={(e) => setBookingValue(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Payment gateway</Label>
-                <div className="flex rounded-md border border-border overflow-hidden">
-                  {(Object.keys(PAYMENT_LABELS) as PaymentMode[]).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      title={PAYMENT_HINTS[m]}
-                      onClick={() => setPaymentMode(m)}
-                      className={`flex-1 h-8 text-[11px] px-2 transition-colors ${
-                        paymentMode === m
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-background text-muted-foreground hover:bg-muted"
-                      }`}
-                    >
-                      {PAYMENT_LABELS[m]}
-                    </button>
-                  ))}
+          <CardContent className="space-y-3 pt-0">
+            {/* ── Setup strip: preset, volumes, gateway ───────────────────── */}
+            <div className="rounded-md border border-border p-2.5 space-y-2.5">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                <div className="space-y-0.5 lg:col-span-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Preset</Label>
+                  <Select value={preset?.id ?? ""} onValueChange={setPresetId}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue placeholder="Select preset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {defaults.map((d) => (
+                        <SelectItem key={d.id} value={d.id} className="text-xs">
+                          {presetLabel(d)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-            </div>
-
-            {/* ── Booking widget (direct) commission ─────────────────────── */}
-            <div className="grid gap-3 md:grid-cols-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Widget bookings per month</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={widgetBookings}
-                  onChange={(e) => setWidgetBookings(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Widget booking value per month (R)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={widgetValue}
-                  onChange={(e) => setWidgetValue(e.target.value)}
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Widget commission</Label>
-                <Select value={widgetMode} onValueChange={(v) => setWidgetMode(v as WidgetCommissionMode)}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="flat" className="text-sm">
-                      Flat percentage
-                    </SelectItem>
-                    <SelectItem value="tiered" className="text-sm">
-                      Volume tiered
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                {widgetMode === "tiered" && (
-                  <p className="text-[10px] text-muted-foreground">
-                    Bands:{" "}
-                    {DEFAULT_WIDGET_TIERS.map((t) => `${t.min_bookings}+ → ${t.rate}%`).join(" · ")}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {/* ── Properties & units ─────────────────────────────────────── */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-primary" /> Properties &amp; units
-                  <span className="text-muted-foreground font-normal">
-                    ({estimate.propertyCount} properties · {estimate.totalUnits} units)
-                  </span>
-                </Label>
-                <div className="flex gap-1.5">
-                  <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={applyToAll}>
-                    Same units for all
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
+                <div className="space-y-0.5">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Bookings /mo</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={bookings}
+                    onChange={(e) => setBookings(e.target.value)}
                     className="h-7 text-xs"
-                    onClick={() => setRows((prev) => [...prev, newRow(prev.length)])}
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Add property
-                  </Button>
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Value /mo (R)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={bookingValue}
+                    onChange={(e) => setBookingValue(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-0.5 lg:col-span-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Payment gateway</Label>
+                  <div className="flex rounded-md border border-border overflow-hidden">
+                    {(Object.keys(PAYMENT_LABELS) as PaymentMode[]).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        title={PAYMENT_HINTS[m]}
+                        onClick={() => setPaymentMode(m)}
+                        className={`flex-1 h-7 text-[10px] px-1.5 transition-colors ${
+                          paymentMode === m
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {PAYMENT_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                {rows.map((r) => (
-                  <div key={r.id} className="flex items-center gap-2">
-                    <Input value={r.name} onChange={(e) => setName(r.id, e.target.value)} className="h-8 text-sm flex-1" />
-                    <Input
-                      type="number"
-                      min="0"
-                      value={String(r.units)}
-                      onChange={(e) => setUnits(r.id, e.target.value)}
-                      className="h-8 text-sm w-24"
-                    />
-                    <span className="text-xs text-muted-foreground w-10">units</span>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+                <div className="space-y-0.5">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Widget bookings</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={widgetBookings}
+                    onChange={(e) => setWidgetBookings(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Widget value (R)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={widgetValue}
+                    onChange={(e) => setWidgetValue(e.target.value)}
+                    className="h-7 text-xs"
+                  />
+                </div>
+                <div className="space-y-0.5 lg:col-span-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Widget commission</Label>
+                  <Select value={widgetMode} onValueChange={(v) => setWidgetMode(v as WidgetCommissionMode)}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="flat" className="text-xs">
+                        Flat percentage
+                      </SelectItem>
+                      <SelectItem value="tiered" className="text-xs">
+                        Volume tiered
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-0.5 lg:col-span-2">
+                  <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    Properties &amp; units
+                  </Label>
+                  <div className="flex flex-wrap items-center gap-1">
+                    {rows.map((r) => (
+                      <div key={r.id} className="flex items-center rounded-md border border-border overflow-hidden">
+                        <Input
+                          value={r.name}
+                          onChange={(e) => setName(r.id, e.target.value)}
+                          className="h-7 w-28 text-xs border-0 rounded-none focus-visible:ring-0"
+                        />
+                        <Input
+                          type="number"
+                          min="0"
+                          value={String(r.units)}
+                          onChange={(e) => setUnits(r.id, e.target.value)}
+                          className="h-7 w-14 text-xs border-0 border-l border-border rounded-none focus-visible:ring-0"
+                        />
+                        <button
+                          type="button"
+                          title="Remove property"
+                          disabled={rows.length <= 1}
+                          onClick={() => setRows((prev) => prev.filter((x) => x.id !== r.id))}
+                          className="h-7 w-6 flex items-center justify-center text-muted-foreground hover:text-destructive disabled:opacity-40"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      disabled={rows.length <= 1}
-                      onClick={() => setRows((prev) => prev.filter((x) => x.id !== r.id))}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => setRows((prev) => [...prev, newRow(prev.length)])}
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      <Plus className="h-3 w-3 mr-1" /> Property
                     </Button>
+                    {rows.length > 1 && (
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={applyToAll}>
+                        Same units
+                      </Button>
+                    )}
                   </div>
-                ))}
+                </div>
               </div>
+              {widgetMode === "tiered" && (
+                <p className="text-[10px] text-muted-foreground">
+                  Widget bands: {DEFAULT_WIDGET_TIERS.map((t) => `${t.min_bookings}+ → ${t.rate}%`).join(" · ")}
+                </p>
+              )}
             </div>
 
-            {/* ── Add-ons from day 61 ────────────────────────────────────── */}
-            <div className="space-y-2">
-              <Label className="text-xs">Add-ons that apply from day {estimate.freeDays + 1}</Label>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {ADD_ON_LABELS.map(({ key, label, hint }) => {
-                  // White label bundles the branding pack at no charge.
-                  const bundled = key === "branding" && addOns.white_label;
-                  return (
-                    <label
-                      key={key}
-                      className={`flex items-center gap-2 rounded-md border border-border px-2.5 py-2 ${
-                        bundled ? "cursor-default opacity-90" : "cursor-pointer"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={bundled || addOns[key]}
-                        disabled={bundled}
-                        onCheckedChange={(c) => setAddOns((prev) => ({ ...prev, [key]: c === true }))}
-                      />
-                      <span className="text-xs">
-                        {label}{" "}
-                        <span className="text-muted-foreground">· {bundled ? "free with white label" : hint}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* ── Breakdown table ───────────────────────────────────────── */}
+            {/* ── Configurables (left) vs cost (right) ────────────────────── */}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-border text-left">
-                    <th className="py-2 pr-3 font-medium">Line item</th>
-                    <th className="py-2 px-3 font-medium text-right whitespace-nowrap">Days 1–{estimate.freeDays}</th>
-                    <th className="py-2 pl-3 font-medium text-right whitespace-nowrap">
-                      From day {estimate.freeDays + 1}
-                    </th>
+                    <th className="py-1.5 pr-3 font-medium">Configurable</th>
+                    <th className="py-1.5 px-3 font-medium text-right whitespace-nowrap w-28">{freeHead}</th>
+                    <th className="py-1.5 pl-3 font-medium text-right whitespace-nowrap w-28">{steadyHead}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(["transaction", "recurring"] as EstimateGroup[]).map((group) => {
-                    const groupLines = estimate.lines.filter((l) => l.group === group);
-                    if (!groupLines.length) return null;
-                    const subFree =
-                      group === "transaction" ? estimate.transactionFreePeriodTotal : estimate.recurringFreePeriodTotal;
-                    const subSteady =
-                      group === "transaction"
-                        ? estimate.transactionSteadyStateTotal
-                        : estimate.recurringSteadyStateTotal;
+                  <tr className="bg-muted/40">
+                    <td colSpan={3} className="py-1 pr-3 font-medium uppercase tracking-wide text-[10px]">
+                      Add-ons &amp; subscriptions — waived for the first {estimate.freeDays} days
+                    </td>
+                  </tr>
+                  {ADD_ON_LABELS.map(({ key, label, hint }) => {
+                    // White label bundles the branding pack at no charge.
+                    const bundled = key === "branding" && addOns.white_label;
+                    const active = bundled || addOns[key];
+                    const line = lineByKey.get(key);
+                    const ghost = shadowByKey.get(key);
                     return (
-                      <Fragment key={group}>
-                        <tr className="bg-muted/40">
-                          <td colSpan={3} className="py-1.5 pr-3 font-medium uppercase tracking-wide text-[10px]">
-                            {GROUP_LABELS[group]}
-                          </td>
-                        </tr>
-                        {groupLines.map((l) => (
-                          <tr key={l.key} className="border-b border-border/50">
-                            <td className="py-2 pr-3">
-                              <span className="font-medium">{l.label}</span>
-                              <span className="block text-muted-foreground">{l.detail}</span>
-                            </td>
-                            <td className="py-2 px-3 text-right whitespace-nowrap">
-                              {l.waivedInFreePeriod ? (
-                                <Badge variant="outline" className="text-[10px]">
-                                  free
-                                </Badge>
-                              ) : (
-                                money(l.freePeriod)
-                              )}
-                            </td>
-                            <td className="py-2 pl-3 text-right whitespace-nowrap">{money(l.steadyState)}</td>
-                          </tr>
-                        ))}
-                        <tr className="border-b border-border">
-                          <td className="py-1.5 pr-3 font-medium">{GROUP_LABELS[group]} subtotal</td>
-                          <td className="py-1.5 px-3 text-right font-medium">{money(subFree)}</td>
-                          <td className="py-1.5 pl-3 text-right font-medium">{money(subSteady)}</td>
-                        </tr>
-                      </Fragment>
+                      <tr key={key} className="border-b border-border/50">
+                        <td className="py-1.5 pr-3">
+                          <label
+                            className={`flex items-center gap-2 ${bundled ? "cursor-default" : "cursor-pointer"}`}
+                          >
+                            <Checkbox
+                              checked={active}
+                              disabled={bundled}
+                              onCheckedChange={(c) => setAddOns((prev) => ({ ...prev, [key]: c === true }))}
+                            />
+                            <span>
+                              <span className="font-medium">{label}</span>{" "}
+                              <span className="text-muted-foreground">
+                                · {bundled ? "free with white label" : line?.detail || hint}
+                              </span>
+                            </span>
+                          </label>
+                        </td>
+                        <td className="py-1.5 px-3 text-right whitespace-nowrap">
+                          {active ? (
+                            line?.waivedInFreePeriod ? (
+                              <Badge variant="outline" className="text-[10px]">
+                                free
+                              </Badge>
+                            ) : (
+                              money(line?.freePeriod ?? 0)
+                            )
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pl-3 text-right whitespace-nowrap">
+                          {active ? (
+                            money(line?.steadyState ?? 0)
+                          ) : (
+                            <span className="text-muted-foreground/70">
+                              {ghost ? `(${money(ghost.steadyState)})` : "—"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
                     );
                   })}
+                  <tr className="border-b border-border">
+                    <td className="py-1.5 pr-3 font-medium">Recurring subtotal</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{money(estimate.recurringFreePeriodTotal)}</td>
+                    <td className="py-1.5 pl-3 text-right font-medium">{money(estimate.recurringSteadyStateTotal)}</td>
+                  </tr>
+
+                  <tr className="bg-muted/40">
+                    <td colSpan={3} className="py-1 pr-3 font-medium uppercase tracking-wide text-[10px]">
+                      Commission &amp; transaction fees — payable from day one
+                    </td>
+                  </tr>
+                  {transactionLines.map((l) => (
+                    <tr key={l.key} className="border-b border-border/50">
+                      <td className="py-1.5 pr-3">
+                        <span className="font-medium">{l.label}</span>{" "}
+                        <span className="text-muted-foreground">· {l.detail}</span>
+                      </td>
+                      <td className="py-1.5 px-3 text-right whitespace-nowrap">{money(l.freePeriod)}</td>
+                      <td className="py-1.5 pl-3 text-right whitespace-nowrap">{money(l.steadyState)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-b border-border">
+                    <td className="py-1.5 pr-3 font-medium">Transaction subtotal</td>
+                    <td className="py-1.5 px-3 text-right font-medium">{money(estimate.transactionFreePeriodTotal)}</td>
+                    <td className="py-1.5 pl-3 text-right font-medium">
+                      {money(estimate.transactionSteadyStateTotal)}
+                    </td>
+                  </tr>
+
                   <tr className="font-semibold">
                     <td className="py-2 pr-3">Monthly total</td>
                     <td className="py-2 px-3 text-right">{money(estimate.freePeriodTotal)}</td>
@@ -392,50 +430,64 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
               </table>
             </div>
 
-            {estimate.setupLines.length > 0 && (
-              <div className="rounded-md border border-border p-3 space-y-1">
-                <p className="text-xs font-medium">Setup fees — invoiced upfront on signature</p>
-                {estimate.setupLines.map((s) => (
-                  <p key={s.key} className="text-xs text-muted-foreground flex justify-between">
-                    <span>{s.label}</span>
-                    <span>{money(s.amount)}</span>
-                  </p>
-                ))}
-                <p className="text-xs font-medium flex justify-between pt-1 border-t border-border/50">
-                  <span>Total setup</span>
-                  <span>{money(estimate.setupTotal)}</span>
+            {/* ── Setup fees & per-property split (collapsed) ─────────────── */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowExtras((v) => !v)}>
+                {showExtras ? "Hide" : "Show"} setup fees{estimate.propertyCount > 1 ? " & per-property split" : ""}
+                {estimate.setupTotal > 0 ? ` · ${money(estimate.setupTotal)} upfront` : ""}
+              </Button>
+              {estimate.gatewayNote && (
+                <p
+                  className={`text-[10px] ${
+                    estimate.usedLegacyGatewayFallback ? "text-destructive" : "text-muted-foreground"
+                  }`}
+                >
+                  Card processing: {estimate.gatewayNote}
                 </p>
-              </div>
-            )}
+              )}
+            </div>
 
-            {estimate.propertyCount > 1 && (
-              <div className="space-y-1.5">
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowPerProperty((v) => !v)}>
-                  {showPerProperty ? "Hide" : "Show"} per-property split
-                </Button>
-                {showPerProperty &&
-                  estimate.perProperty.map((p) => (
-                    <p key={p.id} className="text-xs text-muted-foreground flex justify-between">
-                      <span>
-                        {p.name} · {p.units} units
-                      </span>
-                      <span>
-                        {money(p.freePeriod)} → {money(p.steadyState)} / mo
-                      </span>
+            {showExtras && (
+              <div className="grid gap-3 md:grid-cols-2">
+                {estimate.setupLines.length > 0 && (
+                  <div className="rounded-md border border-border p-2.5 space-y-1">
+                    <p className="text-[11px] font-medium">Setup fees — invoiced upfront on signature</p>
+                    {estimate.setupLines.map((s) => (
+                      <p key={s.key} className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>{s.label}</span>
+                        <span>{money(s.amount)}</span>
+                      </p>
+                    ))}
+                    <p className="text-[11px] font-medium flex justify-between pt-1 border-t border-border/50">
+                      <span>Total setup</span>
+                      <span>{money(estimate.setupTotal)}</span>
                     </p>
-                  ))}
+                  </div>
+                )}
+                {estimate.propertyCount > 1 && (
+                  <div className="rounded-md border border-border p-2.5 space-y-1">
+                    <p className="text-[11px] font-medium">Per-property split</p>
+                    {estimate.perProperty.map((p) => (
+                      <p key={p.id} className="text-[11px] text-muted-foreground flex justify-between">
+                        <span>
+                          {p.name} · {p.units} units
+                        </span>
+                        <span>
+                          {money(p.freePeriod)} → {money(p.steadyState)} /mo
+                        </span>
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
-            <p className="text-xs leading-relaxed">{summariseEstimate(estimate)}</p>
-            {estimate.gatewayNote && (
-              <p className={`text-[11px] ${estimate.usedLegacyGatewayFallback ? "text-destructive" : "text-muted-foreground"}`}>
-                Card processing: {estimate.gatewayNote}
-              </p>
-            )}
+            <p className="text-[11px] leading-relaxed text-muted-foreground">{summariseEstimate(estimate)}</p>
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
     </Card>
   );
 }
+
+export { BillingEstimator as l };
