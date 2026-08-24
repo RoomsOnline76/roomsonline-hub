@@ -4195,15 +4195,20 @@ Deno.serve(async (req) => {
 
       // Mirror onto the bound local row (legacy readers) only when it holds this OwnerID.
       if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
+        // Re-verifying the SAME key pair must not invalidate an accepted company profile —
+        // otherwise Step A looks perpetually stale and re-pushes on every poll.
+        const keyChanged = String((account as any).ru_api_access_key ?? "").trim() !== accessKey;
         const update: Record<string, unknown> = {
           ru_api_access_key: accessKey,
           ru_api_secret_enc: enc,
           ru_api_key_label: keyLabel,
           ru_api_keys_verified_at: verifiedAt,
-          company_details_sent: false,
-          company_details_status: "credentials_verified",
-          company_filled_at: null,
         };
+        if (keyChanged) {
+          update.company_details_sent = false;
+          update.company_details_status = "credentials_verified";
+          update.company_filled_at = null;
+        }
         const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
         if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
       }
