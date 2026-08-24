@@ -1681,6 +1681,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
       </Tabs>
 
       {/* Run detail sheet */}
