@@ -490,4 +490,3 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   );
 }
 
-export { BillingEstimator as l };
