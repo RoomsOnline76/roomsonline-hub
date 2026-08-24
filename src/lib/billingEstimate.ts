@@ -96,6 +96,7 @@ export interface EstimatorPreset {
   white_label_setup_fee?: number | null;
   pricelabs_monthly_fee?: number | null;
   pricelabs_setup_fee?: number | null;
+  byo_gateway_monthly_fee?: number | null;
   enterprise_custom_fee?: number | null;
   tier_pricing_json?: unknown;
 }
