@@ -5589,7 +5589,7 @@ Deno.serve(async (req) => {
         if (row) {
           ownerEmail = row.owner_email;
           ownerEmailSource = "the distribution account already on file";
-          ownerName = ownerName || row.owner_name || portfolioRow?.name || "Property Owner";
+          ownerName = ownerName || portfolioRow?.name || "Property Owner";
         }
       }
 
