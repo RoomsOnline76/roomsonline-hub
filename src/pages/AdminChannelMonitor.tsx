@@ -517,89 +517,27 @@ export default function AdminChannelMonitor() {
               </Suspense>
             )}
 
-            {/* Listing/building binding evidence. */}
-            {tab === "binding" && (
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuBuildingsPanel />
-                <ChannelReconciliationPanel
-                  billableListings={data.billableListings}
-                  onChanged={() => data.refresh()}
-                />
-              </Suspense>
-            )}
-
-            {tab === "mapping" && (
-              <>
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={() => openCert("coverage")}>
-                    Open certification coverage
-                  </Button>
-                </div>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuCoverageTab />
-                </Suspense>
-              </>
-            )}
-
-            {tab === "ari" && (
-              <>
-                <Card>
-                  <CardContent className="flex flex-wrap items-center gap-2 p-3">
-                    <Select value={ariPropertyId} onValueChange={setAriPropertyId}>
-                      <SelectTrigger className="w-full sm:w-80">
-                        <SelectValue placeholder="Choose a property to test" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {reservationProperties.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="outline" size="sm" onClick={() => openCert("availability")}>
-                      Availability window
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => openCert("pricing")}>
-                      Pricing window
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuAvailabilityPlayground
-                    propertyId={ariPropertyId}
-                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
-                  />
-                  <RuPricingPlayground
-                    propertyId={ariPropertyId}
-                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
-                  />
-                </Suspense>
-              </>
-            )}
-
-            {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup + sync trail. */}
-            {tab === "reservations" && (
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuReservationsPanel properties={reservationProperties} />
-                <BookingSyncTrailPanel
-                  properties={reservationProperties}
-                  onInspectExchange={(term) => {
-                    setExchangeSearch(term);
-                    setExchangeOpen(true);
-                    setTab("cert");
-                    window.setTimeout(
-                      () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                      150,
-                    );
-                  }}
-                />
-              </Suspense>
-            )}
-
-            {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+            {/* Certification evidence for operators — the runner itself lives in Advanced. */}
             {tab === "cert" && (
               <>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <ChannelCertificationTab initialTab={certSubTab} />
+                </Suspense>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Channel step ledger
+                  </h2>
+                  <ChannelLedgerMetricsPanel />
+                </section>
+              </>
+            )}
+
+            {/* Engineers' surface: runner, queue, raw exchange log, sync trail and observability. */}
+            {tab === "advanced" && (
+              <>
+                <ChannelCallQueuePanel />
+
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
@@ -620,39 +558,43 @@ export default function AdminChannelMonitor() {
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Certification runs
+                    Certification runner &amp; recent runs
                   </h2>
                   <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <ChannelCertificationTab initialTab={certSubTab} />
+                    <ChannelCertificationTab variant="advanced" />
                   </Suspense>
                 </section>
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Channel step ledger
+                    Booking sync trail
                   </h2>
-                  <ChannelLedgerMetricsPanel />
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <BookingSyncTrailPanel
+                      properties={reservationProperties}
+                      onInspectExchange={(term) => {
+                        setExchangeSearch(term);
+                        setExchangeOpen(true);
+                        window.setTimeout(
+                          () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                          150,
+                        );
+                      }}
+                    />
+                  </Suspense>
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Sync observability &amp; error handling
+                  </h2>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <ChannelSyncObservabilityPanel />
+                  </Suspense>
                 </section>
               </>
             )}
 
-
-            {tab === "advanced" && (
-              <>
-                <ChannelCallQueuePanel />
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuCalendarVerifyPanel properties={reservationProperties} />
-                </Suspense>
-                <Card>
-                  <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm text-muted-foreground">
-                    <span>Sync error classification, currency, live notifications and content quality.</span>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/admin/integrations/rentals-united?tab=errors">Open channel diagnostics</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              </>
-            )}
           </div>
         </div>
 
