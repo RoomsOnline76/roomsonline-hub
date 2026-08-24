@@ -22,7 +22,7 @@ The channel column stops mixing publish, currency, sign-off and connect signals 
 ## 3. Connect a Channel wizard = 5 steps
 
 - The wizard renders only the Ready-to-Sell stage: steps 1–5. The "Published" and "Channels live" stages and their step panels are hidden.
-- Steps 6–14 are now performed by the Channel Monitor "Onboard property" two-step atomic processor. That processor is separate code, so the old wizard steps are hidden (not deleted) — the shared gate and ledger logic behind them stays intact and in use by the monitor.
+- Steps 6–14 are now performed by the Channel Monitor "Onboard property" two-step atomic processor. That processor is separate code, so the old wizard steps  deleted) there should be no the shared gate and ledger logic behind them the twostep processor is the only onbaording between ready to sell until connecting a channel.
 - When all five steps pass, the wizard writes the pass to the gate monitor (the same durable Ready-to-Sell step record the monitor reads), so the monitor shows the property as ready without a re-probe.
 - Wizard header, progress and the continue bar count out of 5 steps; the finish action points the operator to the Channel Monitor for onboarding rather than to "connect a channel".
 
