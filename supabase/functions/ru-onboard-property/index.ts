@@ -184,6 +184,7 @@ async function readBinding(admin: any, propertyId: string) {
     keys_verified: keysVerified,
     company_details_sent: account?.company_details_sent === true,
     sibling_properties: siblingProperties,
+    read_error: readError,
   };
 }
 
