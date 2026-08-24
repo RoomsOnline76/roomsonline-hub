@@ -1505,7 +1505,9 @@ export function RuCertificationConsole({
         </TabsContent>
 
         {/* Users */}
+        {shows("users") && (
         <TabsContent value="users">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
