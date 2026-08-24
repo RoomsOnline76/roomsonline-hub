@@ -1959,12 +1959,12 @@ const CHILD_SCOPED_ACTIONS = new Set([
 
 
 /**
- * Child-scoped actions where a master-credential fallback is never acceptable once an
- * OwnerID is supplied: RU rejects them with "You are not the owner of the apartment"
- * (or silently applies the write to OUR master account). When the sub-user's own keys
- * cannot be resolved we fail loudly instead of calling RU as the master account.
+ * Child-scoped actions that WRITE (or accept/reject money-bearing requests). A master
+ * fallback here is never acceptable: RU either answers "You are not the owner of the
+ * apartment" or silently applies the write to OUR master account. These must carry an
+ * explicit owner_id so the credential choice is never inferred.
  */
-const CHILD_AUTH_STRICT_ACTIONS = new Set([
+const CHILD_SCOPED_WRITE_ACTIONS = new Set([
   'push_property',
   'push_availability',
   'push_prices',
@@ -1972,30 +1972,31 @@ const CHILD_AUTH_STRICT_ACTIONS = new Set([
   'push_long_stay_discounts',
   'push_last_minute_discounts',
   'set_property_status',
-  'get_property',
-  'get_availability',
-  'get_prices',
-  'get_long_stay_discounts',
-  'get_last_minute_discounts',
   'order_mcq',
   'push_change_currency',
-  // Pulling a sub-user's reservations on master credentials silently returns OUR bookings,
-  // which would look like "no reservations" for the white-label account.
-  'list_reservations',
-  'get_reservation_by_id',
-  'get_leads',
   'reject_request',
   'confirm_request',
   'cancel_reservation',
   'modify_stay',
   'subscribe_notifications',
   'put_lnm_subscriptions',
-  'list_lnm_subscriptions',
-  // Pulling a sub-user's listings on master credentials returns OUR master inventory,
-  // which reads as "the sub-account was empty" in the onboarding wizard.
-  'list_properties',
-
 ]);
+
+/**
+ * The RU master OwnerID (our own account). A child-scoped call that names this OwnerID is
+ * legitimately a master-account operation; anything else is a sub-user's inventory and may
+ * only be executed with that sub-user's own AccessKey/SecretKey.
+ */
+function masterOwnerId(): string {
+  return (Deno.env.get('RU_OWNER_ID') ?? '').trim();
+}
+
+function isMasterOwnerId(value: unknown): boolean {
+  const supplied = value == null ? '' : String(value).trim();
+  const master = masterOwnerId();
+  return supplied !== '' && master !== '' && supplied === master;
+}
+
 
 /**
  * The RU verb behind a ROLOS action, used when an exchange has to be logged BEFORE the request
