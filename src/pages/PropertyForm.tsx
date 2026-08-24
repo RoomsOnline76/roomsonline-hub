@@ -3573,7 +3573,7 @@ export default function PropertyForm({
         if (propertyChanged) {
           const result = await supabase
             .from("properties")
-            .update(propertyPatch)
+            .update(propertyPatch as never)
             .eq("id", propertyId)
             .select("id, slug")
             .single();

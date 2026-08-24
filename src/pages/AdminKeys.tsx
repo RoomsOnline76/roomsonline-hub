@@ -1750,7 +1750,7 @@ export default function AdminKeys() {
         if (hostfullyCredentials?.id) {
           await supabase
             .from('pms_credentials')
-            .update(updateData)
+            .update(updateData as never)
             .eq('id', hostfullyCredentials.id);
         }
       }

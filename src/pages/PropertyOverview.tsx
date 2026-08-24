@@ -437,7 +437,7 @@ const PropertyOverview = () => {
       
       const { error } = await supabase
         .from("properties")
-        .update(updateData)
+        .update(updateData as never)
         .eq("id", propertyId);
       
       if (error) throw error;

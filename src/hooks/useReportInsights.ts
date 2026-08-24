@@ -158,7 +158,7 @@ export function useReportInsights(runId: string | undefined) {
       if (patch.selections !== undefined) row.selections = patch.selections;
       const { error } = await supabase
         .from("report_insights")
-        .update(row)
+        .update(row as never)
         .eq("run_id", runId);
       if (error) throw error;
     },
@@ -172,7 +172,7 @@ export function useReportInsights(runId: string | undefined) {
       if (!runId) throw new Error("No run selected");
       const { error } = await supabase
         .from("report_additional_inputs")
-        .upsert({ run_id: runId, [field]: text }, { onConflict: "run_id" });
+        .upsert({ run_id: runId, [field]: text } as never, { onConflict: "run_id" });
       if (error) throw error;
     },
     onSuccess: async () => {

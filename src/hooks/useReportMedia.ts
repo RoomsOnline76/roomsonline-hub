@@ -258,7 +258,7 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
       }
       if (layout) patch.layout = layout;
       if (Object.keys(patch).length === 0) return;
-      const { error } = await supabase.from("report_media_slots").update(patch).eq("id", id);
+      const { error } = await supabase.from("report_media_slots").update(patch as never).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidate,

@@ -294,7 +294,7 @@ export async function clearNights(
     if (stillMeaningful) {
       const { error: upErr } = await supabase
         .from("property_availability")
-        .update(patch)
+        .update(patch as never)
         .eq("id", row.id!);
       if (upErr) throw upErr;
     } else if (row.id) {
@@ -330,7 +330,7 @@ async function writeNights(
     }));
     const { error } = await supabase
       .from("property_availability")
-      .upsert(records, { onConflict: "property_id,room_type,date", ignoreDuplicates: false });
+      .upsert(records as never, { onConflict: "property_id,room_type,date", ignoreDuplicates: false });
     if (error) throw error;
     return;
   }
@@ -346,7 +346,7 @@ async function writeNights(
   }));
   const { error } = await supabase
     .from("property_availability")
-    .upsert(records, { onConflict: "property_id,room_type,date", ignoreDuplicates: false });
+    .upsert(records as never, { onConflict: "property_id,room_type,date", ignoreDuplicates: false });
   if (error) throw error;
 }
 
@@ -427,7 +427,7 @@ async function writeRatePlanClosure(span: RestrictionSpan, dates: string[]): Pro
   }));
   const { error } = await supabase
     .from("rolos_rate_plan_stop_sell")
-    .upsert(records, { onConflict: "rate_plan_id,date", ignoreDuplicates: true });
+    .upsert(records as never, { onConflict: "rate_plan_id,date", ignoreDuplicates: true });
   if (error) throw error;
 }
 
