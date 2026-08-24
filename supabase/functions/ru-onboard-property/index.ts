@@ -200,6 +200,11 @@ Deno.serve(async (req) => {
     const action: string = String(body.action ?? "");
     const propertyId: string = String(body.property_id ?? "").trim();
 
+    /**
+     * Every downstream function (cert portal, entitlement, close-user) authorises the
+     * CALLER, not the service role, so all internal invokes go through this user-scoped
+     * client — a service-role invoke is rejected as an invalid session.
+     */
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -267,7 +272,7 @@ Deno.serve(async (req) => {
     if (action === "grade_ready_to_sell") {
       // Local grade only: the readiness scorer answers steps 1–5 from ROL'OS data,
       // so no channel call is needed and a channel outage can never block onboarding.
-      const { data: readiness, error: readinessError } = await admin.functions.invoke("ru-cert-portal", {
+      const { data: readiness, error: readinessError } = await userClient.functions.invoke("ru-cert-portal", {
         body: { action: "property_readiness", property_id: propertyId, probe_ari: false },
       });
       if (readinessError || readiness?.success !== true) {
@@ -410,7 +415,7 @@ Deno.serve(async (req) => {
 
       // Leg 1 — archive this property's listings on the account it is leaving.
       if (property.rentalsunited_property_id || binding.ru_owner_id) {
-        const { data: archived, error: archiveError } = await admin.functions.invoke(
+        const { data: archived, error: archiveError } = await userClient.functions.invoke(
           "channel-manager-entitlement",
           {
             body: {
@@ -449,7 +454,7 @@ Deno.serve(async (req) => {
       }
 
       // Leg 2 — clear the local binding (listing ids, verification state).
-      const { data: unbound, error: unbindError } = await admin.functions.invoke("ru-cert-portal", {
+      const { data: unbound, error: unbindError } = await userClient.functions.invoke("ru-cert-portal", {
         body: { action: "unbind_property_account", property_id: propertyId },
       });
       if (unbindError || unbound?.success !== true) {
@@ -482,7 +487,7 @@ Deno.serve(async (req) => {
           .eq("ru_owner_id", previousOwnerId);
         const stillBound = ((remaining ?? []) as Array<{ id: string }>).length;
         if (stillBound === 0) {
-          const { data: closed, error: closeError } = await admin.functions.invoke("ru-close-user", {
+          const { data: closed, error: closeError } = await userClient.functions.invoke("ru-close-user", {
             body: { ru_owner_id: previousOwnerId, reason: `Owner rebind of ${property.name} to ${newEmail}` },
           });
           closedAccount = !closeError && closed?.success === true;
