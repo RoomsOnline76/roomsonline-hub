@@ -483,39 +483,21 @@ export async function resolveBillingContractVariables(
   // ── Payments ─────────────────────────────────────────────────────────────
   // The agreed payment model is a single explicit choice. Each clause is gated
   // on it so a reservation-only Property never receives gateway wording.
+  //
+  // The active gateway schedule (property → portfolio → global) is the single
+  // author of the processing rate, exactly as the billing engine resolves it.
+  // The legacy flat percentage is only used when no schedule resolves at all.
   const paymentModel = resolvePaymentModel({ config: config as never });
   out.payment_model_label = paymentModelLabel(paymentModel);
-  const payFacFee = pick("payment_facilitator_fee", {
-    cfgField: ["transaction_fee_percentage"],
-    globalField: ["default_transaction_fee"],
-  });
   const byoFee = pick("byo_gateway_fee", {
     cfgField: ["byo_gateway_monthly_fee"],
     globalField: ["byo_gateway_monthly_fee"],
   });
-  if (paymentModel === "rol") {
-    if (payFacFee != null) {
-      out.payment_facilitator_fee = String(payFacFee);
-      out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator. A transaction fee of ${ratePhrase(payFacFee)} of the amount processed is recovered, and amounts due to the Property are settled net of commission and fees.`;
-    } else {
-      out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator and settles amounts due to the Property net of commission and fees.`;
-    }
-  } else if (paymentModel === "byo") {
-    if (byoFee != null) out.byo_gateway_fee = String(byoFee);
-    out.byo_gateway_clause =
-      byoFee != null && byoFee > 0
-        ? `The Property collects guest payments through its own payment gateway. A gateway integration fee of ${money(byoFee)} per month applies and commission due to RoomsOnline is invoiced monthly.`
-        : `The Property collects guest payments through its own payment gateway and commission due to RoomsOnline is invoiced monthly.`;
-  } else {
-    out.reservation_only_clause = `No online payment is processed for this Property. The guest reserves through the RoomsOnline platform and receives the Property's banking details on a pro forma invoice; the Property collects payment directly, confirms settlement in ROL'OS, and commission due to RoomsOnline is invoiced monthly rather than deducted at source. No payment facilitation or gateway integration fee applies.`;
-  }
 
-  // ── Gateway billing schedule ─────────────────────────────────────────────
-  // Only ROL-processed properties carry a processing schedule; the contract
-  // quotes the exact version that will be applied.
   if (paymentModel === "rol") {
     const schedule = await loadGatewaySchedule(propertyIds[0]);
     const cfg = schedule.config;
+
     if (cfg) {
       const volume = await loadPeriodVolume(propertyIds[0]);
       const rate = getEffectiveBillingRate(cfg, 0, volume, schedule.overrides);
@@ -530,20 +512,15 @@ export async function resolveBillingContractVariables(
       out.billing_config_version = cfg.version != null ? String(cfg.version) : "";
       if (banded && tiers.length) out.billing_volume_tiers_summary = summariseVolumeTiers(tiers, rate.currency);
 
-      // The schedule is the single source for the processing rate, so the
-      // facilitator variables quote it rather than the legacy flat percentage.
-      out.payment_facilitator_fee = String(rate.percentage);
-      const facFeePart =
-        rate.fixed_fee > 0
-          ? `${ratePhrase(rate.percentage)} of the amount processed plus ${money(rate.fixed_fee)} per transaction`
-          : `${ratePhrase(rate.percentage)} of the amount processed`;
-      out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator. A transaction fee of ${facFeePart} is recovered, and amounts due to the Property are settled net of commission and fees.`;
-
-
       const feePart =
         rate.fixed_fee > 0
           ? `${ratePhrase(rate.percentage)} of the amount processed plus ${money(rate.fixed_fee)} per transaction`
           : `${ratePhrase(rate.percentage)} of the amount processed`;
+
+      // Facilitator variables quote the schedule, never the legacy flat field.
+      out.payment_facilitator_fee = String(rate.percentage);
+      out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator. A transaction fee of ${feePart} is recovered, and amounts due to the Property are settled net of commission and fees.`;
+
       const monthlyPart = rate.monthly_fee > 0 ? ` A platform fee of ${money(rate.monthly_fee)} per month applies.` : "";
       const tierPart =
         banded && tiers.length
@@ -553,8 +530,29 @@ export async function resolveBillingContractVariables(
       out.billing_schedule_clause = `Payment processing is charged on the ${GATEWAY_MODEL_LABELS[model]} schedule${
         cfg.version != null ? ` (version ${cfg.version})` : ""
       }: ${feePart}.${tierPart}${monthlyPart}${overridePart}`;
+    } else {
+      // No schedule anywhere — fall back to the legacy flat percentage.
+      const payFacFee = pick("payment_facilitator_fee", {
+        cfgField: ["transaction_fee_percentage"],
+        globalField: ["default_transaction_fee"],
+      });
+      if (payFacFee != null) {
+        out.payment_facilitator_fee = String(payFacFee);
+        out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator. A transaction fee of ${ratePhrase(payFacFee)} of the amount processed is recovered, and amounts due to the Property are settled net of commission and fees.`;
+      } else {
+        out.payment_facilitator_clause = `RoomsOnline processes guest payments as payment facilitator and settles amounts due to the Property net of commission and fees.`;
+      }
     }
+  } else if (paymentModel === "byo") {
+    if (byoFee != null) out.byo_gateway_fee = String(byoFee);
+    out.byo_gateway_clause =
+      byoFee != null && byoFee > 0
+        ? `The Property collects guest payments through its own payment gateway. A gateway integration fee of ${money(byoFee)} per month applies and commission due to RoomsOnline is invoiced monthly.`
+        : `The Property collects guest payments through its own payment gateway and commission due to RoomsOnline is invoiced monthly.`;
+  } else {
+    out.reservation_only_clause = `No online payment is processed for this Property. The guest reserves through the RoomsOnline platform and receives the Property's banking details on a pro forma invoice; the Property collects payment directly, confirms settlement in ROL'OS, and commission due to RoomsOnline is invoiced monthly rather than deducted at source. No payment facilitation or gateway integration fee applies.`;
   }
+
 
 
 

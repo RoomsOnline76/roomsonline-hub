@@ -8,6 +8,12 @@ import {
   CommissionGlobalsLike,
   pickGlobals,
 } from "@/lib/commissionResolver";
+import {
+  getEffectiveBillingRate,
+  listGatewaySchedules,
+  type GatewayRateOverrides,
+} from "@/lib/gatewayBillingRate";
+
 
 /** Where the money figure came from: a settled gateway transaction, or the booking record itself. */
 export type PayoutSource = "gateway" | "booking";
@@ -348,13 +354,19 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       );
 
 
-      const [scopes, terms, byoProperties, bankRes, globalsRes] = await Promise.all([
+      const [scopes, terms, byoProperties, bankRes, globalsRes, schedules, gwRes] = await Promise.all([
         loadBillingScopes(propertyIds),
         loadCommercialTerms(propertyIds),
         loadByoProperties(propertyIds),
         supabase.from('property_bank_details').select('property_id, is_verified').in('property_id', propertyIds),
         supabase.from('billing_global_defaults').select('*'),
+        listGatewaySchedules(),
+        supabase
+          .from('property_billing_configs')
+          .select('property_id, gateway_billing_config_id, gateway_percentage_override, gateway_fixed_fee_override')
+          .in('property_id', propertyIds),
       ]);
+
 
       // Bookings with no gateway record: read the payment evidence first, and only
       // fall back to the property's configured route when there is none.
@@ -427,10 +439,23 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       });
 
 
+      // Legacy flat percentage — only used when no gateway schedule is published.
       const globalTxFee = Number(
         (globalRows.find((r: any) => r.default_transaction_fee != null)?.default_transaction_fee) ?? 0,
       ) || 0;
 
+      // The active gateway schedule is the authority on the processing rate, so
+      // the estimated fee shown here matches what the billing run will charge.
+      const activeSchedule = schedules.find((s) => s.is_active) ?? null;
+      const gwRows = (gwRes.data || []) as any[];
+      const gwByProperty: Record<string, GatewayRateOverrides & { config_id: string | null }> = {};
+      gwRows.forEach((r) => {
+        gwByProperty[r.property_id] = {
+          config_id: r.gateway_billing_config_id ?? null,
+          gateway_percentage_override: r.gateway_percentage_override ?? null,
+          gateway_fixed_fee_override: r.gateway_fixed_fee_override ?? null,
+        };
+      });
 
       const result: PropertyPayout[] = Object.entries(propertyMap).map(([pid, p]) => {
         const resolved = scopes[pid];
@@ -441,10 +466,23 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
         const subFee = billing?.subscription_fee_monthly || 0;
         const pfEnabled = billing?.payment_facilitator_enabled || false;
         // ROL-as-payment-provider recovery only applies to value we actually processed.
+        const gwOverrides = gwByProperty[pid] ?? null;
+        const assigned = gwOverrides?.config_id
+          ? schedules.find((s) => s.id === gwOverrides.config_id) ?? activeSchedule
+          : activeSchedule;
+        const scheduleRate =
+          pfEnabled && assigned
+            ? getEffectiveBillingRate(assigned, p.rolGross, p.rolGross, gwOverrides)
+            : null;
         const pfRate = pfEnabled
-          ? Number(billing?.transaction_fee_percentage ?? globalTxFee) || 0
+          ? scheduleRate
+            ? scheduleRate.percentage
+            : Number(billing?.transaction_fee_percentage ?? globalTxFee) || 0
           : 0;
-        const pfFee = p.rolGross * (pfRate / 100);
+        const pfFixedTotal =
+          scheduleRate && scheduleRate.fixed_fee > 0 ? scheduleRate.fixed_fee * p.bookingIds.size : 0;
+        const pfFee = p.rolGross * (pfRate / 100) + pfFixedTotal;
+
         // Monthly subscription / white-label fees are billed as their own invoices —
         // they are reported here for context but never deducted from booking cash.
         const monthlyFees = wlFee + subFee;

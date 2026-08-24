@@ -46,8 +46,9 @@ Property billing is admin-configured per property, or centrally at the portfolio
 - **PMS Subscription (ROL'OS)** — room-count tiers, priced per month. See CURRENT_PRICING below for live tier prices. Billing is by room count only — the property count is not a limit.
 - **Commission-only** — pay a percentage of platform revenue instead of a subscription (typically ~10% on ROL's own OTA listing).
 - **WBE flat commission (Widgets / WordPress)** — commission-only route for properties that just want the booking engine on their own site. From ~2% negotiable.
-- **BYO Payment Gateway** — connect your own payment provider (Peach, Stripe, etc.). Funds settle directly to you. Mutually exclusive with the ROL payment facilitator surcharge.
-- **Payment Facilitator Surcharge** — a % on ROL-processed payments (PayFast). Auto-disabled when BYO is on.
+- **BYO Payment Gateway** — connect your own payment provider (Peach, Stripe, etc.). Funds settle directly to you; their processing fees stay with that provider. Mutually exclusive with ROL-processed payments.
+- **ROL-processed payments** — RoomsOnline processes card payments as payment facilitator. The rate is NOT a flat admin field: it comes from the active payment-processing schedule (see GATEWAY_SCHEDULE below), which is what the contract quotes. A negotiated property or portfolio rate replaces the standard band. Auto-disabled when BYO is on.
+
 
 REVENUE ADD-ONS (opt-in, admin-gated per property or portfolio):
 - **White-label** — own booking subdomain and full brand takeover. Monthly + once-off setup fee.

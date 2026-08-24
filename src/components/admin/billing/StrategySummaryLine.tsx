@@ -24,7 +24,12 @@ export function summarizeStrategy(d: BillingDefault): string {
   }
   if (d.default_subscription_fee != null) parts.push(`R${d.default_subscription_fee}/mo subscription`);
   else parts.push("no monthly subscription");
-  if (d.default_transaction_fee != null) parts.push(`${d.default_transaction_fee}% booking surcharge (ROL facilitator)`);
+  if (d.default_transaction_fee != null) {
+    // The billed processing rate comes from the active gateway schedule; this
+    // preset value is only the fallback used when no schedule is published.
+    parts.push(`ROL processing on the active gateway schedule (fallback ${d.default_transaction_fee}%)`);
+  }
+
   if ((d as any).byo_gateway_monthly_fee != null) parts.push(`R${(d as any).byo_gateway_monthly_fee}/mo BYO gateway add-on`);
 
   const tiers = (d as any).tier_pricing_json as Array<{ min_rooms: number; max_rooms: number | null; max_properties?: number | null; monthly_fee: number }> | null;
