@@ -140,17 +140,36 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
       const ids = rows.map((r) => r.id);
       let eligible: PropertyOption[] = [];
       if (ids.length > 0) {
-        const [entitlements, { data: contracts }] = await Promise.all([
+        // Contract status is authored per owner in `owner_contracts` (same source
+        // the onboarding queue reads); `property_contracts` is a legacy fallback.
+        const emails = [
+          ...new Set(rows.map((r) => (r.owner_email ?? "").toLowerCase()).filter(Boolean)),
+        ];
+        const [entitlements, { data: ownerContracts }, { data: contracts }] = await Promise.all([
           fetchChannelManagerEntitlements(ids),
+          emails.length
+            ? supabase.from("owner_contracts").select("owner_email, status").in("owner_email", emails)
+            : Promise.resolve({ data: [] as { owner_email: string; status: string }[] }),
           supabase
             .from("property_contracts")
             .select("property_id, status")
             .in("property_id", ids)
             .in("status", ["signed", "overridden"]),
         ]);
+        const OK = new Set(["signed", "overridden"]);
+        const signedEmails = new Set(
+          (ownerContracts ?? [])
+            .filter((c) => OK.has(String(c.status ?? "").toLowerCase()))
+            .map((c) => String(c.owner_email ?? "").toLowerCase()),
+        );
         const signed = new Set((contracts ?? []).map((c) => c.property_id));
-        eligible = rows.filter((r) => entitlements.get(r.id) === true && signed.has(r.id));
+        eligible = rows.filter(
+          (r) =>
+            entitlements.get(r.id) === true &&
+            (signed.has(r.id) || signedEmails.has((r.owner_email ?? "").toLowerCase())),
+        );
       }
+
       if (cancelled) return;
       setProperties(eligible);
       setPropertiesLoading(false);
