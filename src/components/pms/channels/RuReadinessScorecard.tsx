@@ -48,12 +48,13 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (probeAri = false) => {
     if (!propertyId) return;
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "property_readiness", property_id: propertyId },
+        // Mounts score locally / from the stored verdict; only Refresh reads the channel.
+        body: { action: "property_readiness", property_id: propertyId, probe_ari: probeAri },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error?.message ?? "Readiness check failed");
@@ -70,8 +71,9 @@ export function RuReadinessScorecard({ propertyId, standalone = true, onReport }
   }, [propertyId, onReport]);
 
   useEffect(() => {
-    void load();
+    void load(false);
   }, [load]);
+
 
   // A fresh check always starts filtered to outstanding items only.
   useEffect(() => {
