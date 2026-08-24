@@ -412,8 +412,23 @@ export async function fetchChannelLedgerBatch(
   for (const id of propertyIds) {
     const steps = byProperty.get(id) ?? [];
     const byKey = new Map(steps.map((s) => [String(s.step_key), s]));
-    const complete = CHANNEL_LEDGER_STEP_KEYS.filter((key) => ledgerStepComplete(byKey.get(key)));
-    const graded = steps.some((step) => ledgerHasVerdict(step));
+    // The queue bar measures Ready to sell (steps 1–5) and nothing else, so the
+    // percentage can only land on a fifth. Post-readiness execution rows
+    // (push_owner, signoff, connect, entitlement…) must never dilute it.
+    const gateComplete = ledgerStepComplete(byKey.get(READY_TO_SELL_GATE_STEP_KEY));
+    const completeReady = READY_TO_SELL_LEDGER_STEP_KEYS.filter((key) =>
+      ledgerStepComplete(byKey.get(key)),
+    );
+    const readyStepsTotal = READY_TO_SELL_LEDGER_STEP_KEYS.length;
+    // A recorded `ready_to_sell` pass is the gate's own verdict — it outranks any
+    // individual row that has since gone stale.
+    const readyStepsComplete = gateComplete ? readyStepsTotal : completeReady.length;
+    const graded =
+      gateComplete ||
+      READY_TO_SELL_LEDGER_STEP_KEYS.some((key) => {
+        const step = byKey.get(key);
+        return !!step && ledgerHasVerdict(step);
+      });
     const needsChannelProbe = CHANNEL_CLASS_LEDGER_STEPS.some((key) => {
       const step = byKey.get(key);
       if (!step) return true;
@@ -427,12 +442,15 @@ export async function fetchChannelLedgerBatch(
       // to spend a live probe on it.
       seeded: graded,
       hasRows: steps.length > 0,
-      allComplete: complete.length === CHANNEL_LEDGER_STEP_KEYS.length,
-      percent: Math.round((complete.length / CHANNEL_LEDGER_STEP_KEYS.length) * 100),
+      allComplete: readyStepsComplete === readyStepsTotal,
+      percent: Math.round((readyStepsComplete / readyStepsTotal) * 100),
+      readyStepsComplete,
+      readyStepsTotal,
       needsChannelProbe,
       lastCheckedAt: newestCheck(steps),
     });
   }
+
   return result;
 }
 
