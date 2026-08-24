@@ -806,74 +806,15 @@ export function RuCertificationConsole({
    * The runner, its run history and refresh compliance live on the engineers' surface; the
    * operator console keeps the evidence tabs. One component, two mounts, no duplicated logic.
    */
+  // Advanced keeps only the refresh-compliance evidence: the runner and run history are retired.
   const allowedTabs = variant === "advanced"
-    ? ["runs", "cadence"]
+    ? ["cadence"]
     : ["milestones", "coverage", "availability", "pricing", "discounts", "readiness", "users"];
   const shows = (key: string) => allowedTabs.includes(key);
   const defaultTab = initialTab && allowedTabs.includes(initialTab) ? initialTab : allowedTabs[0];
 
   return (
     <div className="space-y-6">
-      {/* Runner — engineers only; the operator console reads the stored evidence instead. */}
-      {variant === "advanced" && (
-      <Card>
-
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Certification runner</CardTitle>
-          <CardDescription>
-            Exercises the RU endpoints required for White-Label certification and stores request/response evidence.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col md:flex-row gap-3 md:items-end">
-          <div className="space-y-1.5 flex-1">
-            <Label className="text-xs">Suite</Label>
-            <Select value={suite} onValueChange={setSuite}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {SUITES.map((s) => (
-                  <SelectItem key={s.value} value={s.value} disabled={s.requiresProperty && propertyId === "none"}>
-                    {s.label}
-                    {s.requiresProperty && propertyId === "none" ? " — needs a property" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5 flex-1">
-            <Label className="text-xs">Property (required for push & discount suites)</Label>
-            <Select value={propertyId} onValueChange={setPropertyId}>
-              <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Account-level only</SelectItem>
-                {candidateProperties.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button onClick={runSuite} disabled={running || cooling || (activeSuite.requiresProperty && propertyId === "none")} className="gap-2">
-            {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
-            {cooling
-              ? `Rate limit — ${cooldownSeconds}s`
-              : phaseProgress
-                ? `Phase ${phaseProgress.index}/${phaseProgress.total} — ${PHASE_LABELS[phaseProgress.label] ?? phaseProgress.label}`
-                : "Run suite"}
-
-          </Button>
-        </CardContent>
-        <CardContent className="pt-0 space-y-1">
-          <p className="text-xs text-muted-foreground">{activeSuite.coverage}</p>
-          {propertyId === "none" && (
-            <p className="text-xs text-muted-foreground">
-              Account-level only: property-scoped checks (content, availability, prices, buildings, discounts) are skipped
-              instead of being graded against an unrelated property.
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Rentals United accepts about one call per sliding minute — runs are paused for 60s after each attempt.
-          </p>
-        </CardContent>
-      </Card>
-      )}
-
       <Tabs key={defaultTab} defaultValue={defaultTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
           {shows("runs") && (
