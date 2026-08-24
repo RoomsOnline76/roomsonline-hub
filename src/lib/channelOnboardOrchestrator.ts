@@ -818,7 +818,7 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       resumeFromTaskId = task.id;
       break;
     }
-    if (result.outcome === "failed") {
+    if (result.outcome === "failed" || result.outcome === "blocked") {
       failed = true;
       if (!task.optional) break;
     }
@@ -826,7 +826,7 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
 
   const passed = !failed && !pending;
   const summary = results
-    .filter((r) => r.outcome === "failed" || r.outcome === "pending")
+    .filter((r) => r.outcome === "failed" || r.outcome === "blocked" || r.outcome === "pending")
     .map((r) => `${CHANNEL_ONBOARD_TASKS.find((t) => t.id === r.id)?.title ?? r.id}: ${r.detail}`)
     .join(" · ");
 
@@ -847,14 +847,6 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     await recordStep(ctx.propertyId, "ready_to_connect", "passed", "");
     invalidateChannelEditGate(ctx.propertyId);
     notifyRuAccountsChanged();
-    // The account step now provisions the key pair too (RU returns the SecretKey once),
-    // so record what it did for the credentials task that follows.
-    ctx.keyProvisioning = {
-      source: String(data.key_source ?? "") as KeySource,
-      accessKey: (data.access_key as string | null) ?? null,
-      warning: (data.key_warning as string | null) ?? null,
-      retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
-    };
   }
 
   return { step, passed, pending, retryAfterMs, resumeFromTaskId, results: ledgerTasks, summary };
