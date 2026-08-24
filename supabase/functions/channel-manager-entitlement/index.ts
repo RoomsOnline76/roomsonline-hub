@@ -605,17 +605,82 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Detached: bound locally, but the master account's roster no longer returns it.
+      // Our keys can no longer authorise a read of that account (sub-account inventory
+      // is only readable AS that sub-account), so it is excluded from every count
+      // instead of being read, failed and alerted on forever. If the roster read itself
+      // failed we keep the old back-fill — "no answer" must never read as "gone".
+      const detachedOwnerIds = new Set<string>();
       for (const ownerId of boundByOwner.keys()) {
-        if (!roster.has(ownerId) && !retiredOwnerIds.has(ownerId)) {
+        if (roster.has(ownerId) || retiredOwnerIds.has(ownerId)) continue;
+        if (rosterError === null) {
+          detachedOwnerIds.add(ownerId);
+          continue;
+        }
+        const acct = boundByOwner.get(ownerId)!;
+        roster.set(ownerId, {
+          owner_id: ownerId,
+          portal_email: acct.login_email || acct.owner_email,
+          portal_contact_email: acct.owner_email ?? null,
+          portal_name: null,
+        });
+      }
+
+      // Exclusion must stay auditable: carry each detached account's last known live
+      // listing count from the previous stored pass. A non-zero count is a billing
+      // question for the channel, not something our API can settle.
+      const detachedAccounts: Array<{
+        owner_id: string;
+        owner_label: string;
+        login_email: string | null;
+        last_known_listing_count: number | null;
+        last_seen_at: string | null;
+        needs_billing_verification: boolean;
+      }> = [];
+      if (detachedOwnerIds.size > 0) {
+        const lastKnown = new Map<string, { count: number; at: string }>();
+        try {
+          const { data: runs } = await admin
+            .from("channel_reconciliation_runs")
+            .select("created_at, findings")
+            .order("created_at", { ascending: false })
+            .limit(20);
+          for (const run of (runs || []) as Array<{ created_at: string; findings: unknown }>) {
+            const f = (run.findings || {}) as {
+              monitored_accounts?: Array<{ owner_id?: string; listing_count?: number }>;
+              unmonitored_accounts?: Array<{ owner_id?: string; listing_count?: number }>;
+            };
+            for (const a of [...(f.monitored_accounts || []), ...(f.unmonitored_accounts || [])]) {
+              const oid = String(a.owner_id ?? "").trim();
+              if (!oid || !detachedOwnerIds.has(oid) || lastKnown.has(oid)) continue;
+              lastKnown.set(oid, { count: Number(a.listing_count ?? 0), at: run.created_at });
+            }
+          }
+        } catch (e) {
+          console.warn(
+            "[channel-manager-entitlement] could not read the last reconciliation snapshot for detached accounts:",
+            e instanceof Error ? e.message : e,
+          );
+        }
+        for (const ownerId of detachedOwnerIds) {
           const acct = boundByOwner.get(ownerId)!;
-          roster.set(ownerId, {
+          const seen = lastKnown.get(ownerId) ?? null;
+          const login = acct.login_email || acct.owner_email || credByOwner.get(ownerId) || null;
+          detachedAccounts.push({
             owner_id: ownerId,
-            portal_email: acct.login_email || acct.owner_email,
-            portal_contact_email: acct.owner_email ?? null,
-            portal_name: null,
+            owner_label: `${login || "Unnamed sub-account"} · OwnerID ${ownerId}`,
+            login_email: login,
+            last_known_listing_count: seen ? seen.count : null,
+            last_seen_at: seen ? seen.at : null,
+            // Unknown counts are treated as "verify" too: silence is not proof of zero.
+            needs_billing_verification: seen === null || seen.count > 0,
           });
         }
+        console.log(
+          `[channel-manager-entitlement] reconcile: excluded ${detachedAccounts.length} detached sub-account(s) no longer under the master: ${[...detachedOwnerIds].join(", ")}`,
+        );
       }
+
       const ownerIds = Array.from(roster.keys());
 
 
@@ -1162,6 +1227,9 @@ Deno.serve(async (req) => {
           roster_error: rosterError,
           // Retired test sub-accounts, excluded from every number above.
           retired_accounts: retiredAccounts,
+          // Bound accounts the master no longer lists — excluded from every number
+          // above, reported so the exclusion (and any billing question) is auditable.
+          detached_accounts: detachedAccounts,
           // Mutually exclusive: live + archived always equals the bound-account total.
           channel_listing_count: liveOnChannel.size,
           archived_count: archivedOnChannel.size,
