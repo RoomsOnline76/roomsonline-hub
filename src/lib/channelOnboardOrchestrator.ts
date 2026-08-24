@@ -774,14 +774,16 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     .map((r) => `${CHANNEL_ONBOARD_TASKS.find((t) => t.id === r.id)?.title ?? r.id}: ${r.detail}`)
     .join(" · ");
 
-  const stepKey = step === "a" ? "monitor_step_a" : "monitor_step_b";
+  const stepKey = stepKeyForLedger;
+  const ledgerTasks = [...carriedResults, ...results];
   await recordStep(
     ctx.propertyId,
     stepKey,
     passed ? "passed" : pending && !failed ? "pending" : "blocked",
     summary,
-    { tasks: results },
+    { tasks: ledgerTasks },
   );
+
 
   // Step B completing is what makes the property sellable — and what opens the ordinary
   // delta path, so the edit gate's cached verdict must go.
