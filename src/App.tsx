@@ -111,6 +111,7 @@ const ItineraryBuilder = lazy(() => import("./pages/ItineraryBuilder"));
 
 // ─── Lazy — dev pages ───────────────────────────────────────────
 const DevSystemHealth = lazy(() => import("./pages/DevSystemHealth"));
+const DevRuSyncPipelines = lazy(() => import("./pages/DevRuSyncPipelines"));
 const DevPMS = lazy(() => import("./pages/DevPMS"));
 const DevFeatures = lazy(() => import("./pages/DevFeatures"));
 const DevTesting = lazy(() => import("./pages/DevTesting"));
@@ -446,6 +447,7 @@ const App = () => (
                         {/* ═══ Dev routes (requireDev layout) ════════════ */}
                         <Route element={<DevRouteLayout />}>
                           <Route path="/dev/system-health" element={<DevSystemHealth />} />
+                          <Route path="/dev/system-health/ru-sync-pipelines" element={<DevRuSyncPipelines />} />
                           <Route path="/dev/pms" element={<DevPMS />} />
                           <Route path="/dev/features" element={<DevFeatures />} />
                           <Route path="/dev/testing" element={<DevTesting />} />
