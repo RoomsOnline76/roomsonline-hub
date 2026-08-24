@@ -1885,15 +1885,24 @@ Deno.serve(async (req) => {
       // Last known good live verdict — used when a probe is skipped, throttled or times out
       // so an earned verification never regresses to "not ready".
       const ariSnapshot = ruIds.length > 0 ? await loadAriSnapshot(admin, p.id) : null;
-
-
-
+      /**
+       * A stored verdict younger than the snapshot TTL is good enough: re-pulling every unit's
+       * calendar on top of it is what filled the background call queue with thousands of
+       * `get_prices` / `get_availability` replays. `force_probe` is the only override.
+       */
+      const snapshotAt = ariSnapshot?.probed_at ? Date.parse(ariSnapshot.probed_at) : NaN;
+      const snapshotFresh = Number.isFinite(snapshotAt) && Date.now() - snapshotAt < ARI_SNAPSHOT_TTL_MS;
+      const wantProbe = opts.probe_ari !== false && (opts.force_probe === true || !snapshotFresh);
+      if (opts.probe_ari !== false && !wantProbe) {
+        console.log(`[scoreProperty] "${p.name}": reusing stored ARI verdict (${ariSnapshot?.probed_at}) — no channel read`);
+      }
 
       // Phase 2 must mean the SAME thing everywhere: when the live channel calendar is not
       // read (probing off, or nothing published yet) the two mandatory rules are still scored
       // on the ROL'OS calendar — exactly as the live push gate does. Skipping them made the
       // pipeline card green while the push refused with PHASE_BLOCKED.
-      if (opts.probe_ari !== false && ruIds.length > 0) {
+      if (wantProbe && ruIds.length > 0) {
+
 
         const from = isoDate(0);
         const to = isoDate(365);
