@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes, Copy, CreditCard } from "lucide-react";
 import { GatewaySchedulesPanel } from "@/components/admin/billing/GatewaySchedulesPanel";
+import { BillingEstimator } from "@/components/admin/billing/BillingEstimator";
+
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
