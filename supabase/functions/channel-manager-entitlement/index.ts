@@ -5,6 +5,7 @@
 // Channel Manager cost monitor — every affected property (and its units) must
 // be archived (or re-activated) at Rentals United and flagged locally so the
 // ROL'OS Channel Manager screen can lock itself and billing stops counting it.
+import { readRuRoster } from "../_shared/ruRosterCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
@@ -567,9 +568,11 @@ Deno.serve(async (req) => {
       const roster = new Map<string, RosterEntry>();
       let rosterError: string | null = null;
       {
-        const { data: usersRes, error: usersErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_users", ...logCtx(traceId, "channel-reconcile:list_sub_accounts") },
-        });
+        // Reconciliation is the one caller that may spend a wire read (nightly), and its
+        // answer feeds the shared roster cache so nothing else has to read again.
+        const rosterRead = await readRuRoster(admin, { forceFresh: true, source: "channel-reconcile" });
+        const usersErr = rosterRead.ok ? null : { message: rosterRead.message };
+        const usersRes = rosterRead.ok ? { success: true, users: rosterRead.users } : { success: false, error: { message: rosterRead.message } };
         const ures = (usersRes || {}) as {
           success?: boolean;
           error?: { message?: string } | string;

@@ -3879,8 +3879,9 @@ Deno.serve(async (req) => {
 
     if (action === "user_management") {
       const flag = await readUserMgmtFlag();
-      const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      const probeOk = !error && !!data?.success;
+      // Probe through the cache: opening this page must never cost a wire read.
+      const probe = await listRuSubUsers(admin, { source: "user_management_probe" });
+      const probeOk = probe.ok;
       return json({
         success: true,
         enabled: flag.enabled,
@@ -3892,7 +3893,9 @@ Deno.serve(async (req) => {
           { action: "create_user", ru_method: "Push_CreateUser_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
           { action: "fill_company_details", ru_method: "Push_FillCompanyDetails_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
         ],
-        users: data?.users ?? [],
+        users: probe.users,
+        roster_cached: probe.cached,
+        roster_fetched_at: probe.fetched_at,
         probe: error ? { ok: false, error: error.message } : { ok: probeOk, preview: preview(data, 1500) },
       });
     }
