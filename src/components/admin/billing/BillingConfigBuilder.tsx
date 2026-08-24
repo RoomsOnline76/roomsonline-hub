@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, Info } from "lucide-react";
 import { WidgetTierEditor } from "@/components/admin/billing/WidgetTierEditor";
 import { DEFAULT_TIERS, PricingTier } from "@/lib/billingTierResolver";
+import { GatewayScheduleMirror } from "@/components/admin/billing/GatewayScheduleMirror";
 
 /**
  * Shape of a billing configuration — either a preset (Admin → Billing Defaults)
