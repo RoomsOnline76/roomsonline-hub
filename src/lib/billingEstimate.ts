@@ -142,6 +142,12 @@ export interface BillingEstimate {
   perProperty: PropertyEstimate[];
   freePeriodTotal: number;
   steadyStateTotal: number;
+  /** Commission + card processing subtotal (payable from day one). */
+  transactionFreePeriodTotal: number;
+  transactionSteadyStateTotal: number;
+  /** Subscriptions and add-ons subtotal. */
+  recurringFreePeriodTotal: number;
+  recurringSteadyStateTotal: number;
   setupTotal: number;
   /** Resolved PMS tier, when the PMS add-on is selected. */
   tier: PricingTier | null;
@@ -149,7 +155,23 @@ export interface BillingEstimate {
   gatewayNote: string;
   /** True when no gateway schedule was available and the preset fallback was used. */
   usedLegacyGatewayFallback: boolean;
+  /** Resolved widget commission percentage, when widget volume was entered. */
+  widgetRate: number | null;
 }
+
+/** Resolve the widget commission percentage for a monthly booking count. */
+export function resolveWidgetRate(
+  mode: WidgetCommissionMode,
+  bookings: number,
+  flatRate: number,
+  tiers: WidgetTier[] = DEFAULT_WIDGET_TIERS,
+): { rate: number; tier: WidgetTier | null } {
+  if (mode === "flat") return { rate: flatRate, tier: null };
+  const sorted = [...tiers].sort((a, b) => b.min_bookings - a.min_bookings);
+  const hit = sorted.find((t) => bookings >= t.min_bookings) ?? null;
+  return { rate: hit ? hit.rate : flatRate, tier: hit };
+}
+
 
 function n(value: number | null | undefined): number {
   const v = Number(value);
