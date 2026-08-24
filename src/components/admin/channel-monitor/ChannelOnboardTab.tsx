@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+  AlertCircle,
   AlertTriangle,
   ArrowRight,
   Check,
@@ -137,6 +138,7 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
   if (state === "passed") return <Check className="h-4 w-4 shrink-0 text-emerald-600" />;
   if (state === "skipped") return <Check className="h-4 w-4 shrink-0 text-muted-foreground" />;
   if (state === "pending") return <Hourglass className="h-4 w-4 shrink-0 animate-pulse text-amber-600" />;
+  if (state === "blocked") return <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" />;
   if (state === "failed") return <X className="h-4 w-4 shrink-0 text-destructive" />;
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
