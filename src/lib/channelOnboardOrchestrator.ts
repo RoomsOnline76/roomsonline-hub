@@ -614,5 +614,5 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     notifyRuAccountsChanged();
   }
 
-  return { step, passed, pending, results, summary };
+  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results, summary };
 }
