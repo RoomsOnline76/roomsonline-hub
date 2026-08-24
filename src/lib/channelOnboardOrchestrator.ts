@@ -66,17 +66,32 @@ interface RunContext {
   onPushProgress?: (progress: { pushed: number; total: number }) => void;
 }
 
+/** The channel's sliding read window, used when it does not say how long to wait. */
+const DEFAULT_RATE_WINDOW_MS = 60_000;
+
+/** Normalise whatever the channel surface reported as a wait into milliseconds. */
+function readRetryAfterMs(payload: Record<string, unknown>): number {
+  const raw = Number(payload.retry_after_ms ?? payload.retryAfterMs ?? 0);
+  return Number.isFinite(raw) && raw > 0 ? Math.max(5_000, raw) : DEFAULT_RATE_WINDOW_MS;
+}
+
 /** Invoke a cert-portal action and normalise the three answers we care about. */
 async function portal(
   body: Record<string, unknown>,
   fallback: string,
-): Promise<{ ok: boolean; pending: boolean; detail: string; data: Record<string, unknown> }> {
+): Promise<{ ok: boolean; pending: boolean; retryAfterMs?: number; detail: string; data: Record<string, unknown> }> {
   const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
   const payload = (data ?? {}) as Record<string, unknown>;
   // The channel allows one identical read per sliding minute; a queued read is progress,
   // not a failure, so it must never be recorded as a blocker.
-  if (payload.pending === true) {
-    return { ok: false, pending: true, detail: "Queued behind the channel's rate window — finishes on its own.", data: payload };
+  if (payload.pending === true || payload.rate_deferred === true) {
+    return {
+      ok: false,
+      pending: true,
+      retryAfterMs: readRetryAfterMs(payload),
+      detail: "Waiting on the channel's rate window — this resumes on its own.",
+      data: payload,
+    };
   }
   if (error) {
     return { ok: false, pending: false, detail: await extractFunctionError(error, fallback), data: payload };
