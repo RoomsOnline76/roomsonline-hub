@@ -248,8 +248,8 @@ Deno.serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    const pricingBlock = await buildPricingBlock();
-    const systemPrompt = BASE_SYSTEM_PROMPT + pricingBlock;
+    const [pricingBlock, gatewayBlock] = await Promise.all([buildPricingBlock(), buildGatewayBlock()]);
+    const systemPrompt = BASE_SYSTEM_PROMPT + pricingBlock + gatewayBlock;
 
     const response = await aiFetch(AI_GATEWAY_URL, {
       method: "POST",
