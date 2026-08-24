@@ -4995,14 +4995,21 @@ Deno.serve(async (req) => {
     //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
     //    per owner email, and logins can be renamed in the RU portal).
     if (action === "list_ru_candidates") {
-      const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      if (!listed?.success) {
+      const listed = await listRuSubUsers(admin);
+      if (!listed.ok) {
         return json({
           success: false,
-          error: { code: "RU_LIST_FAILED", message: listed?.error?.message || "Rentals United did not return the sub-user list" },
-        }, 502);
+          rate_deferred: listed.deferred,
+          error: {
+            code: listed.deferred ? "RU_RATE_DEFERRED" : "RU_LIST_FAILED",
+            message: listed.deferred
+              ? "The channel is rate limiting the sub-user list right now. Wait a minute and open this dialog again."
+              : listed.message || "Rentals United did not return the sub-user list",
+          },
+        }, listed.deferred ? 429 : 502);
       }
-      return json({ success: true, users: listed.users ?? [] });
+      return json({ success: true, users: listed.users });
+
     }
 
     // ── bind_ru_account: point a local ru_owner_accounts row at a specific RU sub-user.
