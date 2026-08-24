@@ -208,10 +208,13 @@ export function StepAccountDialog({
               ) : (
                 <>
                   <p className="text-xs">
-                    {adopting
-                      ? "The existing distribution account will be adopted — no new account is created."
-                      : "A new distribution account will be created under the master account."}
+                    {emailConflict
+                      ? `The channel will not accept ${emailConflict.email} as a login, so the stale local binding was cleared. Step A will create a new distribution account under the login chosen below.`
+                      : adopting
+                        ? "The existing distribution account will be adopted — no new account is created."
+                        : "A new distribution account will be created under the master account."}
                   </p>
+
                   <dl className="grid gap-2 text-xs sm:grid-cols-2">
                     <Row label="Login email" value={plan.login_email ?? "unresolved"} />
                     <Row label="Login source" value={String(plan.login_source ?? "—")} />
