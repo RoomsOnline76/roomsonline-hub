@@ -6133,6 +6133,17 @@ Deno.serve(async (req) => {
         const cleanPhone = String(c.phone ?? "").replace(/[\s-]/g, "");
         if (!cleanPhone || cleanPhone === "+27000000000") incomplete.push("contact phone");
         if (!String(c.birth_date ?? "").trim()) incomplete.push("contact date of birth");
+        // Read-only preview: hand the composed payload back, with any placeholder gap
+        // reported rather than blocking, so the operator sees exactly what would be sent.
+        if (dryRun) {
+          return {
+            sent: false,
+            dry_run: true as const,
+            company: c,
+            incomplete,
+            source_property_id: sourcePropertyId,
+          };
+        }
         if (incomplete.length > 0) {
           return quiet({
             sent: false,
