@@ -144,6 +144,10 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
 
   const binding = gate.snapshot?.binding;
   const property = gate.snapshot?.property;
+  const bindingUnreadable = Boolean(binding?.read_error);
+  const sameEmailReset =
+    rebindEmail.trim().length > 0 &&
+    rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
 
   const openPlan = useCallback(async () => {
     if (!propertyId) return;
