@@ -402,7 +402,7 @@ export function ChannelOnboardTab({
         const result = await runOnboardStep(step, {
           propertyId,
           startAtTaskId: resumeFrom,
-          confirmedOwnerEmail: step === "a" ? plan?.login_email ?? null : null,
+          confirmedOwnerEmail: step === "a" ? chosenLoginEmail || plan?.login_email || null : null,
           confirmedOwnerName:
             step === "a"
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
