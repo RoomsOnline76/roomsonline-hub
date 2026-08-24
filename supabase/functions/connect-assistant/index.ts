@@ -123,7 +123,64 @@ function formatZar(v: number | null | undefined): string {
   return `R ${Math.round(v).toLocaleString("en-ZA")}`;
 }
 
+/**
+ * Card-processing schedule for TOBI. Read from the same active
+ * `gateway_billing_configs` row the Pricing page and the billing run use, so the
+ * assistant can never quote a rate that differs from what gets charged.
+ */
+async function buildGatewayBlock(supabase: any): Promise<string> {
+  try {
+    const { data, error } = await supabase
+      .from("gateway_billing_configs")
+      .select("name, version, model, base_percentage, fixed_fee_per_txn, monthly_platform_fee, volume_tiers, currency")
+      .eq("is_active", true)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data) return "";
+
+    const cur = data.currency ?? "ZAR";
+    const money = (v: number | null | undefined) =>
+      v === null || v === undefined || Number.isNaN(Number(v)) ? "—" : `${cur} ${Number(v).toFixed(2)}`;
+    const model = String(data.model ?? "flat").toLowerCase();
+    const tiers: any[] = Array.isArray(data.volume_tiers) ? data.volume_tiers : [];
+    const tierLines = tiers
+      .slice()
+      .sort((a, b) => (Number(a.min_volume) || 0) - (Number(b.min_volume) || 0))
+      .map((t) => {
+        const min = Number(t.min_volume) || 0;
+        const max = t.max_volume == null ? null : Number(t.max_volume);
+        const band = max == null
+          ? `${cur} ${min.toLocaleString("en-ZA")}+ monthly card volume`
+          : `${cur} ${min.toLocaleString("en-ZA")}–${max.toLocaleString("en-ZA")} monthly card volume`;
+        const fixed = t.fixed_fee ? ` + ${money(t.fixed_fee)} per transaction` : "";
+        return `  • ${band}: ${t.percentage}%${fixed}`;
+      })
+      .join("\n");
+
+    return `
+
+GATEWAY_SCHEDULE (live from the active payment-processing schedule — quote these numbers):
+Schedule: ${data.name ?? "Standard"} (version ${data.version ?? "—"}), model: ${model}
+Headline rate: ${data.base_percentage ?? "—"}%${data.fixed_fee_per_txn ? ` + ${money(data.fixed_fee_per_txn)} per transaction` : ""}
+Monthly platform fee: ${Number(data.monthly_platform_fee) > 0 ? money(data.monthly_platform_fee) : "none — transaction charges only"}
+${model === "volume_tiered" || tiers.length > 0 ? `Volume bands (rate follows trailing-month card volume, steps down automatically):\n${tierLines}` : "Single rate — no volume bands on the current schedule."}
+
+How to talk about it:
+- Card processing is SEPARATE from the ROL'OS booking fee and is payable from day one, INCLUDING during the free 60 days, because the acquirer charges us on every transaction.
+- Never describe processing as "at cost" or "free" — it is a commercial schedule with a hybrid rate (percentage + per-transaction fee) that reduces as volume grows.
+- Bands move automatically each month; there is nothing to apply for and no renegotiation.
+- Negotiated property or portfolio rates override the standard schedule and are written into the contract.
+- Bring-your-own gateway: their own processing fees stay with their own provider; the BYO gateway integration is an add-on from day 61.
+- Point to /connect/pricing for the live table and /connect/get-started to agree terms.`;
+  } catch (e) {
+    console.error("gateway schedule fetch failed:", e);
+    return "";
+  }
+}
+
 async function buildPricingBlock(): Promise<string> {
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
