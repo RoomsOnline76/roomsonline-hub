@@ -921,7 +921,16 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
             .map((part) => part.trim())
             .filter(Boolean)
         : [];
-      const complete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
+      /**
+       * A recorded pass may not paint a Ready-to-sell step green while live data
+       * still shows outstanding mandatory work — that is what let all five steps
+       * read complete with real errors listed underneath. The ledger can only
+       * confirm a step, never override the data.
+       */
+      const ledgerComplete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
+      const complete = isReadyToSellMacro(macro.key)
+        ? ledgerComplete && localComplete
+        : ledgerComplete;
       const needsRefresh = ledgerStatus === "stale";
       const channelPending = ledgerStatus === "unknown" && !!ledgerRow?.passed_at;
       completeByKey.set(macro.key, complete);
