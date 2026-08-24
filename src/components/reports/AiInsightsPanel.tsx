@@ -8,11 +8,79 @@ import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  experimentalKey,
   useReportInsights,
   type InsightSelection,
   type InsightSeverity,
   type SuggestionField,
 } from "@/hooks/useReportInsights";
+
+/** One labelled opinion inside a flag or commentary topic. */
+interface ReplyBlockProps {
+  index: 1 | 2;
+  tone: "conservative" | "experimental";
+  text: string;
+  note: string | null;
+  editable?: boolean;
+  checked: boolean;
+  onToggle: (next: boolean) => void;
+  onEdit: (value: string) => void;
+  onCopy: (text: string) => void | Promise<void>;
+}
+
+function ReplyBlock({
+  index,
+  tone,
+  text,
+  note,
+  editable = false,
+  checked,
+  onToggle,
+  onEdit,
+  onCopy,
+}: ReplyBlockProps) {
+  const label = tone === "conservative" ? "Conservative" : "Experimental";
+  return (
+    <div
+      className={`rounded-md border p-2.5 space-y-2 ${
+        tone === "experimental" ? "border-primary/40 bg-muted" : "border-border"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <label className="flex items-start gap-2">
+          <Checkbox checked={checked} onCheckedChange={(next) => onToggle(next === true)} className="mt-0.5" />
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {index}. {label}
+          </span>
+        </label>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-xs"
+          onClick={() => void onCopy(text)}
+          aria-label={`Copy ${label.toLowerCase()} reply`}
+        >
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      {editable ? (
+        <Textarea
+          key={text}
+          defaultValue={text}
+          rows={3}
+          className="text-sm"
+          onBlur={(event) => {
+            if (event.target.value === text) return;
+            onEdit(event.target.value);
+          }}
+        />
+      ) : (
+        <p className="text-sm text-foreground whitespace-pre-line">{text}</p>
+      )}
+      {note && <p className="text-sm text-muted-foreground">{note}</p>}
+    </div>
+  );
+}
 
 const FIELD_LABELS: Record<SuggestionField, string> = {
   min_stay_notes: "Minimum stay",
