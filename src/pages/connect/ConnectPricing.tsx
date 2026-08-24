@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { connectPath } from "@/lib/config";
+import { GatewayScheduleSection } from "@/components/connect/GatewayScheduleSection";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import {
