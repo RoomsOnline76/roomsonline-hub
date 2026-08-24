@@ -18,7 +18,15 @@ interface PropertyLite {
  * The certification console needs the same property list the RU admin page loads; it is
  * fetched here so the cost monitor's default tab stays free of the extra query.
  */
-export function ChannelCertificationTab({ initialTab }: { initialTab?: string }) {
+export function ChannelCertificationTab({
+  initialTab,
+  variant = "cert",
+}: {
+  initialTab?: string;
+  /** `advanced` renders the runner + runs + refresh compliance for engineers. */
+  variant?: "cert" | "advanced";
+}) {
+
   const { scopedPropertyIds } = useAuth();
   const [properties, setProperties] = useState<PropertyLite[] | null>(null);
   const scopeKey = scopedPropertyIds.join(",");
