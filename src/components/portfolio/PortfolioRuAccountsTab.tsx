@@ -260,14 +260,18 @@ export function PortfolioRuAccountsTab() {
         body: { action: "list_ru_candidates" },
       });
       if (error || !data?.success) {
-        toast.error(
+        const message =
           data?.error?.message ||
-            (error ? await extractFunctionError(error, "Could not load RU sub-users") : "Could not load RU sub-users"),
-        );
+          (error ? await extractFunctionError(error, "Could not load RU sub-users") : "Could not load RU sub-users");
+        // A rate-deferred sub-user list is "unknown", not "empty" — say so instead of
+        // showing an empty picker that looks like the master account holds no logins.
+        if (data?.rate_deferred || /rate limit/i.test(message)) toast.warning(message);
+        else toast.error(message);
         return;
       }
 
       setBindCandidates(data.users || []);
+
     } finally {
       setBindLoading(false);
     }
