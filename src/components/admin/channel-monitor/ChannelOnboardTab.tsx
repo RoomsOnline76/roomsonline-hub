@@ -645,21 +645,14 @@ export function ChannelOnboardTab({
                 <div>
                   <dt className="text-muted-foreground">Account scope</dt>
                   <dd className="font-medium">
-                    {bindingUnreadable
-                      ? "could not be read"
-                      : binding?.account_scope === "portfolio"
-                        ? `Portfolio-wide (${binding.sibling_properties.length} sibling propert${
-                            binding.sibling_properties.length === 1 ? "y" : "ies"
-                          })`
-                        : binding?.account_scope === "property"
-                          ? "This property only"
-                          : "—"}
+                    {bindingUnreadable ? "could not be read" : describeAccountScope(binding)}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Listing</dt>
-                  <dd className="font-medium">{property?.listing_id ?? "not published"}</dd>
+                  <dd className="font-medium">{describeListingState(property)}</dd>
                 </div>
+
               </dl>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-[240px] flex-1">
