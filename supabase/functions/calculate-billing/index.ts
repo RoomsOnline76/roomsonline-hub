@@ -1,4 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  getEffectiveBillingRate,
+  loadGatewaySchedule,
+  loadPeriodVolume,
+} from "../_shared/gatewayBillingRate.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -168,6 +173,11 @@ Deno.serve(async (req) => {
     // Facilitator surcharge stacks on commission strategies when ROL processes payment.
     // Base = booking amount only (never compounds on commission or add-ons).
     // Skipped when strategy is 'payment_facilitator' (already surcharge-only) or when BYO gateway is active.
+    //
+    // When the property (or its portfolio) is assigned a versioned gateway
+    // schedule, the fee is resolved from that schedule — percentage + fixed fee,
+    // volume-banded on trailing-30-day paid booking value. Unassigned properties
+    // keep the legacy flat-percentage path, so rollout is per property.
     if (
       event_type === 'booking' &&
       booking_id &&
@@ -175,30 +185,65 @@ Deno.serve(async (req) => {
       config?.payment_facilitator_enabled === true &&
       !(config?.byo_gateway_monthly_fee > 0)
     ) {
-      const surchargeRate = resolve(
-        config?.transaction_fee_percentage,
-        globalDefaults?.default_transaction_fee,
-        2.5
-      );
-      if (surchargeRate > 0 && bookingAmount > 0) {
-        const surchargeAmount = bookingAmount * (surchargeRate / 100);
-        await supabase.from("billing_transactions").insert({
-          property_id,
-          owner_id: config?.owner_id || null,
-          type: 'transaction_fee',
-          amount: surchargeAmount,
-          currency: 'ZAR',
-          reference_id: booking_id,
-          calculated_by: 'billing-calc-facilitator-surcharge',
-          metadata: {
-            rate: surchargeRate,
-            source: 'facilitator_surcharge',
-            base: 'booking_amount',
-            booking_amount: bookingAmount,
-          },
-        });
+      const schedule = await loadGatewaySchedule(supabase, property_id);
+      const usingSchedule = schedule.source === 'property' || schedule.source === 'portfolio';
+
+      if (usingSchedule && bookingAmount > 0) {
+        const periodVolume = await loadPeriodVolume(supabase, property_id);
+        const rate = getEffectiveBillingRate(schedule.config, bookingAmount, periodVolume, schedule.overrides);
+        if (rate.amount_charged > 0) {
+          await supabase.from("billing_transactions").insert({
+            property_id,
+            owner_id: config?.owner_id || null,
+            type: 'transaction_fee',
+            amount: rate.amount_charged,
+            currency: rate.currency || 'ZAR',
+            reference_id: booking_id,
+            calculated_by: 'billing-calc-gateway-schedule',
+            metadata: {
+              rate: rate.percentage,
+              fixed_fee: rate.fixed_fee,
+              effective_rate: rate.effective_rate,
+              model: rate.model,
+              tier: rate.tier,
+              period_volume: periodVolume,
+              config_id: rate.config_id,
+              config_version: rate.config_version,
+              config_source: schedule.source,
+              used_override: rate.usedOverride,
+              source: 'gateway_schedule',
+              base: 'booking_amount',
+              booking_amount: bookingAmount,
+            },
+          });
+        }
+      } else {
+        const surchargeRate = resolve(
+          config?.transaction_fee_percentage,
+          globalDefaults?.default_transaction_fee,
+          2.5
+        );
+        if (surchargeRate > 0 && bookingAmount > 0) {
+          const surchargeAmount = bookingAmount * (surchargeRate / 100);
+          await supabase.from("billing_transactions").insert({
+            property_id,
+            owner_id: config?.owner_id || null,
+            type: 'transaction_fee',
+            amount: surchargeAmount,
+            currency: 'ZAR',
+            reference_id: booking_id,
+            calculated_by: 'billing-calc-facilitator-surcharge',
+            metadata: {
+              rate: surchargeRate,
+              source: 'facilitator_surcharge',
+              base: 'booking_amount',
+              booking_amount: bookingAmount,
+            },
+          });
+        }
       }
     }
+
 
 
     // Log white-label fee as separate transaction if enabled

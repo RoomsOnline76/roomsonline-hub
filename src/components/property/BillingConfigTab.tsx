@@ -30,6 +30,7 @@ import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
 import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
+import { GatewayScheduleCard } from "./GatewayScheduleCard";
 import { toast } from "sonner";
 import { markChannelStepsStale } from "@/lib/channelStepLedger";
 import {
@@ -503,6 +504,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
               readOnly
             />
           )}
+
+          {/* ── Processing schedule (only when ROL processes payments) ── */}
+          {builder.facilitator_surcharge_enabled && <GatewayScheduleCard propertyId={propertyId} />}
+
 
 
 

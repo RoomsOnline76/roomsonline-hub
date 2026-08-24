@@ -109,6 +109,19 @@ const AUTO_VARIABLE_GROUPS: { label: string; keys: string[] }[] = [
     ],
   },
   {
+    label: "Gateway billing schedule",
+    keys: [
+      "billing_model",
+      "billing_percentage",
+      "billing_fixed_fee",
+      "billing_monthly_fee",
+      "billing_volume_tiers_summary",
+      "billing_config_version",
+      "billing_schedule_clause",
+    ],
+  },
+
+  {
     label: "Sales rep / referral",
     keys: [
       "rep_name",

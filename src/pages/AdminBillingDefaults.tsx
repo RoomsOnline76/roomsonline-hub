@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes, Copy } from "lucide-react";
+import { Loader2, Save, DollarSign, ArrowLeft, Plus, Trash2, Layers, Sparkles, Users, Info, Boxes, Copy, CreditCard } from "lucide-react";
+import { GatewaySchedulesPanel } from "@/components/admin/billing/GatewaySchedulesPanel";
 import { useBillingDefaults, BillingDefault, presetLabel } from "@/hooks/useBillingDefaults";
 import { useAuth } from "@/hooks/useAuth";
 import { normalizeTiers, PricingTier } from "@/lib/billingTierResolver";
@@ -692,7 +693,9 @@ export default function AdminBillingDefaults() {
             <TabsTrigger value="presets"><DollarSign className="h-3.5 w-3.5 mr-1.5" /> Presets</TabsTrigger>
             <TabsTrigger value="addons"><Sparkles className="h-3.5 w-3.5 mr-1.5" /> Add-ons</TabsTrigger>
             <TabsTrigger value="sales-reps"><Users className="h-3.5 w-3.5 mr-1.5" /> Sales Reps</TabsTrigger>
+            <TabsTrigger value="gateway"><CreditCard className="h-3.5 w-3.5 mr-1.5" /> Gateway Schedules</TabsTrigger>
           </TabsList>
+
 
           <TabsContent value="summary" className="mt-4">
             <SummaryPanel defaults={defaults} gotoTab={setTab} />
@@ -714,7 +717,12 @@ export default function AdminBillingDefaults() {
           <TabsContent value="sales-reps" className="mt-4 max-w-3xl">
             <SalesRepsPanel row={defaultRow} onSave={(d) => update.mutate(d)} saving={update.isPending} />
           </TabsContent>
+
+          <TabsContent value="gateway" className="mt-4">
+            <GatewaySchedulesPanel />
+          </TabsContent>
         </Tabs>
+
       )}
     </div>
   );

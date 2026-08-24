@@ -172,12 +172,33 @@ function buildBlock(
     });
   }
   if (!isNA(vars.payment_facilitator_clause)) {
+    // When a versioned gateway schedule applies, quote it verbatim — that is
+    // what the contract and the invoice run will both use.
+    const schedulePct = numOf(vars.billing_percentage);
+    const scheduleFee = numOf(vars.billing_fixed_fee);
+    const scheduled = !isNA(vars.billing_model) && schedulePct != null;
     commissions.push({
-      label: "Payment facilitation fee",
+      label: "Payment processing fee",
       amount: null,
-      note: `${vars.payment_facilitator_fee}% of amount processed`,
+      note: scheduled
+        ? `${vars.billing_model}${vars.billing_config_version ? ` v${vars.billing_config_version}` : ""} — ${schedulePct}% of amount processed${
+            scheduleFee ? ` + ${money(scheduleFee)} per transaction` : ""
+          }`
+        : `${vars.payment_facilitator_fee}% of amount processed`,
     });
+    if (scheduled && !isNA(vars.billing_volume_tiers_summary)) {
+      commissions.push({
+        label: "Volume bands",
+        amount: null,
+        note: vars.billing_volume_tiers_summary,
+      });
+    }
   }
+  const platformFee = numOf(vars.billing_monthly_fee);
+  if (!isNA(vars.billing_model) && platformFee) {
+    monthly.push({ label: "Gateway platform fee", amount: platformFee });
+  }
+
 
   return {
     key,

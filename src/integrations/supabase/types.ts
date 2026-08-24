@@ -2289,6 +2289,63 @@ export type Database = {
         }
         Relationships: []
       }
+      gateway_billing_configs: {
+        Row: {
+          base_percentage: number
+          created_at: string
+          created_by: string | null
+          currency: string
+          effective_from: string
+          fixed_fee_per_txn: number | null
+          id: string
+          is_active: boolean
+          model: string
+          monthly_platform_fee: number | null
+          name: string
+          notes: string | null
+          passthrough_markup_percentage: number | null
+          updated_at: string
+          version: number
+          volume_tiers: Json
+        }
+        Insert: {
+          base_percentage?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          fixed_fee_per_txn?: number | null
+          id?: string
+          is_active?: boolean
+          model?: string
+          monthly_platform_fee?: number | null
+          name: string
+          notes?: string | null
+          passthrough_markup_percentage?: number | null
+          updated_at?: string
+          version?: number
+          volume_tiers?: Json
+        }
+        Update: {
+          base_percentage?: number
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          effective_from?: string
+          fixed_fee_per_txn?: number | null
+          id?: string
+          is_active?: boolean
+          model?: string
+          monthly_platform_fee?: number | null
+          name?: string
+          notes?: string | null
+          passthrough_markup_percentage?: number | null
+          updated_at?: string
+          version?: number
+          volume_tiers?: Json
+        }
+        Relationships: []
+      }
       guest_portal_tokens: {
         Row: {
           booking_id: string
@@ -4670,6 +4727,9 @@ export type Database = {
           engagement_date: string | null
           enterprise_custom_fee: number | null
           free_period_days: number | null
+          gateway_billing_config_id: string | null
+          gateway_fixed_fee_override: number | null
+          gateway_percentage_override: number | null
           id: string
           last_auto_charge_at: string | null
           last_auto_charge_error: string | null
@@ -4743,6 +4803,9 @@ export type Database = {
           engagement_date?: string | null
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
+          gateway_billing_config_id?: string | null
+          gateway_fixed_fee_override?: number | null
+          gateway_percentage_override?: number | null
           id?: string
           last_auto_charge_at?: string | null
           last_auto_charge_error?: string | null
@@ -4816,6 +4879,9 @@ export type Database = {
           engagement_date?: string | null
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
+          gateway_billing_config_id?: string | null
+          gateway_fixed_fee_override?: number | null
+          gateway_percentage_override?: number | null
           id?: string
           last_auto_charge_at?: string | null
           last_auto_charge_error?: string | null
@@ -4863,6 +4929,13 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "portfolio_billing_configs_gateway_billing_config_id_fkey"
+            columns: ["gateway_billing_config_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_billing_configs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "portfolio_billing_configs_linked_contract_id_fkey"
             columns: ["linked_contract_id"]
@@ -5986,6 +6059,9 @@ export type Database = {
           engagement_date: string | null
           enterprise_custom_fee: number | null
           free_period_days: number | null
+          gateway_billing_config_id: string | null
+          gateway_fixed_fee_override: number | null
+          gateway_percentage_override: number | null
           id: string
           last_auto_charge_at: string | null
           last_auto_charge_error: string | null
@@ -6061,6 +6137,9 @@ export type Database = {
           engagement_date?: string | null
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
+          gateway_billing_config_id?: string | null
+          gateway_fixed_fee_override?: number | null
+          gateway_percentage_override?: number | null
           id?: string
           last_auto_charge_at?: string | null
           last_auto_charge_error?: string | null
@@ -6136,6 +6215,9 @@ export type Database = {
           engagement_date?: string | null
           enterprise_custom_fee?: number | null
           free_period_days?: number | null
+          gateway_billing_config_id?: string | null
+          gateway_fixed_fee_override?: number | null
+          gateway_percentage_override?: number | null
           id?: string
           last_auto_charge_at?: string | null
           last_auto_charge_error?: string | null
@@ -6185,6 +6267,13 @@ export type Database = {
           widget_flat_commission_rate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_billing_configs_gateway_billing_config_id_fkey"
+            columns: ["gateway_billing_config_id"]
+            isOneToOne: false
+            referencedRelation: "gateway_billing_configs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "property_billing_configs_linked_contract_id_fkey"
             columns: ["linked_contract_id"]
