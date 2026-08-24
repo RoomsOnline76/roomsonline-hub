@@ -654,7 +654,7 @@ export default function AdminBillingDefaults() {
   const navigate = useNavigate();
   const { isDev, isFearlessLeader, loading: authLoading } = useAuth();
   const { defaults, isLoading, update } = useBillingDefaults();
-  const [tab, setTab] = useState("summary");
+  const [tab, setTab] = useState("estimator");
 
   const defaultRow = useMemo(() => defaults.find((d) => d.strategy === "default") ?? defaults[0], [defaults]);
 
