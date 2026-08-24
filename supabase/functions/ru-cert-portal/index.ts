@@ -390,11 +390,23 @@ function isoDate(offsetDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Evidence previews are shown in the certification console and exported to auditors, so any
+ * credential that travelled in the XML envelope must be redacted before it is echoed back.
+ */
+function redactCredentials(s: string): string {
+  return s
+    .replace(/(<(?:SecretKey|Password|AccessKey|UserName)>)([\s\S]*?)(<\/(?:SecretKey|Password|AccessKey|UserName)>)/gi, "$1[REDACTED]$3")
+    .replace(/("(?:secret_key|auth_secret_key|password|auth_password|access_key|auth_access_key)"\s*:\s*)"[^"]*"/gi, '$1"[REDACTED]"');
+}
+
 function preview(value: unknown, max = 4000): string | null {
   if (value == null) return null;
-  const s = typeof value === "string" ? value : JSON.stringify(value);
+  const raw = typeof value === "string" ? value : JSON.stringify(value);
+  const s = redactCredentials(raw);
   return s.length > max ? `${s.slice(0, max)}\n… [truncated ${s.length - max} chars]` : s;
 }
+
 
 /**
  * RU requires at least one LocationId when creating a sub-user.
