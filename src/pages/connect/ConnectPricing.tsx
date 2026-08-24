@@ -36,7 +36,7 @@ const FREE_POINTS = [
 /** What starts being charged once the free period ends. */
 const CHARGEABLE_AFTER: { item: string; note: string }[] = [
   { item: "ROL'OS PMS subscription", note: "Priced on your agreement" },
-  { item: "Channel manager & OTA distribution", note: "Charged per unit" },
+  { item: "Channel manager & OTA distribution (add-on)", note: "Charged per unit" },
   { item: "White label & your own booking domain", note: "Priced on your agreement" },
   { item: "Branding pack", note: "Priced on your agreement" },
   { item: "Revenue management & yield tools", note: "Priced on your agreement" },
@@ -65,8 +65,8 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     icon: Globe,
     title: "Distribute",
     items: [
-      "Channel manager & OTA distribution",
-      "White-label branding on your own booking domain",
+      "Channel manager & OTA distribution (add-on)",
+      "White-label branding on your own booking domain (add-on)",
       "Booking widgets, embeds & WordPress plugin",
       "Developer REST API (55+ actions)",
       "HMAC-signed webhooks",
@@ -81,7 +81,7 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     items: [
       "Folio, invoicing & pro-forma documents",
       "VAT handling & tax invoices",
-      "Payment gateway integration (or bring your own)",
+      "Payment gateway integration (bring your own is an add-on)",
       "Refund register with approval workflow",
       "F&B and revenue splits",
       "Portfolio reconciliation & payout statements",
@@ -93,7 +93,7 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
     icon: TrendingUp,
     title: "Grow",
     items: [
-      "Revenue management, yield rules & rate strategies",
+      "Revenue management, yield rules & rate strategies (add-on)",
       "Reviews & reputation monitoring",
       "Guest CRM & segmentation",
       "HubSpot CRM add-on — free, opt-in",
@@ -117,7 +117,7 @@ const GUARANTEES = [
 
 const COMPETITOR_COSTS = [
   { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Free for 60 days, then subscription" },
-  { item: "Channel manager & OTA distribution", typical: "R 2,000 – R 4,000/mo", rolos: "Free for 60 days, then per unit" },
+  { item: "Channel manager & OTA distribution (add-on)", typical: "R 2,000 – R 4,000/mo", rolos: "Free for 60 days, then per unit" },
   { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included, no add-on" },
   { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Free for 60 days, then add-on" },
   { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Free for 60 days, then add-on" },
@@ -383,7 +383,7 @@ export default function ConnectPricing() {
           <div className="mt-8">
             <Link to={connectPath("/connect/get-started")}>
               <Button size="lg" className="gap-2">
-                Get started free <ArrowRight className="h-4 w-4" />
+                Start your 60 days free <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
