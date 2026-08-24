@@ -5654,6 +5654,12 @@ Deno.serve(async (req) => {
       if (!ownerEmail) {
         // The preview never fails: it reports the blocker so the wizard can offer the
         // correction route instead of a dead-end error toast.
+        if (isCompanyPreview) {
+          return json({
+            success: true,
+            preview: { fields: [], blocked_reason: NO_OWNER_EMAIL_MESSAGE, scope: portfolioId ? "portfolio" : "property" },
+          });
+        }
         if (isPlan) {
           return json({
             success: true,
