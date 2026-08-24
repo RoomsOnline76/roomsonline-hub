@@ -4472,7 +4472,20 @@ Deno.serve(async (req) => {
           'stay { ru_property_id, date_from, date_to } is required',
         );
       }
+      /**
+       * RU rejects Push_PutConfirmedReservationMulti_RQ with "Guest email is required."
+       * when <Email> is empty. Refuse pre-flight instead: the call cannot succeed, a retry
+       * cannot fix it, and no guest address may be invented on the guest's behalf.
+       */
+      const guestEmail = String((body.guest ?? {}).email ?? '').trim();
+      if (!guestEmail) {
+        return await abortReservationVerb(
+          'RU_GUEST_EMAIL_REQUIRED',
+          'The channel requires a guest email address on a confirmed reservation. Add the guest email to the booking, then resend the stay.',
+        );
+      }
       const xml = buildPutConfirmedReservationXml(scopedCreds, stay, body.guest ?? {});
+
       const compactRequestXml = compactXml(xml);
       const response = await callRentalsUnited(scopedCreds, xml);
       console.log(
