@@ -325,10 +325,14 @@ export default function ConnectPricing() {
           </motion.div>
 
           <p className="text-xs text-muted-foreground text-center mt-6 max-w-2xl mx-auto">
-            Third-party pass-through costs stay with the third party — an external revenue-management
-            licence you already hold, or your own payment gateway's transaction fees, are billed at cost
-            where they apply.
+            A third-party licence you already hold stays with that provider at cost. Card processing
+            on our gateway is charged on the{" "}
+            <a href="#payment-processing" className="text-primary underline underline-offset-2">
+              payment-processing schedule
+            </a>
+            ; bring your own gateway and its fees stay with your provider.
           </p>
+
 
         </div>
       </section>
