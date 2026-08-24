@@ -216,8 +216,15 @@ export function StepAccountDialog({
                   </p>
 
                   <dl className="grid gap-2 text-xs sm:grid-cols-2">
-                    <Row label="Login email" value={plan.login_email ?? "unresolved"} />
-                    <Row label="Login source" value={String(plan.login_source ?? "—")} />
+                    <Row
+                      label="Login email"
+                      value={effectiveLogin || (emailConflict ? "choose one below" : plan.login_email ?? "unresolved")}
+                    />
+                    <Row
+                      label="Login source"
+                      value={chosenLoginEmail ? "chosen by the operator" : String(plan.login_source ?? "—")}
+                    />
+
                     <Row
                       label="Contact name"
                       value={
