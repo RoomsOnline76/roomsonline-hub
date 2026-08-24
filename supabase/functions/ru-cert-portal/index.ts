@@ -5861,7 +5861,7 @@ Deno.serve(async (req) => {
          * failure, when the truth is that owner setup is incomplete. So keys are a hard
          * prerequisite: report the setup gap instead of burning a doomed call.
          */
-        if (!hasChildKeys) {
+        if (!hasChildKeys && !dryRun) {
           return quiet({
             sent: false,
             needs_password: true,
