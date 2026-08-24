@@ -5046,13 +5046,12 @@ Deno.serve(async (req) => {
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_users" },
-        });
-        if (listErr || !listed?.success) {
-          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listErr?.message ?? listed?.error?.message);
+        const listed = await listRuSubUsers(admin);
+        if (!listed.ok) {
+          // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
+          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
         } else {
-          const users = (listed.users ?? []) as { owner_id?: string; email?: string; user_account_id?: string }[];
+          const users = listed.users;
           verifiedAgainstRu = true;
           match = users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId);
           if (!match) {
@@ -5065,6 +5064,7 @@ Deno.serve(async (req) => {
             }, 422);
           }
         }
+
       } catch (e) {
         console.warn("[ru-cert-portal] bind: RU list threw, continuing", e instanceof Error ? e.message : e);
       }
