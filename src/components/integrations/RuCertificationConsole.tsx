@@ -1388,6 +1388,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Readiness */}
         {shows("readiness") && (
