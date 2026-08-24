@@ -4195,15 +4195,20 @@ Deno.serve(async (req) => {
 
       // Mirror onto the bound local row (legacy readers) only when it holds this OwnerID.
       if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
+        // Re-verifying the SAME key pair must not invalidate an accepted company profile —
+        // otherwise Step A looks perpetually stale and re-pushes on every poll.
+        const keyChanged = String((account as any).ru_api_access_key ?? "").trim() !== accessKey;
         const update: Record<string, unknown> = {
           ru_api_access_key: accessKey,
           ru_api_secret_enc: enc,
           ru_api_key_label: keyLabel,
           ru_api_keys_verified_at: verifiedAt,
-          company_details_sent: false,
-          company_details_status: "credentials_verified",
-          company_filled_at: null,
         };
+        if (keyChanged) {
+          update.company_details_sent = false;
+          update.company_details_status = "credentials_verified";
+          update.company_filled_at = null;
+        }
         const { error: upErr } = await admin.from("ru_owner_accounts").update(update).eq("id", account.id);
         if (upErr) return json({ success: false, error: { code: "SAVE_FAILED", message: upErr.message } }, 500);
       }
@@ -5487,9 +5492,18 @@ Deno.serve(async (req) => {
     if (
       action === "ensure_owner_account" ||
       action === "ensure_company_details" ||
-      action === "plan_owner_account"
+      action === "plan_owner_account" ||
+      action === "preview_company_details"
     ) {
       const isPlan = action === "plan_owner_account";
+      /**
+       * `preview_company_details` composes the company profile exactly as the push would
+       * and returns the resolved field/value list WITHOUT contacting the channel and
+       * without any local write. It backs the "Company details to be sent" panel in the
+       * Step A account dialog.
+       */
+      const isCompanyPreview = action === "preview_company_details";
+      const readOnly = isPlan || isCompanyPreview;
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
@@ -5497,7 +5511,7 @@ Deno.serve(async (req) => {
       }
 
       const flag = await readUserMgmtFlag();
-      if (!flag.enabled && !isPlan) {
+      if (!flag.enabled && !readOnly) {
         return json({
           success: false,
           error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab first." },
@@ -5645,6 +5659,12 @@ Deno.serve(async (req) => {
       if (!ownerEmail) {
         // The preview never fails: it reports the blocker so the wizard can offer the
         // correction route instead of a dead-end error toast.
+        if (isCompanyPreview) {
+          return json({
+            success: true,
+            preview: { fields: [], blocked_reason: NO_OWNER_EMAIL_MESSAGE, scope: portfolioId ? "portfolio" : "property" },
+          });
+        }
         if (isPlan) {
           return json({
             success: true,
@@ -5705,11 +5725,16 @@ Deno.serve(async (req) => {
       const submitCompanyDetails = async (
         account: Record<string, any> | null,
         plainPassword?: string | null,
+        options?: { dryRun?: boolean },
       ) => {
+        const dryRun = options?.dryRun === true;
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         // Idempotent: treat it as done only when RU actually confirmed it.
         // `force: true` re-submits (e.g. the RU portal profile is still blank).
-        const companyState = await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
+        // A dry run never short-circuits: the caller wants the composed payload.
+        const companyState = dryRun
+          ? { satisfied: false }
+          : await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
         /**
          * Save-time resend. Company details are authored on the property, so an edit
          * saved after the last accepted push makes the channel's copy stale. Callers
@@ -5841,7 +5866,7 @@ Deno.serve(async (req) => {
          * failure, when the truth is that owner setup is incomplete. So keys are a hard
          * prerequisite: report the setup gap instead of burning a doomed call.
          */
-        if (!hasChildKeys) {
+        if (!hasChildKeys && !dryRun) {
           return quiet({
             sent: false,
             needs_password: true,
@@ -6113,6 +6138,17 @@ Deno.serve(async (req) => {
         const cleanPhone = String(c.phone ?? "").replace(/[\s-]/g, "");
         if (!cleanPhone || cleanPhone === "+27000000000") incomplete.push("contact phone");
         if (!String(c.birth_date ?? "").trim()) incomplete.push("contact date of birth");
+        // Read-only preview: hand the composed payload back, with any placeholder gap
+        // reported rather than blocking, so the operator sees exactly what would be sent.
+        if (dryRun) {
+          return {
+            sent: false,
+            dry_run: true as const,
+            company: c,
+            incomplete,
+            source_property_id: sourcePropertyId,
+          };
+        }
         if (incomplete.length > 0) {
           return quiet({
             sent: false,
@@ -6209,7 +6245,7 @@ Deno.serve(async (req) => {
       const locationIds = await resolveOwnerLocationIds(admin, propertyId, portfolioId);
       const NO_LOCATION_MESSAGE =
         "No Channel Manager location could be resolved for this owner. Set the property's city/country coordinates (or push the property once) so a location can be matched, then review this step again.";
-      if (locationIds.length === 0 && !isPlan) {
+      if (locationIds.length === 0 && !readOnly) {
         return json({
           success: false,
           error: { code: "NO_RU_LOCATION", message: NO_LOCATION_MESSAGE },
@@ -6337,6 +6373,84 @@ Deno.serve(async (req) => {
           },
         });
       }
+
+      /**
+       * Read-only company-details preview for the Step A account dialog. It composes the
+       * exact payload the push would send and reports it as a field / value / source list.
+       * Nothing is written locally and nothing reaches the channel.
+       */
+      if (isCompanyPreview) {
+        const stub = { id: "00000000-0000-0000-0000-000000000000", ru_owner_id: null } as Record<string, any>;
+        const result = (await submitCompanyDetails(
+          (existing.account as Record<string, any> | null) ?? stub,
+          null,
+          { dryRun: true },
+        )) as Record<string, any>;
+
+        if (result?.dry_run !== true) {
+          return json({
+            success: true,
+            preview: {
+              fields: [],
+              blocked_reason: String(result?.error ?? "The company details could not be composed"),
+              scope: portfolioId ? "portfolio" : "property",
+            },
+          });
+        }
+
+        const company = (result.company ?? {}) as Record<string, unknown>;
+        const scopeSource = portfolioId
+          ? `portfolio${portfolioRow?.name ? ` (${portfolioRow.name})` : ""}`
+          : "this property";
+        const LABELS: Array<{ key: string; label: string; source: string }> = [
+          { key: "name", label: "Company / portfolio name", source: scopeSource },
+          { key: "first_name", label: "Contact first name", source: "Company Information" },
+          { key: "last_name", label: "Contact last name", source: "Company Information" },
+          { key: "email", label: "Contact email (login)", source: "owner email" },
+          { key: "phone", label: "Contact phone", source: "Company Information / property contact" },
+          { key: "birth_date", label: "Contact date of birth", source: "Company Information" },
+          { key: "address", label: "Address", source: "property address" },
+          { key: "city", label: "City", source: "property address" },
+          { key: "zip_code", label: "Postal code", source: "property address" },
+          { key: "country_id", label: "Country", source: "property country" },
+          { key: "website", label: "Website", source: "Company Information" },
+          { key: "vat_number", label: "VAT number", source: "banking block" },
+          { key: "manager_identification_number", label: "Company registration", source: "banking block" },
+          { key: "number_of_properties", label: "Number of properties", source: "portfolio size" },
+          { key: "number_of_employees", label: "Number of employees", source: "Company Information" },
+          { key: "years_in_business", label: "Years in business", source: "Company Information" },
+        ];
+
+        const fields = LABELS.filter((f) => company[f.key] !== undefined && company[f.key] !== null && String(company[f.key]).trim() !== "")
+          .map((f) => ({ key: f.key, label: f.label, value: String(company[f.key]), source: f.source }));
+
+        const rep = (company.legal_rep ?? null) as Record<string, unknown> | null;
+        if (rep && typeof rep === "object") {
+          for (const [k, v] of Object.entries(rep)) {
+            if (v === null || v === undefined || String(v).trim() === "") continue;
+            fields.push({
+              key: `legal_rep.${k}`,
+              label: `Legal representative — ${k.replace(/_/g, " ")}`,
+              value: String(v),
+              source: "Company Information",
+            });
+          }
+        }
+
+        return json({
+          success: true,
+          preview: {
+            fields,
+            missing: (result.incomplete ?? []) as string[],
+            blocked_reason: null,
+            scope: portfolioId ? "portfolio" : "property",
+            source_property_id: result.source_property_id ?? propertyId,
+            portfolio_id: portfolioId,
+          },
+        });
+      }
+
+
 
       // The RU identity is only stale when Rentals United no longer lists an owner that
       // matches the stored OwnerID (or, when we never stored one, the stored login email).

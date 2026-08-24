@@ -40,9 +40,6 @@ import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/C
 
 
 // Heavy panels only load when their tab is opened, keeping the default cost view fast.
-const PortfolioRuAccountsTab = lazy(() =>
-  import("@/components/portfolio/PortfolioRuAccountsTab").then((m) => ({ default: m.PortfolioRuAccountsTab })),
-);
 const ChannelOnboardTab = lazy(() =>
   import("@/components/admin/channel-monitor/ChannelOnboardTab").then((m) => ({ default: m.ChannelOnboardTab })),
 );
@@ -67,18 +64,13 @@ const ChannelSyncObservabilityPanel = lazy(() =>
 
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
-type TabKey = "onboard" | "accounts" | "cost" | "cert" | "advanced";
+type TabKey = "onboard" | "cost" | "cert" | "advanced";
 
 const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
   {
     key: "onboard",
     title: "Onboard Property",
     tests: "Readiness gate, owner binding, then the two steps that take a property live.",
-  },
-  {
-    key: "accounts",
-    title: "Accounts & Company",
-    tests: "Create / archive sub-users and push company details required for cert.",
   },
   {
     key: "cost",
@@ -104,6 +96,8 @@ const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
  * engineering surfaces (diagnostics, ARI labs, reservation round-trip, binding) fold into Advanced.
  */
 const LEGACY_TAB_MAP: Record<string, TabKey> = {
+  // Account management and the company profile now live inside Step A's preview modal.
+  accounts: "onboard",
   diagnostics: "advanced",
   binding: "advanced",
   ari: "advanced",
@@ -341,7 +335,6 @@ export default function AdminChannelMonitor() {
       const pending = { tone: "muted" as ChipTone, label: "Checking…" };
       return {
         onboard: pending,
-        accounts: pending,
         cost: pending,
         cert: pending,
         advanced: { tone: "muted", label: "Engineers only" },
@@ -350,19 +343,19 @@ export default function AdminChannelMonitor() {
 
 
     return {
+      // Account/key health now reports on the Onboard chip — Step A owns that surface.
       onboard:
-        neverPushed === 0
-          ? { tone: "ok", label: "All properties pushed" }
-          : { tone: "warn", label: `${neverPushed} awaiting go-live` },
-      accounts:
-        keys.total > 0 && keys.verified === keys.total
-          ? { tone: "ok", label: `${keys.verified}/${keys.total} keys verified` }
-          : {
+        keys.total > 0 && keys.verified < keys.total
+          ? {
               tone: keys.withKeys < keys.total ? "bad" : "warn",
-              label: keys.total === 0 ? "No sub-accounts" : `${keys.total - keys.verified} key(s) unverified`,
-            },
+              label: `${keys.total - keys.verified} account key(s) unverified`,
+            }
+          : neverPushed === 0
+            ? { tone: "ok", label: "All properties pushed" }
+            : { tone: "warn", label: `${neverPushed} awaiting go-live` },
       cost: { tone: "muted", label: `${data.billableListings} listings billable` },
       // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
+
 
       cert: run
         ? {
@@ -496,12 +489,6 @@ export default function AdminChannelMonitor() {
                   <ChannelArchiveLog events={data.events} />
                 </>
               ))}
-
-            {tab === "accounts" && (
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <PortfolioRuAccountsTab />
-              </Suspense>
-            )}
 
             {/* Certification evidence for operators — the runner itself lives in Advanced. */}
             {tab === "cert" && (

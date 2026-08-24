@@ -22,7 +22,6 @@ import {
   Loader2,
   RefreshCw,
   ShieldCheck,
-  UserCog,
   X,
 } from "lucide-react";
 
@@ -57,8 +56,6 @@ import {
   type ChannelOnboardTaskId,
 } from "@/config/channelOnboard";
 import {
-  describeAccountScope,
-  describeListingState,
   planOwnerAccount,
   rebindOwner,
   runOnboardStep,
@@ -67,6 +64,7 @@ import {
 } from "@/lib/channelOnboardOrchestrator";
 
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
+import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 
 interface PropertyOption {
   id: string;
@@ -152,6 +150,7 @@ export function ChannelOnboardTab({
 
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
 
   const [rebindEmail, setRebindEmail] = useState("");
   const [rebindOpen, setRebindOpen] = useState(false);
@@ -321,6 +320,7 @@ export function ChannelOnboardTab({
     setPushProgress(null);
     setPlan(null);
     setRebindEmail("");
+    setAccountDialogOpen(false);
   }, [propertyId]);
 
   const binding = gate.snapshot?.binding;
@@ -330,11 +330,20 @@ export function ChannelOnboardTab({
     rebindEmail.trim().length > 0 &&
     rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
 
+  /** The selected entry — a portfolio pick carries its portfolio id and member list. */
+  const selectedOption = useMemo(
+    () => properties.find((option) => option.id === propertyId) ?? null,
+    [properties, propertyId],
+  );
+
+  // The preview modal only renders once the plan is in hand, so the operator never
+  // sees an empty dialog while the resolution is still running.
   const openPlan = useCallback(async () => {
     if (!propertyId) return;
     setPlanLoading(true);
     try {
       setPlan(await planOwnerAccount(propertyId));
+      setAccountDialogOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not preview the distribution account");
     } finally {
@@ -461,29 +470,22 @@ export function ChannelOnboardTab({
             <div className="rounded-md border bg-muted/40 p-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-muted-foreground">
-                  Preview exactly what will be created or adopted before anything is sent.
+                  Preview the account, the owner binding and the company details that will be sent — nothing leaves here
+                  until you run the step.
                 </span>
-                <Button size="sm" variant="outline" onClick={() => void openPlan()} disabled={planLoading || !propertyId}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void openPlan()}
+                  disabled={planLoading || !propertyId}
+                >
                   {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                   Preview account
                 </Button>
               </div>
-              {plan && (
-                <dl className="mt-2 grid gap-1 sm:grid-cols-2">
-                  <div>
-                    <dt className="text-muted-foreground">Login</dt>
-                    <dd className="font-medium">{plan.login_email ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Outcome</dt>
-                    <dd className="font-medium">
-                      {plan.adopt || plan.ru_owner_id ? "Adopt the existing account" : "Create a new account"}
-                    </dd>
-                  </div>
-                </dl>
-              )}
             </div>
           )}
+
 
           {tasks.map((task) => {
             const live = taskStates[task.id];
@@ -615,83 +617,38 @@ export function ChannelOnboardTab({
             )}
           </Card>
 
-          {/* 3 — owner binding */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <UserCog className="h-4 w-4" />
-                Owner binding
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Re-assigning archives this property's listings, clears the old binding and, when nothing is left on it,
-                archives the old distribution account. All of it runs as one operation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {bindingUnreadable ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
-                  The distribution binding could not be read — this property may well be bound. Re-assigning is blocked
-                  until the lookup succeeds. Detail: {binding?.read_error}
-                </p>
-              ) : null}
-              <dl className="grid gap-2 text-xs sm:grid-cols-4">
-                <div>
-                  <dt className="text-muted-foreground">Owner email</dt>
-                  <dd className="font-medium break-all">{property?.owner_email ?? "—"}</dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Account login</dt>
-                  <dd className="font-medium break-all">
-                    {bindingUnreadable ? "could not be read" : binding?.login_email ?? "not bound"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Account scope</dt>
-                  <dd className="font-medium">
-                    {bindingUnreadable ? "could not be read" : describeAccountScope(binding)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">Listing</dt>
-                  <dd className="font-medium">{describeListingState(property)}</dd>
-                </div>
-
-              </dl>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-[240px] flex-1">
-                  <Label className="text-xs">Re-assign to owner email</Label>
-                  <Input
-                    className="mt-1"
-                    type="email"
-                    placeholder="new.owner@example.com"
-                    value={rebindEmail}
-                    onChange={(event) => setRebindEmail(event.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!rebindEmail.includes("@") || rebinding || bindingUnreadable}
-                  onClick={() => setRebindOpen(true)}
-                >
-                  {rebinding ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                  Unbind & re-assign
-                </Button>
-              </div>
-              {sameEmailReset ? (
-                <p className="text-xs text-muted-foreground">
-                  That is the owner email already on file — this will reset the binding (archive listings, clear the
-                  account link) and Step A must be run again.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-
-          {/* 4 — the two steps */}
+          {/* 3 — the two steps. Owner binding and the account preview live in the Step A dialog. */}
           {renderStep("a")}
           {renderStep("b")}
         </>
       )}
+
+      {propertyId && (
+        <StepAccountDialog
+          open={accountDialogOpen}
+          onOpenChange={setAccountDialogOpen}
+          propertyId={propertyId}
+          portfolioId={selectedOption?.portfolioId ?? null}
+          memberIds={selectedOption?.memberIds}
+          plan={plan}
+          planLoading={planLoading}
+          binding={binding as Record<string, any> | null | undefined}
+          property={property as Record<string, any> | null | undefined}
+          bindingUnreadable={bindingUnreadable}
+          rebindEmail={rebindEmail}
+          onRebindEmailChange={setRebindEmail}
+          onRequestRebind={() => setRebindOpen(true)}
+          rebinding={rebinding}
+          sameEmailReset={sameEmailReset}
+          runningStepA={runningStep === "a"}
+          stepADisabled={stepDisabled.a}
+          onRunStepA={() => {
+            setAccountDialogOpen(false);
+            void runStep("a");
+          }}
+        />
+      )}
+
 
       <AlertDialog open={rebindOpen} onOpenChange={setRebindOpen}>
         <AlertDialogContent>
