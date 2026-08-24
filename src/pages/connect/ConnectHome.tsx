@@ -14,8 +14,8 @@ const fadeUp = {
 };
 
 const STATS = [
-  { value: "R 0", label: "Monthly Fee" },
-  { value: "R 0", label: "Setup Fee" },
+  { value: "R 0", label: "First 60 Days" },
+  { value: "No", label: "Setup Fee in Your 60 Days" },
   { value: "24/7", label: "TOBI Assistant" },
   { value: "Flexible", label: "Negotiable Plans" },
 ];
