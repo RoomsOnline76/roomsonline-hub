@@ -1020,67 +1020,37 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           )}
 
 
-          {activeStageKey === "published" && (
-            <PublishedPane
-              propertyId={propertyId}
-              macroKey={activeMacro?.macro.key ?? ""}
-              isPlatformUser={isPlatformUser}
-              locked={!!activeMacro?.locked}
-              busy={busy}
-              signoff={signoff}
-              listingPull={listingPull}
-              onPullListings={pullListings}
-              pushErrors={pushErrors}
-              unpublishedUnits={unpublishedUnits}
-              publishedOk={publishedOk}
-              entitlementOn={billing.config?.channel_manager_enabled === true}
-              onPushOwner={openOwnerPlan}
-              subAccountEmail={subAccountEmail}
-              onPublish={publishListing}
-              listingsVerified={listingsVerified}
-              readBackPending={readBackPending && !listingsVerified}
-              onVerifyListings={verifyListings}
-
-              onEnable={enableChannelManager}
-              onPushCompanyDetails={pushCompanyDetails}
-              companyProfile={companyProfile}
-              onSignoffItem={(key, next) => {
-                recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
-                  toast.error(e instanceof Error ? e.message : String(e)),
-                );
-              }}
-              onSignoffAll={(next) => {
-                recordSignoff(next, user?.email ?? null).catch((e) =>
-                  toast.error(`Could not save the sign-off: ${e instanceof Error ? e.message : String(e)}`),
-                );
-              }}
-            />
-          )}
-
-          {activeStageKey === "live" && (
-            <div className="space-y-3">
-              {!overall.readyToConnect && (
-                <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                  Finish Published first — the channel console unlocks when Channel Manager is enabled and the listing is signed off.
-                </p>
-              )}
-              {overall.readyToConnect ? (
-                <>
-                  <RuCurrencyNotice propertyId={propertyId} />
-                  <RuWhiteLabelEmbed propertyId={propertyId} />
-                </>
-              ) : null}
-              {isPlatformUser && (
-                <p className="text-[11px] text-muted-foreground">
-                  Push failures and sync logs stay in{" "}
-                  <Link to="/admin/integrations/rentals-united" className="underline underline-offset-2">
-                    Channel diagnostics
-                  </Link>
-                  .
-                </p>
-              )}
+          {/*
+            The wizard finishes at Ready to sell. Connecting the property to a sales
+            channel (sub-account, push, publish, ARI) is the Channel Monitor's job —
+            the wizard hands over instead of duplicating those steps.
+          */}
+          {readyOverall.allComplete && (
+            <div className="space-y-2 rounded-lg border border-emerald-500/50 bg-emerald-500/5 p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <p className="text-sm font-semibold">Ready to sell — all five steps complete</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {gradeState === "saving"
+                  ? "Recording the verdict…"
+                  : "The verdict is recorded. Connect this party to a sales channel from the Channel Monitor."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {isPlatformUser && (
+                  <Button asChild size="sm">
+                    <Link to={`/admin/channel-monitor?tab=onboard&property=${propertyId}`}>
+                      Open Channel Monitor
+                    </Link>
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={isFetching}>
+                  Re-check
+                </Button>
+              </div>
             </div>
           )}
+
         </section>
       </div>
 
