@@ -1763,7 +1763,7 @@ Deno.serve(async (req) => {
       id: string;
       name: string;
       rentalsunited_property_id?: string | null;
-    }, opts: { probe_ari?: boolean } = {}) => {
+    }, opts: { probe_ari?: boolean; force_probe?: boolean } = {}) => {
       // A cold/loaded worker occasionally drops the first dry-run invoke (the tail of a
       // portfolio-wide sweep used to report a false "payload could not be built"), so the
       // build is retried once before it is scored as a real content gap.
