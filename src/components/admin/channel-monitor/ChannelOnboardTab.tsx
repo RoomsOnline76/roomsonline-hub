@@ -71,6 +71,20 @@ interface PropertyOption {
   owner_email: string | null;
 }
 
+/**
+ * A pick in the onboarding dropdown. Channel accounts are inherited from the
+ * portfolio, so an eligible portfolio is offered as a single entry (anchored to
+ * its first eligible member) and its members are dropped from the flat list.
+ */
+interface OnboardOption {
+  /** The property id the orchestrator actually runs against. */
+  id: string;
+  label: string;
+  kind: "portfolio" | "property";
+  memberCount: number;
+}
+
+
 type TaskState = { state: "idle" | "running" | TaskOutcome; detail?: string };
 
 const STATUS_BADGE: Record<GateStepStatus, { label: string; className: string }> = {
