@@ -1924,10 +1924,19 @@ function childAuthMode(auth: ChildAuth | null): string {
  */
 function effectiveCreds(creds: RUCredentials, childAuth: ChildAuth | null): RUCredentials {
   if (childAuth && childAuth.mode === 'keys') {
-    return { ...creds, api_key: childAuth.access_key, api_secret: childAuth.secret_key };
+    return {
+      ...creds,
+      api_key: childAuth.access_key,
+      api_secret: childAuth.secret_key,
+      auth_scope: 'child_keys',
+    };
   }
-  return creds;
+  if (childAuth && childAuth.mode === 'password') {
+    return { ...creds, auth_scope: 'child_password' };
+  }
+  return { ...creds, auth_scope: 'master' };
 }
+
 
 /** Actions that operate on a single sub-user's inventory and must authenticate as that sub-user. */
 const CHILD_SCOPED_ACTIONS = new Set([
