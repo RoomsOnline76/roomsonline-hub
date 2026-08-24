@@ -12,6 +12,7 @@ import {
 import { aiChat, modelForTask, AI_TEMPERATURE } from "../_shared/aiModels.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { reportMonthAnchor, windowMonths } from "../_shared/reportWindow.ts";
+import { runConsultantPass } from "../_shared/reportConsultant.ts";
 
 
 const MAX_SUGGESTION_CHARS = 480;
