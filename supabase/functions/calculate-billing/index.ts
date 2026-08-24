@@ -176,8 +176,10 @@ Deno.serve(async (req) => {
     //
     // When the property (or its portfolio) is assigned a versioned gateway
     // schedule, the fee is resolved from that schedule — percentage + fixed fee,
-    // volume-banded on trailing-30-day paid booking value. Unassigned properties
-    // keep the legacy flat-percentage path, so rollout is per property.
+    // volume-banded on trailing-30-day paid booking value. The active global
+    // schedule counts as assigned, so the schedule is the single source for the
+    // processing rate; the legacy flat percentage applies only when no active
+    // schedule exists at all.
     if (
       event_type === 'booking' &&
       booking_id &&
@@ -186,7 +188,7 @@ Deno.serve(async (req) => {
       !(config?.byo_gateway_monthly_fee > 0)
     ) {
       const schedule = await loadGatewaySchedule(supabase, property_id);
-      const usingSchedule = schedule.source === 'property' || schedule.source === 'portfolio';
+      const usingSchedule = isBillableScheduleSource(schedule.source);
 
       if (usingSchedule && bookingAmount > 0) {
         const periodVolume = await loadPeriodVolume(supabase, property_id);
