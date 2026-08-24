@@ -137,7 +137,44 @@ export interface EvaluateOptions {
   readinessUnknown?: boolean;
 }
 
+export interface StepGateState {
+  step_a: string | null;
+  ready_to_sell: string | null;
+  ready: boolean;
+  blockers: string[];
+}
+
+/**
+ * The ONLY gate a channel write walks: the Step A / Ready-to-sell ledger.
+ *
+ * The retired 4-phase gate re-judged the distribution account on its own rules and
+ * refused pushes that Step A had already proven (a company profile pushed before the
+ * account's keys were last re-verified read as "stale"). The ledger is now authority —
+ * Step A owns the account, Ready-to-sell owns mandatory steps 1–5.
+ */
+export async function readStepGate(admin: any, propertyId: string): Promise<StepGateState> {
+  const { data } = await admin
+    .from("property_channel_step_status")
+    .select("step_key, status")
+    .eq("property_id", propertyId)
+    .in("step_key", ["monitor_step_a", "ready_to_sell"]);
+  const rows = (data ?? []) as { step_key: string; status: string | null }[];
+  const statusOf = (key: string) => rows.find((r) => r.step_key === key)?.status ?? null;
+  const stepA = statusOf("monitor_step_a");
+  const readyToSell = statusOf("ready_to_sell");
+
+  const blockers: string[] = [];
+  if (stepA !== "passed") {
+    blockers.push('Step A (distribution account) has not passed yet — run Step A in the Channel Monitor.');
+  }
+  if (readyToSell !== "passed") {
+    blockers.push('Ready to sell (mandatory steps 1–5) has not passed yet — clear the steps in the Connect a Channel wizard.');
+  }
+  return { step_a: stepA, ready_to_sell: readyToSell, ready: blockers.length === 0, blockers };
+}
+
 /** Evaluate all four phases for a property. */
+
 export async function evaluatePhases(
   admin: any,
   property: {
