@@ -36,6 +36,11 @@ export interface TaskResult {
   outcome: TaskOutcome;
   /** Operator-facing detail: what happened, or why it stopped. */
   detail: string;
+  /**
+   * Milliseconds until the channel's rate window reopens. Only set on `pending`
+   * outcomes — the UI counts this down and resumes the step on its own.
+   */
+  retryAfterMs?: number;
 }
 
 export interface StepRunResult {
@@ -44,6 +49,10 @@ export interface StepRunResult {
   passed: boolean;
   /** A channel rate window deferred a task — nothing failed, it just is not done yet. */
   pending: boolean;
+  /** How long to wait before resuming, when the step is waiting on a rate window. */
+  retryAfterMs?: number;
+  /** The deferred task the resume must restart from. */
+  resumeFromTaskId?: ChannelOnboardTaskId;
   results: TaskResult[];
   summary: string;
 }
