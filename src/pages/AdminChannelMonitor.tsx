@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { RefreshCw, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
@@ -7,7 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,9 +51,6 @@ const ChannelCertificationTab = lazy(() =>
     default: m.ChannelCertificationTab,
   })),
 );
-const RuReservationsPanel = lazy(() =>
-  import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
-);
 const BookingSyncTrailPanel = lazy(() =>
   import("@/components/admin/channel-monitor/BookingSyncTrailPanel").then((m) => ({
     default: m.BookingSyncTrailPanel,
@@ -63,38 +59,15 @@ const BookingSyncTrailPanel = lazy(() =>
 const RuApiLogPanel = lazy(() =>
   import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
 );
+const ChannelSyncObservabilityPanel = lazy(() =>
+  import("@/components/admin/channel-monitor/ChannelSyncObservabilityPanel").then((m) => ({
+    default: m.ChannelSyncObservabilityPanel,
+  })),
+);
 
-const RuBuildingsPanel = lazy(() =>
-  import("@/components/integrations/RuBuildingsPanel").then((m) => ({ default: m.RuBuildingsPanel })),
-);
-const RuCoverageTab = lazy(() =>
-  import("@/components/integrations/RuCoverageTab").then((m) => ({ default: m.RuCoverageTab })),
-);
-const RuAvailabilityPlayground = lazy(() =>
-  import("@/components/integrations/RuAvailabilityPlayground").then((m) => ({
-    default: m.RuAvailabilityPlayground,
-  })),
-);
-const RuPricingPlayground = lazy(() =>
-  import("@/components/integrations/RuPricingPlayground").then((m) => ({ default: m.RuPricingPlayground })),
-);
-const RuCalendarVerifyPanel = lazy(() =>
-  import("@/components/integrations/RuCalendarVerifyPanel").then((m) => ({
-    default: m.RuCalendarVerifyPanel,
-  })),
-);
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
-type TabKey =
-  | "onboard"
-  | "accounts"
-  | "cost"
-  | "binding"
-  | "mapping"
-  | "ari"
-  | "reservations"
-  | "cert"
-  | "advanced";
+type TabKey = "onboard" | "accounts" | "cost" | "cert" | "advanced";
 
 const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean }> = [
   {
@@ -113,41 +86,31 @@ const RAIL: Array<{ key: TabKey; title: string; tests: string; devOnly?: boolean
     tests: "Confirms billable listing counts and forecast spend per sub-account.",
   },
   {
-    key: "binding",
-    title: "Property Binding",
-    tests: "Verifies each property is bound to the correct channel listing and building.",
-  },
-  {
-    key: "mapping",
-    title: "Room & Rate Mapping",
-    tests: "Checks room types and rate plans map to live channel listings.",
-  },
-  {
-    key: "ari",
-    title: "ARI Live Lab",
-    tests: "Runs live availability and pricing reads against the channel for a chosen property.",
-  },
-  {
-    key: "reservations",
-    title: "Reservation Round-Trip",
-    tests: "Creates, modifies and cancels reservations end-to-end and shows the sync trail.",
-  },
-  {
     key: "cert",
     title: "Cert Status & Logs",
-    tests: "Full certification console with run history and the searchable RU exchange log.",
+    tests: "Certification evidence: milestones, coverage, windows, discounts and readiness.",
   },
   {
     key: "advanced",
     title: "Advanced (Dev only)",
-    tests: "Queue, retries and low-level channel plumbing for engineers.",
-    devOnly: true,
+    tests: "Runner, queue, exchange log, sync observability and error handling for engineers.",
+  devOnly: true,
   },
 ];
 
 const TAB_KEYS: TabKey[] = RAIL.map((r) => r.key);
-// Old tab names stay valid so health-report and wizard deep links keep working.
-const LEGACY_TAB_MAP: Record<string, TabKey> = { diagnostics: "cert" };
+/**
+ * Retired rails keep working as deep links: mapping/coverage evidence lives in Cert, while the
+ * engineering surfaces (diagnostics, ARI labs, reservation round-trip, binding) fold into Advanced.
+ */
+const LEGACY_TAB_MAP: Record<string, TabKey> = {
+  diagnostics: "advanced",
+  binding: "advanced",
+  ari: "advanced",
+  reservations: "advanced",
+  mapping: "cert",
+};
+
 
 /** Chip tone: ready / attention / failing / unknown. Presentation only. */
 type ChipTone = "ok" | "warn" | "bad" | "muted";
@@ -159,12 +122,6 @@ const CHIP_TONE: Record<ChipTone, string> = {
   muted: "border-border bg-muted text-muted-foreground",
 };
 
-const relativeAge = (iso: string) => {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
-  return `${Math.round(mins / 1440)}d ago`;
-};
 
 
 export default function AdminChannelMonitor() {
@@ -184,7 +141,6 @@ export default function AdminChannelMonitor() {
 
   const { isDev, isFearlessLeader } = useAuth();
   const [certSubTab, setCertSubTab] = useState<string | undefined>(undefined);
-  const [ariPropertyId, setAriPropertyId] = useState<string>("");
 
   const rawTab = params.get("tab");
   const mapped = rawTab ? (LEGACY_TAB_MAP[rawTab] ?? (rawTab as TabKey)) : null;
@@ -377,14 +333,7 @@ export default function AdminChannelMonitor() {
   // Every chip below reads state the page already has in memory — no extra queries.
   const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string }>>(() => {
     const loading = data.loading || railStatus.loading;
-    const live = data.properties.filter((p) => p.state === "live").length;
-    const withoutFootprint = data.subAccountPropertiesWithoutFootprint;
     const neverPushed = data.properties.filter((p) => p.neverPushed).length;
-    const lastPush = data.properties
-      .map((p) => p.lastPushAt)
-      .filter((v): v is string => !!v)
-      .sort()
-      .pop();
     const run = railStatus.latestRun;
     const keys = railStatus.keys;
 
@@ -394,14 +343,11 @@ export default function AdminChannelMonitor() {
         onboard: pending,
         accounts: pending,
         cost: pending,
-        binding: pending,
-        mapping: pending,
-        ari: pending,
-        reservations: pending,
         cert: pending,
         advanced: { tone: "muted", label: "Engineers only" },
       };
     }
+
 
     return {
       onboard:
@@ -416,27 +362,8 @@ export default function AdminChannelMonitor() {
               label: keys.total === 0 ? "No sub-accounts" : `${keys.total - keys.verified} key(s) unverified`,
             },
       cost: { tone: "muted", label: `${data.billableListings} listings billable` },
-      binding:
-        withoutFootprint === 0
-          ? { tone: "ok", label: "All bound" }
-          : { tone: "warn", label: `${withoutFootprint} without footprint` },
-      mapping:
-        data.duplicateListings === 0 && neverPushed === 0
-          ? { tone: "ok", label: "Mappings complete" }
-          : {
-              tone: data.duplicateListings > 0 ? "bad" : "warn",
-              label:
-                data.duplicateListings > 0
-                  ? `${data.duplicateListings} duplicate listing(s)`
-                  : `${neverPushed} never pushed`,
-            },
-      ari: lastPush
-        ? { tone: "ok", label: `ARI pushed ${relativeAge(lastPush)}` }
-        : { tone: "warn", label: "No ARI push yet" },
-      reservations:
-        live > 0
-          ? { tone: "ok", label: `${live} live on channel` }
-          : { tone: "warn", label: "Nothing live to test" },
+      // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
+
       cert: run
         ? {
             tone: run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "warn",
@@ -448,14 +375,8 @@ export default function AdminChannelMonitor() {
   }, [data, railStatus]);
 
 
-  // Deep-open the certification console on a specific sub-tab from another rail item.
-  const openCert = useCallback(
-    (subTab: string) => {
-      setCertSubTab(subTab);
-      setTab("cert");
-    },
-    [setTab],
-  );
+
+
 
   return (
     <AppLayout>
@@ -582,89 +503,27 @@ export default function AdminChannelMonitor() {
               </Suspense>
             )}
 
-            {/* Listing/building binding evidence. */}
-            {tab === "binding" && (
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuBuildingsPanel />
-                <ChannelReconciliationPanel
-                  billableListings={data.billableListings}
-                  onChanged={() => data.refresh()}
-                />
-              </Suspense>
-            )}
-
-            {tab === "mapping" && (
-              <>
-                <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={() => openCert("coverage")}>
-                    Open certification coverage
-                  </Button>
-                </div>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuCoverageTab />
-                </Suspense>
-              </>
-            )}
-
-            {tab === "ari" && (
-              <>
-                <Card>
-                  <CardContent className="flex flex-wrap items-center gap-2 p-3">
-                    <Select value={ariPropertyId} onValueChange={setAriPropertyId}>
-                      <SelectTrigger className="w-full sm:w-80">
-                        <SelectValue placeholder="Choose a property to test" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {reservationProperties.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button variant="outline" size="sm" onClick={() => openCert("availability")}>
-                      Availability window
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => openCert("pricing")}>
-                      Pricing window
-                    </Button>
-                  </CardContent>
-                </Card>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuAvailabilityPlayground
-                    propertyId={ariPropertyId}
-                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
-                  />
-                  <RuPricingPlayground
-                    propertyId={ariPropertyId}
-                    propertyName={reservationProperties.find((p) => p.id === ariPropertyId)?.name}
-                  />
-                </Suspense>
-              </>
-            )}
-
-            {/* Reservation ingest diagnostics + Pull_GetReservationByID lookup + sync trail. */}
-            {tab === "reservations" && (
-              <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                <RuReservationsPanel properties={reservationProperties} />
-                <BookingSyncTrailPanel
-                  properties={reservationProperties}
-                  onInspectExchange={(term) => {
-                    setExchangeSearch(term);
-                    setExchangeOpen(true);
-                    setTab("cert");
-                    window.setTimeout(
-                      () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                      150,
-                    );
-                  }}
-                />
-              </Suspense>
-            )}
-
-            {/* Durable request/response/ResponseID log — the evidence trail for support escalations. */}
+            {/* Certification evidence for operators — the runner itself lives in Advanced. */}
             {tab === "cert" && (
               <>
+                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                  <ChannelCertificationTab initialTab={certSubTab} />
+                </Suspense>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Channel step ledger
+                  </h2>
+                  <ChannelLedgerMetricsPanel />
+                </section>
+              </>
+            )}
+
+            {/* Engineers' surface: runner, queue, raw exchange log, sync trail and observability. */}
+            {tab === "advanced" && (
+              <>
+                <ChannelCallQueuePanel />
+
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
@@ -685,39 +544,43 @@ export default function AdminChannelMonitor() {
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Certification runs
+                    Certification runner &amp; recent runs
                   </h2>
                   <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <ChannelCertificationTab initialTab={certSubTab} />
+                    <ChannelCertificationTab variant="advanced" />
                   </Suspense>
                 </section>
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Channel step ledger
+                    Booking sync trail
                   </h2>
-                  <ChannelLedgerMetricsPanel />
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <BookingSyncTrailPanel
+                      properties={reservationProperties}
+                      onInspectExchange={(term) => {
+                        setExchangeSearch(term);
+                        setExchangeOpen(true);
+                        window.setTimeout(
+                          () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                          150,
+                        );
+                      }}
+                    />
+                  </Suspense>
+                </section>
+
+                <section className="space-y-2">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Sync observability &amp; error handling
+                  </h2>
+                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                    <ChannelSyncObservabilityPanel />
+                  </Suspense>
                 </section>
               </>
             )}
 
-
-            {tab === "advanced" && (
-              <>
-                <ChannelCallQueuePanel />
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <RuCalendarVerifyPanel properties={reservationProperties} />
-                </Suspense>
-                <Card>
-                  <CardContent className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm text-muted-foreground">
-                    <span>Sync error classification, currency, live notifications and content quality.</span>
-                    <Button asChild variant="outline" size="sm">
-                      <Link to="/admin/integrations/rentals-united?tab=errors">Open channel diagnostics</Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              </>
-            )}
           </div>
         </div>
 

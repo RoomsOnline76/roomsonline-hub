@@ -412,11 +412,19 @@ const PHASE_LABELS: Record<string, string> = {
 export function RuCertificationConsole({
   properties,
   initialTab,
+  variant = "cert",
 }: {
   properties: PropertyLite[];
-  /** Optional deep-open target sub-tab. Omitted = today's default ("runs"). */
+  /** Optional deep-open target sub-tab. Omitted = the variant's first tab. */
   initialTab?: string;
+  /**
+   * `cert` = the operator console (milestones, coverage, windows, discounts, readiness, users).
+   * `advanced` = the engineers' surface: the certification runner, its recent runs and refresh
+   * compliance, rendered from the Channel Monitor's Advanced tab.
+   */
+  variant?: "cert" | "advanced";
 }) {
+
   const [suite, setSuite] = useState("read_only");
   const { cooldownSeconds, cooling, markRun } = useRuRunCooldown();
   const [propertyId, setPropertyId] = useState<string>("none");
@@ -794,10 +802,22 @@ export function RuCertificationConsole({
 
   const selectedEp = USER_ENDPOINTS.find((e) => e.key === pgEndpoint);
 
+  /**
+   * The runner, its run history and refresh compliance live on the engineers' surface; the
+   * operator console keeps the evidence tabs. One component, two mounts, no duplicated logic.
+   */
+  const allowedTabs = variant === "advanced"
+    ? ["runs", "cadence"]
+    : ["milestones", "coverage", "availability", "pricing", "discounts", "readiness", "users"];
+  const shows = (key: string) => allowedTabs.includes(key);
+  const defaultTab = initialTab && allowedTabs.includes(initialTab) ? initialTab : allowedTabs[0];
+
   return (
     <div className="space-y-6">
-      {/* Runner */}
+      {/* Runner — engineers only; the operator console reads the stored evidence instead. */}
+      {variant === "advanced" && (
       <Card>
+
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Certification runner</CardTitle>
           <CardDescription>
@@ -852,49 +872,77 @@ export function RuCertificationConsole({
           </p>
         </CardContent>
       </Card>
+      )}
 
-      <Tabs key={initialTab ?? "runs"} defaultValue={initialTab ?? "runs"} className="space-y-4">
+      <Tabs key={defaultTab} defaultValue={defaultTab} className="space-y-4">
         <TabsList className="flex-wrap h-auto">
-          <TabsTrigger value="runs" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Runs</TabsTrigger>
-          <TabsTrigger value="milestones" className="gap-1.5" onClick={loadMilestones}>
-            <CheckCircle2 className="h-3.5 w-3.5" />Milestones
-          </TabsTrigger>
-          <TabsTrigger value="coverage" className="gap-1.5"><ListChecks className="h-3.5 w-3.5" />Coverage</TabsTrigger>
-          <TabsTrigger value="availability" className="gap-1.5"><CalendarRange className="h-3.5 w-3.5" />Availability window</TabsTrigger>
-          <TabsTrigger value="pricing" className="gap-1.5"><Tags className="h-3.5 w-3.5" />Pricing window</TabsTrigger>
-          <TabsTrigger value="cadence" className="gap-1.5" onClick={loadCadence}><Clock className="h-3.5 w-3.5" />Refresh compliance</TabsTrigger>
-          <TabsTrigger value="discounts" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Discounts</TabsTrigger>
-          <TabsTrigger value="readiness" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />WL readiness</TabsTrigger>
-          <TabsTrigger value="users" className="gap-1.5" onClick={loadUserMgmt}>
-            <Users className="h-3.5 w-3.5" />User management
-          </TabsTrigger>
+          {shows("runs") && (
+            <TabsTrigger value="runs" className="gap-1.5"><ShieldCheck className="h-3.5 w-3.5" />Runs</TabsTrigger>
+          )}
+          {shows("milestones") && (
+            <TabsTrigger value="milestones" className="gap-1.5" onClick={loadMilestones}>
+              <CheckCircle2 className="h-3.5 w-3.5" />Milestones
+            </TabsTrigger>
+          )}
+          {shows("coverage") && (
+            <TabsTrigger value="coverage" className="gap-1.5"><ListChecks className="h-3.5 w-3.5" />Coverage</TabsTrigger>
+          )}
+          {shows("availability") && (
+            <TabsTrigger value="availability" className="gap-1.5"><CalendarRange className="h-3.5 w-3.5" />Availability window</TabsTrigger>
+          )}
+          {shows("pricing") && (
+            <TabsTrigger value="pricing" className="gap-1.5"><Tags className="h-3.5 w-3.5" />Pricing window</TabsTrigger>
+          )}
+          {shows("cadence") && (
+            <TabsTrigger value="cadence" className="gap-1.5" onClick={loadCadence}><Clock className="h-3.5 w-3.5" />Refresh compliance</TabsTrigger>
+          )}
+          {shows("discounts") && (
+            <TabsTrigger value="discounts" className="gap-1.5"><Percent className="h-3.5 w-3.5" />Discounts</TabsTrigger>
+          )}
+          {shows("readiness") && (
+            <TabsTrigger value="readiness" className="gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" />WL readiness</TabsTrigger>
+          )}
+          {shows("users") && (
+            <TabsTrigger value="users" className="gap-1.5" onClick={loadUserMgmt}>
+              <Users className="h-3.5 w-3.5" />User management
+            </TabsTrigger>
+          )}
         </TabsList>
 
+        {shows("coverage") && (
         <TabsContent value="coverage">
           <RuCoverageTab />
         </TabsContent>
+        )}
 
         {/* Availability — rolling 365-day window evidence (Step 3) */}
+        {shows("availability") && (
         <TabsContent value="availability">
           <RuAvailabilityPlayground
             propertyId={propertyId}
             propertyName={properties.find((p) => p.id === propertyId)?.name}
           />
         </TabsContent>
+        )}
 
         {/* Pricing — rolling 365-day price window evidence (Step 4) */}
+        {shows("pricing") && (
         <TabsContent value="pricing">
           <RuPricingPlayground
             propertyId={propertyId}
             propertyName={properties.find((p) => p.id === propertyId)?.name}
           />
         </TabsContent>
+        )}
+
 
 
 
 
         {/* Milestones — core functional certification matrix */}
+        {shows("milestones") && (
         <TabsContent value="milestones">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -976,10 +1024,14 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
 
         {/* Runs */}
+        {shows("runs") && (
         <TabsContent value="runs">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Recent certification runs</CardTitle>
@@ -1041,9 +1093,13 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Cadence */}
+        {shows("cadence") && (
         <TabsContent value="cadence">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1131,9 +1187,13 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Discounts */}
+        {shows("discounts") && (
         <TabsContent value="discounts">
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Long-stay & last-minute discounts</CardTitle>
@@ -1342,9 +1402,13 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Readiness */}
+        {shows("readiness") && (
         <TabsContent value="readiness">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1457,9 +1521,13 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
 
         {/* Users */}
+        {shows("users") && (
         <TabsContent value="users">
+
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -1635,6 +1703,8 @@ export function RuCertificationConsole({
             </CardContent>
           </Card>
         </TabsContent>
+        )}
+
       </Tabs>
 
       {/* Run detail sheet */}
