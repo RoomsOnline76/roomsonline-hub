@@ -1701,6 +1701,12 @@ const Dashboard = () => {
                             <p className="font-medium mb-1">{label}</p>
                             {data?.isDataGap && <p className="text-red-500 font-medium">⚠ Data Gap</p>}
                             {data?.isInterpolated && <p className="text-amber-500 font-medium">~ Interpolated</p>}
+                            {data?.isFuture && (
+                              <p className="text-sky-500 font-medium">
+                                On the books: {data.otbBookings ?? 0} bkg
+                                {comparePrevYear && ` · STLY ${data.stlyBookings ?? 0}`}
+                              </p>
+                            )}
                             {payload.map((entry: any, i: number) => (
                               <p key={i} style={{ color: entry.color }}>
                                 {entry.name}: {entry.value}
