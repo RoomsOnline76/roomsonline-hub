@@ -80,13 +80,30 @@ interface PropRow {
   is_sandbox?: boolean | null;
 }
 
+export interface RuAccountManagerPanelProps {
+  /** Scope the list to the accounts that serve this property. */
+  propertyId?: string | null;
+  /** Scope the list to this portfolio's account (inherited by all its members). */
+  portfolioId?: string | null;
+  /** Property ids in the scoped portfolio — used to match owner-email-only accounts. */
+  memberIds?: string[];
+  /** Hide the KPI cards and cross-links when embedded in a dialog. */
+  embedded?: boolean;
+}
+
 /**
- * Rentals United sub-account management view for the Portfolios page.
+ * Rentals United distribution account manager.
  * Lists every RU sub-user created under the RoomsOnline master account and the
  * properties that sit beneath it (portfolio members, direct property scope, or
- * owner-email match).
+ * owner-email match). Rendered full-page on the Portfolios page and embedded —
+ * scoped to one property/portfolio — inside the Step A account dialog.
  */
-export function PortfolioRuAccountsTab() {
+export function RuAccountManagerPanel({
+  propertyId = null,
+  portfolioId = null,
+  memberIds,
+  embedded = false,
+}: RuAccountManagerPanelProps = {}) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
