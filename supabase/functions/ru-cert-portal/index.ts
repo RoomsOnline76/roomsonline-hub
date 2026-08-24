@@ -4448,6 +4448,113 @@ Deno.serve(async (req) => {
 
 
     /**
+     * ── mintChildKeyPair ─────────────────────────────────────────────────────────
+     * Single implementation of "get this sub-account a stored AccessKey/SecretKey pair".
+     * Authenticates AS the child (stored keys when we have them, otherwise the login
+     * email + the password we set at creation) and calls Push_CreateApiKey_RQ, then
+     * persists the pair immediately — RU returns the SecretKey exactly once.
+     *
+     * Used by the `create_api_key` action AND by `ensure_owner_account`, so a freshly
+     * created sub-account leaves Step A already holding keys: no portal visit, no
+     * separate manual step.
+     */
+    const mintChildKeyPair = async (opts: {
+      ownerId: string;
+      loginEmail: string | null;
+      accountId?: string | null;
+      keyLabel?: string;
+      plainPassword?: string | null;
+      authAccessKey?: string | null;
+      authSecretKey?: string | null;
+    }): Promise<{
+      ok: boolean;
+      accessKey?: string;
+      code?: string;
+      message?: string;
+      rateDeferred?: boolean;
+      retryAfterMs?: number;
+    }> => {
+      const keyLabel = opts.keyLabel?.trim() || "ROLOS";
+      const authBody: Record<string, unknown> = { action: "create_child_api_key", key_label: keyLabel };
+      if (opts.authAccessKey && opts.authSecretKey) {
+        authBody.auth_access_key = opts.authAccessKey;
+        authBody.auth_secret_key = opts.authSecretKey;
+      } else if (opts.loginEmail && opts.plainPassword) {
+        authBody.auth_username = opts.loginEmail;
+        authBody.auth_password = opts.plainPassword;
+      } else {
+        return {
+          ok: false,
+          code: "NO_CHILD_CREDENTIALS",
+          message:
+            "No usable sub-account credential is stored, so a key pair cannot be minted for this account.",
+        };
+      }
+
+      const { data: created, error: createError } = await admin.functions.invoke("rentalsunited-api", { body: authBody });
+      const rawMessage = String(created?.error?.message ?? createError?.message ?? "");
+      if (createError || created?.success !== true || !created?.access_key || !created?.secret_key) {
+        // A channel rate limit is a "come back shortly", never a failure: the caller
+        // surfaces the countdown and the task resumes on its own.
+        const deferred = /RU_RATE_DEFERRED|rate limit|less than a minute/i.test(rawMessage);
+        const retryMatch = rawMessage.match(/retry in (\d+)s/i);
+        return {
+          ok: false,
+          rateDeferred: deferred,
+          retryAfterMs: deferred ? Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000) : undefined,
+          code: deferred ? "RU_RATE_DEFERRED" : "RU_CREATE_KEY_FAILED",
+          message: rawMessage || "Rentals United did not return a new API key pair.",
+        };
+      }
+
+      const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
+      if (encErr || !enc) {
+        return {
+          ok: false,
+          code: "ENCRYPT_FAILED",
+          message: encErr?.message || "Could not encrypt the new secret key",
+        };
+      }
+
+      if (opts.ownerId) {
+        const { error: credErr } = await admin.from("ru_api_credentials").upsert({
+          ru_owner_id: opts.ownerId,
+          login_email: opts.loginEmail,
+          access_key: created.access_key,
+          secret_enc: enc,
+          key_label: keyLabel,
+          verified_at: new Date().toISOString(),
+        }, { onConflict: "ru_owner_id" });
+        if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
+      }
+
+      if (opts.accountId) {
+        const { error: upErr } = await admin.from("ru_owner_accounts").update({
+          ru_api_access_key: created.access_key,
+          ru_api_secret_enc: enc,
+          ru_api_key_label: keyLabel,
+          ru_api_keys_verified_at: new Date().toISOString(),
+        }).eq("id", opts.accountId);
+        if (upErr) return { ok: false, code: "SAVE_FAILED", message: upErr.message };
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_api_credentials",
+        record_id: opts.accountId ?? null,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${opts.loginEmail ?? "unknown"} (OwnerID ${opts.ownerId || "?"})`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return { ok: true, accessKey: String(created.access_key) };
+    };
+
+    /**
      * ── create_api_key: mint an additional key pair for the sub-user via the RU API ──
      * Requires an already-working credential for that sub-user (stored keys, or the legacy
      * portal password on pre-rollout accounts). The new secret is stored immediately because
