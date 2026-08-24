@@ -75,6 +75,7 @@ interface BlockerTarget {
 const UNIT_OWNED_CHECKS = new Set([
   "content_quality",
   "unit_content_quality",
+  "unit_stay_times",
   "rooms_beds",
   "photos",
   "availability_365",
