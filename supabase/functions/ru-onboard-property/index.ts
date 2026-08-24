@@ -232,9 +232,12 @@ Deno.serve(async (req) => {
 
     const { data: property } = await admin
       .from("properties")
-      .select("id, name, owner_email, owner_name, rentalsunited_property_id, ru_push_enabled, is_active")
+      .select(
+        "id, name, owner_email, owner_name, rentalsunited_property_id, ru_push_enabled, is_active, ru_listings_verified_units, ru_listings_expected_units, ru_listings_verified_at",
+      )
       .eq("id", propertyId)
       .maybeSingle();
+
     if (!property) {
       return json({ success: false, error: { code: "NOT_FOUND", message: "Property not found" } }, 404);
     }
