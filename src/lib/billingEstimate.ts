@@ -197,37 +197,69 @@ export function buildBillingEstimate(
   const propertyCount = properties.length;
   const bookings = Math.max(0, Math.round(n(input.monthlyBookings)));
   const value = Math.max(0, n(input.monthlyBookingValue));
+  const widgetBookings = Math.max(0, Math.round(n(input.widgetBookings)));
+  const widgetValue = Math.max(0, n(input.widgetBookingValue));
+  /** Everything settled through the ROL gateway. */
+  const processedValue = value + widgetValue;
+  const processedBookings = bookings + widgetBookings;
 
   const lines: EstimateLine[] = [];
   const setupLines: SetupLine[] = [];
 
-  // ── Commission — always payable, in and out of the free window ────────────
+  // ── OTA / platform commission — always payable, in and out of the free window
   const commissionRate = n(preset?.default_commission_rate);
   const commission = value * (commissionRate / 100);
   lines.push({
     key: "commission",
-    label: "Booking commission",
+    label: "OTA / platform booking commission",
     detail: commissionRate
       ? `${commissionRate}% of ${money(value)} booked through the platform`
       : "No commission configured on this preset",
+    group: "transaction",
     freePeriod: commission,
     steadyState: commission,
     waivedInFreePeriod: false,
   });
+
+  // ── Widget (direct) commission — flat or volume-tiered ────────────────────
+  let widgetRate: number | null = null;
+  if (widgetValue > 0 || widgetBookings > 0) {
+    const mode: WidgetCommissionMode = input.widgetCommissionMode ?? "flat";
+    const flat = n(preset?.widget_flat_commission_rate) || commissionRate;
+    const resolved = resolveWidgetRate(mode, widgetBookings, flat, input.widgetTiers);
+    widgetRate = resolved.rate;
+    const widgetCommission = widgetValue * (resolved.rate / 100);
+    lines.push({
+      key: "widget_commission",
+      label: "Booking widget commission",
+      detail:
+        mode === "flat"
+          ? `Flat ${resolved.rate}% of ${money(widgetValue)} booked on the widget`
+          : `${resolved.rate}% of ${money(widgetValue)} — volume band from ${
+              resolved.tier?.min_bookings ?? 0
+            } bookings per month (${widgetBookings} entered)`,
+      group: "transaction",
+      freePeriod: widgetCommission,
+      steadyState: widgetCommission,
+      waivedInFreePeriod: false,
+    });
+  }
 
   // ── Card processing — always payable when ROL processes ───────────────────
   let gatewayNote = "";
   let usedLegacyGatewayFallback = false;
   if (input.paymentMode === "rol") {
     if (schedule) {
-      const rate = getEffectiveBillingRate(schedule, value, value, overrides ?? null);
-      const processing = value * (rate.percentage / 100) + rate.fixed_fee * bookings;
+      const rate = getEffectiveBillingRate(schedule, processedValue, processedValue, overrides ?? null);
+      const processing = processedValue * (rate.percentage / 100) + rate.fixed_fee * processedBookings;
       const model = GATEWAY_MODEL_LABELS[normalizeGatewayModel(schedule.model)];
-      const fixedPart = rate.fixed_fee > 0 ? ` + ${money(rate.fixed_fee)} x ${bookings} transactions` : "";
+      const fixedPart =
+        rate.fixed_fee > 0 ? ` + ${money(rate.fixed_fee)} x ${processedBookings} transactions` : "";
       lines.push({
         key: "processing",
         label: "Card processing (ROL processes)",
-        detail: `${rate.percentage}% of ${money(value)}${fixedPart}`,
+        detail: `${rate.percentage}% of ${money(processedValue)}${fixedPart}`,
+        group: "transaction",
         freePeriod: processing,
         steadyState: processing,
         waivedInFreePeriod: false,
@@ -237,6 +269,7 @@ export function buildBillingEstimate(
           key: "processing_platform",
           label: "Payment platform fee",
           detail: `${money(rate.monthly_fee)} per month on the ${model} schedule`,
+          group: "recurring",
           freePeriod: 0,
           steadyState: rate.monthly_fee,
           waivedInFreePeriod: true,
@@ -247,12 +280,13 @@ export function buildBillingEstimate(
       }${rate.usedOverride ? " (negotiated rate applied)" : ""}`;
     } else {
       const fallback = n(preset?.default_transaction_fee);
-      const processing = value * (fallback / 100);
+      const processing = processedValue * (fallback / 100);
       usedLegacyGatewayFallback = true;
       lines.push({
         key: "processing",
         label: "Card processing (ROL processes)",
-        detail: `${fallback}% of ${money(value)} — preset fallback`,
+        detail: `${fallback}% of ${money(processedValue)} — preset fallback`,
+        group: "transaction",
         freePeriod: processing,
         steadyState: processing,
         waivedInFreePeriod: false,
@@ -261,8 +295,21 @@ export function buildBillingEstimate(
     }
   } else if (input.paymentMode === "byo") {
     gatewayNote = "Own gateway — processing fees stay with that provider and are not billed by RoomsOnline.";
+    const byo = n(preset?.byo_gateway_monthly_fee);
+    if (byo > 0) {
+      lines.push({
+        key: "byo_gateway",
+        label: "Own-gateway integration fee",
+        detail: `${money(byo)} per month to run the property's own gateway`,
+        group: "recurring",
+        freePeriod: 0,
+        steadyState: byo,
+        waivedInFreePeriod: true,
+      });
+    }
   } else {
     gatewayNote = "Reservation only — no card payment is processed, so no processing fee applies.";
+
   }
 
   // ── PMS subscription — free for the first 60 days ─────────────────────────
