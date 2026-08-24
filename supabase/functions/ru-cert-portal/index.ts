@@ -5487,9 +5487,18 @@ Deno.serve(async (req) => {
     if (
       action === "ensure_owner_account" ||
       action === "ensure_company_details" ||
-      action === "plan_owner_account"
+      action === "plan_owner_account" ||
+      action === "preview_company_details"
     ) {
       const isPlan = action === "plan_owner_account";
+      /**
+       * `preview_company_details` composes the company profile exactly as the push would
+       * and returns the resolved field/value list WITHOUT contacting the channel and
+       * without any local write. It backs the "Company details to be sent" panel in the
+       * Step A account dialog.
+       */
+      const isCompanyPreview = action === "preview_company_details";
+      const readOnly = isPlan || isCompanyPreview;
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
       if (!propertyId && !portfolioId) {
@@ -5497,7 +5506,7 @@ Deno.serve(async (req) => {
       }
 
       const flag = await readUserMgmtFlag();
-      if (!flag.enabled && !isPlan) {
+      if (!flag.enabled && !readOnly) {
         return json({
           success: false,
           error: { code: "USER_MGMT_DISABLED", message: "RU user management is parked. Enable it on the Users tab first." },
