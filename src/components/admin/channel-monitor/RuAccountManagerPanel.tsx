@@ -174,7 +174,7 @@ export function RuAccountManagerPanel({
 
   // Binding: RU can hold several sub-users for the same owner (and logins can be renamed
   // in the RU portal), so admins must be able to point a local row at a specific OwnerID.
-  // Unbind clears the local link entirely so Phase 1 can create a new sub-user.
+  // Unbind clears the local link entirely so Step A can create a new sub-user.
   const [bindFor, setBindFor] = useState<{ id: string; ownerId: string | null } | null>(null);
   const [bindCandidates, setBindCandidates] = useState<
     { owner_id: string; email: string; user_account_id?: string; archived?: boolean }[]
@@ -217,7 +217,7 @@ export function RuAccountManagerPanel({
 
 
   // Unbinding clears the complete RU identity and the portfolio owner email, then prompts the
-  // admin to choose the email that Phase 1 must use for the next RU sub-user login.
+  // admin to choose the email that Step A must use for the next RU sub-user login.
   // Extra RU company / legal-representative profile fields.
 
   const [ownerEmailFor, setOwnerEmailFor] = useState<{ portfolioId: string } | null>(null);
@@ -293,7 +293,7 @@ export function RuAccountManagerPanel({
     },
   });
 
-  /** Clear the local RU OwnerID bind so Phase 1 can create a new sub-user. */
+  /** Clear the local RU OwnerID bind so Step A can create a new sub-user. */
   const unbindAccount = useCallback(async () => {
     if (!bindFor) return;
     const acc = accounts.find((a) => a.id === bindFor.id);
@@ -940,7 +940,7 @@ export function RuAccountManagerPanel({
         <div className="text-center py-16 text-muted-foreground">
           <ShieldCheck className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm">
-            No Rentals United sub-accounts yet. Create one from Phase 1 of the RU onboarding pipeline.
+            No Rentals United sub-accounts yet. Create one from Step A of the RU onboarding pipeline.
           </p>
         </div>
       ) : (
@@ -1335,7 +1335,7 @@ export function RuAccountManagerPanel({
                         <p className="text-[10px] text-muted-foreground">
                           {acc.ru_login_password_enc
                             ? "The generated sub-user password is kept encrypted so you can sign in to the Rentals United portal later. Admin only."
-                            : "No password stored for this row. After Phase 1 creates a sub-user, the password is retained here automatically."}
+                            : "No password stored for this row. After Step A creates a sub-user, the password is retained here automatically."}
                         </p>
                       )}
                     </div>
@@ -1484,7 +1484,7 @@ export function RuAccountManagerPanel({
             <DialogDescription>
               Set the owner email for{" "}
               {(ownerEmailFor && portfolioById.get(ownerEmailFor.portfolioId)?.name) || "this portfolio"}. Pick one of the
-               member properties' owners (or type another) — Phase 1 uses this as the new RU sub-user login and contact email.
+               member properties' owners (or type another) — Step A uses this as the new RU sub-user login and contact email.
 
             </DialogDescription>
           </DialogHeader>
@@ -1548,8 +1548,8 @@ export function RuAccountManagerPanel({
             </DialogTitle>
             <DialogDescription>
               {bindFor?.ownerId
-                ? "Unbind clears the local OwnerID so Phase 1 can create a new sub-user. Close archives the sub-user on Rentals United via Push_ArchiveUser_RQ (child auth). Or pick a different existing RU account below to rebind."
-                : "These are the sub-users Rentals United currently holds under our master account. Pick the one this record should use — Phase 1 then reconnects to it instead of trying to create a duplicate."}
+                ? "Unbind clears the local OwnerID so Step A can create a new sub-user. Close archives the sub-user on Rentals United via Push_ArchiveUser_RQ (child auth). Or pick a different existing RU account below to rebind."
+                : "These are the sub-users Rentals United currently holds under our master account. Pick the one this record should use — Step A then reconnects to it instead of trying to create a duplicate."}
             </DialogDescription>
           </DialogHeader>
 
@@ -1614,7 +1614,7 @@ export function RuAccountManagerPanel({
             <p className="text-xs text-muted-foreground py-4">
               Rentals United returned no sub-users under our master account.
               {bindFor?.ownerId
-                ? " You can still Unbind or Close above, then run Phase 1 to create a new sub-user."
+                ? " You can still Unbind or Close above, then run Step A to create a new sub-user."
                 : ""}
             </p>
           ) : (
