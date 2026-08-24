@@ -418,11 +418,32 @@ export function ChannelOnboardTab({
             })),
           onPushProgress: (progress) => setPushProgress(progress),
         });
+        // A taken login is a decision to hand back, not a plain failure: keep the modal
+        // open on the chooser so the operator can pick or type a usable address.
+        const conflict = result.results.find((r) => r.code === "RU_EMAIL_IN_USE");
+        if (conflict) {
+          setEmailConflict({
+            email: chosenLoginEmail || String(plan?.login_email ?? ""),
+            message: conflict.detail,
+            candidates: (conflict.loginCandidates ?? []).filter((c) => c.email),
+          });
+          setChosenLoginEmail("");
+          setAccountDialogOpen(true);
+        } else if (result.passed && step === "a") {
+          setEmailConflict(null);
+          setChosenLoginEmail("");
+        }
         if (result.passed) {
           toast.success(
             step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
           );
+        } else if (conflict) {
+          toast.error("A different distribution login is needed", {
+            description: conflict.detail,
+            duration: 12000,
+          });
         } else if (result.pending) {
+
           const waitMs = result.retryAfterMs ?? 60_000;
           const canAutoResume = attempt + 1 < MAX_AUTO_RESUMES;
           setWaiting((prev) => ({
