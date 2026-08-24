@@ -105,24 +105,29 @@ function readSaved(): SavedEstimatorState | null {
 
 
 export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
+  const saved = useMemo(() => readSaved(), []);
   const [open, setOpen] = useState(true);
-  const [presetId, setPresetId] = useState<string | null>(null);
-  const [rows, setRows] = useState<EstimatorProperty[]>(() => [newRow(0)]);
-  const [bookings, setBookings] = useState("20");
-  const [bookingValue, setBookingValue] = useState("150000");
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>("rol");
-  const [widgetBookings, setWidgetBookings] = useState("10");
-  const [widgetValue, setWidgetValue] = useState("60000");
-  const [widgetMode, setWidgetMode] = useState<WidgetCommissionMode>("flat");
-  const [addOns, setAddOns] = useState<EstimatorAddOns>({
-    pms: true,
-    channel_manager: true,
-    branding: false,
-    white_label: false,
-    pricelabs: false,
-    hubspot: true,
-  });
+  const [presetId, setPresetId] = useState<string | null>(saved?.presetId ?? null);
+  const [rows, setRows] = useState<EstimatorProperty[]>(() => saved?.rows ?? [newRow(0)]);
+  const [bookings, setBookings] = useState(saved?.bookings ?? "20");
+  const [bookingValue, setBookingValue] = useState(saved?.bookingValue ?? "150000");
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(saved?.paymentMode ?? "rol");
+  const [widgetBookings, setWidgetBookings] = useState(saved?.widgetBookings ?? "10");
+  const [widgetValue, setWidgetValue] = useState(saved?.widgetValue ?? "60000");
+  const [widgetMode, setWidgetMode] = useState<WidgetCommissionMode>(saved?.widgetMode ?? "flat");
+  const [addOns, setAddOns] = useState<EstimatorAddOns>(
+    saved?.addOns ?? {
+      pms: true,
+      channel_manager: true,
+      branding: false,
+      white_label: false,
+      pricelabs: false,
+      hubspot: true,
+    },
+  );
+  const [savedAt, setSavedAt] = useState<string | null>(saved?.savedAt ?? null);
   const [showExtras, setShowExtras] = useState(false);
+
 
   const { data: schedules = [] } = useQuery({
     queryKey: ["gateway-billing-configs", "estimator"],
