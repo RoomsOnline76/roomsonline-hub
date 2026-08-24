@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
+
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,7 +117,8 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
   const [rebindOpen, setRebindOpen] = useState(false);
   const [rebinding, setRebinding] = useState(false);
 
-  // Active properties only — an archived record must never be onboarded.
+  // Only properties that are active, entitled to the Channel Manager add-on and
+  // hold a signed (or overridden) contract may be onboarded to a channel.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -126,13 +129,31 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         .order("name");
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
-      setProperties((data ?? []) as PropertyOption[]);
+
+      const rows = (data ?? []) as PropertyOption[];
+      const ids = rows.map((r) => r.id);
+      let eligible: PropertyOption[] = [];
+      if (ids.length > 0) {
+        const [entitlements, { data: contracts }] = await Promise.all([
+          fetchChannelManagerEntitlements(ids),
+          supabase
+            .from("property_contracts")
+            .select("property_id, status")
+            .in("property_id", ids)
+            .in("status", ["signed", "overridden"]),
+        ]);
+        const signed = new Set((contracts ?? []).map((c) => c.property_id));
+        eligible = rows.filter((r) => entitlements.get(r.id) === true && signed.has(r.id));
+      }
+      if (cancelled) return;
+      setProperties(eligible);
       setPropertiesLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
 
   // Switching property resets the live task trail; the durable verdicts come from the gate.
   useEffect(() => {
@@ -339,7 +360,8 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Onboard a property</CardTitle>
           <CardDescription className="text-xs">
-            Pick a property, clear the Ready-to-sell gate, then run Step A and Step B. Nothing else is needed to go live.
+            Only properties with the Channel Manager add-on activated and a signed contract are listed. Pick one, clear
+            the Ready-to-sell gate, then run Step A and Step B.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -349,9 +371,13 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={setPropertyId}>
+                <Select value={propertyId} onValueChange={setPropertyId} disabled={properties.length === 0}>
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select a property" />
+                    <SelectValue
+                      placeholder={
+                        properties.length === 0 ? "No eligible properties (add-on + signed contract)" : "Select a property"
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {properties.map((p) => (
@@ -362,6 +388,7 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
                   </SelectContent>
                 </Select>
               )}
+
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
