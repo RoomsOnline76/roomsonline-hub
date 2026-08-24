@@ -122,12 +122,6 @@ const CHIP_TONE: Record<ChipTone, string> = {
   muted: "border-border bg-muted text-muted-foreground",
 };
 
-const relativeAge = (iso: string) => {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
-  return `${Math.round(mins / 1440)}d ago`;
-};
 
 
 export default function AdminChannelMonitor() {
