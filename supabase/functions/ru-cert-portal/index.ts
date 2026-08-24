@@ -5014,7 +5014,10 @@ Deno.serve(async (req) => {
     //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
     //    per owner email, and logins can be renamed in the RU portal).
     if (action === "list_ru_candidates") {
-      const listed = await listRuSubUsers(admin);
+      const listed = await listRuSubUsers(admin, {
+        forceFresh: body.force_refresh === true,
+        source: "list_ru_candidates",
+      });
       if (!listed.ok) {
         return json({
           success: false,
@@ -5027,7 +5030,13 @@ Deno.serve(async (req) => {
           },
         }, listed.deferred ? 429 : 502);
       }
-      return json({ success: true, users: listed.users });
+      return json({
+        success: true,
+        users: listed.users,
+        cached: listed.cached,
+        fetched_at: listed.fetched_at,
+        notice: listed.message ?? null,
+      });
 
     }
 
@@ -5065,7 +5074,7 @@ Deno.serve(async (req) => {
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const listed = await listRuSubUsers(admin);
+        const listed = await listRuSubUsers(admin, { source: "bind_ru_account" });
         if (!listed.ok) {
           // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
           console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
