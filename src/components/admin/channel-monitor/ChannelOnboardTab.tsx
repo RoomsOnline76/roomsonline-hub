@@ -115,7 +115,8 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
   const [rebindOpen, setRebindOpen] = useState(false);
   const [rebinding, setRebinding] = useState(false);
 
-  // Active properties only — an archived record must never be onboarded.
+  // Only properties that are active, entitled to the Channel Manager add-on and
+  // hold a signed (or overridden) contract may be onboarded to a channel.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -126,13 +127,31 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         .order("name");
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
-      setProperties((data ?? []) as PropertyOption[]);
+
+      const rows = (data ?? []) as PropertyOption[];
+      const ids = rows.map((r) => r.id);
+      let eligible: PropertyOption[] = [];
+      if (ids.length > 0) {
+        const [entitlements, { data: contracts }] = await Promise.all([
+          fetchChannelManagerEntitlements(ids),
+          supabase
+            .from("property_contracts")
+            .select("property_id, status")
+            .in("property_id", ids)
+            .in("status", ["signed", "overridden"]),
+        ]);
+        const signed = new Set((contracts ?? []).map((c) => c.property_id));
+        eligible = rows.filter((r) => entitlements.get(r.id) === true && signed.has(r.id));
+      }
+      if (cancelled) return;
+      setProperties(eligible);
       setPropertiesLoading(false);
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
 
   // Switching property resets the live task trail; the durable verdicts come from the gate.
   useEffect(() => {
