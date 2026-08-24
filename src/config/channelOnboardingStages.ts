@@ -1,15 +1,16 @@
 /**
  * Owner-facing Channel Onboarding stages.
  *
- * The eleven/twelve macros in `rolosOnboardingMacros.ts` remain the engine.
- * This file is the job-shaped container: three stages a person can finish
- * without learning the sidebar map.
+ * The wizard now covers Ready to sell only — steps 1–5. Everything between
+ * Ready to sell and a connected sales channel is executed by the Channel
+ * Monitor's two-step "Onboard property" atomic processor, which is the only
+ * onboarding path from Ready to sell up to connecting a channel.
  */
 
 import { ROLOS_ONBOARDING_MACROS, type MacroDef } from "@/config/rolosOnboardingMacros";
 import type { MacroProgress } from "@/hooks/useRolosOnboardingProgress";
 
-export type ChannelOnboardingStageKey = "ready" | "published" | "live";
+export type ChannelOnboardingStageKey = "ready";
 
 export interface ChannelOnboardingStageDef {
   key: ChannelOnboardingStageKey;
@@ -19,26 +20,22 @@ export interface ChannelOnboardingStageDef {
   macroKeys: string[];
 }
 
+/** The five wizard steps. Order matters — it is the order shown to the operator. */
+export const READY_TO_SELL_MACRO_KEYS = ["identity", "location", "rooms", "media", "commercial"];
+
 export const CHANNEL_ONBOARDING_STAGES: ChannelOnboardingStageDef[] = [
   {
     key: "ready",
     title: "Ready to sell",
     goal: "Goal: complete identity, place, rooms, photos and prices so the property can sell.",
-    macroKeys: ["identity", "location", "rooms", "media", "commercial"],
-  },
-  {
-    key: "published",
-    title: "Published",
-    goal: "Goal: get the listing onto the distribution layer and signed off.",
-    macroKeys: ["push_owner", "keys", "company_profile", "signoff", "pull_listings", "publish", "currency", "entitlement"],
-  },
-  {
-    key: "live",
-    title: "Channels live",
-    goal: "Goal: connect at least one sales channel and start trading.",
-    macroKeys: ["connect"],
+    macroKeys: READY_TO_SELL_MACRO_KEYS,
   },
 ];
+
+/** True when a macro is one of the five wizard steps. */
+export function isReadyToSellMacro(key: string): boolean {
+  return READY_TO_SELL_MACRO_KEYS.includes(key);
+}
 
 export interface StageProgress {
   def: ChannelOnboardingStageDef;
@@ -170,4 +167,3 @@ export function macroKeyForSection(section: string): string | null {
   if (byTask) return byTask.key;
   return ROLOS_ONBOARDING_MACROS.find((m) => m.section === section)?.key ?? null;
 }
-

@@ -35,6 +35,7 @@ import {
 import {
   buildStageProgress,
   editorSectionForMacro,
+  isReadyToSellMacro,
   macroKeyForSection,
   EDITOR_SECTIONS,
   editorSectionsForMacro,
@@ -135,7 +136,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
 
   const {
     isRolosPms,
-    macros,
+    macros: allMacros,
     overall,
     channelsConnected,
     channelsLive,
@@ -165,6 +166,53 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
     unitNames,
   } = progress;
 
+  /**
+   * The wizard is Ready to sell only — steps 1–5. Steps 6–14 are executed by the
+   * Channel Monitor's two-step "Onboard property" processor, which is the only
+   * onboarding path between Ready to sell and a connected channel.
+   */
+  const macros = useMemo(
+    () => allMacros.filter((m) => isReadyToSellMacro(m.macro.key)),
+    [allMacros],
+  );
+
+  const readyOverall = useMemo(() => {
+    const total = macros.length;
+    const complete = macros.filter((m) => m.complete).length;
+    const percent = total
+      ? Math.round(macros.reduce((sum, m) => sum + m.score, 0) / total)
+      : 0;
+    return { total, complete, percent, allComplete: total > 0 && complete === total };
+  }, [macros]);
+
+  /**
+   * Passing the five steps writes the durable Ready-to-sell verdict to the gate
+   * monitor, so the Channel Monitor can pick the property up without re-grading.
+   * Graded once per mount per property.
+   */
+  const [gradeState, setGradeState] = useState<"idle" | "saving" | "done">("idle");
+  useEffect(() => {
+    if (!readyOverall.allComplete || gradeState !== "idle") return;
+    let cancelled = false;
+    setGradeState("saving");
+    void (async () => {
+      try {
+        await supabase.functions.invoke("ru-onboard-property", {
+          body: { action: "grade_ready_to_sell", property_id: propertyId },
+        });
+      } catch {
+        // Grading is advisory here — the monitor grades again before it pushes.
+      } finally {
+        if (!cancelled) setGradeState("done");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gradeState, propertyId, readyOverall.allComplete]);
+
+
+
   const unitScope = useMemo(
     () => ({ sole: soleUnitName ?? null, all: unitNames ?? [] }),
     [soleUnitName, unitNames],
@@ -178,14 +226,15 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const [readBackPending, setReadBackPending] = useState(false);
   const listingsVerified = useMemo(
     () =>
-      macros
+      allMacros
         .flatMap((m) => m.stateChecks)
         .find((c) => c.key === "listings_verified")?.ok === true,
-    [macros],
+    [allMacros],
   );
 
 
   const stages = useMemo(() => buildStageProgress(macros), [macros]);
+
   const firstOpenStage = stages.find((s) => !s.complete) ?? stages[stages.length - 1];
 
   const requestedMacro = searchParams.get("step");
@@ -632,84 +681,17 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const nextAction = useMemo(() => {
     const open = stages.find((s) => !s.complete);
     const macro = open?.currentMacro ?? activeMacro;
-    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined, reason: undefined as string | undefined };
-    const reason = macro.actionBlockedReason;
-    // Steps whose blocker is a mandatory field / check still route to the fix;
-    // only the distribution actions themselves wait on a prerequisite.
-    const gatedAction = !!reason;
-    if (macro.macro.key === "push_owner" && isPlatformUser) {
+    if (!macro)
       return {
-        label: "Create distribution identity",
-        disabled: gatedAction || busy === "ensure_owner",
-        run: () => void openOwnerPlan(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "company_profile" && isPlatformUser) {
-      return {
-        label: companyProfile.sending ? "Sending company profile…" : "Send company profile",
-        disabled: gatedAction || companyProfile.sending || busy === "company_details",
-        run: () => void pushCompanyDetails(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "pull_listings" && isPlatformUser) {
-      return {
-        label: "Pull listings",
-        disabled: gatedAction || busy === "pull_listings",
-        run: () => void pullListings(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "publish") {
-      if (publishedOk) {
-        return {
-          label: "Published — review step",
-          disabled: false,
-          run: () => selectMacro("publish"),
-          reason,
-        };
-      }
-      return {
-        label: isPlatformUser ? "Publish listing" : "Review publish step",
-        disabled: isPlatformUser ? gatedAction || busy === "publish" : false,
-        run: () => (isPlatformUser ? void publishListing() : selectMacro("publish")),
-        reason,
-      };
-    }
-
-    if (macro.macro.key === "entitlement") {
-      if (!isPlatformUser) {
-        return {
-          label: "Waiting on ROL to enable Channel Manager",
-          disabled: true,
-          run: () => undefined,
-          reason: "Your account manager switches this on — nothing for you to do here.",
-        };
-      }
-      return {
-        label: "Enable Channel Manager",
-        disabled: gatedAction || busy === "entitlement",
-        run: () => void enableChannelManager(),
-        reason,
-      };
-    }
-    if (macro.macro.key === "connect") {
-      return {
-        label: "Connect a channel below",
-        disabled: gatedAction,
-        run: () => selectMacro("connect"),
-        reason,
-      };
-    }
-    if (macro.macro.key === "signoff" && !isPlatformUser) {
-      return {
-        label: "Waiting on ROL sign-off",
+        label: "Ready to sell",
         disabled: true,
         run: () => undefined,
-        reason: "A ROL admin confirms the live sub-account.",
+        reason: undefined as string | undefined,
       };
-    }
+    const reason = macro.actionBlockedReason;
+    // Steps 6–14 (distribution identity, publish, connect, sign-off) are no longer
+    // wizard steps — the Channel Monitor runs them — so the primary action here is
+    // always "fix the outstanding Ready-to-sell requirement".
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
     // Never point the primary action at a check the resolver could not judge —
     // there is no field behind it, so the button would go nowhere.
@@ -733,23 +715,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         selectMacro(macro.macro.key);
       },
     };
-  }, [
-    activeMacro,
-    busy,
-    companyProfile.sending,
-    enableChannelManager,
-    goToField,
-    isPlatformUser,
-    pushCompanyDetails,
+  }, [activeMacro, goToField, selectMacro, stages]);
 
-    publishListing,
-    publishedOk,
-
-    pullListings,
-    openOwnerPlan,
-    selectMacro,
-    stages,
-  ]);
 
 
   if (isLoading) {
@@ -886,16 +853,15 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
             )}
           </div>
           <ScoreChip
-            label="Channels"
-            value={overall.percent}
-            live={channelsConnected > 0}
-            liveLabel={`${channelsConnected} live`}
+            label="Ready to sell"
+            value={readyOverall.percent}
+            live={readyOverall.allComplete}
+            liveLabel="Ready"
           />
           <div className="min-w-[12rem] flex-1">
-            <Progress value={overall.percent} className="h-2" />
+            <Progress value={readyOverall.percent} className="h-2" />
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {overall.macrosComplete}/{overall.macrosTotal} steps
-              {!publishedOk && unpublishedUnits > 0 ? ` · ${unpublishedUnits} unit(s) unpublished` : ""}
+              {readyOverall.complete}/{readyOverall.total} steps
             </p>
           </div>
         </div>
@@ -1081,67 +1047,37 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           )}
 
 
-          {activeStageKey === "published" && (
-            <PublishedPane
-              propertyId={propertyId}
-              macroKey={activeMacro?.macro.key ?? ""}
-              isPlatformUser={isPlatformUser}
-              locked={!!activeMacro?.locked}
-              busy={busy}
-              signoff={signoff}
-              listingPull={listingPull}
-              onPullListings={pullListings}
-              pushErrors={pushErrors}
-              unpublishedUnits={unpublishedUnits}
-              publishedOk={publishedOk}
-              entitlementOn={billing.config?.channel_manager_enabled === true}
-              onPushOwner={openOwnerPlan}
-              subAccountEmail={subAccountEmail}
-              onPublish={publishListing}
-              listingsVerified={listingsVerified}
-              readBackPending={readBackPending && !listingsVerified}
-              onVerifyListings={verifyListings}
-
-              onEnable={enableChannelManager}
-              onPushCompanyDetails={pushCompanyDetails}
-              companyProfile={companyProfile}
-              onSignoffItem={(key, next) => {
-                recordSignoffCheck(key, next, user?.email ?? null).catch((e) =>
-                  toast.error(e instanceof Error ? e.message : String(e)),
-                );
-              }}
-              onSignoffAll={(next) => {
-                recordSignoff(next, user?.email ?? null).catch((e) =>
-                  toast.error(`Could not save the sign-off: ${e instanceof Error ? e.message : String(e)}`),
-                );
-              }}
-            />
-          )}
-
-          {activeStageKey === "live" && (
-            <div className="space-y-3">
-              {!overall.readyToConnect && (
-                <p className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                  Finish Published first — the channel console unlocks when Channel Manager is enabled and the listing is signed off.
-                </p>
-              )}
-              {overall.readyToConnect ? (
-                <>
-                  <RuCurrencyNotice propertyId={propertyId} />
-                  <RuWhiteLabelEmbed propertyId={propertyId} />
-                </>
-              ) : null}
-              {isPlatformUser && (
-                <p className="text-[11px] text-muted-foreground">
-                  Push failures and sync logs stay in{" "}
-                  <Link to="/admin/integrations/rentals-united" className="underline underline-offset-2">
-                    Channel diagnostics
-                  </Link>
-                  .
-                </p>
-              )}
+          {/*
+            The wizard finishes at Ready to sell. Connecting the property to a sales
+            channel (sub-account, push, publish, ARI) is the Channel Monitor's job —
+            the wizard hands over instead of duplicating those steps.
+          */}
+          {readyOverall.allComplete && (
+            <div className="space-y-2 rounded-lg border border-emerald-500/50 bg-emerald-500/5 p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <p className="text-sm font-semibold">Ready to sell — all five steps complete</p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {gradeState === "saving"
+                  ? "Recording the verdict…"
+                  : "The verdict is recorded. Connect this party to a sales channel from the Channel Monitor."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {isPlatformUser && (
+                  <Button asChild size="sm">
+                    <Link to={`/admin/channel-monitor?tab=onboard&property=${propertyId}`}>
+                      Open Channel Monitor
+                    </Link>
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={() => void refresh()} disabled={isFetching}>
+                  Re-check
+                </Button>
+              </div>
             </div>
           )}
+
         </section>
       </div>
 
