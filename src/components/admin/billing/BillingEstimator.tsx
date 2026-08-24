@@ -181,19 +181,70 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Payment model</Label>
-                <Select value={paymentMode} onValueChange={(v) => setPaymentMode(v as PaymentMode)}>
+                <Label className="text-xs">Payment gateway</Label>
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  {(Object.keys(PAYMENT_LABELS) as PaymentMode[]).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      title={PAYMENT_HINTS[m]}
+                      onClick={() => setPaymentMode(m)}
+                      className={`flex-1 h-8 text-[11px] px-2 transition-colors ${
+                        paymentMode === m
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-background text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {PAYMENT_LABELS[m]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Booking widget (direct) commission ─────────────────────── */}
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Widget bookings per month</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={widgetBookings}
+                  onChange={(e) => setWidgetBookings(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Widget booking value per month (R)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={widgetValue}
+                  onChange={(e) => setWidgetValue(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Widget commission</Label>
+                <Select value={widgetMode} onValueChange={(v) => setWidgetMode(v as WidgetCommissionMode)}>
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(PAYMENT_LABELS) as PaymentMode[]).map((m) => (
-                      <SelectItem key={m} value={m} className="text-sm">
-                        {PAYMENT_LABELS[m]}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="flat" className="text-sm">
+                      Flat percentage
+                    </SelectItem>
+                    <SelectItem value="tiered" className="text-sm">
+                      Volume tiered
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                {widgetMode === "tiered" && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Bands:{" "}
+                    {DEFAULT_WIDGET_TIERS.map((t) => `${t.min_bookings}+ → ${t.rate}%`).join(" · ")}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -250,17 +301,28 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
             <div className="space-y-2">
               <Label className="text-xs">Add-ons that apply from day {estimate.freeDays + 1}</Label>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {ADD_ON_LABELS.map(({ key, label, hint }) => (
-                  <label key={key} className="flex items-center gap-2 rounded-md border border-border px-2.5 py-2 cursor-pointer">
-                    <Checkbox
-                      checked={addOns[key]}
-                      onCheckedChange={(c) => setAddOns((prev) => ({ ...prev, [key]: c === true }))}
-                    />
-                    <span className="text-xs">
-                      {label} <span className="text-muted-foreground">· {hint}</span>
-                    </span>
-                  </label>
-                ))}
+                {ADD_ON_LABELS.map(({ key, label, hint }) => {
+                  // White label bundles the branding pack at no charge.
+                  const bundled = key === "branding" && addOns.white_label;
+                  return (
+                    <label
+                      key={key}
+                      className={`flex items-center gap-2 rounded-md border border-border px-2.5 py-2 ${
+                        bundled ? "cursor-default opacity-90" : "cursor-pointer"
+                      }`}
+                    >
+                      <Checkbox
+                        checked={bundled || addOns[key]}
+                        disabled={bundled}
+                        onCheckedChange={(c) => setAddOns((prev) => ({ ...prev, [key]: c === true }))}
+                      />
+                      <span className="text-xs">
+                        {label}{" "}
+                        <span className="text-muted-foreground">· {bundled ? "free with white label" : hint}</span>
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -279,24 +341,48 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {estimate.lines.map((l) => (
-                    <tr key={l.key} className="border-b border-border/50">
-                      <td className="py-2 pr-3">
-                        <span className="font-medium">{l.label}</span>
-                        <span className="block text-muted-foreground">{l.detail}</span>
-                      </td>
-                      <td className="py-2 px-3 text-right whitespace-nowrap">
-                        {l.waivedInFreePeriod ? (
-                          <Badge variant="outline" className="text-[10px]">
-                            free
-                          </Badge>
-                        ) : (
-                          money(l.freePeriod)
-                        )}
-                      </td>
-                      <td className="py-2 pl-3 text-right whitespace-nowrap">{money(l.steadyState)}</td>
-                    </tr>
-                  ))}
+                  {(["transaction", "recurring"] as EstimateGroup[]).map((group) => {
+                    const groupLines = estimate.lines.filter((l) => l.group === group);
+                    if (!groupLines.length) return null;
+                    const subFree =
+                      group === "transaction" ? estimate.transactionFreePeriodTotal : estimate.recurringFreePeriodTotal;
+                    const subSteady =
+                      group === "transaction"
+                        ? estimate.transactionSteadyStateTotal
+                        : estimate.recurringSteadyStateTotal;
+                    return (
+                      <>
+                        <tr key={`${group}_head`} className="bg-muted/40">
+                          <td colSpan={3} className="py-1.5 pr-3 font-medium uppercase tracking-wide text-[10px]">
+                            {GROUP_LABELS[group]}
+                          </td>
+                        </tr>
+                        {groupLines.map((l) => (
+                          <tr key={l.key} className="border-b border-border/50">
+                            <td className="py-2 pr-3">
+                              <span className="font-medium">{l.label}</span>
+                              <span className="block text-muted-foreground">{l.detail}</span>
+                            </td>
+                            <td className="py-2 px-3 text-right whitespace-nowrap">
+                              {l.waivedInFreePeriod ? (
+                                <Badge variant="outline" className="text-[10px]">
+                                  free
+                                </Badge>
+                              ) : (
+                                money(l.freePeriod)
+                              )}
+                            </td>
+                            <td className="py-2 pl-3 text-right whitespace-nowrap">{money(l.steadyState)}</td>
+                          </tr>
+                        ))}
+                        <tr key={`${group}_sub`} className="border-b border-border">
+                          <td className="py-1.5 pr-3 font-medium">{GROUP_LABELS[group]} subtotal</td>
+                          <td className="py-1.5 px-3 text-right font-medium">{money(subFree)}</td>
+                          <td className="py-1.5 pl-3 text-right font-medium">{money(subSteady)}</td>
+                        </tr>
+                      </>
+                    );
+                  })}
                   <tr className="font-semibold">
                     <td className="py-2 pr-3">Monthly total</td>
                     <td className="py-2 px-3 text-right">{money(estimate.freePeriodTotal)}</td>
