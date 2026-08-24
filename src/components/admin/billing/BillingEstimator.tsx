@@ -482,7 +482,10 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
               </div>
             )}
 
+            <RepCommissionPanel estimate={estimate} globals={preset as unknown as RepGlobalsLike | null} />
+
             <p className="text-[11px] leading-relaxed text-muted-foreground">{summariseEstimate(estimate)}</p>
+
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
