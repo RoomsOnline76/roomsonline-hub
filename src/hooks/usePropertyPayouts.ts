@@ -348,13 +348,19 @@ export function usePropertyPayouts(period?: PayoutPeriod | string) {
       );
 
 
-      const [scopes, terms, byoProperties, bankRes, globalsRes] = await Promise.all([
+      const [scopes, terms, byoProperties, bankRes, globalsRes, schedules, gwRes] = await Promise.all([
         loadBillingScopes(propertyIds),
         loadCommercialTerms(propertyIds),
         loadByoProperties(propertyIds),
         supabase.from('property_bank_details').select('property_id, is_verified').in('property_id', propertyIds),
         supabase.from('billing_global_defaults').select('*'),
+        listGatewaySchedules(),
+        supabase
+          .from('property_billing_configs')
+          .select('property_id, gateway_billing_config_id, gateway_percentage_override, gateway_fixed_fee_override')
+          .in('property_id', propertyIds),
       ]);
+
 
       // Bookings with no gateway record: read the payment evidence first, and only
       // fall back to the property's configured route when there is none.
