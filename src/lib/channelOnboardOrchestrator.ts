@@ -414,6 +414,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return {
         id: "push_property",
         outcome: outstanding > 0 ? "pending" : "failed",
+        ...(outstanding > 0 ? { retryAfterMs: DEFAULT_RATE_WINDOW_MS } : {}),
         detail: outstanding > 0 ? `${outstanding} unit(s) still outstanding — retry to continue. ${detail}` : detail,
       };
     }
