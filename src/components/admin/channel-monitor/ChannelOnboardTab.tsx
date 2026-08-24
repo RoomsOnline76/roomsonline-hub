@@ -570,7 +570,7 @@ export function ChannelOnboardTab({
           {collapsed ? (
             <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
               <Check className="h-4 w-4 shrink-0" />
-              <span>{meta.passedSummary ?? `${meta.title} is complete — nothing to do here.`}</span>
+              <span>{meta.title} is complete — nothing to do here.</span>
             </div>
           ) : (
             <>
