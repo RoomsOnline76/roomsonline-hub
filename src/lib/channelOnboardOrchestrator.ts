@@ -36,6 +36,11 @@ export interface TaskResult {
   outcome: TaskOutcome;
   /** Operator-facing detail: what happened, or why it stopped. */
   detail: string;
+  /**
+   * Milliseconds until the channel's rate window reopens. Only set on `pending`
+   * outcomes — the UI counts this down and resumes the step on its own.
+   */
+  retryAfterMs?: number;
 }
 
 export interface StepRunResult {
@@ -44,6 +49,10 @@ export interface StepRunResult {
   passed: boolean;
   /** A channel rate window deferred a task — nothing failed, it just is not done yet. */
   pending: boolean;
+  /** How long to wait before resuming, when the step is waiting on a rate window. */
+  retryAfterMs?: number;
+  /** The deferred task the resume must restart from. */
+  resumeFromTaskId?: ChannelOnboardTaskId;
   results: TaskResult[];
   summary: string;
 }
@@ -53,21 +62,43 @@ interface RunContext {
   /** Operator-confirmed sub-account login, exactly as previewed. Step A only. */
   confirmedOwnerEmail?: string | null;
   confirmedOwnerName?: string | null;
-  onTask?: (id: ChannelOnboardTaskId, state: "running" | TaskOutcome, detail?: string) => void;
+  /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
+  startAtTaskId?: ChannelOnboardTaskId | null;
+  onTask?: (
+    id: ChannelOnboardTaskId,
+    state: "running" | TaskOutcome,
+    detail?: string,
+    retryAfterMs?: number,
+  ) => void;
   onPushProgress?: (progress: { pushed: number; total: number }) => void;
+}
+
+/** The channel's sliding read window, used when it does not say how long to wait. */
+const DEFAULT_RATE_WINDOW_MS = 60_000;
+
+/** Normalise whatever the channel surface reported as a wait into milliseconds. */
+function readRetryAfterMs(payload: Record<string, unknown>): number {
+  const raw = Number(payload.retry_after_ms ?? payload.retryAfterMs ?? 0);
+  return Number.isFinite(raw) && raw > 0 ? Math.max(5_000, raw) : DEFAULT_RATE_WINDOW_MS;
 }
 
 /** Invoke a cert-portal action and normalise the three answers we care about. */
 async function portal(
   body: Record<string, unknown>,
   fallback: string,
-): Promise<{ ok: boolean; pending: boolean; detail: string; data: Record<string, unknown> }> {
+): Promise<{ ok: boolean; pending: boolean; retryAfterMs?: number; detail: string; data: Record<string, unknown> }> {
   const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
   const payload = (data ?? {}) as Record<string, unknown>;
   // The channel allows one identical read per sliding minute; a queued read is progress,
   // not a failure, so it must never be recorded as a blocker.
-  if (payload.pending === true) {
-    return { ok: false, pending: true, detail: "Queued behind the channel's rate window — finishes on its own.", data: payload };
+  if (payload.pending === true || payload.rate_deferred === true) {
+    return {
+      ok: false,
+      pending: true,
+      retryAfterMs: readRetryAfterMs(payload),
+      detail: "Waiting on the channel's rate window — this resumes on its own.",
+      data: payload,
+    };
   }
   if (error) {
     return { ok: false, pending: false, detail: await extractFunctionError(error, fallback), data: payload };
@@ -261,7 +292,7 @@ type TaskRunner = (ctx: RunContext, snapshot: OnboardGateSnapshot) => Promise<Ta
 const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   // Step A ────────────────────────────────────────────────────────────────────
   owner_account: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       {
         action: "ensure_owner_account",
         property_id: ctx.propertyId,
@@ -270,7 +301,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "Could not confirm the distribution identity",
     );
-    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     notifyRuAccountsChanged();
     return {
       id: "owner_account",
@@ -291,13 +322,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           "No sub-account password is stored, so a key pair cannot be minted here. Generate the first pair in the channel portal (Security settings) and save it on the Accounts tab.",
       };
     }
-    const { ok, pending, detail } = await portal(
+    const { ok, pending, retryAfterMs, detail } = await portal(
       { action: "create_api_key", property_id: ctx.propertyId, ru_owner_id: snapshot.binding.ru_owner_id },
       "Could not mint the sub-account key pair",
     );
     return {
       id: "api_keys",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
+      retryAfterMs,
       detail: ok ? "Key pair minted and stored" : detail,
     };
   },
@@ -306,7 +338,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (!snapshot.binding.ru_owner_id) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       {
         action: "verify_api_keys",
         ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
@@ -314,7 +346,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "The sub-account credentials did not verify",
     );
-    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     if (data.verified === false) {
       return {
         id: "verify_keys",
@@ -329,24 +361,25 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (snapshot.binding.company_details_sent) {
       return { id: "company_profile", outcome: "skipped", detail: "Company profile already accepted" };
     }
-    const { ok, pending, detail } = await portal(
+    const { ok, pending, retryAfterMs, detail } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
     );
     return {
       id: "company_profile",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
+      retryAfterMs,
       detail: ok ? "Company profile accepted" : detail,
     };
   },
 
   adopt_listings: async (ctx) => {
     // Adopting anything already under the sub-account is what stops Step B duplicating.
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "Could not review the sub-account's existing listings",
     );
-    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
     const matched = Array.isArray(data.matched) ? (data.matched as unknown[]).length : 0;
     return {
       id: "adopt_listings",
@@ -381,6 +414,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return {
         id: "push_property",
         outcome: outstanding > 0 ? "pending" : "failed",
+        ...(outstanding > 0 ? { retryAfterMs: DEFAULT_RATE_WINDOW_MS } : {}),
         detail: outstanding > 0 ? `${outstanding} unit(s) still outstanding — retry to continue. ${detail}` : detail,
       };
     }
@@ -393,11 +427,20 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_listings: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "The published listings could not be read back",
     );
-    if (!ok) return { id: "verify_listings", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) {
+      return pending
+        ? {
+          id: "verify_listings",
+          outcome: "pending",
+          retryAfterMs,
+          detail: "Behind the channel's read window — the listing review resumes automatically.",
+        }
+        : { id: "verify_listings", outcome: "failed", detail };
+    }
     if (data.listings_verified !== true) {
       const expected = data.listings_expected_units ?? "?";
       const verified = data.listings_verified_units ?? 0;
@@ -414,22 +457,65 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     };
   },
 
+  /**
+   * The currency read-back lives on the push surface (it reads the live listing), not on
+   * the cert portal — sending it to the portal is what produced `UNKNOWN_ACTION`.
+   */
   verify_currency: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
-      { action: "verify_ru_currency", property_id: ctx.propertyId },
-      "The published currency could not be verified",
-    );
-    if (!ok) return { id: "verify_currency", outcome: pending ? "pending" : "failed", detail };
-    if (data.matches === false) {
+    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { action: "verify_ru_currency", property_ids: [ctx.propertyId] },
+    });
+    if (error) {
       return {
         id: "verify_currency",
         outcome: "failed",
-        detail: `The channel reports ${String(data.ru_reported_currency_iso ?? "a different currency")} — expected ${String(
-          data.published_currency_iso ?? "the property currency",
-        )}`,
+        detail: await extractFunctionError(error, "The published currency could not be verified"),
       };
     }
-    return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+    const rows = ((data ?? {}) as {
+      results?: Array<Record<string, unknown>>;
+    }).results ?? [];
+    const row = rows.find((r) => r.property_id === ctx.propertyId) ?? rows[0] ?? null;
+    if (!row) {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail: "The channel has no published listing to read a currency from yet",
+      };
+    }
+    if (row.rate_deferred === true) {
+      return {
+        id: "verify_currency",
+        outcome: "pending",
+        retryAfterMs: readRetryAfterMs(row),
+        detail: "Behind the channel's read window — the currency check resumes automatically.",
+      };
+    }
+    const listings = (row.listings ?? []) as Array<{ ru_reported_iso?: string | null; matches?: boolean; deferred?: boolean }>;
+    if (listings.length > 0 && listings.every((l) => l.deferred === true)) {
+      return {
+        id: "verify_currency",
+        outcome: "pending",
+        retryAfterMs: readRetryAfterMs(row),
+        detail: "Behind the channel's read window — the currency check resumes automatically.",
+      };
+    }
+    const mismatched = listings.filter((l) => l.ru_reported_iso && l.matches === false);
+    if (mismatched.length > 0) {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail: `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,
+      };
+    }
+    if (row.gate_passed === true || listings.some((l) => l.matches === true)) {
+      return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+    }
+    return {
+      id: "verify_currency",
+      outcome: "failed",
+      detail: String(row.error ?? row.reason ?? "The channel did not answer with a currency"),
+    };
   },
 
   entitlement: async (ctx) => {
@@ -454,6 +540,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 /**
  * Run one step's task chain. Stops at the first mandatory failure so nothing downstream
  * runs against a half-built account, and records the step verdict on the durable ledger.
+ *
+ * A `pending` task means the channel's rate window is closed: the chain stops there so no
+ * downstream task reads against a half-confirmed state, and the caller is told which task
+ * to resume from once the window reopens. That is never a failure.
  */
 export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext): Promise<StepRunResult> {
   const snapshot = await fetchOnboardGate(ctx.propertyId);
@@ -464,10 +554,16 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     throw new Error("Confirm the distribution sub-account (Step A) before pushing.");
   }
 
-  const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
+  const allTasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
+  // A resume picks the chain up at the deferred task, so already-passed legs are not replayed
+  // against the channel (which is what closed the rate window in the first place).
+  const startIndex = ctx.startAtTaskId ? Math.max(0, allTasks.findIndex((t) => t.id === ctx.startAtTaskId)) : 0;
+  const tasks = allTasks.slice(startIndex);
   const results: TaskResult[] = [];
   let pending = false;
   let failed = false;
+  let retryAfterMs: number | undefined;
+  let resumeFromTaskId: ChannelOnboardTaskId | undefined;
 
   for (const task of tasks) {
     ctx.onTask?.(task.id, "running");
@@ -482,9 +578,14 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       };
     }
     results.push(result);
-    ctx.onTask?.(task.id, result.outcome, result.detail);
+    ctx.onTask?.(task.id, result.outcome, result.detail, result.retryAfterMs);
 
-    if (result.outcome === "pending") pending = true;
+    if (result.outcome === "pending") {
+      pending = true;
+      retryAfterMs = result.retryAfterMs ?? DEFAULT_RATE_WINDOW_MS;
+      resumeFromTaskId = task.id;
+      break;
+    }
     if (result.outcome === "failed") {
       failed = true;
       if (!task.optional) break;
@@ -514,5 +615,5 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     notifyRuAccountsChanged();
   }
 
-  return { step, passed, pending, results, summary };
+  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results, summary };
 }

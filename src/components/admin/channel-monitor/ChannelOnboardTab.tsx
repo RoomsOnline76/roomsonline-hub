@@ -19,6 +19,7 @@ import {
   Check,
   CircleDashed,
   Clock,
+  Hourglass,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -89,7 +90,27 @@ interface OnboardOption {
 }
 
 
-type TaskState = { state: "idle" | "running" | TaskOutcome; detail?: string };
+type TaskState = {
+  state: "idle" | "running" | TaskOutcome;
+  detail?: string;
+  /** Wall-clock moment the channel's rate window reopens, for the waiting countdown. */
+  waitingUntil?: number;
+};
+
+/** How many times a rate-deferred step resumes itself before asking the operator. */
+const MAX_AUTO_RESUMES = 4;
+
+/** A rate-deferred step: when to resume, and which task to resume from. */
+interface WaitingState {
+  until: number;
+  resumeFromTaskId: ChannelOnboardTaskId | null;
+  attempts: number;
+}
+
+function formatCountdown(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
 
 const STATUS_BADGE: Record<GateStepStatus, { label: string; className: string }> = {
   passed: { label: "Passed", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
@@ -112,7 +133,7 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
   if (state === "running") return <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />;
   if (state === "passed") return <Check className="h-4 w-4 shrink-0 text-emerald-600" />;
   if (state === "skipped") return <Check className="h-4 w-4 shrink-0 text-muted-foreground" />;
-  if (state === "pending") return <Clock className="h-4 w-4 shrink-0 text-amber-600" />;
+  if (state === "pending") return <Hourglass className="h-4 w-4 shrink-0 animate-pulse text-amber-600" />;
   if (state === "failed") return <X className="h-4 w-4 shrink-0 text-destructive" />;
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
@@ -147,6 +168,12 @@ export function ChannelOnboardTab({
   const [taskStates, setTaskStates] = useState<Record<string, TaskState>>({});
   const [runningStep, setRunningStep] = useState<ChannelOnboardStep | null>(null);
   const [pushProgress, setPushProgress] = useState<{ pushed: number; total: number } | null>(null);
+  /** Steps parked on the channel's rate window — waiting, not failed. */
+  const [waiting, setWaiting] = useState<Partial<Record<ChannelOnboardStep, WaitingState>>>({});
+  /** Ticks once a second so the waiting countdowns stay live. */
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  /** Operator override: keep a passed Step A expanded. */
+  const [stepDetailOpen, setStepDetailOpen] = useState<Partial<Record<ChannelOnboardStep, boolean>>>({});
 
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -351,26 +378,44 @@ export function ChannelOnboardTab({
     }
   }, [propertyId]);
 
+  /**
+   * Run (or resume) a step. A rate-deferred task is never a failure: the step parks with a
+   * countdown and resumes itself from the deferred task once the channel's window reopens.
+   */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep) => {
+    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
       if (!propertyId) return;
+      const attempt = options?.attempt ?? 0;
+      const resumeFrom = options?.startAtTaskId ?? null;
       setRunningStep(step);
       setPushProgress(null);
+      setWaiting((prev) => ({ ...prev, [step]: undefined }));
       setTaskStates((prev) => {
         const next = { ...prev };
-        for (const task of CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step)) next[task.id] = { state: "idle" };
+        const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
+        const from = resumeFrom ? Math.max(0, stepTasks.findIndex((t) => t.id === resumeFrom)) : 0;
+        // A resume leaves the already-passed legs alone so the operator keeps their record.
+        for (const task of stepTasks.slice(from)) next[task.id] = { state: "idle" };
         return next;
       });
       try {
         const result = await runOnboardStep(step, {
           propertyId,
+          startAtTaskId: resumeFrom,
           confirmedOwnerEmail: step === "a" ? plan?.login_email ?? null : null,
           confirmedOwnerName:
             step === "a"
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
-          onTask: (id: ChannelOnboardTaskId, state, detail) =>
-            setTaskStates((prev) => ({ ...prev, [id]: { state, detail } })),
+          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
+            setTaskStates((prev) => ({
+              ...prev,
+              [id]: {
+                state,
+                detail,
+                waitingUntil: state === "pending" ? Date.now() + (retryAfterMs ?? 60_000) : undefined,
+              },
+            })),
           onPushProgress: (progress) => setPushProgress(progress),
         });
         if (result.passed) {
@@ -378,10 +423,26 @@ export function ChannelOnboardTab({
             step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
           );
         } else if (result.pending) {
-          toast.info("Step paused", {
-            description: result.summary || "The channel deferred part of this step — retry in a minute.",
-            duration: 9000,
-          });
+          const waitMs = result.retryAfterMs ?? 60_000;
+          const canAutoResume = attempt + 1 < MAX_AUTO_RESUMES;
+          setWaiting((prev) => ({
+            ...prev,
+            [step]: {
+              until: Date.now() + waitMs + 1_000,
+              resumeFromTaskId: result.resumeFromTaskId ?? null,
+              attempts: canAutoResume ? attempt + 1 : MAX_AUTO_RESUMES,
+            },
+          }));
+          if (!options?.silent) {
+            toast.info("Waiting on the channel", {
+              description:
+                `${result.summary || "The channel's read window is closed."} ` +
+                (canAutoResume
+                  ? `Resuming automatically in ${formatCountdown(waitMs)}.`
+                  : "Use Retry now when you are ready."),
+              duration: 9000,
+            });
+          }
         } else {
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
@@ -394,6 +455,29 @@ export function ChannelOnboardTab({
     },
     [gate, plan, propertyId],
   );
+
+  /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
+  useEffect(() => {
+    const parked = Object.entries(waiting).filter(([, value]) => value) as Array<[ChannelOnboardStep, WaitingState]>;
+    if (parked.length === 0) return;
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now());
+      for (const [step, state] of parked) {
+        if (Date.now() < state.until) continue;
+        setWaiting((prev) => ({ ...prev, [step]: undefined }));
+        if (state.attempts < MAX_AUTO_RESUMES && runningStep === null) {
+          void runStep(step, { startAtTaskId: state.resumeFromTaskId, attempt: state.attempts, silent: true });
+        }
+      }
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [runStep, runningStep, waiting]);
+
+  /** A new property starts with a clean slate — no stale waits or task rows. */
+  useEffect(() => {
+    setWaiting({});
+    setStepDetailOpen({});
+  }, [propertyId]);
 
   const doRebind = useCallback(
     async (confirmPortfolioScope: boolean) => {
@@ -439,6 +523,14 @@ export function ChannelOnboardTab({
     const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
     const ledgerTasks = ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
       ?.tasks ?? []);
+    const stepWaiting = waiting[step];
+    const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
+    /**
+     * A passed step is settled work: it collapses to its one-line verdict until the
+     * operator asks for the detail. A waiting or running step always stays open.
+     */
+    const collapsed =
+      status === "passed" && runningStep !== step && !stepWaiting && stepDetailOpen[step] !== true;
 
     return (
       <Card>
@@ -450,6 +542,15 @@ export function ChannelOnboardTab({
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={status} />
+              {status === "passed" && runningStep !== step && !stepWaiting && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setStepDetailOpen((prev) => ({ ...prev, [step]: !collapsed ? false : true }))}
+                >
+                  {collapsed ? "Show detail" : "Hide detail"}
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={() => void runStep(step)}
@@ -466,50 +567,95 @@ export function ChannelOnboardTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          {step === "a" && (
-            <div className="rounded-md border bg-muted/40 p-3 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-muted-foreground">
-                  Preview the account, the owner binding and the company details that will be sent — nothing leaves here
-                  until you run the step.
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void openPlan()}
-                  disabled={planLoading || !propertyId}
-                >
-                  {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                  Preview account
-                </Button>
-              </div>
+          {collapsed ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>{meta.title} is complete — nothing to do here.</span>
             </div>
-          )}
-
-
-          {tasks.map((task) => {
-            const live = taskStates[task.id];
-            const recorded = ledgerTasks.find((t) => t.id === task.id);
-            const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
-            const detail = live?.detail ?? recorded?.detail;
-            return (
-              <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
-                <TaskIcon state={state} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{task.title}</p>
-                  <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
-                  {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
-                    <div className="mt-1.5 space-y-1">
-                      <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />
-                      <p className="text-[11px] text-muted-foreground">
-                        {pushProgress.pushed}/{pushProgress.total} unit(s) pushed
-                      </p>
-                    </div>
+          ) : (
+            <>
+              {stepWaiting && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+                  <Hourglass className="mt-0.5 h-4 w-4 shrink-0 animate-pulse" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      Waiting on the channel — {formatCountdown(Math.max(0, waitRemaining))}
+                    </p>
+                    <p className="leading-snug">
+                      The channel only accepts one identical read per minute. Nothing has failed;{" "}
+                      {stepWaiting.attempts < MAX_AUTO_RESUMES
+                        ? "this step resumes on its own when the window reopens."
+                        : "use Retry now to pick it up again."}
+                    </p>
+                  </div>
+                  {stepWaiting.attempts >= MAX_AUTO_RESUMES && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={runningStep !== null}
+                      onClick={() =>
+                        void runStep(step, { startAtTaskId: stepWaiting.resumeFromTaskId, attempt: 0 })
+                      }
+                    >
+                      Retry now
+                    </Button>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              )}
+
+              {step === "a" && (
+                <div className="rounded-md border bg-muted/40 p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-muted-foreground">
+                      Preview the account, the owner binding and the company details that will be sent — nothing leaves
+                      here until you run the step.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void openPlan()}
+                      disabled={planLoading || !propertyId}
+                    >
+                      {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      Preview account
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {tasks.map((task) => {
+                const live = taskStates[task.id];
+                const recorded = ledgerTasks.find((t) => t.id === task.id);
+                const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
+                const detail = live?.detail ?? recorded?.detail;
+                const taskWait = state === "pending" ? (live?.waitingUntil ?? stepWaiting?.until ?? 0) - nowTick : 0;
+                return (
+                  <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
+                    <TaskIcon state={state} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        {task.title}
+                        {state === "pending" && (
+                          <span className="ml-2 text-[11px] font-normal text-amber-600">
+                            Waiting{taskWait > 0 ? ` — ${formatCountdown(taskWait)}` : ""}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
+                      {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
+                        <div className="mt-1.5 space-y-1">
+                          <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />
+                          <p className="text-[11px] text-muted-foreground">
+                            {pushProgress.pushed}/{pushProgress.total} unit(s) pushed
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </CardContent>
       </Card>
     );
