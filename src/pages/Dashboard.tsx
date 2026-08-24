@@ -1748,6 +1748,8 @@ const Dashboard = () => {
                     <Line yAxisId="left" type="monotone" dataKey="smaBookings" name="Trend (SMA)" stroke="#f97316" strokeWidth={2} dot={false} connectNulls />
                     {/* Previous year comparison - dotted amber */}
                     {comparePrevYear && <Line yAxisId="left" type="monotone" dataKey="prevBookings" name="Prev Year" stroke="#eab308" strokeWidth={2} strokeDasharray="3 3" dot={false} />}
+                    {/* Same-time-last-year pace: what the prior year actually held at this point in its cycle. */}
+                    {comparePrevYear && stats.periodHasFuture && <Line yAxisId="left" type="monotone" dataKey="stlyBookings" name="STLY (pace)" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="2 2" dot={false} />}
                     {comparePrevYear && <Line yAxisId="right" type="monotone" dataKey="prevCancellations" name="Prev Cancelled" stroke="#f97316" strokeWidth={1} strokeDasharray="3 3" dot={false} opacity={0.6} />}
                     {/* Seasonal forecast - dashed blue */}
                     <Line yAxisId="left" type="monotone" dataKey="forecastBookings" name="Forecast" stroke="#0ea5e9" strokeWidth={2} strokeDasharray="6 3" dot={false} connectNulls={false} />
