@@ -29,6 +29,16 @@ export interface InsightSelection {
   text: string;
 }
 
+/** TOBI's freer "consultant" second opinion, produced by the experimental pass. */
+export interface ExperimentalInsights {
+  headline: string | null;
+  flagNotes: Record<string, string>;
+  suggestions: Partial<Record<SuggestionField, string>>;
+  /** Why the second opinion is missing, when it could not be produced. */
+  error: string | null;
+  generatedAt: string | null;
+}
+
 export interface ReportInsights {
   narrative: string | null;
   /** Reviewer-edited narrative; falls back to `narrative` when unset. */
@@ -41,8 +51,12 @@ export interface ReportInsights {
   chartRecommendation: string | null;
   /** Extra slides/screenshots TOBI read for this generation. */
   slidesConsidered: { count: number; titles: string[] };
+  experimental: ExperimentalInsights;
   generatedAt: string | null;
 }
+
+/** Selection key namespace so experimental ticks never collide with conservative ones. */
+export const experimentalKey = (key: string): string => `exp:${key}`;
 
 const readError = async (error: unknown): Promise<string> => {
   if (error instanceof FunctionsHttpError) {
