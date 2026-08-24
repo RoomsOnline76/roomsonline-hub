@@ -583,6 +583,7 @@ export default function AdminOnboarding() {
           hasDistributionIdentity: channelManagerEnabled || !!prop.ru_push_enabled,
           ruMandatoryPass: ruChecks?.known ? ruChecks.pass : null,
           ruMandatoryPercent: ruChecks?.known ? ruChecks.percent : null,
+          ruOutstanding: ruChecks?.known ? ruChecks.outstanding : null,
         };
         channelInputsById.set(prop.id, channelInputs);
         const channel = channelQueueProgress(channelInputs);
@@ -691,13 +692,19 @@ export default function AdminOnboarding() {
 
       // Background refinement: probe live channel readiness per ROL'OS property and
       // patch just that row. Small concurrency keeps the channel rate limiter happy.
-      const patchRow = (propertyId: string, pass: boolean | null, percent: number | null) => {
+      const patchRow = (
+        propertyId: string,
+        pass: boolean | null,
+        percent: number | null,
+        outstanding: number | null = null,
+      ) => {
         const inputs = channelInputsById.get(propertyId);
         if (!inputs) return;
         const channel = channelQueueProgress({
           ...inputs,
           ruMandatoryPass: pass,
           ruMandatoryPercent: percent,
+          ruOutstanding: outstanding,
         });
         setPropertyRows((prev) =>
           prev.map((row) =>
@@ -726,7 +733,12 @@ export default function AdminOnboarding() {
             // the live availability verdict is unavailable, not failing.
             liveProbeDegraded: listed && data?.availability_source !== "channel",
           });
-          patchRow(propertyId, summary.known ? summary.pass : null, summary.known ? summary.percent : null);
+          patchRow(
+            propertyId,
+            summary.known ? summary.pass : null,
+            summary.known ? summary.percent : null,
+            summary.known ? summary.outstanding : null,
+          );
         } catch {
           // Leave unknown — the local verdict stands.
         }
@@ -775,6 +787,11 @@ export default function AdminOnboarding() {
     let result = propertyRows;
     if (scopedPropertyIds.length) {
       result = result.filter((r) => scopedPropertyIds.includes(r.id));
+    }
+
+    // Channel-first view: only properties the Channel Manager applies to.
+    if (ruOnly) {
+      result = result.filter((r) => r.isRolos && r.channelManagerEnabled);
     }
 
     // Parties that still have a job: website onboarding started, or any ROL'OS
@@ -837,7 +854,7 @@ export default function AdminOnboarding() {
       if (a.isRolos !== b.isRolos) return a.isRolos ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
-  }, [actorEmail, propertyRows, scopedPropertyIds, showCompleted, statusFilter, searchQuery]);
+  }, [actorEmail, propertyRows, ruOnly, scopedPropertyIds, showCompleted, statusFilter, searchQuery]);
 
   // Stats calculated from properties with actual onboarding activity
   const onboardingActiveRows = useMemo(() => {
@@ -1089,6 +1106,12 @@ export default function AdminOnboarding() {
               Clear filter
             </Button>
           )}
+          <div className="flex items-center gap-2">
+            <Switch id="ru-only" checked={ruOnly} onCheckedChange={setRuOnly} />
+            <Label htmlFor="ru-only" className="text-sm text-muted-foreground whitespace-nowrap">
+              Channel properties only
+            </Label>
+          </div>
           <div className="flex items-center gap-2">
             <Switch id="show-completed" checked={showCompleted} onCheckedChange={setShowCompleted} />
             <Label htmlFor="show-completed" className="text-sm text-muted-foreground whitespace-nowrap">
