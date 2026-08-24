@@ -570,7 +570,10 @@ Deno.serve(async (req) => {
       {
         // Reconciliation is the one caller that may spend a wire read (nightly), and its
         // answer feeds the shared roster cache so nothing else has to read again.
-        const rosterRead = await readRuRoster(admin, { forceFresh: true, source: "channel-reconcile" });
+        // Reconciliation may spend a wire read, but only when the shared cache is actually
+        // stale — two reconciles in the same window reuse the first answer rather than
+        // re-opening the Pull_ListMyUsers_RQ storm.
+        const rosterRead = await readRuRoster(admin, { maxAgeMs: 5 * 60 * 1000, source: "channel-reconcile" });
         const usersErr = rosterRead.ok ? null : { message: rosterRead.message };
         const usersRes = rosterRead.ok ? { success: true, users: rosterRead.users } : { success: false, error: { message: rosterRead.message } };
         const ures = (usersRes || {}) as {

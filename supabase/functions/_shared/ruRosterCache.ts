@@ -39,20 +39,29 @@ export interface RuRosterResult {
 
 const CACHE_KEY = "master";
 export const RU_ROSTER_DEFAULT_TTL_MS = 10 * 60 * 1000;
+/** After a throttled/failed wire read with nothing cached, hold off this long before retrying. */
+const RU_ROSTER_RETRY_BACKOFF_MS = 90 * 1000;
 
 /** Per-instance memo so several helpers inside one invocation share a single read. */
 let memo: { at: number; result: RuRosterResult } | null = null;
+/** Per-instance "do not touch the wire again before" stamp, set on a throttled/failed read. */
+let retryNotBefore = 0;
 
 async function readCacheRow(admin: Db): Promise<{ users: RuRosterUser[]; fetchedAt: string } | null> {
   try {
-    const { data } = await admin
+    const { data, error } = await admin
       .from("ru_roster_cache")
       .select("users, fetched_at")
       .eq("cache_key", CACHE_KEY)
       .maybeSingle();
+    if (error) {
+      console.error(`[ruRosterCache] roster cache is UNREADABLE (${error.message}) — every read will hit the channel`);
+      return null;
+    }
     if (!data || !Array.isArray(data.users)) return null;
     return { users: data.users as RuRosterUser[], fetchedAt: String(data.fetched_at) };
-  } catch (_e) {
+  } catch (e) {
+    console.error(`[ruRosterCache] roster cache read threw: ${(e as Error)?.message}`);
     return null;
   }
 }
@@ -60,7 +69,7 @@ async function readCacheRow(admin: Db): Promise<{ users: RuRosterUser[]; fetched
 async function writeCacheRow(admin: Db, users: RuRosterUser[], source: string): Promise<string> {
   const fetchedAt = new Date().toISOString();
   try {
-    await admin
+    const { error } = await admin
       .from("ru_roster_cache")
       .upsert(
         {
@@ -72,8 +81,14 @@ async function writeCacheRow(admin: Db, users: RuRosterUser[], source: string): 
         },
         { onConflict: "cache_key" },
       );
+    if (error) {
+      // Loud, not silent: a cache that cannot persist turns every caller into a wire read.
+      console.error(
+        `[ruRosterCache] roster cache is UNWRITABLE (${error.message}) — Pull_ListMyUsers_RQ cannot be de-duplicated across instances`,
+      );
+    }
   } catch (e) {
-    console.warn(`[ruRosterCache] could not persist roster: ${(e as Error)?.message}`);
+    console.error(`[ruRosterCache] could not persist roster: ${(e as Error)?.message}`);
   }
   return fetchedAt;
 }
@@ -81,21 +96,25 @@ async function writeCacheRow(admin: Db, users: RuRosterUser[], source: string): 
 /**
  * Read the roster, preferring the cache. Exactly one `Pull_ListMyUsers_RQ` per stale read —
  * no polling of the rate window.
+ *
+ * `cacheOnly` never touches the wire: it is what every non-onboarding surface uses, so browsing
+ * ROL'OS can no longer generate channel roster traffic.
  */
 export async function readRuRoster(
   admin: Db,
-  opts: { maxAgeMs?: number; forceFresh?: boolean; source?: string } = {},
+  opts: { maxAgeMs?: number; forceFresh?: boolean; cacheOnly?: boolean; source?: string } = {},
 ): Promise<RuRosterResult> {
   const maxAge = Math.max(0, opts.maxAgeMs ?? RU_ROSTER_DEFAULT_TTL_MS);
   const source = opts.source ?? "unknown";
+  const forceFresh = opts.forceFresh === true && opts.cacheOnly !== true;
 
-  if (!opts.forceFresh && memo && Date.now() - memo.at < maxAge) {
+  if (!forceFresh && memo && Date.now() - memo.at < maxAge) {
     return { ...memo.result, cached: true };
   }
 
   const cached = await readCacheRow(admin);
   const cacheAgeMs = cached ? Date.now() - new Date(cached.fetchedAt).getTime() : Number.POSITIVE_INFINITY;
-  if (!opts.forceFresh && cached && cacheAgeMs < maxAge) {
+  if (!forceFresh && cached && cacheAgeMs < maxAge) {
     const result: RuRosterResult = {
       ok: true,
       users: cached.users,
@@ -107,6 +126,51 @@ export async function readRuRoster(
     return result;
   }
 
+  if (opts.cacheOnly) {
+    // Stale (or absent) and no permission to refresh: hand back what we hold and say how old it is.
+    if (cached) {
+      return {
+        ok: true,
+        users: cached.users,
+        cached: true,
+        deferred: false,
+        fetchedAt: cached.fetchedAt,
+        message: `Roster as of ${cached.fetchedAt} (cached read — refresh happens during channel onboarding)`,
+      };
+    }
+    return {
+      ok: false,
+      users: [],
+      cached: true,
+      deferred: false,
+      fetchedAt: null,
+      message: "No cached sub-account roster yet — it is read during channel onboarding or via Refresh roster",
+    };
+  }
+
+  if (!forceFresh && Date.now() < retryNotBefore) {
+    // A recent read was throttled or failed; do not re-open the storm.
+    const waitMs = retryNotBefore - Date.now();
+    if (cached) {
+      return {
+        ok: true,
+        users: cached.users,
+        cached: true,
+        deferred: false,
+        fetchedAt: cached.fetchedAt,
+        message: `Roster as of ${cached.fetchedAt} (channel read backing off for ${Math.ceil(waitMs / 1000)}s)`,
+      };
+    }
+    return {
+      ok: false,
+      users: [],
+      cached: false,
+      deferred: true,
+      fetchedAt: null,
+      message: `Channel roster read is backing off — retry in ${Math.ceil(waitMs / 1000)}s`,
+    };
+  }
+
   const { data, error } = await admin.functions.invoke("rentalsunited-api", {
     body: { action: "list_users", parent_action: `roster:${source}` },
   });
@@ -116,6 +180,7 @@ export async function readRuRoster(
     const fetchedAt = await writeCacheRow(admin, users, source);
     const result: RuRosterResult = { ok: true, users, cached: false, deferred: false, fetchedAt };
     memo = { at: Date.now(), result };
+    retryNotBefore = 0;
     return result;
   }
 
@@ -124,6 +189,8 @@ export async function readRuRoster(
     data?.error?.code === "RU_RATE_DEFERRED";
   const message = error?.message ?? data?.message ?? data?.error?.message ??
     "Rentals United did not return the sub-user list";
+
+  retryNotBefore = Date.now() + RU_ROSTER_RETRY_BACKOFF_MS;
 
   // A throttled or failed read must never look like "this master account has no sub-users".
   if (cached) {
@@ -145,4 +212,6 @@ export async function readRuRoster(
 /** Drop the in-instance memo — used right before a deliberate fresh read-back. */
 export function invalidateRuRosterMemo(): void {
   memo = null;
+  retryNotBefore = 0;
 }
+
