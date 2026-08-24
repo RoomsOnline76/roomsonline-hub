@@ -383,14 +383,8 @@ export default function AdminChannelMonitor() {
   }, [data, railStatus]);
 
 
-  // Deep-open the certification console on a specific sub-tab from another rail item.
-  const openCert = useCallback(
-    (subTab: string) => {
-      setCertSubTab(subTab);
-      setTab("cert");
-    },
-    [setTab],
-  );
+
+
 
   return (
     <AppLayout>
