@@ -1,0 +1,467 @@
+/**
+ * Two-step channel onboarding orchestrator (client side).
+ *
+ * The whole channel connection is two operator actions in the Channel Monitor:
+ *
+ *   Step A — confirm or create the distribution sub-account (identity, keys, company
+ *            profile, adopt any pre-existing listings)
+ *   Step B — push the property and its full ARI, read it back, verify currency and
+ *            switch Channel Manager on
+ *
+ * Each step is a short chain of individually retryable tasks. The chain is driven from
+ * the browser on purpose: every leg is its own edge request, so a slow channel can never
+ * exhaust a single function's idle budget, and a failed leg is retried on its own instead
+ * of replaying the whole step.
+ *
+ * Every channel call is delegated to the existing isolated surfaces
+ * (`ru-cert-portal`, `push-property-to-ru`, `channel-manager-entitlement`) — this module
+ * never speaks channel wire format.
+ */
+
+import { supabase } from "@/integrations/supabase/client";
+import { extractFunctionError } from "@/lib/functionError";
+import { pushPropertyToRu, type RuPushResult } from "@/lib/ruPushDriver";
+import { invalidateChannelEditGate } from "@/lib/channelEditGate";
+import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
+import {
+  CHANNEL_ONBOARD_TASKS,
+  type ChannelOnboardStep,
+  type ChannelOnboardTaskId,
+} from "@/config/channelOnboard";
+
+export type TaskOutcome = "passed" | "skipped" | "pending" | "failed";
+
+export interface TaskResult {
+  id: ChannelOnboardTaskId;
+  outcome: TaskOutcome;
+  /** Operator-facing detail: what happened, or why it stopped. */
+  detail: string;
+}
+
+export interface StepRunResult {
+  step: ChannelOnboardStep;
+  /** Every mandatory task passed (or was legitimately skipped). */
+  passed: boolean;
+  /** A channel rate window deferred a task — nothing failed, it just is not done yet. */
+  pending: boolean;
+  results: TaskResult[];
+  summary: string;
+}
+
+interface RunContext {
+  propertyId: string;
+  /** Operator-confirmed sub-account login, exactly as previewed. Step A only. */
+  confirmedOwnerEmail?: string | null;
+  confirmedOwnerName?: string | null;
+  onTask?: (id: ChannelOnboardTaskId, state: "running" | TaskOutcome, detail?: string) => void;
+  onPushProgress?: (progress: { pushed: number; total: number }) => void;
+}
+
+/** Invoke a cert-portal action and normalise the three answers we care about. */
+async function portal(
+  body: Record<string, unknown>,
+  fallback: string,
+): Promise<{ ok: boolean; pending: boolean; detail: string; data: Record<string, unknown> }> {
+  const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
+  const payload = (data ?? {}) as Record<string, unknown>;
+  // The channel allows one identical read per sliding minute; a queued read is progress,
+  // not a failure, so it must never be recorded as a blocker.
+  if (payload.pending === true) {
+    return { ok: false, pending: true, detail: "Queued behind the channel's rate window — finishes on its own.", data: payload };
+  }
+  if (error) {
+    return { ok: false, pending: false, detail: await extractFunctionError(error, fallback), data: payload };
+  }
+  if (payload.success !== true) {
+    const err = payload.error as { message?: string } | undefined;
+    return { ok: false, pending: false, detail: err?.message ?? fallback, data: payload };
+  }
+  return { ok: true, pending: false, detail: "", data: payload };
+}
+
+/** The gate as the backend sees it: readiness, monitor steps and the current binding. */
+export interface OnboardGateSnapshot {
+  property: { id: string; name: string; owner_email: string | null; listing_id: string | null; push_enabled: boolean };
+  binding: {
+    portfolio_id: string | null;
+    account_id: string | null;
+    account_scope: "portfolio" | "property" | null;
+    owner_email: string | null;
+    ru_owner_id: string | null;
+    login_email: string | null;
+    password_stored: boolean;
+    keys_stored: boolean;
+    keys_verified: boolean;
+    company_details_sent: boolean;
+    sibling_properties: Array<{ id: string; name: string }>;
+  };
+  steps: Record<
+    string,
+    {
+      step_key: string;
+      status: "pending" | "blocked" | "passed" | "stale" | "unknown";
+      blocker_summary: string | null;
+      passed_at: string | null;
+      last_checked_at: string | null;
+      details: Record<string, unknown> | null;
+    }
+  >;
+}
+
+async function gate(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.functions.invoke("ru-onboard-property", { body });
+  const payload = (data ?? {}) as Record<string, unknown>;
+  if (error) throw new Error(await extractFunctionError(error, "The onboarding gate could not be read"));
+  if (payload.success !== true) {
+    throw new Error(((payload.error as { message?: string }) ?? {}).message ?? "The onboarding gate refused the request");
+  }
+  return payload;
+}
+
+export async function fetchOnboardGate(propertyId: string): Promise<OnboardGateSnapshot> {
+  const payload = await gate({ action: "gate_status", property_id: propertyId });
+  return payload as unknown as OnboardGateSnapshot;
+}
+
+/** Re-grade mandatory steps 1–5 and persist the durable Ready-to-sell flag. */
+export async function gradeReadyToSell(propertyId: string): Promise<{
+  ready: boolean;
+  summary: string;
+  failing: Array<{ key: string; group: string; label: string; unit: string | null; detail: string | null }>;
+}> {
+  const payload = await gate({ action: "grade_ready_to_sell", property_id: propertyId });
+  return {
+    ready: payload.ready_to_sell === true,
+    summary: String(payload.summary ?? ""),
+    failing: (payload.failing ?? []) as Array<{
+      key: string;
+      group: string;
+      label: string;
+      unit: string | null;
+      detail: string | null;
+    }>,
+  };
+}
+
+async function recordStep(
+  propertyId: string,
+  stepKey: "monitor_step_a" | "monitor_step_b" | "ready_to_connect",
+  status: "passed" | "blocked" | "pending",
+  summary: string,
+  details?: Record<string, unknown>,
+): Promise<void> {
+  await gate({
+    action: "record_step",
+    property_id: propertyId,
+    step_key: stepKey,
+    status,
+    summary,
+    details: details ?? null,
+  });
+}
+
+/** Atomic archive → unbind → re-assign → archive-if-empty. Never partial by design. */
+export async function rebindOwner(
+  propertyId: string,
+  newOwnerEmail: string,
+  options: { confirmPortfolioScope?: boolean } = {},
+): Promise<{ legs: Array<{ leg: string; ok: boolean; detail?: string }>; closedPreviousAccount: boolean }> {
+  const payload = await gate({
+    action: "rebind_owner",
+    property_id: propertyId,
+    new_owner_email: newOwnerEmail,
+    confirm: true,
+    ...(options.confirmPortfolioScope ? { confirm_portfolio_scope: true } : {}),
+  });
+  invalidateChannelEditGate(propertyId);
+  notifyRuAccountsChanged();
+  return {
+    legs: (payload.legs ?? []) as Array<{ leg: string; ok: boolean; detail?: string }>,
+    closedPreviousAccount: payload.closed_previous_account === true,
+  };
+}
+
+/** Read-only preview of the sub-account that Step A would create or adopt. */
+export interface OwnerAccountPlan {
+  login_email?: string;
+  owner_name?: string;
+  contact_first_name?: string;
+  contact_last_name?: string;
+  scope?: string;
+  action?: string;
+  adopt?: boolean;
+  ru_owner_id?: string | null;
+  [key: string]: unknown;
+}
+
+export async function planOwnerAccount(propertyId: string): Promise<OwnerAccountPlan> {
+  const { ok, detail, data } = await portal(
+    { action: "plan_owner_account", property_id: propertyId },
+    "Could not work out the distribution account details",
+  );
+  if (!ok) throw new Error(detail);
+  return (data.plan ?? {}) as OwnerAccountPlan;
+}
+
+// ── Step runner ────────────────────────────────────────────────────────────────
+
+type TaskRunner = (ctx: RunContext, snapshot: OnboardGateSnapshot) => Promise<TaskResult>;
+
+const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
+  // Step A ────────────────────────────────────────────────────────────────────
+  owner_account: async (ctx) => {
+    const { ok, pending, detail, data } = await portal(
+      {
+        action: "ensure_owner_account",
+        property_id: ctx.propertyId,
+        ...(ctx.confirmedOwnerEmail ? { confirmed_owner_email: ctx.confirmedOwnerEmail } : {}),
+        ...(ctx.confirmedOwnerName ? { confirmed_owner_name: ctx.confirmedOwnerName } : {}),
+      },
+      "Could not confirm the distribution identity",
+    );
+    if (!ok) return { id: "owner_account", outcome: pending ? "pending" : "failed", detail };
+    notifyRuAccountsChanged();
+    return {
+      id: "owner_account",
+      outcome: "passed",
+      detail: data.created === false ? "Existing sub-account adopted" : "Sub-account created",
+    };
+  },
+
+  api_keys: async (ctx, snapshot) => {
+    if (snapshot.binding.keys_stored) {
+      return { id: "api_keys", outcome: "skipped", detail: "A key pair is already stored" };
+    }
+    if (!snapshot.binding.password_stored) {
+      return {
+        id: "api_keys",
+        outcome: "failed",
+        detail:
+          "No sub-account password is stored, so a key pair cannot be minted here. Generate the first pair in the channel portal (Security settings) and save it on the Accounts tab.",
+      };
+    }
+    const { ok, pending, detail } = await portal(
+      { action: "create_api_key", property_id: ctx.propertyId, ru_owner_id: snapshot.binding.ru_owner_id },
+      "Could not mint the sub-account key pair",
+    );
+    return {
+      id: "api_keys",
+      outcome: ok ? "passed" : pending ? "pending" : "failed",
+      detail: ok ? "Key pair minted and stored" : detail,
+    };
+  },
+
+  verify_keys: async (_ctx, snapshot) => {
+    if (!snapshot.binding.ru_owner_id) {
+      return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
+    }
+    const { ok, pending, detail, data } = await portal(
+      {
+        action: "verify_api_keys",
+        ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
+        ru_owner_id: snapshot.binding.ru_owner_id,
+      },
+      "The sub-account credentials did not verify",
+    );
+    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", detail };
+    if (data.verified === false) {
+      return {
+        id: "verify_keys",
+        outcome: "failed",
+        detail: String((data.message as string | undefined) ?? "The channel rejected the stored key pair"),
+      };
+    }
+    return { id: "verify_keys", outcome: "passed", detail: "Sub-account credentials verified" };
+  },
+
+  company_profile: async (ctx, snapshot) => {
+    if (snapshot.binding.company_details_sent) {
+      return { id: "company_profile", outcome: "skipped", detail: "Company profile already accepted" };
+    }
+    const { ok, pending, detail } = await portal(
+      { action: "ensure_company_details", property_id: ctx.propertyId },
+      "The company profile was not accepted",
+    );
+    return {
+      id: "company_profile",
+      outcome: ok ? "passed" : pending ? "pending" : "failed",
+      detail: ok ? "Company profile accepted" : detail,
+    };
+  },
+
+  adopt_listings: async (ctx) => {
+    // Adopting anything already under the sub-account is what stops Step B duplicating.
+    const { ok, pending, detail, data } = await portal(
+      { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
+      "Could not review the sub-account's existing listings",
+    );
+    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", detail };
+    const matched = Array.isArray(data.matched) ? (data.matched as unknown[]).length : 0;
+    return {
+      id: "adopt_listings",
+      outcome: "passed",
+      detail: matched > 0 ? `${matched} existing listing(s) adopted` : "Sub-account is empty — nothing to adopt",
+    };
+  },
+
+  // Step B ────────────────────────────────────────────────────────────────────
+  push_property: async (ctx) => {
+    let result: RuPushResult;
+    try {
+      result = await pushPropertyToRu(ctx.propertyId, {
+        subscribeRlnm: true,
+        onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
+      });
+    } catch (err) {
+      return {
+        id: "push_property",
+        outcome: "failed",
+        detail: err instanceof Error ? err.message : "The property push failed",
+      };
+    }
+    const outstanding = (result.remaining_unit_ids ?? []).length;
+    if (result.success !== true || outstanding > 0) {
+      const failedUnits = (result.units ?? []).filter((u) => u.success === false);
+      const detail =
+        result.error?.message ??
+        (failedUnits.length
+          ? failedUnits.map((u) => [u.name, u.error].filter(Boolean).join(": ")).slice(0, 4).join(" · ")
+          : "The push did not complete");
+      return {
+        id: "push_property",
+        outcome: outstanding > 0 ? "pending" : "failed",
+        detail: outstanding > 0 ? `${outstanding} unit(s) still outstanding — retry to continue. ${detail}` : detail,
+      };
+    }
+    const units = (result.units ?? []).length;
+    return {
+      id: "push_property",
+      outcome: "passed",
+      detail: units > 0 ? `${units} unit(s) pushed with full ARI` : "Property pushed with full ARI",
+    };
+  },
+
+  verify_listings: async (ctx) => {
+    const { ok, pending, detail, data } = await portal(
+      { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
+      "The published listings could not be read back",
+    );
+    if (!ok) return { id: "verify_listings", outcome: pending ? "pending" : "failed", detail };
+    if (data.listings_verified !== true) {
+      const expected = data.listings_expected_units ?? "?";
+      const verified = data.listings_verified_units ?? 0;
+      return {
+        id: "verify_listings",
+        outcome: "failed",
+        detail: `Only ${verified}/${expected} unit(s) were confirmed on the channel`,
+      };
+    }
+    return {
+      id: "verify_listings",
+      outcome: "passed",
+      detail: `${data.listings_verified_units ?? ""} unit(s) confirmed live on the channel`.trim(),
+    };
+  },
+
+  verify_currency: async (ctx) => {
+    const { ok, pending, detail, data } = await portal(
+      { action: "verify_ru_currency", property_id: ctx.propertyId },
+      "The published currency could not be verified",
+    );
+    if (!ok) return { id: "verify_currency", outcome: pending ? "pending" : "failed", detail };
+    if (data.matches === false) {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail: `The channel reports ${String(data.ru_reported_currency_iso ?? "a different currency")} — expected ${String(
+          data.published_currency_iso ?? "the property currency",
+        )}`,
+      };
+    }
+    return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+  },
+
+  entitlement: async (ctx) => {
+    const { data, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+      body: { scope: "property", entity_id: ctx.propertyId, enabled: true, include_units: true, notify: false },
+    });
+    if (error) {
+      return {
+        id: "entitlement",
+        outcome: "failed",
+        detail: await extractFunctionError(error, "Channel Manager could not be enabled"),
+      };
+    }
+    const failed = Number((data as { failed?: number } | null)?.failed ?? 0);
+    if (failed > 0) {
+      return { id: "entitlement", outcome: "failed", detail: `${failed} listing(s) did not activate at the channel` };
+    }
+    return { id: "entitlement", outcome: "passed", detail: "Channel Manager enabled — channels can connect" };
+  },
+};
+
+/**
+ * Run one step's task chain. Stops at the first mandatory failure so nothing downstream
+ * runs against a half-built account, and records the step verdict on the durable ledger.
+ */
+export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext): Promise<StepRunResult> {
+  const snapshot = await fetchOnboardGate(ctx.propertyId);
+  if (snapshot.steps.ready_to_sell?.status !== "passed") {
+    throw new Error("This property is not marked Ready to sell yet — clear steps 1–5 first.");
+  }
+  if (step === "b" && snapshot.steps.monitor_step_a?.status !== "passed") {
+    throw new Error("Confirm the distribution sub-account (Step A) before pushing.");
+  }
+
+  const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
+  const results: TaskResult[] = [];
+  let pending = false;
+  let failed = false;
+
+  for (const task of tasks) {
+    ctx.onTask?.(task.id, "running");
+    let result: TaskResult;
+    try {
+      result = await RUNNERS[task.id](ctx, snapshot);
+    } catch (err) {
+      result = {
+        id: task.id,
+        outcome: "failed",
+        detail: err instanceof Error ? err.message : "Task failed",
+      };
+    }
+    results.push(result);
+    ctx.onTask?.(task.id, result.outcome, result.detail);
+
+    if (result.outcome === "pending") pending = true;
+    if (result.outcome === "failed") {
+      failed = true;
+      if (!task.optional) break;
+    }
+  }
+
+  const passed = !failed && !pending;
+  const summary = results
+    .filter((r) => r.outcome === "failed" || r.outcome === "pending")
+    .map((r) => `${CHANNEL_ONBOARD_TASKS.find((t) => t.id === r.id)?.title ?? r.id}: ${r.detail}`)
+    .join(" · ");
+
+  const stepKey = step === "a" ? "monitor_step_a" : "monitor_step_b";
+  await recordStep(
+    ctx.propertyId,
+    stepKey,
+    passed ? "passed" : pending && !failed ? "pending" : "blocked",
+    summary,
+    { tasks: results },
+  );
+
+  // Step B completing is what makes the property sellable — and what opens the ordinary
+  // delta path, so the edit gate's cached verdict must go.
+  if (passed && step === "b") {
+    await recordStep(ctx.propertyId, "ready_to_connect", "passed", "");
+    invalidateChannelEditGate(ctx.propertyId);
+    notifyRuAccountsChanged();
+  }
+
+  return { step, passed, pending, results, summary };
+}
