@@ -1919,14 +1919,18 @@ Deno.serve(async (req) => {
           // Each pull passes the shared one-call-per-minute channel gate, which can sleep for
           // seconds. A slow or throttled account must never hold the readiness panel open:
           // the probe is time-boxed and a timeout is reported as "verification pending".
+          // `deferrable: false` keeps a throttled read OUT of the retry queue — the scorer
+          // already falls back to the last good XML, so parking + replaying it five times
+          // only amplified the traffic.
           const [avbRes, priceRes] = await Promise.all([
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
+              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, ...scope },
+              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
           ]);
+
           // A rate-limited read comes back as 202 { success: true, queued: true } with no XML.
           // That is "not read", never "answered with an empty calendar" — reuse the last real
           // answer the channel gave for this unit instead of inventing a zero-day verdict.
