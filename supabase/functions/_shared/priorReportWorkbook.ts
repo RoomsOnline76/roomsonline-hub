@@ -702,7 +702,39 @@ function parseYearGrid(rows: Row[]): YearGrid {
   return grid;
 }
 
+/**
+ * Shape test for a multi-year grid, so a sheet named "YOY", "Year on Year",
+ * "History 2015-2025" or anything else the revenue team invents is still read.
+ * A qualifying sheet has a header row of three or more distinct reporting years
+ * and at least three month rows carrying numbers under those year columns.
+ */
+function looksLikeYearMatrix(rows: Row[]): boolean {
+  for (let r = 0; r < rows.length; r += 1) {
+    const cells = rows[r] ?? [];
+    const yearCols: number[] = [];
+    const seen = new Set<number>();
+    cells.forEach((cell, col) => {
+      const year = yearOf(cell);
+      if (year !== null && plausibleYear(year) && !seen.has(year)) {
+        seen.add(year);
+        yearCols.push(col);
+      }
+    });
+    if (yearCols.length < 3) continue;
+
+    let monthRows = 0;
+    for (let n = r + 1; n < Math.min(rows.length, r + 20); n += 1) {
+      const next = rows[n] ?? [];
+      if (monthOf(next[0]) === null && monthOf(next[1]) === null) continue;
+      if (yearCols.some((col) => toNum(next[col]) !== null)) monthRows += 1;
+    }
+    if (monthRows >= 3) return true;
+  }
+  return false;
+}
+
 /* ─────────────────────────── entry point ─────────────────────────── */
+
 
 export function parsePriorReportWorkbook(
   buffer: ArrayBuffer,
@@ -764,21 +796,27 @@ export function parsePriorReportWorkbook(
       continue;
     }
 
-    if (/fin\s*year|historic|stats/.test(key)) {
+    // Named year grids, plus any sheet whose shape is a years-across matrix
+    // ("YOY", "Year on Year", "History 2015-2025" …).
+    const namedYearGrid = /fin\s*year|historic|stats|yoy|y\s*[-o]\s*y|year\s*on\s*year/.test(key);
+    if (namedYearGrid || looksLikeYearMatrix(rows)) {
       const grid = parseYearGrid(rows);
       if (!grid.rows) {
         extract.sheetsSkipped.push(name);
         continue;
       }
       extract.sheetsRead.push(name);
-      // Historical wins over Fin Year for a month present in both (it is the
-      // longer-running record), so merge Fin Year first, Historical after.
-      const longRunning = /historic|stats/.test(key);
+      // The longer-running record wins for a month present in more than one
+      // grid, so single-year sheets (Fin Year) merge first and multi-year
+      // matrices (Historical / YOY) merge after.
+      const longRunning = /historic|stats|yoy|y\s*[-o]\s*y|year\s*on\s*year/.test(key) ||
+        !/fin\s*year/.test(key);
       const merge = (
         existing: Record<string, number>,
         incoming: Record<string, number>,
       ): Record<string, number> =>
         longRunning ? { ...existing, ...incoming } : { ...incoming, ...existing };
+
       extract.historicalRevenue = merge(extract.historicalRevenue, grid.revenue);
       extract.historicalRoomNights = merge(extract.historicalRoomNights, grid.roomNights);
       extract.historicalOccupancy = merge(extract.historicalOccupancy, grid.occupancy);

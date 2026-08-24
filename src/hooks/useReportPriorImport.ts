@@ -31,8 +31,18 @@ export interface PriorImportFound {
 
 }
 
+export interface PriorImportAttempt {
+  filename: string;
+  months: number;
+  note: string;
+}
+
 export interface PriorImportPreview {
   file: { id: string; filename: string };
+  /** Each uploaded prior report that was tried, and what it yielded. */
+  fileAttempts: PriorImportAttempt[];
+  /** Every prior report on the run, so a reviewer can force a different one. */
+  availableFiles: Array<{ id: string; filename: string }>;
   asOfDate: string | null;
   otbColumnLabel: string | null;
   /** Sheet (or PDF page) the baseline figures were lifted from. */
@@ -42,6 +52,7 @@ export interface PriorImportPreview {
   /** Financial-year heading printed on an owner's report, e.g. `2026/27`. */
   fiscalYearLabel: string | null;
   months: string[];
+
   previousOtbRevenue: Record<string, number>;
   currentOtbRevenue: Record<string, number>;
   previousRoomNights: Record<string, number>;
@@ -98,7 +109,21 @@ const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
     id: String((raw.file as { id?: string } | undefined)?.id ?? ""),
     filename: String((raw.file as { filename?: string } | undefined)?.filename ?? "workbook"),
   },
+  fileAttempts: Array.isArray(raw.file_attempts)
+    ? (raw.file_attempts as Array<Record<string, unknown>>).map((row) => ({
+        filename: String(row.filename ?? ""),
+        months: Number(row.months ?? 0),
+        note: String(row.note ?? ""),
+      }))
+    : [],
+  availableFiles: Array.isArray(raw.available_files)
+    ? (raw.available_files as Array<Record<string, unknown>>).map((row) => ({
+        id: String(row.id ?? ""),
+        filename: String(row.filename ?? ""),
+      }))
+    : [],
   asOfDate: typeof raw.as_of_date === "string" ? raw.as_of_date : null,
+
   otbColumnLabel: typeof raw.otb_column_label === "string" ? raw.otb_column_label : null,
   baselineSheet: typeof raw.baseline_sheet === "string" ? raw.baseline_sheet : null,
   sourceKind: raw.source_kind === "owner_report_pdf" ? "owner_report_pdf" : "workbook",
@@ -166,14 +191,22 @@ export function useReportPriorImport(runId: string | undefined) {
     [runId],
   );
 
-  /** Read the uploaded workbook and show what it holds — writes nothing. */
-  const inspect = useCallback(() => call({ apply: false }), [call]);
+  /**
+   * Read the uploaded workbook and show what it holds — writes nothing.
+   * Pass a file id to force one specific upload instead of letting the
+   * importer pick (PDF first, then the newest spreadsheet that yields figures).
+   */
+  const inspect = useCallback(
+    (fileId?: string) => call({ apply: false, ...(fileId ? { file_id: fileId } : {}) }),
+    [call],
+  );
 
   const apply = useCallback(
-    async (selections: PriorImportSelections, replaceExisting: boolean) => {
+    async (selections: PriorImportSelections, replaceExisting: boolean, fileId?: string) => {
       const result = await call({
         apply: true,
         replace_existing: replaceExisting,
+        ...(fileId ? { file_id: fileId } : {}),
         selections: {
           previous_otb: selections.previousOtb,
           last_year: selections.lastYear,
@@ -183,6 +216,7 @@ export function useReportPriorImport(runId: string | undefined) {
 
         },
       });
+
       if (result.ok) await queryClient.invalidateQueries({ queryKey: ["reports"] });
       return result;
     },

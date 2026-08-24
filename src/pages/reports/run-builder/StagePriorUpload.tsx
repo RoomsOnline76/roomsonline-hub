@@ -9,7 +9,12 @@ export function StagePriorUpload({ ctx }: { ctx: RunBuilderContext }) {
 
   return (
     <div className="space-y-4">
-      <PriorReportImportCard mode="upload" run={ctx.run} onChanged={ctx.refresh} />
+      <PriorReportImportCard
+        mode="upload"
+        run={ctx.run}
+        onChanged={ctx.refresh}
+        onRemoveFile={ctx.editable ? ctx.onRemoveFile : undefined}
+      />
 
       <Card>
         <CardContent className="py-4">

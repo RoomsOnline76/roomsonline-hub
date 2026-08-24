@@ -175,9 +175,9 @@ Deno.serve(async (req) => {
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
 
-    // Newest prior-report upload on the run, unless one was named. A designed
-    // owner's-report PDF always wins over a spreadsheet dropped at the same step
-    // (reservation lists land here by mistake and hold no baseline figures).
+    // Every prior-report upload on the run, newest first. A designed owner's-report
+    // PDF is tried before a spreadsheet, but a file that yields nothing never wins:
+    // we fall through to the next candidate instead of reporting an empty baseline.
     let fileQuery = admin
       .from("report_source_files")
       .select("id, storage_path, original_filename")
@@ -189,44 +189,100 @@ Deno.serve(async (req) => {
     });
     if (filesError) return json({ error: filesError.message }, 500);
     const candidates = files ?? [];
-    const file =
-      candidates.find((row) => /\.pdf$/i.test(String(row.original_filename ?? ""))) ??
-      candidates[0];
-    if (!file) {
+    if (!candidates.length) {
       return json({ error: "No previous report uploaded on this run" }, 400);
     }
+    const isPdf = (row: { original_filename: string }) =>
+      /\.pdf$/i.test(String(row.original_filename ?? ""));
+    // A named file is honoured exactly; otherwise PDFs first, then spreadsheets.
+    const ordered = fileId
+      ? candidates
+      : [...candidates.filter(isPdf), ...candidates.filter((row) => !isPdf(row))];
 
+    const runAsOf = run.as_of_date ? String(run.as_of_date).slice(0, 10) : null;
+    const attempts: Array<{ filename: string; months: number; note: string }> = [];
 
-    const download = await admin.storage.from(BUCKET).download(file.storage_path);
-    if (download.error || !download.data) {
+    let file: (typeof ordered)[number] | null = null;
+    let extract: PriorReportExtract | null = null;
+    let owner: OwnerReportExtract | null = null;
+    let isOwnerPdf = false;
+
+    for (const candidate of ordered) {
+      const download = await admin.storage.from(BUCKET).download(candidate.storage_path);
+      if (download.error || !download.data) {
+        attempts.push({
+          filename: candidate.original_filename,
+          months: 0,
+          note: `could not be read (${download.error?.message ?? "download failed"})`,
+        });
+        continue;
+      }
+      const buffer = await download.data.arrayBuffer();
+      const candidateIsPdf = isPdf(candidate);
+
+      let candidateOwner: OwnerReportExtract | null = null;
+      let candidateExtract: PriorReportExtract;
+      try {
+        if (candidateIsPdf) {
+          // Designed owner's-report pack: position-aware PDF reader.
+          candidateOwner = await parsePriorOwnerReport(buffer, {
+            runAsOfDate: runAsOf,
+            windowMonths: runAsOf
+              ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
+              : [],
+          });
+          candidateExtract = ownerToExtract(candidateOwner);
+        } else {
+          // The run's own as-of date decides which OTB column is the comparison
+          // baseline — the newest one strictly older than this run.
+          // protel-sourced workbooks arrive UTF-16 encoded; transcode before reading.
+          const priorRepair = await repairWorkbookBuffer(buffer);
+          candidateExtract = parsePriorReportWorkbook(priorRepair.buffer, { runAsOfDate: runAsOf });
+        }
+      } catch (e) {
+        attempts.push({
+          filename: candidate.original_filename,
+          months: 0,
+          note: `could not be parsed (${(e as Error)?.message ?? "unknown error"})`,
+        });
+        continue;
+      }
+
+      const monthCount = candidateExtract.months.length;
+      attempts.push({
+        filename: candidate.original_filename,
+        months: monthCount,
+        note: monthCount ? `${monthCount} month(s) read` : "no figures found",
+      });
+
+      // Keep the first candidate as the fallback so a single empty upload still
+      // produces a preview explaining what was (not) found.
+      if (!file) {
+        file = candidate;
+        extract = candidateExtract;
+        owner = candidateOwner;
+        isOwnerPdf = candidateIsPdf;
+      }
+      if (monthCount > 0) {
+        file = candidate;
+        extract = candidateExtract;
+        owner = candidateOwner;
+        isOwnerPdf = candidateIsPdf;
+        break;
+      }
+    }
+
+    if (!file || !extract) {
       return json(
-        { error: `Could not read ${file.original_filename}: ${download.error?.message ?? "download failed"}` },
-        502,
+        {
+          error: `None of the uploaded previous reports could be read: ${
+            attempts.map((a) => `${a.filename} — ${a.note}`).join("; ")
+          }`,
+        },
+        422,
       );
     }
 
-    const runAsOf = run.as_of_date ? String(run.as_of_date).slice(0, 10) : null;
-    const buffer = await download.data.arrayBuffer();
-    const isOwnerPdf = /\.pdf$/i.test(file.original_filename);
-
-    let extract: PriorReportExtract;
-    let owner: OwnerReportExtract | null = null;
-    if (isOwnerPdf) {
-      // Designed owner's-report pack: position-aware PDF reader.
-      owner = await parsePriorOwnerReport(buffer, {
-        runAsOfDate: runAsOf,
-        windowMonths: runAsOf
-          ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
-          : [],
-      });
-      extract = ownerToExtract(owner);
-    } else {
-      // The run's own as-of date decides which OTB column is the comparison
-      // baseline — the newest one strictly older than this run.
-      // protel-sourced workbooks arrive UTF-16 encoded; transcode before reading.
-      const priorRepair = await repairWorkbookBuffer(buffer);
-      extract = parsePriorReportWorkbook(priorRepair.buffer, { runAsOfDate: runAsOf });
-    }
 
     const found = {
       previous_otb_months: count(extract.previousOtbRevenue),
@@ -258,6 +314,10 @@ Deno.serve(async (req) => {
 
     const preview = {
       file: { id: file.id, filename: file.original_filename },
+      // Which uploads were tried, in order, and what each yielded.
+      file_attempts: attempts,
+      available_files: candidates.map((row) => ({ id: row.id, filename: row.original_filename })),
+
       as_of_date: extract.asOfDate,
       otb_column_label: extract.otbColumnLabel,
       baseline_sheet: extract.baselineSheet,

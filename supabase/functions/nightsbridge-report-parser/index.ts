@@ -26,23 +26,32 @@ const BUCKET = "revenue-reports";
 const TIME_BUDGET_MS = 100_000;
 
 
+/**
+ * Header aliases. NightsBridge exports vary by property and by the year the
+ * export was taken ("Arrival"/"Arrival Date"/"Check In", "Revenue"/"Accommodation"),
+ * so each field carries every spelling seen so far. Matching is loose: a header
+ * cell qualifies when it equals an alias or contains it as a whole phrase.
+ */
 const COLUMN_ALIASES: Record<keyof LedgerRow | "arrival" , string[]> = {
-  booking_id: ["booking id"],
-  arrival: ["arrival date", "arrival"],
-  last_night: ["last night"],
-  nights: ["nights"],
-  revenue: ["revenue"],
-  extras: ["extras"],
-  commission: ["commission"],
-  nett: ["nett", "net"],
-  room_name: ["room name", "room"],
-  source: ["source"],
-  status: ["status"],
-  type: ["type"],
-  currency: ["currency"],
+  booking_id: ["booking id", "bookingid", "booking no", "booking number", "bkg id", "res id"],
+  arrival: ["arrival date", "arrival", "check in", "check-in", "checkin", "from", "date in"],
+  last_night: ["last night", "departure", "departure date", "check out", "check-out", "date out"],
+  nights: ["nights", "no of nights", "no. of nights", "night", "nts", "days"],
+  revenue: ["revenue", "accommodation", "accommodation revenue", "room revenue", "gross", "total"],
+  extras: ["extras", "extra", "extras revenue"],
+  commission: ["commission", "comm"],
+  nett: ["nett", "net", "nett revenue", "net revenue"],
+  room_name: ["room name", "room", "unit", "unit name", "room type", "accommodation type"],
+  source: ["source", "booking source", "channel"],
+  status: ["status", "booking status"],
+  type: ["type", "booking type", "rate type"],
+  currency: ["currency", "curr"],
 };
 
 const REQUIRED = ["arrival", "nights", "revenue", "room_name"] as const;
+/** A header row must carry at least these three to be a bookings ledger. */
+const HEADER_SIGNATURE = ["arrival", "nights", "revenue"] as const;
+
 
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -99,39 +108,94 @@ function parseWorkbook(buffer: ArrayBuffer, filename: string): ParsedFile {
     };
   }
 
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return { rows, skipped, errors: [`${filename}: no worksheets found`] };
+  if (!workbook.SheetNames.length) {
+    return { rows, skipped, errors: [`${filename}: no worksheets found`] };
+  }
 
-  const grid = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
-    header: 1,
-    blankrows: false,
-    raw: true,
-  });
+  /** Column lookup for one header row, loosely matched against the aliases. */
+  const mapHeader = (cells: string[]): Partial<Record<keyof LedgerRow, number>> => {
+    const index: Partial<Record<keyof LedgerRow, number>> = {};
+    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
+      const exact = cells.findIndex((cell) => aliases.includes(cell));
+      const found = exact >= 0
+        ? exact
+        : cells.findIndex((cell) => cell.length > 2 && aliases.some((alias) => cell === alias || cell.includes(alias)));
+      if (found >= 0) index[field as keyof LedgerRow] = found;
+    }
+    return index;
+  };
 
-  // The export carries a title row (and a blank row) before the real header.
+  // Every sheet is a candidate: some exports put the ledger on a second tab,
+  // and the header can sit well below a title block. The sheet whose ledger
+  // holds the most usable rows wins.
+  let grid: unknown[][] = [];
   let headerIndex = -1;
-  for (let i = 0; i < Math.min(grid.length, 15); i += 1) {
-    const cells = (grid[i] ?? []).map(clean);
-    if (cells.includes("booking id") && cells.includes("arrival date") && cells.includes("revenue")) {
-      headerIndex = i;
+  let index: Partial<Record<keyof LedgerRow, number>> = {};
+  let bestScore = -1;
+  const misses: string[] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const candidateGrid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      blankrows: false,
+      raw: true,
+    });
+
+    for (let i = 0; i < Math.min(candidateGrid.length, 40); i += 1) {
+      const cells = (candidateGrid[i] ?? []).map(clean);
+      const candidateIndex = mapHeader(cells);
+      if (HEADER_SIGNATURE.some((field) => candidateIndex[field] === undefined)) continue;
+      if (REQUIRED.some((field) => candidateIndex[field] === undefined)) {
+        misses.push(
+          `${sheetName}: missing ${
+            REQUIRED.filter((field) => candidateIndex[field] === undefined).join(", ")
+          }`,
+        );
+        continue;
+      }
+      // Score the block by how many rows below it carry a usable arrival date.
+      let score = 0;
+      for (let r = i + 1; r < candidateGrid.length; r += 1) {
+        const row = candidateGrid[r] ?? [];
+        const col = candidateIndex.arrival;
+        if (col !== undefined && toIsoDate(row[col])) score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        grid = candidateGrid;
+        headerIndex = i;
+        index = candidateIndex;
+      }
       break;
     }
   }
+
   if (headerIndex === -1) {
-    return { rows, skipped, errors: [`${filename}: could not find the NightsBridge header row`] };
+    // A consolidated revenue report (months down, OTB columns across) has no
+    // bookings ledger at all — say so, because it belongs on the previous-report
+    // step, not here.
+    const firstGrid = XLSX.utils.sheet_to_json<unknown[]>(
+      workbook.Sheets[workbook.SheetNames[0]!],
+      { header: 1, blankrows: false, raw: true },
+    );
+    const looksConsolidated = firstGrid
+      .slice(0, 30)
+      .some((row) => (row ?? []).map(clean).some((cell) => /\botb\b|on the books|budget/.test(cell)));
+    return {
+      rows,
+      skipped,
+      errors: [
+        looksConsolidated
+          ? `${filename}: this looks like the consolidated revenue report, not a NightsBridge bookings export — upload it at the "previous report" step instead.`
+          : `${filename}: could not find the NightsBridge header row (needs arrival, nights and revenue columns)${
+            misses.length ? ` — closest match ${misses[0]}` : ""
+          }`,
+      ],
+    };
   }
 
-  const header = (grid[headerIndex] ?? []).map(clean);
-  const index: Partial<Record<keyof LedgerRow, number>> = {};
-  for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-    const found = header.findIndex((cell) => aliases.includes(cell));
-    if (found >= 0) index[field as keyof LedgerRow] = found;
-  }
-
-  const missing = REQUIRED.filter((field) => index[field] === undefined);
-  if (missing.length) {
-    return { rows, skipped, errors: [`${filename}: missing column(s) ${missing.join(", ")}`] };
-  }
 
   const at = (row: unknown[], field: keyof LedgerRow): unknown => {
     const col = index[field];

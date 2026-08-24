@@ -16,6 +16,8 @@ export interface RunBuilderContext {
   missingMonths: string[];
   /** `YYYY-MM` the review covers, editable in the review stage. */
   onSetReportMonth: (month: string) => Promise<void>;
+  /** `YYYY-MM-DD` the run is taken as-of, editable in stage A. */
+  onSetAsOfDate: (isoDate: string) => Promise<void>;
   editable: boolean;
 
   refresh: () => Promise<void>;

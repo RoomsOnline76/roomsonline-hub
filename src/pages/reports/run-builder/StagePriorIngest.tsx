@@ -16,5 +16,12 @@ export function StagePriorIngest({ ctx }: { ctx: RunBuilderContext }) {
     );
   }
 
-  return <PriorReportImportCard mode="ingest" run={ctx.run} onChanged={ctx.refresh} />;
+  return (
+    <PriorReportImportCard
+      mode="ingest"
+      run={ctx.run}
+      onChanged={ctx.refresh}
+      onRemoveFile={ctx.editable ? ctx.onRemoveFile : undefined}
+    />
+  );
 }

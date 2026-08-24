@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { FileSpreadsheet, Loader2, Search, Upload, Wand2 } from "lucide-react";
+import { FileSpreadsheet, Loader2, Search, Trash2, Upload, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,8 @@ interface Props {
    * workbook, stage D only picks what to ingest. "all" keeps both together.
    */
   mode?: "all" | "upload" | "ingest";
+  /** Remove an attached previous report (omitted when the run is locked). */
+  onRemoveFile?: (file: ReportRunDetail["files"][number]) => void;
 }
 
 /**
@@ -43,7 +45,7 @@ interface Props {
  * first run has no history for — previous OTB, last-year actuals, the manual
  * monthly inputs and the multi-year historical baseline.
  */
-export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
+export function PriorReportImportCard({ run, onChanged, mode = "all", onRemoveFile }: Props) {
   const showUpload = mode !== "ingest";
   const showIngest = mode !== "upload";
   const { inspect, apply, preview, isWorking } = useReportPriorImport(run.id);
@@ -53,6 +55,8 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
   const [states, setStates] = useState<Record<number, DropZoneFileState>>({});
   const [uploading, setUploading] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(false);
+  /** Empty = let the importer choose; otherwise the reviewer's forced pick. */
+  const [chosenFileId, setChosenFileId] = useState<string>("");
   const [selections, setSelections] = useState<PriorImportSelections>({
     previousOtb: true,
     lastYear: true,
@@ -66,6 +70,7 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
     () => run.files.filter((file) => file.fileRole === "prior_report"),
     [run.files],
   );
+
 
   const handleUpload = useCallback(async () => {
     if (!pending.length) return;
@@ -109,19 +114,26 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
     }
   }, [inspect, onChanged, pending, run.files, run.id, run.propertyId]);
 
-  const handleInspect = useCallback(async () => {
-    const result = await inspect();
-    if (!result.ok) {
-      toast.error("Could not read the workbook", { description: result.message });
-      return;
-    }
-    toast.success("Workbook read", {
-      description: `As-of ${formatDate(result.preview?.asOfDate ?? null)} · ${result.preview?.months.length ?? 0} month(s).`,
-    });
-  }, [inspect]);
+  const handleInspect = useCallback(
+    async (fileId?: string) => {
+      const result = await inspect(fileId ?? chosenFileId ?? undefined);
+      if (!result.ok) {
+        toast.error("Could not read the workbook", { description: result.message });
+        return;
+      }
+      const read = result.preview;
+      const months = read?.months.length ?? 0;
+      toast[months ? "success" : "warning"]("Workbook read", {
+        description: months
+          ? `${read?.file.filename} · as-of ${formatDate(read?.asOfDate ?? null)} · ${months} month(s).`
+          : `${read?.file.filename} holds no figures — pick another file below.`,
+      });
+    },
+    [inspect, chosenFileId],
+  );
 
   const handleApply = useCallback(async () => {
-    const result = await apply(selections, replaceExisting);
+    const result = await apply(selections, replaceExisting, chosenFileId || undefined);
     if (!result.ok) {
       toast.error("Import failed", { description: result.message });
       return;
@@ -140,7 +152,8 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
       }
     }
     await onChanged();
-  }, [apply, generateSpecial, onChanged, preview, replaceExisting, selections]);
+  }, [apply, chosenFileId, generateSpecial, onChanged, preview, replaceExisting, selections]);
+
 
 
   const found = preview?.found;
@@ -163,18 +176,69 @@ export function PriorReportImportCard({ run, onChanged, mode = "all" }: Props) {
 
         {priorFiles.length > 0 && (
           <div className="space-y-1.5">
-            {priorFiles.map((file) => (
-              <div
-                key={file.id}
-                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+            {priorFiles.map((file) => {
+              const attempt = preview?.fileAttempts.find(
+                (row) => row.filename === file.originalFilename,
+              );
+              const used = preview?.file.id === file.id;
+              return (
+                <div
+                  key={file.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm"
+                >
+                  <span className="min-w-0 flex-1 truncate">{file.originalFilename}</span>
+                  <div className="flex items-center gap-2">
+                    {attempt && (
+                      <span className="text-[11px] text-muted-foreground">{attempt.note}</span>
+                    )}
+                    <Badge
+                      variant={used ? "secondary" : "outline"}
+                      className="font-normal text-[11px]"
+                    >
+                      {used ? "used as baseline" : "baseline import"}
+                    </Badge>
+                    {priorFiles.length > 1 && !used && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isWorking}
+                        onClick={() => {
+                          setChosenFileId(file.id);
+                          void handleInspect(file.id);
+                        }}
+                      >
+                        Use this one
+                      </Button>
+                    )}
+                    {onRemoveFile && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        title={`Remove ${file.originalFilename}`}
+                        onClick={() => onRemoveFile(file)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {chosenFileId && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline"
+                onClick={() => {
+                  setChosenFileId("");
+                  void handleInspect("");
+                }}
               >
-                <span className="truncate">{file.originalFilename}</span>
-                <Badge variant="outline" className="font-normal text-[11px]">
-                  baseline import
-                </Badge>
-              </div>
-            ))}
+                Let the importer choose again
+              </button>
+            )}
           </div>
+
         )}
 
         {showUpload && (
