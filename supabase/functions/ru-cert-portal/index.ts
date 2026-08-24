@@ -273,10 +273,14 @@ async function loadLastGoodRuXml(
 async function listRuSubUsers(
   // deno-lint-ignore no-explicit-any
   admin: any,
-  opts: { forceFresh?: boolean; source?: string } = {},
+  opts: { forceFresh?: boolean; cacheOnly?: boolean; source?: string } = {},
 ): Promise<{ ok: boolean; users: { owner_id?: string; email?: string; login_email?: string; user_account_id?: string }[]; deferred: boolean; cached: boolean; fetched_at: string | null; message?: string }> {
-  if (opts.forceFresh) invalidateRuRosterMemo();
-  const roster = await readRuRoster(admin, { forceFresh: opts.forceFresh, source: opts.source ?? "ru-cert-portal" });
+  if (opts.forceFresh && !opts.cacheOnly) invalidateRuRosterMemo();
+  const roster = await readRuRoster(admin, {
+    forceFresh: opts.forceFresh,
+    cacheOnly: opts.cacheOnly,
+    source: opts.source ?? "ru-cert-portal",
+  });
   return {
     ok: roster.ok,
     users: roster.users,
@@ -3880,7 +3884,7 @@ Deno.serve(async (req) => {
     if (action === "user_management") {
       const flag = await readUserMgmtFlag();
       // Probe through the cache: opening this page must never cost a wire read.
-      const probe = await listRuSubUsers(admin, { source: "user_management_probe" });
+      const probe = await listRuSubUsers(admin, { cacheOnly: true, source: "user_management_probe" });
       const probeOk = probe.ok;
       return json({
         success: true,
@@ -5077,8 +5081,11 @@ Deno.serve(async (req) => {
     //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
     //    per owner email, and logins can be renamed in the RU portal).
     if (action === "list_ru_candidates") {
+      // Reading this list is onboarding/manual work only: the wire is touched when the
+      // operator presses "Refresh roster", never on a plain panel load.
       const listed = await listRuSubUsers(admin, {
         forceFresh: body.force_refresh === true,
+        cacheOnly: body.force_refresh !== true,
         source: "list_ru_candidates",
       });
       if (!listed.ok) {
@@ -5137,7 +5144,7 @@ Deno.serve(async (req) => {
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const listed = await listRuSubUsers(admin, { source: "bind_ru_account" });
+        const listed = await listRuSubUsers(admin, { cacheOnly: true, source: "bind_ru_account" });
         if (!listed.ok) {
           // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
           console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
@@ -6343,9 +6350,13 @@ Deno.serve(async (req) => {
       // One roster per Step A run. Every helper below shares this read; only a deliberate
       // read-back after creating a sub-user asks the channel again (`fresh: true`).
       let rosterOnce: RuUser[] | null = null;
+      /** Step A asks the channel for a fresh roster at most ONCE per run (the create read-back). */
+      let freshRosterRead = false;
       const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
+        if (fresh && freshRosterRead && rosterOnce) return rosterOnce;
         if (!fresh && rosterOnce) return rosterOnce;
         const listed = await listRuSubUsers(admin, { forceFresh: fresh, source: "step-a" });
+        if (fresh && listed.ok && !listed.cached) freshRosterRead = true;
         rosterOnce = listed.ok ? (listed.users as RuUser[]) : (rosterOnce ?? []);
         return rosterOnce;
       };
