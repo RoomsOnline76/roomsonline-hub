@@ -25,9 +25,12 @@ import {
   buildBillingEstimate,
   money,
   summariseEstimate,
+  DEFAULT_WIDGET_TIERS,
   type EstimatorAddOns,
   type EstimatorProperty,
+  type EstimateGroup,
   type PaymentMode,
+  type WidgetCommissionMode,
 } from "@/lib/billingEstimate";
 
 const ADD_ON_LABELS: Array<{ key: keyof EstimatorAddOns; label: string; hint: string }> = [
@@ -40,9 +43,20 @@ const ADD_ON_LABELS: Array<{ key: keyof EstimatorAddOns; label: string; hint: st
 ];
 
 const PAYMENT_LABELS: Record<PaymentMode, string> = {
-  rol: "RoomsOnline processes payments",
-  byo: "Property brings its own gateway",
-  reservation_only: "Reservation only (no card payment)",
+  rol: "ROL'OS gateway",
+  byo: "Own gateway (BYO)",
+  reservation_only: "Bookings only",
+};
+
+const PAYMENT_HINTS: Record<PaymentMode, string> = {
+  rol: "RoomsOnline processes the card payment",
+  byo: "The property's own provider processes the card",
+  reservation_only: "Reservation captured, no card payment taken",
+};
+
+const GROUP_LABELS: Record<EstimateGroup, string> = {
+  transaction: "Commission & transaction fees",
+  recurring: "Monthly recurring",
 };
 
 let rowSeq = 0;
@@ -58,6 +72,9 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
   const [bookings, setBookings] = useState("20");
   const [bookingValue, setBookingValue] = useState("150000");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("rol");
+  const [widgetBookings, setWidgetBookings] = useState("10");
+  const [widgetValue, setWidgetValue] = useState("60000");
+  const [widgetMode, setWidgetMode] = useState<WidgetCommissionMode>("flat");
   const [addOns, setAddOns] = useState<EstimatorAddOns>({
     pms: true,
     channel_manager: true,
@@ -87,12 +104,15 @@ export function BillingEstimator({ defaults }: { defaults: BillingDefault[] }) {
           properties: rows,
           monthlyBookings: Number(bookings) || 0,
           monthlyBookingValue: Number(bookingValue) || 0,
+          widgetBookings: Number(widgetBookings) || 0,
+          widgetBookingValue: Number(widgetValue) || 0,
+          widgetCommissionMode: widgetMode,
           addOns,
           paymentMode,
         },
         activeSchedule,
       ),
-    [preset, rows, bookings, bookingValue, addOns, paymentMode, activeSchedule],
+    [preset, rows, bookings, bookingValue, widgetBookings, widgetValue, widgetMode, addOns, paymentMode, activeSchedule],
   );
 
   const setUnits = (id: string, units: string) =>
