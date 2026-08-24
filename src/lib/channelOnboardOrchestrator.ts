@@ -390,8 +390,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
 
   api_keys: async (ctx, snapshot) => {
+    const accountLabel = [
+      snapshot.binding.ru_owner_id ? `OwnerID ${snapshot.binding.ru_owner_id}` : null,
+      snapshot.binding.login_email || snapshot.binding.owner_email || null,
+    ].filter(Boolean).join(" · ");
     if (snapshot.binding.keys_stored) {
-      return { id: "api_keys", outcome: "skipped", detail: "A key pair is already stored" };
+      return {
+        id: "api_keys",
+        outcome: "skipped",
+        detail: `A key pair is already stored${accountLabel ? ` for ${accountLabel}` : ""}`,
+      };
     }
     if (!snapshot.binding.password_stored) {
       return {
@@ -409,7 +417,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       id: "api_keys",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
       retryAfterMs,
-      detail: ok ? "Key pair minted and stored" : detail,
+      detail: ok ? `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}` : detail,
     };
   },
 
@@ -433,12 +441,27 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: String((data.message as string | undefined) ?? "The channel rejected the stored key pair"),
       };
     }
-    return { id: "verify_keys", outcome: "passed", detail: "Sub-account credentials verified" };
+    const verifiedLabel = [
+      String(data.ru_owner_id ?? snapshot.binding.ru_owner_id ?? "").trim()
+        ? `OwnerID ${String(data.ru_owner_id ?? snapshot.binding.ru_owner_id)}`
+        : null,
+      String(data.login_email ?? snapshot.binding.login_email ?? snapshot.binding.owner_email ?? "").trim() || null,
+    ].filter(Boolean).join(" · ");
+    return {
+      id: "verify_keys",
+      outcome: "passed",
+      detail: `Sub-account credentials verified${verifiedLabel ? ` — ${verifiedLabel}` : ""}`,
+    };
   },
 
   company_profile: async (ctx, snapshot) => {
+    const companyLabel = snapshot.binding.ru_owner_id ? ` (OwnerID ${snapshot.binding.ru_owner_id})` : "";
     if (snapshot.binding.company_details_sent) {
-      return { id: "company_profile", outcome: "skipped", detail: "Company profile already accepted" };
+      return {
+        id: "company_profile",
+        outcome: "skipped",
+        detail: `Company profile already accepted${companyLabel}`,
+      };
     }
     const { ok, pending, retryAfterMs, detail } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
@@ -448,7 +471,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       id: "company_profile",
       outcome: ok ? "passed" : pending ? "pending" : "failed",
       retryAfterMs,
-      detail: ok ? "Company profile accepted" : detail,
+      detail: ok ? `Company profile accepted${companyLabel}` : detail,
     };
   },
 
@@ -459,13 +482,26 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       "Could not review the sub-account's existing listings",
     );
     if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
-    const matched = Array.isArray(data.matched) ? (data.matched as unknown[]).length : 0;
+    // Name the listings that were adopted — the IDs are what an operator cross-checks in
+    // the channel portal, so a bare count is not enough to trust the adoption.
+    const rows = Array.isArray(data.matched)
+      ? (data.matched as Array<{ scope?: string; name?: string; ru_property_id?: string }>)
+      : [];
+    const unmatched = Array.isArray(data.unmatched) ? (data.unmatched as unknown[]).map(String) : [];
+    const label = rows
+      .map((m) => `${m.name?.trim() || (m.scope === "property" ? "property" : "unit")} → ${m.ru_property_id ?? "?"}`)
+      .join(", ");
     return {
       id: "adopt_listings",
       outcome: "passed",
-      detail: matched > 0 ? `${matched} existing listing(s) adopted` : "Sub-account is empty — nothing to adopt",
+      detail: rows.length > 0
+        ? `${rows.length} existing listing(s) adopted: ${label}${
+          unmatched.length > 0 ? ` · not yet published: ${unmatched.join(", ")}` : ""
+        }`
+        : "Sub-account is empty — nothing to adopt, Step B will publish everything",
     };
   },
+
 
   // Step B ────────────────────────────────────────────────────────────────────
   review_listings: async (ctx) => {
