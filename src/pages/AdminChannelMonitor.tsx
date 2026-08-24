@@ -380,27 +380,8 @@ export default function AdminChannelMonitor() {
               label: keys.total === 0 ? "No sub-accounts" : `${keys.total - keys.verified} key(s) unverified`,
             },
       cost: { tone: "muted", label: `${data.billableListings} listings billable` },
-      binding:
-        withoutFootprint === 0
-          ? { tone: "ok", label: "All bound" }
-          : { tone: "warn", label: `${withoutFootprint} without footprint` },
-      mapping:
-        data.duplicateListings === 0 && neverPushed === 0
-          ? { tone: "ok", label: "Mappings complete" }
-          : {
-              tone: data.duplicateListings > 0 ? "bad" : "warn",
-              label:
-                data.duplicateListings > 0
-                  ? `${data.duplicateListings} duplicate listing(s)`
-                  : `${neverPushed} never pushed`,
-            },
-      ari: lastPush
-        ? { tone: "ok", label: `ARI pushed ${relativeAge(lastPush)}` }
-        : { tone: "warn", label: "No ARI push yet" },
-      reservations:
-        live > 0
-          ? { tone: "ok", label: `${live} live on channel` }
-          : { tone: "warn", label: "Nothing live to test" },
+      // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
+
       cert: run
         ? {
             tone: run.status === "passed" ? "ok" : run.status === "failed" ? "bad" : "warn",
