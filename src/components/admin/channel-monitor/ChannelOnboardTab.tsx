@@ -322,6 +322,7 @@ export function ChannelOnboardTab({
     setPushProgress(null);
     setPlan(null);
     setRebindEmail("");
+    setAccountDialogOpen(false);
   }, [propertyId]);
 
   const binding = gate.snapshot?.binding;
@@ -330,6 +331,12 @@ export function ChannelOnboardTab({
   const sameEmailReset =
     rebindEmail.trim().length > 0 &&
     rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
+
+  /** The selected entry — a portfolio pick carries its portfolio id and member list. */
+  const selectedOption = useMemo(
+    () => properties.find((option) => option.id === propertyId) ?? null,
+    [properties, propertyId],
+  );
 
   // The preview modal only renders once the plan is in hand, so the operator never
   // sees an empty dialog while the resolution is still running.
