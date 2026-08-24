@@ -378,26 +378,44 @@ export function ChannelOnboardTab({
     }
   }, [propertyId]);
 
+  /**
+   * Run (or resume) a step. A rate-deferred task is never a failure: the step parks with a
+   * countdown and resumes itself from the deferred task once the channel's window reopens.
+   */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep) => {
+    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
       if (!propertyId) return;
+      const attempt = options?.attempt ?? 0;
+      const resumeFrom = options?.startAtTaskId ?? null;
       setRunningStep(step);
       setPushProgress(null);
+      setWaiting((prev) => ({ ...prev, [step]: undefined }));
       setTaskStates((prev) => {
         const next = { ...prev };
-        for (const task of CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step)) next[task.id] = { state: "idle" };
+        const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
+        const from = resumeFrom ? Math.max(0, stepTasks.findIndex((t) => t.id === resumeFrom)) : 0;
+        // A resume leaves the already-passed legs alone so the operator keeps their record.
+        for (const task of stepTasks.slice(from)) next[task.id] = { state: "idle" };
         return next;
       });
       try {
         const result = await runOnboardStep(step, {
           propertyId,
+          startAtTaskId: resumeFrom,
           confirmedOwnerEmail: step === "a" ? plan?.login_email ?? null : null,
           confirmedOwnerName:
             step === "a"
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
-          onTask: (id: ChannelOnboardTaskId, state, detail) =>
-            setTaskStates((prev) => ({ ...prev, [id]: { state, detail } })),
+          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
+            setTaskStates((prev) => ({
+              ...prev,
+              [id]: {
+                state,
+                detail,
+                waitingUntil: state === "pending" ? Date.now() + (retryAfterMs ?? 60_000) : undefined,
+              },
+            })),
           onPushProgress: (progress) => setPushProgress(progress),
         });
         if (result.passed) {
@@ -405,10 +423,26 @@ export function ChannelOnboardTab({
             step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
           );
         } else if (result.pending) {
-          toast.info("Step paused", {
-            description: result.summary || "The channel deferred part of this step — retry in a minute.",
-            duration: 9000,
-          });
+          const waitMs = result.retryAfterMs ?? 60_000;
+          const canAutoResume = attempt + 1 < MAX_AUTO_RESUMES;
+          setWaiting((prev) => ({
+            ...prev,
+            [step]: {
+              until: Date.now() + waitMs + 1_000,
+              resumeFromTaskId: result.resumeFromTaskId ?? null,
+              attempts: canAutoResume ? attempt + 1 : MAX_AUTO_RESUMES,
+            },
+          }));
+          if (!options?.silent) {
+            toast.info("Waiting on the channel", {
+              description:
+                `${result.summary || "The channel's read window is closed."} ` +
+                (canAutoResume
+                  ? `Resuming automatically in ${formatCountdown(waitMs)}.`
+                  : "Use Retry now when you are ready."),
+              duration: 9000,
+            });
+          }
         } else {
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
@@ -421,6 +455,29 @@ export function ChannelOnboardTab({
     },
     [gate, plan, propertyId],
   );
+
+  /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
+  useEffect(() => {
+    const parked = Object.entries(waiting).filter(([, value]) => value) as Array<[ChannelOnboardStep, WaitingState]>;
+    if (parked.length === 0) return;
+    const timer = window.setInterval(() => {
+      setNowTick(Date.now());
+      for (const [step, state] of parked) {
+        if (Date.now() < state.until) continue;
+        setWaiting((prev) => ({ ...prev, [step]: undefined }));
+        if (state.attempts < MAX_AUTO_RESUMES && runningStep === null) {
+          void runStep(step, { startAtTaskId: state.resumeFromTaskId, attempt: state.attempts, silent: true });
+        }
+      }
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [runStep, runningStep, waiting]);
+
+  /** A new property starts with a clean slate — no stale waits or task rows. */
+  useEffect(() => {
+    setWaiting({});
+    setStepDetailOpen({});
+  }, [propertyId]);
 
   const doRebind = useCallback(
     async (confirmPortfolioScope: boolean) => {
