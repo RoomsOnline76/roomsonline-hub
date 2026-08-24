@@ -726,6 +726,8 @@ export default function AdminBillingDefaults() {
             <GatewaySchedulesPanel />
           </TabsContent>
         </Tabs>
+        </>
+
 
       )}
     </div>
