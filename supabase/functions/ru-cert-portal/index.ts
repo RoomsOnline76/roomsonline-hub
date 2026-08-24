@@ -265,11 +265,10 @@ async function loadLastGoodRuXml(
 
 
 /**
- * The channel allows one `Pull_ListMyUsers_RQ` per sliding minute, and a throttled call comes
- * back as `{ success: true, queued: true }` with NO `users` array. Reading that as "the master
- * account lists no sub-users" is what made binding impossible ("OwnerID not listed under our
- * master account") and left the bind dialog empty. Poll across the rate window instead, and
- * report a deferral as a deferral — never as an empty list.
+ * Roster read, always through the shared cache (see `_shared/ruRosterCache.ts`). The channel
+ * allows one `Pull_ListMyUsers_RQ` per sliding minute, so a fresh answer is read at most once
+ * per TTL and every other caller reuses it. A throttled read falls back to the cached roster —
+ * never to an empty list, which is what used to make binding impossible.
  */
 async function listRuSubUsers(
   // deno-lint-ignore no-explicit-any
@@ -6269,11 +6268,14 @@ Deno.serve(async (req) => {
 
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
-      const listRuUsers = async (): Promise<RuUser[]> => {
-        // Rate-deferred reads come back without a `users` array; polling the window keeps a
-        // throttled list from looking like "this owner has no sub-user".
-        const listed = await listRuSubUsers(admin);
-        return listed.ok ? (listed.users as RuUser[]) : [];
+      // One roster per Step A run. Every helper below shares this read; only a deliberate
+      // read-back after creating a sub-user asks the channel again (`fresh: true`).
+      let rosterOnce: RuUser[] | null = null;
+      const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
+        if (!fresh && rosterOnce) return rosterOnce;
+        const listed = await listRuSubUsers(admin, { forceFresh: fresh, source: "step-a" });
+        rosterOnce = listed.ok ? (listed.users as RuUser[]) : (rosterOnce ?? []);
+        return rosterOnce;
       };
 
       // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
@@ -6744,7 +6746,7 @@ Deno.serve(async (req) => {
         if (createErr || !created?.success) {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
-            const refreshed = await listRuUsers();
+            const refreshed = await listRuUsers(true);
             const recovered = matchByEmail(refreshed)
               ?? matchByStoredIdentity(refreshed, existing.account as any)
               ?? await adoptLocalByEmail();
@@ -6799,7 +6801,7 @@ Deno.serve(async (req) => {
       }
 
       if (!ruOwnerId || !userAccountId) {
-        const refreshed = await listRuUsers();
+        const refreshed = await listRuUsers(true);
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
