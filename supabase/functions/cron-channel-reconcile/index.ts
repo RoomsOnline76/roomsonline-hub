@@ -41,9 +41,17 @@ interface ReconStale {
   record_id: string;
   property_id: string;
 }
+interface ReconDetachedAccount {
+  owner_id: string;
+  owner_label: string;
+  last_known_listing_count: number | null;
+  needs_billing_verification?: boolean;
+}
 interface ReconResult {
   reconciled_at: string;
   accounts: ReconAccount[];
+  /** Bound accounts the master no longer lists — informational, never a disparity. */
+  detached_accounts?: ReconDetachedAccount[];
   channel_listing_count: number;
   archived_count: number;
   matched: unknown[];
@@ -152,6 +160,16 @@ function buildEmail(
       )}
 
       ${section(
+        'Sub-accounts no longer under the master',
+        'Excluded from every count above — our keys can no longer read them. Confirm with the channel that they and their listings moved off our invoice.',
+        ['Channel account', 'Last known live listings'],
+        (result.detached_accounts || []).map((a) => [
+          a.owner_label,
+          a.last_known_listing_count === null ? 'Unknown' : String(a.last_known_listing_count),
+        ]),
+      )}
+
+      ${section(
         'Accounts that could not be verified',
         'These accounts returned an error, so their listings were not checked. Re-check the sub-account keys.',
         ['Channel account', 'Error'],
@@ -217,6 +235,9 @@ Deno.serve(async (req) => {
     const orphans = (result.orphans || []).filter((o) => !erroredOwners.has(String(o.owner_id)));
     const duplicates = (result.duplicates || []).filter((d) => !erroredOwners.has(String(d.owner_id)));
     const stale = result.stale || [];
+    // Detached accounts are already absent from `accounts`: informational only, so
+    // they can never raise a disparity or count as an errored account.
+    const detached = result.detached_accounts || [];
     const localBillable = (result.matched || []).length;
 
     const hasDisparity =
@@ -282,6 +303,7 @@ Deno.serve(async (req) => {
         errored_accounts: errored,
         monitored_accounts: monitored,
         unmonitored_accounts: unmonitored,
+        detached_accounts: detached,
       },
       alert_sent: alertSent,
       alert_recipients: recipients,
@@ -313,7 +335,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(
-      `[cron-channel-reconcile] disparity=${hasDisparity} orphans=${orphans.length} duplicates=${duplicates.length} stale=${stale.length} alert_sent=${alertSent} readiness_refreshed=${refreshed}`,
+      `[cron-channel-reconcile] disparity=${hasDisparity} orphans=${orphans.length} duplicates=${duplicates.length} stale=${stale.length} detached=${detached.length} alert_sent=${alertSent} readiness_refreshed=${refreshed}`,
     );
 
 
@@ -324,6 +346,7 @@ Deno.serve(async (req) => {
       duplicates: duplicates.length,
       stale: stale.length,
       errored_accounts: errored.length,
+      detached_accounts: detached.length,
       alert_sent: alertSent,
       alert_error: alertError,
     });
