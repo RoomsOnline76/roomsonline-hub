@@ -107,7 +107,8 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
 ];
 
 const GUARANTEES = [
-  "60 days free on the full stack",
+  "60 days free on the full stack — no subscription in that period",
+  "Setup fee waived when you start inside your 60 days",
   "No annual lock-in — cancel anytime",
   "Keep your data, full export included",
   "Free onboarding, training and support",
