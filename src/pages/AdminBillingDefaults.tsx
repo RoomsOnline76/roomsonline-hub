@@ -690,11 +690,10 @@ export default function AdminBillingDefaults() {
         </div>
       ) : (
         <>
-        <BillingEstimator defaults={defaults} />
-
         <Tabs value={tab} onValueChange={setTab} className="w-full">
 
           <TabsList className="w-full justify-start overflow-x-auto">
+            <TabsTrigger value="estimator"><Calculator className="h-3.5 w-3.5 mr-1.5" /> Cost Estimator</TabsTrigger>
             <TabsTrigger value="summary"><Info className="h-3.5 w-3.5 mr-1.5" /> Summary</TabsTrigger>
             <TabsTrigger value="presets"><DollarSign className="h-3.5 w-3.5 mr-1.5" /> Presets</TabsTrigger>
             <TabsTrigger value="addons"><Sparkles className="h-3.5 w-3.5 mr-1.5" /> Add-ons</TabsTrigger>
@@ -702,10 +701,14 @@ export default function AdminBillingDefaults() {
             <TabsTrigger value="gateway"><CreditCard className="h-3.5 w-3.5 mr-1.5" /> Gateway Schedules</TabsTrigger>
           </TabsList>
 
+          <TabsContent value="estimator" className="mt-4">
+            <BillingEstimator defaults={defaults} />
+          </TabsContent>
 
           <TabsContent value="summary" className="mt-4">
             <SummaryPanel defaults={defaults} gotoTab={setTab} />
           </TabsContent>
+
 
           <TabsContent value="presets" className="mt-4">
             <PresetsPanel defaults={defaults} />
