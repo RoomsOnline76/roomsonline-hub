@@ -29,7 +29,12 @@ import {
   type ChannelOnboardTaskId,
 } from "@/config/channelOnboard";
 
-export type TaskOutcome = "passed" | "skipped" | "pending" | "failed";
+/**
+ * `blocked` is a "cannot proceed automatically, and retrying will not help" state: the
+ * operator has to supply something (e.g. an adopted account's portal password). It is
+ * shown amber rather than red, and — unlike `failed` — never reads as a channel error.
+ */
+export type TaskOutcome = "passed" | "skipped" | "pending" | "failed" | "blocked";
 
 export interface TaskResult {
   id: ChannelOnboardTaskId;
@@ -95,7 +100,17 @@ interface RunContext {
    * to the rooms whose content moved. Absent means "push everything" (first publish).
    */
   pushScope?: { unchanged: boolean; unitIds: string[] | null; changedFields: string[] };
+  /** What the account task did about the sub-account's API key pair. Step A only. */
+  keyProvisioning?: {
+    source: KeySource;
+    accessKey: string | null;
+    warning: string | null;
+    retryAfterMs: number | null;
+  };
 }
+
+/** How the sub-account's key pair was resolved during account provisioning. */
+export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
@@ -369,6 +384,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
 
     notifyRuAccountsChanged();
+    // The account step now provisions the key pair too (RU returns the SecretKey once),
+    // so record what it did for the credentials task that follows.
+    ctx.keyProvisioning = {
+      source: String(data.key_source ?? "") as KeySource,
+      accessKey: (data.access_key as string | null) ?? null,
+      warning: (data.key_warning as string | null) ?? null,
+      retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
+    };
     // Always name the account that was used: operators need the OwnerID and login to
     // recognise it in the channel portal, not just "adopted" vs "created".
     const account = (data.account ?? null) as Record<string, unknown> | null;
@@ -394,30 +417,63 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       snapshot.binding.ru_owner_id ? `OwnerID ${snapshot.binding.ru_owner_id}` : null,
       snapshot.binding.login_email || snapshot.binding.owner_email || null,
     ].filter(Boolean).join(" · ");
-    if (snapshot.binding.keys_stored) {
+    const provisioning = ctx.keyProvisioning;
+    const keyLabel = (access: string | null) =>
+      access ? ` · AccessKey ${access.slice(0, 6)}…` : "";
+
+    // The account task mints the pair as part of creating the sub-account, so most runs
+    // only report what already happened instead of making a second wire call.
+    if (provisioning?.source === "minted") {
+      return {
+        id: "api_keys",
+        outcome: "passed",
+        detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning.accessKey)}`,
+      };
+    }
+    if (provisioning?.source === "existing" || snapshot.binding.keys_stored) {
       return {
         id: "api_keys",
         outcome: "skipped",
-        detail: `A key pair is already stored${accountLabel ? ` for ${accountLabel}` : ""}`,
+        detail: `A key pair is already stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning?.accessKey ?? null)}`,
+      };
+    }
+    if (provisioning?.source === "deferred") {
+      return {
+        id: "api_keys",
+        outcome: "pending",
+        retryAfterMs: provisioning.retryAfterMs ?? undefined,
+        detail: provisioning.warning
+          ?? "The channel rate-limited the key request — waiting for the window to reopen.",
       };
     }
     if (!snapshot.binding.password_stored) {
       return {
         id: "api_keys",
-        outcome: "failed",
+        outcome: "blocked",
         detail:
-          "No sub-account password is stored, so a key pair cannot be minted here. Generate the first pair in the channel portal (Security settings) and save it on the Accounts tab.",
+          provisioning?.warning
+          ?? "This account was adopted and no password is held for it, so a key pair cannot be minted automatically. Save its portal password on the Accounts tab, or create the account under a fresh login — minting then runs on its own.",
       };
     }
-    const { ok, pending, retryAfterMs, detail } = await portal(
+
+    // A password is held but no pair exists yet (older accounts): mint it now.
+    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       { action: "create_api_key", property_id: ctx.propertyId, ru_owner_id: snapshot.binding.ru_owner_id },
       "Could not mint the sub-account key pair",
     );
+    if (ok) {
+      return {
+        id: "api_keys",
+        outcome: "passed",
+        detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel((data.access_key as string | null) ?? null)}`,
+      };
+    }
     return {
       id: "api_keys",
-      outcome: ok ? "passed" : pending ? "pending" : "failed",
+      outcome: pending ? "pending" : code === "NO_CHILD_CREDENTIALS" ? "blocked" : "failed",
       retryAfterMs,
-      detail: ok ? `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}` : detail,
+      detail,
+      code,
     };
   },
 
@@ -791,6 +847,14 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     await recordStep(ctx.propertyId, "ready_to_connect", "passed", "");
     invalidateChannelEditGate(ctx.propertyId);
     notifyRuAccountsChanged();
+    // The account step now provisions the key pair too (RU returns the SecretKey once),
+    // so record what it did for the credentials task that follows.
+    ctx.keyProvisioning = {
+      source: String(data.key_source ?? "") as KeySource,
+      accessKey: (data.access_key as string | null) ?? null,
+      warning: (data.key_warning as string | null) ?? null,
+      retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
+    };
   }
 
   return { step, passed, pending, retryAfterMs, resumeFromTaskId, results: ledgerTasks, summary };
