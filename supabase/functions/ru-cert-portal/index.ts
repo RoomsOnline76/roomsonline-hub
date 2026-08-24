@@ -6325,6 +6325,108 @@ Deno.serve(async (req) => {
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
 
       /**
+       * Alternative logins the operator may choose when the resolved owner email cannot
+       * become a distribution login (the channel already holds it outside our master
+       * account). Every candidate carries its source and, when unusable, the reason: an
+       * address already serving another property or portfolio is offered as blocked so it
+       * can never be re-used. A brand-new address is always allowed and does not have to
+       * belong to a ROL'OS user or to the owner.
+       */
+      const collectLoginCandidates = async (
+        roster: RuUser[],
+        blockedEmail?: string | null,
+      ): Promise<Array<{ email: string; source: string; usable: boolean; blocked_reason: string | null; on_roster: boolean }>> => {
+        const raw: Array<{ email: unknown; source: string }> = [];
+        if (propertyId) {
+          const { data: pr } = await admin
+            .from("properties")
+            .select("owner_email")
+            .eq("id", propertyId)
+            .maybeSingle();
+          raw.push({ email: (pr as any)?.owner_email, source: "this property's owner email" });
+        }
+        if (portfolioRow?.owner_email) {
+          raw.push({ email: portfolioRow.owner_email, source: "the portfolio's owner email" });
+        }
+        if (portfolioId) {
+          const { data: members } = await admin
+            .from("property_portfolio_members")
+            .select("property_id")
+            .eq("portfolio_id", portfolioId);
+          const ids = ((members ?? []) as any[]).map((m) => m.property_id).filter(Boolean);
+          if (ids.length) {
+            const { data: siblings } = await admin
+              .from("properties")
+              .select("owner_email, name")
+              .in("id", ids)
+              .limit(50);
+            for (const s of (siblings ?? []) as any[]) {
+              if (s?.owner_email) {
+                raw.push({
+                  email: s.owner_email,
+                  source: `a sibling property in this portfolio (${s.name ?? "unnamed"})`,
+                });
+              }
+            }
+          }
+        }
+        if (portfolioRow?.owner_id) {
+          const { data: prof } = await admin
+            .from("profiles")
+            .select("email")
+            .eq("id", portfolioRow.owner_id)
+            .maybeSingle();
+          if ((prof as any)?.email) {
+            raw.push({ email: (prof as any).email, source: "the portfolio owner's ROL'OS profile" });
+          }
+        }
+        const boundLoginEmail = String((existing.account as any)?.ru_login_email ?? "").trim();
+        if (boundLoginEmail) raw.push({ email: boundLoginEmail, source: "the distribution account already on file" });
+
+        // Anything already carrying a live channel identity for a *different* scope must
+        // never be re-used: two properties cannot share one distribution login here.
+        const { data: bound } = await admin
+          .from("ru_owner_accounts")
+          .select("owner_email, ru_login_email, ru_owner_id, property_id, portfolio_id")
+          .not("ru_owner_id", "is", null);
+        const claims = new Map<string, { property_id: string | null; portfolio_id: string | null }>();
+        for (const row of (bound ?? []) as any[]) {
+          for (const key of [row.owner_email, row.ru_login_email]) {
+            const k = String(key ?? "").trim().toLowerCase();
+            if (k) claims.set(k, { property_id: row.property_id ?? null, portfolio_id: row.portfolio_id ?? null });
+          }
+        }
+
+        const blocked = String(blockedEmail ?? "").trim().toLowerCase();
+        const seen = new Set<string>();
+        const out: Array<{ email: string; source: string; usable: boolean; blocked_reason: string | null; on_roster: boolean }> = [];
+        for (const entry of raw) {
+          const email = String(entry.email ?? "").trim();
+          const key = email.toLowerCase();
+          if (!key.includes("@") || seen.has(key)) continue;
+          seen.add(key);
+          const onRoster = roster.some((u) => sameEmail(u.email, email) || sameEmail(u.login_email, email));
+          let reason: string | null = null;
+          if (isInternalLogin(email)) {
+            reason = "Shared platform login — the channel already holds it globally.";
+          } else if (blocked && key === blocked) {
+            reason = "Already registered at the channel outside our master account.";
+          } else {
+            const claim = claims.get(key);
+            const sameScope = claim
+              ? (portfolioId ? claim.portfolio_id === portfolioId : claim.property_id === propertyId)
+              : true;
+            if (claim && !sameScope) {
+              reason = "Already the distribution login for another property or portfolio.";
+            }
+          }
+          out.push({ email, source: entry.source, usable: !reason, blocked_reason: reason, on_roster: onRoster });
+        }
+        return out;
+      };
+
+
+      /**
        * Step 6 preview. Everything above is resolution only — nothing has been written
        * locally and nothing has been sent to the channel yet, so this is the last safe
        * point to hand the decision back to the operator.
@@ -6395,7 +6497,9 @@ Deno.serve(async (req) => {
             existing_login_email:
               String(rosterMatch?.login_email ?? rosterMatch?.email ?? boundLogin ?? "").trim() || null,
             location_ids: locationIds,
+            login_candidates: await collectLoginCandidates(planUsers),
             rejected_internal_login: internalLoginRejected,
+
             warnings,
           },
         });
@@ -6663,17 +6767,37 @@ Deno.serve(async (req) => {
               adoptedEmail = String(recovered.email ?? "").trim() || null;
               adopted = true;
             } else {
+              // The address exists at the channel but not under our master account, so the
+              // local row's stored identity (if any) is dead. Clear it here so the operator's
+              // next attempt with a different login starts from a clean binding — no separate
+              // unbind step, and no half-identity left to confuse later reads.
+              if ((existing.account as any)?.id) {
+                await admin
+                  .from("ru_owner_accounts")
+                  .update({
+                    ru_owner_id: null,
+                    ru_user_id: null,
+                    ru_login_password_enc: null,
+                    company_details_sent: false,
+                    company_filled_at: null,
+                    company_details_status: "pending",
+                  })
+                  .eq("id", (existing.account as any).id);
+              }
               return json({
                 success: false,
                 error: {
                   code: "RU_EMAIL_IN_USE",
                   message:
-                    `The channel provider reports ${ownerEmail} is already registered, but it is not listed under our master account (it may be the master/portal login itself, another provider account, or a pending invite). Set a different owner email on the property, reuse the portfolio's existing distribution login, or ask provider support to release it.`,
-
+                    `${ownerEmail} is already registered at the channel but is not listed under our master account, so it cannot become this property's distribution login. Choose one of the alternative logins offered, or give a brand-new email address to create the account under.`,
                 },
+                email_in_use: ownerEmail,
+                login_candidates: await collectLoginCandidates(refreshed, ownerEmail),
+                unbound: Boolean((existing.account as any)?.id),
                 preview: preview(created, 2000),
               }, 409);
             }
+
           } else {
             return json({
               success: false,

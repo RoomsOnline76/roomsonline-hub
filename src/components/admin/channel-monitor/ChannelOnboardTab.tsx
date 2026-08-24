@@ -60,9 +60,11 @@ import {
   planOwnerAccount,
   rebindOwner,
   runOnboardStep,
+  type LoginCandidate,
   type OwnerAccountPlan,
   type TaskOutcome,
 } from "@/lib/channelOnboardOrchestrator";
+
 
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
@@ -178,6 +180,12 @@ export function ChannelOnboardTab({
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  /** Set when the channel refused the resolved login; drives the modal's login chooser. */
+  const [emailConflict, setEmailConflict] = useState<
+    { email: string; message: string; candidates: LoginCandidate[] } | null
+  >(null);
+  const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+
 
   const [rebindEmail, setRebindEmail] = useState("");
   const [rebindOpen, setRebindOpen] = useState(false);
@@ -348,6 +356,8 @@ export function ChannelOnboardTab({
     setPlan(null);
     setRebindEmail("");
     setAccountDialogOpen(false);
+    setEmailConflict(null);
+    setChosenLoginEmail("");
   }, [propertyId]);
 
   const binding = gate.snapshot?.binding;
@@ -402,7 +412,7 @@ export function ChannelOnboardTab({
         const result = await runOnboardStep(step, {
           propertyId,
           startAtTaskId: resumeFrom,
-          confirmedOwnerEmail: step === "a" ? plan?.login_email ?? null : null,
+          confirmedOwnerEmail: step === "a" ? chosenLoginEmail || plan?.login_email || null : null,
           confirmedOwnerName:
             step === "a"
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
@@ -418,11 +428,32 @@ export function ChannelOnboardTab({
             })),
           onPushProgress: (progress) => setPushProgress(progress),
         });
+        // A taken login is a decision to hand back, not a plain failure: keep the modal
+        // open on the chooser so the operator can pick or type a usable address.
+        const conflict = result.results.find((r) => r.code === "RU_EMAIL_IN_USE");
+        if (conflict) {
+          setEmailConflict({
+            email: chosenLoginEmail || String(plan?.login_email ?? ""),
+            message: conflict.detail,
+            candidates: (conflict.loginCandidates ?? []).filter((c) => c.email),
+          });
+          setChosenLoginEmail("");
+          setAccountDialogOpen(true);
+        } else if (result.passed && step === "a") {
+          setEmailConflict(null);
+          setChosenLoginEmail("");
+        }
         if (result.passed) {
           toast.success(
             step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
           );
+        } else if (conflict) {
+          toast.error("A different distribution login is needed", {
+            description: conflict.detail,
+            duration: 12000,
+          });
         } else if (result.pending) {
+
           const waitMs = result.retryAfterMs ?? 60_000;
           const canAutoResume = attempt + 1 < MAX_AUTO_RESUMES;
           setWaiting((prev) => ({
@@ -453,7 +484,7 @@ export function ChannelOnboardTab({
         await gate.refresh();
       }
     },
-    [gate, plan, propertyId],
+    [chosenLoginEmail, gate, plan, propertyId],
   );
 
   /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
@@ -788,6 +819,10 @@ export function ChannelOnboardTab({
           sameEmailReset={sameEmailReset}
           runningStepA={runningStep === "a"}
           stepADisabled={stepDisabled.a}
+          emailConflict={emailConflict}
+          chosenLoginEmail={chosenLoginEmail}
+          onChosenLoginEmailChange={setChosenLoginEmail}
+
           onRunStepA={() => {
             setAccountDialogOpen(false);
             void runStep("a");
