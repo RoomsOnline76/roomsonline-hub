@@ -79,7 +79,6 @@ export async function regradeChannelStepsAfterSave(
     console.warn("[channel-ledger] post-save regrade skipped:", err instanceof Error ? err.message : err);
   }
 }
-}
 
 /**
  * Channel sync trigger → macro steps the underlying save touched.
