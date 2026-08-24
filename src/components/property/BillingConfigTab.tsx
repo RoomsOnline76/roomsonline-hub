@@ -30,6 +30,7 @@ import { PriceLabsAdminPushCard } from "./PriceLabsAdminPushCard";
 import { SubscriptionStatusPanel } from "./SubscriptionStatusPanel";
 import { SubscriptionInvoiceDownloadCenter } from "./SubscriptionInvoiceDownloadCenter";
 import { ByoSetupChecklist } from "@/components/integrations/ByoSetupChecklist";
+import { GatewayScheduleCard } from "./GatewayScheduleCard";
 import { toast } from "sonner";
 import { markChannelStepsStale } from "@/lib/channelStepLedger";
 import {
