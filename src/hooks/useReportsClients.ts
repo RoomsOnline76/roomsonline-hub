@@ -88,7 +88,7 @@ export function useReportsClients() {
 
       const { error } = await supabase
         .from("properties")
-        .update(patch)
+        .update(patch as never)
         .eq("id", input.id)
         .eq("is_reports_client", true);
       if (error) throw error;

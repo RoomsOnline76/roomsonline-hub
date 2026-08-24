@@ -1810,7 +1810,7 @@ export default function PMSDashboard() {
         const update: Record<string, unknown> = {};
         if (roomsChanged) update.rolos_room_ids = nextRooms.length ? nextRooms : null;
         if (canonicalTypeId) update.room_type_id = canonicalTypeId;
-        const { error } = await supabase.from("bookings").update(update).eq("id", booking.id);
+        const { error } = await supabase.from("bookings").update(update as never).eq("id", booking.id);
         if (error) throw error;
 
         // The stay's room line has to follow, or the vacated unit keeps showing the
@@ -1836,7 +1836,7 @@ export default function PMSDashboard() {
             if (canonicalTypeId) lineUpdate.room_type_id = canonicalTypeId;
             const { error: lineError } = await supabase
               .from("rolos_booking_rooms")
-              .update(lineUpdate)
+              .update(lineUpdate as never)
               .eq("id", targetLine.id);
             if (lineError) throw lineError;
           }

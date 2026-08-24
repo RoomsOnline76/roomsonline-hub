@@ -37,6 +37,22 @@ interface RecommendedProperty {
   matchReason: string;
 }
 
+/** Row shape pinned on the recommendation query (select string is untyped). */
+interface RecommendationRow {
+  id: string;
+  name: string;
+  slug: string | null;
+  city: string;
+  country: string;
+  price_per_night: number;
+  images: unknown;
+  amenities: unknown;
+  latitude: number | null;
+  longitude: number | null;
+}
+
+
+
 interface PropertyRecommendationsProps {
   currentPropertyId?: string;
   className?: string;
@@ -118,10 +134,13 @@ export function PropertyRecommendations({
         return;
       }
 
-      // Build query - include coordinates for distance filtering
+      // Build query - include coordinates for distance filtering.
+      // The select string is typed as plain `string` so supabase-js does not
+      // re-parse it on every conditional reassignment of the builder.
+      const sel = (s: string): string => s;
       let query = supabase
         .from('public_properties')
-        .select('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude')
+        .select(sel('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude'))
         .eq('is_active', true)
         .not('latitude', 'is', null)
         .not('longitude', 'is', null)
@@ -133,7 +152,8 @@ export function PropertyRecommendations({
         query = query.not('id', 'in', `(${excludeIds.join(',')})`);
       }
 
-      const { data: properties, error } = await query;
+      const { data: properties, error } = await query.returns<RecommendationRow[]>();
+
 
       if (error) {
         console.error('Error fetching recommendations:', error);

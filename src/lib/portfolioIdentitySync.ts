@@ -157,7 +157,7 @@ export async function copyIdentityToProperties(
     const update: Record<string, unknown> = { amenities: amenities as Json };
     if (!isBlank(payload.ru_location_id)) update.ru_location_id = payload.ru_location_id;
 
-    const { error } = await supabase.from("properties").update(update).eq("id", target.id);
+    const { error } = await supabase.from("properties").update(update as never).eq("id", target.id);
     if (error) throw error;
     updated += 1;
   }

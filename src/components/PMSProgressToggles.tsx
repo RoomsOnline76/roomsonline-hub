@@ -91,7 +91,7 @@ export const PMSProgressToggles: React.FC<PMSProgressTogglesProps> = ({
     try {
       const { error } = await supabase
         .from('pms_tracker_status')
-        .update({ [field.dbColumn]: newValue })
+        .update({ [field.dbColumn]: newValue } as never)
         .eq('system_type', systemType);
 
       if (error) throw error;

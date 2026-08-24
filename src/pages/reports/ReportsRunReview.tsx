@@ -163,6 +163,33 @@ export default function ReportsRunReview() {
     [runId, refetch],
   );
 
+  /**
+   * Stage A reset: the run's as-of date. It decides the OTB column read from a
+   * previous report and anchors the window, so the baseline import and parse
+   * both have to be re-run afterwards.
+   */
+  const handleSetAsOfDate = useCallback(
+    async (isoDate: string) => {
+      if (!runId || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return;
+      const patch: { as_of_date: string; title?: string } = { as_of_date: isoDate };
+      // A title we generated tracks the date; a hand-written one is left alone.
+      if (run && isGeneratedRunTitle(run.title, run.asOfDate)) {
+        patch.title = defaultRunTitle(isoDate, run.cadence);
+      }
+      const { error } = await supabase.from("report_runs").update(patch).eq("id", runId);
+      if (error) {
+        toast.error("Could not change the report date", { description: error.message });
+        return;
+      }
+      await refetch();
+      toast.success("Report date updated", {
+        description: "Parse again and re-read the previous report so the baseline matches.",
+      });
+    },
+    [runId, refetch, run],
+  );
+
+
   const goToStage = useCallback(
     (next: RunBuildStage) => {
       setStage(next);
@@ -386,7 +413,10 @@ export default function ReportsRunReview() {
     snapshot: windowedSnapshot ?? null,
     missingMonths,
     onSetReportMonth: handleSetReportMonth,
-    editable: run.status === "draft",
+    onSetAsOfDate: handleSetAsOfDate,
+    // A finished ("ready") run stays editable: reviewers routinely swap a file
+    // or correct the report date and rebuild. Only archived runs are locked.
+    editable: run.status === "draft" || run.status === "ready",
     refresh,
     reparsingId,
     onDownload: (path) => void handleDownload(path),
