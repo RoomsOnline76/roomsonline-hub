@@ -480,27 +480,9 @@ export default function AdminChannelMonitor() {
                 </>
               ))}
 
-            {/* Certification evidence for operators — the runner itself lives in Advanced. */}
-            {tab === "cert" && (
-              <>
-                <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                  <ChannelCertificationTab initialTab={certSubTab} />
-                </Suspense>
-
-                <section className="space-y-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Channel step ledger
-                  </h2>
-                  <ChannelLedgerMetricsPanel />
-                </section>
-              </>
-            )}
-
-            {/* Engineers' surface: runner, queue, raw exchange log, sync trail and observability. */}
+            {/* Engineers' surface: exchange log, booking trail, refresh compliance, call queue. */}
             {tab === "advanced" && (
               <>
-                <ChannelCallQueuePanel />
-
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
@@ -519,44 +501,81 @@ export default function AdminChannelMonitor() {
                   </section>
                 </Collapsible>
 
-                <section className="space-y-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Certification runner &amp; recent runs
-                  </h2>
-                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <ChannelCertificationTab variant="advanced" />
-                  </Suspense>
-                </section>
+                <Collapsible open={trailOpen} onOpenChange={setTrailOpen}>
+                  <section className="space-y-2">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Booking sync trail
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${trailOpen ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                        <BookingSyncTrailPanel
+                          properties={reservationProperties}
+                          onInspectExchange={(term) => {
+                            setExchangeSearch(term);
+                            setExchangeOpen(true);
+                            window.setTimeout(
+                              () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                              150,
+                            );
+                          }}
+                        />
+                      </Suspense>
+                    </CollapsibleContent>
+                  </section>
+                </Collapsible>
+
+                <Collapsible open={complianceOpen} onOpenChange={setComplianceOpen}>
+                  <section className="space-y-2">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Refresh compliance
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${complianceOpen ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                        <ChannelCertificationTab variant="advanced" />
+                      </Suspense>
+                    </CollapsibleContent>
+                  </section>
+                </Collapsible>
+
+                <Collapsible open={observabilityOpen} onOpenChange={setObservabilityOpen}>
+                  <section className="space-y-2">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Sync observability &amp; error handling
+                      </span>
+                      <ChevronDown
+                        className={`h-4 w-4 text-muted-foreground transition-transform ${observabilityOpen ? "rotate-180" : ""}`}
+                      />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-2">
+                      <Suspense fallback={<Skeleton className="h-64 w-full" />}>
+                        <ChannelSyncObservabilityPanel />
+                      </Suspense>
+                    </CollapsibleContent>
+                  </section>
+                </Collapsible>
+
+                <ChannelCallQueuePanel />
 
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Booking sync trail
+                    Channel step ledger
                   </h2>
-                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <BookingSyncTrailPanel
-                      properties={reservationProperties}
-                      onInspectExchange={(term) => {
-                        setExchangeSearch(term);
-                        setExchangeOpen(true);
-                        window.setTimeout(
-                          () => exchangeLogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-                          150,
-                        );
-                      }}
-                    />
-                  </Suspense>
-                </section>
-
-                <section className="space-y-2">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Sync observability &amp; error handling
-                  </h2>
-                  <Suspense fallback={<Skeleton className="h-64 w-full" />}>
-                    <ChannelSyncObservabilityPanel />
-                  </Suspense>
+                  <ChannelLedgerMetricsPanel />
                 </section>
               </>
             )}
+
 
           </div>
         </div>
