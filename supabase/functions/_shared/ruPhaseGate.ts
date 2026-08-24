@@ -34,7 +34,10 @@ export interface PhaseGateResult {
   property_id: string;
   phases: PhaseResult[];
   current_phase: PhaseKey;
+  /** The authority for writes: Step A + Ready-to-sell ledger state. */
+  step_gate?: StepGateState;
   ready_for_push: boolean;
+
   ru_owner_id: number | null;
   owner_scope: "portfolio" | "property" | "master";
   portfolio_id: string | null;
@@ -137,7 +140,44 @@ export interface EvaluateOptions {
   readinessUnknown?: boolean;
 }
 
+export interface StepGateState {
+  step_a: string | null;
+  ready_to_sell: string | null;
+  ready: boolean;
+  blockers: string[];
+}
+
+/**
+ * The ONLY gate a channel write walks: the Step A / Ready-to-sell ledger.
+ *
+ * The retired 4-phase gate re-judged the distribution account on its own rules and
+ * refused pushes that Step A had already proven (a company profile pushed before the
+ * account's keys were last re-verified read as "stale"). The ledger is now authority —
+ * Step A owns the account, Ready-to-sell owns mandatory steps 1–5.
+ */
+export async function readStepGate(admin: any, propertyId: string): Promise<StepGateState> {
+  const { data } = await admin
+    .from("property_channel_step_status")
+    .select("step_key, status")
+    .eq("property_id", propertyId)
+    .in("step_key", ["monitor_step_a", "ready_to_sell"]);
+  const rows = (data ?? []) as { step_key: string; status: string | null }[];
+  const statusOf = (key: string) => rows.find((r) => r.step_key === key)?.status ?? null;
+  const stepA = statusOf("monitor_step_a");
+  const readyToSell = statusOf("ready_to_sell");
+
+  const blockers: string[] = [];
+  if (stepA !== "passed") {
+    blockers.push('Step A (distribution account) has not passed yet — run Step A in the Channel Monitor.');
+  }
+  if (readyToSell !== "passed") {
+    blockers.push('Ready to sell (mandatory steps 1–5) has not passed yet — clear the steps in the Connect a Channel wizard.');
+  }
+  return { step_a: stepA, ready_to_sell: readyToSell, ready: blockers.length === 0, blockers };
+}
+
 /** Evaluate all four phases for a property. */
+
 export async function evaluatePhases(
   admin: any,
   property: {
@@ -434,7 +474,9 @@ export async function evaluatePhases(
     },
   ];
 
-  // A phase after a blocked phase is "pending", never "passed".
+  // A phase after a blocked phase is "pending", never "passed". Phases are INFORMATIONAL
+  // only — they never veto a write. `ready_for_push` comes from the Step A / Ready-to-sell
+  // ledger below.
   let seenBlock = false;
   for (const ph of phases) {
     if (seenBlock) ph.status = ph.status === "blocked" ? "blocked" : "pending";
@@ -443,31 +485,34 @@ export async function evaluatePhases(
 
   const current = phases.find(p => p.status !== "passed") ?? phases[phases.length - 1];
   const ownerIdNum = !emailMismatch && account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
+  const stepGate = await readStepGate(admin, property.id);
 
   return {
     property_id: property.id,
     phases,
     current_phase: current.key,
-    ready_for_push:
-      phases[0].status === "passed" && phases[1].status === "passed",
+    step_gate: stepGate,
+    ready_for_push: stepGate.ready,
     ru_owner_id: Number.isFinite(ownerIdNum as number) ? (ownerIdNum as number) : null,
     owner_scope: scope,
     portfolio_id,
   };
 }
 
-/** Build a PHASE_BLOCKED error body for an edge function response. */
-export function phaseBlockedResponse(gate: PhaseGateResult) {
-  const failing = gate.phases.find(p => p.status === "blocked") ?? gate.phases[0];
+/**
+ * Error body for a write refused because the Step A / Ready-to-sell ledger is not clear.
+ * No phase wording: the operator's only onboarding path is Step A then Step B.
+ */
+export function pushBlockedResponse(gate: PhaseGateResult) {
+  const blockers = gate.step_gate?.blockers ?? ["Channel onboarding has not been completed for this property."];
   return {
     success: false,
     error: {
-      code: "PHASE_BLOCKED",
-      message: `Rentals United onboarding is blocked at phase ${failing.order} — ${failing.label}.`,
+      code: "ONBOARDING_INCOMPLETE",
+      message: blockers[0],
     },
-    phase: failing.key,
-    phase_order: failing.order,
-    blockers: failing.blockers,
-    phases: gate.phases,
+    blockers,
+    step_gate: gate.step_gate ?? null,
   };
 }
+

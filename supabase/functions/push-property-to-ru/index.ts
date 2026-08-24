@@ -15,7 +15,7 @@ import {
   RU_CERT_MIN_IMAGE_WIDTH,
   RU_MIN_ARRIVAL_INSTRUCTIONS,
 } from '../_shared/ruContentQuality.ts';
-import { evaluatePhases, phaseBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
+import { evaluatePhases, pushBlockedResponse, findOwnerAccount } from '../_shared/ruPhaseGate.ts';
 import { markLedgerStaleForScope, writeLedgerRows } from '../_shared/channelStepLedger.ts';
 import { enqueueJob } from '../_shared/jobQueue.ts';
 
@@ -4318,12 +4318,13 @@ Deno.serve(async (req) => {
     // Nightly/event-driven availability + pricing refresh for inventory that is ALREADY listed
     // at RU. Dashboard bookings/cancels/mods/blockouts always write locally; they only
     // reach RU after a clear Channel wizard pass (bound owner, keys, company details,
-    // explicit push on, phase 1+2). Sub-user keys and a resolved OwnerID are still mandatory.
+    // explicit push on, Step A + Ready-to-sell). Sub-user keys and a resolved OwnerID are still mandatory.
     if (action === 'refresh_ari') {
       if (!dry_run && !forcePush) {
         if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
           const blockedBody = !phaseGate.ready_for_push
-            ? phaseBlockedResponse(phaseGate)
+            ? pushBlockedResponse(phaseGate)
+
             : {
                 success: false,
                 error: distributionHold ?? {
@@ -4584,21 +4585,22 @@ Deno.serve(async (req) => {
 
     if (!dry_run && !phaseGate.ready_for_push) {
       if (!forcePush) {
-        const blockedBody = phaseBlockedResponse(phaseGate);
-        // A refused push used to leave no trace, so nobody could tell WHY phase 2 blocked.
+        const blockedBody = pushBlockedResponse(phaseGate);
+        // A refused push used to leave no trace, so nobody could tell WHY it was refused.
         console.warn(
-          `[push-property-to-ru] PHASE_BLOCKED at ${blockedBody.phase} for property ${property_id}: ${(blockedBody.blockers ?? []).join(' | ')}`,
+          `[push-property-to-ru] ONBOARDING_INCOMPLETE for property ${property_id}: ${(blockedBody.blockers ?? []).join(' | ')}`,
         );
         try {
           await supabase.from('ru_sync_runs').insert({
             property_id,
             action: 'phase_blocked',
             success: false,
-            error_code: 'PHASE_BLOCKED',
+            error_code: 'ONBOARDING_INCOMPLETE',
             error_message: (blockedBody.blockers ?? []).join('; ').slice(0, 2000),
-            details: { phase: blockedBody.phase, phase_order: blockedBody.phase_order, blockers: blockedBody.blockers },
+            details: { step_gate: blockedBody.step_gate, blockers: blockedBody.blockers },
           });
         } catch (_e) { /* evidence only */ }
+
         return new Response(JSON.stringify(blockedBody), {
           status: 422,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -4606,7 +4608,7 @@ Deno.serve(async (req) => {
       }
 
       console.warn(
-        `[push-property-to-ru] FORCE PUSH overriding phase gate at ${phaseGate.current_phase} for property ${property_id}`,
+        `[push-property-to-ru] FORCE PUSH overriding the Step A / Ready-to-sell gate for property ${property_id}`,
       );
       try {
         await supabase.from('ru_sync_runs').insert({
@@ -4614,7 +4616,7 @@ Deno.serve(async (req) => {
           action: 'force_push_override',
           success: false,
           error_code: 'PHASE_GATE_BYPASSED',
-          error_message: `Phase gate bypassed at ${phaseGate.current_phase}`,
+          error_message: `Onboarding gate bypassed (force push)`,
           details: { phases: phaseGate.phases, acting_user_id: forceActorId },
         });
       } catch (_e) { /* audit only */ }

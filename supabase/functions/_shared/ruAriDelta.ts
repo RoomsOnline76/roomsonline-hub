@@ -30,7 +30,7 @@ export interface RuAriDeltaOutcome {
 export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
 
 /** Gate refusals that mean "correct data, not yet allowed" rather than a hard failure. */
-const GATE_CODES = ["PHASE_BLOCKED", "READINESS_UNVERIFIED", "READINESS_FAILED", RU_WIZARD_SYNC_CODE];
+const GATE_CODES = ["PHASE_BLOCKED", "ONBOARDING_INCOMPLETE", "READINESS_UNVERIFIED", "READINESS_FAILED", RU_WIZARD_SYNC_CODE];
 
 
 async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
