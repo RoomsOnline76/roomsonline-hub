@@ -19,19 +19,31 @@ const fadeUp = {
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
 
-/** What the booking fee applies to — the only thing a property ever pays. */
+/** What the booking fee applies to — payable from day one. */
 const FEE_APPLIES_TO = [
   "Bookings delivered through ROL OTA and channel listings",
   "Bookings taken through the widget, embed or WordPress booking engine",
-  "Nothing else — no monthly fee, no setup fee, no per-room or per-user charge",
+  "Agreed per property and negotiable for volume and portfolios",
 ];
 
 const FREE_POINTS = [
-  "Free for your first 60 days — and still free to run after that",
-  "No subscription, no contract, no lock-in",
+  "Full ROL'OS PMS and every add-on switched on for 60 days",
+  "No subscription, no setup fee and no per-room charge in that period",
   "Onboarding, setup, training and support at no charge",
-  "Every module included, on every property, from day one",
+  "You pay only the booking fee on bookings taken through ROL'OS",
 ];
+
+/** What starts being charged once the free period ends. */
+const CHARGEABLE_AFTER: { item: string; note: string }[] = [
+  { item: "ROL'OS PMS subscription", note: "Priced on your agreement" },
+  { item: "Channel manager & OTA distribution", note: "Charged per unit" },
+  { item: "White label & your own booking domain", note: "Priced on your agreement" },
+  { item: "Branding pack", note: "Priced on your agreement" },
+  { item: "Revenue management & yield tools", note: "Priced on your agreement" },
+  { item: "Bring your own payment gateway", note: "Priced on your agreement" },
+  { item: "Booking fee on ROL'OS-delivered bookings", note: "Continues as agreed" },
+];
+
 
 /** Grouped capability list — the promo surface for what "included" means. */
 const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] }[] = [
@@ -95,25 +107,26 @@ const INCLUDED_GROUPS: { icon: typeof Building2; title: string; items: string[] 
 ];
 
 const GUARANTEES = [
-  "60 days free, then still free to run",
-  "No subscription and no annual lock-in",
-  "Cancel anytime, keep your data",
-  "Full data export included",
-  "Every module included — nothing paywalled",
+  "60 days free on the full stack",
+  "No annual lock-in — cancel anytime",
+  "Keep your data, full export included",
   "Free onboarding, training and support",
+  "Add-on pricing agreed in writing before day 61",
+  "Volume and portfolio terms negotiable",
 ];
 
 const COMPETITOR_COSTS = [
-  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Included" },
-  { item: "Channel manager & OTA distribution", typical: "R 2,000 – R 4,000/mo", rolos: "Included" },
-  { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included" },
-  { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Included" },
-  { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Included" },
+  { item: "Basic PMS (rooms + bookings)", typical: "R 2,500 – R 5,000/mo", rolos: "Free for 60 days, then subscription" },
+  { item: "Channel manager & OTA distribution", typical: "R 2,000 – R 4,000/mo", rolos: "Free for 60 days, then per unit" },
+  { item: "API access & webhooks", typical: "R 1,500 – R 3,000/mo", rolos: "Included, no add-on" },
+  { item: "Revenue management & yield tools", typical: "R 1,000 – R 2,500/mo", rolos: "Free for 60 days, then add-on" },
+  { item: "White-label branding & own booking domain", typical: "Enterprise tier only", rolos: "Free for 60 days, then add-on" },
   { item: "Assistant / chatbot", typical: "R 800 – R 2,000/mo", rolos: "Included (TOBI)" },
   { item: "Reviews & reputation monitoring", typical: "R 600 – R 1,500/mo", rolos: "Included" },
   { item: "Revenue splits & portfolio recon", typical: "Rarely offered", rolos: "Included" },
-  { item: "Monthly subscription", typical: "Always", rolos: "None" },
+  { item: "Setup fee", typical: "Common", rolos: "None" },
 ];
+
 
 export default function ConnectPricing() {
   return (
@@ -126,7 +139,7 @@ export default function ConnectPricing() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="inline-block px-3 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary mb-4">
-              60 days free · then still free to run
+              60 days free · then a subscription plus your chosen add-ons
             </span>
           </motion.div>
           <motion.h1
@@ -134,19 +147,20 @@ export default function ConnectPricing() {
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
           >
-            Free to run.{" "}
-            <span className="text-primary">You only pay when we bring you a booking.</span>
+            Your first 60 days are free.{" "}
+            <span className="text-primary">Start earning before you start paying.</span>
           </motion.h1>
           <motion.p
             initial="hidden" animate="visible" variants={fadeUp}
             transition={{ duration: 0.7, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
-            No monthly subscription. No setup fee. No per-room or per-user charge.
-            White label, revenue management, PMS, channel integration, API, CRM and the
-            full ROL'OS stack are included — you pay a single booking fee only on the
-            bookings we deliver through OTA listings and the widget booking engine.
+            For 60 days you run the full ROL'OS stack — PMS, channel manager, white label,
+            revenue management and every add-on — with no subscription and no setup fee.
+            You pay only the booking fee on bookings taken through ROL'OS. From day 61 the
+            PMS subscription and the add-ons you keep are billed as set out in your agreement.
           </motion.p>
+
         </div>
       </section>
 
