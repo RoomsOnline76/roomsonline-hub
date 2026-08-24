@@ -597,10 +597,20 @@ export function RuOnboardingPipeline({ propertyId, readOnly = false, standalone 
             <DialogTitle>Rentals United sub-user API keys</DialogTitle>
             <DialogDescription>
               Since Rentals United's API-key rollout, company details must be submitted with the sub-user's own
-              AccessKey and SecretKey. Generate the first pair in the RU dashboard → Security settings while signed
-              in as that sub-user, then paste it here. Keys are stored encrypted against this OwnerID and reused
+              AccessKey and SecretKey. Sign in to the{" "}
+              <a
+                href="https://new.rentalsunited.com/My/SecuritySettings"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 text-foreground"
+              >
+                RU dashboard → Security settings
+              </a>{" "}
+              as that sub-user and generate the first pair with scope <span className="font-medium text-foreground">XmlApi</span>,
+              then paste it here. The secret is shown once. Keys are stored encrypted against this OwnerID and reused
               automatically from now on.
             </DialogDescription>
+
           </DialogHeader>
           <div className="space-y-2">
             <Input
