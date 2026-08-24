@@ -5720,11 +5720,16 @@ Deno.serve(async (req) => {
       const submitCompanyDetails = async (
         account: Record<string, any> | null,
         plainPassword?: string | null,
+        options?: { dryRun?: boolean },
       ) => {
+        const dryRun = options?.dryRun === true;
         if (!account?.id) return { sent: false, error: "No local RU account row" };
         // Idempotent: treat it as done only when RU actually confirmed it.
         // `force: true` re-submits (e.g. the RU portal profile is still blank).
-        const companyState = await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
+        // A dry run never short-circuits: the caller wants the composed payload.
+        const companyState = dryRun
+          ? { satisfied: false }
+          : await ruCompanyDetailsSatisfied(admin, account.ru_owner_id, account);
         /**
          * Save-time resend. Company details are authored on the property, so an edit
          * saved after the last accepted push makes the channel's copy stale. Callers
