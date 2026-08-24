@@ -417,11 +417,20 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_listings: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "The published listings could not be read back",
     );
-    if (!ok) return { id: "verify_listings", outcome: pending ? "pending" : "failed", detail };
+    if (!ok) {
+      return pending
+        ? {
+          id: "verify_listings",
+          outcome: "pending",
+          retryAfterMs,
+          detail: "Behind the channel's read window — the listing review resumes automatically.",
+        }
+        : { id: "verify_listings", outcome: "failed", detail };
+    }
     if (data.listings_verified !== true) {
       const expected = data.listings_expected_units ?? "?";
       const verified = data.listings_verified_units ?? 0;
@@ -438,22 +447,65 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     };
   },
 
+  /**
+   * The currency read-back lives on the push surface (it reads the live listing), not on
+   * the cert portal — sending it to the portal is what produced `UNKNOWN_ACTION`.
+   */
   verify_currency: async (ctx) => {
-    const { ok, pending, detail, data } = await portal(
-      { action: "verify_ru_currency", property_id: ctx.propertyId },
-      "The published currency could not be verified",
-    );
-    if (!ok) return { id: "verify_currency", outcome: pending ? "pending" : "failed", detail };
-    if (data.matches === false) {
+    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { action: "verify_ru_currency", property_ids: [ctx.propertyId] },
+    });
+    if (error) {
       return {
         id: "verify_currency",
         outcome: "failed",
-        detail: `The channel reports ${String(data.ru_reported_currency_iso ?? "a different currency")} — expected ${String(
-          data.published_currency_iso ?? "the property currency",
-        )}`,
+        detail: await extractFunctionError(error, "The published currency could not be verified"),
       };
     }
-    return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+    const rows = ((data ?? {}) as {
+      results?: Array<Record<string, unknown>>;
+    }).results ?? [];
+    const row = rows.find((r) => r.property_id === ctx.propertyId) ?? rows[0] ?? null;
+    if (!row) {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail: "The channel has no published listing to read a currency from yet",
+      };
+    }
+    if (row.rate_deferred === true) {
+      return {
+        id: "verify_currency",
+        outcome: "pending",
+        retryAfterMs: readRetryAfterMs(row),
+        detail: "Behind the channel's read window — the currency check resumes automatically.",
+      };
+    }
+    const listings = (row.listings ?? []) as Array<{ ru_reported_iso?: string | null; matches?: boolean; deferred?: boolean }>;
+    if (listings.length > 0 && listings.every((l) => l.deferred === true)) {
+      return {
+        id: "verify_currency",
+        outcome: "pending",
+        retryAfterMs: readRetryAfterMs(row),
+        detail: "Behind the channel's read window — the currency check resumes automatically.",
+      };
+    }
+    const mismatched = listings.filter((l) => l.ru_reported_iso && l.matches === false);
+    if (mismatched.length > 0) {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail: `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,
+      };
+    }
+    if (row.gate_passed === true || listings.some((l) => l.matches === true)) {
+      return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+    }
+    return {
+      id: "verify_currency",
+      outcome: "failed",
+      detail: String(row.error ?? row.reason ?? "The channel did not answer with a currency"),
+    };
   },
 
   entitlement: async (ctx) => {
