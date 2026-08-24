@@ -157,9 +157,10 @@ export default function ConnectPricing() {
             className="mt-4 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto"
           >
             For 60 days you run the full ROL'OS stack — PMS, channel manager, white label,
-            revenue management and every add-on — with no subscription and no setup fee.
-            You pay only the booking fee on bookings taken through ROL'OS. From day 61 the
-            PMS subscription and the add-ons you keep are billed as set out in your agreement.
+            revenue management and every add-on — with no subscription, and the setup fee
+            waived when you start in that period. You pay only the booking fee on bookings
+            taken through ROL'OS. From day 61 the PMS subscription and the add-ons you keep
+            are billed as set out in your agreement.
           </motion.p>
 
         </div>
