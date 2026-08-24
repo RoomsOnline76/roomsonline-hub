@@ -17,6 +17,7 @@ import {
   getEffectiveBillingRate,
   loadGatewaySchedule,
   loadPeriodVolume,
+  isBillableScheduleSource,
 } from "../_shared/gatewayBillingRate.ts";
 import {
   resolveBookingCommission,
@@ -371,7 +372,7 @@ Deno.serve(async (req) => {
       const cached = scheduleCache.get(propertyId);
       if (cached) return cached;
       const schedule = await loadGatewaySchedule(supabase, propertyId);
-      const usingSchedule = schedule.source === "property" || schedule.source === "portfolio";
+      const usingSchedule = isBillableScheduleSource(schedule.source);
       const volume = usingSchedule ? await loadPeriodVolume(supabase, propertyId) : 0;
       const entry = { schedule, volume };
       scheduleCache.set(propertyId, entry);
@@ -413,7 +414,7 @@ Deno.serve(async (req) => {
             fee = round2(e.gatewayFee);
           } else {
             const { schedule, volume } = await gatewayScheduleFor(e.propertyId);
-            if (schedule.source === "property" || schedule.source === "portfolio") {
+            if (isBillableScheduleSource(schedule.source)) {
               fee = getEffectiveBillingRate(schedule.config, e.gross, volume, schedule.overrides).amount_charged;
             } else {
               const pfRate = num(config?.transaction_fee_percentage ?? globalTxFee);

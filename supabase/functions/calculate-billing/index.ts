@@ -3,6 +3,7 @@ import {
   getEffectiveBillingRate,
   loadGatewaySchedule,
   loadPeriodVolume,
+  isBillableScheduleSource,
 } from "../_shared/gatewayBillingRate.ts";
 
 const corsHeaders = {
@@ -146,7 +147,7 @@ Deno.serve(async (req) => {
         result = await calcVolumeTiered(supabase, property_id, bookingAmount, config, globalDefaults, resolve);
         break;
       case 'payment_facilitator':
-        result = await calcPaymentFacilitator(bookingAmount, config, globalDefaults, resolve);
+        result = await calcPaymentFacilitator(supabase, property_id, bookingAmount, config, globalDefaults, resolve);
         break;
       default:
         result = await calcDefault(supabase, property_id, booking, bookingAmount, config, globalDefaults, resolve);
@@ -627,7 +628,39 @@ async function calcVolumeTiered(
   };
 }
 
-async function calcPaymentFacilitator(amount: number, config: any, globals: any, resolve: ResolveFn): Promise<BillingResult> {
+async function calcPaymentFacilitator(
+  supabase: any,
+  propertyId: string,
+  amount: number,
+  config: any,
+  globals: any,
+  resolve: ResolveFn,
+): Promise<BillingResult> {
+  // Surcharge-only properties resolve through the same gateway schedule as every
+  // other ROL-processed property, so there is one rate path in the system.
+  const schedule = await loadGatewaySchedule(supabase, propertyId);
+  if (isBillableScheduleSource(schedule.source)) {
+    const periodVolume = await loadPeriodVolume(supabase, propertyId);
+    const rate = getEffectiveBillingRate(schedule.config, amount, periodVolume, schedule.overrides);
+    return {
+      amount: rate.amount_charged,
+      type: 'transaction_fee',
+      metadata: {
+        rate: rate.percentage,
+        fixed_fee: rate.fixed_fee,
+        effective_rate: rate.effective_rate,
+        model: rate.model,
+        tier: rate.tier,
+        period_volume: periodVolume,
+        config_id: rate.config_id,
+        config_version: rate.config_version,
+        config_source: schedule.source,
+        used_override: rate.usedOverride,
+        source: 'gateway_schedule',
+      },
+    };
+  }
+
   const rate = resolve(config?.transaction_fee_percentage, globals?.default_transaction_fee, 2.5);
   return {
     amount: amount * (rate / 100),
