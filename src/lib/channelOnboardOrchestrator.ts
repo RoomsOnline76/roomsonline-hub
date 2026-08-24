@@ -369,12 +369,25 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
 
     notifyRuAccountsChanged();
+    // Always name the account that was used: operators need the OwnerID and login to
+    // recognise it in the channel portal, not just "adopted" vs "created".
+    const account = (data.account ?? null) as Record<string, unknown> | null;
+    const ownerId = String(account?.ru_owner_id ?? "").trim();
+    const loginEmail = String(account?.ru_login_email ?? account?.owner_email ?? "").trim();
+    const scope = String(data.scope ?? account?.scope ?? "").trim();
+    const identity = [
+      ownerId ? `OwnerID ${ownerId}` : null,
+      loginEmail || null,
+      scope ? `${scope} scope` : null,
+    ].filter(Boolean).join(" · ");
     return {
       id: "owner_account",
       outcome: "passed",
-      detail: data.created === false ? "Existing sub-account adopted" : "Sub-account created",
+      detail:
+        `${data.created === false ? "Existing sub-account adopted" : "Sub-account created"}${identity ? ` — ${identity}` : ""}`,
     };
   },
+
 
   api_keys: async (ctx, snapshot) => {
     if (snapshot.binding.keys_stored) {
