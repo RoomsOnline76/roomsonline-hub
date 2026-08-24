@@ -454,14 +454,15 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Onboard a property</CardTitle>
           <CardDescription className="text-xs">
-            Only properties with the Channel Manager add-on activated and a signed contract are listed. Pick one, clear
-            the Ready-to-sell gate, then run Step A and Step B.
+            Only properties and portfolios with the Channel Manager add-on activated and a signed contract are listed.
+            Portfolios are onboarded once — their member properties inherit the same channel account. Pick one, clear the
+            Ready-to-sell gate, then run Step A and Step B.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[260px] flex-1">
-              <Label className="text-xs">Property</Label>
+              <Label className="text-xs">Property or portfolio</Label>
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
@@ -469,19 +470,22 @@ export function ChannelOnboardTab({ initialPropertyId }: { initialPropertyId?: s
                   <SelectTrigger className="mt-1">
                     <SelectValue
                       placeholder={
-                        properties.length === 0 ? "No eligible properties (add-on + signed contract)" : "Select a property"
+                        properties.length === 0
+                          ? "Nothing eligible (add-on + signed contract)"
+                          : "Select a property or portfolio"
                       }
                     />
                   </SelectTrigger>
                   <SelectContent>
                     {properties.map((p) => (
                       <SelectItem key={p.id} value={p.id}>
-                        {p.name}
+                        {p.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
+
 
             </div>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
