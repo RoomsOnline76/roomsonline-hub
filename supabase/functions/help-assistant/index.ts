@@ -329,7 +329,9 @@ Channel wizard (12 macros, three stages):
 6–11 Published — push owner, key & secret, publish listing, currency, sub-account sign-off, enable Channel Manager.
 12 Channels live — connect at least one sales channel.
 An unbound property (no push owner, or no key & secret) cannot have publish, currency, sign-off, Channel Manager, or channels marked done. Leftover listing IDs are not a pass.
+Key & secret is a MANUAL step and cannot be automated: sign in to the distribution account portal as that sub-account, open Security settings, generate the key pair (scope XmlApi), then save both values in the ROL'OS owner panel. The secret is shown once — if it is lost, generate a fresh pair. Until it is stored and verified, nothing is sent for that account; pushes are held rather than sent on the parent account.
 RU push/pull stays off until those gates pass. Dashboard bookings, cancels, mods and blockouts still save locally.
+
 
 Website listing wizard:
 Nine steps (identity, contact, location, policies, guest experience, facilities, rooms, media, plus venue extras). 70% is the list minimum. ROL Spec is editorial and is not this score.
