@@ -17,6 +17,8 @@
  * `ru_channel_creators`, and stored on the booking for reporting.
  */
 
+import { resolveRuOwnerScopes } from './ruOwnerScopes.ts';
+import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { loadCurrencyState, revertAmount } from './ruCurrency.ts';
 import { readInvokeError } from './functionInvokeError.ts';
 
@@ -887,14 +889,19 @@ export async function fetchRuReservationById(
     scopes.push({ ownerId, propertyId });
   };
 
-  if (knownOwnerId || opts.propertyId) push(knownOwnerId, opts.propertyId ?? null);
-  if (creatorOwnerId) push(creatorOwnerId);
+  // Only accounts with usable API credentials can answer an account-scoped read. Enumerating
+  // every row blindly is what produced the `no_subuser_keys` failures (e.g. OwnerID 742004)
+  // and the -6 rate limits: four wire calls per account, colliding with the 30-minute poll.
+  const keyedScopes = await resolveRuOwnerScopes(supabase as unknown as SupabaseClient, '__reservation_lookup__', {
+    includeMaster: false,
+  });
+  const keyed = new Set(keyedScopes.map((s) => String(s.ownerId)));
+  const usable = (ownerId: string | null) => ownerId === null || keyed.has(String(ownerId));
 
-  const { data: accounts } = await supabase
-    .from('ru_owner_accounts')
-    .select('ru_owner_id')
-    .not('ru_owner_id', 'is', null);
-  for (const a of (accounts || []) as { ru_owner_id: string | number }[]) push(String(a.ru_owner_id));
+  // Hints first, but only when the hinted account can actually authenticate.
+  if (usable(knownOwnerId) && (knownOwnerId || opts.propertyId)) push(knownOwnerId, opts.propertyId ?? null);
+  if (creatorOwnerId && usable(creatorOwnerId)) push(creatorOwnerId);
+  for (const scope of keyedScopes) push(scope.ownerId);
   push(null); // master last
 
   let lastError: string | null = null;
@@ -926,13 +933,28 @@ export async function fetchRuReservationById(
     const key = `${scope.ownerId ?? 'master'}:${scope.propertyId ?? ''}`;
     if (seenList.has(key)) continue;
     seenList.add(key);
-    for (const [back, forward] of [
-      [7, 400],
-      [90, 365],
-    ] as const) {
+    // One window per account. The wide window is spent only on the account that already
+    // answered partially — anything else just burns the per-method sliding minute.
+    const windows: ReadonlyArray<readonly [number, number]> =
+      partialOwnerId !== undefined && scope.ownerId === partialOwnerId
+        ? ([[7, 400], [90, 365]] as const)
+        : ([[7, 400]] as const);
+    for (const [back, forward] of windows) {
       const listed = await attemptListLookup(supabase, reservationId, scope, back, forward);
       if (listed.reservation?.dateFrom) return { ...listed, partial };
-      if (listed.rateDeferred) rateDeferred = true;
+      if (listed.rateDeferred) {
+        // The method is rate limited right now: continuing to the next account inside the
+        // same minute only produces more -6 answers. Hand back a retry instead.
+        rateDeferred = true;
+        return {
+          reservation: null,
+          rawXml: null,
+          error: 'RU_RATE_DEFERRED: channel rate limit — reservation lookup deferred, will retry',
+          rateDeferred: true,
+          partial,
+          resolvedOwnerId: partialOwnerId ?? null,
+        };
+      }
     }
   }
 

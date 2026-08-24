@@ -6,6 +6,25 @@ import { supabase } from "@/integrations/supabase/client";
 // The admin domain for admin panel URLs (ROLOS PMS, staff login, contracts, onboarding)
 export const ADMIN_DOMAIN = "https://sleepinafrica.roomsonline.co.za";
 
+/**
+ * Origin to use when opening another admin route in a new window or sharing a link.
+ * Keeps the current origin only when the app is already served from a ROL'OS host,
+ * so preview/sandbox hosts never leak into generated links.
+ */
+export const adminAppOrigin = (): string => {
+  if (typeof window === "undefined") return ADMIN_DOMAIN;
+  const host = window.location.hostname;
+  const isRolosHost =
+    host.endsWith("roomsonline.co.za") ||
+    host === "localhost" ||
+    host === "127.0.0.1";
+  return isRolosHost ? window.location.origin : ADMIN_DOMAIN;
+};
+
+/** Absolute, domain-driven URL for an admin path. */
+export const adminUrl = (path: string): string =>
+  `${adminAppOrigin()}${path.startsWith("/") ? path : `/${path}`}`;
+
 // The public-facing domain for property and room showcase URLs.
 // NOTE: The `book.` subdomain is not provisioned on the deployment. The
 // canonical host for all shareable embed/booking links is the same domain

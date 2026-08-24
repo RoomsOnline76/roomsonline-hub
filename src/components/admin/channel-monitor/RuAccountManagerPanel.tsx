@@ -38,6 +38,7 @@ import {
   Link2,
   Loader2,
   Mail,
+  RefreshCw,
   RotateCcw,
   ShieldCheck,
   Trash2,
@@ -180,6 +181,9 @@ export function RuAccountManagerPanel({
     { owner_id: string; email: string; user_account_id?: string; archived?: boolean }[]
   >([]);
   const [bindLoading, setBindLoading] = useState(false);
+  // The roster is cached server-side (one channel read per 10 minutes), so the dialog states
+  // how old the list is and offers a deliberate refresh instead of spending a read on open.
+  const [bindRosterAt, setBindRosterAt] = useState<string | null>(null);
   const [binding, setBinding] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   // Archived sub-users can never authenticate again, so they stay hidden unless asked for.
@@ -224,13 +228,13 @@ export function RuAccountManagerPanel({
   const [ownerEmailChoice, setOwnerEmailChoice] = useState("");
   const [savingOwnerEmail, setSavingOwnerEmail] = useState(false);
 
-  const openBind = useCallback(async (accountId: string, ownerId: string | null) => {
+  const openBind = useCallback(async (accountId: string, ownerId: string | null, forceRefresh = false) => {
     setBindFor({ id: accountId, ownerId });
-    setBindCandidates([]);
+    if (!forceRefresh) setBindCandidates([]);
     setBindLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "list_ru_candidates" },
+        body: { action: "list_ru_candidates", force_refresh: forceRefresh },
       });
       if (error || !data?.success) {
         const message =
@@ -244,6 +248,8 @@ export function RuAccountManagerPanel({
       }
 
       setBindCandidates(data.users || []);
+      setBindRosterAt(typeof data.fetched_at === "string" ? data.fetched_at : null);
+      if (data.notice) toast.warning(String(data.notice));
 
     } finally {
       setBindLoading(false);
@@ -1622,7 +1628,22 @@ export function RuAccountManagerPanel({
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
                   Or bind to an existing RU account
+                  {bindRosterAt ? (
+                    <span className="ml-2 normal-case font-normal tracking-normal">
+                      roster as of {new Date(bindRosterAt).toLocaleTimeString()}
+                    </span>
+                  ) : null}
                 </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[11px]"
+                  disabled={bindLoading}
+                  onClick={() => bindFor && void openBind(bindFor.id, bindFor.ownerId, true)}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Refresh roster
+                </Button>
                 {bindCandidates.some((u) => u.archived) && (
                   <Button
                     size="sm"

@@ -10,6 +10,7 @@
 //   compliance       → refresh cadence panel data (from ru_sync_runs)
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
+import { readRuRoster, invalidateRuRosterMemo } from "../_shared/ruRosterCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
@@ -264,41 +265,27 @@ async function loadLastGoodRuXml(
 
 
 /**
- * The channel allows one `Pull_ListMyUsers_RQ` per sliding minute, and a throttled call comes
- * back as `{ success: true, queued: true }` with NO `users` array. Reading that as "the master
- * account lists no sub-users" is what made binding impossible ("OwnerID not listed under our
- * master account") and left the bind dialog empty. Poll across the rate window instead, and
- * report a deferral as a deferral — never as an empty list.
+ * Roster read, always through the shared cache (see `_shared/ruRosterCache.ts`). The channel
+ * allows one `Pull_ListMyUsers_RQ` per sliding minute, so a fresh answer is read at most once
+ * per TTL and every other caller reuses it. A throttled read falls back to the cached roster —
+ * never to an empty list, which is what used to make binding impossible.
  */
-const RU_USER_LIST_ATTEMPTS = 4;
-const RU_USER_LIST_WAIT_MS = 20_000;
-
 async function listRuSubUsers(
   // deno-lint-ignore no-explicit-any
   admin: any,
-): Promise<{ ok: boolean; users: { owner_id?: string; email?: string; user_account_id?: string }[]; deferred: boolean; message?: string }> {
-  let lastMessage = "Rentals United did not return the sub-user list";
-  for (let attempt = 0; attempt < RU_USER_LIST_ATTEMPTS; attempt++) {
-    const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-    if (error) {
-      lastMessage = error.message ?? lastMessage;
-      return { ok: false, users: [], deferred: false, message: lastMessage };
-    }
-    if (data?.success && Array.isArray(data.users)) {
-      return { ok: true, users: data.users, deferred: false };
-    }
-    const queued = data?.queued === true || data?.rate_deferred === true ||
-      data?.error?.code === "RU_RATE_DEFERRED";
-    lastMessage = data?.message ?? data?.error?.message ?? lastMessage;
-    if (!queued) return { ok: false, users: [], deferred: false, message: lastMessage };
-    if (attempt < RU_USER_LIST_ATTEMPTS - 1) {
-      await new Promise((r) => setTimeout(r, RU_USER_LIST_WAIT_MS));
-    }
-  }
-  return { ok: false, users: [], deferred: true, message: lastMessage };
+  opts: { forceFresh?: boolean; source?: string } = {},
+): Promise<{ ok: boolean; users: { owner_id?: string; email?: string; login_email?: string; user_account_id?: string }[]; deferred: boolean; cached: boolean; fetched_at: string | null; message?: string }> {
+  if (opts.forceFresh) invalidateRuRosterMemo();
+  const roster = await readRuRoster(admin, { forceFresh: opts.forceFresh, source: opts.source ?? "ru-cert-portal" });
+  return {
+    ok: roster.ok,
+    users: roster.users,
+    deferred: roster.deferred,
+    cached: roster.cached,
+    fetched_at: roster.fetchedAt,
+    message: roster.message,
+  };
 }
-
-
 
 
 /** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
@@ -3892,8 +3879,9 @@ Deno.serve(async (req) => {
 
     if (action === "user_management") {
       const flag = await readUserMgmtFlag();
-      const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-      const probeOk = !error && !!data?.success;
+      // Probe through the cache: opening this page must never cost a wire read.
+      const probe = await listRuSubUsers(admin, { source: "user_management_probe" });
+      const probeOk = probe.ok;
       return json({
         success: true,
         enabled: flag.enabled,
@@ -3905,7 +3893,9 @@ Deno.serve(async (req) => {
           { action: "create_user", ru_method: "Push_CreateUser_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
           { action: "fill_company_details", ru_method: "Push_FillCompanyDetails_RQ", implemented: true, gated: true, status: flag.enabled ? "enabled" : "disabled" },
         ],
-        users: data?.users ?? [],
+        users: probe.users,
+        roster_cached: probe.cached,
+        roster_fetched_at: probe.fetched_at,
         probe: error ? { ok: false, error: error.message } : { ok: probeOk, preview: preview(data, 1500) },
       });
     }
@@ -5027,7 +5017,10 @@ Deno.serve(async (req) => {
     //    so an admin can bind a local row to a specific OwnerID (RU allows duplicates
     //    per owner email, and logins can be renamed in the RU portal).
     if (action === "list_ru_candidates") {
-      const listed = await listRuSubUsers(admin);
+      const listed = await listRuSubUsers(admin, {
+        forceFresh: body.force_refresh === true,
+        source: "list_ru_candidates",
+      });
       if (!listed.ok) {
         return json({
           success: false,
@@ -5040,7 +5033,13 @@ Deno.serve(async (req) => {
           },
         }, listed.deferred ? 429 : 502);
       }
-      return json({ success: true, users: listed.users });
+      return json({
+        success: true,
+        users: listed.users,
+        cached: listed.cached,
+        fetched_at: listed.fetched_at,
+        notice: listed.message ?? null,
+      });
 
     }
 
@@ -5078,7 +5077,7 @@ Deno.serve(async (req) => {
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const listed = await listRuSubUsers(admin);
+        const listed = await listRuSubUsers(admin, { source: "bind_ru_account" });
         if (!listed.ok) {
           // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
           console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
@@ -6281,11 +6280,14 @@ Deno.serve(async (req) => {
 
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
-      const listRuUsers = async (): Promise<RuUser[]> => {
-        // Rate-deferred reads come back without a `users` array; polling the window keeps a
-        // throttled list from looking like "this owner has no sub-user".
-        const listed = await listRuSubUsers(admin);
-        return listed.ok ? (listed.users as RuUser[]) : [];
+      // One roster per Step A run. Every helper below shares this read; only a deliberate
+      // read-back after creating a sub-user asks the channel again (`fresh: true`).
+      let rosterOnce: RuUser[] | null = null;
+      const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
+        if (!fresh && rosterOnce) return rosterOnce;
+        const listed = await listRuSubUsers(admin, { forceFresh: fresh, source: "step-a" });
+        rosterOnce = listed.ok ? (listed.users as RuUser[]) : (rosterOnce ?? []);
+        return rosterOnce;
       };
 
       // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
@@ -6756,7 +6758,7 @@ Deno.serve(async (req) => {
         if (createErr || !created?.success) {
           if (emailTaken) {
             // RU says the email is taken — recover by adopting the existing sub-user.
-            const refreshed = await listRuUsers();
+            const refreshed = await listRuUsers(true);
             const recovered = matchByEmail(refreshed)
               ?? matchByStoredIdentity(refreshed, existing.account as any)
               ?? await adoptLocalByEmail();
@@ -6811,7 +6813,7 @@ Deno.serve(async (req) => {
       }
 
       if (!ruOwnerId || !userAccountId) {
-        const refreshed = await listRuUsers();
+        const refreshed = await listRuUsers(true);
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
