@@ -114,8 +114,12 @@ export function AiInsightsPanel({ runId }: Props) {
   const suggestionRows = useMemo(
     () =>
       (Object.keys(FIELD_LABELS) as SuggestionField[])
-        .map((field) => ({ field, text: insights?.suggestions?.[field] ?? "" }))
-        .filter((row) => row.text.trim().length > 0),
+        .map((field) => ({
+          field,
+          text: insights?.suggestions?.[field] ?? "",
+          experimental: insights?.experimental?.suggestions?.[field] ?? "",
+        }))
+        .filter((row) => row.text.trim().length > 0 || row.experimental.trim().length > 0),
     [insights],
   );
 
