@@ -52,9 +52,6 @@ const ChannelCertificationTab = lazy(() =>
     default: m.ChannelCertificationTab,
   })),
 );
-const RuReservationsPanel = lazy(() =>
-  import("@/components/integrations/RuReservationsPanel").then((m) => ({ default: m.RuReservationsPanel })),
-);
 const BookingSyncTrailPanel = lazy(() =>
   import("@/components/admin/channel-monitor/BookingSyncTrailPanel").then((m) => ({
     default: m.BookingSyncTrailPanel,
@@ -63,26 +60,12 @@ const BookingSyncTrailPanel = lazy(() =>
 const RuApiLogPanel = lazy(() =>
   import("@/components/admin/channel-monitor/RuApiLogPanel").then((m) => ({ default: m.RuApiLogPanel })),
 );
+const ChannelSyncObservabilityPanel = lazy(() =>
+  import("@/components/admin/channel-monitor/ChannelSyncObservabilityPanel").then((m) => ({
+    default: m.ChannelSyncObservabilityPanel,
+  })),
+);
 
-const RuBuildingsPanel = lazy(() =>
-  import("@/components/integrations/RuBuildingsPanel").then((m) => ({ default: m.RuBuildingsPanel })),
-);
-const RuCoverageTab = lazy(() =>
-  import("@/components/integrations/RuCoverageTab").then((m) => ({ default: m.RuCoverageTab })),
-);
-const RuAvailabilityPlayground = lazy(() =>
-  import("@/components/integrations/RuAvailabilityPlayground").then((m) => ({
-    default: m.RuAvailabilityPlayground,
-  })),
-);
-const RuPricingPlayground = lazy(() =>
-  import("@/components/integrations/RuPricingPlayground").then((m) => ({ default: m.RuPricingPlayground })),
-);
-const RuCalendarVerifyPanel = lazy(() =>
-  import("@/components/integrations/RuCalendarVerifyPanel").then((m) => ({
-    default: m.RuCalendarVerifyPanel,
-  })),
-);
 
 /** Left-rail sections. Order is fixed so RU IT always finds a surface in two clicks. */
 type TabKey =
