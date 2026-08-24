@@ -471,7 +471,9 @@ export async function evaluatePhases(
     },
   ];
 
-  // A phase after a blocked phase is "pending", never "passed".
+  // A phase after a blocked phase is "pending", never "passed". Phases are INFORMATIONAL
+  // only — they never veto a write. `ready_for_push` comes from the Step A / Ready-to-sell
+  // ledger below.
   let seenBlock = false;
   for (const ph of phases) {
     if (seenBlock) ph.status = ph.status === "blocked" ? "blocked" : "pending";
@@ -480,31 +482,34 @@ export async function evaluatePhases(
 
   const current = phases.find(p => p.status !== "passed") ?? phases[phases.length - 1];
   const ownerIdNum = !emailMismatch && account?.ru_owner_id ? parseInt(account.ru_owner_id, 10) : null;
+  const stepGate = await readStepGate(admin, property.id);
 
   return {
     property_id: property.id,
     phases,
     current_phase: current.key,
-    ready_for_push:
-      phases[0].status === "passed" && phases[1].status === "passed",
+    step_gate: stepGate,
+    ready_for_push: stepGate.ready,
     ru_owner_id: Number.isFinite(ownerIdNum as number) ? (ownerIdNum as number) : null,
     owner_scope: scope,
     portfolio_id,
   };
 }
 
-/** Build a PHASE_BLOCKED error body for an edge function response. */
-export function phaseBlockedResponse(gate: PhaseGateResult) {
-  const failing = gate.phases.find(p => p.status === "blocked") ?? gate.phases[0];
+/**
+ * Error body for a write refused because the Step A / Ready-to-sell ledger is not clear.
+ * No phase wording: the operator's only onboarding path is Step A then Step B.
+ */
+export function pushBlockedResponse(gate: PhaseGateResult) {
+  const blockers = gate.step_gate?.blockers ?? ["Channel onboarding has not been completed for this property."];
   return {
     success: false,
     error: {
-      code: "PHASE_BLOCKED",
-      message: `Rentals United onboarding is blocked at phase ${failing.order} — ${failing.label}.`,
+      code: "ONBOARDING_INCOMPLETE",
+      message: blockers[0],
     },
-    phase: failing.key,
-    phase_order: failing.order,
-    blockers: failing.blockers,
-    phases: gate.phases,
+    blockers,
+    step_gate: gate.step_gate ?? null,
   };
 }
+
