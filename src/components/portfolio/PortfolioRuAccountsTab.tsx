@@ -107,52 +107,9 @@ export function PortfolioRuAccountsTab() {
     notifyRuAccountsChanged();
   }, [queryClient]);
 
-  // ── Push Company Details: re-submits Push_FillCompanyDetails_RQ for this sub-account ──
-  // UI-only action surfaced in the Account Manager. The backend `ensure_company_details`
-  // flow resolves the bound sub-user and pushes under its own credentials; `force: true`
-  // re-submits even when already satisfied so the operator can re-send after an edit.
-  const [pushingCompany, setPushingCompany] = useState<string | null>(null);
-  const [companyPushResults, setCompanyPushResults] = useState<
-    Record<string, { open: boolean; raw: string }>
-  >({});
+  // Company details are no longer pushed by hand from here — Step A of the channel
+  // onboarding is the only author, and it skips an already-accepted profile.
 
-  const pushCompanyDetails = useCallback(
-    async (acc: RuAccount) => {
-      if (!acc.ru_owner_id) {
-        toast.error("No RU OwnerID bound — bind the account before pushing company details.");
-        return;
-      }
-      if (!acc.portfolio_id && !acc.property_id) {
-        toast.error("This account has no portfolio or property scope, so company details cannot be pushed.");
-        return;
-      }
-      setPushingCompany(acc.id);
-      try {
-        const body: Record<string, unknown> = { action: "ensure_company_details", force: true };
-        if (acc.portfolio_id) body.portfolio_id = acc.portfolio_id;
-        else body.property_id = acc.property_id;
-        const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
-        const raw = JSON.stringify(data ?? null, null, 2);
-        setCompanyPushResults((prev) => ({
-          ...prev,
-          [acc.id]: { open: true, raw },
-        }));
-        if (error || !data?.success || data?.company_details_pushed !== true) {
-          toast.error(
-            data?.error?.message ||
-              data?.company_details_warning ||
-              (error ? await extractFunctionError(error, "Company details push failed") : "Company details push failed"),
-          );
-        } else {
-          toast.success(`Company details pushed to Rentals United for OwnerID ${acc.ru_owner_id}`);
-        }
-        await refreshAccounts();
-      } finally {
-        setPushingCompany(null);
-      }
-    },
-    [refreshAccounts],
-  );
 
 
 
