@@ -1380,7 +1380,7 @@ export default function AdminOnboarding() {
                             className="h-7 text-xs"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate(`/admin/onboarding/${row.id}`);
+                              navigate(channelHref);
                             }}
                           >
                             {nextLabel}
@@ -1401,9 +1401,9 @@ export default function AdminOnboarding() {
                             Open website listing wizard
                           </DropdownMenuItem>
                           {channelWizardAvailable && (
-                            <DropdownMenuItem onClick={() => navigate(`/admin/onboarding/${row.id}`)}>
+                            <DropdownMenuItem onClick={() => navigate(channelHref)}>
                               <Sparkles className="h-4 w-4 mr-2" />
-                              Open channel wizard
+                              {channelConnected ? "Configure channels" : "Open channel wizard"}
                             </DropdownMenuItem>
                           )}
                           {channelWizardAvailable && (
