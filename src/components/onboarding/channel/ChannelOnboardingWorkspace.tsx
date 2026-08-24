@@ -653,15 +653,17 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
   const nextAction = useMemo(() => {
     const open = stages.find((s) => !s.complete);
     const macro = open?.currentMacro ?? activeMacro;
-    if (!macro) return { label: "Channels are live", disabled: true, run: () => undefined, reason: undefined as string | undefined };
+    if (!macro)
+      return {
+        label: "Ready to sell",
+        disabled: true,
+        run: () => undefined,
+        reason: undefined as string | undefined,
+      };
     const reason = macro.actionBlockedReason;
-    // Steps whose blocker is a mandatory field / check still route to the fix;
-    // only the distribution actions themselves wait on a prerequisite.
-    const gatedAction = !!reason;
     // Steps 6–14 (distribution identity, publish, connect, sign-off) are no longer
     // wizard steps — the Channel Monitor runs them — so the primary action here is
     // always "fix the outstanding Ready-to-sell requirement".
-
     const firstField = macro.fieldItems.find((i) => !i.satisfied && i.tier === "mandatory") ?? macro.fieldItems.find((i) => !i.satisfied);
     // Never point the primary action at a check the resolver could not judge —
     // there is no field behind it, so the button would go nowhere.
@@ -685,23 +687,8 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
         selectMacro(macro.macro.key);
       },
     };
-  }, [
-    activeMacro,
-    busy,
-    companyProfile.sending,
-    enableChannelManager,
-    goToField,
-    isPlatformUser,
-    pushCompanyDetails,
+  }, [activeMacro, goToField, selectMacro, stages]);
 
-    publishListing,
-    publishedOk,
-
-    pullListings,
-    openOwnerPlan,
-    selectMacro,
-    stages,
-  ]);
 
 
   if (isLoading) {
