@@ -5958,8 +5958,13 @@ export default function PropertyForm({
 
                 )}
 
-                {/* Content quality review outcomes the owner can act on */}
-                {isEditMode && propertyId && (
+                {/*
+                  Content quality review outcomes the owner can act on. This check is
+                  advisory and only assessable once the listing is live on the channel,
+                  so it is not part of the Ready-to-sell gate — hide it inside the
+                  embedded onboarding editor to avoid implying it is required there.
+                */}
+                {isEditMode && propertyId && !embedded && (
                   <RuMcqPrompts
                     propertyId={propertyId}
                     onNavigateSection={(section, focusKey) => {
