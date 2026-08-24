@@ -91,7 +91,6 @@ const AdminBillingDefaults = lazy(() => import("./pages/AdminBillingDefaults"));
 const AdminSalesReps = lazy(() => import("./pages/AdminSalesReps"));
 const AdminCommissionReports = lazy(() => import("./pages/AdminCommissionReports"));
 const AdminIntegrations = lazy(() => import("./pages/AdminIntegrations"));
-const AdminRentalsUnited = lazy(() => import("./pages/AdminRentalsUnited"));
 const AdminChannelMonitor = lazy(() => import("./pages/AdminChannelMonitor"));
 const AdminApiConfigurator = lazy(() => import("./pages/AdminApiConfigurator"));
 const ApiDocsViewer = lazy(() => import("./pages/ApiDocsViewer"));
@@ -429,7 +428,6 @@ const App = () => (
                         <Route path="/admin/promotion" element={<ProtectedRoute><Promotion /></ProtectedRoute>} />
                         <Route path="/admin/bookings" element={<ProtectedRoute><Bookings /></ProtectedRoute>} />
                         <Route path="/admin/integrations" element={<ProtectedRoute><AdminIntegrations /></ProtectedRoute>} />
-                        <Route path="/admin/integrations/rentals-united" element={<ProtectedRoute requireAdmin><AdminRentalsUnited /></ProtectedRoute>} />
                         <Route path="/admin/channel-monitor" element={<ProtectedRoute requireAdmin><AdminChannelMonitor /></ProtectedRoute>} />
                         <Route path="/admin/account" element={<ProtectedRoute><OwnerAccount /></ProtectedRoute>} />
 

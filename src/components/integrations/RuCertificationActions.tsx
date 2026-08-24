@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Loader2, PlayCircle, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
 import { useRuRunCooldown } from "@/hooks/useRuRunCooldown";
 
-export const RU_CONSOLE_PATH = "/admin/integrations/rentals-united";
+export const RU_CONSOLE_PATH = "/admin/channel-monitor?tab=cert";
 
 interface CertStepLite {
   name: string;

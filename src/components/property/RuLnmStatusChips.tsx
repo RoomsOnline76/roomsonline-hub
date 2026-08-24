@@ -298,7 +298,7 @@ export function RuLnmStatusChips({ propertyId }: { propertyId: string }) {
               <Copy className="h-3 w-3" /> Copy evidence JSON
             </Button>
             <Button size="sm" variant="ghost" className="h-7 text-[11px] gap-1.5" asChild>
-              <a href="/admin/integrations/rentals-united" target="_blank" rel="noreferrer">
+              <a href="/admin/channel-monitor?tab=advanced" target="_blank" rel="noreferrer">
                 <ExternalLink className="h-3 w-3" /> Live notifications panel
               </a>
             </Button>
