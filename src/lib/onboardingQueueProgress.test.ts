@@ -28,7 +28,7 @@ describe("websiteQueueProgress", () => {
 });
 
 describe("channelQueueProgress", () => {
-  it("is 92% when RU is published, tests pass, and no channel is connected", () => {
+  it("reads Ready to sell at 100% when steps 1–5 pass", () => {
     const p = channelQueueProgress({
       isRolos: true,
       channelsConnected: 0,
@@ -38,26 +38,25 @@ describe("channelQueueProgress", () => {
       ruMandatoryPass: true,
       ruMandatoryPercent: 100,
     });
-    expect(p.percent).toBe(92);
+    expect(p.percent).toBe(100);
     expect(p.stage).toBe("connect");
-    expect(p.label).toBe("Ready to be connected to Channel");
+    expect(p.label).toBe("Ready to sell");
   });
 
-  it("treats unit-level listing ids as published when the property id is empty", () => {
+  it("ignores listing ids when steps 1–5 have not been graded", () => {
     const p = channelQueueProgress({
       isRolos: true,
       channelsConnected: 0,
-      propertyListingId: null,
-      activeUnits: 3,
-      publishedUnits: 3,
-      ruMandatoryPass: true,
+      propertyListingId: "12345",
+      activeUnits: 1,
+      publishedUnits: 1,
     });
-    expect(p.percent).toBe(92);
-    expect(p.stage).toBe("connect");
-    expect(p.label).toBe("Ready to be connected to Channel");
+    expect(p.stage).toBe("ready");
+    expect(p.percent).toBe(0);
+    expect(p.label).toBe("Grade steps 1–5");
   });
 
-  it("does not say Ready when listing ids exist but RU tests fail", () => {
+  it("grades outstanding mandatory items when steps 1–5 fail", () => {
     const p = channelQueueProgress({
       isRolos: true,
       channelsConnected: 0,
@@ -66,22 +65,11 @@ describe("channelQueueProgress", () => {
       publishedUnits: 2,
       ruMandatoryPass: false,
       ruMandatoryPercent: 60,
+      ruOutstanding: 4,
     });
-    expect(p.stage).toBe("publish");
+    expect(p.stage).toBe("ready");
     expect(p.percent).toBe(60);
-    expect(p.label).toContain("RU checks failing");
-  });
-
-  it("does not say Ready when listing ids exist but RU tests are unconfirmed", () => {
-    const p = channelQueueProgress({
-      isRolos: true,
-      channelsConnected: 0,
-      propertyListingId: "12345",
-      activeUnits: 1,
-      publishedUnits: 1,
-    });
-    expect(p.stage).toBe("publish");
-    expect(p.label).toBe("Confirm RU checks");
+    expect(p.label).toBe("60% · 4 outstanding");
   });
 
   it("completes at 100% when one channel is connected", () => {
@@ -96,6 +84,7 @@ describe("channelQueueProgress", () => {
     expect(p.stage).toBe("live");
   });
 });
+
 
 describe("ruMandatoryCheckSummary", () => {
   it("fails when blocking gaps are present", () => {
