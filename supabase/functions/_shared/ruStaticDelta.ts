@@ -571,7 +571,7 @@ async function pushStaticContent(
 
   for (let chunk = 1; chunk <= RU_STATIC_DELTA_MAX_CHUNKS; chunk++) {
     try {
-      const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
+      const { data, error }: { data: any; error: any } = await supabase.functions.invoke('push-property-to-ru', {
         body: {
           property_id: propertyId,
           action: 'static_only',
