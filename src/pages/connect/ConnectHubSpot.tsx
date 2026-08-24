@@ -257,7 +257,7 @@ export default function ConnectHubSpot() {
           <motion.div initial="hidden" animate="visible" variants={fadeUp} transition={{ duration: 0.6 }}>
             <Badge className="mb-4 gap-1.5">
               <Gift className="h-3.5 w-3.5" />
-              Included free with ROL'OS
+              Owner CRM add-on — no fee, ever
             </Badge>
           </motion.div>
           <motion.h1
