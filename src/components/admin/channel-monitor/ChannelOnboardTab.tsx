@@ -523,6 +523,14 @@ export function ChannelOnboardTab({
     const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
     const ledgerTasks = ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
       ?.tasks ?? []);
+    const stepWaiting = waiting[step];
+    const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
+    /**
+     * A passed step is settled work: it collapses to its one-line verdict until the
+     * operator asks for the detail. A waiting or running step always stays open.
+     */
+    const collapsed =
+      status === "passed" && runningStep !== step && !stepWaiting && stepDetailOpen[step] !== true;
 
     return (
       <Card>
@@ -534,6 +542,15 @@ export function ChannelOnboardTab({
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={status} />
+              {status === "passed" && runningStep !== step && !stepWaiting && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setStepDetailOpen((prev) => ({ ...prev, [step]: !collapsed ? false : true }))}
+                >
+                  {collapsed ? "Show detail" : "Hide detail"}
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={() => void runStep(step)}
@@ -550,50 +567,95 @@ export function ChannelOnboardTab({
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
-          {step === "a" && (
-            <div className="rounded-md border bg-muted/40 p-3 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-muted-foreground">
-                  Preview the account, the owner binding and the company details that will be sent — nothing leaves here
-                  until you run the step.
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void openPlan()}
-                  disabled={planLoading || !propertyId}
-                >
-                  {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                  Preview account
-                </Button>
-              </div>
+          {collapsed ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
+              <Check className="h-4 w-4 shrink-0" />
+              <span>{meta.passedSummary ?? `${meta.title} is complete — nothing to do here.`}</span>
             </div>
-          )}
-
-
-          {tasks.map((task) => {
-            const live = taskStates[task.id];
-            const recorded = ledgerTasks.find((t) => t.id === task.id);
-            const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
-            const detail = live?.detail ?? recorded?.detail;
-            return (
-              <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
-                <TaskIcon state={state} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{task.title}</p>
-                  <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
-                  {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
-                    <div className="mt-1.5 space-y-1">
-                      <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />
-                      <p className="text-[11px] text-muted-foreground">
-                        {pushProgress.pushed}/{pushProgress.total} unit(s) pushed
-                      </p>
-                    </div>
+          ) : (
+            <>
+              {stepWaiting && (
+                <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300">
+                  <Hourglass className="mt-0.5 h-4 w-4 shrink-0 animate-pulse" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      Waiting on the channel — {formatCountdown(Math.max(0, waitRemaining))}
+                    </p>
+                    <p className="leading-snug">
+                      The channel only accepts one identical read per minute. Nothing has failed;{" "}
+                      {stepWaiting.attempts < MAX_AUTO_RESUMES
+                        ? "this step resumes on its own when the window reopens."
+                        : "use Retry now to pick it up again."}
+                    </p>
+                  </div>
+                  {stepWaiting.attempts >= MAX_AUTO_RESUMES && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={runningStep !== null}
+                      onClick={() =>
+                        void runStep(step, { startAtTaskId: stepWaiting.resumeFromTaskId, attempt: 0 })
+                      }
+                    >
+                      Retry now
+                    </Button>
                   )}
                 </div>
-              </div>
-            );
-          })}
+              )}
+
+              {step === "a" && (
+                <div className="rounded-md border bg-muted/40 p-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-muted-foreground">
+                      Preview the account, the owner binding and the company details that will be sent — nothing leaves
+                      here until you run the step.
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void openPlan()}
+                      disabled={planLoading || !propertyId}
+                    >
+                      {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                      Preview account
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {tasks.map((task) => {
+                const live = taskStates[task.id];
+                const recorded = ledgerTasks.find((t) => t.id === task.id);
+                const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
+                const detail = live?.detail ?? recorded?.detail;
+                const taskWait = state === "pending" ? (live?.waitingUntil ?? stepWaiting?.until ?? 0) - nowTick : 0;
+                return (
+                  <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
+                    <TaskIcon state={state} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">
+                        {task.title}
+                        {state === "pending" && (
+                          <span className="ml-2 text-[11px] font-normal text-amber-600">
+                            Waiting{taskWait > 0 ? ` — ${formatCountdown(taskWait)}` : ""}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
+                      {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
+                        <div className="mt-1.5 space-y-1">
+                          <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />
+                          <p className="text-[11px] text-muted-foreground">
+                            {pushProgress.pushed}/{pushProgress.total} unit(s) pushed
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </CardContent>
       </Card>
     );
