@@ -358,15 +358,24 @@ export interface PropertyLedgerVerdict {
   seeded: boolean;
   /** Any rows at all, graded or not — a seeded property never needs re-seeding. */
   hasRows: boolean;
-  /** Every step complete (a prior pass survives stale/unknown). */
+  /** All five Ready-to-sell steps complete (a prior pass survives stale/unknown). */
   allComplete: boolean;
-  /** 0-100 over the canonical step list. */
+  /**
+   * Progress over the five Ready-to-sell steps only, so the queue bar can only ever
+   * read 0 / 20 / 40 / 60 / 80 / 100. Post-readiness execution (Step A / Step B) is
+   * not part of this measurement.
+   */
   percent: number;
+  /** How many of the five Ready-to-sell steps are complete. */
+  readyStepsComplete: number;
+  /** Always 5 — the canonical Ready-to-sell step count. */
+  readyStepsTotal: number;
   /** A channel-class step needs a live probe (never graded, blocked or dirty). */
   needsChannelProbe: boolean;
   /** Most recent grading timestamp across the rows, ISO string or null. */
   lastCheckedAt: string | null;
 }
+
 
 /**
  * One batched read of `property_channel_step_status` for many properties.
