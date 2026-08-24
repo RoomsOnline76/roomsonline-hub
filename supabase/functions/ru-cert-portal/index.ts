@@ -6219,9 +6219,12 @@ Deno.serve(async (req) => {
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
       const listRuUsers = async (): Promise<RuUser[]> => {
-        const { data: listed } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
-        return listed?.success && Array.isArray(listed.users) ? (listed.users as RuUser[]) : [];
+        // Rate-deferred reads come back without a `users` array; polling the window keeps a
+        // throttled list from looking like "this owner has no sub-user".
+        const listed = await listRuSubUsers(admin);
+        return listed.ok ? (listed.users as RuUser[]) : [];
       };
+
       // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
       // Pull_ListMyUsers_RQ (that list can lag the portal's contact email), so a lookup
       // must match on either. OwnerID 741765's login and contact are both
