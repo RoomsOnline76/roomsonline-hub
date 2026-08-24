@@ -60,9 +60,11 @@ import {
   planOwnerAccount,
   rebindOwner,
   runOnboardStep,
+  type LoginCandidate,
   type OwnerAccountPlan,
   type TaskOutcome,
 } from "@/lib/channelOnboardOrchestrator";
+
 
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
