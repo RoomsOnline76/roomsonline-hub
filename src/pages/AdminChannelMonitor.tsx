@@ -437,6 +437,7 @@ export default function AdminChannelMonitor() {
                 <ChannelOnboardTab
                   initialPropertyId={params.get("property") ?? undefined}
                   initialPortfolioId={params.get("portfolio") ?? undefined}
+                  focusConnect={params.get("focus") === "connect"}
                   onSelectionChange={(id) => {
                     // Keep the deep link honest so a refresh or a shared URL lands
                     // on the same target the operator is looking at.

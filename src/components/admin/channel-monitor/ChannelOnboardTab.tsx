@@ -11,7 +11,7 @@
  * onboarding orchestrator, which owns the ordering rules and the durable ledger writes.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -144,10 +144,13 @@ function TaskIcon({ state }: { state: TaskState["state"] }) {
 export function ChannelOnboardTab({
   initialPropertyId,
   initialPortfolioId,
+  /** Deep link from the onboarding queue for an already-connected property. */
+  focusConnect = false,
   onSelectionChange,
 }: {
   initialPropertyId?: string | null;
   initialPortfolioId?: string | null;
+  focusConnect?: boolean;
   onSelectionChange?: (propertyId: string) => void;
 }) {
   const [properties, setProperties] = useState<OnboardOption[]>([]);
@@ -167,6 +170,18 @@ export function ChannelOnboardTab({
 
 
   const gate = useChannelOnboardGate(propertyId || null);
+
+  /** The white-label connector frame — the landing target for "Configure channels". */
+  const connectFrameRef = useRef<HTMLDivElement | null>(null);
+  const scrolledToConnect = useRef(false);
+
+  // Deep link: once the connector frame renders, bring it into view (once).
+  useEffect(() => {
+    if (!focusConnect || scrolledToConnect.current) return;
+    if (gate.stepBStatus !== "passed" || !connectFrameRef.current) return;
+    scrolledToConnect.current = true;
+    connectFrameRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focusConnect, gate.stepBStatus]);
 
   const [taskStates, setTaskStates] = useState<Record<string, TaskState>>({});
   const [runningStep, setRunningStep] = useState<ChannelOnboardStep | null>(null);
@@ -801,7 +816,7 @@ export function ChannelOnboardTab({
 
           {/* 4 — Connect channels via the white-label integration, once Step B completes. */}
           {gate.stepBStatus === "passed" && (
-            <Card>
+            <Card ref={connectFrameRef}>
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
