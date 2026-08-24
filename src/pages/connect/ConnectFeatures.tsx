@@ -30,7 +30,7 @@ const FEATURE_SECTIONS = [
     features: [
       { icon: BarChart3, title: "Revenue Analytics", desc: "ADR, RevPAR, occupancy forecasting, and 30/60/90-day performance tracking. Know your numbers." },
       { icon: Star, title: "Rate Management", desc: "Seasonal pricing, day-of-week multipliers, rate plans with min/max stay rules. Set it and forget it." },
-      { icon: Globe, title: "Channel Manager", desc: "Connect Booking.com, Airbnb, Expedia. Rate parity and commission tracking — included, not extra." },
+      { icon: Globe, title: "Channel Manager", desc: "Connect Booking.com, Airbnb, Expedia. Rate parity and commission tracking. Free for 60 days, then charged per unit." },
       { icon: Users, title: "Group Bookings", desc: "Rooming lists, allotments, cutoff dates, master folios. Handle tour groups like a pro." },
     ],
   },
@@ -224,7 +224,7 @@ export default function ConnectFeatures() {
       <section className="py-10 sm:py-12 lg:py-16 border-t bg-muted/20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Ready to Modernise Your Property?</h2>
-          <p className="text-muted-foreground mb-6">Free for 60 days, then still free to run. No subscription — you only pay a booking fee on bookings we deliver.</p>
+          <p className="text-muted-foreground mb-6">Free for 60 days on the full stack — you pay only the booking fee in that period. From day 61 the PMS subscription and the add-ons you keep are billed as agreed.</p>
           <div className="flex items-center justify-center gap-3">
             <Link to={connectPath("/connect/get-started")}><Button size="lg" className="gap-2">Get Started <ArrowRight className="h-4 w-4" /></Button></Link>
             <Link to={connectPath("/connect/pricing")}><Button variant="outline" size="lg">See Pricing</Button></Link>
