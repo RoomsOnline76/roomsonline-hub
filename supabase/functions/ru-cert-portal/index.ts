@@ -256,6 +256,44 @@ async function loadLastGoodRuXml(
 }
 
 
+/**
+ * The channel allows one `Pull_ListMyUsers_RQ` per sliding minute, and a throttled call comes
+ * back as `{ success: true, queued: true }` with NO `users` array. Reading that as "the master
+ * account lists no sub-users" is what made binding impossible ("OwnerID not listed under our
+ * master account") and left the bind dialog empty. Poll across the rate window instead, and
+ * report a deferral as a deferral — never as an empty list.
+ */
+const RU_USER_LIST_ATTEMPTS = 4;
+const RU_USER_LIST_WAIT_MS = 20_000;
+
+async function listRuSubUsers(
+  // deno-lint-ignore no-explicit-any
+  admin: any,
+): Promise<{ ok: boolean; users: { owner_id?: string; email?: string; user_account_id?: string }[]; deferred: boolean; message?: string }> {
+  let lastMessage = "Rentals United did not return the sub-user list";
+  for (let attempt = 0; attempt < RU_USER_LIST_ATTEMPTS; attempt++) {
+    const { data, error } = await admin.functions.invoke("rentalsunited-api", { body: { action: "list_users" } });
+    if (error) {
+      lastMessage = error.message ?? lastMessage;
+      return { ok: false, users: [], deferred: false, message: lastMessage };
+    }
+    if (data?.success && Array.isArray(data.users)) {
+      return { ok: true, users: data.users, deferred: false };
+    }
+    const queued = data?.queued === true || data?.rate_deferred === true ||
+      data?.error?.code === "RU_RATE_DEFERRED";
+    lastMessage = data?.message ?? data?.error?.message ?? lastMessage;
+    if (!queued) return { ok: false, users: [], deferred: false, message: lastMessage };
+    if (attempt < RU_USER_LIST_ATTEMPTS - 1) {
+      await new Promise((r) => setTimeout(r, RU_USER_LIST_WAIT_MS));
+    }
+  }
+  return { ok: false, users: [], deferred: true, message: lastMessage };
+}
+
+
+
+
 /** Whole-scorecard cache for probe-free reads: re-opening the wizard is then instant. */
 const PHASE_STATUS_TTL_MS = 90_000;
 const phaseStatusCache = new Map<string, { at: number; payload: Record<string, unknown> }>();
