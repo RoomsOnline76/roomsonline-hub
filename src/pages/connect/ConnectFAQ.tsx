@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Link } from "react-router-dom";
@@ -5,11 +6,87 @@ import { connectPath } from "@/lib/config";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { usePageSEO } from "@/hooks/usePageSEO";
+import {
+  formatScheduleMoney,
+  formatVolumeBand,
+  PublicGatewaySchedule,
+  usePublicGatewaySchedule,
+} from "@/hooks/usePublicGatewaySchedule";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16, filter: "blur(4px)" },
   visible: { opacity: 1, y: 0, filter: "blur(0px)" },
 };
+
+interface FaqItem {
+  q: string;
+  a: string;
+}
+
+/** Placeholder replaced at render with answers built from the live schedule. */
+const GATEWAY_FAQ_MARKER: FaqItem = { q: "__gateway__", a: "" };
+
+/**
+ * Commercial answers about card processing. Every figure comes from the active
+ * payment-processing schedule, so the FAQ, the pricing table and the signed
+ * contract quote the same rate. With no schedule available the answers stay
+ * factual without naming a number.
+ */
+function gatewayFaqItems(s: PublicGatewaySchedule): FaqItem[] {
+  const { tiers, currency, monthlyFee, bestPercentage, headlinePercentage, headlineFixedFee, isBanded } = s;
+  const bands = tiers
+    .map(
+      (t) =>
+        `${formatVolumeBand(t, currency)} — ${t.percentage}%${
+          t.fixed_fee ? ` plus ${formatScheduleMoney(t.fixed_fee, currency)} per transaction` : ""
+        }`,
+    )
+    .join("; ");
+
+  const costAnswer = isBanded
+    ? `Card processing on the RoomsOnline gateway is charged on a hybrid schedule: a percentage of the payment plus a small per-transaction fee, with the percentage set by the card volume you process each month. Today's schedule is ${bands}. ${
+        monthlyFee > 0
+          ? `A monthly platform fee of ${formatScheduleMoney(monthlyFee, currency)} applies alongside it.`
+          : "There is no monthly fee for the gateway — you are charged on transactions only."
+      } This is separate from the ROL'OS booking fee and is payable from day one, including during your free 60 days, because the acquirer charges us on every transaction.`
+    : headlinePercentage != null
+      ? `Card processing on the RoomsOnline gateway is charged at ${headlinePercentage}%${
+          headlineFixedFee ? ` plus ${formatScheduleMoney(headlineFixedFee, currency)} per transaction` : ""
+        }${
+          monthlyFee > 0 ? `, with a monthly platform fee of ${formatScheduleMoney(monthlyFee, currency)}` : ", with no monthly fee"
+        }. It is separate from the ROL'OS booking fee and is payable from day one, including during your free 60 days.`
+      : "Card processing on the RoomsOnline gateway is charged on the schedule set out in your agreement. It is separate from the ROL'OS booking fee and is payable from day one, including during your free 60 days. Ask us and we will show you the current schedule before you sign.";
+
+  return [
+    { q: "What does the RoomsOnline payment gateway cost?", a: costAnswer },
+    {
+      q: "How do volume tiers work?",
+      a: isBanded
+        ? `Your rate is set by the card volume processed through the gateway in the trailing month. As that volume grows you move into a lower band automatically${
+            bestPercentage != null ? `, down to ${bestPercentage}% on the top band` : ""
+          } — there is nothing to apply for and no renegotiation. If a month is quieter the band simply moves back. The bands in force are ${bands || "set out in your agreement"}.`
+        : "Your property is on a single rate rather than volume bands. If you expect meaningful card volume, talk to us — volume and portfolio terms are negotiable and whatever we agree is written into your contract.",
+    },
+    {
+      q: "Is there a monthly fee for using your payment gateway?",
+      a:
+        monthlyFee > 0
+          ? `Yes — a monthly platform fee of ${formatScheduleMoney(monthlyFee, currency)} applies alongside the transaction rate, and it is stated in your contract.`
+          : "No. The current schedule has no monthly platform fee for the gateway — you are charged on transactions only, so a quiet month costs you nothing. If that ever changes, it would be agreed in writing and reflected in your contract before it applied.",
+    },
+    {
+      q: "Can I still use my own merchant account or PayFast credentials?",
+      a: "Yes. Bring your own gateway and your processing fees stay with your own provider at whatever rate you have negotiated — the RoomsOnline payment-processing schedule does not apply to you. The bring-your-own gateway integration itself is an add-on from day 61, priced in your agreement. If you never take payment online, reservation-only mode lets guests pay you directly by EFT against a pro forma invoice.",
+    },
+    {
+      q: "Will the rate in my contract match what I see on the website?",
+      a: `Yes. The schedule shown on the Pricing page and the schedule quoted in your contract are read from the same versioned record${
+        s.schedule?.version != null ? ` (currently version ${s.schedule.version})` : ""
+      }, and that record is what the billing run charges. If we agree a negotiated rate for your property or portfolio, that agreed rate is written into your contract and is the one applied.`,
+    },
+  ];
+}
+
 
 const FAQ_CATEGORIES = [
   {
