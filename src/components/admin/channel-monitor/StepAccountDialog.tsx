@@ -619,14 +619,8 @@ export function StepAccountDialog({
                     onClick={saveCredentials}
                   >
                     {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Save &amp; verify password
+                    Save password &amp; mint keys
                   </Button>
-                  {planHasPassword ? (
-                    <Button size="sm" variant="outline" disabled={savingCred} onClick={verifyStoredPassword}>
-                      {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                      Verify saved password
-                    </Button>
-                  ) : null}
                   <Button
                     size="sm"
                     variant="outline"
@@ -634,13 +628,14 @@ export function StepAccountDialog({
                     onClick={mintKeyPair}
                   >
                     {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Mint key pair
+                    Retry mint with saved password
                   </Button>
                   {passwordVerified ? (
                     <Badge variant="outline" className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300">
-                      Password verified
+                      Password proven by mint
                     </Badge>
                   ) : null}
+
                 </div>
                 {showManualKeys ? (
                   <div className="rounded-md border border-border bg-muted/30 p-3">
