@@ -71,7 +71,7 @@ export const CHANNEL_STEP_B_REMEDIES: Record<string, StepBRemedy> = {
     explain: "The channel refuses a listing with no priced nights in the forward window.",
     guidance: "Add or extend a season and its rate plan so the forward window is priced, then run Step B again.",
     editorSection: "rates",
-    taskHint: "push_ari",
+    taskHint: "push_property",
   },
   UNIT_MISMATCH: {
     code: "UNIT_MISMATCH",
