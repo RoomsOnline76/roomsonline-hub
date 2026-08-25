@@ -11,6 +11,7 @@ export interface PropertyReportSettings {
   brandPrimary: string | null;
   brandSecondary: string | null;
   brandSource: ReportBrandSource;
+  logoInvert: boolean;
   historicalBaseline: HistoricalBaseline;
   defaultSourceType: string;
   /** Bespoke report set flag, e.g. `cheetaplains`. */
@@ -43,6 +44,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
         brandSecondary: data.brand_secondary,
         brandSource: ((data as { brand_source?: string }).brand_source ??
           "custom") as ReportBrandSource,
+        logoInvert: Boolean((data as { logo_invert?: boolean }).logo_invert),
         historicalBaseline: (data.historical_baseline ?? {}) as HistoricalBaseline,
         defaultSourceType: data.default_source_type ?? "nightsbridge",
         specialReportSet:
@@ -62,6 +64,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           brand_primary: input.brandPrimary ?? null,
           brand_secondary: input.brandSecondary ?? null,
           brand_source: input.brandSource ?? "custom",
+          logo_invert: input.logoInvert ?? false,
           historical_baseline: (input.historicalBaseline ?? {}) as never,
           default_source_type: input.defaultSourceType ?? "nightsbridge",
           special_report_set: input.specialReportSet ?? null,

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   DEFAULT_REPORT_SOURCE,
@@ -68,6 +69,7 @@ export default function ReportsPropertySettings() {
   const [primary, setPrimary] = useState("");
   const [secondary, setSecondary] = useState("");
   const [brandSource, setBrandSource] = useState<ReportBrandSource>("custom");
+  const [logoInvert, setLogoInvert] = useState(false);
   const [baseline, setBaseline] = useState<HistoricalBaseline>({});
   const [roomCountTouched, setRoomCountTouched] = useState(false);
   const [sourceType, setSourceType] = useState<ReportSourceKey>(DEFAULT_REPORT_SOURCE);
@@ -92,6 +94,7 @@ export default function ReportsPropertySettings() {
         : settings.brandSource ?? "custom",
     );
 
+    setLogoInvert(Boolean(settings.logoInvert));
     setBaseline(settings.historicalBaseline ?? {});
     setSpecialSet(settings.specialReportSet ?? "none");
     setSourceType(
@@ -225,6 +228,7 @@ export default function ReportsPropertySettings() {
         brandPrimary: resolved.primary,
         brandSecondary: resolved.secondary,
         brandSource,
+        logoInvert,
         historicalBaseline: baseline,
         defaultSourceType: sourceType,
         specialReportSet: specialSet === "none" ? null : specialSet,
@@ -506,8 +510,21 @@ export default function ReportsPropertySettings() {
                   alt="Resolved report logo"
                   loading="lazy"
                   className="h-8 w-auto rounded border bg-muted object-contain p-1"
+                  style={logoInvert ? { filter: "invert(1) hue-rotate(180deg)" } : undefined}
                 />
               )}
+            </div>
+
+            <div className="mt-3 flex items-start justify-between gap-4 rounded-md border p-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="logo-invert" className="text-sm">
+                  Invert logo colours
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  For white logos that disappear on the white report pages — flips them to black.
+                </p>
+              </div>
+              <Switch id="logo-invert" checked={logoInvert} onCheckedChange={setLogoInvert} />
             </div>
           </div>
 

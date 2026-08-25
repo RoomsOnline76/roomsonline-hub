@@ -7744,6 +7744,7 @@ export type Database = {
           created_at: string
           default_source_type: string
           historical_baseline: Json
+          logo_invert: boolean
           nightsbridge_column_map: Json | null
           property_id: string
           report_logo_url: string | null
@@ -7759,6 +7760,7 @@ export type Database = {
           created_at?: string
           default_source_type?: string
           historical_baseline?: Json
+          logo_invert?: boolean
           nightsbridge_column_map?: Json | null
           property_id: string
           report_logo_url?: string | null
@@ -7774,6 +7776,7 @@ export type Database = {
           created_at?: string
           default_source_type?: string
           historical_baseline?: Json
+          logo_invert?: boolean
           nightsbridge_column_map?: Json | null
           property_id?: string
           report_logo_url?: string | null
