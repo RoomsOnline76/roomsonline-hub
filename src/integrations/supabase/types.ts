@@ -7744,6 +7744,7 @@ export type Database = {
           created_at: string
           default_source_type: string
           historical_baseline: Json
+          nightsbridge_column_map: Json | null
           property_id: string
           report_logo_url: string | null
           room_count: number
@@ -7758,6 +7759,7 @@ export type Database = {
           created_at?: string
           default_source_type?: string
           historical_baseline?: Json
+          nightsbridge_column_map?: Json | null
           property_id: string
           report_logo_url?: string | null
           room_count?: number
@@ -7772,6 +7774,7 @@ export type Database = {
           created_at?: string
           default_source_type?: string
           historical_baseline?: Json
+          nightsbridge_column_map?: Json | null
           property_id?: string
           report_logo_url?: string | null
           room_count?: number
@@ -8843,44 +8846,59 @@ export type Database = {
       }
       report_source_files: {
         Row: {
+          applied_mapping: Json | null
           byte_size: number | null
           created_at: string
+          detected_mapping: Json | null
           file_hash: string | null
           file_role: string
           id: string
           original_filename: string
           parse_errors: Json | null
+          parse_note: string | null
+          parse_status: string
           parsed_ok: boolean | null
           row_count: number | null
           run_id: string
+          sheet_used: string | null
           storage_path: string
           updated_at: string
         }
         Insert: {
+          applied_mapping?: Json | null
           byte_size?: number | null
           created_at?: string
+          detected_mapping?: Json | null
           file_hash?: string | null
           file_role?: string
           id?: string
           original_filename: string
           parse_errors?: Json | null
+          parse_note?: string | null
+          parse_status?: string
           parsed_ok?: boolean | null
           row_count?: number | null
           run_id: string
+          sheet_used?: string | null
           storage_path: string
           updated_at?: string
         }
         Update: {
+          applied_mapping?: Json | null
           byte_size?: number | null
           created_at?: string
+          detected_mapping?: Json | null
           file_hash?: string | null
           file_role?: string
           id?: string
           original_filename?: string
           parse_errors?: Json | null
+          parse_note?: string | null
+          parse_status?: string
           parsed_ok?: boolean | null
           row_count?: number | null
           run_id?: string
+          sheet_used?: string | null
           storage_path?: string
           updated_at?: string
         }
