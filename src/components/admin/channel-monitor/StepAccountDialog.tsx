@@ -46,7 +46,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { extractFunctionError } from "@/lib/functionError";
-import { getStepARemedy } from "@/config/channelStepARemedies";
+import { resolveStepARemedy } from "@/config/channelStepARemedies";
 import { toast } from "sonner";
 
 
