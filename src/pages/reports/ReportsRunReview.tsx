@@ -426,7 +426,12 @@ export default function ReportsRunReview() {
     reparsingId,
     onDownload: (path) => void handleDownload(path),
     onReparse: (file) => void handleReparse(file),
+    onApplyMapping: (fileId, mapping, sheet) => {
+      const file = (run?.files ?? []).find((entry) => entry.id === fileId);
+      if (file) void handleReparse(file, mapping, sheet);
+    },
     onRemoveFile: (file) => void handleRemoveFile(file),
+
     pending,
     fileStates,
     uploadBusy,
