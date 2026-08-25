@@ -32,7 +32,15 @@ export function ContractOverrideModal({
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
-  const isValid = reason.trim().length >= 20 && confirmed;
+  const MIN_REASON = 10;
+  const trimmedReason = reason.trim();
+  const missing: string[] = [];
+  if (trimmedReason.length < MIN_REASON) {
+    missing.push(`a reason of at least ${MIN_REASON} characters`);
+  }
+  if (!confirmed) missing.push("the acknowledgement tick below");
+  const isValid = missing.length === 0;
+
 
   const handleConfirm = () => {
     if (isValid) {
