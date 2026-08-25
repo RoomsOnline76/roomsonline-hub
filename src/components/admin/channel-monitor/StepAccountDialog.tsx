@@ -43,6 +43,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
 
 import {
   describeAccountScope,
@@ -128,6 +130,12 @@ export function StepAccountDialog({
   const [companyMissing, setCompanyMissing] = useState<string[]>([]);
   const [companyBlocked, setCompanyBlocked] = useState<string | null>(null);
   const [newLoginEmail, setNewLoginEmail] = useState("");
+  const [credEmail, setCredEmail] = useState("");
+  const [credPassword, setCredPassword] = useState("");
+  const [savingCred, setSavingCred] = useState(false);
+  const [credNote, setCredNote] = useState<string | null>(null);
+  const [credsStored, setCredsStored] = useState(false);
+
 
 
   // Read-only composition of the payload — no channel call, no local write.
@@ -179,7 +187,62 @@ export function StepAccountDialog({
   const canRun = !stepADisabled && !blockedReason && (!emailConflict || effectiveLogin.includes("@"));
 
 
+  // Credential state of the bound sub-account, from the read-only plan.
+  const planAccountId = (plan?.account_id as string | null) ?? null;
+  const planHasKeys = Boolean(plan?.has_api_keys) || credsStored;
+  const planHasPassword = Boolean(plan?.has_stored_password);
+  const planLogin = String(plan?.existing_login_email ?? plan?.login_email ?? "");
+
+  useEffect(() => {
+    setCredEmail(planLogin);
+    setCredPassword("");
+    setCredNote(null);
+    setCredsStored(false);
+  }, [planAccountId, planLogin]);
+
+  // Stores the sub-account's own portal password, then mints its key pair from it.
+  const saveCredentials = useCallback(async () => {
+    if (!planAccountId) return;
+    setSavingCred(true);
+    setCredNote(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "save_login_password",
+          account_id: planAccountId,
+          login_email: credEmail.trim(),
+          password: credPassword.trim(),
+        },
+      });
+      if (error || !data?.success) {
+        const message = data?.error?.message ?? error?.message ?? "The password could not be stored";
+        setCredNote(message);
+        toast.error(message);
+        return;
+      }
+
+      const { data: keyData, error: keyError } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "create_api_key", account_id: planAccountId, key_label: "ROLOS" },
+      });
+      if (keyError || !keyData?.success) {
+        const message =
+          keyData?.error?.message ?? keyError?.message ?? "Password stored, but the key pair could not be minted yet.";
+        setCredNote(message);
+        toast.warning("Password stored", { description: message });
+        return;
+      }
+
+      setCredsStored(true);
+      setCredPassword("");
+      setCredNote(`Key pair minted${keyData.access_key ? ` — AccessKey ${keyData.access_key}` : ""}.`);
+      toast.success("Credentials stored and key pair minted");
+    } finally {
+      setSavingCred(false);
+    }
+  }, [credEmail, credPassword, planAccountId]);
+
   const editHref = `/properties/${propertyId}/edit?section=general&focus=company-information`;
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -335,7 +398,60 @@ export function StepAccountDialog({
             </CardContent>
           </Card>
 
+          {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
+          {planAccountId && !planHasKeys && (
+            <Card className="border-amber-500/50">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <KeyRound className="h-4 w-4" />
+                  Sub-account credentials
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  {planHasPassword
+                    ? "A portal password is stored for this account, so the key pair is minted when Step A runs. You can replace it below if it changed."
+                    : "No usable credential is stored yet. Save the sub-account's own portal password here and the key pair is minted straight away."}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">Sub-account login</Label>
+                    <Input
+                      className="mt-1"
+                      type="email"
+                      value={credEmail}
+                      onChange={(event) => setCredEmail(event.target.value)}
+                      placeholder="owner@example.com"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Portal password</Label>
+                    <Input
+                      className="mt-1 font-mono"
+                      type="text"
+                      value={credPassword}
+                      onChange={(event) => setCredPassword(event.target.value)}
+                      placeholder="Minimum 8 characters"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={credPassword.trim().length < 8 || !credEmail.includes("@") || savingCred}
+                    onClick={saveCredentials}
+                  >
+                    {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    Save password &amp; mint key pair
+                  </Button>
+                  {credNote ? <span className="text-xs text-muted-foreground">{credNote}</span> : null}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* 3 — the login Step A will register under */}
+
           {(emailConflict || candidates.length > 0) && (
             <Card className={cn(emailConflict && "border-destructive/50")}>
               <CardHeader className="pb-3">
