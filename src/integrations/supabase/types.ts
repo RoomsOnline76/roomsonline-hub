@@ -16028,6 +16028,36 @@ export type Database = {
           },
         ]
       }
+      ru_owner_listing_cache: {
+        Row: {
+          created_at: string
+          fetched_at: string
+          listing_count: number
+          listings: Json
+          owner_id: string
+          source: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fetched_at?: string
+          listing_count?: number
+          listings?: Json
+          owner_id: string
+          source?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fetched_at?: string
+          listing_count?: number
+          listings?: Json
+          owner_id?: string
+          source?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ru_platform_settings: {
         Row: {
           key: string

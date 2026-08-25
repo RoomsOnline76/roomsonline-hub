@@ -6,6 +6,7 @@
 // be archived (or re-activated) at Rentals United and flagged locally so the
 // ROL'OS Channel Manager screen can lock itself and billing stops counting it.
 import { readRuRoster } from "../_shared/ruRosterCache.ts";
+import { readRuOwnerListingCache, writeRuOwnerListingCache, type RuOwnerListing } from "../_shared/ruOwnerListingCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { ruCompanyDetailsSatisfied } from "../_shared/ruCompanyDetails.ts";
 import { fetchRetiredRuAccounts } from "../_shared/ruRetiredAccounts.ts";
@@ -239,12 +240,7 @@ async function pushListingStatus(
   return null;
 }
 
-interface ChannelListing {
-  id: string;
-  name: string;
-  is_active?: boolean;
-  is_archived?: boolean;
-}
+type ChannelListing = RuOwnerListing;
 
 /** Read every listing one channel account holds. Errors are returned, never thrown. */
 export const QUEUED_READ_MESSAGE =
@@ -255,41 +251,67 @@ async function pullOwnerListingsOnce(
   admin: ReturnType<typeof createClient>,
   ownerId: string,
   ctx: ChannelLogCtx,
-): Promise<{ listings: ChannelListing[]; error: string | null; deferred: boolean }> {
+  opts: { forceFresh?: boolean; cacheOnly?: boolean; allowStale?: boolean; source?: string } = {},
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred: boolean; cached?: boolean; fetchedAt?: string | null }> {
+  const source = opts.source ?? ctx.parent_action;
+  const staleFallback = await readRuOwnerListingCache(admin, ownerId, { allowStale: true });
+
+  if (!opts.forceFresh) {
+    const cached = await readRuOwnerListingCache(admin, ownerId);
+    if (cached.hit) {
+      return { listings: cached.listings, error: null, deferred: false, cached: true, fetchedAt: cached.fetchedAt };
+    }
+  }
+
+  if (opts.cacheOnly) {
+    if (staleFallback.hit) {
+      return { listings: staleFallback.listings, error: null, deferred: false, cached: true, fetchedAt: staleFallback.fetchedAt };
+    }
+    return { listings: [], error: "No cached channel listing snapshot yet — run a manual reconciliation refresh", deferred: false, cached: true, fetchedAt: null };
+  }
+
   const { data, error } = await admin.functions.invoke("rentalsunited-api", {
-    body: { action: "list_properties", owner_id: Number(ownerId), ...ctx },
+    body: { action: "list_properties", owner_id: Number(ownerId), deferrable: false, ...ctx },
   });
   const res = (data || {}) as {
     success?: boolean;
+    queued?: boolean;
     error?: { message?: string } | string;
     properties?: ChannelListing[];
   };
-  const queued = (res as { queued?: boolean }).queued === true || !Array.isArray(res.properties);
+  const queued = res.queued === true || !Array.isArray(res.properties);
   if (error || res.success === false || queued) {
     const message =
       error?.message ||
       (typeof res.error === "string" ? res.error : res.error?.message) ||
       (queued ? QUEUED_READ_MESSAGE : "Channel account could not be read");
+    if (staleFallback.hit && opts.allowStale) {
+      return {
+        listings: staleFallback.listings,
+        error: null,
+        deferred: false,
+        cached: true,
+        fetchedAt: staleFallback.fetchedAt,
+      };
+    }
     return { listings: [], error: message, deferred: queued && res.success !== false && !error };
   }
-  return { listings: res.properties || [], error: null, deferred: false };
+  const listings = res.properties || [];
+  const fetchedAt = await writeRuOwnerListingCache(admin, ownerId, listings, source);
+  return { listings, error: null, deferred: false, cached: false, fetchedAt };
 }
 
 /**
- * Read one account's listings, waiting out the channel rate-limit queue instead
- * of reporting a deferral to the caller as a hard failure.
+ * Read one account's listings once. Rate-limited reads are reported as waiting instead of being
+ * retried every 20 seconds; destructive callers explicitly request fresh reads when needed.
  */
 async function pullOwnerListings(
   admin: ReturnType<typeof createClient>,
   ownerId: string,
   ctx: ChannelLogCtx,
-): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean }> {
-  let last = await pullOwnerListingsOnce(admin, ownerId, ctx);
-  for (let attempt = 0; attempt < 3 && last.deferred; attempt++) {
-    await new Promise((r) => setTimeout(r, 20_000));
-    last = await pullOwnerListingsOnce(admin, ownerId, ctx);
-  }
-  return last;
+  opts: { forceFresh?: boolean; cacheOnly?: boolean; allowStale?: boolean; source?: string } = {},
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean; cached?: boolean; fetchedAt?: string | null }> {
+  return await pullOwnerListingsOnce(admin, ownerId, ctx, opts);
 }
 
 /**
@@ -302,11 +324,12 @@ async function pullOwnerListingsConfirmed(
   admin: ReturnType<typeof createClient>,
   ownerId: string,
   ctx: ChannelLogCtx,
-): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean; confirmedEmpty: boolean }> {
-  const first = await pullOwnerListings(admin, ownerId, ctx);
+  opts: { forceFresh?: boolean; cacheOnly?: boolean; allowStale?: boolean; source?: string } = {},
+): Promise<{ listings: ChannelListing[]; error: string | null; deferred?: boolean; confirmedEmpty: boolean; cached?: boolean; fetchedAt?: string | null }> {
+  const first = await pullOwnerListings(admin, ownerId, ctx, opts);
   if (first.error) return { ...first, confirmedEmpty: false };
   if (first.listings.length > 0) return { ...first, confirmedEmpty: false };
-  const second = await pullOwnerListings(admin, ownerId, ctx);
+  const second = await pullOwnerListings(admin, ownerId, ctx, { ...opts, forceFresh: true });
   if (second.error) {
     return {
       listings: [],
@@ -329,7 +352,7 @@ async function verifyListingPresence(
   args: { listingId: string; ownerId: string | null; ctx: ChannelLogCtx },
 ): Promise<{ present: boolean | null; archived: boolean; error: string | null; deferred?: boolean }> {
   if (!args.ownerId) return { present: null, archived: false, error: "No channel account could be resolved" };
-  const { listings, error, deferred } = await pullOwnerListingsConfirmed(admin, args.ownerId, args.ctx);
+  const { listings, error, deferred } = await pullOwnerListingsConfirmed(admin, args.ownerId, args.ctx, { forceFresh: true });
   if (error) return { present: null, archived: false, error, deferred };
   // Two agreeing successful reads: the account really holds nothing, so the
   // listing is genuinely absent and the local id can be released.
@@ -724,6 +747,10 @@ Deno.serve(async (req) => {
         read?: boolean;
         /** Not read because the channel rate-limited/queued the pull. */
         deferred?: boolean;
+        /** Served from the persisted listing snapshot instead of a fresh channel read. */
+        cached?: boolean;
+        /** Timestamp of the listing snapshot used for this account. */
+        fetched_at?: string | null;
         error: string | null;
         is_master: boolean;
       }> = [];
@@ -827,49 +854,30 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const { data: listRes, error: listErr } = await Promise.race([
-          admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "list_properties",
-              owner_id: Number(ownerId),
-              ...logCtx(traceId, "channel-reconcile:pull_listings"),
-            },
+        const listResult = await Promise.race([
+          pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-reconcile:pull_listings"), {
+            allowStale: true,
+            source: "channel-reconcile",
           }),
-          new Promise<{ data: null; error: { message: string } }>((resolve) =>
+          new Promise<{ listings: ChannelListing[]; error: string; deferred: boolean; cached?: boolean; fetchedAt?: string | null }>((resolve) =>
             setTimeout(
-              () => resolve({ data: null, error: { message: "Channel account read timed out — try again shortly" } }),
+              () => resolve({ listings: [], error: "Channel account read timed out — try again shortly", deferred: false }),
               PER_ACCOUNT_MS,
             ),
           ),
-        ]) as { data: unknown; error: { message: string } | null };
-        const res = (listRes || {}) as {
-          success?: boolean;
-          queued?: boolean;
-          error?: { message?: string } | string;
-          properties?: Array<{ id: string; name: string; is_active?: boolean; is_archived?: boolean }>;
-        };
-        // A queued/rate-deferred pull answers `{ success: true, queued: true }` with
-        // NO properties array. Reading that as "zero listings" is what made every
-        // local id look stale and offered the real inventory up for cleanup.
-        const queuedRead = res.queued === true || !Array.isArray(res.properties);
-        if (listErr || res.success === false || queuedRead) {
-          const message =
-            listErr?.message ||
-            (typeof res.error === "string" ? res.error : res.error?.message) ||
-            (queuedRead
-              ? "Not read — the channel rate-limited this pull, run the reconciliation again shortly"
-              : "Channel account could not be read");
+        ]);
+        if (listResult.error) {
           accountResults.push({
             ...base,
             listing_count: 0,
             read: false,
-            deferred: queuedRead && !listErr && res.success !== false,
-            error: message,
+            deferred: listResult.deferred === true,
+            error: listResult.error,
           });
           continue;
         }
 
-        let listings = res.properties || [];
+        let listings = listResult.listings || [];
         // Only bound accounts are expected to hold ROL'OS ids; an empty answer
         // from one of those while local records still point somewhere is checked
         // twice before it is believed — but once two reads agree, the account
@@ -877,7 +885,7 @@ Deno.serve(async (req) => {
         // unverifiable forever.
         const localIdsHeld = bound ? localRecords.size : 0;
         if (listings.length === 0 && localIdsHeld > 0) {
-          const confirm = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-reconcile:confirm_empty"));
+          const confirm = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-reconcile:confirm_empty"), { forceFresh: true });
           if (confirm.error) {
             accountResults.push({
               ...base,
@@ -899,6 +907,8 @@ Deno.serve(async (req) => {
           total_listing_count: listings.length,
           read: true,
           deferred: false,
+          cached: listResult.cached === true,
+          fetched_at: listResult.fetchedAt ?? null,
           error: null,
         });
 
@@ -1522,7 +1532,7 @@ Deno.serve(async (req) => {
       const BUDGET_MS = 12 * 60 * 1000;
 
       // 1. One presence read for the whole run (empty answers confirmed twice).
-      const snapshot = await pullOwnerListingsConfirmed(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"));
+      const snapshot = await pullOwnerListingsConfirmed(admin, ownerId, logCtx(traceId, "channel-cleanup:verify"), { forceFresh: true });
       if (snapshot.error) {
         return snapshot.deferred ? deferred(snapshot.error) : bad(snapshot.error, 502);
       }
@@ -1694,7 +1704,7 @@ Deno.serve(async (req) => {
 
       // 3. One closing verification read for everything we touched.
       if (pending.length > 0) {
-        const after = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify_after"));
+        const after = await pullOwnerListings(admin, ownerId, logCtx(traceId, "channel-cleanup:verify_after"), { forceFresh: true });
         const stillSellable = new Map<string, boolean>();
         if (!after.error) {
           for (const l of after.listings) {

@@ -1,0 +1,1 @@
+GRANT ALL ON public.ru_owner_listing_cache TO service_role;

@@ -2579,10 +2579,18 @@ async function verifyAvailability(
  * or an operator re-check. The transport-failure recovery read is deliberately NOT gated: it only
  * fires when a push looked like it failed, and it prevents a false negative.
  */
-let PRICE_READBACK_ENABLED = false;
-let DISCOUNT_READBACK_ENABLED = false;
+type ReadbackOptions = { priceReadback: boolean; discountReadback: boolean };
 
-async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}, currency?: CurrencyDecision | null) {
+async function pushARI(
+  supabase: any,
+  ruPropertyId: number,
+  property: PropertyRow,
+  unitUnits: number = 1,
+  unit?: UnitContext,
+  childAuth: Record<string, unknown> = {},
+  currency?: CurrencyDecision | null,
+  readback: ReadbackOptions = { priceReadback: false, discountReadback: false },
+) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
@@ -2946,7 +2954,7 @@ async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRo
       } else {
         result.prices_pushed = true;
 
-        if (!PRICE_READBACK_ENABLED) {
+        if (!readback.priceReadback) {
           // We authored these rates, the channel accepted the push, and nothing downstream reads
           // the channel's copy — so no price pull happens here. Onboarding / certification / an
           // operator re-check ask for the read-back explicitly (`verify_readback: true`).
@@ -3059,6 +3067,7 @@ async function pushDiscounts(
   propertyId: string,
   ruPropertyIds: { ruId: number; roomTypeId?: string }[],
   childAuth: Record<string, unknown> = {},
+  readback: ReadbackOptions = { priceReadback: false, discountReadback: false },
 ) {
   const result: {
     long_stay_discounts_pushed: number;
@@ -3153,7 +3162,7 @@ async function pushDiscounts(
       }
     }
 
-    if (DISCOUNT_READBACK_ENABLED) {
+    if (readback.discountReadback) {
       // Certification/manual re-check only. ROL'OS authors discount ladders, so routine saves
       // and the daily cadence do not pull the channel echo back after every push.
       const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire, childAuth);
@@ -3208,12 +3217,13 @@ Deno.serve(async (req) => {
     const reqBody = await req.json();
     const { property_id, dry_run, subscribe_rlnm, standalone_units, only_unit_ids, action, batch_size, batch_id: incomingBatchId } = reqBody;
     /**
-     * Price read-back opt-in. Onboarding Step B, the certification suite and an operator re-check
-     * send `verify_readback: true`; every routine save, booking-driven refresh, cron refresh and
-     * notification re-push leaves it off so no `Pull_ListPropertyPrices_RQ` is issued.
+     * Read-back opt-in. This is request-scoped: warm edge isolates can serve overlapping requests,
+     * so module-level switches would leak one operator verification into unrelated cron/save pushes.
      */
-    PRICE_READBACK_ENABLED = reqBody.verify_readback === true;
-    DISCOUNT_READBACK_ENABLED = reqBody.verify_discount_readback === true || reqBody.verify_readback === true;
+    const readbackOptions: ReadbackOptions = {
+      priceReadback: reqBody.verify_readback === true,
+      discountReadback: reqBody.verify_discount_readback === true || reqBody.verify_readback === true,
+    };
     /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
@@ -3269,10 +3279,21 @@ Deno.serve(async (req) => {
      */
     const staticOnly = action === 'static_only';
     /** ARI is pushed on every path except a static-content delta. */
-    const pushARIUnlessStatic = async (...args: Parameters<typeof pushARI>): Promise<Record<string, any>> =>
-      staticOnly ? {} : await pushARI(...args);
-    const pushDiscountsUnlessStatic = async (...args: Parameters<typeof pushDiscounts>): Promise<Record<string, any>> =>
-      staticOnly ? {} : await pushDiscounts(...args);
+    const pushARIUnlessStatic = async (
+      ruPropertyId: number,
+      targetProperty: PropertyRow,
+      unitUnits = 1,
+      unit?: UnitContext,
+      childAuth: Record<string, unknown> = {},
+      currency?: CurrencyDecision | null,
+    ): Promise<Record<string, any>> =>
+      staticOnly ? {} : await pushARI(supabase, ruPropertyId, targetProperty, unitUnits, unit, childAuth, currency, readbackOptions);
+    const pushDiscountsUnlessStatic = async (
+      propertyId: string,
+      ruPropertyIds: { ruId: number; roomTypeId?: string }[],
+      childAuth: Record<string, unknown> = {},
+    ): Promise<Record<string, any>> =>
+      staticOnly ? {} : await pushDiscounts(supabase, propertyId, ruPropertyIds, childAuth, readbackOptions);
 
     const forceLocationIdRaw = reqBody.force_location_id;
 
@@ -4425,7 +4446,7 @@ Deno.serve(async (req) => {
 
       const ariResults: Record<string, any>[] = [];
       for (const t of targets) {
-        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
+        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
         const stale = isMissingListing(r.availability_error) || isMissingListing(r.prices_error);
         if (stale) {
           console.warn(`[push-property-to-ru] Stale channel listing ${t.ru_id} (${t.label}) — clearing mapping, full push required`);
@@ -4459,7 +4480,7 @@ Deno.serve(async (req) => {
         for (const i of retryIdx) {
           const t = targets[i];
           console.warn(`[push-property-to-ru] Transport failure on "${t.label}" — second pass`);
-          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision);
+          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
           if (r2.availability_pushed === true && !r2.availability_error && !r2.prices_error) {
             ariResults[i] = { target: t.label, ru_property_id: t.ru_id, stale_listing: false, second_pass: true, ...r2 };
           } else {
@@ -4583,7 +4604,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const discountResult = await pushDiscounts(supabase, property_id, discountTargets, childAuthPayload);
+      const discountResult = await pushDiscounts(supabase, property_id, discountTargets, childAuthPayload, readbackOptions);
       const discountsOk = (discountResult.discount_errors ?? []).length === 0;
       try {
         await supabase.from('ru_sync_runs').insert({
@@ -4944,7 +4965,7 @@ Deno.serve(async (req) => {
           const ruIdNum = unitRuId ? parseInt(unitRuId, 10) : 0;
           if (ruIdNum > 0) {
             console.log(`[push-property-to-ru] Pushing ARI for standalone unit "${unit.name}" (RU ID: ${ruIdNum})`);
-            ariResult = await pushARIUnlessStatic(supabase, ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload, currencyDecision);
+            ariResult = await pushARIUnlessStatic(ruIdNum, property as PropertyRow, 1, { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null }, childAuthPayload, currencyDecision);
             if (ariResult.availability_error) console.error(`[push-property-to-ru] Availability error for "${unit.name}": ${ariResult.availability_error}`);
             if (ariResult.prices_error) console.error(`[push-property-to-ru] Prices error for "${unit.name}": ${ariResult.prices_error}`);
           }
@@ -5338,7 +5359,7 @@ Deno.serve(async (req) => {
         if (ruIdNum > 0) {
           console.log(`[push-property-to-ru] Pushing ARI for unit "${unit.name}" (RU ID: ${ruIdNum})`);
           const unitCtx = { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id, amenities: (unit as any).amenities ?? null };
-          let ariResult = await pushARIUnlessStatic(supabase, ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
+          let ariResult = await pushARIUnlessStatic(ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
 
           // RU enforces a per-owner sliding-minute window on write methods. During a
           // multi-unit fan-out a unit can be bounced with a 429 (surfaced as a non-2xx
@@ -5348,7 +5369,7 @@ Deno.serve(async (req) => {
           if (paced(ariResult.availability_error) || paced(ariResult.prices_error)) {
             console.warn(`[push-property-to-ru] Unit "${unit.name}" ARI looks rate limited — backing off 15s and retrying once`);
             await new Promise((r) => setTimeout(r, 15_000));
-            const retryAri = await pushARIUnlessStatic(supabase, ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
+            const retryAri = await pushARIUnlessStatic(ruIdNum, property as PropertyRow, 1, unitCtx, childAuthPayload, currencyDecision);
             if (!retryAri.availability_error && !retryAri.prices_error) ariResult = retryAri;
             else ariResult = { ...ariResult, ...retryAri, retried_after_rate_limit: true } as typeof ariResult;
           }
@@ -5390,7 +5411,7 @@ Deno.serve(async (req) => {
       const discountRuIds = unitResults
         .filter((u: any) => u.success && u.rentalsunited_property_id)
         .map((u: any) => ({ ruId: parseInt(u.rentalsunited_property_id, 10), roomTypeId: u.room_type_id }));
-      const discountResult = await pushDiscountsUnlessStatic(supabase, property_id, discountRuIds, childAuthPayload);
+      const discountResult = await pushDiscountsUnlessStatic(property_id, discountRuIds, childAuthPayload);
 
       // Step 6: Read back the currency RU actually holds for one pushed unit. Our own
       // post-flip cache write is an assumption; only Pull_GetProperty is evidence.
@@ -5543,8 +5564,8 @@ Deno.serve(async (req) => {
     const finalRuId = parseInt(ruPropertyId || '0', 10);
     let pushExtras: Record<string, any> = {};
     if (finalRuId > 0) {
-      pushExtras = await pushARIUnlessStatic(supabase, finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload, currencyDecision);
-      const discountResult = await pushDiscountsUnlessStatic(supabase, property_id, [{ ruId: finalRuId }], childAuthPayload);
+      pushExtras = await pushARIUnlessStatic(finalRuId, property as PropertyRow, activeRoomTypes.length || 1, undefined, childAuthPayload, currencyDecision);
+      const discountResult = await pushDiscountsUnlessStatic(property_id, [{ ruId: finalRuId }], childAuthPayload);
       pushExtras = { ...pushExtras, ...discountResult };
       // Verify the currency RU actually holds for this listing (evidence, not assumption).
       const v = await verifyAndRecordCurrency(supabase, {
