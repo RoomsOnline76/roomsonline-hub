@@ -168,7 +168,7 @@ export function useReportRun(runId: string | undefined) {
 
       const { data: files, error: filesError } = await supabase
         .from("report_source_files")
-        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, file_role, parsed_ok, parse_errors, row_count, created_at")
+        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, file_role, parsed_ok, parse_errors, row_count, created_at, parse_status, sheet_used, parse_note, detected_mapping")
         .eq("run_id", runId)
         .order("created_at", { ascending: true });
       if (filesError) throw filesError;
