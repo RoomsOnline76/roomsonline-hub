@@ -513,12 +513,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       "Could not mint the sub-account key pair",
     );
     if (ok) {
+      ctx.keysProvenInRun = true;
+      if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
       return {
         id: "api_keys",
         outcome: "passed",
         detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel((data.access_key as string | null) ?? null)}`,
       };
     }
+
     return {
       id: "api_keys",
       outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
