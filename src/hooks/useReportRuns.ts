@@ -193,7 +193,12 @@ export function useReportRun(runId: string | undefined) {
           parsedOk: f.parsed_ok,
           parseErrors: normaliseParseErrors(f.parse_errors),
           rowCount: f.row_count,
+          parseStatus: (f.parse_status ?? "pending") as ReportSourceFile["parseStatus"],
+          sheetUsed: f.sheet_used ?? null,
+          parseNote: f.parse_note ?? null,
+          detectedMapping: (f.detected_mapping ?? null) as ReportSourceFile["detectedMapping"],
           createdAt: f.created_at,
+
         })),
       };
     },
