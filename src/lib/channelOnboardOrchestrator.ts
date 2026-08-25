@@ -108,6 +108,23 @@ interface RunContext {
     warning: string | null;
     retryAfterMs: number | null;
   };
+  /**
+   * Set when a task in this run already sent the company profile (key provisioning does it
+   * as part of minting), so the company task never re-sends it in the same run.
+   */
+  companyPushedInRun?: boolean;
+  /**
+   * The sub-account's published listing roster, read once per run. `adopt_listings`,
+   * `review_listings` and `verify_listings` all ask the channel the same owner-scoped
+   * question; caching it here keeps a run to one read instead of three.
+   */
+  listingRoster?: {
+    readAt: number;
+    data: Record<string, unknown>;
+  };
+  /** RU property IDs the push itself confirmed per unit, used instead of a read-back. */
+  pushConfirmedListings?: { units: number; ids: string[] };
+
 }
 
 /** How the sub-account's key pair was resolved during account provisioning. */
