@@ -17,32 +17,28 @@ Confirmed current code paths:
 ## Fix plan
 
 1. **Stop scheduled price read-backs from reconciliation**
-   - Remove `probe_ari: true` from the post-reconciliation readiness refresh.
-   - Keep reconciliation focused on account/listing parity only.
-   - Leave live ARI read-back available only for onboarding Step B, certification, and explicit operator re-checks.
-
+  - Remove `probe_ari: true` from the post-reconciliation readiness refresh.
+  - Keep reconciliation focused on account/listing parity only.
+  - Leave live ARI read-back available only for onboarding Step B, certification, and explicit operator re-checks.
 2. **Make daily ARI refresh push-only**
-   - Explicitly pass `verify_readback: false` and `verify_discount_readback: false` from routine ARI cron paths.
-   - Add a defensive request-scope object inside `push-property-to-ru` instead of module-level mutable flags so warm edge instances cannot leak a previous verified request into a routine request.
-
+  - Explicitly pass `verify_readback: false` and `verify_discount_readback: false` from routine ARI cron paths.
+  - Add a defensive request-scope object inside `push-property-to-ru` instead of module-level mutable flags so warm edge instances cannot leak a previous verified request into a routine request.
 3. **Add a per-owner listing cache**
-   - Cache `Pull_ListOwnerProp_RQ` results by `owner_id` for a short TTL.
-   - Reconciliation should read each owner once per run and reuse that result for matching, stale-id checks, duplicate checks, and account summaries.
-   - Manual “Reconcile now” can force refresh; normal UI loads and follow-up checks should prefer cached results.
-
+  - Cache `Pull_ListOwnerProp_RQ` results by `owner_id` for a short TTL.
+  - Reconciliation should read each owner once per run and reuse that result for matching, stale-id checks, duplicate checks, and account summaries.
+  - Manual “Reconcile now” can force refresh; normal UI loads and follow-up checks should prefer cached results.
 4. **Remove retry loops that create throttled duplicates**
-   - Replace the 20-second `Pull_ListOwnerProp_RQ` retry loop with a single attempt.
-   - If RU rate-limits, record “queued/waiting” and let the next scheduled/manual pass resume instead of spending more calls inside the same minute.
-   - Keep the “confirm empty account” safeguard, but only do the second read when the first successful result is empty and the account is being used for a destructive cleanup decision.
-
+  - Replace the 20-second `Pull_ListOwnerProp_RQ` retry loop with a single attempt.
+  - If RU rate-limits, record “queued/waiting” and let the next scheduled/manual pass resume instead of spending more calls inside the same minute.
+  - Keep the “confirm empty account” safeguard, but only do the second read when the first successful result is empty and the account is being used for a destructive cleanup decision.
 5. **Keep roster reads onboarding-only**
-   - Keep the existing 10-minute roster cache.
-   - Audit Step A so it performs at most one forced roster refresh after creating/adopting a sub-account, then reuses that answer.
-   - All monitor panels should read cache-only unless the operator clicks refresh.
-
+  - Keep the existing 10-minute roster cache.
+  - Audit Step A so it performs at most one forced roster refresh after creating/adopting a sub-account, then reuses that answer.
+  - All monitor panels should read cache-only unless the operator clicks refresh.
 6. **Delete the password-only buildings probe**
-   - `verify_child_login` should never use `Pull_ListBuildings_RQ` as a credential verdict.
-   - Wrong password should return the guided Step A recovery state only: request the correct portal password and mint keys.
+  - `verify_child_login` should never use `Pull_ListBuildings_RQ` as a credential verdict.
+  - Wrong password should return the guided Step A recovery state only: request the correct portal password and mint keys.
+7. Archived/Delete properties should never form aprt ofany call/query. For RU only properties that have been enabled and are active. There is a distinct list of active. Redundant/archive units/rooms/portfolios/opperties are not ACTIVE
 
 ## Technical details
 
