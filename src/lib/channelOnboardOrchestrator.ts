@@ -615,6 +615,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `Company profile already accepted${companyLabel}`,
       };
     }
+    // Key provisioning sends the company profile itself (it is the first write a fresh pair
+    // makes), so a second Push_FillCompanyDetails_RQ in the same run is pure duplication.
+    if (ctx.companyPushedInRun) {
+      return {
+        id: "company_profile",
+        outcome: "skipped",
+        detail: `Company profile sent with the credentials earlier in this run${companyLabel}`,
+      };
+    }
+
     const { ok, pending, retryAfterMs, detail, code } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
