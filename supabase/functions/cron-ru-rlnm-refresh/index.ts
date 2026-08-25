@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
     owners: string[],
     scopePayload: Record<string, unknown>,
     scopeOwnerId: string | null,
-  ): Promise<{ ok: boolean; error: string | null }> => {
+  ): Promise<{ ok: boolean; error: string | null; code: string | null }> => {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
         body: {
@@ -170,17 +170,27 @@ Deno.serve(async (req) => {
         },
       });
       if (error || !data?.success) {
-        return { ok: false, error: error?.message || data?.error?.message || 'Channel rejected the subscription push' };
+        // `invoke` hides the real body behind "non-2xx status code" — read it back.
+        const body = error
+          ? await readInvokeError(error, 'Channel rejected the subscription push')
+          : { message: data?.error?.message ?? 'Channel rejected the subscription push', errorCode: data?.error?.code ?? null, httpStatus: null };
+        const code = body.errorCode ?? (data?.rate_deferred === true || data?.queued === true ? RATE_DEFERRED_CODE : null);
+        return {
+          ok: false,
+          error: body.httpStatus ? `${body.message} (HTTP ${body.httpStatus})` : body.message,
+          code: looksRateDeferred(code, body.message) ? RATE_DEFERRED_CODE : code,
+        };
       }
       if (scopeOwnerId && data.auth_mode === 'master') {
         return {
           ok: false,
           error: `RU answered on MASTER credentials — this sub-user's LNM subscription was not registered.`,
+          code: null,
         };
       }
-      return { ok: true, error: null };
+      return { ok: true, error: null, code: null };
     } catch (err) {
-      return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+      return { ok: false, error: err instanceof Error ? err.message : 'Unknown error', code: null };
     }
   };
 
@@ -197,12 +207,20 @@ Deno.serve(async (req) => {
       lastCall.set('PutHandlerUrl', t0);
       let success = false;
       let errMsg: string | null = null;
+      let errCode: string | null = null;
       try {
         const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
           body: { action: 'subscribe_notifications', handler_url: handlerUrl, ...scope.payload },
         });
         if (error || !data?.success) {
-          errMsg = error?.message || data?.error?.message || 'Unknown error';
+          // A bare `error.message` is always "Edge Function returned a non-2xx status code",
+          // which is what made this land in the report's unclassified bucket. Read the body.
+          const body = error
+            ? await readInvokeError(error, 'Channel rejected the notification handler')
+            : { message: data?.error?.message ?? 'Channel rejected the notification handler', errorCode: data?.error?.code ?? null, httpStatus: null };
+          errMsg = body.httpStatus ? `${body.message} (HTTP ${body.httpStatus})` : body.message;
+          errCode = body.errorCode ?? (data?.rate_deferred === true || data?.queued === true ? RATE_DEFERRED_CODE : null);
+          if (looksRateDeferred(errCode, errMsg)) errCode = RATE_DEFERRED_CODE;
         } else if (scope.ownerId && data.auth_mode === 'master') {
           errMsg = `RU answered on MASTER credentials — add this sub-user's RU AccessKey/SecretKey before its notifications can be registered.`;
         } else {
@@ -211,13 +229,19 @@ Deno.serve(async (req) => {
       } catch (err) {
         errMsg = err instanceof Error ? err.message : 'Unknown error';
       }
-      results.push({ account: scope.label, step: 'PutHandlerUrl', success, error: errMsg });
+      if (!success && errCode === RATE_DEFERRED_CODE) {
+        // Compliance, not an outage: report as deferred so the health report never grades it red.
+        deferred.push(`${scope.label} · RLNM handler (channel rate window)`);
+      } else {
+        results.push({ account: scope.label, step: 'PutHandlerUrl', success, error: errMsg, error_code: errCode });
+      }
       await logStep('PutHandlerUrl', scope.ownerId, scope.label, success, errMsg, Date.now() - t0, {
         handler_url: handlerUrl,
-      });
+      }, errCode);
     } else {
       deferred.push(`${scope.label} · RLNM handler`);
     }
+
 
     // ── 2. LNM subscriptions (content / ARI) ──
     if (observedOwners.length === 0) {
