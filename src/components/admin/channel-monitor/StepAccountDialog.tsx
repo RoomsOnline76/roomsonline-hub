@@ -264,6 +264,20 @@ export function StepAccountDialog({
     setManualSecretKey("");
   }, [plan?.has_stored_password, planAccountId, planLogin]);
 
+  // A credential/key remedy scrolls the card into view and focuses the password field, so the
+  // operator is asked for exactly the value the channel refused instead of hunting for it.
+  useEffect(() => {
+    if (!open) return;
+    const needsInput = activeRemedy?.remedy === "password" || activeRemedy?.remedy === "api_keys";
+    if (!needsInput || !remedyCode) return;
+    const timer = window.setTimeout(() => {
+      credCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      credPasswordRef.current?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [activeRemedy?.remedy, open, remedyCode]);
+
+
   // Store and verify the sub-account's own portal password without hiding key creation failures.
   const saveCredentials = useCallback(async () => {
     if (!planAccountId) return;
