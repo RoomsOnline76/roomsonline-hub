@@ -278,7 +278,8 @@ export function StepAccountDialog({
   }, [activeRemedy?.remedy, open, remedyCode]);
 
 
-  // Store and verify the sub-account's own portal password without hiding key creation failures.
+  // Storing the password also mints the key pair — that mint is the only place the channel
+  // will tell us whether the password is right, so the save reports its verdict directly.
   const saveCredentials = useCallback(async () => {
     if (!planAccountId) return;
     setSavingCred(true);
@@ -297,29 +298,37 @@ export function StepAccountDialog({
         const message = data.error?.message ?? "The password could not be stored";
         setCredCode(code);
         setCredNote(message);
-        toast.error("Password was not verified", { description: message, duration: 12000 });
+        toast.error("Password was not stored", { description: message, duration: 12000 });
         return;
       }
 
       setPasswordStored(true);
       setPasswordVerified(data.api_access_verified === true);
       setCredPassword("");
-      if (data.api_access_verified === true) {
+      if (data.key_minted === true) {
+        setCredsStored(true);
         setKeyMintRefused(false);
-        setCredNote("Password stored and verified. You can now mint the API key pair.");
-        toast.success("Password stored and verified");
+        setCredNote("Password accepted — the API key pair was minted and stored.");
+        toast.success("Password accepted and key pair minted");
+        return;
+      }
+      if (data.rate_deferred === true) {
+        setKeyMintRefused(false);
+        setCredNote(data.api_warning ?? "Password stored. The channel is rate limiting key creation — it will be minted on the next attempt.");
+        toast.info("Password stored — minting queued", { description: data.api_warning ?? undefined, duration: 12000 });
         return;
       }
 
-      const warning = data.api_warning ?? "Password stored, but the channel refused the API login check.";
-      setCredCode("RU_CHILD_LOGIN_REJECTED");
+      const warning = data.api_warning ?? "Password stored, but the channel refused it when minting an API key.";
+      setCredCode(data.error_code ?? "RU_CREATE_KEY_BAD_LOGIN");
       setKeyMintRefused(true);
       setCredNote(warning);
-      toast.warning("Password stored", { description: warning, duration: 12000 });
+      toast.warning("Password was refused by the channel", { description: warning, duration: 14000 });
     } finally {
       setSavingCred(false);
     }
   }, [credEmail, credPassword, planAccountId]);
+
 
   const mintKeyPair = useCallback(async () => {
     if (!planAccountId) return;
