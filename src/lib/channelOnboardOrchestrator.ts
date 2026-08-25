@@ -435,6 +435,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       warning: (data.key_warning as string | null) ?? null,
       retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
     };
+    // Minting sends the company profile as part of provisioning; remember that so the
+    // company task does not send Push_FillCompanyDetails_RQ a second time in this run.
+    if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
+
     // Always name the account that was used: operators need the OwnerID and login to
     // recognise it in the channel portal, not just "adopted" vs "created".
     const account = (data.account ?? null) as Record<string, unknown> | null;
