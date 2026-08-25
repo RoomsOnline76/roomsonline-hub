@@ -34,9 +34,11 @@ interface SourceFileListProps {
 }
 
 const statusText = (file: ReportSourceFile): string => {
+  if (file.parseStatus === "needs_mapping") return "Needs column mapping";
   if (file.parsedOk === null) return "Not parsed yet";
   return file.parsedOk ? `${file.rowCount ?? 0} rows` : "Parse failed";
 };
+
 
 /** Stored source files with parse outcome, errors and per-file retry. */
 export function SourceFileList({
