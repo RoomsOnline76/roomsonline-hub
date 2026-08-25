@@ -18134,6 +18134,7 @@ export type Database = {
         }
         Returns: string
       }
+      ru_traffic_viewer: { Args: never; Returns: boolean }
       scoped_admin_can_access_portfolio: {
         Args: { _portfolio_id: string; _user_id: string }
         Returns: boolean
