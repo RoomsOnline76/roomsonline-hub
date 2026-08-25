@@ -40,6 +40,17 @@ interface StepResult {
   detail?: Record<string, unknown>;
 }
 
+/**
+ * The channel allows one call per method per sliding minute. A deferral is compliance, not an
+ * outage, so it is logged with `RU_RATE_DEFERRED` and never as an unclassified failure.
+ */
+const RATE_DEFERRED_CODE = 'RU_RATE_DEFERRED';
+const looksRateDeferred = (code: string | null, message: string | null): boolean =>
+  code === RATE_DEFERRED_CODE ||
+  /rate limited|per 1 minute sliding|sliding minute|too many requests|deferred by the channel/i
+    .test(message ?? '');
+
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
