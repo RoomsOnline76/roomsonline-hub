@@ -128,6 +128,12 @@ export function StepAccountDialog({
   const [companyMissing, setCompanyMissing] = useState<string[]>([]);
   const [companyBlocked, setCompanyBlocked] = useState<string | null>(null);
   const [newLoginEmail, setNewLoginEmail] = useState("");
+  const [credEmail, setCredEmail] = useState("");
+  const [credPassword, setCredPassword] = useState("");
+  const [savingCred, setSavingCred] = useState(false);
+  const [credNote, setCredNote] = useState<string | null>(null);
+  const [credsStored, setCredsStored] = useState(false);
+
 
 
   // Read-only composition of the payload — no channel call, no local write.
