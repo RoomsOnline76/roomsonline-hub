@@ -59,10 +59,14 @@ export function SourceFileMappingCard({ file, busy, onApply }: Props) {
   const columnLabels = useMemo(
     () =>
       headers.map((header, index) => {
-        const sample = samples.find((row) => (row?.[index] ?? "").trim())?.[index] ?? "";
-        const name = header.trim() || `Column ${index + 1}`;
+        const sample =
+          samples
+            .map((row) => String(row?.[index] ?? "").trim())
+            .find((value) => value.length > 0) ?? "";
+        const name = String(header ?? "").trim() || `Column ${index + 1}`;
         return { value: String(index), label: sample ? `${name} — e.g. ${sample}` : name };
       }),
+
     [headers, samples],
   );
 
