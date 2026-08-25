@@ -28,7 +28,19 @@ export interface ReportSourceFile {
   parsedOk: boolean | null;
   parseErrors: string[];
   rowCount: number | null;
+  /** `needs_mapping` means the reviewer must confirm which column is which. */
+  parseStatus: "pending" | "parsed" | "partial" | "needs_mapping" | "failed";
+  sheetUsed: string | null;
+  parseNote: string | null;
+  detectedMapping: {
+    headers?: string[];
+    sample_rows?: string[][];
+    fields?: Record<string, { column?: number } | undefined>;
+    unresolved?: string[];
+    fingerprint?: string | null;
+  } | null;
   createdAt: string;
+
 }
 
 export interface ReportRunSummary {
