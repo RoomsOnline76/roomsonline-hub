@@ -1,40 +1,79 @@
-# Step A: every failure asks for what it needs
+# Step A key minting: fix the password-auth false failure
 
-Today Step A has exactly one guided recovery: an email already registered at the channel (`RU_EMAIL_IN_USE`) re-opens the preview modal with a login picker. Every other failure ends as a red task row plus a red toast — including a wrong portal password, which arrives as a bare non-2xx "Edge Function returned a non-2xx status code" with no way to correct it in place.
+The current failure is more specific than the earlier generic password prompt:
 
-This makes each known Step A failure a **prompt with guidance and an inline remedy**, instead of a dead end.
+```text
+RU_CREATE_KEY_FAILED: Incorrect login or password
+```
 
-## The remedy dialog
+I checked the active code path. The "Save password & mint key pair" action stores the password, then calls the key-mint helper, which calls the backend channel API with `auth_username` + `auth_password`. That backend builds a `Push_CreateApiKey_RQ` request using `<UserName>` + `<Password>`. So the password can be valid for the web portal while the XML key-creation endpoint still rejects that authentication mode or expects a different credential form.
 
-When a Step A task fails, the monitor opens a single "Fix and continue" dialog naming the account it was working on, what the channel said, and what to do. The dialog carries the remedy the failure actually needs, and on success re-runs Step A from the failed task — no page change, no visit to another tab.
+This plan fixes the root issue and still adds the proper Step A recovery UI.
 
-Failures covered, with the remedy each one prompts for:
+## 1. Prove the failing branch before changing it
 
-| What went wrong | What the operator is shown and asked for |
+- Read the latest `ru-cert-portal` and `rentalsunited-api` logs for the failed key creation.
+- Confirm which account/login was used, the auth mode reported by the function, and the RU status payload.
+- Confirm whether `verify_child_login` succeeds with the same captured password while `create_child_api_key` fails, because that distinguishes "bad password" from "wrong key-mint auth path".
+
+## 2. Stop treating `RU_CREATE_KEY_FAILED` as simply "wrong password"
+
+The UI should no longer say or imply the saved password is wrong when the portal login works.
+
+For `RU_CREATE_KEY_FAILED` with `Incorrect login or password`, Step A will show:
+
+- The sub-account login and OwnerID being used.
+- A note that the password was saved, but the channel refused the API key-creation request.
+- Two recovery choices:
+  1. Re-enter or replace the password and retry verification.
+  2. Paste an AccessKey/SecretKey pair generated in the channel portal for that exact sub-account.
+
+If password verification passes but key creation still fails, the dialog keeps the API-key paste form open instead of looping the password prompt.
+
+## 3. Split password verification from key minting
+
+The "Save password & mint key pair" button currently behaves as one action. It should become a two-stage flow:
+
+1. **Save & verify password**
+   - Store the password.
+   - Run `verify_child_login`.
+   - Show a clear success/failure result.
+
+2. **Mint key pair**
+   - If the channel accepts key creation from password auth, mint and store the pair.
+   - If the channel refuses key creation, fall through to "Paste API keys" without marking Step A as failed.
+
+This prevents a valid password from being overwritten or blamed for a separate key-minting refusal.
+
+## 4. Add a known-failure remedy registry for Step A
+
+Step A failures become guided prompts instead of red terminal rows.
+
+| Code | Remedy |
 | --- | --- |
-| Password rejected by the channel (`RU_CHILD_LOGIN_REJECTED`) | "The channel refused this sub-account's login." Password field, plus a note that the password may be reset in the channel portal for this login and re-entered here. Saving verifies it before storing and then mints the key pair. |
-| No credential held (`NO_CHILD_CREDENTIALS`, `NO_STORED_PASSWORD`) | Same password field, worded as first-time capture; alternative: create the account under a fresh login. |
-| Key pair refused (`RU_CHILD_KEYS_REJECTED`) | Choice: re-mint from the stored password, or paste an AccessKey/SecretKey pair generated in the portal for this login. |
-| Key pair belongs elsewhere (`RU_CHILD_KEYS_WRONG_ACCOUNT`, `RU_CHILD_KEYS_DUPLICATE`) | Names the account the pair actually belongs to and asks for a pair minted while signed in as *this* login. One pair may never serve two accounts. |
-| Login already registered (`RU_EMAIL_IN_USE`) | Existing candidate picker and free-text new login (unchanged behaviour, moved under the same dialog). |
-| Missing owner details (`RU_IDENTITY_INCOMPLETE`, `NO_OWNER_EMAIL`, `RU_OWNER_NOT_BOUND`) | Names the missing field (owner email, contact name, country) and links to the record that owns it, with binding controls inline. |
-| Account not under our master account (`RU_OWNER_NOT_FOUND`) | Explains the stored identity is not listed under our master account; offers re-bind, or create under a fresh login. |
-| Account retired (`RU_ACCOUNT_RETIRED`) | Stated plainly; only remedy offered is a fresh login. |
-| Company profile refused (`RU_COMPANY_DETAILS_FAILED`) | Lists the fields the channel rejected and offers retry once corrected. |
-| Rate limited (`RU_RATE_DEFERRED`) | No dialog — keeps today's amber "waiting, retry in Ns" countdown and auto-resume. Never red, never a prompt. |
+| `RU_CREATE_KEY_FAILED` | Verify saved password, then retry minting or paste portal-generated AccessKey/SecretKey. |
+| `RU_CHILD_LOGIN_REJECTED` | Ask for the corrected/reset portal password for this login. |
+| `NO_CHILD_CREDENTIALS`, `NO_STORED_PASSWORD` | Ask for the portal password or offer a fresh-login path. |
+| `RU_CHILD_KEYS_REJECTED` | Ask for a valid pair minted under this login. |
+| `RU_CHILD_KEYS_WRONG_ACCOUNT`, `RU_CHILD_KEYS_DUPLICATE` | Explain that the pair belongs to another account and require a pair for this OwnerID/login. |
+| `RU_EMAIL_IN_USE` | Keep the existing alternative-login picker and fresh-login field. |
+| `RU_OWNER_NOT_FOUND` | Offer re-bind or fresh-login creation; do not keep trying to bind an unlisted account. |
+| `RU_RATE_DEFERRED` | Keep the amber countdown and auto-resume; never open a failure prompt. |
 
-Anything not in this list still fails visibly, but now with the account identity, the code and the channel's own message quoted, and a "Retry Step A" action — never a bare non-2xx string.
+Unknown failures still show the exact code and channel message with a retry action, never only the generic non-2xx text.
 
-## Guidance notes
+## 5. Technical changes
 
-Each remedy carries one or two short sentences of why, in operator language and without vendor naming beyond the existing channel vocabulary: why a sub-account needs its own credential, why one key pair cannot serve two accounts, why the first pair for an adopted account must be generated in the portal. The dialog also always shows the login, OwnerID and scope it is acting on, so the wrong account is never fixed by accident.
+- `rentalsunited-api`: include `auth_mode` and the channel `ru_status_id`/message in `create_child_api_key` error responses.
+- `ru-cert-portal`: preserve `RU_CREATE_KEY_FAILED` details from the key-mint helper and return them to the client; do not collapse them into a generic invoke error.
+- `StepAccountDialog`: replace the single "Save password & mint key pair" path with the two-stage password verification + key mint result state, then expose manual AccessKey/SecretKey capture when minting is refused.
+- `ChannelOnboardTab` and the Step A orchestrator: classify `RU_CREATE_KEY_FAILED` as a recoverable blocked state, not a hard failure, and re-open the fix dialog with the correct account context.
+- No database schema change is required.
 
-## Technical notes
+## Verification
 
-- New `src/config/channelStepARemedies.ts`: a registry keyed by error code → `{ title, explain, guidance, remedy }` where `remedy` is one of `password | api_keys | login_choice | binding | fresh_login | retry`. Single source of truth for copy, so the tab and dialog stay in sync.
-- New `src/components/admin/channel-monitor/StepAFixDialog.tsx`: renders the remedy form for a code. Reuses the existing password card and login-candidate picker logic currently inside `StepAccountDialog.tsx` by extracting both into small sibling components (`SubAccountPasswordCard`, `LoginCandidatePicker`) that both dialogs mount — no duplicated invoke logic.
-- Portal actions already exist and are reused unchanged: `save_login_password`, `verify_login_password`, `save_api_keys`, `create_api_key`, `ensure_owner_account` (with `confirmed_owner_email`), `rebind_owner`.
-- `src/lib/channelOnboardOrchestrator.ts`: propagate `code` from every Step A runner — `verify_keys`, `company_profile` and `adopt_listings` currently drop it, which is why a rejected password reaches the UI as an unclassified failure. Also surface the channel's own message as `detail` rather than the generic invoke error (via the existing `readPortalErrorBody` recovery path).
-- `supabase/functions/ru-cert-portal/index.ts`: `verify_api_keys` and the key-mint path return `code` on refusal alongside the message so the classification is not string-matched in the client. `save_login_password` returns the verification outcome (`verified`, `keys_minted`, `access_key` prefix) it already computes.
-- `src/components/admin/channel-monitor/ChannelOnboardTab.tsx`: replace the single `RU_EMAIL_IN_USE` special case with a lookup into the remedy registry — first failed result with a known code opens `StepAFixDialog`; on successful remedy, re-run Step A. Toasts stay for pending/rate-limited states only.
-- No new tables, no new edge function, no schema change.
+- Reproduce the current failure against the affected Step A account.
+- Verify the password save path reports "password verified" separately from key creation.
+- Verify a key-mint refusal opens the API-key capture form and does not blank-screen.
+- Save a valid AccessKey/SecretKey pair and confirm Step A continues to company/profile work.
+- Confirm `RU_RATE_DEFERRED` still displays waiting/countdown and auto-resumes.
