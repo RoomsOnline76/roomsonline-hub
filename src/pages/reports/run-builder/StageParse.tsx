@@ -15,6 +15,8 @@ export function StageParse({ ctx }: { ctx: RunBuilderContext }) {
   const sourceFiles = ctx.run.files.filter((file) => file.fileRole !== "prior_report");
   const unparsed = sourceFiles.filter((file) => file.parsedOk !== true);
   const needsMapping = sourceFiles.filter((file) => file.parseStatus === "needs_mapping");
+  const started = useRef(false);
+
 
   const [asOf, setAsOf] = useState(ctx.run.asOfDate.slice(0, 10));
   const [savingDate, setSavingDate] = useState(false);
