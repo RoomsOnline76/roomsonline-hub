@@ -6,13 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SourceFileList } from "@/components/reports/SourceFileList";
+import { SourceFileMappingCard } from "@/components/reports/SourceFileMappingCard";
 import type { RunBuilderContext } from "./types";
+
 
 /** Stage A — parse the uploaded source files. Starts on its own. */
 export function StageParse({ ctx }: { ctx: RunBuilderContext }) {
   const sourceFiles = ctx.run.files.filter((file) => file.fileRole !== "prior_report");
   const unparsed = sourceFiles.filter((file) => file.parsedOk !== true);
+  const needsMapping = sourceFiles.filter((file) => file.parseStatus === "needs_mapping");
   const started = useRef(false);
+
+
   const [asOf, setAsOf] = useState(ctx.run.asOfDate.slice(0, 10));
   const [savingDate, setSavingDate] = useState(false);
 
@@ -135,6 +140,16 @@ export function StageParse({ ctx }: { ctx: RunBuilderContext }) {
           </div>
         </CardContent>
       </Card>
+
+      {needsMapping.map((file) => (
+        <SourceFileMappingCard
+          key={file.id}
+          file={file}
+          busy={ctx.reparsingId === file.id || ctx.isProcessing}
+          onApply={ctx.onApplyMapping}
+        />
+      ))}
     </div>
   );
 }
+

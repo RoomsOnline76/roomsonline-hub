@@ -122,8 +122,13 @@ export function useProcessReportRun(runId: string | undefined, sourceType?: stri
   /**
    * Re-parses the whole run, or a single stored file when `fileId` is given so
    * one bad workbook can be retried without re-reading every other file.
+   * `mapping` carries a reviewer-confirmed column map for that one file.
    */
-  const process = useCallback(async (fileId?: string): Promise<ProcessResult> => {
+  const process = useCallback(async (
+    fileId?: string,
+    mapping?: Record<string, number> | null,
+    sheet?: string | null,
+  ): Promise<ProcessResult> => {
     if (!runId) return { ok: false, message: "No run selected" };
     const adapter = getAdapter(sourceType);
     // Stub adapters (OPERA / PROTEL) have no parser deployed yet — fail clearly
@@ -134,8 +139,11 @@ export function useProcessReportRun(runId: string | undefined, sourceType?: stri
     setIsProcessing(true);
     try {
       const { data, error } = await supabase.functions.invoke(adapter.parserFunction, {
-        body: fileId ? { run_id: runId, file_id: fileId } : { run_id: runId },
+        body: fileId
+          ? { run_id: runId, file_id: fileId, ...(mapping ? { mapping, sheet: sheet ?? null } : {}) }
+          : { run_id: runId },
       });
+
       if (error) {
         const message = await readError(error);
         // A time-budget stop comes back as 422 with a "run again to continue" note.

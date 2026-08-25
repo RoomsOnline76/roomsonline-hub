@@ -26,6 +26,13 @@ export interface RunBuilderContext {
   reparsingId: string | null;
   onDownload: (storagePath: string) => void;
   onReparse: (file: ReportSourceFile) => void;
+  /** Re-parses one file with a reviewer-confirmed column mapping. */
+  onApplyMapping: (
+    fileId: string,
+    mapping: Record<string, number>,
+    sheet: string | null,
+  ) => void;
+
   onRemoveFile: (file: ReportSourceFile) => void;
   pending: File[];
   fileStates: Record<number, DropZoneFileState>;

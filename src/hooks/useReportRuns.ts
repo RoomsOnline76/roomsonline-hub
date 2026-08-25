@@ -28,7 +28,19 @@ export interface ReportSourceFile {
   parsedOk: boolean | null;
   parseErrors: string[];
   rowCount: number | null;
+  /** `needs_mapping` means the reviewer must confirm which column is which. */
+  parseStatus: "pending" | "parsed" | "partial" | "needs_mapping" | "failed";
+  sheetUsed: string | null;
+  parseNote: string | null;
+  detectedMapping: {
+    headers?: string[];
+    sample_rows?: string[][];
+    fields?: Record<string, { column?: number } | undefined>;
+    unresolved?: string[];
+    fingerprint?: string | null;
+  } | null;
   createdAt: string;
+
 }
 
 export interface ReportRunSummary {
@@ -168,7 +180,7 @@ export function useReportRun(runId: string | undefined) {
 
       const { data: files, error: filesError } = await supabase
         .from("report_source_files")
-        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, file_role, parsed_ok, parse_errors, row_count, created_at")
+        .select("id, run_id, storage_path, original_filename, byte_size, file_hash, file_role, parsed_ok, parse_errors, row_count, created_at, parse_status, sheet_used, parse_note, detected_mapping")
         .eq("run_id", runId)
         .order("created_at", { ascending: true });
       if (filesError) throw filesError;
@@ -193,7 +205,12 @@ export function useReportRun(runId: string | undefined) {
           parsedOk: f.parsed_ok,
           parseErrors: normaliseParseErrors(f.parse_errors),
           rowCount: f.row_count,
+          parseStatus: (f.parse_status ?? "pending") as ReportSourceFile["parseStatus"],
+          sheetUsed: f.sheet_used ?? null,
+          parseNote: f.parse_note ?? null,
+          detectedMapping: (f.detected_mapping ?? null) as ReportSourceFile["detectedMapping"],
           createdAt: f.created_at,
+
         })),
       };
     },

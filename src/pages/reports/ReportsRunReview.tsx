@@ -303,10 +303,14 @@ export default function ReportsRunReview() {
   }, []);
 
   const handleReparse = useCallback(
-    async (file: ReportSourceFile) => {
+    async (
+      file: ReportSourceFile,
+      mapping?: Record<string, number> | null,
+      sheet?: string | null,
+    ) => {
       setReparsingId(file.id);
       try {
-        const result = await process(file.id);
+        const result = await process(file.id, mapping ?? null, sheet ?? null);
         if (result.ok) {
           toast.success(`${file.originalFilename} re-parsed`, {
             description: `${result.rowsParsed ?? 0} row(s) read. Re-process the run to refresh totals.`,
@@ -323,6 +327,7 @@ export default function ReportsRunReview() {
     },
     [process, refresh],
   );
+
 
   const handleRemoveFile = useCallback(
     async (file: ReportSourceFile) => {
@@ -421,7 +426,12 @@ export default function ReportsRunReview() {
     reparsingId,
     onDownload: (path) => void handleDownload(path),
     onReparse: (file) => void handleReparse(file),
+    onApplyMapping: (fileId, mapping, sheet) => {
+      const file = (run?.files ?? []).find((entry) => entry.id === fileId);
+      if (file) void handleReparse(file, mapping, sheet);
+    },
     onRemoveFile: (file) => void handleRemoveFile(file),
+
     pending,
     fileStates,
     uploadBusy,

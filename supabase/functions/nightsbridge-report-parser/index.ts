@@ -1,12 +1,24 @@
-// Parses NightsBridge bookingsummary exports for a report run and writes the snapshot.
+// Parses NightsBridge bookings exports for a report run and writes the snapshot.
+// Layout resilience (header seeking, field inference, derivation, CSV/PDF input)
+// lives in ../_shared/nightsbridgeLedgerParse.ts so it stays testable.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
+import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
+import {
+  gridFromDelimited,
+  gridFromPdfItems,
+  parseLedgerSheets,
+  type ColumnMap,
+  type LedgerParseResult,
+  type PdfItem,
+  type SheetGrid,
+} from "../_shared/nightsbridgeLedgerParse.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { sanitiseRoomCount } from "../_shared/reportRoomCount.ts";
 import {
@@ -25,218 +37,105 @@ const BUCKET = "revenue-reports";
 /** Stop taking on new files once this much of the invocation budget is gone. */
 const TIME_BUDGET_MS = 100_000;
 
+const extensionOf = (filename: string): string =>
+  (filename.split(".").pop() ?? "").toLowerCase();
 
-/**
- * Header aliases. NightsBridge exports vary by property and by the year the
- * export was taken ("Arrival"/"Arrival Date"/"Check In", "Revenue"/"Accommodation"),
- * so each field carries every spelling seen so far. Matching is loose: a header
- * cell qualifies when it equals an alias or contains it as a whole phrase.
- */
-const COLUMN_ALIASES: Record<keyof LedgerRow | "arrival" , string[]> = {
-  booking_id: ["booking id", "bookingid", "booking no", "booking number", "bkg id", "res id"],
-  arrival: ["arrival date", "arrival", "check in", "check-in", "checkin", "from", "date in"],
-  last_night: ["last night", "departure", "departure date", "check out", "check-out", "date out"],
-  nights: ["nights", "no of nights", "no. of nights", "night", "nts", "days"],
-  revenue: ["revenue", "accommodation", "accommodation revenue", "room revenue", "gross", "total"],
-  extras: ["extras", "extra", "extras revenue"],
-  commission: ["commission", "comm"],
-  nett: ["nett", "net", "nett revenue", "net revenue"],
-  room_name: ["room name", "room", "unit", "unit name", "room type", "accommodation type"],
-  source: ["source", "booking source", "channel"],
-  status: ["status", "booking status"],
-  type: ["type", "booking type", "rate type"],
-  currency: ["currency", "curr"],
-};
-
-const REQUIRED = ["arrival", "nights", "revenue", "room_name"] as const;
-/** A header row must carry at least these three to be a bookings ledger. */
-const HEADER_SIGNATURE = ["arrival", "nights", "revenue"] as const;
-
-
-const clean = (value: unknown): string =>
-  typeof value === "string" ? value.trim().toLowerCase() : "";
-
-const toNumber = (value: unknown): number => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : NaN;
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/[^\d.,-]/g, "").replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : NaN;
-  }
-  return NaN;
-};
-
-const toIsoDate = (value: unknown): string | null => {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    const y = value.getUTCFullYear();
-    const m = `${value.getUTCMonth() + 1}`.padStart(2, "0");
-    const d = `${value.getUTCDate()}`.padStart(2, "0");
-    return `${y}-${m}-${d}`;
-  }
-  if (typeof value === "number") {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return null;
-    return `${parsed.y}-${`${parsed.m}`.padStart(2, "0")}-${`${parsed.d}`.padStart(2, "0")}`;
-  }
-  if (typeof value === "string") {
-    const dmy = value.trim().match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-    if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-    const iso = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  }
-  return null;
-};
-
-interface ParsedFile {
-  rows: LedgerRow[];
-  errors: string[];
-  skipped: number;
-}
-
-function parseWorkbook(buffer: ArrayBuffer, filename: string): ParsedFile {
-  const errors: string[] = [];
-  const rows: LedgerRow[] = [];
-  let skipped = 0;
-
-  let workbook: XLSX.WorkBook;
-  try {
-    workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
-  } catch (error) {
-    return {
-      rows,
-      skipped,
-      errors: [`${filename}: unreadable spreadsheet (${error instanceof Error ? error.message : "unknown"})`],
-    };
-  }
-
-  if (!workbook.SheetNames.length) {
-    return { rows, skipped, errors: [`${filename}: no worksheets found`] };
-  }
-
-  /** Column lookup for one header row, loosely matched against the aliases. */
-  const mapHeader = (cells: string[]): Partial<Record<keyof LedgerRow, number>> => {
-    const index: Partial<Record<keyof LedgerRow, number>> = {};
-    for (const [field, aliases] of Object.entries(COLUMN_ALIASES)) {
-      const exact = cells.findIndex((cell) => aliases.includes(cell));
-      const found = exact >= 0
-        ? exact
-        : cells.findIndex((cell) => cell.length > 2 && aliases.some((alias) => cell === alias || cell.includes(alias)));
-      if (found >= 0) index[field as keyof LedgerRow] = found;
-    }
-    return index;
-  };
-
-  // Every sheet is a candidate: some exports put the ledger on a second tab,
-  // and the header can sit well below a title block. The sheet whose ledger
-  // holds the most usable rows wins.
-  let grid: unknown[][] = [];
-  let headerIndex = -1;
-  let index: Partial<Record<keyof LedgerRow, number>> = {};
-  let bestScore = -1;
-  const misses: string[] = [];
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
-    const candidateGrid = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+/** Every worksheet of a workbook as a raw grid. */
+function sheetsFromWorkbook(buffer: ArrayBuffer): SheetGrid[] {
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
+  return workbook.SheetNames.map((name) => ({
+    name,
+    grid: XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name]!, {
       header: 1,
       blankrows: false,
       raw: true,
-    });
+    }),
+  }));
+}
 
-    for (let i = 0; i < Math.min(candidateGrid.length, 40); i += 1) {
-      const cells = (candidateGrid[i] ?? []).map(clean);
-      const candidateIndex = mapHeader(cells);
-      if (HEADER_SIGNATURE.some((field) => candidateIndex[field] === undefined)) continue;
-      if (REQUIRED.some((field) => candidateIndex[field] === undefined)) {
-        misses.push(
-          `${sheetName}: missing ${
-            REQUIRED.filter((field) => candidateIndex[field] === undefined).join(", ")
-          }`,
-        );
-        continue;
-      }
-      // Score the block by how many rows below it carry a usable arrival date.
-      let score = 0;
-      for (let r = i + 1; r < candidateGrid.length; r += 1) {
-        const row = candidateGrid[r] ?? [];
-        const col = candidateIndex.arrival;
-        if (col !== undefined && toIsoDate(row[col])) score += 1;
-      }
-      if (score > bestScore) {
-        bestScore = score;
-        grid = candidateGrid;
-        headerIndex = i;
-        index = candidateIndex;
-      }
-      break;
+/** Positioned text items from every page of a text-layer PDF. */
+async function pdfItems(buffer: ArrayBuffer): Promise<PdfItem[]> {
+  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  const items: PdfItem[] = [];
+  for (let page = 1; page <= pdf.numPages; page += 1) {
+    const content = await (await pdf.getPage(page)).getTextContent();
+    const offset = (page - 1) * 100_000;
+    for (const raw of content.items as Array<{ str?: string; transform?: number[] }>) {
+      if (typeof raw.str !== "string" || !raw.str.trim() || !raw.transform) continue;
+      items.push({ str: raw.str, x: raw.transform[4], y: raw.transform[5] - offset });
     }
   }
+  return items;
+}
 
-  if (headerIndex === -1) {
-    // A consolidated revenue report (months down, OTB columns across) has no
-    // bookings ledger at all — say so, because it belongs on the previous-report
-    // step, not here.
-    const firstGrid = XLSX.utils.sheet_to_json<unknown[]>(
-      workbook.Sheets[workbook.SheetNames[0]!],
-      { header: 1, blankrows: false, raw: true },
-    );
-    const looksConsolidated = firstGrid
-      .slice(0, 30)
-      .some((row) => (row ?? []).map(clean).some((cell) => /\botb\b|on the books|budget/.test(cell)));
+interface FileParseOptions {
+  override?: ColumnMap | null;
+  overrideSheet?: string | null;
+  fallbackCurrency?: string;
+}
+
+/** Reads one uploaded file, whatever shape it arrives in. */
+async function parseSourceFile(
+  buffer: ArrayBuffer,
+  filename: string,
+  options: FileParseOptions,
+): Promise<LedgerParseResult> {
+  const extension = extensionOf(filename);
+  try {
+    if (extension === "pdf") {
+      const items = await pdfItems(buffer);
+      if (!items.length) {
+        return {
+          status: "failed",
+          rows: [],
+          errors: [`${filename}: no text layer found — scanned PDFs cannot be read`],
+          notes: [],
+          skipped: 0,
+          sheet: null,
+          headerRow: null,
+          headers: [],
+          sampleRows: [],
+          mapping: {},
+          unresolved: [],
+          fingerprint: null,
+        };
+      }
+      return parseLedgerSheets([{ name: "PDF", grid: gridFromPdfItems(items) }], {
+        filename,
+        ...options,
+      });
+    }
+
+    if (extension === "csv" || extension === "txt" || extension === "tsv") {
+      const content = new TextDecoder().decode(new Uint8Array(buffer));
+      return parseLedgerSheets([{ name: filename, grid: gridFromDelimited(content) }], {
+        filename,
+        ...options,
+      });
+    }
+
+    const repair = await repairWorkbookBuffer(buffer);
+    return parseLedgerSheets(sheetsFromWorkbook(repair.buffer), { filename, ...options });
+  } catch (error) {
     return {
-      rows,
-      skipped,
+      status: "failed",
+      rows: [],
       errors: [
-        looksConsolidated
-          ? `${filename}: this looks like the consolidated revenue report, not a NightsBridge bookings export — upload it at the "previous report" step instead.`
-          : `${filename}: could not find the NightsBridge header row (needs arrival, nights and revenue columns)${
-            misses.length ? ` — closest match ${misses[0]}` : ""
-          }`,
+        `${filename}: unreadable file (${error instanceof Error ? error.message : "unknown"})`,
       ],
+      notes: [],
+      skipped: 0,
+      sheet: null,
+      headerRow: null,
+      headers: [],
+      sampleRows: [],
+      mapping: {},
+      unresolved: [],
+      fingerprint: null,
     };
   }
-
-
-  const at = (row: unknown[], field: keyof LedgerRow): unknown => {
-    const col = index[field];
-    return col === undefined ? undefined : row[col];
-  };
-
-  for (let i = headerIndex + 1; i < grid.length; i += 1) {
-    const row = grid[i] ?? [];
-    if (row.every((cell) => cell === null || cell === undefined || cell === "")) continue;
-
-    const arrival = toIsoDate(at(row, "arrival"));
-    const nights = toNumber(at(row, "nights"));
-    const revenue = toNumber(at(row, "revenue"));
-
-    if (!arrival || !Number.isFinite(nights) || !Number.isFinite(revenue)) {
-      skipped += 1;
-      continue;
-    }
-
-    rows.push({
-      booking_id: String(at(row, "booking_id") ?? "").replace(/\.0$/, ""),
-      arrival,
-      last_night: toIsoDate(at(row, "last_night")),
-      nights,
-      revenue,
-      extras: Number.isFinite(toNumber(at(row, "extras"))) ? toNumber(at(row, "extras")) : 0,
-      commission: Number.isFinite(toNumber(at(row, "commission"))) ? toNumber(at(row, "commission")) : 0,
-      nett: Number.isFinite(toNumber(at(row, "nett"))) ? toNumber(at(row, "nett")) : 0,
-      room_name: String(at(row, "room_name") ?? "").trim(),
-      source: String(at(row, "source") ?? "").trim(),
-      status: String(at(row, "status") ?? "").trim(),
-      type: String(at(row, "type") ?? "").trim(),
-      currency: String(at(row, "currency") ?? "ZAR").trim() || "ZAR",
-    });
-  }
-
-  if (skipped > 0) {
-    errors.push(`${skipped} row(s) skipped: missing arrival date, nights or revenue`);
-  }
-  return { rows, skipped, errors };
 }
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -271,6 +170,11 @@ Deno.serve(async (req) => {
     if (!runId) return json({ error: "run_id is required" }, 400);
     /** Single-file check: re-parse one file without touching the snapshot. */
     const onlyFileId = typeof body?.file_id === "string" ? body.file_id : "";
+    /** Reviewer-confirmed column mapping for that one file. */
+    const reviewerMapping: ColumnMap | null =
+      body?.mapping && typeof body.mapping === "object" ? (body.mapping as ColumnMap) : null;
+    const reviewerSheet = typeof body?.sheet === "string" ? body.sheet : null;
+
     const actorId = userData.user.id;
     const startedAt = Date.now();
 
@@ -281,6 +185,16 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (runError) return json({ error: runError.message }, 500);
     if (!run) return json({ error: "Run not found" }, 404);
+
+    // A mapping the reviewer confirmed on an earlier run with the same layout.
+    const { data: mapSettings } = await admin
+      .from("property_report_settings")
+      .select("nightsbridge_column_map")
+      .eq("property_id", run.property_id)
+      .maybeSingle();
+    const rememberedMap = (mapSettings?.nightsbridge_column_map ?? null) as
+      | { fingerprint?: string; sheet?: string | null; columns?: ColumnMap }
+      | null;
 
     let fileQuery = admin
       .from("report_source_files")
@@ -329,6 +243,14 @@ Deno.serve(async (req) => {
       parsed_ok: boolean;
       row_count: number;
       errors: string[];
+      status: LedgerParseResult["status"];
+      sheet: string | null;
+      notes: string[];
+      headers: string[];
+      sample_rows: string[][];
+      mapping: LedgerParseResult["mapping"];
+      unresolved: string[];
+      fingerprint: string | null;
     }> = [];
     let processedFiles = 0;
     let truncated = false;
@@ -356,18 +278,46 @@ Deno.serve(async (req) => {
           parsed_ok: false,
           row_count: 0,
           errors: [`${file.original_filename}: ${message}`],
+          status: "failed",
+          sheet: null,
+          notes: [],
+          headers: [],
+          sample_rows: [],
+          mapping: {},
+          unresolved: [],
+          fingerprint: null,
         });
         processedFiles += 1;
         continue;
       }
 
-      // Parse one workbook at a time and release the buffer before the next file.
-      let parsed: ParsedFile;
+      // Parse one file at a time and release the buffer before the next.
+      let parsed: LedgerParseResult;
       {
-        const repair = await repairWorkbookBuffer(await download.data.arrayBuffer());
-        parsed = parseWorkbook(repair.buffer, file.original_filename);
+        const buffer = await download.data.arrayBuffer();
+        parsed = await parseSourceFile(buffer, file.original_filename, {
+          override: onlyFileId ? reviewerMapping : null,
+          overrideSheet: onlyFileId ? reviewerSheet : null,
+        });
+
+        // Auto-apply a remembered mapping when detection alone was not enough
+        // and the header layout matches what the reviewer confirmed before.
+        if (
+          parsed.status === "needs_mapping" &&
+          rememberedMap?.columns &&
+          rememberedMap.fingerprint &&
+          rememberedMap.fingerprint === parsed.fingerprint
+        ) {
+          const retry = await parseSourceFile(buffer, file.original_filename, {
+            override: rememberedMap.columns,
+          });
+          if (retry.status === "parsed") {
+            retry.notes.push("Column mapping reused from this property's saved layout.");
+            parsed = retry;
+          }
+        }
       }
-      const ok = parsed.rows.length > 0;
+      const ok = parsed.status === "parsed" && parsed.rows.length > 0;
       if (ok) {
         for (const row of parsed.rows) ledger.push(row);
       }
@@ -377,9 +327,33 @@ Deno.serve(async (req) => {
         parsed_ok: ok,
         row_count: parsed.rows.length,
         errors: parsed.errors,
+        status: parsed.status,
+        sheet: parsed.sheet,
+        notes: parsed.notes,
+        headers: parsed.headers,
+        sample_rows: parsed.sampleRows,
+        mapping: parsed.mapping,
+        unresolved: parsed.unresolved,
+        fingerprint: parsed.fingerprint,
       });
       parsed.rows.length = 0;
       processedFiles += 1;
+    }
+
+    // Remember a reviewer-confirmed mapping that worked, for future files.
+    if (onlyFileId && reviewerMapping && fileResults[0]?.parsed_ok) {
+      await admin.from("property_report_settings").upsert(
+        {
+          property_id: run.property_id,
+          nightsbridge_column_map: {
+            fingerprint: fileResults[0].fingerprint,
+            sheet: fileResults[0].sheet,
+            columns: reviewerMapping,
+            saved_at: new Date().toISOString(),
+          },
+        } as never,
+        { onConflict: "property_id" },
+      );
     }
 
     // Batch the per-file bookkeeping instead of one round trip per file.
@@ -391,10 +365,22 @@ Deno.serve(async (req) => {
             parsed_ok: result.parsed_ok,
             row_count: result.row_count,
             parse_errors: result.errors.length ? result.errors : null,
-          })
+            parse_status: result.status,
+            sheet_used: result.sheet,
+            parse_note: result.notes.length ? result.notes.join(" ") : null,
+            detected_mapping: {
+              headers: result.headers,
+              sample_rows: result.sample_rows,
+              fields: result.mapping,
+              unresolved: result.unresolved,
+              fingerprint: result.fingerprint,
+            },
+            applied_mapping: onlyFileId && reviewerMapping ? reviewerMapping : null,
+          } as never)
           .eq("id", result.id),
       ),
     );
+
 
     if (onlyFileId) {
       const result = fileResults[0];
@@ -402,7 +388,14 @@ Deno.serve(async (req) => {
         admin,
         runId,
         "file_reparsed",
-        `${result.filename}: ${result.parsed_ok ? `${result.row_count} row(s) parsed` : "parse failed"}`,
+        `${result.filename}: ${
+          result.parsed_ok
+            ? `${result.row_count} row(s) parsed`
+            : result.status === "needs_mapping"
+              ? "needs column mapping"
+              : "parse failed"
+        }`,
+
         { file_id: result.id, errors: result.errors },
         actorId,
       );
