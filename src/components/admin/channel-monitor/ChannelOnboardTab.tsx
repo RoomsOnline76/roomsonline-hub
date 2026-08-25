@@ -423,6 +423,7 @@ export function ChannelOnboardTab({
       setRunningStep(step);
       setPushProgress(null);
       setWaiting((prev) => ({ ...prev, [step]: undefined }));
+      setTaskCodes({});
       setTaskStates((prev) => {
         const next = { ...prev };
         const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
