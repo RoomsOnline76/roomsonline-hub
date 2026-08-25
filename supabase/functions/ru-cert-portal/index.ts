@@ -5141,31 +5141,49 @@ Deno.serve(async (req) => {
 
       // Verify the OwnerID against RU's master list when we can reach it. A transient
       // RU/list failure must NOT block the bind — it is a local pointer update.
+      //
+      // A *cached* roster is never proof of absence: a sub-account minted after the last
+      // snapshot exists at the channel but is missing from our copy, which used to refuse the
+      // bind outright ("does not list OwnerID …"). So a cache miss costs exactly one live
+      // roster read, and only a fresh roster that still lacks the OwnerID may refuse.
       let verifiedAgainstRu = false;
       let match: { email?: string; user_account_id?: string } | undefined;
       try {
-        const listed = await listRuSubUsers(admin, { cacheOnly: true, source: "bind_ru_account" });
-        if (!listed.ok) {
-          // Rate-deferred or failed list ⇒ unknown, not "absent". Bind the local pointer.
-          console.warn("[ru-cert-portal] bind: RU user list unavailable, binding without RU verification", listed.message);
-        } else {
-          const users = listed.users;
-          verifiedAgainstRu = true;
-          match = users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId);
-          if (!match) {
+        const findIn = (users: { owner_id?: string }[]) =>
+          users.find((u) => String(u.owner_id ?? "").trim() === ruOwnerId) as
+            | { email?: string; user_account_id?: string }
+            | undefined;
+
+        let listed = await listRuSubUsers(admin, { cacheOnly: true, source: "bind_ru_account" });
+        match = listed.ok ? findIn(listed.users) : undefined;
+
+        if (!match) {
+          // Cache miss (or no cache at all) — confirm against the channel before refusing.
+          listed = await listRuSubUsers(admin, { forceFresh: true, source: "bind_ru_account_confirm" });
+          match = listed.ok ? findIn(listed.users) : undefined;
+          const rosterIsFresh = listed.ok && listed.cached !== true;
+          if (!match && rosterIsFresh) {
             return json({
               success: false,
               error: {
                 code: "RU_OWNER_NOT_FOUND",
-                message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account.`,
+                message: `Rentals United does not list OwnerID ${ruOwnerId} under our master account (roster read ${listed.fetched_at ?? "just now"}).`,
               },
             }, 422);
           }
+          if (!match) {
+            // Deferred / failed / stale-only answer ⇒ unknown, not absent. Bind unverified.
+            console.warn(
+              "[ru-cert-portal] bind: OwnerID unverified — roster read unavailable or stale",
+              listed.message ?? "",
+            );
+          }
         }
-
+        verifiedAgainstRu = !!match;
       } catch (e) {
         console.warn("[ru-cert-portal] bind: RU list threw, continuing", e instanceof Error ? e.message : e);
       }
+
 
 
       const update: Record<string, unknown> = {
