@@ -747,6 +747,10 @@ Deno.serve(async (req) => {
         read?: boolean;
         /** Not read because the channel rate-limited/queued the pull. */
         deferred?: boolean;
+        /** Served from the persisted listing snapshot instead of a fresh channel read. */
+        cached?: boolean;
+        /** Timestamp of the listing snapshot used for this account. */
+        fetched_at?: string | null;
         error: string | null;
         is_master: boolean;
       }> = [];

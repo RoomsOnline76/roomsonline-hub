@@ -2839,7 +2839,7 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
 
       const properties = extractPropertyIds(response);
-      await writeRuOwnerListingCache(getLogClient(), ownerId, properties, String(body.parent_action ?? `rentalsunited-api:${action}`));
+      const cacheFetchedAt = await writeRuOwnerListingCache(getLogClient(), ownerId, properties, String(body.parent_action ?? `rentalsunited-api:${action}`));
       return jsonResponse({
         success: true,
         properties,
@@ -2847,7 +2847,7 @@ Deno.serve(async (req) => {
         owner_id: ownerId,
         auth_mode: childAuthMode(childAuth),
         cached: false,
-        cache_fetched_at: new Date().toISOString(),
+        cache_fetched_at: cacheFetchedAt,
       });
     }
 
