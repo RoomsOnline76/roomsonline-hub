@@ -4501,7 +4501,7 @@ Deno.serve(async (req) => {
       const createErrBody = createError ? await readInvokeErrorBody(createError) : null;
       const rawMessage = String(created?.error?.message ?? createErrBody?.error?.message ?? createError?.message ?? "");
       const ruStatusId = created?.error?.ru_status_id ?? createErrBody?.error?.ru_status_id ?? null;
-      const ruStatusMessage = created?.ru_status_message ?? createErrBody?.ru_status_message ?? rawMessage || null;
+      const ruStatusMessage = created?.ru_status_message ?? createErrBody?.ru_status_message ?? (rawMessage || null);
       if (createError || created?.success !== true || !created?.access_key || !created?.secret_key) {
         // A channel rate limit is a "come back shortly", never a failure: the caller
         // surfaces the countdown and the task resumes on its own.
