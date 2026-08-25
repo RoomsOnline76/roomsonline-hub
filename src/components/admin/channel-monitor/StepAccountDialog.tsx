@@ -403,32 +403,8 @@ export function StepAccountDialog({
     }
   }, [credEmail, manualAccessKey, manualSecretKey, planAccountId]);
 
-  const verifyStoredPassword = useCallback(async () => {
-    if (!planAccountId) return;
-    setSavingCred(true);
-    setCredNote(null);
-    setCredCode(null);
-    try {
-      const data = await invokeCertPortal({
-        action: "verify_login_password",
-        account_id: planAccountId,
-      }, "The saved password could not be verified.");
-      if (data.success === true && data.verified === true) {
-        setPasswordVerified(true);
-        setCredNote("Saved password verified. You can now mint the API key pair.");
-        toast.success("Saved password verified");
-        return;
-      }
-      const code = data.error?.code ?? "RU_CHILD_LOGIN_REJECTED";
-      const message = data.error?.message ?? "The saved password was rejected. Reset it in the portal and save it again here.";
-      setCredCode(code);
-      setKeyMintRefused(true);
-      setCredNote(message);
-      toast.warning("Saved password needs attention", { description: message, duration: 12000 });
-    } finally {
-      setSavingCred(false);
-    }
-  }, [planAccountId]);
+
+
 
   const editHref = `/properties/${propertyId}/edit?section=general&focus=company-information`;
 
