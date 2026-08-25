@@ -247,11 +247,15 @@ const isSetupGap = (r: RunLike): boolean =>
  * They are bucketed with setup gaps so a permanent conflict never turns a pipeline red.
  */
 const isAccountConflict = (r: RunLike): boolean =>
-  /account registration conflict|already registered|email already in use|email in use|login already exists|user already exists|belongs to (another|a different) (account|owner|user)|owned by (another|a different) (account|owner|user)|ownership conflict|master account conflict|duplicate (account|sub-user)/i
+  /account registration conflict|already registered|email already in use|email in use|login already exists|user already exists|belongs to (another|a different) (account|owner|user)|owned by (another|a different) (account|owner|user)|ownership conflict|master account conflict|duplicate (account|sub-user)|does not list ownerid/i
     .test(r.error_message ?? '') ||
-  ['RU_EMAIL_IN_USE', 'RU_ACCOUNT_CONFLICT', 'RU_LOGIN_IN_USE'].includes(
+  ['RU_EMAIL_IN_USE', 'RU_ACCOUNT_CONFLICT', 'RU_LOGIN_IN_USE', 'RU_OWNER_NOT_FOUND'].includes(
     String((r as { error_code?: string | null }).error_code ?? ''),
-  );
+  ) ||
+  // An operator clicking Bind on an account the master roster does not list is reconciliation
+  // work in the accounts panel, never a pipeline failure.
+  String((r as { action?: string | null }).action ?? '') === 'bind_ru_account';
+
 
 /**
  * A held request whose own nights are closed by the very stay it belongs to. The stay is already
