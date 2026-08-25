@@ -25,6 +25,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { logRuExchange, logRuNotAttempted, newRuTraceId, type RuApiLogContext, type RuTransportStatus } from '../_shared/ruApiLog.ts';
 import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall, ruQueuePriority, ruGateWaitMs, isReservationWriteAction } from '../_shared/ruRateGate.ts';
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
+import { readRuOwnerListingCache, writeRuOwnerListingCache } from '../_shared/ruOwnerListingCache.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
@@ -2538,12 +2539,15 @@ Deno.serve(async (req) => {
         );
       }
       const probeOwnerId = parseInt(String(body.owner_id ?? '').trim(), 10);
-      const ownerScoped = Number.isFinite(probeOwnerId) && probeOwnerId > 0;
-      const method = ownerScoped ? 'Pull_ListOwnerProp_RQ' : 'Pull_ListBuildings_RQ';
-      const xml = ownerScoped
-        ? buildListPropertiesXml(effectiveCreds(creds, childAuth), probeOwnerId)
-        : buildListBuildingsXml(creds, childAuth);
+      if (!Number.isFinite(probeOwnerId) || probeOwnerId <= 0) {
+        return errorResponse(
+          'MISSING_PARAM',
+          'owner_id is required for key verification; unscoped buildings reads are intentionally disabled',
+        );
+      }
 
+      const method = 'Pull_ListOwnerProp_RQ';
+      const xml = buildListPropertiesXml(effectiveCreds(creds, childAuth), probeOwnerId);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       return jsonResponse({
@@ -2551,7 +2555,7 @@ Deno.serve(async (req) => {
         verified: ok,
         auth_mode: childAuthMode(childAuth),
         method,
-        owner_id: ownerScoped ? String(probeOwnerId) : null,
+        owner_id: String(probeOwnerId),
         ru_status_id: status.id ?? null,
         ru_status_message: status.message ?? null,
       });
@@ -2798,18 +2802,52 @@ Deno.serve(async (req) => {
       if (!ownerId) {
         return errorResponse('MISSING_PARAM', 'Rentals United OwnerID could not be resolved. Pass owner_id or set the RU_OWNER_ID secret.');
       }
+
+      const forceFresh = body.force_fresh === true || body.force_cache_refresh === true;
+      const cacheOnly = body.cache_only === true;
+      if (!forceFresh) {
+        const cached = await readRuOwnerListingCache(getLogClient(), ownerId, { allowStale: cacheOnly });
+        if (cached.hit) {
+          return jsonResponse({
+            success: true,
+            properties: cached.listings,
+            count: cached.listings.length,
+            owner_id: ownerId,
+            auth_mode: childAuthMode(childAuth),
+            cached: true,
+            cache_fetched_at: cached.fetchedAt,
+            cache_stale: cached.stale,
+          });
+        }
+        if (cacheOnly) {
+          return jsonResponse({
+            success: true,
+            queued: true,
+            properties: [],
+            count: 0,
+            owner_id: ownerId,
+            auth_mode: childAuthMode(childAuth),
+            cached: false,
+            message: 'No cached channel listing snapshot yet — run a manual reconciliation refresh.',
+          }, 202);
+        }
+      }
+
       const xml = buildListPropertiesXml(scopedCreds, ownerId);
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
 
       const properties = extractPropertyIds(response);
+      await writeRuOwnerListingCache(getLogClient(), ownerId, properties, String(body.parent_action ?? `rentalsunited-api:${action}`));
       return jsonResponse({
         success: true,
         properties,
         count: properties.length,
         owner_id: ownerId,
         auth_mode: childAuthMode(childAuth),
+        cached: false,
+        cache_fetched_at: new Date().toISOString(),
       });
     }
 
