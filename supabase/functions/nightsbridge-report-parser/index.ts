@@ -173,6 +173,8 @@ Deno.serve(async (req) => {
     /** Reviewer-confirmed column mapping for that one file. */
     const reviewerMapping: ColumnMap | null =
       body?.mapping && typeof body.mapping === "object" ? (body.mapping as ColumnMap) : null;
+    const reviewerSheet = typeof body?.sheet === "string" ? body.sheet : null;
+
     const actorId = userData.user.id;
     const startedAt = Date.now();
 
