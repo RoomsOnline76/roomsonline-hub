@@ -92,12 +92,13 @@ export function ContractOverrideModal({
               id="override-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why the contract requirement is being bypassed (minimum 20 characters)..."
+              placeholder={`Explain why the contract requirement is being bypassed (minimum ${MIN_REASON} characters)...`}
               className="mt-1.5 min-h-[100px]"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {reason.length}/20 characters minimum
+              {trimmedReason.length}/{MIN_REASON} characters minimum
             </p>
+
           </div>
 
           <div className="flex items-start gap-2">
