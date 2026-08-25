@@ -114,7 +114,14 @@ export function ContractOverrideModal({
               I understand this property will be visible on the website without a
               signed contract and accept the associated risks.
             </Label>
-          </div>
+
+          {!isValid && (
+            <p className="text-xs text-orange-700">
+              To enable the override, still needed: {missing.join(" and ")}.
+            </p>
+          )}
+        </div>
+
         </div>
 
         <AlertDialogFooter>
