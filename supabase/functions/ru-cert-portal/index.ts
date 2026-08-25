@@ -5110,17 +5110,35 @@ Deno.serve(async (req) => {
         change_summary: `Stored Rentals United portal password for ${canonicalEmail} (OwnerID ${ownerId}); API access is verified separately`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      const { data: apiCheck, error: apiCheckError } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "verify_child_login", auth_username: canonicalEmail, auth_password: newPassword },
+      /**
+       * The password's verdict is the key mint, not a read probe: RU refuses password
+       * envelopes on its read surfaces, so the old Pull_ListBuildings_RQ check reported
+       * "Incorrect login or password" for perfectly good passwords. Minting proves the
+       * password AND leaves the account holding usable keys in one call.
+       */
+      const minted = await mintChildKeyPair({
+        ownerId,
+        loginEmail: canonicalEmail,
+        accountId,
+        plainPassword: newPassword,
       });
-      const apiAccessVerified = !apiCheckError && apiCheck?.success === true && apiCheck?.verified === true;
       return json({
         success: true,
         password_stored: true,
-        api_access_verified: apiAccessVerified,
-        api_warning: apiAccessVerified ? null : apiCheck?.ru_status_message ?? apiCheck?.error?.message ?? apiCheckError?.message ?? "Password stored, but Rentals United rejected this sub-user login on the API.",
+        api_access_verified: minted.ok,
+        key_minted: minted.ok,
+        access_key: minted.ok ? minted.accessKey : null,
+        rate_deferred: minted.rateDeferred === true,
+        retry_after_ms: minted.retryAfterMs ?? null,
+        error_code: minted.ok ? null : minted.code ?? null,
+        api_warning: minted.ok
+          ? null
+          : minted.rateDeferred
+            ? "Password stored. The channel is rate limiting key creation — it will be minted on the next attempt."
+            : minted.ruStatusMessage ?? minted.message ?? "Password stored, but Rentals United refused it when minting an API key.",
         login_email: canonicalEmail,
       });
+
     }
 
     // ── list_ru_candidates: every sub-user RU currently holds under our master account,
