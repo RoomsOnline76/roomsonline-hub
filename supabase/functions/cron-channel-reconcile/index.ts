@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
       for (const row of (listed ?? []) as { id: string }[]) {
         try {
           await admin.functions.invoke('ru-cert-portal', {
-            body: { action: 'property_readiness', property_id: row.id, probe_ari: true },
+            body: { action: 'property_readiness', property_id: row.id, probe_ari: false },
           });
           refreshed += 1;
         } catch (e) {

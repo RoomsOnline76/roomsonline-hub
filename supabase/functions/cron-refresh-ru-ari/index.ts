@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
         // ARI-only mode: availability + pricing for inventory already listed at RU. Static
         // content is not re-pushed, so a content shortfall can never stall the ARI refresh.
         const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
-          body: { property_id: prop.id, action: 'refresh_ari', trigger: 'cron_daily_ari' },
+          body: { property_id: prop.id, action: 'refresh_ari', trigger: 'cron_daily_ari', verify_readback: false, verify_discount_readback: false },
         });
 
         if (error) {
