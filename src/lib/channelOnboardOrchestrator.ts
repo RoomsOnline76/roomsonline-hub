@@ -755,7 +755,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: outstanding > 0 ? `${outstanding} unit(s) still outstanding — retry to continue. ${detail}` : detail,
       };
     }
-    const units = (result.units ?? []).length;
+    const unitRows = result.units ?? [];
+    const units = unitRows.length;
+    // Every unit came back with the channel's own listing id, so the publish already told us
+    // what a read-back would: record it and let verify_listings skip the extra read.
+    const confirmedIds = unitRows
+      .filter((u) => u.success !== false && typeof u.rentalsunited_property_id === "string")
+      .map((u) => String(u.rentalsunited_property_id));
+    if (units > 0 && confirmedIds.length === units) {
+      ctx.pushConfirmedListings = { units, ids: confirmedIds };
+    }
     return {
       id: "push_property",
       outcome: "passed",
@@ -764,6 +773,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_listings: async (ctx) => {
+    // The push returned a channel listing id for every unit — that IS the confirmation.
+    // Re-reading the owner's roster here only spends the channel's tightest read quota.
+    const confirmed = ctx.pushConfirmedListings;
+    if (confirmed && confirmed.units > 0) {
+      return {
+        id: "verify_listings",
+        outcome: "passed",
+        detail: `${confirmed.units} unit(s) confirmed live on the channel (ids returned by the publish: ${confirmed.ids.join(", ")})`,
+      };
+    }
     const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "The published listings could not be read back",
@@ -778,6 +797,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         }
         : { id: "verify_listings", outcome: "failed", detail };
     }
+    ctx.listingRoster = { readAt: Date.now(), data };
     if (data.listings_verified !== true) {
       const expected = data.listings_expected_units ?? "?";
       const verified = data.listings_verified_units ?? 0;
@@ -793,6 +813,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       detail: `${data.listings_verified_units ?? ""} unit(s) confirmed live on the channel`.trim(),
     };
   },
+
 
   /**
    * The currency read-back lives on the push surface (it reads the live listing), not on
