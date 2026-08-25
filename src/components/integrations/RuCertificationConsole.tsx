@@ -305,7 +305,8 @@ const USER_ENDPOINTS = [
     key: "verify_child_login",
     label: "verify_child_login",
     description:
-      "Probe the sub-user's own AccessKey/SecretKey against RU (Pull_ListBuildings under child auth). Must return verified:true before fill_company_details or building pushes will succeed. Legacy accounts may still pass auth_username + auth_password.",
+      "Probe the sub-user's own AccessKey/SecretKey against the channel (owner-scoped listing read when an owner_id is supplied). Must return verified:true before fill_company_details or building pushes will succeed. A key pair is required — portal passwords cannot be validated on the API surface.",
+
     route: "rentalsunited-api",
     defaultPayload: {
       action: "verify_child_login",

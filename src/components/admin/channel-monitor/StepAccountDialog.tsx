@@ -74,7 +74,13 @@ interface PortalErrorPayload {
   access_key?: string | null;
   login_email?: string | null;
   company_details_warning?: string | null;
+  /** save_login_password mints the key pair inline, so its verdict rides on the same reply. */
+  key_minted?: boolean;
+  rate_deferred?: boolean;
+  retry_after_ms?: number | null;
+  error_code?: string | null;
   error?: { code?: string; message?: string };
+
 }
 
 async function readFunctionPayload(error: unknown): Promise<PortalErrorPayload | null> {
@@ -278,7 +284,8 @@ export function StepAccountDialog({
   }, [activeRemedy?.remedy, open, remedyCode]);
 
 
-  // Store and verify the sub-account's own portal password without hiding key creation failures.
+  // Storing the password also mints the key pair — that mint is the only place the channel
+  // will tell us whether the password is right, so the save reports its verdict directly.
   const saveCredentials = useCallback(async () => {
     if (!planAccountId) return;
     setSavingCred(true);
@@ -297,29 +304,37 @@ export function StepAccountDialog({
         const message = data.error?.message ?? "The password could not be stored";
         setCredCode(code);
         setCredNote(message);
-        toast.error("Password was not verified", { description: message, duration: 12000 });
+        toast.error("Password was not stored", { description: message, duration: 12000 });
         return;
       }
 
       setPasswordStored(true);
       setPasswordVerified(data.api_access_verified === true);
       setCredPassword("");
-      if (data.api_access_verified === true) {
+      if (data.key_minted === true) {
+        setCredsStored(true);
         setKeyMintRefused(false);
-        setCredNote("Password stored and verified. You can now mint the API key pair.");
-        toast.success("Password stored and verified");
+        setCredNote("Password accepted — the API key pair was minted and stored.");
+        toast.success("Password accepted and key pair minted");
+        return;
+      }
+      if (data.rate_deferred === true) {
+        setKeyMintRefused(false);
+        setCredNote(data.api_warning ?? "Password stored. The channel is rate limiting key creation — it will be minted on the next attempt.");
+        toast.info("Password stored — minting queued", { description: data.api_warning ?? undefined, duration: 12000 });
         return;
       }
 
-      const warning = data.api_warning ?? "Password stored, but the channel refused the API login check.";
-      setCredCode("RU_CHILD_LOGIN_REJECTED");
+      const warning = data.api_warning ?? "Password stored, but the channel refused it when minting an API key.";
+      setCredCode(data.error_code ?? "RU_CREATE_KEY_BAD_LOGIN");
       setKeyMintRefused(true);
       setCredNote(warning);
-      toast.warning("Password stored", { description: warning, duration: 12000 });
+      toast.warning("Password was refused by the channel", { description: warning, duration: 14000 });
     } finally {
       setSavingCred(false);
     }
   }, [credEmail, credPassword, planAccountId]);
+
 
   const mintKeyPair = useCallback(async () => {
     if (!planAccountId) return;
@@ -394,32 +409,8 @@ export function StepAccountDialog({
     }
   }, [credEmail, manualAccessKey, manualSecretKey, planAccountId]);
 
-  const verifyStoredPassword = useCallback(async () => {
-    if (!planAccountId) return;
-    setSavingCred(true);
-    setCredNote(null);
-    setCredCode(null);
-    try {
-      const data = await invokeCertPortal({
-        action: "verify_login_password",
-        account_id: planAccountId,
-      }, "The saved password could not be verified.");
-      if (data.success === true && data.verified === true) {
-        setPasswordVerified(true);
-        setCredNote("Saved password verified. You can now mint the API key pair.");
-        toast.success("Saved password verified");
-        return;
-      }
-      const code = data.error?.code ?? "RU_CHILD_LOGIN_REJECTED";
-      const message = data.error?.message ?? "The saved password was rejected. Reset it in the portal and save it again here.";
-      setCredCode(code);
-      setKeyMintRefused(true);
-      setCredNote(message);
-      toast.warning("Saved password needs attention", { description: message, duration: 12000 });
-    } finally {
-      setSavingCred(false);
-    }
-  }, [planAccountId]);
+
+
 
   const editHref = `/properties/${propertyId}/edit?section=general&focus=company-information`;
 
@@ -634,14 +625,8 @@ export function StepAccountDialog({
                     onClick={saveCredentials}
                   >
                     {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Save &amp; verify password
+                    Save password &amp; mint keys
                   </Button>
-                  {planHasPassword ? (
-                    <Button size="sm" variant="outline" disabled={savingCred} onClick={verifyStoredPassword}>
-                      {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                      Verify saved password
-                    </Button>
-                  ) : null}
                   <Button
                     size="sm"
                     variant="outline"
@@ -649,13 +634,14 @@ export function StepAccountDialog({
                     onClick={mintKeyPair}
                   >
                     {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Mint key pair
+                    Retry mint with saved password
                   </Button>
                   {passwordVerified ? (
                     <Badge variant="outline" className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300">
-                      Password verified
+                      Password proven by mint
                     </Badge>
                   ) : null}
+
                 </div>
                 {showManualKeys ? (
                   <div className="rounded-md border border-border bg-muted/30 p-3">

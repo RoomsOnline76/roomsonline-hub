@@ -15,14 +15,31 @@ const PASSWORD_GUIDANCE =
   "If the password works in the portal but not here, keep it saved and use the API key fields below. Portal login and XML API key creation are separate checks.";
 
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
+  RU_CREATE_KEY_BAD_LOGIN: {
+    code: "RU_CREATE_KEY_BAD_LOGIN",
+    title: "Wrong sub-account password",
+    explain: "Minting the key pair is the only place the channel checks a sub-account password, and it refused this one.",
+    guidance: "Sign in to the channel portal as this sub-account to confirm the password — or reset it there — then save the working password below and minting runs again automatically.",
+    remedy: "password",
+    taskHint: "api_keys",
+  },
+  RU_PASSWORD_PROBE_UNSUPPORTED: {
+    code: "RU_PASSWORD_PROBE_UNSUPPORTED",
+    title: "Password cannot be tested on its own",
+    explain: "The channel no longer accepts password-only requests, so a password can only be proven by minting a key pair with it.",
+    guidance: "Save the password below — the key pair is minted straight away and its result is the verdict on the password.",
+    remedy: "password",
+    taskHint: "api_keys",
+  },
   RU_CREATE_KEY_FAILED: {
     code: "RU_CREATE_KEY_FAILED",
     title: "Key creation was refused",
     explain: "The portal password can be correct while the channel still refuses the API key-creation request.",
-    guidance: "Verify the saved password first. If verification passes but key creation is refused, generate an AccessKey/SecretKey in the channel portal while signed in as this sub-account and paste it here.",
+    guidance: "Re-save the password to mint again. If minting stays refused, generate an AccessKey/SecretKey in the channel portal while signed in as this sub-account and paste it here.",
     remedy: "api_keys",
     taskHint: "api_keys",
   },
+
   RU_CHILD_LOGIN_REJECTED: {
     code: "RU_CHILD_LOGIN_REJECTED",
     title: "Sub-account login was refused",

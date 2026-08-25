@@ -108,6 +108,26 @@ interface RunContext {
     warning: string | null;
     retryAfterMs: number | null;
   };
+  /**
+   * Set when a task in this run already sent the company profile (key provisioning does it
+   * as part of minting), so the company task never re-sends it in the same run.
+   */
+  companyPushedInRun?: boolean;
+  /** Set when the key pair was minted or ownership-probed in this run (verdict already in). */
+  keysProvenInRun?: boolean;
+
+  /**
+   * The sub-account's published listing roster, read once per run. `adopt_listings`,
+   * `review_listings` and `verify_listings` all ask the channel the same owner-scoped
+   * question; caching it here keeps a run to one read instead of three.
+   */
+  listingRoster?: {
+    readAt: number;
+    data: Record<string, unknown>;
+  };
+  /** RU property IDs the push itself confirmed per unit, used instead of a read-back. */
+  pushConfirmedListings?: { units: number; ids: string[] };
+
 }
 
 /** How the sub-account's key pair was resolved during account provisioning. */
@@ -119,6 +139,9 @@ const DEFAULT_RATE_WINDOW_MS = 60_000;
 
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_CREATE_KEY_FAILED",
+  "RU_CREATE_KEY_BAD_LOGIN",
+  "RU_PASSWORD_PROBE_UNSUPPORTED",
+
   "RU_CHILD_LOGIN_REJECTED",
   "NO_CHILD_CREDENTIALS",
   "NO_STORED_PASSWORD",
@@ -418,6 +441,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       warning: (data.key_warning as string | null) ?? null,
       retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
     };
+    // Minting sends the company profile as part of provisioning; remember that so the
+    // company task does not send Push_FillCompanyDetails_RQ a second time in this run.
+    if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
+
     // Always name the account that was used: operators need the OwnerID and login to
     // recognise it in the channel portal, not just "adopted" vs "created".
     const account = (data.account ?? null) as Record<string, unknown> | null;
@@ -450,12 +477,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // The account task mints the pair as part of creating the sub-account, so most runs
     // only report what already happened instead of making a second wire call.
     if (provisioning?.source === "minted") {
+      // A successful mint IS the credential verdict — the next task must not re-probe it.
+      ctx.keysProvenInRun = true;
       return {
         id: "api_keys",
         outcome: "passed",
         detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning.accessKey)}`,
       };
     }
+
     if (provisioning?.source === "existing" || snapshot.binding.keys_stored) {
       return {
         id: "api_keys",
@@ -489,12 +519,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       "Could not mint the sub-account key pair",
     );
     if (ok) {
+      ctx.keysProvenInRun = true;
+      if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
       return {
         id: "api_keys",
         outcome: "passed",
         detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel((data.access_key as string | null) ?? null)}`,
       };
     }
+
     return {
       id: "api_keys",
       outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
@@ -504,9 +537,32 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     };
   },
 
-  verify_keys: async (_ctx, snapshot) => {
+  verify_keys: async (ctx, snapshot) => {
     if (!snapshot.binding.ru_owner_id) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
+    }
+    // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
+    // rather than authenticating as a child we hold no credential for.
+    if (!snapshot.binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+      return {
+        id: "verify_keys",
+        outcome: "blocked",
+        code: "NO_API_KEYS",
+        detail: "No key pair is stored for this sub-account yet, so there is nothing to verify.",
+      };
+    }
+    // The mint (or the ownership probe on a pasted pair) already proved the credential in
+    // this run. Re-asking the channel spends its most rate-limited read on a known answer.
+    if (ctx.keysProvenInRun) {
+      const label = [
+        `OwnerID ${snapshot.binding.ru_owner_id}`,
+        snapshot.binding.login_email || snapshot.binding.owner_email || null,
+      ].filter(Boolean).join(" · ");
+      return {
+        id: "verify_keys",
+        outcome: "skipped",
+        detail: `Credentials proven when the key pair was minted — ${label}`,
+      };
     }
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
@@ -516,6 +572,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "The sub-account credentials did not verify",
     );
+    if (ok && data.company_details_pushed === true) ctx.companyPushedInRun = true;
     if (!ok) {
       return {
         id: "verify_keys",
@@ -525,6 +582,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         code,
       };
     }
+
     if (data.verified === false) {
       const rejectedCode = ((data.error as { code?: string } | undefined)?.code ?? "RU_CHILD_KEYS_REJECTED");
       return {
@@ -560,6 +618,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `Company profile already accepted${companyLabel}`,
       };
     }
+    // Key provisioning sends the company profile itself (it is the first write a fresh pair
+    // makes), so a second Push_FillCompanyDetails_RQ in the same run is pure duplication.
+    if (ctx.companyPushedInRun) {
+      return {
+        id: "company_profile",
+        outcome: "skipped",
+        detail: `Company profile sent with the credentials earlier in this run${companyLabel}`,
+      };
+    }
+
     const { ok, pending, retryAfterMs, detail, code } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
@@ -588,6 +656,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         code,
       };
     }
+    // Cache the roster: Step B's read-back asks the channel this exact owner-scoped
+    // question, so one run should only ever read it once.
+    ctx.listingRoster = { readAt: Date.now(), data };
+
     // Name the listings that were adopted — the IDs are what an operator cross-checks in
     // the channel portal, so a bare count is not enough to trust the adoption.
     const rows = Array.isArray(data.matched)
@@ -686,7 +758,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: outstanding > 0 ? `${outstanding} unit(s) still outstanding — retry to continue. ${detail}` : detail,
       };
     }
-    const units = (result.units ?? []).length;
+    const unitRows = result.units ?? [];
+    const units = unitRows.length;
+    // Every unit came back with the channel's own listing id, so the publish already told us
+    // what a read-back would: record it and let verify_listings skip the extra read.
+    const confirmedIds = unitRows
+      .filter((u) => u.success !== false && typeof u.rentalsunited_property_id === "string")
+      .map((u) => String(u.rentalsunited_property_id));
+    if (units > 0 && confirmedIds.length === units) {
+      ctx.pushConfirmedListings = { units, ids: confirmedIds };
+    }
     return {
       id: "push_property",
       outcome: "passed",
@@ -695,6 +776,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_listings: async (ctx) => {
+    // The push returned a channel listing id for every unit — that IS the confirmation.
+    // Re-reading the owner's roster here only spends the channel's tightest read quota.
+    const confirmed = ctx.pushConfirmedListings;
+    if (confirmed && confirmed.units > 0) {
+      return {
+        id: "verify_listings",
+        outcome: "passed",
+        detail: `${confirmed.units} unit(s) confirmed live on the channel (ids returned by the publish: ${confirmed.ids.join(", ")})`,
+      };
+    }
     const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "The published listings could not be read back",
@@ -709,6 +800,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         }
         : { id: "verify_listings", outcome: "failed", detail };
     }
+    ctx.listingRoster = { readAt: Date.now(), data };
     if (data.listings_verified !== true) {
       const expected = data.listings_expected_units ?? "?";
       const verified = data.listings_verified_units ?? 0;
@@ -724,6 +816,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       detail: `${data.listings_verified_units ?? ""} unit(s) confirmed live on the channel`.trim(),
     };
   },
+
 
   /**
    * The currency read-back lives on the push surface (it reads the live listing), not on
