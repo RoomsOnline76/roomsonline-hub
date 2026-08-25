@@ -78,9 +78,22 @@ export interface RuQueueDepth {
   nextAt: string | null;
 }
 
+export interface RuLiveTrafficErrors {
+  feed: string | null;
+  counters: string | null;
+  pulse: string | null;
+  queue: string | null;
+}
+
 const FEED_LIMIT = 120;
 const FEED_COLUMNS =
   "id, created_at, action, parent_action, trace_id, direction, property_id, ru_property_id, ru_owner_id, response_id, status_id, status_message, http_status, success, elapsed_ms, error_message, request_bytes, response_bytes, transport_status, request_xml, response_xml";
+const EMPTY_ERRORS: RuLiveTrafficErrors = {
+  feed: null,
+  counters: null,
+  pulse: null,
+  queue: null,
+};
 
 type RpcCall = (
   name: string,
@@ -131,7 +144,7 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
   const [connected, setConnected] = useState(false);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<RuLiveTrafficErrors>(EMPTY_ERRORS);
   const [lastEventAt, setLastEventAt] = useState<string | null>(null);
 
   const pausedRef = useRef(paused);
@@ -145,9 +158,10 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
       .limit(40)
       .returns<RuLiveTrafficRow[]>();
     if (feedError) {
-      setError(feedError.message);
+      setErrors((current) => ({ ...current, feed: feedError.message }));
       return;
     }
+    setErrors((current) => ({ ...current, feed: null }));
     setRows(data ?? []);
   }, []);
 
@@ -209,6 +223,8 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
       }
       mapped.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
       setCounters(mapped);
+    } else {
+      setCounters([]);
     }
 
     if (!pulseResult.error) {
@@ -226,6 +242,8 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
           resBytes: num(row.res_bytes),
         })),
       );
+    } else {
+      setPulse([]);
     }
 
     if (!queueResult.error) {
@@ -236,9 +254,16 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
         failed: queueRows.filter((r) => r.status === "failed").length,
         nextAt: queueRows.find((r) => r.status === "pending")?.not_before ?? null,
       });
+    } else {
+      setQueue(null);
     }
 
-    if (stats.error) setError(stats.error.message);
+    setErrors((current) => ({
+      ...current,
+      counters: stats.error?.message ?? null,
+      pulse: pulseResult.error?.message ?? null,
+      queue: queueResult.error?.message ?? null,
+    }));
   }, [hours]);
 
   useEffect(() => {
@@ -304,7 +329,7 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
     paused,
     setPaused,
     loading,
-    error,
+    errors,
     lastEventAt,
     refresh,
     clear: useCallback(() => setRows([]), []),

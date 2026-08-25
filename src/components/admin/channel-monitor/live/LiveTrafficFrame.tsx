@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useRuLiveTraffic, type RuLiveTrafficRow } from "@/hooks/useRuLiveTraffic";
+import { useRuLiveTraffic, type RuLiveTrafficErrors, type RuLiveTrafficRow } from "@/hooks/useRuLiveTraffic";
 import { adminUrl } from "@/lib/config";
 import { RU_ENDPOINT_CADENCE_LABELS, RU_ENDPOINT_FAMILY_LABELS, resolveRuEndpoint } from "@/config/ruEndpointLibrary";
 import { EndpointCounterTable } from "./EndpointCounterTable";
@@ -54,6 +54,27 @@ function bytes(value: number | null): string {
   return `${(value / 1024 / 1024).toFixed(2)} MB`;
 }
 
+function ReadErrorList({ errors }: { errors: RuLiveTrafficErrors }) {
+  const entries = [
+    ["Endpoint counters", errors.counters],
+    ["Live feed", errors.feed],
+    ["Pulse windows", errors.pulse],
+    ["Throttle queue", errors.queue],
+  ].filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0);
+
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+      {entries.map(([label, message]) => (
+        <p key={label}>
+          <span className="font-medium">{label} read failed:</span> {message}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 interface Props {
   /** In the popped-out window the pop-out button is pointless. */
   popped?: boolean;
@@ -70,7 +91,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
     paused,
     setPaused,
     loading,
-    error,
+    errors,
     lastEventAt,
     refresh,
     clear,
@@ -171,7 +192,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
             expectations are recorded.
           </p>
         ) : null}
-        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        <ReadErrorList errors={errors} />
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -187,6 +208,10 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                 <Skeleton key={i} className="h-14 w-full" />
               ))}
             </div>
+          ) : errors.feed ? (
+            <p className="p-6 text-center text-sm text-destructive">
+              Live feed read failed: {errors.feed}
+            </p>
           ) : filtered.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">
               No exchanges in the live window yet.
@@ -269,7 +294,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
           </div>
         ) : null}
 
-        <EndpointCounterTable counters={counters} />
+        <EndpointCounterTable counters={counters} error={errors.counters} />
       </CardContent>
     </Card>
   );

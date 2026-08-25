@@ -31,9 +31,10 @@ const FAMILY_ORDER: RuEndpointFamily[] = [
 
 interface Props {
   counters: RuEndpointCounter[];
+  error?: string | null;
 }
 
-export function EndpointCounterTable({ counters }: Props) {
+export function EndpointCounterTable({ counters, error }: Props) {
   const [open, setOpen] = useState(true);
   const [hideIdle, setHideIdle] = useState(false);
 
@@ -75,7 +76,7 @@ export function EndpointCounterTable({ counters }: Props) {
         <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium">
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           Endpoint counters (24 h)
-          <Badge variant="outline">{totals.calls} calls</Badge>
+          <Badge variant="outline">{error ? "read failed" : `${totals.calls} calls`}</Badge>
           {totals.failed > 0 ? (
             <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
               {totals.failed} failed
@@ -93,6 +94,11 @@ export function EndpointCounterTable({ counters }: Props) {
       </div>
 
       <CollapsibleContent className="mt-2 space-y-4">
+        {error ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            Endpoint counters read failed: {error}
+          </div>
+        ) : null}
         {grouped.map((group) => (
           <div key={group.key} className="rounded-md border">
             <p className="border-b bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
