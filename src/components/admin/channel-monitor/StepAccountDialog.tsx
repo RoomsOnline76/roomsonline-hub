@@ -580,7 +580,7 @@ export function StepAccountDialog({
 
           {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
           {planAccountId && !planHasKeys && (
-            <Card className="border-amber-500/50">
+            <Card className="border-amber-500/50" ref={credCardRef}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <KeyRound className="h-4 w-4" />
