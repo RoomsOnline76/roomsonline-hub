@@ -135,6 +135,16 @@ export function StageParse({ ctx }: { ctx: RunBuilderContext }) {
           </div>
         </CardContent>
       </Card>
+
+      {needsMapping.map((file) => (
+        <SourceFileMappingCard
+          key={file.id}
+          file={file}
+          busy={ctx.reparsingId === file.id || ctx.isProcessing}
+          onApply={ctx.onApplyMapping}
+        />
+      ))}
     </div>
   );
 }
+
