@@ -4475,6 +4475,8 @@ Deno.serve(async (req) => {
       accessKey?: string;
       code?: string;
       message?: string;
+      ruStatusId?: string | null;
+      ruStatusMessage?: string | null;
       rateDeferred?: boolean;
       retryAfterMs?: number;
     }> => {
@@ -4496,7 +4498,10 @@ Deno.serve(async (req) => {
       }
 
       const { data: created, error: createError } = await admin.functions.invoke("rentalsunited-api", { body: authBody });
-      const rawMessage = String(created?.error?.message ?? createError?.message ?? "");
+      const createErrBody = createError ? await readInvokeErrorBody(createError) : null;
+      const rawMessage = String(created?.error?.message ?? createErrBody?.error?.message ?? createError?.message ?? "");
+      const ruStatusId = created?.error?.ru_status_id ?? createErrBody?.error?.ru_status_id ?? null;
+      const ruStatusMessage = created?.ru_status_message ?? createErrBody?.ru_status_message ?? (rawMessage || null);
       if (createError || created?.success !== true || !created?.access_key || !created?.secret_key) {
         // A channel rate limit is a "come back shortly", never a failure: the caller
         // surfaces the countdown and the task resumes on its own.
@@ -4508,6 +4513,8 @@ Deno.serve(async (req) => {
           retryAfterMs: deferred ? Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000) : undefined,
           code: deferred ? "RU_RATE_DEFERRED" : "RU_CREATE_KEY_FAILED",
           message: rawMessage || "Rentals United did not return a new API key pair.",
+          ruStatusId,
+          ruStatusMessage,
         };
       }
 
@@ -4633,8 +4640,11 @@ Deno.serve(async (req) => {
       if (!minted.ok) {
         return json({
           success: false,
+          ru_status_id: minted.ruStatusId ?? null,
+          ru_status_message: minted.ruStatusMessage ?? null,
           error: {
             code: minted.code ?? "RU_CREATE_KEY_FAILED",
+            ru_status_id: minted.ruStatusId ?? null,
             message: minted.code === "NO_CHILD_CREDENTIALS"
               ? "No usable sub-user credential is stored. Save the sub-account's portal password here, or create the account under a fresh login, and the key pair is minted automatically."
               : minted.message ?? "Rentals United did not return a new API key pair.",
