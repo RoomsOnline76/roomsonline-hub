@@ -342,6 +342,10 @@ export interface OwnerAccountPlan {
   action?: string;
   adopt?: boolean;
   ru_owner_id?: string | null;
+  account_id?: string | null;
+  has_api_keys?: boolean;
+  has_stored_password?: boolean;
+
   [key: string]: unknown;
 }
 
