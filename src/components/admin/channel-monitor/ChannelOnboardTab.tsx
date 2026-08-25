@@ -717,6 +717,29 @@ export function ChannelOnboardTab({
                         )}
                       </p>
                       <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
+                      {remedy && (
+                        <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                          <p className="font-medium">{remedy.title}</p>
+                          <p className="mt-0.5">{remedy.explain}</p>
+                          <p className="mt-0.5">{remedy.guidance}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {remedy.editorSection && propertyId && (
+                              <Button asChild size="sm" variant="outline" className="h-6 text-[11px]">
+                                <a
+                                  href={`/properties/${propertyId}/edit?section=${remedy.editorSection}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open property editor
+                                </a>
+                              </Button>
+                            )}
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              Reference: {remedy.code}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
                         <div className="mt-1.5 space-y-1">
                           <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />
