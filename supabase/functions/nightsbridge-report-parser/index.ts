@@ -295,7 +295,9 @@ Deno.serve(async (req) => {
         const buffer = await download.data.arrayBuffer();
         parsed = await parseSourceFile(buffer, file.original_filename, {
           override: onlyFileId ? reviewerMapping : null,
+          overrideSheet: onlyFileId ? reviewerSheet : null,
         });
+
         // Auto-apply a remembered mapping when detection alone was not enough
         // and the header layout matches what the reviewer confirmed before.
         if (
