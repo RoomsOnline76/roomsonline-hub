@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, report_logo_url, cover_artwork_url, brand_primary, brand_secondary")
+      .select("room_count, report_logo_url, cover_artwork_url, brand_primary, brand_secondary, logo_invert")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
       sourceType: (run as unknown as { source_type?: string | null }).source_type ?? null,
       branding: {
         logoUrl: settings?.report_logo_url ?? null,
+        logoInvert: Boolean((settings as { logo_invert?: boolean } | null)?.logo_invert),
         coverArtworkUrl: settings?.cover_artwork_url ?? null,
         brandPrimary: settings?.brand_primary ?? null,
         brandSecondary: settings?.brand_secondary ?? null,

@@ -52,6 +52,8 @@ export interface DraftInputs {
 
 export interface DraftBranding {
   logoUrl: string | null;
+  /** Print the logo with inverted tones (white logos → black). */
+  logoInvert?: boolean;
   coverArtworkUrl: string | null;
   brandPrimary: string | null;
   brandSecondary: string | null;
@@ -204,11 +206,12 @@ const pageChrome = (
   sectionTitle: string,
   pageNumber: number,
   cadenceLabel: string,
+  logoInvert = false,
 ): { header: string; footer: string } => ({
   header: `
     <header class="page-head">
       <div class="brand">
-        ${logoUrl ? `<img class="logo" src="${esc(logoUrl)}" alt="" />` : ""}
+        ${logoUrl ? `<img class="logo${logoInvert ? " logo-invert" : ""}" src="${esc(logoUrl)}" alt="" />` : ""}
         <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
         <span class="brandline">roomsonline <span class="divider">|</span> ${esc(propertyName)}</span>
       </div>
@@ -831,7 +834,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     .join("");
 
   const chrome = (title: string, page: number) =>
-    pageChrome(propertyName, asOfLabel, branding.logoUrl, title, page, cadenceLabel);
+    pageChrome(
+      propertyName,
+      asOfLabel,
+      branding.logoUrl,
+      title,
+      page,
+      cadenceLabel,
+      Boolean(branding.logoInvert),
+    );
 
   // ── Pasted media (revenue-team screenshots) ───────────────────────────
   const mediaSlots = (options.media ?? []).filter((slot) => slot.images.length > 0);
@@ -1229,6 +1240,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   .brand { display: flex; align-items: center; gap: 3mm; min-width: 0; }
   .logo { height: 12mm; width: auto; max-width: 40mm; object-fit: contain; }
+  .logo-invert { filter: invert(1) hue-rotate(180deg); }
   .wreath-mark { height: 10mm; width: auto; object-fit: contain; }
   .cover .wreath-mark { height: 16mm; }
   .brandline { font-size: 10pt; letter-spacing: 0.02em; }
@@ -1489,7 +1501,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     <div class="brand">
       ${
         branding.logoUrl
-          ? `<img class="logo" src="${esc(branding.logoUrl)}" alt="" />`
+          ? `<img class="logo${branding.logoInvert ? " logo-invert" : ""}" src="${esc(branding.logoUrl)}" alt="" />`
           : ""
       }
       <img class="wreath-mark" src="${ROL_WREATH_URL}" alt="Rooms Online" />
@@ -1523,7 +1535,13 @@ ${pagesHtml}
     previous_as_of_date: options.previousAsOfDate,
     generated_at: new Date().toISOString(),
     room_count: snapshot.room_count,
-    branding: { primary, secondary, logo_url: branding.logoUrl, cover_url: branding.coverArtworkUrl },
+    branding: {
+      primary,
+      secondary,
+      logo_url: branding.logoUrl,
+      logo_invert: Boolean(branding.logoInvert),
+      cover_url: branding.coverArtworkUrl,
+    },
     months,
     totals: {
       otb_revenue: Math.round(totalOtb),
