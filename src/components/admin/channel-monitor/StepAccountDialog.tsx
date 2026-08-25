@@ -74,7 +74,13 @@ interface PortalErrorPayload {
   access_key?: string | null;
   login_email?: string | null;
   company_details_warning?: string | null;
+  /** save_login_password mints the key pair inline, so its verdict rides on the same reply. */
+  key_minted?: boolean;
+  rate_deferred?: boolean;
+  retry_after_ms?: number | null;
+  error_code?: string | null;
   error?: { code?: string; message?: string };
+
 }
 
 async function readFunctionPayload(error: unknown): Promise<PortalErrorPayload | null> {
