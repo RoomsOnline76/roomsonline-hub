@@ -70,6 +70,7 @@ import {
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
 
 interface PropertyOption {
   id: string;
