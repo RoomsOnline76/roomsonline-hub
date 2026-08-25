@@ -32,7 +32,15 @@ export function ContractOverrideModal({
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
-  const isValid = reason.trim().length >= 20 && confirmed;
+  const MIN_REASON = 10;
+  const trimmedReason = reason.trim();
+  const missing: string[] = [];
+  if (trimmedReason.length < MIN_REASON) {
+    missing.push(`a reason of at least ${MIN_REASON} characters`);
+  }
+  if (!confirmed) missing.push("the acknowledgement tick below");
+  const isValid = missing.length === 0;
+
 
   const handleConfirm = () => {
     if (isValid) {
@@ -84,12 +92,13 @@ export function ContractOverrideModal({
               id="override-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explain why the contract requirement is being bypassed (minimum 20 characters)..."
+              placeholder={`Explain why the contract requirement is being bypassed (minimum ${MIN_REASON} characters)...`}
               className="mt-1.5 min-h-[100px]"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              {reason.length}/20 characters minimum
+              {trimmedReason.length}/{MIN_REASON} characters minimum
             </p>
+
           </div>
 
           <div className="flex items-start gap-2">
@@ -105,7 +114,14 @@ export function ContractOverrideModal({
               I understand this property will be visible on the website without a
               signed contract and accept the associated risks.
             </Label>
-          </div>
+
+          {!isValid && (
+            <p className="text-xs text-orange-700">
+              To enable the override, still needed: {missing.join(" and ")}.
+            </p>
+          )}
+        </div>
+
         </div>
 
         <AlertDialogFooter>
