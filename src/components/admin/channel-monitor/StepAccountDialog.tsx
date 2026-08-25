@@ -237,7 +237,10 @@ export function StepAccountDialog({
   const planHasKeys = Boolean(plan?.has_api_keys) || credsStored;
   const planHasPassword = Boolean(plan?.has_stored_password) || passwordStored;
   const planLogin = String(plan?.existing_login_email ?? plan?.login_email ?? "");
-  const activeRemedy = useMemo(() => getStepARemedy(credCode ?? remedyCode), [credCode, remedyCode]);
+  const activeRemedy = useMemo(
+    () => resolveStepARemedy(credCode ?? remedyCode, credNote),
+    [credCode, credNote, remedyCode],
+  );
   const showManualKeys = useMemo(
     () => !planHasKeys && (keyMintRefused || activeRemedy?.remedy === "api_keys"),
     [activeRemedy?.remedy, keyMintRefused, planHasKeys],
