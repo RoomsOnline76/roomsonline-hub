@@ -600,6 +600,7 @@ export function StepAccountDialog({
                     <AlertDescription className="space-y-1 text-xs">
                       <p>{activeRemedy.explain}</p>
                       <p>{activeRemedy.guidance}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">Reference: {activeRemedy.code}</p>
                     </AlertDescription>
                   </Alert>
                 ) : null}
