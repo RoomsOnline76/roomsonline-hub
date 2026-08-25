@@ -100,6 +100,16 @@ type RpcCall = (
   args?: Record<string, unknown>,
 ) => Promise<{ data: unknown; error: { message: string } | null }>;
 
+interface RuCallQueueStatusRow {
+  status: string;
+  not_before: string;
+}
+
+interface QueueResult {
+  data: RuCallQueueStatusRow[] | null;
+  error: { message: string } | null;
+}
+
 interface EndpointStatsRow {
   action: string;
   direction: string;
@@ -128,6 +138,7 @@ interface PulseRow {
 }
 
 const num = (value: number | string | null | undefined): number => Number(value ?? 0) || 0;
+const errMsg = (error: unknown): string => (error instanceof Error ? error.message : "Read failed");
 
 export interface UseRuLiveTrafficOptions {
   /** Rolling window for the endpoint counter table. */
@@ -166,17 +177,31 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
   }, []);
 
   const loadAggregates = useCallback(async () => {
-    const rpc = supabase.rpc as unknown as RpcCall;
-    const [stats, pulseResult, queueResult] = await Promise.all([
-      rpc("ru_api_log_endpoint_stats", { _hours: hours }),
-      rpc("ru_api_log_traffic_pulse"),
+    const client = supabase as unknown as { rpc: RpcCall };
+    const [statsResult, pulseFetchResult, queueFetchResult] = await Promise.allSettled([
+      client.rpc("ru_api_log_endpoint_stats", { _hours: hours }),
+      client.rpc("ru_api_log_traffic_pulse"),
       supabase
         .from("ru_call_queue")
         .select("status, not_before")
         .in("status", ["pending", "claimed", "failed"])
         .order("not_before", { ascending: true })
-        .limit(500),
+        .limit(500)
+        .returns<RuCallQueueStatusRow[]>(),
     ]);
+
+    const stats =
+      statsResult.status === "fulfilled"
+        ? statsResult.value
+        : { data: null, error: { message: errMsg(statsResult.reason) } };
+    const pulseResult =
+      pulseFetchResult.status === "fulfilled"
+        ? pulseFetchResult.value
+        : { data: null, error: { message: errMsg(pulseFetchResult.reason) } };
+    const queueResult: QueueResult =
+      queueFetchResult.status === "fulfilled"
+        ? queueFetchResult.value
+        : { data: null, error: { message: errMsg(queueFetchResult.reason) } };
 
     if (!stats.error) {
       const statRows = (stats.data ?? []) as EndpointStatsRow[];
@@ -247,7 +272,7 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
     }
 
     if (!queueResult.error) {
-      const queueRows = (queueResult.data ?? []) as { status: string; not_before: string }[];
+      const queueRows = queueResult.data ?? [];
       setQueue({
         pending: queueRows.filter((r) => r.status === "pending").length,
         claimed: queueRows.filter((r) => r.status === "claimed").length,
