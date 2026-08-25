@@ -699,6 +699,11 @@ export function ChannelOnboardTab({
                 const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
                 const detail = live?.detail ?? recorded?.detail;
                 const taskWait = state === "pending" ? (live?.waitingUntil ?? stepWaiting?.until ?? 0) - nowTick : 0;
+                // Step B refusals name the missing input and link to the editor tab that owns it.
+                const remedy =
+                  step === "b" && (state === "failed" || state === "blocked")
+                    ? resolveStepBRemedy(taskCodes[task.id], detail)
+                    : null;
                 return (
                   <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
                     <TaskIcon state={state} />
