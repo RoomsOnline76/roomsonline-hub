@@ -617,6 +617,7 @@ export function StepAccountDialog({
                   <div>
                     <Label className="text-xs">Portal password</Label>
                     <Input
+                      ref={credPasswordRef}
                       className="mt-1 font-mono"
                       type="text"
                       value={credPassword}
