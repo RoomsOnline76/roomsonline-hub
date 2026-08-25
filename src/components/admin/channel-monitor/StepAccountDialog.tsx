@@ -180,6 +180,11 @@ export function StepAccountDialog({
   const [keyMintRefused, setKeyMintRefused] = useState(false);
   const [manualAccessKey, setManualAccessKey] = useState("");
   const [manualSecretKey, setManualSecretKey] = useState("");
+  // A credential remedy must land the operator on the field it needs, not just open the modal.
+  const credCardRef = useRef<HTMLDivElement | null>(null);
+  const credPasswordRef = useRef<HTMLInputElement | null>(null);
+
+
 
 
 
