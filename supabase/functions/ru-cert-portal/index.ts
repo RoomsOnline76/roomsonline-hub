@@ -3990,9 +3990,12 @@ Deno.serve(async (req) => {
       if (!account.ru_login_password_enc || !loginEmail || !ownerId) {
         return json({ success: false, error: { code: "RU_IDENTITY_INCOMPLETE", message: "A bound OwnerID, login email and stored password are required." } }, 422);
       }
-      // The only meaningful check is a real sub-user login on RU's XML surface: company
-      // details and building writes must authenticate AS the child (no <OwnerID> exists
-      // on those methods), so parent-scoped access proves nothing here.
+      // NO WIRE CALL HERE. RU cannot validate a portal password on its XML surface: the only
+      // read a password envelope could reach is the account-level Pull_ListBuildings_RQ, which
+      // RU refuses with its generic "Incorrect login or password" text regardless of whether
+      // the password is right — a guaranteed-failure call, and the most rate-limited method we
+      // have. The password's real verdict is Push_CreateApiKey_RQ (create_api_key), so this
+      // action now confirms retention/decryptability only.
       const { data: decryptedPw } = await admin.rpc("decrypt_sensitive_text", {
         encrypted_data: account.ru_login_password_enc,
       });
@@ -4003,16 +4006,6 @@ Deno.serve(async (req) => {
           error: { code: "DECRYPT_FAILED", message: "The stored RU password could not be decrypted by the backend." },
         }, 500);
       }
-      const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
-        body: {
-          action: "verify_child_login",
-          auth_username: loginEmail,
-          auth_password: decryptedPw,
-        },
-      });
-      const accepted = !verifyError && verified?.success === true && verified?.verified === true;
-      // A verified login is a PREREQUISITE for Push_FillCompanyDetails_RQ, never evidence
-      // that the company profile was sent — the status column stays untouched here.
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
@@ -4023,17 +4016,20 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `${accepted ? "Verified" : "Rejected"} Rentals United sub-user login for ${loginEmail} (OwnerID ${ownerId})`,
+        change_summary: `Stored Rentals United sub-user password retained for ${loginEmail} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
-      if (!accepted) {
-        return json({
-          success: false,
-          verified: false,
-          error: { code: "RU_CHILD_LOGIN_REJECTED", message: verified?.ru_status_message ?? verified?.error?.message ?? verifyError?.message ?? "Rentals United rejected this sub-user login on the API. Reset the password in the RU portal and save it here." },
-        }, 422);
-      }
-      return json({ success: true, verified: true, password_stored: true, api_access_verified: true, login_email: loginEmail, ru_owner_id: ownerId });
+      return json({
+        success: true,
+        verified: true,
+        password_stored: true,
+        // Deliberately not asserted: only minting a key pair can prove the password.
+        api_access_verified: null,
+        verdict_pending_on: "create_api_key",
+        login_email: loginEmail,
+        ru_owner_id: ownerId,
+      });
     }
+
 
     /**
      * ── save_api_keys: store a sub-user's own RU API key pair (encrypted) ──
