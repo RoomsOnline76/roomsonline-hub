@@ -60,6 +60,8 @@ export interface RuOwnerAccount {
   ru_owner_id: string | null;
   ru_user_id: string | null;
   ru_login_email: string | null;
+  ru_api_access_key?: string | null;
+  ru_api_secret_enc?: unknown;
   portfolio_id: string | null;
   property_id: string | null;
   scope: string | null;

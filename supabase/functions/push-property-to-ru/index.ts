@@ -156,7 +156,7 @@ async function readInvokeErrorBody(err: any): Promise<any | null> {
 }
 
 async function verifyListingsAfterPush(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   propertyId: string,
   /**
    * The caller's own bearer token. The nested console function used to receive the
@@ -826,7 +826,9 @@ async function applyImageVerification(
 function buildValidation(payload: Record<string, any>): Record<string, unknown> {
   const images: RuImage[] = (payload.images || []) as RuImage[];
   const rooms: { room_id: number; amenities: { id: number; count: number }[] }[] = payload.rooms || [];
-  const amenities: unknown[] = payload.amenities || [];
+  const amenities: Array<{ id?: number | string; count?: number; padded?: boolean }> = Array.isArray(payload.amenities)
+    ? payload.amenities as Array<{ id?: number | string; count?: number; padded?: boolean }>
+    : [];
   const maxGuests = payload.can_sleep_max || 0;
 
   // Photos: count + pixel size. Certification requires every photo to MEASURE at
@@ -2578,6 +2580,7 @@ async function verifyAvailability(
  * fires when a push looked like it failed, and it prevents a false negative.
  */
 let PRICE_READBACK_ENABLED = false;
+let DISCOUNT_READBACK_ENABLED = false;
 
 async function pushARI(supabase: any, ruPropertyId: number, property: PropertyRow, unitUnits: number = 1, unit?: UnitContext, childAuth: Record<string, unknown> = {}, currency?: CurrencyDecision | null) {
   const amenities = (property.amenities || {}) as Record<string, any>;
@@ -3150,28 +3153,37 @@ async function pushDiscounts(
       }
     }
 
-    // Verify (8.x) — diff requested vs returned
-    const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire, childAuth);
-    result.discounts_verification[`ru_${ruId}`] = verification;
-    console.log(`[push-property-to-ru] Discount verification RU ${ruId}: long_stay matches=${verification.long_stay?.matches ?? 'n/a'}, last_minute matches=${verification.last_minute?.matches ?? 'n/a'}`);
+    if (DISCOUNT_READBACK_ENABLED) {
+      // Certification/manual re-check only. ROL'OS authors discount ladders, so routine saves
+      // and the daily cadence do not pull the channel echo back after every push.
+      const verification = await verifyDiscounts(supabase, ruId, lsWire, lmWire, childAuth);
+      result.discounts_verification[`ru_${ruId}`] = verification;
+      console.log(`[push-property-to-ru] Discount verification RU ${ruId}: long_stay matches=${verification.long_stay?.matches ?? 'n/a'}, last_minute matches=${verification.last_minute?.matches ?? 'n/a'}`);
 
-    try {
-      await supabase.from('sync_logs').insert({
-        property_id: propertyId,
-        sync_type: 'discounts_verification',
-        status: result.discount_errors.length === 0 ? 'success' : 'partial',
-        message: `RU ${ruId}: long_stay ${verification.long_stay?.matches ?? 0}/${lsWire.length}, last_minute ${verification.last_minute?.matches ?? 0}/${lmWire.length}`,
-        metadata: {
-          ru_property_id: ruId,
-          requested: { long_stay: ladder.longStay, last_minute: ladder.lastMinute },
-          verification,
-          warnings: ladder.warnings,
-          unmapped: ladder.unmapped,
-          errors: result.discount_errors,
-        },
-      });
-    } catch (logErr) {
-      console.warn(`[push-property-to-ru] Failed to persist discount verification log:`, logErr);
+      try {
+        await supabase.from('sync_logs').insert({
+          property_id: propertyId,
+          sync_type: 'discounts_verification',
+          status: result.discount_errors.length === 0 ? 'success' : 'partial',
+          message: `RU ${ruId}: long_stay ${verification.long_stay?.matches ?? 0}/${lsWire.length}, last_minute ${verification.last_minute?.matches ?? 0}/${lmWire.length}`,
+          metadata: {
+            ru_property_id: ruId,
+            requested: { long_stay: ladder.longStay, last_minute: ladder.lastMinute },
+            verification,
+            warnings: ladder.warnings,
+            unmapped: ladder.unmapped,
+            errors: result.discount_errors,
+          },
+        });
+      } catch (logErr) {
+        console.warn(`[push-property-to-ru] Failed to persist discount verification log:`, logErr);
+      }
+    } else {
+      result.discounts_verification[`ru_${ruId}`] = {
+        skipped: true,
+        reason: 'discount_readback_not_requested',
+        requested: { long_stay: lsWire.length, last_minute: lmWire.length },
+      };
     }
   }
 
@@ -3201,6 +3213,7 @@ Deno.serve(async (req) => {
      * notification re-push leaves it off so no `Pull_ListPropertyPrices_RQ` is issued.
      */
     PRICE_READBACK_ENABLED = reqBody.verify_readback === true;
+    DISCOUNT_READBACK_ENABLED = reqBody.verify_discount_readback === true || reqBody.verify_readback === true;
     /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
@@ -3814,7 +3827,7 @@ Deno.serve(async (req) => {
 
         let pushOk = false;
         let pushError: string | null = null;
-        if (!dryRun && flipped !== 'failed') {
+        if (!dryRun) {
           const { data: pushResult, error: pushErr } = await supabase.functions.invoke('push-property-to-ru', {
             body: { property_id: p.id },
           });
@@ -3842,7 +3855,7 @@ Deno.serve(async (req) => {
           ),
           push_ok: pushOk,
           push_error: pushError,
-          success: !dryRun ? (pushOk && flipped !== 'failed') : true,
+          success: !dryRun ? pushOk : true,
         });
 
 
@@ -3923,25 +3936,6 @@ Deno.serve(async (req) => {
         JSON.stringify({ success: true, message: `Reconciled ${okCount}/${results.length} RU properties`, results }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
-    }
-
-
-    // Optional: subscribe RLNM before pushing
-    if (subscribe_rlnm) {
-      const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
-      console.log(`[push-property-to-ru] Subscribing RLNM handler: ${handlerUrl}`);
-      try {
-        const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'subscribe_notifications', handler_url: handlerUrl },
-        });
-        if (rlnmErr || !rlnmResult?.success) {
-          console.warn(`[push-property-to-ru] RLNM subscription failed:`, rlnmErr?.message || rlnmResult?.error?.message);
-        } else {
-          console.log(`[push-property-to-ru] RLNM subscription OK`);
-        }
-      } catch (e) {
-        console.warn(`[push-property-to-ru] RLNM error:`, e instanceof Error ? e.message : e);
-      }
     }
 
     if (!property_id) {
@@ -4226,7 +4220,7 @@ Deno.serve(async (req) => {
         if (plain) { childAccessKey = String(credRow.access_key); childSecretKey = plain; }
       }
       if (!childAccessKey && ownerAccount?.ru_api_access_key) {
-        const plain = await decryptSecret((ownerAccount as Record<string, unknown>).ru_api_secret_enc);
+        const plain = await decryptSecret(ownerAccount.ru_api_secret_enc);
         if (plain) { childAccessKey = String(ownerAccount.ru_api_access_key); childSecretKey = plain; }
       }
     }
@@ -4665,6 +4659,29 @@ Deno.serve(async (req) => {
       `[push-property-to-ru] RU OwnerID ${ruOwnerId} (scope=${phaseGate.owner_scope}, portfolio=${phaseGate.portfolio_id ?? 'none'}), CurrencyID=${currencyId}, LocationID=${locationId}`,
     );
 
+    // Optional account-level RLNM subscription. Never run this before the push gate: a blocked
+    // or not-yet-enabled property must not burn the channel's handler-registration rate window.
+    if (subscribe_rlnm && dry_run !== true) {
+      if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
+        console.warn(`[push-property-to-ru] Skipping RLNM subscription for ${property_id}: channel gate is not operational`);
+      } else {
+        const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
+        console.log(`[push-property-to-ru] Subscribing RLNM handler for owner ${ruOwnerId}: ${handlerUrl}`);
+        try {
+          const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: 'subscribe_notifications', handler_url: handlerUrl, ...childAuthPayload },
+          });
+          if (rlnmErr || !rlnmResult?.success) {
+            console.warn(`[push-property-to-ru] RLNM subscription failed:`, rlnmErr?.message || rlnmResult?.error?.message);
+          } else {
+            console.log(`[push-property-to-ru] RLNM subscription OK`);
+          }
+        } catch (e) {
+          console.warn(`[push-property-to-ru] RLNM error:`, e instanceof Error ? e.message : e);
+        }
+      }
+    }
+
     // ── MULTI-UNIT BUILDING FLOW ─────────────────────────────
     if (isMultiUnit) {
       console.log(`[push-property-to-ru] Multi-unit mode: ${activeRoomTypes.length} units for "${property.name}"`);
@@ -4833,7 +4850,7 @@ Deno.serve(async (req) => {
           const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId, propertyCharges), distances: propertyDistances };
-          unitPayload.owner_id = ruOwnerId;
+          unitPayload.owner_id = ruOwnerId ?? 0;
           const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
           if (unitImageIssues.length > 0) {
             console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
@@ -5060,7 +5077,7 @@ Deno.serve(async (req) => {
          */
         if (remainingUnitIds.length > 0 && !Array.isArray(only_unit_ids)) {
           await enqueueJob(
-            supabase,
+            supabase as unknown as Parameters<typeof enqueueJob>[0],
             'channel_publish_units',
             { property_id, unit_ids: remainingUnitIds },
             {
@@ -5239,7 +5256,7 @@ Deno.serve(async (req) => {
         if (unitImageIssues.length > 0) {
           console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
         }
-        unitPayload.owner_id = ruOwnerId;
+        unitPayload.owner_id = ruOwnerId ?? 0;
 
         // Attach the building's ObjectTypeID for this unit's name (required when BuildingID is set).
         // RU's Push_PutBuilding_RS does NOT return UnitsComposition IDs and Pull_GetBuilding_RQ is
@@ -5449,7 +5466,7 @@ Deno.serve(async (req) => {
 
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId, propertyCharges), distances: propertyDistances };
-    ruPayload.owner_id = ruOwnerId;
+    ruPayload.owner_id = ruOwnerId ?? 0;
     const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
     if (singleImageIssues.length > 0) {
       console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
