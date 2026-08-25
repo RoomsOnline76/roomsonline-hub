@@ -653,6 +653,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         code,
       };
     }
+    // Cache the roster: Step B's read-back asks the channel this exact owner-scoped
+    // question, so one run should only ever read it once.
+    ctx.listingRoster = { readAt: Date.now(), data };
+
     // Name the listings that were adopted — the IDs are what an operator cross-checks in
     // the channel portal, so a bare count is not enough to trust the adoption.
     const rows = Array.isArray(data.matched)
