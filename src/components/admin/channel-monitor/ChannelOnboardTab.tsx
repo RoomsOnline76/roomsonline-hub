@@ -70,6 +70,7 @@ import {
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
 
 interface PropertyOption {
   id: string;
@@ -204,6 +205,8 @@ export function ChannelOnboardTab({
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
+  /** Last stop code per task, so a refused task can show its own remedy card inline. */
+  const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
 
 
   const [rebindEmail, setRebindEmail] = useState("");
@@ -420,6 +423,7 @@ export function ChannelOnboardTab({
       setRunningStep(step);
       setPushProgress(null);
       setWaiting((prev) => ({ ...prev, [step]: undefined }));
+      setTaskCodes({});
       setTaskStates((prev) => {
         const next = { ...prev };
         const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
@@ -452,6 +456,15 @@ export function ChannelOnboardTab({
         // open on the chooser so the operator can pick or type a usable address.
         const conflict = result.results.find((r) => r.code === "RU_EMAIL_IN_USE");
         const stepABlocker = step === "a" ? result.results.find((r) => r.outcome === "blocked" && r.code) : null;
+        // Keep every stop code so a refused task renders its own remedy instead of a bare line.
+        setTaskCodes((prev) => {
+          const next = { ...prev };
+          for (const entry of result.results) {
+            next[entry.id] =
+              entry.outcome === "failed" || entry.outcome === "blocked" ? entry.code ?? "UNKNOWN" : null;
+          }
+          return next;
+        });
         if (conflict) {
           setEmailConflict({
             email: chosenLoginEmail || String(plan?.login_email ?? ""),
@@ -686,6 +699,11 @@ export function ChannelOnboardTab({
                 const state: TaskState["state"] = live?.state ?? recorded?.outcome ?? "idle";
                 const detail = live?.detail ?? recorded?.detail;
                 const taskWait = state === "pending" ? (live?.waitingUntil ?? stepWaiting?.until ?? 0) - nowTick : 0;
+                // Step B refusals name the missing input and link to the editor tab that owns it.
+                const remedy =
+                  step === "b" && (state === "failed" || state === "blocked")
+                    ? resolveStepBRemedy(taskCodes[task.id], detail)
+                    : null;
                 return (
                   <div key={task.id} className="flex items-start gap-2 rounded-md border p-2.5">
                     <TaskIcon state={state} />
@@ -699,6 +717,29 @@ export function ChannelOnboardTab({
                         )}
                       </p>
                       <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
+                      {remedy && (
+                        <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
+                          <p className="font-medium">{remedy.title}</p>
+                          <p className="mt-0.5">{remedy.explain}</p>
+                          <p className="mt-0.5">{remedy.guidance}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            {remedy.editorSection && propertyId && (
+                              <Button asChild size="sm" variant="outline" className="h-6 text-[11px]">
+                                <a
+                                  href={`/properties/${propertyId}/edit?section=${remedy.editorSection}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Open property editor
+                                </a>
+                              </Button>
+                            )}
+                            <span className="font-mono text-[10px] text-muted-foreground">
+                              Reference: {remedy.code}
+                            </span>
+                          </div>
+                        </div>
+                      )}
                       {task.id === "push_property" && pushProgress && pushProgress.total > 0 && state === "running" && (
                         <div className="mt-1.5 space-y-1">
                           <Progress value={(pushProgress.pushed / pushProgress.total) * 100} className="h-1.5" />

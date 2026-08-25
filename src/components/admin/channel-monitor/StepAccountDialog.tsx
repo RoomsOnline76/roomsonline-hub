@@ -12,7 +12,7 @@
  * when the profile is missing or not yet accepted.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   AlertTriangle,
@@ -46,7 +46,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { extractFunctionError } from "@/lib/functionError";
-import { getStepARemedy } from "@/config/channelStepARemedies";
+import { resolveStepARemedy } from "@/config/channelStepARemedies";
 import { toast } from "sonner";
 
 
@@ -180,6 +180,11 @@ export function StepAccountDialog({
   const [keyMintRefused, setKeyMintRefused] = useState(false);
   const [manualAccessKey, setManualAccessKey] = useState("");
   const [manualSecretKey, setManualSecretKey] = useState("");
+  // A credential remedy must land the operator on the field it needs, not just open the modal.
+  const credCardRef = useRef<HTMLDivElement | null>(null);
+  const credPasswordRef = useRef<HTMLInputElement | null>(null);
+
+
 
 
 
@@ -237,7 +242,10 @@ export function StepAccountDialog({
   const planHasKeys = Boolean(plan?.has_api_keys) || credsStored;
   const planHasPassword = Boolean(plan?.has_stored_password) || passwordStored;
   const planLogin = String(plan?.existing_login_email ?? plan?.login_email ?? "");
-  const activeRemedy = useMemo(() => getStepARemedy(credCode ?? remedyCode), [credCode, remedyCode]);
+  const activeRemedy = useMemo(
+    () => resolveStepARemedy(credCode ?? remedyCode, credNote),
+    [credCode, credNote, remedyCode],
+  );
   const showManualKeys = useMemo(
     () => !planHasKeys && (keyMintRefused || activeRemedy?.remedy === "api_keys"),
     [activeRemedy?.remedy, keyMintRefused, planHasKeys],
@@ -255,6 +263,20 @@ export function StepAccountDialog({
     setManualAccessKey("");
     setManualSecretKey("");
   }, [plan?.has_stored_password, planAccountId, planLogin]);
+
+  // A credential/key remedy scrolls the card into view and focuses the password field, so the
+  // operator is asked for exactly the value the channel refused instead of hunting for it.
+  useEffect(() => {
+    if (!open) return;
+    const needsInput = activeRemedy?.remedy === "password" || activeRemedy?.remedy === "api_keys";
+    if (!needsInput || !remedyCode) return;
+    const timer = window.setTimeout(() => {
+      credCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      credPasswordRef.current?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [activeRemedy?.remedy, open, remedyCode]);
+
 
   // Store and verify the sub-account's own portal password without hiding key creation failures.
   const saveCredentials = useCallback(async () => {
@@ -558,7 +580,7 @@ export function StepAccountDialog({
 
           {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
           {planAccountId && !planHasKeys && (
-            <Card className="border-amber-500/50">
+            <Card className="border-amber-500/50" ref={credCardRef}>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <KeyRound className="h-4 w-4" />
@@ -578,6 +600,7 @@ export function StepAccountDialog({
                     <AlertDescription className="space-y-1 text-xs">
                       <p>{activeRemedy.explain}</p>
                       <p>{activeRemedy.guidance}</p>
+                      <p className="font-mono text-[10px] text-muted-foreground">Reference: {activeRemedy.code}</p>
                     </AlertDescription>
                   </Alert>
                 ) : null}
@@ -595,6 +618,7 @@ export function StepAccountDialog({
                   <div>
                     <Label className="text-xs">Portal password</Label>
                     <Input
+                      ref={credPasswordRef}
                       className="mt-1 font-mono"
                       type="text"
                       value={credPassword}

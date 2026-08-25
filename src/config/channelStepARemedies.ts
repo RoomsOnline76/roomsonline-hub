@@ -134,9 +134,102 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     guidance: "Wait for the countdown. Step A will resume automatically.",
     remedy: "retry",
   },
+  RATE_LIMITED: {
+    code: "RATE_LIMITED",
+    title: "Waiting on the channel",
+    explain: "The channel allows one identical read per sliding window and this call arrived early.",
+    guidance: "Wait for the countdown — the step resumes on its own. No input is needed.",
+    remedy: "retry",
+  },
+  RU_CREATE_USER_FAILED: {
+    code: "RU_CREATE_USER_FAILED",
+    title: "The sub-account could not be created",
+    explain: "The channel refused the new login — usually the email format, a password it considers weak, or a login that already exists.",
+    guidance: "Enter a fresh distribution login in this dialog, or adopt the existing account if that email is already ours.",
+    remedy: "login_choice",
+    taskHint: "owner_account",
+  },
+  RU_NOT_LISTED: {
+    code: "RU_NOT_LISTED",
+    title: "Account is detached from the master account",
+    explain: "The OwnerID exists at the channel but is no longer listed under our master account, so we cannot act on it.",
+    guidance: "Re-assign this property to a visible sub-account, or create a fresh distribution login below.",
+    remedy: "binding",
+    taskHint: "owner_account",
+  },
+  RU_NO_OWNER_ID: {
+    code: "RU_NO_OWNER_ID",
+    title: "OwnerID is missing",
+    explain: "The channel did not return an OwnerID for this login, so nothing can be bound yet.",
+    guidance: "Run Step A again. If it repeats, create the account under a fresh login.",
+    remedy: "fresh_login",
+    taskHint: "owner_account",
+  },
+  NO_API_KEYS: {
+    code: "NO_API_KEYS",
+    title: "API key pair needed",
+    explain: "No AccessKey/SecretKey pair is stored for this sub-account.",
+    guidance: "Save the portal password to mint the pair automatically, or paste a pair generated in the portal for this sub-account.",
+    remedy: "api_keys",
+    taskHint: "api_keys",
+  },
+  NO_RU_LOCATION: {
+    code: "NO_RU_LOCATION",
+    title: "Channel location cannot be resolved",
+    explain: "The property's city/country does not map to a channel location.",
+    guidance: "Set the city and country on the property editor, save, then run Step A again.",
+    remedy: "retry",
+    taskHint: "owner_account",
+  },
+  PASSWORD_RETENTION_FAILED: {
+    code: "PASSWORD_RETENTION_FAILED",
+    title: "The password could not be stored",
+    explain: "The credential store rejected the value before it reached the channel.",
+    guidance: "Re-enter the password below. Avoid leading or trailing spaces.",
+    remedy: "password",
+    taskHint: "api_keys",
+  },
+  DECRYPT_FAILED: {
+    code: "DECRYPT_FAILED",
+    title: "Stored credential is unreadable",
+    explain: "The stored password or key pair can no longer be decrypted.",
+    guidance: "Save the portal password again below so a fresh credential is stored.",
+    remedy: "password",
+    taskHint: "api_keys",
+  },
+  RU_CALL_FAILED: {
+    code: "RU_CALL_FAILED",
+    title: "The channel did not answer",
+    explain: "A transport or channel-side outage interrupted the call. Nothing was refused on our data.",
+    guidance: "Retry the step. No information is needed from you.",
+    remedy: "retry",
+  },
 };
 
 export function getStepARemedy(code: string | null | undefined): StepARemedy | null {
   if (!code) return null;
   return CHANNEL_STEP_A_REMEDIES[code] ?? null;
+}
+
+/**
+ * Always hand back guidance. An unmapped code must never surface as a bare status line, so
+ * it falls back to a generic card that still says what to do next and keeps the raw detail.
+ */
+export function resolveStepARemedy(
+  code: string | null | undefined,
+  detail?: string | null,
+): StepARemedy | null {
+  if (!code) return null;
+  const known = CHANNEL_STEP_A_REMEDIES[code];
+  if (known) return known;
+  return {
+    code,
+    title: "The channel refused this step",
+    explain: detail?.trim()
+      ? detail.trim()
+      : "The channel rejected the request without a recognised reason code.",
+    guidance:
+      "Check the sub-account login and password below, confirm the company details, then retry the step. If it repeats, capture the reference code shown and review the live traffic monitor.",
+    remedy: "retry",
+  };
 }
