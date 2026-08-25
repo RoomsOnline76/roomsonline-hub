@@ -2635,11 +2635,30 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
+        // A refusal here IS the password verdict (this is the only call that can give one),
+        // so name it distinctly: the UI opens the password field on this code.
+        if (/incorrect login|incorrect password|login or password/i.test(String(status.message ?? ''))) {
+          return jsonResponse({
+            success: false,
+            auth_mode: childAuthMode(childAuth),
+            ru_status_id: status.id ?? null,
+            ru_status_message: status.message ?? null,
+            error: {
+              code: 'RU_CREATE_KEY_BAD_LOGIN',
+              code_detail: 'RU_CREATE_KEY_BAD_LOGIN',
+              ru_status_id: status.id ?? null,
+              message: childAuth.mode === 'keys'
+                ? 'Rentals United refused the stored key pair when minting a new key. Regenerate the pair in the channel portal and save it here.'
+                : 'Rentals United refused this sub-account login. Reset the sub-account password in the channel portal and save the new password here.',
+            },
+          }, 422);
+        }
         return ruErrorResponse(
           status,
           buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'create_child_api_key', response),
         );
       }
+
       const accessKey = response.match(/<AccessKey>([\s\S]*?)<\/AccessKey>/i)?.[1]?.trim() ?? null;
       const secretKey = response.match(/<SecretKey>([\s\S]*?)<\/SecretKey>/i)?.[1]?.trim() ?? null;
       return jsonResponse({
