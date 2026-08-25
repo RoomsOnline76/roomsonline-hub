@@ -1,0 +1,1 @@
+ALTER TABLE public.property_report_settings ADD COLUMN IF NOT EXISTS logo_invert boolean NOT NULL DEFAULT false;
