@@ -205,6 +205,8 @@ export function ChannelOnboardTab({
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
+  /** Last stop code per task, so a refused task can show its own remedy card inline. */
+  const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
 
 
   const [rebindEmail, setRebindEmail] = useState("");
