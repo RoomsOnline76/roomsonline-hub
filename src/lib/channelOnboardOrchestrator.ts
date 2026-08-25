@@ -113,6 +113,9 @@ interface RunContext {
    * as part of minting), so the company task never re-sends it in the same run.
    */
   companyPushedInRun?: boolean;
+  /** Set when the key pair was minted or ownership-probed in this run (verdict already in). */
+  keysProvenInRun?: boolean;
+
   /**
    * The sub-account's published listing roster, read once per run. `adopt_listings`,
    * `review_listings` and `verify_listings` all ask the channel the same owner-scoped
