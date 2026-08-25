@@ -6567,9 +6567,31 @@ Deno.serve(async (req) => {
           );
         }
 
+        /**
+         * Credential state of the bound account, so the preview modal can take the
+         * sub-account portal password inline (and mint the key pair from it) instead of
+         * sending the operator to another tab.
+         */
+        const planAccountId = String((existing.account as any)?.id ?? "") || null;
+        const planAccountOwnerId = adoptOwnerId || null;
+        let planHasKeys = Boolean(String((existing.account as any)?.ru_api_access_key ?? "").trim());
+        if (!planHasKeys && planAccountOwnerId) {
+          const { data: credRow } = await admin
+            .from("ru_api_credentials")
+            .select("access_key")
+            .eq("ru_owner_id", String(planAccountOwnerId))
+            .maybeSingle();
+          planHasKeys = Boolean(credRow?.access_key);
+        }
+        const planHasPassword = Boolean((existing.account as any)?.ru_login_password_enc);
+
         return json({
           success: true,
           plan: {
+            account_id: planAccountId,
+            has_api_keys: planHasKeys,
+            has_stored_password: planHasPassword,
+
             can_create: locationIds.length > 0,
             blocked_reason: locationIds.length === 0 ? NO_LOCATION_MESSAGE : null,
             outcome,
