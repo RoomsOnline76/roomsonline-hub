@@ -471,12 +471,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // The account task mints the pair as part of creating the sub-account, so most runs
     // only report what already happened instead of making a second wire call.
     if (provisioning?.source === "minted") {
+      // A successful mint IS the credential verdict — the next task must not re-probe it.
+      ctx.keysProvenInRun = true;
       return {
         id: "api_keys",
         outcome: "passed",
         detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning.accessKey)}`,
       };
     }
+
     if (provisioning?.source === "existing" || snapshot.binding.keys_stored) {
       return {
         id: "api_keys",
