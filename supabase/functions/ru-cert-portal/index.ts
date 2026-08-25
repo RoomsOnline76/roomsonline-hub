@@ -4345,12 +4345,15 @@ Deno.serve(async (req) => {
       if (!accountId && !suppliedOwnerId) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "account_id or ru_owner_id is required" } }, 400);
       }
+      /** Anything verified inside this window is not re-probed on the wire. */
+      const KEYS_VERIFY_TTL_MS = 6 * 60 * 60 * 1000;
+      const forceFresh = body.force_fresh === true;
 
       let account: Record<string, any> | null = null;
       if (accountId) {
         const { data } = await admin
           .from("ru_owner_accounts")
-          .select("id, owner_email, ru_login_email, ru_owner_id, ru_api_access_key, ru_api_secret_enc")
+          .select("id, owner_email, ru_login_email, ru_owner_id, ru_api_access_key, ru_api_secret_enc, ru_api_keys_verified_at")
           .eq("id", accountId)
           .maybeSingle();
         if (!data) return json({ success: false, error: { code: "NOT_FOUND", message: "RU owner account not found" } }, 404);
@@ -4361,17 +4364,19 @@ Deno.serve(async (req) => {
       let accessKey: string | null = null;
       let secretEnc: unknown = null;
       let loginEmail: string | null = account?.ru_login_email ?? account?.owner_email ?? null;
+      let storedVerifiedAt: string | null = (account?.ru_api_keys_verified_at as string | null) ?? null;
 
       if (ownerId) {
         const { data: credRow } = await admin
           .from("ru_api_credentials")
-          .select("access_key, secret_enc, login_email")
+          .select("access_key, secret_enc, login_email, verified_at")
           .eq("ru_owner_id", ownerId)
           .maybeSingle();
         if (credRow?.access_key) {
           accessKey = String(credRow.access_key);
           secretEnc = credRow.secret_enc;
           loginEmail = credRow.login_email ?? loginEmail;
+          storedVerifiedAt = (credRow.verified_at as string | null) ?? storedVerifiedAt;
         }
       }
       if (!accessKey && account?.ru_api_access_key && account?.ru_api_secret_enc) {
@@ -4388,14 +4393,49 @@ Deno.serve(async (req) => {
         }, 409);
       }
 
+      /**
+       * Minting (Push_CreateApiKey_RQ) and pasting (verify_child_key_owner) both prove the
+       * pair and stamp verified_at. Re-probing straight afterwards asked the channel a
+       * question we already had answered, on its most rate-limited surface. Report the
+       * stored verdict while it is fresh; only go to the wire when it is missing or stale.
+       */
+      const stampAgeMs = storedVerifiedAt ? Date.now() - new Date(storedVerifiedAt).getTime() : Number.POSITIVE_INFINITY;
+      if (!forceFresh && Number.isFinite(stampAgeMs) && stampAgeMs >= 0 && stampAgeMs < KEYS_VERIFY_TTL_MS) {
+        await recordLedgerPassForOwnerAccount(
+          admin,
+          { accountId: account?.id ?? null, ownerId },
+          ["keys"],
+          "keys_verified",
+        );
+        const companyCached = await provisionCompanyAfterKeyVerification();
+        return json({
+          success: true,
+          verified: true,
+          verified_from_stamp: true,
+          verified_at: storedVerifiedAt,
+          login_email: loginEmail,
+          ru_owner_id: ownerId,
+          company_details_pushed: companyCached.pushed,
+          company_details_pushed_at: companyCached.pushedAt,
+          company_details_warning: companyCached.warning,
+        });
+      }
+
       const { data: secret } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: secretEnc });
       if (!secret || secret === "[ENCRYPTED]" || secret === "[DECRYPTION_ERROR]") {
         return json({ success: false, verified: false, error: { code: "DECRYPT_FAILED", message: "The stored secret key could not be decrypted." } }, 500);
       }
+      // Owner-scoped probe (Pull_ListOwnerProp_RQ) — never the account-level buildings read.
       const { data: verified, error: verifyError } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "verify_child_login", auth_access_key: accessKey, auth_secret_key: secret },
+        body: {
+          action: "verify_child_login",
+          auth_access_key: accessKey,
+          auth_secret_key: secret,
+          ...(ownerId ? { owner_id: ownerId } : {}),
+        },
       });
       const accepted = !verifyError && verified?.success === true && verified?.verified === true;
+
       const stamp = accepted ? new Date().toISOString() : null;
       if (ownerId) {
         await admin.from("ru_api_credentials").update({ verified_at: stamp }).eq("ru_owner_id", ownerId);
