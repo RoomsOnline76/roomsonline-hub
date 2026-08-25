@@ -2510,15 +2510,19 @@ Deno.serve(async (req) => {
     }
 
     // ── verify_child_login ──
-    // Real sub-user login test on RU's XML surface. Prefers the sub-user's own API keys
-    // (mandatory for accounts created after RU's Nov-2025 API-keys rollout) and falls back
-    // to the legacy UserName/Password envelope for older accounts.
+    // Real sub-user login test on RU's XML surface, KEY PAIR ONLY.
     //
-    // When an owner_id is supplied with a key pair we probe the OWNER-SCOPED listing read
-    // (Pull_ListOwnerProp_RQ) instead of the account-level Pull_ListBuildings_RQ: buildings
-    // is the single most rate-limited method we call (identical parameters every time) and a
-    // fresh sub-user key pair can be refused there with RU's generic "Incorrect login or
-    // password" text even though the pair is fine for its own inventory.
+    // Since RU's API-keys rollout a UserName/Password envelope is refused on the read
+    // surfaces, and the only account-level read available to it (Pull_ListBuildings_RQ,
+    // no OwnerID) is also the most rate-limited method we call. Probing with a password
+    // therefore returned "Incorrect login or password" whether or not the password was
+    // right — a guaranteed-failure call made before any key pair exists. The password's
+    // only real verdict is Push_CreateApiKey_RQ (create_child_api_key), so password-mode
+    // probes are refused here instead of burning a doomed buildings read.
+    //
+    // With keys we probe the OWNER-SCOPED listing read (Pull_ListOwnerProp_RQ) whenever an
+    // owner_id is supplied: a fresh pair can be refused on buildings with RU's generic auth
+    // text even though the pair is fine for its own inventory.
     if (action === 'verify_child_login') {
       const childAuth = await resolveChildAuth(body);
       if (!childAuth) {
@@ -2527,12 +2531,19 @@ Deno.serve(async (req) => {
           'auth_access_key + auth_secret_key (preferred) or auth_username + auth_password are required',
         );
       }
+      if (childAuth.mode !== 'keys') {
+        return errorResponse(
+          'RU_PASSWORD_PROBE_UNSUPPORTED',
+          'Rentals United cannot validate a portal password on the API surface. Mint a key pair (Push_CreateApiKey_RQ) — that call is the password verdict.',
+        );
+      }
       const probeOwnerId = parseInt(String(body.owner_id ?? '').trim(), 10);
-      const ownerScoped = childAuth.mode === 'keys' && Number.isFinite(probeOwnerId) && probeOwnerId > 0;
+      const ownerScoped = Number.isFinite(probeOwnerId) && probeOwnerId > 0;
       const method = ownerScoped ? 'Pull_ListOwnerProp_RQ' : 'Pull_ListBuildings_RQ';
       const xml = ownerScoped
         ? buildListPropertiesXml(effectiveCreds(creds, childAuth), probeOwnerId)
         : buildListBuildingsXml(creds, childAuth);
+
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       return jsonResponse({
