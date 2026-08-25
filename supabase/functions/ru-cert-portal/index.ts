@@ -570,7 +570,7 @@ const RU_METHOD_BY_ACTION: Record<string, string> = {
   cancel_reservation: "Push_CancelReservation_RQ",
   list_buildings: "Pull_ListOwnerBuildings_RQ",
   list_composition_rooms: "Pull_ListCompositionRooms_RQ",
-  list_cities_and_currencies: "Pull_ListCurrencies_RQ",
+  list_cities_and_currencies: "Pull_ListCitiesAndCurrencies_RQ / Pull_ListCitiesProps_RQ",
   get_location_by_coordinates: "Pull_GetLocationByCoordinates_RQ",
   push_property: "Push_PutProperty_RQ",
   push_availability: "Push_PutAvbUnits_RQ",
@@ -7919,20 +7919,24 @@ Deno.serve(async (req) => {
             !!(payload.owner_id ?? certOwnerId) &&
             authMode === "master";
 
-          const ok = (data?.success === true || data?.healthy === true) && !masterLeak;
+          const endpointDisabled = data?.endpoint_disabled === true;
+          const ok = (data?.success === true || data?.healthy === true) && !masterLeak && !endpointDisabled;
           const assertFail = ok && opts.assert ? opts.assert(data) : null;
           const rawDetail =
             (masterLeak
               ? `Authenticated as the MASTER account instead of sub-user ${payload.owner_id ?? certOwnerId}. Add this sub-user's RU AccessKey/SecretKey in RU User Management, then re-run.`
               : null) ??
             assertFail ??
+            (endpointDisabled ? data?.note ?? data?.message : null) ??
             data?.error?.message ??
             (ok && opts.successDetail
               ? `${opts.successDetail}${authMode && authMode !== "master" ? ` (auth: ${authMode})` : ""}`
               : undefined) ??
             data?.message ??
             (ok ? "OK" : "Unexpected response");
-          const soft = ok && !assertFail ? null : masterLeak ? null : softSkipReason(String(rawDetail));
+          const soft = endpointDisabled
+            ? "Rentals United has not enabled this dictionary endpoint for this integration — informational only."
+            : ok && !assertFail ? null : masterLeak ? null : softSkipReason(String(rawDetail));
 
           // Persist every adapter invocation independently of the enclosing suite. Coverage
           // must not depend on a small recent-run window or loose step-name matching.
@@ -7942,7 +7946,9 @@ Deno.serve(async (req) => {
             typeof payload.property_id === "string" ? payload.property_id : propertyId,
             ok && !assertFail
               ? { success: true }
-              : { success: false, error: { message: String(rawDetail) } },
+              : endpointDisabled
+                ? { success: true, skipped: true, endpoint_disabled: true }
+                : { success: false, error: { message: String(rawDetail) } },
             duration,
           );
 

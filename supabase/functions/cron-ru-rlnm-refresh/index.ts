@@ -69,8 +69,10 @@ Deno.serve(async (req) => {
   const deferred: string[] = [];
   const skipped: string[] = [];
 
-
-  const scopes = await resolveRuOwnerScopes(supabase, 'PutHandlerUrl');
+  const scopes = await resolveRuOwnerScopes(supabase, 'PutHandlerUrl', {
+    includeMaster: false,
+    requireOperationalPush: true,
+  });
 
   // Owners the master subscription should observe. Only MONITORED accounts qualify:
   // an OwnerID whose API keys have never been captured is not provisioned at the channel,
@@ -113,6 +115,24 @@ Deno.serve(async (req) => {
   if (unprovisionedOwners.length) {
     console.warn(
       `[cron-ru-rlnm-refresh] ${unprovisionedOwners.length} account(s) have no API keys captured — not monitored: ${unprovisionedOwners.join(', ')}`,
+    );
+  }
+
+  if (scopes.length === 0) {
+    const msg = 'No operational Channel Manager sub-accounts — notification refresh skipped.';
+    console.log(`[cron-ru-rlnm-refresh] ${msg}`);
+    return new Response(
+      JSON.stringify({
+        success: true,
+        handler_url: handlerUrl,
+        lnm_url_base: lnmUrlBase,
+        observed_owners: [],
+        unprovisioned_owners: unprovisionedOwners,
+        results: [],
+        deferred,
+        skipped: [msg],
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 
