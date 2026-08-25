@@ -456,6 +456,15 @@ export function ChannelOnboardTab({
         // open on the chooser so the operator can pick or type a usable address.
         const conflict = result.results.find((r) => r.code === "RU_EMAIL_IN_USE");
         const stepABlocker = step === "a" ? result.results.find((r) => r.outcome === "blocked" && r.code) : null;
+        // Keep every stop code so a refused task renders its own remedy instead of a bare line.
+        setTaskCodes((prev) => {
+          const next = { ...prev };
+          for (const entry of result.results) {
+            next[entry.id] =
+              entry.outcome === "failed" || entry.outcome === "blocked" ? entry.code ?? "UNKNOWN" : null;
+          }
+          return next;
+        });
         if (conflict) {
           setEmailConflict({
             email: chosenLoginEmail || String(plan?.login_email ?? ""),
