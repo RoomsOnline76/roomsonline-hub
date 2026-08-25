@@ -531,9 +531,32 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     };
   },
 
-  verify_keys: async (_ctx, snapshot) => {
+  verify_keys: async (ctx, snapshot) => {
     if (!snapshot.binding.ru_owner_id) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
+    }
+    // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
+    // rather than authenticating as a child we hold no credential for.
+    if (!snapshot.binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+      return {
+        id: "verify_keys",
+        outcome: "blocked",
+        code: "NO_API_KEYS",
+        detail: "No key pair is stored for this sub-account yet, so there is nothing to verify.",
+      };
+    }
+    // The mint (or the ownership probe on a pasted pair) already proved the credential in
+    // this run. Re-asking the channel spends its most rate-limited read on a known answer.
+    if (ctx.keysProvenInRun) {
+      const label = [
+        `OwnerID ${snapshot.binding.ru_owner_id}`,
+        snapshot.binding.login_email || snapshot.binding.owner_email || null,
+      ].filter(Boolean).join(" · ");
+      return {
+        id: "verify_keys",
+        outcome: "skipped",
+        detail: `Credentials proven when the key pair was minted — ${label}`,
+      };
     }
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
@@ -543,6 +566,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "The sub-account credentials did not verify",
     );
+    if (ok && data.company_details_pushed === true) ctx.companyPushedInRun = true;
     if (!ok) {
       return {
         id: "verify_keys",
@@ -552,6 +576,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         code,
       };
     }
+
     if (data.verified === false) {
       const rejectedCode = ((data.error as { code?: string } | undefined)?.code ?? "RU_CHILD_KEYS_REJECTED");
       return {
