@@ -203,6 +203,7 @@ export function ChannelOnboardTab({
     { email: string; message: string; candidates: LoginCandidate[] } | null
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+  const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
 
 
   const [rebindEmail, setRebindEmail] = useState("");
@@ -376,6 +377,7 @@ export function ChannelOnboardTab({
     setAccountDialogOpen(false);
     setEmailConflict(null);
     setChosenLoginEmail("");
+    setStepARemedyCode(null);
   }, [propertyId]);
 
   const binding = gate.snapshot?.binding;
@@ -449,17 +451,23 @@ export function ChannelOnboardTab({
         // A taken login is a decision to hand back, not a plain failure: keep the modal
         // open on the chooser so the operator can pick or type a usable address.
         const conflict = result.results.find((r) => r.code === "RU_EMAIL_IN_USE");
+        const stepABlocker = step === "a" ? result.results.find((r) => r.outcome === "blocked" && r.code) : null;
         if (conflict) {
           setEmailConflict({
             email: chosenLoginEmail || String(plan?.login_email ?? ""),
             message: conflict.detail,
             candidates: (conflict.loginCandidates ?? []).filter((c) => c.email),
           });
+          setStepARemedyCode(conflict.code ?? null);
           setChosenLoginEmail("");
           setAccountDialogOpen(true);
         } else if (result.passed && step === "a") {
           setEmailConflict(null);
           setChosenLoginEmail("");
+          setStepARemedyCode(null);
+        } else if (stepABlocker) {
+          setStepARemedyCode(stepABlocker.code ?? null);
+          setAccountDialogOpen(true);
         }
         if (result.passed) {
           toast.success(
@@ -860,6 +868,7 @@ export function ChannelOnboardTab({
           emailConflict={emailConflict}
           chosenLoginEmail={chosenLoginEmail}
           onChosenLoginEmailChange={setChosenLoginEmail}
+          remedyCode={stepARemedyCode}
 
           onRunStepA={() => {
             setAccountDialogOpen(false);

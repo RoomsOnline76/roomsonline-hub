@@ -92,6 +92,7 @@ interface RunContext {
     state: "running" | TaskOutcome,
     detail?: string,
     retryAfterMs?: number,
+    code?: string,
   ) => void;
   onPushProgress?: (progress: { pushed: number; total: number }) => void;
   /**
@@ -115,6 +116,27 @@ export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
+
+const STEP_A_RECOVERABLE_CODES = new Set([
+  "RU_CREATE_KEY_FAILED",
+  "RU_CHILD_LOGIN_REJECTED",
+  "NO_CHILD_CREDENTIALS",
+  "NO_STORED_PASSWORD",
+  "NO_API_KEYS",
+  "RU_CHILD_KEYS_REJECTED",
+  "RU_CHILD_KEYS_WRONG_ACCOUNT",
+  "RU_CHILD_KEYS_DUPLICATE",
+  "RU_IDENTITY_INCOMPLETE",
+  "NO_OWNER_EMAIL",
+  "RU_OWNER_NOT_BOUND",
+  "RU_OWNER_NOT_FOUND",
+  "RU_ACCOUNT_RETIRED",
+  "RU_COMPANY_DETAILS_FAILED",
+]);
+
+function isRecoverableStepACode(code: string | undefined): boolean {
+  return Boolean(code && STEP_A_RECOVERABLE_CODES.has(code));
+}
 
 /** Normalise whatever the channel surface reported as a wait into milliseconds. */
 function readRetryAfterMs(payload: Record<string, unknown>): number {
@@ -377,7 +399,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (!ok) {
       return {
         id: "owner_account",
-        outcome: pending ? "pending" : "failed",
+        outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
         retryAfterMs,
         detail,
         code,
@@ -454,6 +476,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return {
         id: "api_keys",
         outcome: "blocked",
+        code: provisioning?.source === "blocked" ? "NO_CHILD_CREDENTIALS" : "NO_STORED_PASSWORD",
         detail:
           provisioning?.warning
           ?? "This account was adopted and no password is held for it, so a key pair cannot be minted automatically. Save its portal password on the Accounts tab, or create the account under a fresh login — minting then runs on its own.",
@@ -474,7 +497,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
     return {
       id: "api_keys",
-      outcome: pending ? "pending" : code === "NO_CHILD_CREDENTIALS" ? "blocked" : "failed",
+      outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
       retryAfterMs,
       detail,
       code,
@@ -485,7 +508,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     if (!snapshot.binding.ru_owner_id) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
-    const { ok, pending, retryAfterMs, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
         action: "verify_api_keys",
         ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
@@ -493,12 +516,26 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       },
       "The sub-account credentials did not verify",
     );
-    if (!ok) return { id: "verify_keys", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
-    if (data.verified === false) {
+    if (!ok) {
       return {
         id: "verify_keys",
-        outcome: "failed",
-        detail: String((data.message as string | undefined) ?? "The channel rejected the stored key pair"),
+        outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
+        retryAfterMs,
+        detail,
+        code,
+      };
+    }
+    if (data.verified === false) {
+      const rejectedCode = ((data.error as { code?: string } | undefined)?.code ?? "RU_CHILD_KEYS_REJECTED");
+      return {
+        id: "verify_keys",
+        outcome: isRecoverableStepACode(rejectedCode) ? "blocked" : "failed",
+        code: rejectedCode,
+        detail: String(
+          (data.error as { message?: string } | undefined)?.message
+          ?? (data.message as string | undefined)
+          ?? "The channel rejected the stored key pair",
+        ),
       };
     }
     const verifiedLabel = [
@@ -523,25 +560,34 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `Company profile already accepted${companyLabel}`,
       };
     }
-    const { ok, pending, retryAfterMs, detail } = await portal(
+    const { ok, pending, retryAfterMs, detail, code } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
     );
     return {
       id: "company_profile",
-      outcome: ok ? "passed" : pending ? "pending" : "failed",
+      outcome: ok ? "passed" : pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
       retryAfterMs,
       detail: ok ? `Company profile accepted${companyLabel}` : detail,
+      code,
     };
   },
 
   adopt_listings: async (ctx) => {
     // Adopting anything already under the sub-account is what stops Step B duplicating.
-    const { ok, pending, retryAfterMs, detail, data } = await portal(
+    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "Could not review the sub-account's existing listings",
     );
-    if (!ok) return { id: "adopt_listings", outcome: pending ? "pending" : "failed", retryAfterMs, detail };
+    if (!ok) {
+      return {
+        id: "adopt_listings",
+        outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
+        retryAfterMs,
+        detail,
+        code,
+      };
+    }
     // Name the listings that were adopted — the IDs are what an operator cross-checks in
     // the channel portal, so a bare count is not enough to trust the adoption.
     const rows = Array.isArray(data.matched)
@@ -814,7 +860,7 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       };
     }
     results.push(result);
-    ctx.onTask?.(task.id, result.outcome, result.detail, result.retryAfterMs);
+    ctx.onTask?.(task.id, result.outcome, result.detail, result.retryAfterMs, result.code);
 
     if (result.outcome === "pending") {
       pending = true;
