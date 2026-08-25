@@ -185,7 +185,62 @@ export function StepAccountDialog({
   const canRun = !stepADisabled && !blockedReason && (!emailConflict || effectiveLogin.includes("@"));
 
 
+  // Credential state of the bound sub-account, from the read-only plan.
+  const planAccountId = (plan?.account_id as string | null) ?? null;
+  const planHasKeys = Boolean(plan?.has_api_keys) || credsStored;
+  const planHasPassword = Boolean(plan?.has_stored_password);
+  const planLogin = String(plan?.existing_login_email ?? plan?.login_email ?? "");
+
+  useEffect(() => {
+    setCredEmail(planLogin);
+    setCredPassword("");
+    setCredNote(null);
+    setCredsStored(false);
+  }, [planAccountId, planLogin]);
+
+  // Stores the sub-account's own portal password, then mints its key pair from it.
+  const saveCredentials = useCallback(async () => {
+    if (!planAccountId) return;
+    setSavingCred(true);
+    setCredNote(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "save_login_password",
+          account_id: planAccountId,
+          login_email: credEmail.trim(),
+          password: credPassword.trim(),
+        },
+      });
+      if (error || !data?.success) {
+        const message = data?.error?.message ?? error?.message ?? "The password could not be stored";
+        setCredNote(message);
+        toast.error(message);
+        return;
+      }
+
+      const { data: keyData, error: keyError } = await supabase.functions.invoke("ru-cert-portal", {
+        body: { action: "create_api_key", account_id: planAccountId, key_label: "ROLOS" },
+      });
+      if (keyError || !keyData?.success) {
+        const message =
+          keyData?.error?.message ?? keyError?.message ?? "Password stored, but the key pair could not be minted yet.";
+        setCredNote(message);
+        toast.warning("Password stored", { description: message });
+        return;
+      }
+
+      setCredsStored(true);
+      setCredPassword("");
+      setCredNote(`Key pair minted${keyData.access_key ? ` — AccessKey ${keyData.access_key}` : ""}.`);
+      toast.success("Credentials stored and key pair minted");
+    } finally {
+      setSavingCred(false);
+    }
+  }, [credEmail, credPassword, planAccountId]);
+
   const editHref = `/properties/${propertyId}/edit?section=general&focus=company-information`;
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
