@@ -1076,11 +1076,29 @@ export function ChannelOnboardTab({
                             >
                               <Check
                                 className={cn(
-                                  "mr-2 h-3.5 w-3.5",
+                                  "mr-2 h-3.5 w-3.5 shrink-0",
                                   p.id === propertyId ? "opacity-100" : "opacity-0",
                                 )}
                               />
                               <span className="truncate">{p.label}</span>
+                              {p.status && (
+                                <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+                                  {p.kind === "portfolio" && p.status !== "live" && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {p.liveCount ?? 0} of {p.memberCount} live
+                                    </span>
+                                  )}
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[10px] font-medium",
+                                      ONBOARD_STATUS_BADGE[p.status].className,
+                                    )}
+                                  >
+                                    {ONBOARD_STATUS_BADGE[p.status].label}
+                                  </Badge>
+                                </span>
+                              )}
                             </CommandItem>
                           ))}
                         </CommandGroup>
@@ -1090,9 +1108,15 @@ export function ChannelOnboardTab({
                 </Popover>
               )}
 
+              <p className="mt-1.5 text-[11px] text-muted-foreground">
+                Live = account, listings and a sales channel in place · No sales channel = listings
+                live but nothing selling · To onboard = not pushed yet.
+              </p>
+
               {requestNotice && (
                 <p className="mt-1.5 text-xs text-muted-foreground">{requestNotice}</p>
               )}
+
 
             </div>
             {/* The account the pick is bound to, read straight from the gate snapshot. */}
