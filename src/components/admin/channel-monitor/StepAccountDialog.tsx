@@ -173,6 +173,9 @@ export function StepAccountDialog({
   const [companyMissing, setCompanyMissing] = useState<string[]>([]);
   const [companyBlocked, setCompanyBlocked] = useState<string | null>(null);
   const [newLoginEmail, setNewLoginEmail] = useState("");
+  /** The account email stays read-only until the operator asks to change it. */
+  const [changingEmail, setChangingEmail] = useState(false);
+
   const [credEmail, setCredEmail] = useState("");
   const [credPassword, setCredPassword] = useState("");
   const [savingCred, setSavingCred] = useState(false);
