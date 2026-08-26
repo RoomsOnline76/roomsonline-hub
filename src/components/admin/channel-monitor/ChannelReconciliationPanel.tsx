@@ -368,10 +368,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 {result.orphans.length === 1 ? "" : "s"} = {liveBucketTotal} of {result.channel_listing_count} live
               </span>
 
-              {gap > 0 ? (
+              {classificationGap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  {gap} more listing{gap === 1 ? "" : "s"} on the account than we bill for
+                  {classificationGap} live listing{classificationGap === 1 ? "" : "s"} could not be classified
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1">
@@ -379,6 +379,13 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                   Billing count matches the account
                 </Badge>
               )}
+              {billingSnapshotGap !== 0 && (
+                <span>
+                  Local billing snapshot reads {billableListings} against {result.channel_listing_count} live —
+                  refresh the page if this persists
+                </span>
+              )}
+
             </div>
 
             {result.roster_error && (
