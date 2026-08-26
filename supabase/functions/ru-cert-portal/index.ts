@@ -6117,7 +6117,10 @@ Deno.serve(async (req) => {
         archived_listings: archivedListings,
         failed_listings: failedListings,
         disconnected_properties: disconnected,
+        keys_revoked_at_channel: retireKeysCleanAtChannel,
+        key_revoke: retireKeyResult,
         total_listings: listings.length,
+
       });
     }
 
