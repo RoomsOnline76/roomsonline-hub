@@ -505,7 +505,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       outcome: "blocked",
       code: "NO_STORED_PASSWORD",
       detail: provisioning?.warning
-        ?? "Step A needs the sub-account password to create and store its API key pair automatically.",
+        ?? (snapshot.binding.password_stored
+          ? "Step A has the generated sub-account password, but the account identity is not complete yet. Re-run Step A to finish the OwnerID handoff and automatic key creation."
+          : "Step A needs the sub-account password to create and store its API key pair automatically."),
     };
   },
 

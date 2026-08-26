@@ -100,6 +100,61 @@ async function writeCacheRow(admin: Db, users: RuRosterUser[], source: string): 
  * `cacheOnly` never touches the wire: it is what every non-onboarding surface uses, so browsing
  * ROL'OS can no longer generate channel roster traffic.
  */
+export async function mergeRuRosterUser(
+  admin: Db,
+  user: RuRosterUser,
+  opts: { source?: string } = {},
+): Promise<RuRosterResult> {
+  const source = opts.source ?? "merge";
+  const normalized: RuRosterUser = {
+    owner_id: String(user.owner_id ?? "").trim() || undefined,
+    user_account_id: String(user.user_account_id ?? "").trim() || undefined,
+    email: String(user.email ?? "").trim() || undefined,
+    login_email: String(user.login_email ?? user.email ?? "").trim() || undefined,
+  };
+  if (!normalized.owner_id && !normalized.email && !normalized.login_email) {
+    const cached = await readCacheRow(admin);
+    const result: RuRosterResult = {
+      ok: Boolean(cached),
+      users: cached?.users ?? [],
+      cached: true,
+      deferred: false,
+      fetchedAt: cached?.fetchedAt ?? null,
+      message: cached ? undefined : "No roster identity was available to merge",
+    };
+    memo = { at: Date.now(), result };
+    return result;
+  }
+
+  const cached = await readCacheRow(admin);
+  const users = [...(cached?.users ?? [])];
+  const same = (a: unknown, b: unknown) => {
+    const x = String(a ?? "").trim().toLowerCase();
+    const y = String(b ?? "").trim().toLowerCase();
+    return Boolean(x) && x === y;
+  };
+  const idx = users.findIndex((existing) =>
+    (normalized.owner_id && String(existing.owner_id ?? "").trim() === normalized.owner_id) ||
+    (normalized.user_account_id && String(existing.user_account_id ?? "").trim() === normalized.user_account_id) ||
+    same(existing.email, normalized.email) ||
+    same(existing.login_email, normalized.login_email) ||
+    same(existing.email, normalized.login_email) ||
+    same(existing.login_email, normalized.email)
+  );
+
+  if (idx >= 0) {
+    users[idx] = { ...users[idx], ...normalized };
+  } else {
+    users.push(normalized);
+  }
+
+  const fetchedAt = await writeCacheRow(admin, users, source);
+  const result: RuRosterResult = { ok: true, users, cached: true, deferred: false, fetchedAt };
+  memo = { at: Date.now(), result };
+  retryNotBefore = 0;
+  return result;
+}
+
 export async function readRuRoster(
   admin: Db,
   opts: { maxAgeMs?: number; forceFresh?: boolean; cacheOnly?: boolean; source?: string } = {},
