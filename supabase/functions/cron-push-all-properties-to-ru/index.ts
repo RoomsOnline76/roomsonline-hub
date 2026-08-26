@@ -115,7 +115,8 @@ Deno.serve(async (req) => {
       property_id: string;
       name: string;
       success: boolean;
-      status: 'complete' | 'resumable' | 'failed';
+      status: 'complete' | 'resumable' | 'failed' | 'skipped';
+      reason?: string;
       error_code?: string;
       error?: string;
       chunks?: number;
@@ -152,7 +153,7 @@ Deno.serve(async (req) => {
       }
       if (staticScope?.unchanged) {
         console.log(`[cron-push-all] ${prop.name}: static content unchanged — skipping`);
-        results.push({ property: prop.name, property_id: prop.id, status: 'skipped', reason: 'unchanged' });
+        results.push({ property_id: prop.id, name: prop.name, success: true, status: 'skipped', reason: 'unchanged' });
         continue;
       }
 
