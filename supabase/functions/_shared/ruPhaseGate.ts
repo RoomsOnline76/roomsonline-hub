@@ -158,25 +158,45 @@ export interface StepGateState {
  * Step A owns the account, Ready-to-sell owns mandatory steps 1–5.
  */
 export async function readStepGate(admin: any, propertyId: string): Promise<StepGateState> {
-  const { data } = await admin
-    .from("property_channel_step_status")
-    .select("step_key, status")
-    .eq("property_id", propertyId)
-    .in("step_key", ["monitor_step_a", "ready_to_sell"]);
+  const [{ data }, { data: propertyRow }, { data: unitRows }] = await Promise.all([
+    admin
+      .from("property_channel_step_status")
+      .select("step_key, status")
+      .eq("property_id", propertyId)
+      .in("step_key", ["monitor_step_a", "ready_to_sell", "ready_to_connect"]),
+    admin
+      .from("properties")
+      .select("rentalsunited_property_id")
+      .eq("id", propertyId)
+      .maybeSingle(),
+    admin
+      .from("hostfully_room_types")
+      .select("rentalsunited_property_id")
+      .eq("property_id", propertyId)
+      .eq("is_active", true),
+  ]);
   const rows = (data ?? []) as { step_key: string; status: string | null }[];
   const statusOf = (key: string) => rows.find((r) => r.step_key === key)?.status ?? null;
   const stepA = statusOf("monitor_step_a");
-  const readyToSell = statusOf("ready_to_sell");
+  const readyToSell = statusOf("ready_to_sell") ?? statusOf("ready_to_connect");
+
+  // Published evidence beats a stale ledger row. A multi-unit property keeps its listing ids
+  // on the unit rows (the property-level id stays empty), so the ledger can read "still
+  // onboarding" long after every unit went live — which used to refuse every later edit.
+  const liveListing =
+    Boolean((propertyRow as { rentalsunited_property_id?: string | null } | null)?.rentalsunited_property_id) ||
+    ((unitRows ?? []) as { rentalsunited_property_id?: string | null }[]).some((u) => !!u.rentalsunited_property_id);
 
   const blockers: string[] = [];
-  if (stepA !== "passed") {
+  if (stepA !== "passed" && !liveListing) {
     blockers.push('Step A (distribution account) has not passed yet — run Step A in the Channel Monitor.');
   }
-  if (readyToSell !== "passed") {
+  if (readyToSell !== "passed" && !liveListing) {
     blockers.push('Ready to sell (mandatory steps 1–5) has not passed yet — clear the steps in the Connect a Channel wizard.');
   }
   return { step_a: stepA, ready_to_sell: readyToSell, ready: blockers.length === 0, blockers };
 }
+
 
 /** Evaluate all four phases for a property. */
 
