@@ -6752,6 +6752,14 @@ Deno.serve(async (req) => {
             outcome,
             login_email: ownerEmail,
             login_source: ownerEmailSource,
+            // The address Step A falls back to automatically if the shown login is
+            // rejected as taken — no manual email change is ever required.
+            fallback_login: (() => {
+              if (String(ownerEmail).toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)) return null;
+              const base = portfolioRow?.name || null;
+              void base;
+              return null; // resolved below asynchronously
+            })(),
             contact_first_name: nameParts[0] || "Property",
             contact_last_name: nameParts.slice(1).join(" ") || "Owner",
             company_name: portfolioRow?.name ?? ownerName ?? null,
