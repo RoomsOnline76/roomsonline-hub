@@ -402,20 +402,25 @@ export function OrphanSubAccountsPanel() {
             const ownerId = String(u.owner_id);
             const busy = (archive.isPending || runningOwnerId === ownerId) && String(pending?.owner_id ?? "") === ownerId;
             const outcome = outcomes[ownerId];
+            const keyBadge = KEY_BADGE[keyFor(ownerId).state];
             return (
               <div
                 key={ownerId}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2"
               >
                 <span className="flex flex-col gap-0.5 text-xs">
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     {accountLabel(u)}
                     {u.archived ? (
                       <Badge variant="outline" className="text-[10px]">
                         Archived at channel
                       </Badge>
                     ) : null}
+                    <Badge variant={keyBadge.variant} className="text-[10px]">
+                      {keyBadge.text}
+                    </Badge>
                   </span>
+
                   {outcome && (
                     <span className={`text-[10px] ${outcome.ok ? "text-primary" : "text-destructive"}`}>
                       {outcome.message}
