@@ -90,7 +90,16 @@ export async function auditChannelPriceCoverage(
   opts: AuditOptions,
 ): Promise<PriceCoverageResult> {
   const days = opts.days ?? AUDIT_DAYS;
-  const { from, to } = auditWindow(days);
+  const supplied = typeof opts.priceXml === 'string' && opts.priceXml.trim().length > 0
+    ? { xml: opts.priceXml, from: opts.windowFrom ?? null, to: opts.windowTo ?? null }
+    : null;
+  const fallbackWindow = auditWindow(days);
+  const from = supplied?.from ?? fallbackWindow.from;
+  const to = supplied?.to ?? fallbackWindow.to;
+  const expectedDays = Math.max(
+    1,
+    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1,
+  );
   const listingId = String(opts.ruPropertyId ?? '').trim();
 
   const result: PriceCoverageResult = {
@@ -101,7 +110,7 @@ export async function auditChannelPriceCoverage(
     room_type_id: opts.roomTypeId ?? null,
     window_from: from,
     window_to: to,
-    expected_days: days,
+    expected_days: Number.isFinite(expectedDays) ? expectedDays : days,
     channel_priced_days: 0,
     channel_seasons: 0,
     channel_zero_priced_days: 0,
@@ -118,31 +127,37 @@ export async function auditChannelPriceCoverage(
     return result;
   }
 
-  // Owner-scoped credentials are mandatory: an unscoped read hits the master account and comes
-  // back "Property does not exist", which previously looked like a channel-side gap.
-  let childAuth = opts.childAuth ?? null;
-  if (!childAuth || !(childAuth as Record<string, unknown>).owner_id) {
-    childAuth = await resolveRuChildAuth(admin, opts.propertyId);
-  }
-  if (!childAuth) {
-    result.error_message = 'No channel sub-account credentials resolved for this property';
-    return result;
+  let rawXml = supplied?.xml ?? null;
+
+  if (!rawXml) {
+    // Owner-scoped credentials are mandatory: an unscoped read hits the master account and comes
+    // back "Property does not exist", which previously looked like a channel-side gap.
+    let childAuth = opts.childAuth ?? null;
+    if (!childAuth || !(childAuth as Record<string, unknown>).owner_id) {
+      childAuth = await resolveRuChildAuth(admin, opts.propertyId);
+    }
+    if (!childAuth) {
+      result.error_message = 'No channel sub-account credentials resolved for this property';
+      return result;
+    }
+
+    const attempt = await invokeRuWithRetry(
+      admin,
+      { action: 'get_prices', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
+      { label: `price_coverage ${listingId}` },
+    );
+
+    if (!attempt.ok || !attempt.data?.raw_xml) {
+      result.error_message = attempt.message || attempt.errorCode || 'Channel price read-back could not be performed';
+      result.gap_summary = 'Price coverage could not be verified at the channel — re-queued for another read.';
+      return result;
+    }
+    rawXml = String(attempt.data.raw_xml);
   }
 
-  const attempt = await invokeRuWithRetry(
-    admin,
-    { action: 'get_prices', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
-    { label: `price_coverage ${listingId}` },
-  );
-
-  if (!attempt.ok || !attempt.data?.raw_xml) {
-    result.error_message = attempt.message || attempt.errorCode || 'Channel price read-back could not be performed';
-    result.gap_summary = 'Price coverage could not be verified at the channel — re-queued for another read.';
-    return result;
-  }
-
-  const seasons = parseRuPriceSeasons(String(attempt.data.raw_xml)).filter(
+  const seasons = parseRuPriceSeasons(String(rawXml)).filter(
     (s): s is typeof s & { date_from: string; date_to: string } => Boolean(s.date_from && s.date_to),
+
   );
   result.channel_seasons = seasons.length;
 
