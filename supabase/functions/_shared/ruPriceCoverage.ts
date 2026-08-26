@@ -69,7 +69,17 @@ export interface AuditOptions {
   /** Skip the local-pricing evaluation when the caller already knows it is complete. */
   localUnpricedDays?: number;
   localFirstGapDate?: string | null;
+  /**
+   * A `get_prices` response the caller already holds (the post-push verification read-back).
+   * Supplying it makes the audit free: the channel allows roughly one price read per sliding
+   * minute, so pulling the same year twice back-to-back only earned a 429 on the second read.
+   */
+  priceXml?: string | null;
+  /** Window the supplied `priceXml` covers. Ignored unless `priceXml` is set. */
+  windowFrom?: string | null;
+  windowTo?: string | null;
 }
+
 
 /**
  * Pull the channel's own stored prices for the next year and derive coverage from that answer.
