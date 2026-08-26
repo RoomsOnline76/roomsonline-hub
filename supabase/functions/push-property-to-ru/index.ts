@@ -2712,10 +2712,13 @@ async function pushARI(
         const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
         manual.overrides.set(day, { ...existing, units: Math.min(existing.units ?? unitUnits, remaining) });
       }
-      availEntries = applyManualOverrides(availEntries, manual.overrides);
+      availEntries = collapseAvbRanges(applyManualOverrides(availEntries, manual.overrides));
       result.manual_restrictions = { ...manual.stats, booked_nights: sold.stats.nights, booked_bookings: sold.stats.bookings };
       bookedNights = sold.dates;
-      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
+      // Payload instrumentation: a fat availability request is attributable, not inferred.
+      result.availability_entries = availEntries.length;
+      result.availability_payload_bytes = JSON.stringify(availEntries).length;
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (~${result.availability_payload_bytes}B) (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
 
       const availabilityHash = await ariHash({
         window: { from: todayStr, to: oneYearStr },
