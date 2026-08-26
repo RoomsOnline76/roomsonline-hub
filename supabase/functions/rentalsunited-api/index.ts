@@ -4424,16 +4424,19 @@ Deno.serve(async (req) => {
       // of spending a call.
       const locId = parseInt(String(locationId), 10);
       try {
-        const { data: recent } = await getLogClient()
+        // A 339 ("already on that currency") answer counts as a confirmation: rows logged before
+        // 339 was recognised as an acceptance carry success=false, so match on either signal or the
+        // shortcut never fires and every run repeats a write the channel has already answered.
+        const { data: recentRows } = await getLogClient()
           .from('ru_api_log')
-          .select('created_at, status_id, response_id')
+          .select('created_at, status_id, response_id, success')
           .eq('action', 'Push_ChangeCurrency_RQ')
-          .eq('success', true)
           .ilike('request_xml', `%<Location>${locId}</Location><Currency>${currencyIso}</Currency>%`)
           .gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString())
           .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(5);
+        const recent = ((recentRows ?? []) as Array<{ created_at: string; status_id: string | null; success: boolean | null }>)
+          .find((row) => row.success === true || String(row.status_id ?? '').trim() === '339');
         if (recent) {
           return jsonResponse({
             success: true,
@@ -4446,6 +4449,10 @@ Deno.serve(async (req) => {
             note: `Location ${locId} was already confirmed on ${currencyIso} at ${recent.created_at} (RU status ${recent.status_id ?? 'ok'}); the identical call was skipped to respect the channel's one-call-per-minute window.`,
           });
         }
+      } catch (_e) {
+        // Log lookup is an optimisation only — fall through to the live call.
+      }
+
       } catch (_e) {
         // Log lookup is an optimisation only — fall through to the live call.
       }
