@@ -261,7 +261,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       .update({ allow_custom_payment_provider: nextAllowCustom, payment_mode: nextPaymentMode } as any)
       .in("id", targetIds)
       .then(() => { /* silent — surfaced via query invalidation below */ });
-    upsert.mutate({
+    const payload = {
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
       commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
