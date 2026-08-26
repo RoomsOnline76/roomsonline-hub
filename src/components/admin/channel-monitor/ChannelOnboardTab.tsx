@@ -549,8 +549,19 @@ export function ChannelOnboardTab({
           return next;
         });
         if (conflict) {
+          // Failure-only modal: load the account plan first so the chooser paints
+          // with the resolved login and its automatic fallback on first open.
+          let resolvedPlan = plan;
+          if (!resolvedPlan) {
+            try {
+              resolvedPlan = await planOwnerAccount(propertyId);
+              setPlan(resolvedPlan);
+            } catch {
+              // The chooser still renders from the conflict candidates alone.
+            }
+          }
           setEmailConflict({
-            email: chosenLoginEmail || String(plan?.login_email ?? ""),
+            email: chosenLoginEmail || String(resolvedPlan?.login_email ?? ""),
             message: conflict.detail,
             candidates: (conflict.loginCandidates ?? []).filter((c) => c.email),
           });
@@ -566,11 +577,20 @@ export function ChannelOnboardTab({
 
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
+          if (!plan) {
+            try {
+              setPlan(await planOwnerAccount(propertyId));
+            } catch {
+              // The blocker line and remedy still render without the plan.
+            }
+          }
           setAccountDialogOpen(true);
         }
         if (result.passed) {
           toast.success(
-            step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
+            step === "a"
+              ? "Distribution account provisioned — keys minted and company details sent, ready for Step B"
+              : "Property published — channels can now connect",
           );
         } else if (conflict) {
           toast.error("A different distribution login is needed", {
@@ -692,20 +712,21 @@ export function ChannelOnboardTab({
   );
 
   /**
-   * Picking a property asks the account question first: the modal opens itself once per
-   * selection while Step A has not passed. A gate refresh must not reopen it.
+   * One-click Step A: picking a property runs the step immediately and atomically —
+   * the backend resolves the login, auto-generates a slug-based one when the owner
+   * email is unusable, creates the sub-account, mints the keys and pushes the company
+   * details. The account preview modal only opens when the run hits a blocker it
+   * cannot resolve on its own.
    */
-  const autoOpenedRef = useRef<string | null>(null);
+  const autoRanRef = useRef<string | null>(null);
   useEffect(() => {
     if (!propertyId || gate.loading) return;
-    if (autoOpenedRef.current === propertyId) return;
-    if (gate.stepAStatus === "passed") {
-      autoOpenedRef.current = propertyId;
-      return;
-    }
-    autoOpenedRef.current = propertyId;
-    void openPlan();
-  }, [gate.loading, gate.stepAStatus, openPlan, propertyId]);
+    if (autoRanRef.current === propertyId) return;
+    autoRanRef.current = propertyId;
+    if (gate.stepAStatus === "passed") return;
+    if (!gate.readyToSell || runningStep !== null) return;
+    void runStep("a");
+  }, [gate.loading, gate.readyToSell, gate.stepAStatus, propertyId, runStep, runningStep]);
 
 
   const renderStep = (step: ChannelOnboardStep) => {

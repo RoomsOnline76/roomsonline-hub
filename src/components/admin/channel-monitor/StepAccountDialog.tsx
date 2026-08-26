@@ -452,18 +452,17 @@ export function StepAccountDialog({
                     />
                   </dl>
 
-                  {/* The account email is read-only until the operator asks to change it. */}
-                  {!changingEmail ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={bindingUnreadable}
-                      onClick={() => setChangingEmail(true)}
-                    >
-                      <KeyRound className="mr-1.5 h-3.5 w-3.5" />
-                      Change account email
-                    </Button>
-                  ) : (
+                  {plan.fallback_login && !emailConflict ? (
+                    <p className="rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
+                      If this login is already taken at the channel, Step A automatically provisions under{" "}
+                      <span className="font-medium break-all">{String(plan.fallback_login)}</span> instead — no manual
+                      email change is needed.
+                    </p>
+                  ) : null}
+
+                  {/* The login chooser only appears as the last resort: the channel refused
+                      the resolved login AND every generated fallback. */}
+                  {!changingEmail ? null : (
                     <div className="space-y-3 rounded-md border bg-muted/40 p-3">
                       {candidates.length > 0 ? (
                         <div>
@@ -547,17 +546,19 @@ export function StepAccountDialog({
                         </p>
                       ) : null}
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setChangingEmail(false);
-                          setNewLoginEmail("");
-                          onRebindEmailChange("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
+                      {!emailConflict ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setChangingEmail(false);
+                            setNewLoginEmail("");
+                            onRebindEmailChange("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
                     </div>
                   )}
 
