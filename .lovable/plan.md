@@ -1,52 +1,38 @@
-# Leopard 5948442 on the master account — cause and clean-up
+# Archive the 21 locally-retired distribution accounts at the channel
 
-## What happened (confirmed)
+## What is true today (verified)
 
-Leopard's listing was created while we were authenticated as our **master** channel account, so the channel filed it in the master account's footprint. The payload did name the sub-account, which is why a sub-account read still shows the listing.
+- 21 accounts sit in the retired registry and **none** has `channel_archived_at` set — they are hidden in ROLOS only; the channel still holds their listings and keys.
+- Only 8 of the 21 have stored API keys: 7 are flagged `key_scope = master_pair` (the bad `ROLOS-m` mints), 1 (`742091`) is `unverified`. The other 13 have no keys at all.
+- The archive run (`purge_channel_account`) cannot complete for any of them:
+  - master-pair keys are refused by the master-footprint guard (`RU_KEYS_ARE_MASTER_PAIR`) on `set_property_status`;
+  - keyless accounts fail child auth (`RU_CHILD_AUTH_REQUIRED`) and fresh minting is refused by the channel (key creation not enabled at sub-account level).
 
-The chain:
+So the current panel offers a button that can only fail. That is what this change fixes.
 
-1. Step A creates the sub-account (OwnerID 742574), then asks the channel for its API key pair.
-2. The sub-account's own login envelope is refused for freshly created accounts, so Step A falls back to a **master-authenticated** key request that names the sub-account.
-3. The channel ignores the named sub-account when issuing keys and hands back a key pair belonging to the **master** account.
-4. That pair was stored as the sub-account's "own keys". Every later push for Leopard therefore authenticated as master → listing created on the master account.
-5. The old ownership check could not catch this, because a master pair can legitimately read the sub-account's inventory.
+## What we build
 
-Proof: the pair stored for 742574 can list all 23 sub-accounts under our master account — only a parent account can do that.
+### 1. Key match, shown per row
+Each retired row in Channel Monitor → Advanced → Orphan / retired accounts gains a key badge derived from stored credentials:
+`Child key` · `Master pair (unusable for child writes)` · `No keys`, plus the login email we hold. Operators see immediately why a row can or cannot be archived normally.
 
-## Already in place (shipped earlier this session)
+### 2. Archive-only escalation path (the actual unblock)
+A retired, unbound account has no inventory worth protecting, so archival is allowed to run on **master credentials scoped by OwnerID** — the one place where master auth is legitimate, because it is removing footprint rather than creating it.
 
-- Scope probe: a key pair that can enumerate the roster is classed as a master pair.
-- Stored credentials now carry a proven scope (child / master pair / unverified); the 8 pairs minted through the master-authenticated route are flagged as master pairs.
-- Every sub-account write on a master pair is refused and logged instead of sent.
-- Step A discards a minted pair that probes as a master pair rather than storing it.
+- Add an explicit, narrowly-scoped archive intent to the channel API: `set_property_status` may run on master credentials when the caller passes an `archive_retired: true` intent, the OwnerID is present in the retired registry, and the target status is archived/inactive. Every other write keeps the existing master-pair prohibition untouched.
+- `purge_channel_account` uses that intent when (and only when) the account is in the registry and either has no usable child keys or holds a master pair. It records which envelope actually ran (`child_keys` / `master_scoped_archive`) in the step trail so nothing reads as a silent success.
+- Listing enumeration already tolerates master reads with an OwnerID, so no change there.
+- Master-pair credential rows are deleted after a clean archive (they are a liability, not an asset), and the registry stamps `channel_archived_at` only on a channel-confirmed clean run.
 
-## Remaining work in this plan
+### 3. Batch runner for the 21
+The existing "outstanding" section gets a run-all that processes accounts strictly one at a time, respects the RU rate-limit deferral (`rate_deferred` → wait and resume), and finishes with a per-account outcome list: archived count, refused listings, keys released. Refusals stay outstanding so a later pass retries them.
 
-### 1. Clean up the master account's footprint
-
-Listings pushed on master credentials on 26 Aug (8 sub-accounts, ~12 pushes) still sit in the master account, including Leopard 5948442.
-
-- Add an "Master-footprint audit" section in Channel Monitor → Advanced that lists every listing created while a master pair was in use, with the property, sub-account and listing ID.
-- Per row: **Archive at channel** (reuses the existing archive path, master-authenticated, which is correct here because the listing genuinely belongs to the master account) and record the archival against the property.
-- Clear the property's channel listing ID and mark it "needs re-push" so nothing points at a dead listing.
-
-### 2. Unblock Step A properly
-
-Since master-pair keys are now refused, these sub-accounts cannot push until they hold real keys.
-
-- Step A surfaces an explicit blocker: "the channel must enable API key creation for this sub-account" with the OwnerID and login shown for escalation.
-- Add a **Re-mint keys** action that retries the sub-account's own login envelope (the only envelope that yields a genuine child pair) and stores the result only when it probes as child-scoped.
-- Onboarding readiness shows the account as not ready to sell while the scope is unverified or a master pair.
-
-### 3. Guard the ongoing paths
-
-- Nightly health report counts credentials whose scope is `master_pair` or `unverified` and lists the affected accounts.
-- A one-off scope sweep over all stored pairs so the flags come from a real probe, not the key label.
+### 4. Leopard / master-account footprint
+Listings pushed under master-pair keys landed in the master account, not the sub-account. Archiving the sub-account will not remove them. The run report calls these out separately as "listings found on the master account" (from the master roster read) so they can be archived deliberately in a follow-up — no automatic archival of anything on the master account.
 
 ## Technical notes
 
-- Scope probe verb: `Pull_ListMyUsers_RQ`; any OwnerID other than the account's own proves a parent pair.
-- Scope cached on the stored-credentials row (`key_scope`, `key_scope_verified_at`, `key_scope_detail`).
-- Write refusal code: `RU_KEYS_ARE_MASTER_PAIR`, logged as not-attempted for certification evidence.
-- Affected sub-accounts: 742555, 742566, 742568, 742569, 742570, 742572, 742573, 742574.
+- `supabase/functions/rentalsunited-api/index.ts` — add the registry-verified `archive_retired` exemption alongside the master-pair guard (guard logic itself unchanged for all other actions).
+- `supabase/functions/ru-cert-portal/index.ts` — `purge_channel_account`: credential triage (usable child key → master-scoped archive), pass the intent, report the envelope used, release master-pair key rows.
+- `src/components/admin/channel-monitor/OrphanSubAccountsPanel.tsx` — key badges per row, batch runner with rate-limit backoff, richer per-row outcome.
+- No schema change needed: `ru_retired_accounts.channel_archive_result` already stores the run trail.
