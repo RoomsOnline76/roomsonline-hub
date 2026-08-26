@@ -394,6 +394,8 @@ export interface OwnerAccountPlan {
   account_id?: string | null;
   has_api_keys?: boolean;
   has_stored_password?: boolean;
+  /** Slug-generated login Step A falls back to automatically if the shown login is taken. */
+  fallback_login?: string | null;
 
   [key: string]: unknown;
 }

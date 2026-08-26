@@ -692,20 +692,21 @@ export function ChannelOnboardTab({
   );
 
   /**
-   * Picking a property asks the account question first: the modal opens itself once per
-   * selection while Step A has not passed. A gate refresh must not reopen it.
+   * One-click Step A: picking a property runs the step immediately and atomically —
+   * the backend resolves the login, auto-generates a slug-based one when the owner
+   * email is unusable, creates the sub-account, mints the keys and pushes the company
+   * details. The account preview modal only opens when the run hits a blocker it
+   * cannot resolve on its own.
    */
-  const autoOpenedRef = useRef<string | null>(null);
+  const autoRanRef = useRef<string | null>(null);
   useEffect(() => {
     if (!propertyId || gate.loading) return;
-    if (autoOpenedRef.current === propertyId) return;
-    if (gate.stepAStatus === "passed") {
-      autoOpenedRef.current = propertyId;
-      return;
-    }
-    autoOpenedRef.current = propertyId;
-    void openPlan();
-  }, [gate.loading, gate.stepAStatus, openPlan, propertyId]);
+    if (autoRanRef.current === propertyId) return;
+    autoRanRef.current = propertyId;
+    if (gate.stepAStatus === "passed") return;
+    if (!gate.readyToSell || runningStep !== null) return;
+    void runStep("a");
+  }, [gate.loading, gate.readyToSell, gate.stepAStatus, propertyId, runStep, runningStep]);
 
 
   const renderStep = (step: ChannelOnboardStep) => {
