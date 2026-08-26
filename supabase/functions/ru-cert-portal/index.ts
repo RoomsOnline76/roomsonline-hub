@@ -7534,8 +7534,10 @@ Deno.serve(async (req) => {
               });
               if (reCreateErr || !reCreated?.success) {
                 lastRecycleMessage = String(reCreateErr?.message ?? reCreated?.error?.message ?? lastRecycleMessage ?? "");
+                keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): not created`);
                 continue;
               }
+
               const recycledUserId = usableRuId(reCreated.user_account_id) || null;
               const recycledOwnerId = usableRuId(reCreated.owner_id) || recycledUserId;
               if (!recycledOwnerId) continue;
