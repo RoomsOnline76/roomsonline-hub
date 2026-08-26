@@ -142,6 +142,28 @@ const RUN_COOLDOWN_SECONDS = 60;
  */
 const RU_SUB_USER_PASSWORD = "SLPafrica247*";
 
+/**
+ * Domain hosting auto-generated distribution logins. When the resolved owner email
+ * cannot become a channel sub-account (taken, archived, not under our master account,
+ * or a shared platform login), Step A mints `<slug>@channels.roomsonline.co.za` from
+ * the property and keeps going — there is no manual "change email" step.
+ */
+const RU_GENERATED_LOGIN_DOMAIN = "channels.roomsonline.co.za";
+
+/** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>-N@…`. */
+const generateDistributionLogin = (slugOrName: string, attempt = 1): string | null => {
+  const base = String(slugOrName ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+  if (!base) return null;
+  return `${attempt > 1 ? `${base}-${attempt}` : base}@${RU_GENERATED_LOGIN_DOMAIN}`;
+};
+
 /** external_system values that mean "ROL'OS is the PMS" (mirrors src/lib/pmsIdentity.ts). */
 const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
 
