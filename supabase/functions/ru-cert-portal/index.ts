@@ -5882,6 +5882,42 @@ Deno.serve(async (req) => {
         }
       }
 
+      /**
+       * Auto-generated slug login (memoized). When every resolved address is unusable —
+       * a shared platform login, or one the channel later rejects as taken — Step A
+       * must not stall on a manual email change: it mints
+       * `<slug>@channels.roomsonline.co.za` from the property and provisions on it.
+       */
+      let generatedBaseCache: string | null | undefined;
+      const generatedLoginBase = async (): Promise<string | null> => {
+        if (generatedBaseCache !== undefined) return generatedBaseCache;
+        generatedBaseCache = null;
+        if (propertyId) {
+          const { data: pr } = await admin
+            .from("properties")
+            .select("slug, name")
+            .eq("id", propertyId)
+            .maybeSingle();
+          const base = String((pr as any)?.slug ?? "").trim() || String((pr as any)?.name ?? "").trim();
+          if (base) generatedBaseCache = base;
+        }
+        if (!generatedBaseCache && portfolioRow?.name) generatedBaseCache = portfolioRow.name;
+        return generatedBaseCache;
+      };
+
+      // 6) Nothing usable resolved at all (e.g. only a shared platform login on file):
+      // go straight to the generated login instead of failing with NO_OWNER_EMAIL.
+      if (!ownerEmail) {
+        const generated = generateDistributionLogin((await generatedLoginBase()) ?? "");
+        if (generated) {
+          ownerEmail = generated;
+          ownerEmailSource = internalLoginRejected
+            ? `auto-generated because ${internalLoginRejected} is a shared platform login`
+            : "auto-generated from the property name";
+          ownerName = ownerName || portfolioRow?.name || "Property Owner";
+        }
+      }
+
       const NO_OWNER_EMAIL_MESSAGE = internalLoginRejected
         ? `${internalLoginRejected} is a shared platform login and cannot become a distribution sub-account login. Set a real owner email on the property, then review this step again.`
         : "No usable owner email found for the distribution account. Set a real owner email on the property — shared platform logins (dev@, noreply@) and the provider's own portal login (connect@roomsonline.co.za) cannot be used as a distribution login.";
