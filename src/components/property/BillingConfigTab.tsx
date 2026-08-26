@@ -210,7 +210,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setFreePeriodDays(c.free_period_days != null ? String(c.free_period_days) : "");
       setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
-  }, [config]);
+  }, [config, saveFailed]);
 
   const schedulePreview = useMemo(
     () =>
