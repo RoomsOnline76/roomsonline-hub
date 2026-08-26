@@ -2379,6 +2379,10 @@ interface PriceVerification {
   mismatches: { date_from: string; date_to: string; field: 'price' | 'extra_guest_price' | 'missing'; requested: number | null; returned: number | null }[];
   missing_dates: string[];
   error?: string;
+  /** The channel's own `get_prices` answer, so the coverage audit can reuse it instead of re-reading. */
+  raw_xml?: string;
+  window_from?: string;
+  window_to?: string;
 }
 
 /**
@@ -2416,6 +2420,9 @@ async function verifyPrices(
       return report;
     }
     const xml = String(data.raw_xml);
+    report.raw_xml = xml;
+    report.window_from = windowFrom;
+    report.window_to = windowTo;
     const returnedSeasons = parseRuPriceSeasons(xml).filter(
       (season): season is typeof season & { date_from: string; date_to: string } =>
         Boolean(season.date_from && season.date_to),
@@ -2988,6 +2995,11 @@ async function pushARI(
               unitName: unit?.name ?? null,
               roomTypeId: unit?.id ?? null,
               childAuth,
+              // Reuse the verification read-back: two identical `get_prices` pulls seconds apart
+              // only earned a 429 on the second one.
+              priceXml: priceVerification.raw_xml ?? null,
+              windowFrom: priceVerification.window_from ?? null,
+              windowTo: priceVerification.window_to ?? null,
             });
             result.price_coverage_audit = coverage;
             result.prices_year_verified = coverage.verdict === 'verified';
