@@ -14,6 +14,9 @@ export interface BillingConfig {
   pms_commission_rate?: number | null;
 
   widget_flat_commission_rate?: number | null;
+  /** Explicit switches — authoritative over the fee/rate values they gate. */
+  pms_enabled?: boolean | null;
+  commission_enabled?: boolean | null;
   subscription_fee_monthly: number | null;
   transaction_fee_percentage: number | null;
   payment_facilitator_enabled: boolean;
@@ -53,12 +56,25 @@ const VERIFIED_FIELDS = [
   "payment_facilitator_enabled",
   "payment_model",
   "billing_enabled",
+  "pms_enabled",
+  "commission_enabled",
+  "subscription_fee_monthly",
+  "channel_manager_per_unit_fee",
+  "white_label_monthly_fee",
+  "commission_rate",
 ] as const;
 
 function sameBillingValue(stored: unknown, intended: unknown): boolean {
   if (typeof intended === "boolean") return !!stored === intended;
   const norm = (v: unknown) => (v === null || v === undefined || v === "" ? null : v);
-  return norm(stored) === norm(intended);
+  const a = norm(stored);
+  const b = norm(intended);
+  if (a === b) return true;
+  // Numerics can come back as strings ("1500.00") — compare by value, not text.
+  const na = Number(a);
+  const nb = Number(b);
+  if (a !== null && b !== null && Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+  return false;
 }
 
 

@@ -92,14 +92,20 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   const tiers = normalizeTiers((config as any).tier_pricing_json);
   const isWidget = config.billing_strategy === "widget";
   const v = emptyBuilderValue();
-  v.commission_enabled = config.commission_rate != null && !isWidget;
+  // The stored switch is authoritative; the rate is only a fallback for rows
+  // saved before the switch had its own column.
+  v.commission_enabled = (config as any).commission_enabled != null
+    ? !!(config as any).commission_enabled && !isWidget
+    : config.commission_rate != null && !isWidget;
   v.commission_rate = config.commission_rate != null ? String(config.commission_rate) : "";
   v.pms_commission_rate = (config as any).pms_commission_rate != null ? String((config as any).pms_commission_rate) : "";
 
   v.widget_tiers_enabled = isWidget && (config as any).widget_flat_commission_rate == null;
   v.widget_flat_enabled = (config as any).widget_flat_commission_rate != null;
   v.widget_flat_rate = (config as any).widget_flat_commission_rate != null ? String((config as any).widget_flat_commission_rate) : "";
-  v.pms_enabled = (config.subscription_fee_monthly ?? 0) > 0 || (config as any).pms_enabled === true;
+  v.pms_enabled = (config as any).pms_enabled != null
+    ? !!(config as any).pms_enabled
+    : (config.subscription_fee_monthly ?? 0) > 0;
   v.subscription_fee = config.subscription_fee_monthly != null ? String(config.subscription_fee_monthly) : "";
   v.channel_manager_enabled = !!config.channel_manager_enabled;
   v.channel_per_unit = config.channel_manager_per_unit_fee != null ? String(config.channel_manager_per_unit_fee) : "";
@@ -268,11 +274,13 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     const payload = {
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
+      commission_enabled: v.commission_enabled,
       commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
       listing_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
       pms_commission_rate: v.commission_enabled ? toNum(v.pms_commission_rate) : null,
 
       widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
+      pms_enabled: v.pms_enabled,
       subscription_fee_monthly: v.pms_enabled ? toNum(v.subscription_fee) : null,
       channel_manager_enabled: v.channel_manager_enabled,
       channel_manager_per_unit_fee: v.channel_manager_enabled ? toNum(v.channel_per_unit) : null,
