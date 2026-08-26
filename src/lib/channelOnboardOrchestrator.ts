@@ -961,7 +961,12 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       enabled: true,
       include_units: true,
       notify: false,
+      // The push task immediately before this one already sent availability and prices for the
+      // whole year. Activation must not re-send them — that is what tripped the channel's
+      // one-write-per-minute window at the very end of a clean run.
+      skip_ari_refresh: true,
     });
+
     if (error) {
       return {
         id: "entitlement",
