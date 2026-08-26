@@ -500,7 +500,12 @@ export async function queueRuStaticDelta(
           changed_field_count: changedFields.length,
           scope: scopeUnitIds ? 'units' : 'property',
           scope_unit_ids: scopeUnitIds,
-          field_fingerprints: success ? currentFields : previous.fields,
+          // Always leave a baseline behind: a parked/refused run records what the content
+          // looked like so the next save diffs against it (`baseline_only`) instead of
+          // falling back to a full push forever.
+          field_fingerprints: currentFields,
+          ...(success ? {} : { baseline_only: true }),
+
           forced: options.force === true,
           chunks,
           units,
