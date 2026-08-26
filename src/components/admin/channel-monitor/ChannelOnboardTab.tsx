@@ -315,7 +315,9 @@ export function ChannelOnboardTab({
     void (async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, owner_email, ru_archived, ru_listings_verified_units")
+        .select(
+          "id, name, owner_email, ru_archived, ru_listings_verified_units, ru_listings_verified_at, ru_listings_verified_owner",
+        )
         .eq("is_active", true)
         .order("name");
 
