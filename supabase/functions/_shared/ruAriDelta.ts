@@ -30,6 +30,13 @@ export interface RuAriDeltaOutcome {
 /** ru_sync_runs.action used to park an ARI delta refused by the readiness / phase gate. */
 export const RU_ARI_DELTA_PENDING_ACTION = "ari_delta_pending";
 
+/**
+ * `ru_call_queue.action` used to park a debounced ARI delta. The queue drain replays it against
+ * `push-property-to-ru` (action `refresh_ari`) once the debounce window has elapsed.
+ */
+export const RU_ARI_DELTA_QUEUE_ACTION = "refresh_ari_delta";
+
+
 /** Gate refusals that mean "correct data, not yet allowed" rather than a hard failure. */
 const GATE_CODES = ["PHASE_BLOCKED", "ONBOARDING_INCOMPLETE", "READINESS_UNVERIFIED", "READINESS_FAILED", RU_WIZARD_SYNC_CODE];
 
