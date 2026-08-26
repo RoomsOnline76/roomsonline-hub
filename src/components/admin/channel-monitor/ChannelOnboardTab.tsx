@@ -448,9 +448,12 @@ export function ChannelOnboardTab({
         const result = await runOnboardStep(step, {
           propertyId,
           startAtTaskId: resumeFrom,
-          confirmedOwnerEmail: step === "a" ? chosenLoginEmail || plan?.login_email || null : null,
+          // Only send an explicit operator override. If nothing was chosen in the
+          // modal, the backend must resolve from the live property/portfolio rows so
+          // a just-reassigned owner email cannot be overwritten by a stale preview.
+          confirmedOwnerEmail: step === "a" ? chosenLoginEmail || null : null,
           confirmedOwnerName:
-            step === "a"
+            step === "a" && chosenLoginEmail
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
           onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
@@ -574,6 +577,12 @@ export function ChannelOnboardTab({
         setRebindOpen(false);
         setRebindEmail("");
         setTaskStates({});
+        setTaskCodes({});
+        setPlan(null);
+        setChosenLoginEmail("");
+        setEmailConflict(null);
+        setStepARemedyCode(null);
+        setAccountDialogOpen(false);
         await gate.refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : "The re-assignment failed";
