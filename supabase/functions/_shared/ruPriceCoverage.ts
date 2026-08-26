@@ -200,8 +200,8 @@ export async function auditChannelPriceCoverage(
   // nothing wrong locally. Treating that tail as a gap made the wizard warning impossible to clear —
   // a re-check would pass the read and still paint amber. Only real gaps inside the window count.
   const tailOnly =
-    firstMissingIndex >= 0 && firstMissingIndex >= days - TAIL_TOLERANCE_DAYS && lastMissingIndex === days - 1;
-  const channelComplete = result.channel_priced_days >= days || tailOnly;
+    firstMissingIndex >= 0 && firstMissingIndex >= result.expected_days - TAIL_TOLERANCE_DAYS && lastMissingIndex === result.expected_days - 1;
+  const channelComplete = result.channel_priced_days >= result.expected_days || tailOnly;
 
   // Local truth: only consulted when the channel is short, because a complete channel year needs
   // no repair regardless of how ROL'OS authored it.
@@ -224,8 +224,8 @@ export async function auditChannelPriceCoverage(
 
   if (channelComplete) {
     result.verdict = 'verified';
-    result.gap_summary = tailOnly && result.channel_priced_days < days
-      ? `The channel holds prices for ${result.channel_priced_days} of ${days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
+    result.gap_summary = tailOnly && result.channel_priced_days < result.expected_days
+      ? `The channel holds prices for ${result.channel_priced_days} of ${result.expected_days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
       : null;
   } else if (result.local_unpriced_days > 0) {
     result.verdict = 'local_incomplete';
