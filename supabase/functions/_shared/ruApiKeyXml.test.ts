@@ -19,3 +19,17 @@ Deno.test("Push_CreateApiKey_RQ uses the existing child key pair and ordered sch
   assertEquals(xml.indexOf("<Authentication>"), xml.indexOf("<Push_CreateApiKey_RQ>") + "<Push_CreateApiKey_RQ>".length);
   assertEquals(xml.indexOf("<Label>") < xml.indexOf("<Scope>"), true);
 });
+
+Deno.test("Push_CreateApiKey_RQ refuses portal credentials at runtime", () => {
+  const passwordAuth = {
+    mode: "password",
+    username: "sub-user@example.com",
+    password: "secret",
+  } as unknown as RuApiKeyAuth;
+
+  assertThrows(
+    () => buildCreateApiKeyXml(passwordAuth, "ROLOS"),
+    Error,
+    "RU_FIRST_API_KEY_REQUIRED",
+  );
+});
