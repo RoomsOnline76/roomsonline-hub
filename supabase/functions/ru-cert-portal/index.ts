@@ -5733,6 +5733,28 @@ Deno.serve(async (req) => {
       if (!portfolioId && propertyId) portfolioId = await resolvePortfolioId(admin, propertyId);
 
 
+      // 0) A distribution login recorded on the channel account binding wins: it is what
+      // the operator re-assigned for this property/portfolio, and it is deliberately
+      // separate from `properties.owner_email` (the contracting owner).
+      if (!ownerEmail && (propertyId || portfolioId)) {
+        let q = admin
+          .from("ru_owner_accounts")
+          .select("ru_login_email, owner_email, property_id, portfolio_id")
+          .not("ru_login_email", "is", null);
+        q = portfolioId && propertyId
+          ? q.or(`portfolio_id.eq.${portfolioId},property_id.eq.${propertyId}`)
+          : portfolioId
+            ? q.eq("portfolio_id", portfolioId)
+            : q.eq("property_id", propertyId!);
+        const { data: bound } = await q.limit(5);
+        const row = ((bound ?? []) as any[]).find((r) => String(r?.ru_login_email ?? "").trim());
+        const candidate = row ? String(row.ru_login_email).trim() : null;
+        if (candidate && !isInternalLogin(candidate)) {
+          ownerEmail = candidate;
+          ownerEmailSource = "the distribution login on file for this account";
+        }
+      }
+
       // 1) The property's own owner email is the authority.
       if (!ownerEmail && propertyId) {
         const { data: pr } = await admin
@@ -5749,6 +5771,17 @@ Deno.serve(async (req) => {
           internalLoginRejected = internalLoginRejected ?? candidate;
         }
       }
+
+      // Contact name always comes from the property/owner record, never from the login.
+      if (!ownerName && propertyId) {
+        const { data: pr } = await admin
+          .from("properties")
+          .select("owner_name, name")
+          .eq("id", propertyId)
+          .maybeSingle();
+        ownerName = ((pr as any)?.owner_name ?? (pr as any)?.name ?? "") || "";
+      }
+
 
       let portfolioRow: { id: string; name: string | null; owner_id: string | null; owner_email: string | null } | null = null;
       if (portfolioId) {

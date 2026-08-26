@@ -505,21 +505,38 @@ Deno.serve(async (req) => {
       }
       legs.push({ leg: "Unbind property", ok: true, detail: "listing ids cleared" });
 
-      // Leg 3 — re-assign the owner email and drop the stale sub-account pointer so
-      // Step A resolves (or creates) the account for the new email from scratch.
-      const { error: ownerError } = await admin
-        .from("properties")
-        .update({ owner_email: newEmail })
-        .eq("id", propertyId);
-      if (ownerError) return fail("Re-assign owner email", ownerError.message);
-      legs.push({ leg: "Re-assign owner email", ok: true, detail: newEmail });
-
+      // Leg 3 — record the new distribution login on the channel account binding and
+      // drop the stale sub-account pointer so Step A resolves (or creates) the account
+      // for that login from scratch.
+      //
+      // `properties.owner_email` is deliberately NOT touched: it identifies the owner we
+      // contract with, and overwriting it here used to revoke the property's contract
+      // standing (silently removing it from the Onboard picker). The channel login lives
+      // on the binding only.
       const previousOwnerId = binding.ru_owner_id;
       if (binding.account_id) {
         const { error: delError } = await admin.from("ru_owner_accounts").delete().eq("id", binding.account_id);
         if (delError) return fail("Clear sub-account pointer", delError.message);
         legs.push({ leg: "Clear sub-account pointer", ok: true, detail: "account row removed" });
       }
+
+      {
+        // One account per portfolio is inherited by every member, so a portfolio member
+        // records the new login portfolio-wide; a standalone property records its own.
+        const scopePortfolioId = binding.portfolio_id ?? null;
+        const { error: loginError } = await admin.from("ru_owner_accounts").insert({
+          owner_email: newEmail,
+          ru_login_email: newEmail,
+          scope: scopePortfolioId ? "portfolio" : "property",
+          portfolio_id: scopePortfolioId,
+          property_id: scopePortfolioId ? null : propertyId,
+          company_details_sent: false,
+          company_details_status: "pending",
+        });
+        if (loginError) return fail("Re-assign distribution login", loginError.message);
+        legs.push({ leg: "Re-assign distribution login", ok: true, detail: newEmail });
+      }
+
 
       // Leg 4 — archive the old sub-account when nothing is bound to it any more.
       let closedAccount = false;
