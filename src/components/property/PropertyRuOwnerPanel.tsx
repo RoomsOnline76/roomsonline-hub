@@ -30,6 +30,9 @@ import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { useChannelOnboardGate } from "@/hooks/useChannelOnboardGate";
+
 
 
 const RU_SECURITY_SETTINGS_URL = "https://new.rentalsunited.com/My/SecuritySettings";
@@ -106,10 +109,9 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
 
 
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [confirmCreate, setConfirmCreate] = useState(false);
+
   const [identity, setIdentity] = useState<RuOwnerIdentity | null>(null);
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
@@ -173,24 +175,14 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     void load();
   }, [load]);
 
-  const createSubAccount = async () => {
-    setCreating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "ensure_owner_account", property_id: propertyId },
-      });
-      if (error) throw new Error(await extractFunctionError(error));
-      if (!data?.success) throw new Error(data?.error?.message ?? "Distribution account creation failed");
-      toast.success("Distribution account linked to this owner");
-      notifyRuAccountsChanged();
-      setConfirmCreate(false);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Distribution account creation failed");
-    } finally {
-      setCreating(false);
-    }
-  };
+  /**
+   * Account provisioning belongs to Step A on the Channel onboarding surface — this
+   * card only routes there once the mandatory steps 1–5 have passed.
+   */
+  const startOnboarding = useCallback(() => {
+    navigate(`/admin/channel-monitor?tab=onboard&property=${propertyId}`);
+  }, [navigate, propertyId]);
+
 
   /**
    * Push_FillCompanyDetails_RQ. RU applies the profile to whichever account
