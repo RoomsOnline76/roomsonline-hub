@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
+import { AuthProvider } from "@/hooks/useAuth";
 
 // ─── Eager — critical path only (FCP) ────────────────────────────
 import NotFound from "./pages/NotFound";
@@ -266,12 +267,13 @@ const PageFallback = () => (
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="rol-theme">
     <QueryClientProvider client={queryClient}>
-      <CurrencyProvider>
-        <MobileBookingProvider>
-          <ItineraryProvider>
-            <BehavioralMemoryProvider>
-              <RecaptchaProvider>
-                <TooltipProvider>
+      <AuthProvider>
+        <CurrencyProvider>
+          <MobileBookingProvider>
+            <ItineraryProvider>
+              <BehavioralMemoryProvider>
+                <RecaptchaProvider>
+                  <TooltipProvider>
                   <Toaster />
                   <Sonner />
                   <BrowserRouter>
@@ -506,12 +508,13 @@ const App = () => (
                       )}
                     </Suspense>
                   </BrowserRouter>
-                </TooltipProvider>
-              </RecaptchaProvider>
-            </BehavioralMemoryProvider>
-          </ItineraryProvider>
-        </MobileBookingProvider>
-      </CurrencyProvider>
+                  </TooltipProvider>
+                </RecaptchaProvider>
+              </BehavioralMemoryProvider>
+            </ItineraryProvider>
+          </MobileBookingProvider>
+        </CurrencyProvider>
+      </AuthProvider>
     </QueryClientProvider>
     <Analytics />
     <SpeedInsights />
