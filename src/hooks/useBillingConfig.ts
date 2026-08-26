@@ -14,6 +14,9 @@ export interface BillingConfig {
   pms_commission_rate?: number | null;
 
   widget_flat_commission_rate?: number | null;
+  /** Explicit switches — authoritative over the fee/rate values they gate. */
+  pms_enabled?: boolean | null;
+  commission_enabled?: boolean | null;
   subscription_fee_monthly: number | null;
   transaction_fee_percentage: number | null;
   payment_facilitator_enabled: boolean;
