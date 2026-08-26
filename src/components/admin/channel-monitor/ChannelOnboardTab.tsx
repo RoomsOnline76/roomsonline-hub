@@ -750,18 +750,18 @@ export function ChannelOnboardTab({
                   {collapsed ? "Show detail" : "Hide detail"}
                 </Button>
               )}
-              <Button
-                size="sm"
-                onClick={() => void runStep(step)}
-                disabled={stepDisabled[step]}
-              >
-                {runningStep === step ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                {status === "passed" ? "Re-run" : meta.cta}
-              </Button>
+              {/* Step A has no run button: it starts when the account modal is accepted. */}
+              {step === "b" && (
+                <Button size="sm" onClick={() => void runStep(step)} disabled={stepDisabled[step]}>
+                  {runningStep === step ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {status === "passed" ? "Re-run" : meta.cta}
+                </Button>
+              )}
+
             </div>
           </div>
         </CardHeader>
