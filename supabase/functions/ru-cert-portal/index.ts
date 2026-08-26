@@ -4698,7 +4698,8 @@ Deno.serve(async (req) => {
           login_email: opts.loginEmail,
           access_key: created.access_key,
           secret_enc: enc,
-          key_label: keyLabel,
+          key_label: createdLabel,
+
           verified_at: new Date().toISOString(),
         }, { onConflict: "ru_owner_id" });
         if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
