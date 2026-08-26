@@ -176,13 +176,10 @@ export function StepAccountDialog({
   const [credEmail, setCredEmail] = useState("");
   const [credPassword, setCredPassword] = useState("");
   const [savingCred, setSavingCred] = useState(false);
-  const [savingKeys, setSavingKeys] = useState(false);
   const [credNote, setCredNote] = useState<string | null>(null);
   const [credCode, setCredCode] = useState<string | null>(null);
   const [credsStored, setCredsStored] = useState(false);
   const [passwordStored, setPasswordStored] = useState(false);
-  const [manualAccessKey, setManualAccessKey] = useState("");
-  const [manualSecretKey, setManualSecretKey] = useState("");
   // A credential remedy must land the operator on the field it needs, not just open the modal.
   const credCardRef = useRef<HTMLDivElement | null>(null);
   const credPasswordRef = useRef<HTMLInputElement | null>(null);
@@ -249,7 +246,6 @@ export function StepAccountDialog({
     () => resolveStepARemedy(credCode ?? remedyCode, credNote),
     [credCode, credNote, remedyCode],
   );
-  const showManualKeys = !planHasKeys;
 
   useEffect(() => {
     setCredEmail(planLogin);
@@ -258,15 +254,13 @@ export function StepAccountDialog({
     setCredCode(null);
     setCredsStored(false);
     setPasswordStored(Boolean(plan?.has_stored_password));
-    setManualAccessKey("");
-    setManualSecretKey("");
   }, [plan?.has_stored_password, planAccountId, planLogin]);
 
   // A credential/key remedy scrolls the card into view and focuses the password field, so the
   // operator is asked for exactly the value the channel refused instead of hunting for it.
   useEffect(() => {
     if (!open) return;
-    const needsInput = activeRemedy?.remedy === "password" || activeRemedy?.remedy === "api_keys";
+    const needsInput = activeRemedy?.remedy === "password";
     if (!needsInput || !remedyCode) return;
     const timer = window.setTimeout(() => {
       credCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -276,7 +270,7 @@ export function StepAccountDialog({
   }, [activeRemedy?.remedy, open, remedyCode]);
 
 
-  // Portal credentials are retained for portal operations only; they cannot bootstrap API keys.
+  // Saving the password immediately retries automatic key creation and secure storage.
   const saveCredentials = useCallback(async () => {
     if (!planAccountId) return;
     setSavingCred(true);
@@ -301,53 +295,19 @@ export function StepAccountDialog({
 
       setPasswordStored(true);
       setCredPassword("");
-      const warning = data.api_warning ?? "Portal password stored. Generate and paste the first API key pair below.";
-      setCredCode(data.error_code ?? "RU_FIRST_API_KEY_REQUIRED");
-      setCredNote(warning);
-      toast.success("Portal password stored", { description: warning, duration: 12000 });
+      setCredsStored(data.key_minted === true);
+      setCredCode(null);
+      const note = data.key_minted === true
+        ? "Password saved. Step A created, verified and stored the API key pair."
+        : "Password saved. Run Step A to complete automatic key creation.";
+      setCredNote(note);
+      toast.success(data.key_minted === true ? "Account credentials completed" : "Sub-account password stored", {
+        description: note,
+      });
     } finally {
       setSavingCred(false);
     }
   }, [credEmail, credPassword, planAccountId]);
-
-
-  const saveManualKeys = useCallback(async () => {
-    if (!planAccountId) return;
-    setSavingKeys(true);
-    setCredNote(null);
-    setCredCode(null);
-    try {
-      const keyData = await invokeCertPortal({
-        action: "save_api_keys",
-        account_id: planAccountId,
-        login_email: credEmail.trim(),
-        access_key: manualAccessKey.trim(),
-        secret_key: manualSecretKey.trim(),
-        key_label: "ROLOS",
-      }, "The API key pair could not be stored.");
-      if (keyData.success !== true || keyData.verified === false) {
-        const code = keyData.error?.code ?? "RU_CHILD_KEYS_REJECTED";
-        const message = keyData.error?.message ?? "The API key pair could not be verified.";
-        setCredCode(code);
-        setCredNote(message);
-        toast.warning("API key pair was not stored", { description: message, duration: 14000 });
-        return;
-      }
-
-      setCredsStored(true);
-      setCredCode(null);
-      setManualAccessKey("");
-      setManualSecretKey("");
-      setCredNote(
-        keyData.company_details_warning
-          ? `Keys verified. ${keyData.company_details_warning}`
-          : "API key pair verified and stored.",
-      );
-      toast.success("API key pair verified and stored");
-    } finally {
-      setSavingKeys(false);
-    }
-  }, [credEmail, manualAccessKey, manualSecretKey, planAccountId]);
 
 
 
@@ -519,8 +479,8 @@ export function StepAccountDialog({
                 </CardTitle>
                 <CardDescription className="text-xs">
                   {planHasPassword
-                    ? "A portal password is stored for this account. API keys are managed separately."
-                    : "Store the portal password for operator access. It cannot create the first API key pair."}
+                    ? "A sub-account password is stored. Step A creates and stores the API key pair automatically."
+                    : "Enter the sub-account password and Step A will create, verify and store its API key pair automatically."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -565,50 +525,9 @@ export function StepAccountDialog({
                     onClick={saveCredentials}
                   >
                     {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Save portal password
+                    Save password &amp; complete credentials
                   </Button>
                 </div>
-                {showManualKeys ? (
-                  <div className="rounded-md border border-border bg-muted/30 p-3">
-                    <div className="mb-2 flex items-start gap-2 text-xs text-muted-foreground">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                      <span>
-                        Generate the first key pair while signed in as this exact sub-account, then paste both values here.
-                        The SecretKey is only shown once. Additional keys can be created automatically afterward.
-                      </span>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div>
-                        <Label className="text-xs">AccessKey</Label>
-                        <Input
-                          className="mt-1 font-mono"
-                          value={manualAccessKey}
-                          onChange={(event) => setManualAccessKey(event.target.value)}
-                          placeholder="AccessKey"
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">SecretKey</Label>
-                        <Input
-                          className="mt-1 font-mono"
-                          type="password"
-                          value={manualSecretKey}
-                          onChange={(event) => setManualSecretKey(event.target.value)}
-                          placeholder="SecretKey"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      className="mt-3"
-                      size="sm"
-                      disabled={manualAccessKey.trim().length < 6 || manualSecretKey.trim().length < 6 || savingKeys}
-                      onClick={saveManualKeys}
-                    >
-                      {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                      Verify &amp; store API key pair
-                    </Button>
-                  </div>
-                ) : null}
                 {credNote ? <p className="text-xs text-muted-foreground">{credNote}</p> : null}
               </CardContent>
             </Card>

@@ -140,7 +140,6 @@ const DEFAULT_RATE_WINDOW_MS = 60_000;
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_CREATE_KEY_FAILED",
   "RU_CREATE_KEY_BAD_LOGIN",
-  "RU_FIRST_API_KEY_REQUIRED",
   "RU_PASSWORD_PROBE_UNSUPPORTED",
 
   "RU_CHILD_LOGIN_REJECTED",
@@ -434,7 +433,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
 
     notifyRuAccountsChanged();
-    // Record whether an existing key pair was found; new accounts require one portal capture.
+    // Record the key pair created or found by atomic Step A.
     ctx.keyProvisioning = {
       source: String(data.key_source ?? "") as KeySource,
       accessKey: (data.access_key as string | null) ?? null,
@@ -504,9 +503,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: "RU_FIRST_API_KEY_REQUIRED",
+      code: "NO_STORED_PASSWORD",
       detail: provisioning?.warning
-        ?? "Generate the first API key pair in the channel portal for this sub-account, then verify and store it here.",
+        ?? "Step A needs the sub-account password to create and store its API key pair automatically.",
     };
   },
 
