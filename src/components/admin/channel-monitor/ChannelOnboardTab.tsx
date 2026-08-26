@@ -91,6 +91,10 @@ interface PropertyOption {
   owner_email: string | null;
   /** Units verified live at the channel manager (null/0 = nothing live yet). */
   ru_listings_verified_units?: number | null;
+  /** When the listing verification last ran — proof the property was pushed. */
+  ru_listings_verified_at?: string | null;
+  /** The account the listings were verified under — also proof of a push. */
+  ru_listings_verified_owner?: string | null;
 }
 
 
