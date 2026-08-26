@@ -2759,7 +2759,8 @@ async function pushARI(
         }
         // Reserved days usually sit inside a multi-day range, so the range has to be split —
         // dropping only entries whose start date is reserved leaves the day in the payload.
-        const retryEntries = excludeDatesFromAvailability(availEntries, reservedDates);
+        // Collapsing keeps the splits intact (the excluded days genuinely break the ranges).
+        const retryEntries = collapseAvbRanges(excludeDatesFromAvailability(availEntries, reservedDates));
         result.availability_reserved_days = reservedDates.size;
 
         if (reservedDates.size > 0 && retryEntries.length > 0) {
