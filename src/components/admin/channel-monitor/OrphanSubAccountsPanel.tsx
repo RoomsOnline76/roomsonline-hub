@@ -316,12 +316,15 @@ export function OrphanSubAccountsPanel() {
     [purgeAtChannel, refreshDependents],
   );
 
-  /** Walk every outstanding registry entry, one at a time — never in parallel. */
+  /**
+   * Walk every outstanding registry entry, one at a time — never in parallel, with a
+   * pause between accounts so a long run does not trip the channel's rate limit.
+   */
   const purgeAllOutstanding = useCallback(async () => {
     setBulkRunning(true);
     let done = 0;
     let failed = 0;
-    for (const row of outstanding) {
+    for (const [index, row] of outstanding.entries()) {
       const outcome = await purgeAtChannel(
         row.ru_owner_id,
         row.portal_email,
@@ -330,12 +333,23 @@ export function OrphanSubAccountsPanel() {
       setOutcomes((prev) => ({ ...prev, [row.ru_owner_id]: outcome }));
       if (outcome.ok) done += 1;
       else failed += 1;
+      if (index < outstanding.length - 1) {
+        const wait = outcome.rateDeferred ? Math.max(outcome.retryAfterMs ?? 15_000, 15_000) : 2_500;
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
     }
     setBulkRunning(false);
     refreshDependents();
     if (failed === 0) toast.success(`${done} account(s) archived at the channel`);
     else toast.warning(`${done} archived, ${failed} refused — see each row for the channel's answer`);
   }, [outstanding, purgeAtChannel, refreshDependents]);
+
+  /** Key pair we hold for an OwnerID — drives the badge and the archive route. */
+  const keyFor = useCallback(
+    (ownerId: string): KeyInfo => data?.keys?.get(ownerId) ?? { state: "none", login_email: null, key_label: null },
+    [data?.keys],
+  );
+
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
 
