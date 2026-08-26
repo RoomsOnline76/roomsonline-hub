@@ -304,7 +304,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       billing_anchor_day: engagementDate ? Number(schedulePreview.paidStart?.slice(8, 10)) || null : null,
 
       billing_enabled: enabled,
-    } as any);
+    } as any;
+    try {
+      await upsert.mutateAsync(payload);
+      setSaveFailed(false);
+      return true;
+    } catch {
+      // The hook already surfaced the reason; keep the operator's choices on screen.
+      setSaveFailed(true);
+      return false;
+    }
   };
 
   const applyPreset = (slug: string) => {
