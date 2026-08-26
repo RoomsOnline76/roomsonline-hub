@@ -140,11 +140,17 @@ export function RestrictionsManagerDialog({
     onChanged?.();
     if (span.kind !== "rate_plan_closure") {
       // syncRestrictionsToChannels already stays silent for properties that are not yet
-      // connected; only a genuine throw is worth an error toast.
-      void syncRestrictionsToChannels([span.propertyId], "stop_sell").catch((error) => {
+      // connected; only a genuine throw is worth an error toast. The span's own nights scope the
+      // channel write so a five-night edit never re-sends the whole year.
+      const nights = [...(span.dates ?? [])].sort();
+      void syncRestrictionsToChannels([span.propertyId], "stop_sell", {
+        from: nights[0] ?? null,
+        to: nights[nights.length - 1] ?? null,
+      }).catch((error) => {
         console.error("Restriction change saved but the channel push failed:", error);
       });
     }
+
   };
 
   return (
