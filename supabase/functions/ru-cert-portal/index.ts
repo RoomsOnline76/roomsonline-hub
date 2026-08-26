@@ -5406,7 +5406,13 @@ Deno.serve(async (req) => {
         ru_login_email: loginEmail || String(match?.email ?? "").trim() || account.ru_login_email,
       };
       const userAccountId = String(match?.user_account_id ?? "").trim();
-      if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+      // Never mirror the OwnerID into the sub-user id — one account must not read as two.
+      if (userAccountId && userAccountId !== "0" && userAccountId !== String(ruOwnerId ?? "")) {
+        update.ru_user_id = userAccountId;
+      } else {
+        update.ru_user_id = null;
+      }
+
 
 
       // Rebinding to a different OwnerID: credentials, API keys and verification state
