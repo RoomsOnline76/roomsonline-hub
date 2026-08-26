@@ -4477,25 +4477,6 @@ export default function PropertyForm({
           </Alert>
         )}
 
-        {!embedded && isRolosPms(selectedPMS) && !forceTabs && propertyId && (
-          <Alert className="border-primary/40 bg-primary/5">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <AlertDescription className="text-sm">
-              <span className="font-medium">
-                ROL&apos;OS is the source of truth for Facilities, Rooms, Calendar / Seasons, Rate Plans,
-                Policies, Charges, Packages, Specials, Addons, Templates, Announcements and Contacts. You can
-                edit them here or in ROL&apos;OS — both write the same records.
-              </span>{" "}
-              <button
-                type="button"
-                className="underline underline-offset-2 text-primary hover:opacity-80"
-                onClick={() => navigate(`/pms/property-setup?property=${propertyId}`)}
-              >
-                Open Property Setup →
-              </button>
-            </AlertDescription>
-          </Alert>
-        )}
 
         {/* Legacy readiness stepper/gates retired — the floating ROL'OS onboarding
             wizard now owns gating. Only the field-highlighting legend stays. */}
