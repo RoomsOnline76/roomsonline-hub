@@ -5265,6 +5265,18 @@ export default function PropertyForm({
                           />
                         </div>
                         <div className="flex flex-col gap-1">
+                          <Label htmlFor="property-slug" className="text-xs">
+                            Slug
+                          </Label>
+                          <Input
+                            id="property-slug"
+                            value={propertySlug || ""}
+                            readOnly
+                            placeholder="Set on first save"
+                            className="h-7 text-xs font-mono cursor-not-allowed bg-muted/40"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
                           <Label htmlFor="property_type" className="text-xs flex items-center">
                             Type *
                             <ContextualHelp table="properties" field="property_type" />
