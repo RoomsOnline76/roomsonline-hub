@@ -2889,13 +2889,19 @@ Deno.serve(async (req) => {
      * to sit in our retired registry. Every other write keeps the master-pair prohibition.
      */
     let archiveRetiredGranted = false;
+    const archiveIntentAction =
+      (action === 'set_property_status' &&
+        (body.metadata?.is_archived === true || body.metadata?.is_active === false)) ||
+      // The enumeration that feeds the archive run needs the same envelope, otherwise we
+      // would be archiving ids we never read back from the channel.
+      action === 'list_properties';
     if (
       body.archive_retired === true &&
-      action === 'set_property_status' &&
+      archiveIntentAction &&
       ownerScope &&
-      !isMasterOwnerId(ownerScope) &&
-      (body.metadata?.is_archived === true || body.metadata?.is_active === false)
+      !isMasterOwnerId(ownerScope)
     ) {
+
       try {
         const { data: retired } = await getLogClient()
           .from('ru_retired_accounts')
