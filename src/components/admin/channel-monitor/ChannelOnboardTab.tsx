@@ -549,8 +549,19 @@ export function ChannelOnboardTab({
           return next;
         });
         if (conflict) {
+          // Failure-only modal: load the account plan first so the chooser paints
+          // with the resolved login and its automatic fallback on first open.
+          let resolvedPlan = plan;
+          if (!resolvedPlan) {
+            try {
+              resolvedPlan = await planOwnerAccount(propertyId);
+              setPlan(resolvedPlan);
+            } catch {
+              // The chooser still renders from the conflict candidates alone.
+            }
+          }
           setEmailConflict({
-            email: chosenLoginEmail || String(plan?.login_email ?? ""),
+            email: chosenLoginEmail || String(resolvedPlan?.login_email ?? ""),
             message: conflict.detail,
             candidates: (conflict.loginCandidates ?? []).filter((c) => c.email),
           });
