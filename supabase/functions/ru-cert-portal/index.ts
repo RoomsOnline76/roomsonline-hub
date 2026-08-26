@@ -5965,7 +5965,7 @@ Deno.serve(async (req) => {
 
       const { data: credRow } = await admin
         .from("ru_api_credentials")
-        .select("access_key, secret_enc, login_email")
+        .select("access_key, secret_enc, login_email, key_label, key_scope")
         .eq("ru_owner_id", ownerId)
         .maybeSingle();
       const { data: registryRow } = await admin
@@ -5981,45 +5981,77 @@ Deno.serve(async (req) => {
 
       const steps: { step: string; ok: boolean; message: string }[] = [];
 
-      // ── Step 1: authentication ──
-      let haveKeys = false;
+      // ── Step 1: credential triage ──
+      // A stored pair is only usable as the sub-account when it is proven CHILD scope:
+      // a master pair authenticates as our master account, so writing with it is refused.
+      let storedSecretUsable = false;
       if (credRow?.access_key) {
         const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
-        haveKeys = Boolean(plain && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]");
+        storedSecretUsable = Boolean(plain && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]");
       }
-      if (haveKeys) {
-        steps.push({ step: "auth", ok: true, message: "Used the stored API key pair" });
+      const storedIsMasterPair = credRow?.key_scope === "master_pair";
+      const haveChildKeys = storedSecretUsable && !storedIsMasterPair;
+
+      /**
+       * Escalation envelope. The channel refuses to mint keys for these retired accounts,
+       * so removing their footprint runs on MASTER credentials scoped by OwnerID — allowed
+       * by rentalsunited-api only for an archive/deactivate on a registry-listed OwnerID.
+       */
+      let envelope: "child_keys" | "master_scoped_archive" = "child_keys";
+      if (haveChildKeys) {
+        steps.push({ step: "auth", ok: true, message: "Used the stored sub-account API key pair" });
       } else {
-        const minted = await mintChildKeyPair({
-          ownerId,
-          loginEmail,
-          keyLabel: "ROLOS-purge",
-          authUsername: loginEmail,
-          authPassword: suppliedPassword,
-        });
-        if (!minted.ok) {
-          return json({
-            success: false,
-            ru_owner_id: ownerId,
-            account_label: label,
-            stopped_after: "auth",
-            steps: [...steps, { step: "auth", ok: false, message: minted.message ?? "The channel refused every login envelope" }],
-            attempts: minted.attempts ?? [],
-            ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
-            error: {
-              code: minted.code ?? "AUTH_REFUSED",
-              message: minted.message ?? "The channel refused every login envelope for this sub-account.",
-            },
-          }, minted.rateDeferred ? 429 : 422);
+        const minted = suppliedPassword
+          ? await mintChildKeyPair({
+            ownerId,
+            loginEmail,
+            keyLabel: "ROLOS-purge",
+            authUsername: loginEmail,
+            authPassword: suppliedPassword,
+          })
+          : { ok: false as const, message: null, attempts: [] as string[] };
+
+        if (minted.ok) {
+          steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
+        } else {
+          // Make the registry entry exist BEFORE escalating: it is both the record of intent
+          // and the proof the channel API checks before allowing a master-scoped archive.
+          if (!registryRow) {
+            await admin.from("ru_retired_accounts").upsert(
+              {
+                ru_owner_id: ownerId,
+                portal_email: label,
+                reason: note ?? "Retired for channel archival from Channel Monitor",
+                retired_by: user.id,
+                listings_archived: 0,
+              },
+              { onConflict: "ru_owner_id" },
+            );
+          }
+          envelope = "master_scoped_archive";
+          steps.push({
+            step: "auth",
+            ok: true,
+            message: storedIsMasterPair
+              ? "Stored pair authenticates as the master account — archiving on master credentials scoped to this OwnerID"
+              : "No usable sub-account keys and the channel will not mint any — archiving on master credentials scoped to this OwnerID",
+          });
         }
-        haveKeys = true;
-        steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
       }
+      const archiveIntent = envelope === "master_scoped_archive";
+
 
       // ── Step 2: what does this account really own? ──
       const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "list_properties", owner_id: Number(ownerId), force_fresh: true, parent_action: "ru-cert-portal:purge_channel_account" },
+        body: {
+          action: "list_properties",
+          owner_id: Number(ownerId),
+          force_fresh: true,
+          ...(archiveIntent ? { archive_retired: true } : {}),
+          parent_action: "ru-cert-portal:purge_channel_account",
+        },
       });
+
       if (listErr || listed?.success !== true) {
         return json({
           success: false,
@@ -6051,7 +6083,10 @@ Deno.serve(async (req) => {
               action: "set_property_status",
               ru_property_id: Number(l.id),
               owner_id: Number(ownerId),
+              ...(archiveIntent ? { archive_retired: true } : {}),
+              parent_action: "ru-cert-portal:purge_channel_account",
               metadata: { is_active: false, is_archived: true },
+
             },
           });
           if (invErr || res?.success !== true) {
@@ -6094,6 +6129,7 @@ Deno.serve(async (req) => {
       const result = {
         ran_at: new Date().toISOString(),
         ran_by: user.email ?? user.id,
+        envelope,
         total_listings: remote.length,
         archived_listings: archived,
         refused_listings: refused,
@@ -6103,6 +6139,7 @@ Deno.serve(async (req) => {
         account_archive_verb: "unsupported_by_channel",
         steps,
       };
+
 
       const { error: regErr } = await admin.from("ru_retired_accounts").upsert(
         {
@@ -6145,11 +6182,13 @@ Deno.serve(async (req) => {
         ru_owner_id: ownerId,
         account_label: label,
         archived_at_channel: fullyArchived,
+        envelope,
         total_listings: remote.length,
         archived_listings: archived,
         refused_listings: refused,
         keys_released: keysReleased,
         steps,
+
         ...(fullyArchived
           ? {}
           : {

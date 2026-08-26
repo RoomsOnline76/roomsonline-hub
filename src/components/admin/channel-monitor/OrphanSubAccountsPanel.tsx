@@ -50,11 +50,32 @@ interface RetiredRow {
 interface PurgeOutcome {
   ok: boolean;
   message: string;
+  /** The channel throttled us — the bulk runner waits before the next account. */
+  rateDeferred?: boolean;
+  retryAfterMs?: number;
 }
+
+
+/** What we hold for an account: decides whether a normal child-key archive is possible. */
+type KeyState = "child" | "master_pair" | "unverified" | "none";
+
+interface KeyInfo {
+  state: KeyState;
+  login_email: string | null;
+  key_label: string | null;
+}
+
+const KEY_BADGE: Record<KeyState, { text: string; variant: "secondary" | "outline" | "destructive" }> = {
+  child: { text: "Child key on file", variant: "secondary" },
+  master_pair: { text: "Master pair — archives on master credentials", variant: "destructive" },
+  unverified: { text: "Key on file (scope unverified)", variant: "outline" },
+  none: { text: "No keys — archives on master credentials", variant: "outline" },
+};
 
 const DEFAULT_REASON = "Orphan distribution account — retired from Channel Monitor";
 
 const PANEL_QUERY_KEY = ["channel-orphan-sub-accounts"] as const;
+
 
 /** Label for an orphan row: portal login first, contact email as the fallback. */
 function accountLabel(user: RosterUser): string {
@@ -88,13 +109,14 @@ export function OrphanSubAccountsPanel() {
     queryKey: PANEL_QUERY_KEY,
     staleTime: 60_000,
     queryFn: async () => {
-      const [{ data: roster }, { data: accounts }, { data: retiredRows }] = await Promise.all([
+      const [{ data: roster }, { data: accounts }, { data: retiredRows }, { data: credRows }] = await Promise.all([
         supabase.from("ru_roster_cache").select("users, fetched_at").eq("cache_key", "master").maybeSingle(),
         supabase.from("ru_owner_accounts").select("ru_owner_id"),
         supabase
           .from("ru_retired_accounts")
           .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived")
           .order("retired_at", { ascending: false }),
+        supabase.from("ru_api_credentials").select("ru_owner_id, login_email, key_label, key_scope"),
       ]);
 
       const bound = new Set(
@@ -111,6 +133,20 @@ export function OrphanSubAccountsPanel() {
       // keep showing up here as an orphan.
       const retiredIds = new Set(retired.map((r) => r.ru_owner_id));
 
+      // Match the API key pairs we actually hold to these accounts, so an operator can
+      // see up front why a row archives on child keys or on master credentials.
+      const keys = new Map<string, KeyInfo>();
+      for (const c of credRows ?? []) {
+        const id = String((c as { ru_owner_id?: string }).ru_owner_id ?? "").trim();
+        if (!id) continue;
+        const scope = String((c as { key_scope?: string }).key_scope ?? "unverified");
+        keys.set(id, {
+          state: scope === "child" ? "child" : scope === "master_pair" ? "master_pair" : "unverified",
+          login_email: (c as { login_email?: string | null }).login_email ?? null,
+          key_label: (c as { key_label?: string | null }).key_label ?? null,
+        });
+      }
+
       const users = (Array.isArray(roster?.users) ? (roster?.users as RosterUser[]) : []).filter(
         // An account archived at the channel is still read here until it is in the
         // retired registry, so it must stay visible and archivable — only registry
@@ -124,8 +160,10 @@ export function OrphanSubAccountsPanel() {
         orphans: users.filter((u) => !bound.has(String(u.owner_id).trim())),
         bound,
         retired,
+        keys,
       };
     },
+
   });
 
   /** Invalidate everything that counts or costs sub-accounts, so figures agree. */
@@ -157,23 +195,31 @@ export function OrphanSubAccountsPanel() {
           refused_listings?: { listing_id: string; message: string }[];
           keys_released?: boolean;
           total_listings?: number;
+          envelope?: string;
+          rate_deferred?: boolean;
+          retry_after_ms?: number;
           error?: { message?: string };
         };
+        const via = payload.envelope === "master_scoped_archive" ? " · via master credentials" : "";
         if (payload.success === true) {
           const archived = payload.archived_listings?.length ?? 0;
           return {
             ok: true,
             message:
               `${archived} of ${payload.total_listings ?? archived} listing(s) archived at the channel` +
-              (payload.keys_released ? " · API keys released" : ""),
+              (payload.keys_released ? " · API keys released" : "") +
+              via,
           };
         }
         const refused = payload.refused_listings?.length ?? 0;
         return {
           ok: false,
+          rateDeferred: payload.rate_deferred === true,
+          retryAfterMs: payload.retry_after_ms,
           message:
             payload.error?.message ??
             (refused ? `${refused} listing(s) refused by the channel` : error?.message ?? "The channel purge failed"),
+
         };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
@@ -270,12 +316,15 @@ export function OrphanSubAccountsPanel() {
     [purgeAtChannel, refreshDependents],
   );
 
-  /** Walk every outstanding registry entry, one at a time — never in parallel. */
+  /**
+   * Walk every outstanding registry entry, one at a time — never in parallel, with a
+   * pause between accounts so a long run does not trip the channel's rate limit.
+   */
   const purgeAllOutstanding = useCallback(async () => {
     setBulkRunning(true);
     let done = 0;
     let failed = 0;
-    for (const row of outstanding) {
+    for (const [index, row] of outstanding.entries()) {
       const outcome = await purgeAtChannel(
         row.ru_owner_id,
         row.portal_email,
@@ -284,12 +333,23 @@ export function OrphanSubAccountsPanel() {
       setOutcomes((prev) => ({ ...prev, [row.ru_owner_id]: outcome }));
       if (outcome.ok) done += 1;
       else failed += 1;
+      if (index < outstanding.length - 1) {
+        const wait = outcome.rateDeferred ? Math.max(outcome.retryAfterMs ?? 15_000, 15_000) : 2_500;
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
     }
     setBulkRunning(false);
     refreshDependents();
     if (failed === 0) toast.success(`${done} account(s) archived at the channel`);
     else toast.warning(`${done} archived, ${failed} refused — see each row for the channel's answer`);
   }, [outstanding, purgeAtChannel, refreshDependents]);
+
+  /** Key pair we hold for an OwnerID — drives the badge and the archive route. */
+  const keyFor = useCallback(
+    (ownerId: string): KeyInfo => data?.keys?.get(ownerId) ?? { state: "none", login_email: null, key_label: null },
+    [data?.keys],
+  );
+
 
   if (isLoading) return <Skeleton className="h-32 w-full" />;
 
@@ -342,20 +402,25 @@ export function OrphanSubAccountsPanel() {
             const ownerId = String(u.owner_id);
             const busy = (archive.isPending || runningOwnerId === ownerId) && String(pending?.owner_id ?? "") === ownerId;
             const outcome = outcomes[ownerId];
+            const keyBadge = KEY_BADGE[keyFor(ownerId).state];
             return (
               <div
                 key={ownerId}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2"
               >
                 <span className="flex flex-col gap-0.5 text-xs">
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     {accountLabel(u)}
                     {u.archived ? (
                       <Badge variant="outline" className="text-[10px]">
                         Archived at channel
                       </Badge>
                     ) : null}
+                    <Badge variant={keyBadge.variant} className="text-[10px]">
+                      {keyBadge.text}
+                    </Badge>
                   </span>
+
                   {outcome && (
                     <span className={`text-[10px] ${outcome.ok ? "text-primary" : "text-destructive"}`}>
                       {outcome.message}
@@ -427,14 +492,16 @@ export function OrphanSubAccountsPanel() {
               {retired.map((r) => {
                 const outcome = outcomes[r.ru_owner_id];
                 const running = runningOwnerId === r.ru_owner_id;
+                const keyInfo = keyFor(r.ru_owner_id);
+                const keyBadge = KEY_BADGE[keyInfo.state];
                 return (
                   <div
                     key={r.ru_owner_id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-                        {r.portal_email || "(no login recorded)"}
+                      <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        {r.portal_email || keyInfo.login_email || "(no login recorded)"}
                         <span className="font-mono text-[10px]">OwnerID {r.ru_owner_id}</span>
                         {r.channel_archived_at ? (
                           <Badge variant="secondary" className="text-[10px]">
@@ -445,7 +512,14 @@ export function OrphanSubAccountsPanel() {
                             Still live at channel
                           </Badge>
                         )}
+                        {!r.channel_archived_at && (
+                          <Badge variant={keyBadge.variant} className="text-[10px]">
+                            {keyBadge.text}
+                            {keyInfo.key_label ? ` · ${keyInfo.key_label}` : ""}
+                          </Badge>
+                        )}
                       </p>
+
                       <p className="text-[10px] text-muted-foreground">
                         {r.reason || "No reason recorded"}
                         {r.retired_at && ` · ${new Date(r.retired_at).toLocaleDateString()}`}

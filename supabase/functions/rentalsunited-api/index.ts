@@ -297,6 +297,13 @@ interface RequestBody {
   changed_fields?: string[];
   push_type?: 'delta' | 'full';
   fingerprint?: string;
+  /**
+   * Archive-only escalation for a RETIRED, unbound sub-account: allows the status write
+   * to run on MASTER credentials scoped by OwnerID. Only honoured when the OwnerID is
+   * present in ru_retired_accounts and the write archives/deactivates the listing.
+   */
+  archive_retired?: boolean;
+
 
   // Push payloads
   property?: RUPropertyPayload;
@@ -2868,14 +2875,55 @@ Deno.serve(async (req) => {
       ? await resolveChildAuthDetailed(body)
       : { auth: null, reason: null };
     const childAuth = childResolution.auth;
-    const scopedCreds = effectiveCreds(creds, childAuth);
     const authMode = childAuthMode(childAuth);
     const ownerScope = body.owner_id == null ? '' : String(body.owner_id).trim();
     if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${ownerScope || 'n/a'}`);
     }
 
-    if (childScoped && !childAuth) {
+    /**
+     * 🔒 Archive-only escalation. A retired, unbound sub-account holds no inventory worth
+     * protecting, and the channel refuses to mint keys for it — so removing its footprint
+     * is the ONE write allowed to run on master credentials scoped by OwnerID. Granted only
+     * when the caller asks for it, the verb archives/deactivates, and the OwnerID is proven
+     * to sit in our retired registry. Every other write keeps the master-pair prohibition.
+     */
+    let archiveRetiredGranted = false;
+    const archiveIntentAction =
+      (action === 'set_property_status' &&
+        (body.metadata?.is_archived === true || body.metadata?.is_active === false)) ||
+      // The enumeration that feeds the archive run needs the same envelope, otherwise we
+      // would be archiving ids we never read back from the channel.
+      action === 'list_properties';
+    if (
+      body.archive_retired === true &&
+      archiveIntentAction &&
+      ownerScope &&
+      !isMasterOwnerId(ownerScope)
+    ) {
+
+      try {
+        const { data: retired } = await getLogClient()
+          .from('ru_retired_accounts')
+          .select('ru_owner_id')
+          .eq('ru_owner_id', ownerScope)
+          .maybeSingle();
+        archiveRetiredGranted = Boolean(retired);
+      } catch (e) {
+        console.warn('[rentalsunited-api] retired registry lookup failed', e);
+      }
+      console.log(
+        `[rentalsunited-api] archive_retired intent for OwnerID ${ownerScope}: ${archiveRetiredGranted ? 'granted (master-scoped archive)' : 'refused — not in the retired registry'}`,
+      );
+    }
+
+    // A master pair (or no keys at all) must not decide the envelope for the archive write:
+    // fall back to explicit master credentials so the call is honest about what it is.
+    const archiveOnMaster = archiveRetiredGranted;
+    const scopedCreds = archiveOnMaster ? creds : effectiveCreds(creds, childAuth);
+
+    if (childScoped && !childAuth && !archiveRetiredGranted) {
+
       // One rule for every child-scoped action (there is no longer a second, laxer set):
       //  • a named OwnerID that is not OUR master account ⇒ sub-user keys are mandatory;
       //  • a WRITE with no OwnerID at all ⇒ the credential choice would be inferred, refuse;
@@ -2923,8 +2971,10 @@ Deno.serve(async (req) => {
       CHILD_SCOPED_WRITE_ACTIONS.has(action) &&
       childAuth?.mode === 'keys' &&
       ownerScope &&
+      !archiveRetiredGranted &&
       !isMasterOwnerId(ownerScope)
     ) {
+
       const scopeCheck = await assertChildKeysAreNotMaster(creds, childAuth, ownerScope);
       if (!scopeCheck.ok) {
         await logRuNotAttempted(getLogClient(), {
@@ -3774,7 +3824,14 @@ Deno.serve(async (req) => {
       console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, auth_mode: authMode, message: 'Property status updated', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        auth_mode: archiveOnMaster ? 'master_scoped_archive' : authMode,
+        envelope: archiveOnMaster ? 'master_scoped_archive' : 'child_keys',
+        message: 'Property status updated',
+        raw_xml: response,
+      });
+
     }
 
     // ── delete_property ──
