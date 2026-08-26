@@ -181,7 +181,7 @@ export async function auditChannelPriceCoverage(
   // First missing night and how long the gap runs.
   let lastMissingIndex = -1;
   let firstMissingIndex = -1;
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < result.expected_days; i++) {
     const iso = addDays(from, i);
     if (!priced.has(iso)) {
       if (firstMissingIndex < 0) firstMissingIndex = i;
