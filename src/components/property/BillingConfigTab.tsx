@@ -379,7 +379,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   };
 
   const commitSave = async () => {
-    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    // Only touch the Channel Manager (and the step ledger) once the billing row
+    // is proven saved — never archive or re-activate listings off a failed write.
+    const saved = await persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    if (!saved) return;
     if (builder.channel_manager_enabled !== savedChannelManager) {
       await runEntitlementFanOut(builder.channel_manager_enabled);
       // Entitlement flipped — the channel ledger's entitlement grade is no longer trustworthy.
