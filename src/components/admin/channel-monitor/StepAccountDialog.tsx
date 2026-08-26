@@ -284,12 +284,16 @@ export function StepAccountDialog({
         password: credPassword.trim(),
       }, "The password could not be stored");
 
-      if (data.success !== true) {
-        const code = data.error?.code ?? "RU_CHILD_LOGIN_REJECTED";
+      if (data.success !== true || (data.password_stored && data.key_minted === false)) {
+        const code = data.error?.code ?? (data.key_minted === false ? "RU_CREATE_KEY_API_REJECTED" : "RU_CHILD_LOGIN_REJECTED");
         const message = data.error?.message ?? "The password could not be stored";
+        if (data.password_stored) {
+          setPasswordStored(true);
+          setCredPassword("");
+        }
         setCredCode(code);
         setCredNote(message);
-        toast.error("Password was not stored", { description: message, duration: 12000 });
+        toast.error(data.password_stored ? "Key creation refused by channel" : "Password was not stored", { description: message, duration: 12000 });
         return;
       }
 
