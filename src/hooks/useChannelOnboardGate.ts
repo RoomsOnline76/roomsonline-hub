@@ -7,6 +7,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SessionExpiredError } from "@/lib/ensureFreshSession";
+import { useAuth } from "@/hooks/useAuth";
 import {
   fetchOnboardGate,
   gradeReadyToSell,
@@ -20,6 +22,8 @@ export interface ChannelOnboardGate {
   loading: boolean;
   grading: boolean;
   error: string | null;
+  /** The login token could not be renewed — the operator must sign in again. */
+  sessionExpired: boolean;
   readyToSell: boolean;
   readyToSellStatus: GateStepStatus;
   readyToSellBlockers: string[];
@@ -40,10 +44,13 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
   const [loading, setLoading] = useState(false);
   const [grading, setGrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const { loading: authLoading, user } = useAuth();
   // A stale response from a previously selected property must never overwrite the current one.
   const requestId = useRef(0);
 
   const refresh = useCallback(async () => {
+    if (authLoading) return;
     if (!propertyId) {
       setSnapshot(null);
       return;
@@ -51,18 +58,24 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
     const id = ++requestId.current;
     setLoading(true);
     setError(null);
+    setSessionExpired(false);
     try {
       const next = await fetchOnboardGate(propertyId);
       if (id === requestId.current) setSnapshot(next);
     } catch (err) {
       if (id === requestId.current) {
         setSnapshot(null);
-        setError(err instanceof Error ? err.message : "The onboarding gate could not be read");
+        if (err instanceof SessionExpiredError) {
+          setSessionExpired(true);
+          setError(null);
+        } else {
+          setError(err instanceof Error ? err.message : "The onboarding gate could not be read");
+        }
       }
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [propertyId]);
+  }, [authLoading, propertyId]);
 
   useEffect(() => {
     void refresh();
@@ -72,13 +85,13 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
   // Grading is local and cheap, so do it once per property when no verdict exists yet.
   const gradedFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!propertyId || loading || !snapshot) return;
+    if (!propertyId || loading || !snapshot || sessionExpired) return;
     const status = snapshot.steps?.ready_to_sell?.status;
     if (status && status !== "pending" && status !== "unknown") return;
     if (gradedFor.current === propertyId) return;
     gradedFor.current = propertyId;
     void regradeRef.current?.();
-  }, [loading, propertyId, snapshot]);
+  }, [loading, propertyId, sessionExpired, snapshot]);
 
   const regrade = useCallback(async (): Promise<boolean> => {
     if (!propertyId) return false;
@@ -89,7 +102,8 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
       await refresh();
       return graded.ready;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Readiness could not be graded");
+      if (err instanceof SessionExpiredError) setSessionExpired(true);
+      else setError(err instanceof Error ? err.message : "Readiness could not be graded");
       return false;
     } finally {
       setGrading(false);
@@ -117,6 +131,7 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
     loading,
     grading,
     error,
+    sessionExpired: sessionExpired || (!authLoading && !user),
     readyToSell: readyToSellStatus === "passed",
     readyToSellStatus,
     readyToSellBlockers,
