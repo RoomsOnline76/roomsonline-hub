@@ -481,79 +481,8 @@ export function ChannelOnboardTab({
       setProperties(options);
       setPropertiesLoading(false);
 
-      /**
-       * Onboarding status per entry, from the database only: the account binding
-       * (property-scoped or inherited from the portfolio), whether the property
-       * has actually been pushed, and whether a property-scoped sales channel
-       * (ChannelID) is mapped. The badge lands a moment after the list so the
-       * picker never blocks on it.
-       */
-      void (async () => {
-        const [{ data: accountRows }, { data: settingRows }] = await Promise.all([
-          supabase.from("ru_owner_accounts").select("property_id, portfolio_id, ru_owner_id"),
-          supabase.from("ru_platform_settings").select("key"),
-        ]);
-        if (cancelled) return;
+      void refreshOnboardStatuses(options);
 
-        const boundProperties = new Set<string>();
-        const boundPortfolios = new Set<string>();
-        ((accountRows ?? []) as Array<{
-          property_id: string | null;
-          portfolio_id: string | null;
-          ru_owner_id: string | null;
-        }>).forEach((row) => {
-          if (!String(row.ru_owner_id ?? "").trim()) return;
-          if (row.property_id) boundProperties.add(row.property_id);
-          if (row.portfolio_id) boundPortfolios.add(row.portfolio_id);
-        });
-
-        const settingKeys = new Set(
-          ((settingRows ?? []) as Array<{ key: string | null }>)
-            .map((row) => row.key ?? "")
-            .filter(Boolean),
-        );
-
-        // A push is proven by the listing verification record (owner or timestamp)
-        // or by verified units — a freshly pushed property can legitimately report
-        // zero units while its listings settle.
-        const pushedIds = new Set(
-          eligible
-            .filter(
-              (p) =>
-                Number(p.ru_listings_verified_units ?? 0) > 0 ||
-                Boolean(p.ru_listings_verified_at) ||
-                Boolean(p.ru_listings_verified_owner),
-            )
-            .map((p) => p.id),
-        );
-        const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
-          bound:
-            boundProperties.has(propertyId) ||
-            (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
-          pushed: pushedIds.has(propertyId),
-          // Only a property-scoped mapping counts as selling: the account-wide
-          // ChannelID says the master account can sell, not that this property does.
-          salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`),
-        });
-
-        const withStatus = options.map((option) => {
-          const memberIds = option.memberIds ?? [option.id];
-          const statuses = memberIds.map((memberId) =>
-            deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
-          );
-          const connectedCount = statuses.filter((s) => s === "connected").length;
-          const pushedCount = statuses.filter((s) => s !== "not_pushed").length;
-          const status: OnboardStatus =
-            connectedCount === statuses.length
-              ? "connected"
-              : pushedCount > 0
-                ? "awaiting_channels"
-                : "not_pushed";
-          return { ...option, status, pushedCount, connectedCount };
-        });
-        if (cancelled) return;
-        setProperties(withStatus);
-      })();
 
 
 
