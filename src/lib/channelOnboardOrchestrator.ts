@@ -139,7 +139,16 @@ interface RunContext {
   /** RU property IDs the push itself confirmed per unit, used instead of a read-back. */
   pushConfirmedListings?: { units: number; ids: string[] };
 
+  /**
+   * The LIVE account binding for this run. The gate snapshot is read once, before the
+   * account task runs, so on a first run it still says "not bound" — every later task that
+   * trusted it reported a freshly created sub-account as missing. The account task updates
+   * this instead, and all later tasks read it.
+   */
+  binding?: OnboardGateSnapshot["binding"];
+
 }
+
 
 /** How the sub-account's key pair was resolved during account provisioning. */
 export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
