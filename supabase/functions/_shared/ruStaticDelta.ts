@@ -438,6 +438,7 @@ export async function queueRuStaticDelta(
       supabase,
       propertyId,
       scopeUnitIds,
+      options.force ? null : changedFields,
     );
     const gatePending = !success && !!errorCode && RU_GATE_ERROR_CODES.includes(errorCode);
 
@@ -576,6 +577,8 @@ async function pushStaticContent(
   propertyId: string,
   /** Restrict the push to these unit ids (unit-only change); null pushes every listing. */
   scopeUnitIds: string[] | null,
+  /** Fields this delta carries — lets the adapter skip image probes when no image moved. */
+  changedFields: string[] | null = null,
 ): Promise<{
   success: boolean;
   errorMessage: string | null;
@@ -595,6 +598,7 @@ async function pushStaticContent(
           property_id: propertyId,
           action: 'static_only',
           ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
+          ...(changedFields ? { changed_fields: changedFields } : {}),
           ...(batchId ? { batch_id: batchId } : {}),
         },
       });

@@ -3371,6 +3371,22 @@ Deno.serve(async (req) => {
      * sliding-minute write window for no reason.
      */
     const staticOnly = action === 'static_only';
+    /**
+     * Image probes fetch and measure every photo on the payload. A scoped static delta that
+     * carries no image field cannot have changed the image set, so the probe is pure cost.
+     * A first/forced push, or any delta naming an image field, still probes.
+     */
+    const deltaChangedFields: string[] | null = Array.isArray(reqBody.changed_fields)
+      ? (reqBody.changed_fields as unknown[]).map((f) => String(f))
+      : null;
+    const skipImageProbe =
+      staticOnly &&
+      !forcePush &&
+      deltaChangedFields !== null &&
+      deltaChangedFields.length > 0 &&
+      !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
+    const verifyPayloadImages = async (payload: Record<string, any>) =>
+      skipImageProbe ? [] : await applyImageVerification(payload);
     /** ARI is pushed on every path except a static-content delta. */
     const pushARIUnlessStatic = async (
       ruPropertyId: number,
@@ -5003,7 +5019,7 @@ Deno.serve(async (req) => {
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId, propertyCharges), distances: propertyDistances };
           unitPayload.owner_id = ruOwnerId ?? 0;
-          const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+          const unitImageIssues = await verifyPayloadImages(unitPayload as unknown as Record<string, any>);
           if (unitImageIssues.length > 0) {
             console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
           }
@@ -5404,7 +5420,7 @@ Deno.serve(async (req) => {
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId, propertyCharges), distances: propertyDistances };
-        const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+        const unitImageIssues = await verifyPayloadImages(unitPayload as unknown as Record<string, any>);
         if (unitImageIssues.length > 0) {
           console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
         }
@@ -5619,7 +5635,7 @@ Deno.serve(async (req) => {
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId, propertyCharges), distances: propertyDistances };
     ruPayload.owner_id = ruOwnerId ?? 0;
-    const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
+    const singleImageIssues = await verifyPayloadImages(ruPayload as unknown as Record<string, any>);
     if (singleImageIssues.length > 0) {
       console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
     }
