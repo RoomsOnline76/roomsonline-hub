@@ -166,7 +166,7 @@ export default function AdminChannelMonitor() {
             notify: false,
           },
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error((error as Error).message);
         const payload = res as { failed?: number; results?: Array<{ kept_active?: boolean }> } | null;
         const failed = payload?.failed ?? 0;
         const keptActive = payload?.results?.[0]?.kept_active === true;
@@ -206,7 +206,7 @@ export default function AdminChannelMonitor() {
             reason: "Duplicate listing purge from Channel Monitor",
           },
         });
-        if (error) throw new Error(error.message);
+        if (error) throw new Error((error as Error).message);
         const payload = res as { purged?: number; failed?: number } | null;
         const purged = payload?.purged ?? 0;
         const failed = payload?.failed ?? 0;
@@ -244,7 +244,7 @@ export default function AdminChannelMonitor() {
         });
 
 
-        if (error) throw new Error(error.message);
+        if (error) throw new Error((error as Error).message);
         const skipped = (
           res as { results?: Array<{ status?: string; detail?: string }> } | null
         )?.results?.filter((r) => r.status === "skipped") ?? [];
