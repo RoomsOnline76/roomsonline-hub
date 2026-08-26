@@ -118,15 +118,41 @@ export async function queueRuAriDelta(
       return { queued: false, reason: "confirm_pending" };
     }
 
-    // Wait out the debounce instead of dropping the edit: a burst of restriction/rate clicks
-    // coalesces into one write, but the last click is never stranded until the next cron.
+    // Park the edit instead of sleeping on it: a Deno isolate dies long before a 5-minute wait
+    // elapses, so an in-process sleep silently lost the last click. The shared background queue
+    // already collapses one pending row per `method_key`, so a burst of restriction/rate clicks
+    // becomes exactly one delayed refresh carrying the LAST span.
     if (!options.force) {
       const sinceLast = await lastRealPushAgeMs(supabase, propertyId);
       if (sinceLast < RU_ARI_DELTA_DEBOUNCE_MS) {
-        console.log(`[ruAriDelta] Holding ${trigger} delta for property ${propertyId}`);
-        await new Promise((resolve) => setTimeout(resolve, RU_ARI_DELTA_DEBOUNCE_MS - sinceLast));
+        const delayMs = RU_ARI_DELTA_DEBOUNCE_MS - sinceLast;
+        try {
+          await supabase.rpc("ru_enqueue_call", {
+            _method_key: `${RU_ARI_DELTA_QUEUE_ACTION}:${propertyId}`,
+            _action: RU_ARI_DELTA_QUEUE_ACTION,
+            _payload: {
+              property_id: propertyId,
+              trigger,
+              only_unit_ids: options.onlyUnitIds && options.onlyUnitIds.length > 0 ? options.onlyUnitIds : null,
+              ari_date_from: options.dateFrom ?? null,
+              ari_date_to: options.dateTo ?? null,
+              verify_availability_readback: options.verifyAvailabilityReadback === true,
+            },
+            _property_id: propertyId,
+            _priority: 120,
+            _delay_ms: delayMs,
+          });
+          console.log(
+            `[ruAriDelta] ${trigger} delta coalesced for ${propertyId} — replays in ${Math.round(delayMs / 1000)}s`,
+          );
+          return { queued: true, reason: "coalesced" };
+        } catch (queueErr) {
+          // Parking failed — fall through and write now rather than losing the edit entirely.
+          console.warn("[ruAriDelta] coalesce enqueue failed, pushing inline", queueErr);
+        }
       }
     }
+
 
     const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
       body: {
