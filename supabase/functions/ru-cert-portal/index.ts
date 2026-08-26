@@ -7464,11 +7464,19 @@ Deno.serve(async (req) => {
       const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
         if (fresh && freshRosterRead && rosterOnce) return rosterOnce;
         if (!fresh && rosterOnce) return rosterOnce;
-        const listed = await listRuSubUsers(admin, { forceFresh: fresh, source: "step-a" });
+        // A property save may never spend a roster read: Step A already resolved the account,
+        // so the cached roster is the ceiling for that path.
+        const fromSave = body.from_save === true;
+        const listed = await listRuSubUsers(admin, {
+          forceFresh: fresh && !fromSave,
+          cacheOnly: fromSave,
+          source: fromSave ? "property-save" : "step-a",
+        });
         if (fresh && listed.ok && !listed.cached) freshRosterRead = true;
         rosterOnce = listed.ok ? (listed.users as RuUser[]) : (rosterOnce ?? []);
         return rosterOnce;
       };
+
 
       // A sub-user's RU login (`<UserName>`) can differ from the `<Email>` returned by
       // Pull_ListMyUsers_RQ (that list can lag the portal's contact email), so a lookup
