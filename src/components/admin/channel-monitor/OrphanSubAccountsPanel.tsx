@@ -52,9 +52,26 @@ interface PurgeOutcome {
   message: string;
 }
 
+/** What we hold for an account: decides whether a normal child-key archive is possible. */
+type KeyState = "child" | "master_pair" | "unverified" | "none";
+
+interface KeyInfo {
+  state: KeyState;
+  login_email: string | null;
+  key_label: string | null;
+}
+
+const KEY_BADGE: Record<KeyState, { text: string; variant: "secondary" | "outline" | "destructive" }> = {
+  child: { text: "Child key on file", variant: "secondary" },
+  master_pair: { text: "Master pair — archives on master credentials", variant: "destructive" },
+  unverified: { text: "Key on file (scope unverified)", variant: "outline" },
+  none: { text: "No keys — archives on master credentials", variant: "outline" },
+};
+
 const DEFAULT_REASON = "Orphan distribution account — retired from Channel Monitor";
 
 const PANEL_QUERY_KEY = ["channel-orphan-sub-accounts"] as const;
+
 
 /** Label for an orphan row: portal login first, contact email as the fallback. */
 function accountLabel(user: RosterUser): string {
