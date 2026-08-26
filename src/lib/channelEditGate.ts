@@ -86,11 +86,11 @@ async function resolve(propertyId: string): Promise<ChannelEditGateState> {
      */
     const { data: connected } = await supabase
       .from("property_channel_step_status")
-      .select("status")
+      .select("step_key, status")
       .eq("property_id", propertyId)
-      .eq("step_key", "ready_to_connect")
-      .maybeSingle();
-    if (connected?.status === "passed") {
+      .in("step_key", ["ready_to_connect", "ready_to_sell"]);
+    const twoStepPassed = (connected ?? []).some((row) => row.status === "passed");
+    if (twoStepPassed) {
       const { data: pushRow } = await supabase
         .from("properties")
         .select("ru_push_enabled")
@@ -102,12 +102,21 @@ async function resolve(propertyId: string): Promise<ChannelEditGateState> {
       return { open: true, missing: [] };
     }
 
-    const [propertyRes, currencyRes, roadmapRes, entitlement] = await Promise.all([
+    const [propertyRes, unitListingRes, currencyRes, roadmapRes, entitlement] = await Promise.all([
       supabase
         .from("properties")
         .select("rentalsunited_property_id, ru_listings_verified_at, ru_push_enabled")
         .eq("id", propertyId)
         .maybeSingle(),
+      // Multi-unit properties never carry a property-level listing id: each unit is its own
+      // listing at the channel. A live unit listing is published evidence just the same.
+      supabase
+        .from("hostfully_room_types")
+        .select("id")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .not("rentalsunited_property_id", "is", null)
+        .limit(1),
       supabase
         .from("ru_currency_state")
         .select("verified_at, published_currency_iso, ru_reported_currency_iso")
@@ -126,8 +135,12 @@ async function resolve(propertyId: string): Promise<ChannelEditGateState> {
 
     // Step 11 — listing published and read back.
     const listingId = String(property.rentalsunited_property_id ?? "").trim();
-    if (!listingId) missing.push("Listing not published to the channel yet (step 11)");
-    else if (!property.ru_listings_verified_at) missing.push("Published listing has not been read back (step 11)");
+    const hasUnitListing = (unitListingRes.data ?? []).length > 0;
+    const published = !!listingId || hasUnitListing;
+    if (!published) missing.push("Listing not published to the channel yet (step 11)");
+    else if (!hasUnitListing && !property.ru_listings_verified_at) {
+      missing.push("Published listing has not been read back (step 11)");
+    }
     if (property.ru_push_enabled === false) missing.push("Channel pushes are switched off for this property");
 
     // Step 12 — currency verified and consistent.
@@ -139,17 +152,22 @@ async function resolve(propertyId: string): Promise<ChannelEditGateState> {
         currency.ru_reported_currency_iso === currency.published_currency_iso);
     if (!currencyOk) missing.push("Location & currency not verified (step 12)");
 
-    // Step 9 — manual sub-account sign-off.
-    const roadmap = ((roadmapRes.data?.roadmap as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
-    const readiness = (roadmap.channel_readiness ?? {}) as Record<string, unknown>;
-    const checks = (readiness.checks ?? {}) as Record<string, { checked?: boolean } | undefined>;
-    const signedOff = ROLOS_SIGNOFF_CHECKLIST.every((item) => checks[item.key]?.checked === true);
-    if (!signedOff) missing.push("Sub-account verification checklist not signed off (step 9)");
+    // Step 9 — manual sub-account sign-off. Only relevant while nothing is live at the
+    // channel yet: a published listing already proves the account was signed off, and the
+    // newer two-step flow does not write the legacy checklist.
+    if (!published) {
+      const roadmap = ((roadmapRes.data?.roadmap as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
+      const readiness = (roadmap.channel_readiness ?? {}) as Record<string, unknown>;
+      const checks = (readiness.checks ?? {}) as Record<string, { checked?: boolean } | undefined>;
+      const signedOff = ROLOS_SIGNOFF_CHECKLIST.every((item) => checks[item.key]?.checked === true);
+      if (!signedOff) missing.push("Sub-account verification checklist not signed off (step 9)");
+    }
 
     // Step 13 — Channel Manager entitlement on billing.
     if (!entitlement) missing.push("Channel Manager not enabled on billing (step 13)");
 
     return { open: missing.length === 0, missing };
+
   } catch (err) {
     console.warn("[channel edit gate] resolve failed:", err instanceof Error ? err.message : err);
     return { open: false, missing: ["Gate state could not be read"] };
