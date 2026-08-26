@@ -131,6 +131,40 @@ async function sendReactivationNotice(payload: {
 }
 
 /**
+ * Activation used to fire an unconditional `refresh_ari`. During channel onboarding the very
+ * previous step already pushed availability and prices for this listing, so the refresh re-sent
+ * the same year seconds later and the channel throttled it. Skip the refresh when the caller
+ * says the ARI is already fresh, or when a successful read-back was logged inside the window.
+ */
+const ARI_FRESH_WINDOW_MS = 10 * 60 * 1000;
+
+async function ariAlreadyFresh(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string,
+  skipRequested: boolean,
+): Promise<string | null> {
+  if (skipRequested) return "caller reported the ARI was just pushed";
+  try {
+    const since = new Date(Date.now() - ARI_FRESH_WINDOW_MS).toISOString();
+    const { data, error } = await admin
+      .from("sync_logs")
+      .select("sync_type, created_at")
+      .eq("property_id", propertyId)
+      .eq("external_system", "rentals_united")
+      .eq("status", "success")
+      .in("sync_type", ["availability_verification", "prices_verification"])
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return `ARI was pushed at ${data[0].created_at} (${data[0].sync_type})`;
+  } catch {
+    return null;
+  }
+}
+
+
+/**
  * RU listings for white-label properties live on a sub-user account. Calling
  * Push_SetPropertiesStatus_RQ with master credentials returns Status 0 plus a
  * warning ("Property with given ID does not exist") and changes nothing, so the
