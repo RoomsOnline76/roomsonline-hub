@@ -274,11 +274,13 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     const payload = {
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
+      commission_enabled: v.commission_enabled,
       commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
       listing_commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
       pms_commission_rate: v.commission_enabled ? toNum(v.pms_commission_rate) : null,
 
       widget_flat_commission_rate: v.widget_flat_enabled ? toNum(v.widget_flat_rate) : null,
+      pms_enabled: v.pms_enabled,
       subscription_fee_monthly: v.pms_enabled ? toNum(v.subscription_fee) : null,
       channel_manager_enabled: v.channel_manager_enabled,
       channel_manager_per_unit_fee: v.channel_manager_enabled ? toNum(v.channel_per_unit) : null,
