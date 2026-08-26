@@ -984,8 +984,16 @@ export function ChannelOnboardTab({
     const meta = CHANNEL_ONBOARD_STEP_META[step];
     const status = step === "a" ? gate.stepAStatus : gate.stepBStatus;
     const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
-    const ledgerTasks = ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
-      ?.tasks ?? []);
+    /**
+     * Recorded outcomes are evidence for a verdict — a `pending` step has no verdict,
+     * so its (possibly retired) task history must not be replayed as green ticks.
+     */
+    const ledgerTasks =
+      status === "pending" || status === "unknown"
+        ? []
+        : ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
+            ?.tasks ?? []);
+
     const stepWaiting = waiting[step];
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
