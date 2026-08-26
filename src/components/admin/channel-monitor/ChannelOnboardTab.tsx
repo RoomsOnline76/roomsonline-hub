@@ -622,6 +622,22 @@ export function ChannelOnboardTab({
     rebindEmail.trim().length > 0 &&
     rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
 
+  /**
+   * Render order: red (not pushed), then orange (awaiting channels), then green
+   * (connected), alphabetically inside each colour. Entries whose status has not
+   * landed yet sort last until the badge read resolves.
+   */
+  const sortedProperties = useMemo(
+    () =>
+      [...properties].sort((a, b) => {
+        const rankA = a.status ? ONBOARD_STATUS_RANK[a.status] : 3;
+        const rankB = b.status ? ONBOARD_STATUS_RANK[b.status] : 3;
+        if (rankA !== rankB) return rankA - rankB;
+        return a.label.localeCompare(b.label);
+      }),
+    [properties],
+  );
+
   /** The selected entry — a portfolio pick carries its portfolio id and member list. */
   const selectedOption = useMemo(
     () => properties.find((option) => option.id === propertyId) ?? null,
