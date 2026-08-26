@@ -7489,9 +7489,11 @@ Deno.serve(async (req) => {
             authUsername: savedLoginEmail,
             authPassword: mintPassword,
           });
+          keyAttempts.push(...(minted.attempts ?? []));
           if (minted.ok) {
             keySource = "minted";
             mintedAccessKey = minted.accessKey ?? null;
+
           } else if (minted.rateDeferred) {
             keySource = "deferred";
             keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
