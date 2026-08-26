@@ -6309,21 +6309,58 @@ Deno.serve(async (req) => {
 
       const fullyArchived = refused.length === 0;
 
-      // ── Step 4: release the keys we hold (only once the channel side is clean) ──
+      // ── Step 4: revoke the keys AT THE CHANNEL, then drop our copy ──
+      // Deleting our row alone leaves the pair alive (and counting) in the channel portal,
+      // so the channel is asked to delete every key it lists for this sub-account first.
       let keysReleased = false;
+      let keyRevoke: {
+        status: string;
+        revoked: string[];
+        failed: { access_key: string; message: string }[];
+        message: string;
+      } = { status: "skipped", revoked: [], failed: [], message: "Kept — listings still live at the channel" };
       if (fullyArchived) {
-        const { error: keyErr } = await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
-        keysReleased = !keyErr;
-        steps.push({
-          step: "release_keys",
-          ok: keysReleased,
-          message: keysReleased ? "Stored API key pair deleted" : (keyErr?.message ?? "Could not delete the stored key pair"),
+        let childSecret: string | null = null;
+        if (haveChildKeys && credRow?.secret_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
+          childSecret = typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]" ? plain : null;
+        }
+        keyRevoke = await revokeChannelKeys({
+          ownerId,
+          loginEmail,
+          accessKey: childSecret ? (credRow?.access_key ?? null) : null,
+          secretKey: childSecret,
+          password: suppliedPassword,
+          parentAction: "ru-cert-portal:purge_channel_account",
         });
+        const cleanAtChannel = keyRevoke.status === "revoked" || keyRevoke.status === "nothing_to_revoke";
+        if (cleanAtChannel) {
+          const { error: keyErr } = await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+          keysReleased = !keyErr;
+          steps.push({
+            step: "release_keys",
+            ok: keysReleased,
+            message: keysReleased
+              ? `${keyRevoke.message} · local copy removed`
+              : (keyErr?.message ?? "Revoked at the channel but the local copy could not be removed"),
+          });
+        } else {
+          steps.push({ step: "release_keys", ok: false, message: keyRevoke.message });
+        }
       } else {
-        steps.push({ step: "release_keys", ok: false, message: "Kept — listings still live at the channel" });
+        steps.push({ step: "release_keys", ok: false, message: keyRevoke.message });
       }
 
       const result = {
+        ran_at: new Date().toISOString(),
+        ran_by: user.email ?? user.id,
+        envelope,
+        total_listings: remote.length,
+        archived_listings: archived,
+        refused_listings: refused,
+        keys_revoked_at_channel: keyRevoke.status === "revoked" || keyRevoke.status === "nothing_to_revoke",
+        key_revoke: keyRevoke,
+
         ran_at: new Date().toISOString(),
         ran_by: user.email ?? user.id,
         envelope,
