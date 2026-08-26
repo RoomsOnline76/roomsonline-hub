@@ -4625,6 +4625,7 @@ Deno.serve(async (req) => {
         if (!invokeError && data?.success === true && data?.access_key && data?.secret_key) {
           created = data;
           createdLabel = variant.keyLabel;
+          attempts.push(`${variant.label}: key pair issued`);
           break;
         }
 
@@ -4633,6 +4634,7 @@ Deno.serve(async (req) => {
         const deferred = /RU_RATE_DEFERRED|rate limit|less than a minute/i.test(rawMessage);
         if (deferred) {
           const retryMatch = rawMessage.match(/retry in (\d+)s/i);
+          attempts.push(`${variant.label}: rate window`);
           deferral = {
             retryAfterMs: Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000),
             message: rawMessage || "The channel rate-limited automatic key creation.",
@@ -4649,6 +4651,7 @@ Deno.serve(async (req) => {
               message: deferral.message,
               ruStatusId,
               ruStatusMessage,
+              attempts,
             };
           }
           continue;
@@ -4657,6 +4660,7 @@ Deno.serve(async (req) => {
         const authRefused = errorCode === "RU_CREATE_KEY_API_REJECTED"
           || String(ruStatusId ?? "") === "-4"
           || /incorrect login|login or password/i.test(`${rawMessage} ${ruStatusMessage ?? ""}`);
+        attempts.push(`${variant.label}: ${authRefused ? "refused (-4)" : (errorCode || "failed")}`);
         lastFailure = {
           code: errorCode || "RU_CREATE_KEY_FAILED",
           message: rawMessage || "Rentals United did not return a new API key pair.",
@@ -4669,7 +4673,7 @@ Deno.serve(async (req) => {
       }
 
       if (!created) {
-        if (lastFailure) return { ok: false, ...lastFailure };
+        if (lastFailure) return { ok: false, ...lastFailure, attempts };
         if (deferral) {
           return {
             ok: false,
@@ -4679,10 +4683,12 @@ Deno.serve(async (req) => {
             message: deferral.message,
             ruStatusId: deferral.ruStatusId,
             ruStatusMessage: deferral.ruStatusMessage,
+            attempts,
           };
         }
-        return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair." };
+        return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair.", attempts };
       }
+
 
 
 
