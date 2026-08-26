@@ -2875,14 +2875,49 @@ Deno.serve(async (req) => {
       ? await resolveChildAuthDetailed(body)
       : { auth: null, reason: null };
     const childAuth = childResolution.auth;
-    const scopedCreds = effectiveCreds(creds, childAuth);
     const authMode = childAuthMode(childAuth);
     const ownerScope = body.owner_id == null ? '' : String(body.owner_id).trim();
     if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${ownerScope || 'n/a'}`);
     }
 
-    if (childScoped && !childAuth) {
+    /**
+     * 🔒 Archive-only escalation. A retired, unbound sub-account holds no inventory worth
+     * protecting, and the channel refuses to mint keys for it — so removing its footprint
+     * is the ONE write allowed to run on master credentials scoped by OwnerID. Granted only
+     * when the caller asks for it, the verb archives/deactivates, and the OwnerID is proven
+     * to sit in our retired registry. Every other write keeps the master-pair prohibition.
+     */
+    let archiveRetiredGranted = false;
+    if (
+      body.archive_retired === true &&
+      action === 'set_property_status' &&
+      ownerScope &&
+      !isMasterOwnerId(ownerScope) &&
+      (body.metadata?.is_archived === true || body.metadata?.is_active === false)
+    ) {
+      try {
+        const { data: retired } = await getLogClient()
+          .from('ru_retired_accounts')
+          .select('ru_owner_id')
+          .eq('ru_owner_id', ownerScope)
+          .maybeSingle();
+        archiveRetiredGranted = Boolean(retired);
+      } catch (e) {
+        console.warn('[rentalsunited-api] retired registry lookup failed', e);
+      }
+      console.log(
+        `[rentalsunited-api] archive_retired intent for OwnerID ${ownerScope}: ${archiveRetiredGranted ? 'granted (master-scoped archive)' : 'refused — not in the retired registry'}`,
+      );
+    }
+
+    // A master pair (or no keys at all) must not decide the envelope for the archive write:
+    // fall back to explicit master credentials so the call is honest about what it is.
+    const archiveOnMaster = archiveRetiredGranted;
+    const scopedCreds = archiveOnMaster ? creds : effectiveCreds(creds, childAuth);
+
+    if (childScoped && !childAuth && !archiveRetiredGranted) {
+
       // One rule for every child-scoped action (there is no longer a second, laxer set):
       //  • a named OwnerID that is not OUR master account ⇒ sub-user keys are mandatory;
       //  • a WRITE with no OwnerID at all ⇒ the credential choice would be inferred, refuse;
