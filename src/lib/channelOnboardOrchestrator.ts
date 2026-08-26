@@ -488,6 +488,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const provisioning = ctx.keyProvisioning;
     const keyLabel = (access: string | null) =>
       access ? ` · AccessKey ${access.slice(0, 6)}…` : "";
+    // The mint runs server-side in one call, so its ordered attempt trail is the only
+    // way an operator can see which envelopes and replacement logins were tried.
+    const trail = (provisioning?.attempts ?? []).filter(Boolean);
+    const trailText = trail.length ? ` · ${trail.map((t) => t.trim()).join(" → ")}` : "";
 
     // Existing accounts can report a stored pair without another wire call.
     if (provisioning?.source === "minted") {
@@ -496,7 +500,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return {
         id: "api_keys",
         outcome: "passed",
-        detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning.accessKey)}`,
+        detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel(provisioning.accessKey)}${trailText}`,
       };
     }
 
@@ -512,19 +516,20 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         id: "api_keys",
         outcome: "pending",
         retryAfterMs: provisioning.retryAfterMs ?? undefined,
-        detail: provisioning.warning
-          ?? "The channel rate-limited the key request — waiting for the window to reopen.",
+        detail: (provisioning.warning
+          ?? "The channel rate-limited the key request — waiting for the window to reopen.") + trailText,
       };
     }
     return {
       id: "api_keys",
       outcome: "blocked",
       code: provisioning?.code ?? (snapshot.binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
-      detail: provisioning?.warning
+      detail: (provisioning?.warning
         ?? (snapshot.binding.password_stored
           ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
-          : "Step A needs the sub-account password to create and store its API key pair automatically."),
+          : "Step A needs the sub-account password to create and store its API key pair automatically.")) + trailText,
     };
+
   },
 
   verify_keys: async (ctx, snapshot) => {
