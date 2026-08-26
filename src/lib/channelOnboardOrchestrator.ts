@@ -507,6 +507,36 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       loginEmail || null,
       scope ? `${scope} scope` : null,
     ].filter(Boolean).join(" · ");
+
+    // Hand the account this task just created or adopted to every later task. Without this
+    // they keep reading the pre-run snapshot, which for a new account still says "not bound".
+    if (ownerId) {
+      ctx.binding = {
+        ...(ctx.binding ?? ({} as OnboardGateSnapshot["binding"])),
+        account_id: (account?.id as string | null) ?? ctx.binding?.account_id ?? null,
+        account_scope: (scope === "portfolio" || scope === "property"
+          ? scope
+          : ctx.binding?.account_scope ?? null) as "portfolio" | "property" | null,
+        ru_owner_id: ownerId,
+        login_email: loginEmail || ctx.binding?.login_email || null,
+        owner_email: loginEmail || ctx.binding?.owner_email || null,
+        keys_stored:
+          ctx.keyProvisioning?.source === "minted"
+          || ctx.keyProvisioning?.source === "existing"
+          || ctx.binding?.keys_stored === true,
+        company_details_sent:
+          data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
+      };
+    } else {
+      // No OwnerID in the payload: never guess it — re-read the gate so later tasks work off
+      // a real binding rather than a stale one.
+      try {
+        ctx.binding = (await fetchOnboardGate(ctx.propertyId)).binding;
+      } catch {
+        /* keep the pre-run binding; the next task reports the missing binding itself */
+      }
+    }
+
     return {
       id: "owner_account",
       outcome: "passed",
