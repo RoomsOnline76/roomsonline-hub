@@ -4709,7 +4709,8 @@ Deno.serve(async (req) => {
         const { error: upErr } = await admin.from("ru_owner_accounts").update({
           ru_api_access_key: created.access_key,
           ru_api_secret_enc: enc,
-          ru_api_key_label: keyLabel,
+          ru_api_key_label: createdLabel,
+
           ru_api_keys_verified_at: new Date().toISOString(),
         }).eq("id", opts.accountId);
         if (upErr) return { ok: false, code: "SAVE_FAILED", message: upErr.message };
