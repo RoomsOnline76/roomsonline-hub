@@ -317,6 +317,113 @@ export function ChannelOnboardTab({
   const [rebindOpen, setRebindOpen] = useState(false);
   const [rebinding, setRebinding] = useState(false);
 
+  /**
+   * Onboarding status per entry, from the database only: the account binding
+   * (property-scoped or inherited from the portfolio), whether the property has
+   * actually been pushed, and whether a property-scoped sales channel (ChannelID)
+   * is mapped. Re-runnable: the badges must be re-read when the picker is opened
+   * and when an onboarding run finishes, or they keep the verdict they had when
+   * the console was first opened.
+   */
+  const statusReadSeq = useRef(0);
+  const refreshOnboardStatuses = useCallback(async (options: OnboardOption[]) => {
+    if (options.length === 0) return;
+    const seq = ++statusReadSeq.current;
+    const propertyIds = [...new Set(options.flatMap((o) => o.memberIds ?? [o.id]))];
+
+    const [{ data: accountRows }, { data: settingRows }, { data: verifiedRows }, { data: unitRows }] =
+      await Promise.all([
+        supabase.from("ru_owner_accounts").select("property_id, portfolio_id, ru_owner_id"),
+        supabase.from("ru_platform_settings").select("key"),
+        supabase
+          .from("properties")
+          .select(
+            "id, rentalsunited_property_id, ru_listings_verified_units, ru_listings_verified_at, ru_listings_verified_owner",
+          )
+          .in("id", propertyIds),
+        // A unit that carries a channel listing id is proof the property reached the
+        // channel, even when the listing-verification columns were never written
+        // (older pushes, or a run that landed before the read-back was added).
+        supabase
+          .from("hostfully_room_types")
+          .select("property_id, rentalsunited_property_id")
+          .in("property_id", propertyIds)
+          .not("rentalsunited_property_id", "is", null),
+      ]);
+    if (seq !== statusReadSeq.current) return;
+
+    const boundProperties = new Set<string>();
+    const boundPortfolios = new Set<string>();
+    ((accountRows ?? []) as Array<{
+      property_id: string | null;
+      portfolio_id: string | null;
+      ru_owner_id: string | null;
+    }>).forEach((row) => {
+      if (!String(row.ru_owner_id ?? "").trim()) return;
+      if (row.property_id) boundProperties.add(row.property_id);
+      if (row.portfolio_id) boundPortfolios.add(row.portfolio_id);
+    });
+
+    const settingKeys = new Set(
+      ((settingRows ?? []) as Array<{ key: string | null }>).map((row) => row.key ?? "").filter(Boolean),
+    );
+
+    // A push is proven by the listing verification record (owner, timestamp or unit
+    // count), by the property's own channel listing id, or by any unit that already
+    // carries one — a freshly pushed property can legitimately report zero verified
+    // units while its listings settle.
+    const pushedIds = new Set<string>(
+      ((unitRows ?? []) as Array<{ property_id: string | null }>)
+        .map((row) => row.property_id)
+        .filter((id): id is string => Boolean(id)),
+    );
+    ((verifiedRows ?? []) as Array<{
+      id: string;
+      rentalsunited_property_id: string | number | null;
+      ru_listings_verified_units: number | null;
+      ru_listings_verified_at: string | null;
+      ru_listings_verified_owner: string | null;
+    }>).forEach((row) => {
+      if (
+        Number(row.ru_listings_verified_units ?? 0) > 0 ||
+        Boolean(row.ru_listings_verified_at) ||
+        Boolean(row.ru_listings_verified_owner) ||
+        Boolean(row.rentalsunited_property_id)
+      ) {
+        pushedIds.add(row.id);
+      }
+    });
+
+    const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
+      bound:
+        boundProperties.has(propertyId) ||
+        (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
+      pushed: pushedIds.has(propertyId),
+      // Only a property-scoped mapping counts as selling: the account-wide
+      // ChannelID says the master account can sell, not that this property does.
+      salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`),
+    });
+
+    const withStatus = options.map((option) => {
+      const memberIds = option.memberIds ?? [option.id];
+      const statuses = memberIds.map((memberId) =>
+        deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
+      );
+      const connectedCount = statuses.filter((s) => s === "connected").length;
+      const pushedCount = statuses.filter((s) => s !== "not_pushed").length;
+      const status: OnboardStatus =
+        connectedCount === statuses.length
+          ? "connected"
+          : pushedCount > 0
+            ? "awaiting_channels"
+            : "not_pushed";
+      return { ...option, status, pushedCount, connectedCount };
+    });
+    if (seq !== statusReadSeq.current) return;
+    setProperties(withStatus);
+  }, []);
+
+
   // Only properties that are active, contract-approved and entitled to the Channel Manager add-on
   // may be onboarded to a channel.
   // Archived properties (and the members of archived portfolios) are excluded —
@@ -481,79 +588,8 @@ export function ChannelOnboardTab({
       setProperties(options);
       setPropertiesLoading(false);
 
-      /**
-       * Onboarding status per entry, from the database only: the account binding
-       * (property-scoped or inherited from the portfolio), whether the property
-       * has actually been pushed, and whether a property-scoped sales channel
-       * (ChannelID) is mapped. The badge lands a moment after the list so the
-       * picker never blocks on it.
-       */
-      void (async () => {
-        const [{ data: accountRows }, { data: settingRows }] = await Promise.all([
-          supabase.from("ru_owner_accounts").select("property_id, portfolio_id, ru_owner_id"),
-          supabase.from("ru_platform_settings").select("key"),
-        ]);
-        if (cancelled) return;
+      void refreshOnboardStatuses(options);
 
-        const boundProperties = new Set<string>();
-        const boundPortfolios = new Set<string>();
-        ((accountRows ?? []) as Array<{
-          property_id: string | null;
-          portfolio_id: string | null;
-          ru_owner_id: string | null;
-        }>).forEach((row) => {
-          if (!String(row.ru_owner_id ?? "").trim()) return;
-          if (row.property_id) boundProperties.add(row.property_id);
-          if (row.portfolio_id) boundPortfolios.add(row.portfolio_id);
-        });
-
-        const settingKeys = new Set(
-          ((settingRows ?? []) as Array<{ key: string | null }>)
-            .map((row) => row.key ?? "")
-            .filter(Boolean),
-        );
-
-        // A push is proven by the listing verification record (owner or timestamp)
-        // or by verified units — a freshly pushed property can legitimately report
-        // zero units while its listings settle.
-        const pushedIds = new Set(
-          eligible
-            .filter(
-              (p) =>
-                Number(p.ru_listings_verified_units ?? 0) > 0 ||
-                Boolean(p.ru_listings_verified_at) ||
-                Boolean(p.ru_listings_verified_owner),
-            )
-            .map((p) => p.id),
-        );
-        const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
-          bound:
-            boundProperties.has(propertyId) ||
-            (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
-          pushed: pushedIds.has(propertyId),
-          // Only a property-scoped mapping counts as selling: the account-wide
-          // ChannelID says the master account can sell, not that this property does.
-          salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`),
-        });
-
-        const withStatus = options.map((option) => {
-          const memberIds = option.memberIds ?? [option.id];
-          const statuses = memberIds.map((memberId) =>
-            deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
-          );
-          const connectedCount = statuses.filter((s) => s === "connected").length;
-          const pushedCount = statuses.filter((s) => s !== "not_pushed").length;
-          const status: OnboardStatus =
-            connectedCount === statuses.length
-              ? "connected"
-              : pushedCount > 0
-                ? "awaiting_channels"
-                : "not_pushed";
-          return { ...option, status, pushedCount, connectedCount };
-        });
-        if (cancelled) return;
-        setProperties(withStatus);
-      })();
 
 
 
@@ -611,7 +647,17 @@ export function ChannelOnboardTab({
     return () => {
       cancelled = true;
     };
-  }, [initialPropertyId, initialPortfolioId]);
+  }, [initialPropertyId, initialPortfolioId, refreshOnboardStatuses]);
+
+  /** Re-read the badges whenever the picker is opened, so a pick made after a run is current. */
+  const handlePickerOpenChange = useCallback(
+    (open: boolean) => {
+      setPickerOpen(open);
+      if (open) void refreshOnboardStatuses(properties);
+    },
+    [properties, refreshOnboardStatuses],
+  );
+
 
 
 
@@ -856,6 +902,22 @@ export function ChannelOnboardTab({
     setStepDetailOpen({});
   }, [propertyId]);
 
+  /**
+   * A run that just finished changes the picked entry's badge. Re-read the statuses
+   * once the run leaves the "running" state so the dropdown reflects it immediately.
+   */
+  const lastRunningStep = useRef<ChannelOnboardStep | null>(null);
+  useEffect(() => {
+    if (runningStep !== null) {
+      lastRunningStep.current = runningStep;
+      return;
+    }
+    if (lastRunningStep.current === null) return;
+    lastRunningStep.current = null;
+    void refreshOnboardStatuses(properties);
+  }, [runningStep, properties, refreshOnboardStatuses]);
+
+
   const doRebind = useCallback(
     async (confirmPortfolioScope: boolean) => {
       if (!propertyId) return;
@@ -1098,7 +1160,7 @@ export function ChannelOnboardTab({
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <Popover open={pickerOpen} onOpenChange={handlePickerOpenChange}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
