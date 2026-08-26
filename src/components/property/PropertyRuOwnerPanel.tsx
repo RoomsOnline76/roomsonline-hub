@@ -395,12 +395,12 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           </div>
         )}
 
-        {/* Not linked → readiness + create */}
+        {/* Not linked → readiness + route to Step A */}
         {!linked && identity && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              No distribution account exists for this owner. Complete the checks below, then create it — the new
-              account is linked to this property and shared with its portfolio siblings.
+              No distribution account exists for this owner. Once the mandatory steps 1–5 pass, confirm below and the
+              Channel onboarding page provisions the account (Step A) for this property and its portfolio siblings.
             </p>
             <ul className="space-y-1">
               {identity.readiness.checks.map((c) => (
@@ -418,34 +418,34 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               ))}
             </ul>
             {!readOnly && (
-              confirmCreate ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs">
-                    Create a distribution account for {identity.property.owner_email ?? "this owner"}?
-                  </span>
-                  <Button size="sm" onClick={() => void createSubAccount()} disabled={creating} className="gap-1.5">
-                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                    Confirm &amp; create
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmCreate(false)} disabled={creating}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
+              <div className="space-y-1.5">
                 <Button
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  disabled={!identity.readiness.ready}
-                  onClick={() => setConfirmCreate(true)}
+                  disabled={!gate.readyToSell || gate.loading || gate.grading}
+                  title={
+                    gate.readyToSell
+                      ? "Open Channel onboarding and run Step A for this property"
+                      : blockedReason
+                  }
+                  onClick={startOnboarding}
                 >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Create distribution account
+                  {gate.loading || gate.grading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-3.5 w-3.5" />
+                  )}
+                  Confirm &amp; create
                 </Button>
-              )
+                {!gate.readyToSell && !gate.loading && !gate.grading && (
+                  <p className="text-[11px] text-muted-foreground">{blockedReason}</p>
+                )}
+              </div>
             )}
           </div>
         )}
+
 
         {/* API keys */}
         {linked && (
