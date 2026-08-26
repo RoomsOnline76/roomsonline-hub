@@ -175,6 +175,28 @@ function isRecoverableStepACode(code: string | undefined): boolean {
   return Boolean(code && STEP_A_RECOVERABLE_CODES.has(code));
 }
 
+/**
+ * Every onboarding edge call goes through here: the login token is renewed when it is
+ * expired or nearly so, and a session refusal is retried once against a fresh token.
+ * A genuinely dead session throws `SessionExpiredError` so the UI can offer a re-login
+ * instead of printing "Invalid session (UNAUTHORIZED)".
+ */
+async function invokeWithSession(
+  fn: string,
+  body: Record<string, unknown>,
+): Promise<{ data: unknown; error: unknown }> {
+  if (!(await ensureFreshSession())) throw new SessionExpiredError();
+  let res = await supabase.functions.invoke(fn, { body });
+  if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+    if (!(await ensureFreshSession(true))) throw new SessionExpiredError();
+    res = await supabase.functions.invoke(fn, { body });
+    if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+      throw new SessionExpiredError();
+    }
+  }
+  return { data: res.data, error: res.error };
+}
+
 /** Normalise whatever the channel surface reported as a wait into milliseconds. */
 function readRetryAfterMs(payload: Record<string, unknown>): number {
   const raw = Number(payload.retry_after_ms ?? payload.retryAfterMs ?? 0);
