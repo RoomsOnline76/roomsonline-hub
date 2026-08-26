@@ -4563,7 +4563,13 @@ Deno.serve(async (req) => {
        *      not always live on the XML surface at the instant it is created
        *   3. a master-authenticated mint scoped to the sub-account's OwnerID
        */
-      const variants: Array<{ label: string; body: Record<string, unknown>; delayMs?: number }> = [];
+      /**
+       * Each variant carries its OWN key label. The channel (and our sliding-window
+       * gate in front of it) allows one call per method with the same parameters per
+       * minute — a byte-identical retry was being rejected as a duplicate before it
+       * ever reached the channel, which masked the real refusal as a rate deferral.
+       */
+      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string; delayMs?: number }> = [];
       const credentialBody: Record<string, unknown> | null =
         opts.authAccessKey && opts.authSecretKey
           ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
@@ -4571,13 +4577,14 @@ Deno.serve(async (req) => {
             ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
             : null;
       if (credentialBody) {
-        variants.push({ label: "child_credential", body: credentialBody });
-        variants.push({ label: "child_credential_retry", body: credentialBody, delayMs: 6_000 });
+        variants.push({ label: "child_credential", body: credentialBody, keyLabel });
+        variants.push({ label: "child_credential_retry", body: credentialBody, keyLabel: `${keyLabel}-r2`, delayMs: 6_000 });
       }
       if (opts.ownerId) {
         variants.push({
           label: "master_owner_scoped",
           body: { owner_scoped_mint: true, owner_id: opts.ownerId },
+          keyLabel: `${keyLabel}-m`,
         });
       }
       if (variants.length === 0) {
@@ -4589,6 +4596,7 @@ Deno.serve(async (req) => {
       }
 
       let created: any = null;
+      let createdLabel = keyLabel;
       let lastFailure: {
         code: string;
         message: string;
@@ -4596,11 +4604,13 @@ Deno.serve(async (req) => {
         ruStatusMessage: string | null;
         authRefused: boolean;
       } | null = null;
+      // A deferral is only reported when nothing has been refused outright.
+      let deferral: { retryAfterMs: number; message: string; ruStatusId: string | null; ruStatusMessage: string | null } | null = null;
 
       for (const variant of variants) {
         if (variant.delayMs) await new Promise((resolve) => setTimeout(resolve, variant.delayMs));
         const { data, error: invokeError } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "create_child_api_key", key_label: keyLabel, ...variant.body },
+          body: { action: "create_child_api_key", key_label: variant.keyLabel, ...variant.body },
         });
         const errBody = invokeError ? await readInvokeErrorBody(invokeError) : null;
         const rawMessage = String(data?.error?.message ?? errBody?.error?.message ?? invokeError?.message ?? "");
@@ -4610,23 +4620,34 @@ Deno.serve(async (req) => {
 
         if (!invokeError && data?.success === true && data?.access_key && data?.secret_key) {
           created = data;
+          createdLabel = variant.keyLabel;
           break;
         }
 
-        // A channel rate limit is a "come back shortly", never a failure: the caller
-        // surfaces the countdown and the task resumes on its own.
+        // A channel rate limit is a "come back shortly" — but it must never cancel a
+        // refusal we have already seen, otherwise the self-healing recycle never runs.
         const deferred = /RU_RATE_DEFERRED|rate limit|less than a minute/i.test(rawMessage);
         if (deferred) {
           const retryMatch = rawMessage.match(/retry in (\d+)s/i);
-          return {
-            ok: false,
-            rateDeferred: true,
+          deferral = {
             retryAfterMs: Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000),
-            code: "RU_RATE_DEFERRED",
             message: rawMessage || "The channel rate-limited automatic key creation.",
             ruStatusId,
             ruStatusMessage,
           };
+          if (!lastFailure?.authRefused) {
+            // Nothing refused yet: a genuine wait, surfaced as a countdown.
+            return {
+              ok: false,
+              rateDeferred: true,
+              retryAfterMs: deferral.retryAfterMs,
+              code: "RU_RATE_DEFERRED",
+              message: deferral.message,
+              ruStatusId,
+              ruStatusMessage,
+            };
+          }
+          continue;
         }
 
         const authRefused = errorCode === "RU_CREATE_KEY_API_REJECTED"
@@ -4644,8 +4665,22 @@ Deno.serve(async (req) => {
       }
 
       if (!created) {
-        return { ok: false, ...(lastFailure ?? { code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair." }) };
+        if (lastFailure) return { ok: false, ...lastFailure };
+        if (deferral) {
+          return {
+            ok: false,
+            rateDeferred: true,
+            retryAfterMs: deferral.retryAfterMs,
+            code: "RU_RATE_DEFERRED",
+            message: deferral.message,
+            ruStatusId: deferral.ruStatusId,
+            ruStatusMessage: deferral.ruStatusMessage,
+          };
+        }
+        return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair." };
       }
+
+
 
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
