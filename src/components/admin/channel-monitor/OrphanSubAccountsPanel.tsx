@@ -487,14 +487,16 @@ export function OrphanSubAccountsPanel() {
               {retired.map((r) => {
                 const outcome = outcomes[r.ru_owner_id];
                 const running = runningOwnerId === r.ru_owner_id;
+                const keyInfo = keyFor(r.ru_owner_id);
+                const keyBadge = KEY_BADGE[keyInfo.state];
                 return (
                   <div
                     key={r.ru_owner_id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
-                        {r.portal_email || "(no login recorded)"}
+                      <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        {r.portal_email || keyInfo.login_email || "(no login recorded)"}
                         <span className="font-mono text-[10px]">OwnerID {r.ru_owner_id}</span>
                         {r.channel_archived_at ? (
                           <Badge variant="secondary" className="text-[10px]">
@@ -505,7 +507,14 @@ export function OrphanSubAccountsPanel() {
                             Still live at channel
                           </Badge>
                         )}
+                        {!r.channel_archived_at && (
+                          <Badge variant={keyBadge.variant} className="text-[10px]">
+                            {keyBadge.text}
+                            {keyInfo.key_label ? ` · ${keyInfo.key_label}` : ""}
+                          </Badge>
+                        )}
                       </p>
+
                       <p className="text-[10px] text-muted-foreground">
                         {r.reason || "No reason recorded"}
                         {r.retired_at && ` · ${new Date(r.retired_at).toLocaleDateString()}`}
