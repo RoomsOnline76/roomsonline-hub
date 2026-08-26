@@ -7341,10 +7341,13 @@ Deno.serve(async (req) => {
           if (ruOwnerId) {
             await mergeRuRosterUser(admin, {
               owner_id: ruOwnerId,
-              user_account_id: userAccountId ?? ruOwnerId,
+              // Only record a sub-user id the channel actually returned. Mirroring the
+              // OwnerID here made one account print as two ("Owner: X · Sub: X").
+              user_account_id: userAccountId ?? undefined,
               email: ownerEmail,
               login_email: ownerEmail,
             }, { source: "step-a-create" });
+
             rosterOnce = null;
           }
         }
