@@ -6182,11 +6182,13 @@ Deno.serve(async (req) => {
         ru_owner_id: ownerId,
         account_label: label,
         archived_at_channel: fullyArchived,
+        envelope,
         total_listings: remote.length,
         archived_listings: archived,
         refused_listings: refused,
         keys_released: keysReleased,
         steps,
+
         ...(fullyArchived
           ? {}
           : {
