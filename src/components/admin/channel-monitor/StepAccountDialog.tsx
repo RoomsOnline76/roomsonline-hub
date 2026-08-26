@@ -545,75 +545,8 @@ export function StepAccountDialog({
             </Card>
           )}
 
-          {/* 3 — the login Step A will register under */}
 
-          {(emailConflict || candidates.length > 0) && (
-            <Card className={cn(emailConflict && "border-destructive/50")}>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <KeyRound className="h-4 w-4" />
-                  Distribution login
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {emailConflict
-                    ? `${emailConflict.email} is registered at the channel but not under our master account, so it cannot be used. The stale local binding has been cleared — pick another login below, or give a brand-new address. It does not have to be a ROL'OS user or the owner.`
-                    : "Step A registers under this address. Change it only when the owner email cannot be used."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {candidates.length > 0 ? (
-                  <RadioGroup
-                    value={chosenLoginEmail ?? ""}
-                    onValueChange={(value) => onChosenLoginEmailChange?.(value)}
-                    className="space-y-1.5"
-                  >
-                    {candidates.map((candidate) => (
-                      <label
-                        key={candidate.email}
-                        className={cn(
-                          "flex items-start gap-2 rounded-md border px-2.5 py-2 text-xs",
-                          candidate.usable ? "cursor-pointer hover:bg-muted/50" : "opacity-70",
-                        )}
-                      >
-                        <RadioGroupItem
-                          value={candidate.email}
-                          disabled={!candidate.usable}
-                          className="mt-0.5"
-                        />
-                        <span className="min-w-0">
-                          <span className="block font-medium break-all">{candidate.email}</span>
-                          <span className="block text-muted-foreground">
-                            From {candidate.source}
-                            {candidate.on_roster ? " · already on our master account" : ""}
-                          </span>
-                          {candidate.blocked_reason ? (
-                            <span className="mt-0.5 block text-destructive">{candidate.blocked_reason}</span>
-                          ) : null}
-                        </span>
-                      </label>
-                    ))}
-                  </RadioGroup>
-                ) : null}
-                <div>
-                  <Label className="text-xs">Or create the account under a new email</Label>
-                  <Input
-                    className="mt-1"
-                    type="email"
-                    placeholder="distribution@example.com"
-                    value={newLoginEmail}
-                    onChange={(event) => {
-                      setNewLoginEmail(event.target.value);
-                      if (event.target.value.includes("@")) onChosenLoginEmailChange?.(event.target.value.trim());
-                    }}
-                  />
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Used as the sub-account login and identity. The owner email stays the primary contact on the
-                    property.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+
 
 
           {/* 4 — company details to be sent */}
