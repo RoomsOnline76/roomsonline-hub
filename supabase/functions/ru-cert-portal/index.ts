@@ -4736,10 +4736,11 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${opts.loginEmail ?? "unknown"} (OwnerID ${opts.ownerId || "?"})`,
+        change_summary: `Created Rentals United sub-user API key "${createdLabel}" for ${opts.loginEmail ?? "unknown"} (OwnerID ${opts.ownerId || "?"})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return { ok: true, accessKey: String(created.access_key) };
+      return { ok: true, accessKey: String(created.access_key), attempts };
+
     };
 
     /**
