@@ -191,23 +191,31 @@ export function OrphanSubAccountsPanel() {
           refused_listings?: { listing_id: string; message: string }[];
           keys_released?: boolean;
           total_listings?: number;
+          envelope?: string;
+          rate_deferred?: boolean;
+          retry_after_ms?: number;
           error?: { message?: string };
         };
+        const via = payload.envelope === "master_scoped_archive" ? " · via master credentials" : "";
         if (payload.success === true) {
           const archived = payload.archived_listings?.length ?? 0;
           return {
             ok: true,
             message:
               `${archived} of ${payload.total_listings ?? archived} listing(s) archived at the channel` +
-              (payload.keys_released ? " · API keys released" : ""),
+              (payload.keys_released ? " · API keys released" : "") +
+              via,
           };
         }
         const refused = payload.refused_listings?.length ?? 0;
         return {
           ok: false,
+          rateDeferred: payload.rate_deferred === true,
+          retryAfterMs: payload.retry_after_ms,
           message:
             payload.error?.message ??
             (refused ? `${refused} listing(s) refused by the channel` : error?.message ?? "The channel purge failed"),
+
         };
       } catch (e) {
         return { ok: false, message: e instanceof Error ? e.message : String(e) };
