@@ -108,6 +108,47 @@ export async function recordScopedLocationCurrency(
 }
 
 /**
+ * Location-level last-seen currency, across every RU account we have talked to.
+ *
+ * RU's own 339 text is location-scoped ("Location already has the requested currency set"),
+ * so once any account has been told a LocationID holds an ISO, a brand-new sub-account's
+ * first list does not need to pay another owner-window write just to be told the same thing.
+ * This is used ONLY to skip a no-op write — the per-account read-back remains the sole
+ * authority for the ZAR-vs-USD publication decision.
+ */
+export async function getLocationCurrencyAnyScope(
+  supabase: any,
+  locationId: number,
+): Promise<{ iso: string; owner_scope: string; source: string; verified_at: string | null } | null> {
+  if (!locationId || locationId <= 1) return null;
+  try {
+    const { data } = await supabase
+      .from('ru_location_currency_scope')
+      .select('currency_iso, owner_scope, source, verified_at, last_synced_at')
+      .eq('location_id', locationId)
+      .not('currency_iso', 'is', null)
+      .order('verified_at', { ascending: false, nullsFirst: false })
+      .limit(10);
+    const rows = (data ?? []) as { currency_iso: string; owner_scope: string; source: string; verified_at: string | null; last_synced_at: string | null }[];
+    // A channel read-back beats an assumption; anything older than 30 days is ignored.
+    const fresh = rows.filter((r) => {
+      const t = r.verified_at ? Date.parse(r.verified_at) : r.last_synced_at ? Date.parse(r.last_synced_at) : 0;
+      return t > 0 && Date.now() - t < 30 * 86400000;
+    });
+    const best = fresh.find((r) => r.source === 'ru_readback') ?? fresh[0];
+    if (!best) return null;
+    return {
+      iso: String(best.currency_iso).toUpperCase(),
+      owner_scope: String(best.owner_scope),
+      source: best.source,
+      verified_at: best.verified_at ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Ask RU what currency it actually holds for a listing. This is the only trustworthy
  * source: our own post-flip cache write is an assumption, not an observation.
  */
