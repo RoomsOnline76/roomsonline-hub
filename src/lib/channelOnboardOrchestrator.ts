@@ -596,12 +596,13 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: provisioning?.code ?? (binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
+      // Key creation is master-authenticated and scoped to the OwnerID, so a missing
+      // sub-account password is no longer a reason for this step to be blocked.
+      code: provisioning?.code ?? "RU_CREATE_KEY_API_REJECTED",
       detail: (provisioning?.warning
-        ?? (binding.password_stored
-          ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
-          : "Step A needs the sub-account password to create and store its API key pair automatically.")) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}The channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A once XML API access is enabled for this OwnerID.`) + trailText,
     };
+
 
   },
 
