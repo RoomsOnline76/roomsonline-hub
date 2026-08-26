@@ -6729,6 +6729,11 @@ Deno.serve(async (req) => {
          */
         const planAccountId = String((existing.account as any)?.id ?? "") || null;
         const planAccountOwnerId = adoptOwnerId || null;
+        // The address Step A automatically falls back to when the shown login is
+        // rejected as taken at creation time — no manual email change is required.
+        const planFallbackLogin = String(ownerEmail).toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)
+          ? null
+          : generateDistributionLogin((await generatedLoginBase()) ?? "");
         let planHasKeys = Boolean(String((existing.account as any)?.ru_api_access_key ?? "").trim());
         if (!planHasKeys && planAccountOwnerId) {
           const { data: credRow } = await admin
