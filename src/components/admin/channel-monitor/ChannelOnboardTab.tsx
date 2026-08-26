@@ -213,8 +213,8 @@ export function ChannelOnboardTab({
   const [rebindOpen, setRebindOpen] = useState(false);
   const [rebinding, setRebinding] = useState(false);
 
-  // Only properties that are active, entitled to the Channel Manager add-on and
-  // hold a signed (or overridden) contract may be onboarded to a channel.
+  // Only properties that are active and entitled to the Channel Manager add-on
+  // may be onboarded to a channel.
   // Archived properties (and the members of archived portfolios) are excluded —
   // archiving flips `ru_archived` on the property row, so it must be filtered
   // here explicitly: it does not touch `is_active` or the billing toggle.
@@ -239,34 +239,10 @@ export function ChannelOnboardTab({
 
       let eligible: PropertyOption[] = [];
       if (ids.length > 0) {
-        // Contract status is authored per owner in `owner_contracts` (same source
-        // the onboarding queue reads); `property_contracts` is a legacy fallback.
-        const emails = [
-          ...new Set(rows.map((r) => (r.owner_email ?? "").toLowerCase()).filter(Boolean)),
-        ];
-        const [entitlements, { data: ownerContracts }, { data: contracts }] = await Promise.all([
+        const [entitlements] = await Promise.all([
           fetchChannelManagerEntitlements(ids),
-          emails.length
-            ? supabase.from("owner_contracts").select("owner_email, status").in("owner_email", emails)
-            : Promise.resolve({ data: [] as { owner_email: string; status: string }[] }),
-          supabase
-            .from("property_contracts")
-            .select("property_id, status")
-            .in("property_id", ids)
-            .in("status", ["signed", "overridden"]),
         ]);
-        const OK = new Set(["signed", "overridden"]);
-        const signedEmails = new Set(
-          (ownerContracts ?? [])
-            .filter((c) => OK.has(String(c.status ?? "").toLowerCase()))
-            .map((c) => String(c.owner_email ?? "").toLowerCase()),
-        );
-        const signed = new Set((contracts ?? []).map((c) => c.property_id));
-        eligible = rows.filter(
-          (r) =>
-            entitlements.get(r.id) === true &&
-            (signed.has(r.id) || signedEmails.has((r.owner_email ?? "").toLowerCase())),
-        );
+        eligible = rows.filter((r) => entitlements.get(r.id) === true);
       }
 
       if (cancelled) return;
@@ -371,7 +347,7 @@ export function ChannelOnboardTab({
 
       setRequestNotice(
         requestedName
-          ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and a signed contract, and must not be archived.`
+          ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and must not be archived.`
           : "The requested property is not available for onboarding (inactive, archived, or not entitled).",
       );
 
@@ -787,7 +763,7 @@ export function ChannelOnboardTab({
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Onboard a property</CardTitle>
           <CardDescription className="text-xs">
-            Only properties and portfolios with the Channel Manager add-on activated and a signed contract are listed.
+            Only active, unarchived properties and portfolios with the Channel Manager add-on activated are listed.
             Portfolios are onboarded once — their member properties inherit the same channel account. Pick one, clear the
             Ready-to-sell gate, then run Step A and Step B.
           </CardDescription>
@@ -804,7 +780,7 @@ export function ChannelOnboardTab({
                     <SelectValue
                       placeholder={
                         properties.length === 0
-                          ? "Nothing eligible (add-on + signed contract)"
+                          ? "Nothing eligible (Channel Manager add-on)"
                           : "Select a property or portfolio"
                       }
                     />
