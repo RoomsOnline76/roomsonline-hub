@@ -19,13 +19,16 @@ import {
   ArrowRight,
   Check,
   CircleDashed,
+  ChevronsUpDown,
   Clock,
   Hourglass,
   Loader2,
   RefreshCw,
   ShieldCheck,
+  UserPlus,
   X,
 } from "lucide-react";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
@@ -37,8 +40,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -700,19 +712,20 @@ export function ChannelOnboardTab({
   );
 
   /**
-   * Picking a property asks the only question that needs a human: is this the right
-   * distribution login? The account modal opens straight away (read-only preview — no
-   * channel write), and accepting it runs Step A end to end.
+   * The distribution login is no longer a question put to the operator: the backend
+   * resolves it (owner email, else the slug login) and Step A provisions it. Selecting
+   * a property therefore opens nothing — the picker card shows the account it is bound
+   * to and a single Create Account button starts Step A.
    */
-  const autoOpenedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!propertyId || gate.loading) return;
-    if (autoOpenedRef.current === propertyId) return;
-    autoOpenedRef.current = propertyId;
-    if (gate.stepAStatus === "passed") return;
-    if (!gate.readyToSell || runningStep !== null) return;
-    void openPlan();
-  }, [gate.loading, gate.readyToSell, gate.stepAStatus, openPlan, propertyId, runningStep]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const boundLogin = useMemo(() => {
+
+    const b = gate.snapshot?.binding;
+    return (b?.login_email || b?.owner_email || "").trim() || null;
+  }, [gate.snapshot?.binding]);
+  const boundOwnerId = (gate.snapshot?.binding?.ru_owner_id ?? "").trim() || null;
+  const accountProvisioned = Boolean(boundOwnerId) && gate.stepAStatus === "passed";
+
 
 
 
@@ -730,15 +743,21 @@ export function ChannelOnboardTab({
      */
     const collapsed =
       status === "passed" && runningStep !== step && !stepWaiting && stepDetailOpen[step] !== true;
+    // A settled Step A names the account it provisioned — the operator's one takeaway.
+    const title =
+      step === "a" && status === "passed" && boundLogin
+        ? `${meta.title} — Distribution account: ${boundLogin}`
+        : meta.title;
 
     return (
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <CardTitle className="text-base">{meta.title}</CardTitle>
+              <CardTitle className="text-base break-all">{title}</CardTitle>
               <CardDescription className="text-xs">{meta.goal}</CardDescription>
             </div>
+
             <div className="flex items-center gap-2">
               <StatusBadge status={status} />
               {status === "passed" && runningStep !== step && !stepWaiting && (
@@ -890,24 +909,53 @@ export function ChannelOnboardTab({
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={selectProperty} disabled={properties.length === 0}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue
-                      placeholder={
-                        properties.length === 0
-                              ? "Nothing eligible (contract + Channel Manager add-on)"
-                          : "Select a property or portfolio"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={pickerOpen}
+                      disabled={properties.length === 0}
+                      className="mt-1 w-full justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {properties.find((p) => p.id === propertyId)?.label
+                          ?? (properties.length === 0
+                            ? "Nothing eligible (contract + Channel Manager add-on)"
+                            : "Search for a property or portfolio")}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search by name…" />
+                      <CommandList>
+                        <CommandEmpty>No match.</CommandEmpty>
+                        <CommandGroup>
+                          {properties.map((p) => (
+                            <CommandItem
+                              key={p.id}
+                              value={p.label}
+                              onSelect={() => {
+                                selectProperty(p.id);
+                                setPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-3.5 w-3.5",
+                                  p.id === propertyId ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              <span className="truncate">{p.label}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               )}
 
               {requestNotice && (
@@ -915,25 +963,40 @@ export function ChannelOnboardTab({
               )}
 
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void openPlan()}
-              disabled={planLoading || !propertyId}
-            >
-              {planLoading ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Preview account
-            </Button>
+            {/* The account the pick is bound to, read straight from the gate snapshot. */}
+            {propertyId && (
+              <div className="min-w-[220px] flex-1">
+                <Label className="text-xs">Distribution sub-account</Label>
+                <p className="mt-1 break-all text-xs text-muted-foreground">
+                  {gate.loading
+                    ? "Reading the binding…"
+                    : boundLogin
+                      ? `${boundLogin}${boundOwnerId ? ` · OwnerID ${boundOwnerId}` : " · not created yet"}`
+                      : "Not linked to a sub-account yet — Step A will create one from the property slug."}
+                </p>
+              </div>
+            )}
+            {propertyId && !accountProvisioned && (
+              <Button
+                size="sm"
+                onClick={() => void runStep("a")}
+                disabled={stepDisabled.a}
+              >
+                {runningStep === "a" ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {gate.stepAStatus === "blocked" ? "Retry Step A" : "Create Account"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
               Refresh
             </Button>
 
           </div>
+
           {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
           {gate.connected && (
             <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
