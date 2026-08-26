@@ -2519,8 +2519,7 @@ Deno.serve(async (req) => {
     // no OwnerID) is also the most rate-limited method we call. Probing with a password
     // therefore returned "Incorrect login or password" whether or not the password was
     // right — a guaranteed-failure call made before any key pair exists. The password's
-    // only real verdict is Push_CreateApiKey_RQ (create_child_api_key), so password-mode
-    // probes are refused here instead of burning a doomed buildings read.
+    // password-mode probes are refused here instead of burning a doomed buildings read.
     //
     // With keys we probe the OWNER-SCOPED listing read (Pull_ListOwnerProp_RQ) whenever an
     // owner_id is supplied: a fresh pair can be refused on buildings with RU's generic auth
@@ -2642,8 +2641,7 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
-        // A refusal here IS the password verdict (this is the only call that can give one),
-        // so name it distinctly: the UI opens the password field on this code.
+        // A refusal here means the existing child key pair is no longer usable for rotation.
         if (/incorrect login|incorrect password|login or password/i.test(String(status.message ?? ''))) {
           return jsonResponse({
             success: false,
@@ -2654,9 +2652,7 @@ Deno.serve(async (req) => {
               code: 'RU_CREATE_KEY_BAD_LOGIN',
               code_detail: 'RU_CREATE_KEY_BAD_LOGIN',
               ru_status_id: status.id ?? null,
-              message: childAuth.mode === 'keys'
-                ? 'Rentals United refused the stored key pair when minting a new key. Regenerate the pair in the channel portal and save it here.'
-                : 'Rentals United refused this sub-account login. Reset the sub-account password in the channel portal and save the new password here.',
+              message: 'Rentals United refused the stored key pair when minting a new key. Regenerate the pair in the channel portal and save it here.',
             },
           }, 422);
         }

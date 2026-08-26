@@ -4024,7 +4024,7 @@ Deno.serve(async (req) => {
         password_stored: true,
         // Deliberately not asserted: only minting a key pair can prove the password.
         api_access_verified: null,
-        verdict_pending_on: "create_api_key",
+        verdict_pending_on: "portal_login",
         login_email: loginEmail,
         ru_owner_id: ownerId,
       });
@@ -7140,7 +7140,7 @@ Deno.serve(async (req) => {
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
         key_source: keySource,
-        keys_minted: keySource === "minted",
+        keys_minted: false,
         access_key: mintedAccessKey,
         key_warning: keyWarning,
         key_retry_after_ms: keyRetryAfterMs,

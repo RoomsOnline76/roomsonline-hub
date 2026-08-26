@@ -181,8 +181,6 @@ export function StepAccountDialog({
   const [credCode, setCredCode] = useState<string | null>(null);
   const [credsStored, setCredsStored] = useState(false);
   const [passwordStored, setPasswordStored] = useState(false);
-  const [passwordVerified, setPasswordVerified] = useState(false);
-  const [keyMintRefused, setKeyMintRefused] = useState(false);
   const [manualAccessKey, setManualAccessKey] = useState("");
   const [manualSecretKey, setManualSecretKey] = useState("");
   // A credential remedy must land the operator on the field it needs, not just open the modal.
@@ -260,8 +258,6 @@ export function StepAccountDialog({
     setCredCode(null);
     setCredsStored(false);
     setPasswordStored(Boolean(plan?.has_stored_password));
-    setPasswordVerified(false);
-    setKeyMintRefused(false);
     setManualAccessKey("");
     setManualSecretKey("");
   }, [plan?.has_stored_password, planAccountId, planLogin]);
@@ -304,11 +300,9 @@ export function StepAccountDialog({
       }
 
       setPasswordStored(true);
-      setPasswordVerified(false);
       setCredPassword("");
       const warning = data.api_warning ?? "Portal password stored. Generate and paste the first API key pair below.";
       setCredCode(data.error_code ?? "RU_FIRST_API_KEY_REQUIRED");
-      setKeyMintRefused(false);
       setCredNote(warning);
       toast.success("Portal password stored", { description: warning, duration: 12000 });
     } finally {
@@ -316,40 +310,6 @@ export function StepAccountDialog({
     }
   }, [credEmail, credPassword, planAccountId]);
 
-
-  const mintKeyPair = useCallback(async () => {
-    if (!planAccountId) return;
-    setSavingKeys(true);
-    setCredNote(null);
-    setCredCode(null);
-    try {
-      const keyData = await invokeCertPortal({
-        action: "create_api_key",
-        account_id: planAccountId,
-        key_label: "ROLOS",
-      }, "Password stored, but the key pair could not be minted yet.");
-      if (keyData.success !== true) {
-        const code = keyData.error?.code ?? "RU_CREATE_KEY_FAILED";
-        const message = keyData.error?.message ?? "Password stored, but the key pair could not be minted yet.";
-        setCredCode(code);
-        setKeyMintRefused(true);
-        setCredNote(message);
-        toast.warning("Key pair needs attention", { description: message, duration: 14000 });
-        return;
-      }
-
-      setCredsStored(true);
-      setPasswordVerified(true);
-      setKeyMintRefused(false);
-      setCredCode(null);
-      setManualAccessKey("");
-      setManualSecretKey("");
-      setCredNote(`Key pair minted${keyData.access_key ? ` — AccessKey ${keyData.access_key}` : ""}.`);
-      toast.success("Key pair minted and stored");
-    } finally {
-      setSavingKeys(false);
-    }
-  }, [planAccountId]);
 
   const saveManualKeys = useCallback(async () => {
     if (!planAccountId) return;
@@ -375,7 +335,6 @@ export function StepAccountDialog({
       }
 
       setCredsStored(true);
-      setKeyMintRefused(false);
       setCredCode(null);
       setManualAccessKey("");
       setManualSecretKey("");
