@@ -681,7 +681,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   company_profile: async (ctx, snapshot) => {
+    const binding = liveBinding(ctx, snapshot);
     const companyLabel = binding.ru_owner_id ? ` (OwnerID ${binding.ru_owner_id})` : "";
+
     if (binding.company_details_sent) {
       return {
         id: "company_profile",
