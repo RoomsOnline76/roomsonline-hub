@@ -6129,6 +6129,7 @@ Deno.serve(async (req) => {
       const result = {
         ran_at: new Date().toISOString(),
         ran_by: user.email ?? user.id,
+        envelope,
         total_listings: remote.length,
         archived_listings: archived,
         refused_listings: refused,
@@ -6138,6 +6139,7 @@ Deno.serve(async (req) => {
         account_archive_verb: "unsupported_by_channel",
         steps,
       };
+
 
       const { error: regErr } = await admin.from("ru_retired_accounts").upsert(
         {
