@@ -162,6 +162,36 @@ export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 
+/** Channel verbs whose sliding minute a replayed Step B would immediately collide with. */
+const REPLAY_GUARDED_ACTIONS = ["Push_PutAvbUnits_RQ", "Pull_ListOwnerProp_RQ"];
+
+/**
+ * Milliseconds left on the channel's one-call-per-minute window for this property's last
+ * availability write or roster read. 0 when the window is clear (or the check itself fails —
+ * bookkeeping must never block a real push).
+ */
+async function recentChannelWriteCooldownMs(propertyId: string): Promise<number> {
+  try {
+    const sinceIso = new Date(Date.now() - DEFAULT_RATE_WINDOW_MS).toISOString();
+    const { data } = await supabase
+      .from("ru_api_log")
+      .select("created_at")
+      .eq("property_id", propertyId)
+      .in("action", REPLAY_GUARDED_ACTIONS)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data?.created_at) return 0;
+    const elapsed = Date.now() - new Date(data.created_at).getTime();
+    return Math.max(0, DEFAULT_RATE_WINDOW_MS - elapsed);
+  } catch {
+    return 0;
+  }
+}
+
+
+
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_CREATE_KEY_API_REJECTED",
   "RU_KEY_CREATION_NOT_ENABLED",
