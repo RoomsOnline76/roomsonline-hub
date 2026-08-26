@@ -5887,6 +5887,240 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── purge_channel_account: actually decommission ONE sub-account AT THE CHANNEL ──
+     * The retired registry only ever hid an account from our own reads — the channel kept
+     * its listings, its keys and its billable footprint. This is the real thing:
+     *   1. authenticate as the sub-account (stored key pair, else mint one — owner-scoped
+     *      first, and the operator-supplied portal password as the last envelope),
+     *   2. enumerate what the account ACTUALLY owns at the channel (never our stored ids),
+     *   3. archive every listing it owns, one by one,
+     *   4. release the keys we hold and stamp the registry with the proven outcome.
+     * Nothing is recorded as archived-at-channel unless the channel confirmed it.
+     */
+    if (action === "purge_channel_account") {
+      const ownerId = String(body.ru_owner_id ?? "").trim();
+      const suppliedPassword = typeof body.password === "string" && body.password ? body.password : null;
+      const note = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+      if (!/^\d+$/.test(ownerId)) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "A numeric ru_owner_id is required" } }, 400);
+      }
+
+      // A bound account is live inventory: never purge it from here.
+      const { data: boundRows } = await admin
+        .from("ru_owner_accounts")
+        .select("id, ru_login_email, owner_email")
+        .eq("ru_owner_id", ownerId)
+        .limit(1);
+      if ((boundRows ?? []).length > 0) {
+        return json({
+          success: false,
+          ru_owner_id: ownerId,
+          error: {
+            code: "STILL_BOUND",
+            message: `OwnerID ${ownerId} is still bound to a property or portfolio. Retire the binding first, then purge it at the channel.`,
+          },
+        }, 409);
+      }
+
+      const { data: credRow } = await admin
+        .from("ru_api_credentials")
+        .select("access_key, secret_enc, login_email")
+        .eq("ru_owner_id", ownerId)
+        .maybeSingle();
+      const { data: registryRow } = await admin
+        .from("ru_retired_accounts")
+        .select("portal_email, reason")
+        .eq("ru_owner_id", ownerId)
+        .maybeSingle();
+
+      const loginEmail = (typeof body.login_email === "string" && body.login_email.trim())
+        ? body.login_email.trim()
+        : (credRow?.login_email ?? registryRow?.portal_email ?? null);
+      const label = loginEmail ?? `OwnerID ${ownerId}`;
+
+      const steps: { step: string; ok: boolean; message: string }[] = [];
+
+      // ── Step 1: authentication ──
+      let haveKeys = false;
+      if (credRow?.access_key) {
+        const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
+        haveKeys = Boolean(plain && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]");
+      }
+      if (haveKeys) {
+        steps.push({ step: "auth", ok: true, message: "Used the stored API key pair" });
+      } else {
+        const minted = await mintChildKeyPair({
+          ownerId,
+          loginEmail,
+          keyLabel: "ROLOS-purge",
+          authUsername: loginEmail,
+          authPassword: suppliedPassword,
+        });
+        if (!minted.ok) {
+          return json({
+            success: false,
+            ru_owner_id: ownerId,
+            account_label: label,
+            stopped_after: "auth",
+            steps: [...steps, { step: "auth", ok: false, message: minted.message ?? "The channel refused every login envelope" }],
+            attempts: minted.attempts ?? [],
+            ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
+            error: {
+              code: minted.code ?? "AUTH_REFUSED",
+              message: minted.message ?? "The channel refused every login envelope for this sub-account.",
+            },
+          }, minted.rateDeferred ? 429 : 422);
+        }
+        haveKeys = true;
+        steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
+      }
+
+      // ── Step 2: what does this account really own? ──
+      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: { action: "list_properties", owner_id: Number(ownerId), force_fresh: true, parent_action: "ru-cert-portal:purge_channel_account" },
+      });
+      if (listErr || listed?.success !== true) {
+        return json({
+          success: false,
+          ru_owner_id: ownerId,
+          account_label: label,
+          stopped_after: "list_listings",
+          steps: [...steps, { step: "list_listings", ok: false, message: listErr?.message ?? String(listed?.error ?? "The channel did not return this account's listings") }],
+          error: {
+            code: "LISTING_READ_FAILED",
+            message: listErr?.message ?? "The channel did not return this account's listings, so nothing was archived.",
+          },
+        }, 502);
+      }
+      const remote: { id: string; name?: string; is_archived?: boolean }[] = Array.isArray(listed.properties) ? listed.properties : [];
+      const outstanding = remote.filter((r) => r.is_archived !== true);
+      steps.push({
+        step: "list_listings",
+        ok: true,
+        message: `${remote.length} listing(s) at the channel — ${outstanding.length} still live`,
+      });
+
+      // ── Step 3: archive each live listing ──
+      const archived: string[] = [];
+      const refused: { listing_id: string; name: string; message: string }[] = [];
+      for (const l of outstanding) {
+        try {
+          const { data: res, error: invErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "set_property_status",
+              ru_property_id: Number(l.id),
+              owner_id: Number(ownerId),
+              metadata: { is_active: false, is_archived: true },
+            },
+          });
+          if (invErr || res?.success !== true) {
+            refused.push({
+              listing_id: String(l.id),
+              name: l.name ?? "listing",
+              message: invErr?.message ?? String(res?.error ?? "The channel did not accept the archive request"),
+            });
+          } else {
+            archived.push(String(l.id));
+          }
+        } catch (e) {
+          refused.push({ listing_id: String(l.id), name: l.name ?? "listing", message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      steps.push({
+        step: "archive_listings",
+        ok: refused.length === 0,
+        message: refused.length === 0
+          ? `${archived.length} listing(s) archived at the channel`
+          : `${archived.length} archived, ${refused.length} refused`,
+      });
+
+      const fullyArchived = refused.length === 0;
+
+      // ── Step 4: release the keys we hold (only once the channel side is clean) ──
+      let keysReleased = false;
+      if (fullyArchived) {
+        const { error: keyErr } = await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+        keysReleased = !keyErr;
+        steps.push({
+          step: "release_keys",
+          ok: keysReleased,
+          message: keysReleased ? "Stored API key pair deleted" : (keyErr?.message ?? "Could not delete the stored key pair"),
+        });
+      } else {
+        steps.push({ step: "release_keys", ok: false, message: "Kept — listings still live at the channel" });
+      }
+
+      const result = {
+        ran_at: new Date().toISOString(),
+        ran_by: user.email ?? user.id,
+        total_listings: remote.length,
+        archived_listings: archived,
+        refused_listings: refused,
+        keys_released: keysReleased,
+        // The channel exposes no verb to archive or rename a sub-account itself — only its
+        // listings. Recorded so nobody later reads a silent gap as a success.
+        account_archive_verb: "unsupported_by_channel",
+        steps,
+      };
+
+      const { error: regErr } = await admin.from("ru_retired_accounts").upsert(
+        {
+          ru_owner_id: ownerId,
+          portal_email: label,
+          reason: note ?? registryRow?.reason ?? "Purged at the channel from Channel Monitor",
+          retired_by: user.id,
+          listings_archived: archived.length,
+          channel_archive_result: result,
+          ...(fullyArchived ? { channel_archived_at: new Date().toISOString() } : {}),
+        },
+        { onConflict: "ru_owner_id" },
+      );
+      if (regErr) {
+        return json({
+          success: false,
+          ru_owner_id: ownerId,
+          account_label: label,
+          stopped_after: "record_result",
+          steps,
+          error: { code: "SAVE_FAILED", message: `The channel work is done but the registry could not be updated: ${regErr.message}` },
+        }, 500);
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_retired_accounts",
+        record_id: null,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Purged distribution account ${label} (OwnerID ${ownerId}) at the channel: ${archived.length} listing(s) archived${refused.length ? `, ${refused.length} refused` : ""}${keysReleased ? ", API keys released" : ""}`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({
+        success: fullyArchived,
+        ru_owner_id: ownerId,
+        account_label: label,
+        archived_at_channel: fullyArchived,
+        total_listings: remote.length,
+        archived_listings: archived,
+        refused_listings: refused,
+        keys_released: keysReleased,
+        steps,
+        ...(fullyArchived
+          ? {}
+          : {
+            error: {
+              code: "LISTING_ARCHIVE_REFUSED",
+              message: `${refused.length} listing(s) were refused by the channel, so this account is not archived there yet.`,
+            },
+          }),
+      }, fullyArchived ? 200 : 409);
+    }
+
 
     // ── phase_status: 4-phase onboarding gate for one property ──
     if (action === "phase_status") {
