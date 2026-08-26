@@ -193,7 +193,22 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
 
 
-  const gap = result ? result.channel_listing_count - billableListings : 0;
+  /**
+   * The only honest disparity is inside this read: every live listing must land in
+   * exactly one bucket. Comparing the live count against the separately loaded
+   * cost-monitor total produced phantom gaps whenever a listing was published
+   * during the session, because that snapshot was older than the read.
+   */
+  const classificationGap = result ? Math.max(0, result.channel_listing_count - liveBucketTotal) : 0;
+  const billingSnapshotGap = result ? result.channel_listing_count - billableListings : 0;
+
+  // A reconcile changes what we know about the footprint, so the parent's cost
+  // snapshot is refetched from the same moment as the read.
+  const handleReconcile = useCallback(async () => {
+    await reconcile();
+    await onChanged();
+  }, [reconcile, onChanged]);
+
   const cleaning = cleanup !== null;
 
   const handleRestore = useCallback(async (recordId: string, name: string) => {
@@ -254,7 +269,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             </Badge>
           )}
 
-          <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running || cleaning}>
+          <Button variant="outline" size="sm" onClick={() => void handleReconcile()} disabled={running || cleaning}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
             Reconcile with channel
           </Button>
@@ -353,10 +368,10 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                 {result.orphans.length === 1 ? "" : "s"} = {liveBucketTotal} of {result.channel_listing_count} live
               </span>
 
-              {gap > 0 ? (
+              {classificationGap > 0 ? (
                 <Badge variant="destructive" className="gap-1">
                   <AlertTriangle className="h-3 w-3" />
-                  {gap} more listing{gap === 1 ? "" : "s"} on the account than we bill for
+                  {classificationGap} live listing{classificationGap === 1 ? "" : "s"} could not be classified
                 </Badge>
               ) : (
                 <Badge variant="secondary" className="gap-1">
@@ -364,6 +379,13 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
                   Billing count matches the account
                 </Badge>
               )}
+              {billingSnapshotGap !== 0 && (
+                <span>
+                  Local billing snapshot reads {billableListings} against {result.channel_listing_count} live —
+                  refresh the page if this persists
+                </span>
+              )}
+
             </div>
 
             {result.roster_error && (
