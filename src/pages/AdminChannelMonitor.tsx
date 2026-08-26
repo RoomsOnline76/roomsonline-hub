@@ -30,7 +30,7 @@ import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/Chann
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
 import { ChannelArchiveLog } from "@/components/admin/channel-monitor/ChannelArchiveLog";
 import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/ArchivePropertyDialog";
-import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
+
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
 import { LiveTrafficFrame } from "@/components/admin/channel-monitor/live/LiveTrafficFrame";
