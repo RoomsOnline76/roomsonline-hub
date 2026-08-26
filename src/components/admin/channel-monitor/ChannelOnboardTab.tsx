@@ -1220,6 +1220,21 @@ export function ChannelOnboardTab({
                 {gate.stepAStatus === "blocked" ? "Retry Step A" : "Create Account"}
               </Button>
             )}
+            {propertyId && !accountProvisioned && !boundLogin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setManualEmail(chosenLoginEmail);
+                  setManualEmailError(null);
+                  setManualEmailOpen(true);
+                }}
+                disabled={runningStep === "a"}
+              >
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                Add sub-account
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
               Refresh
