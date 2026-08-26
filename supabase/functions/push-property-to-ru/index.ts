@@ -4517,8 +4517,23 @@ Deno.serve(async (req) => {
         }
       }
       const targets: { label: string; ru_id: number; unit?: UnitContext; units: number }[] = [];
+      // A scoped delta (one edited unit) must not walk every listed unit — same filter the
+      // static/per-unit paths already apply.
+      const scopedUnitIds = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
+        ? only_unit_ids.map((u: unknown) => String(u))
+        : null;
+      const ariRoomTypes = scopedUnitIds
+        ? activeRoomTypes.filter(rt => scopedUnitIds.includes(rt.id))
+        : activeRoomTypes;
+      if (scopedUnitIds) {
+        const dropped = activeRoomTypes.filter(rt => !scopedUnitIds.includes(rt.id)).map(rt => rt.name);
+        console.log(
+          `[push-property-to-ru] refresh_ari scoped to ${ariRoomTypes.length} unit(s)` +
+          (dropped.length > 0 ? ` — skipped: ${dropped.join(', ')}` : ''),
+        );
+      }
       if (isMultiUnit) {
-        for (const rt of activeRoomTypes) {
+        for (const rt of ariRoomTypes) {
           const ruId = parseInt(String(rt.rentalsunited_property_id ?? ''), 10);
           if (ruId > 0) {
             targets.push({
@@ -4530,6 +4545,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
       if (targets.length === 0) {
         const parentRuId = parseInt(String(property.rentalsunited_property_id ?? ''), 10);
         if (parentRuId > 0) {
