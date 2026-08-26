@@ -1,5 +1,6 @@
-import { assertEquals, assertStringIncludes } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { buildCreateApiKeyXml } from "./ruApiKeyXml.ts";
+import { assertEquals, assertStringIncludes, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { buildCreateApiKeyXml, type RuApiKeyAuth } from "./ruApiKeyXml.ts";
+
 
 Deno.test("Push_CreateApiKey_RQ uses the existing child key pair and ordered schema", () => {
   const xml = buildCreateApiKeyXml({
