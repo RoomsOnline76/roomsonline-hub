@@ -7428,12 +7428,108 @@ Deno.serve(async (req) => {
             keySource = "deferred";
             keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
             keyRetryAfterMs = minted.retryAfterMs ?? null;
+          } else if (minted.authRefused) {
+            /**
+             * The channel refused every mint envelope for this sub-account (its own
+             * login/password, a retry after propagation, and the owner-scoped master
+             * mint). Rather than stopping and asking an operator to change the email,
+             * Step A recycles itself: it generates the next slug login with a fresh
+             * password, creates that sub-account, rebinds the property to it and
+             * retries the mint. Capped at 2 recycles so a systemic channel refusal
+             * surfaces instead of looping.
+             */
+            const recycleBase = await generatedLoginBase();
+            let recycled: {
+              accessKey: string | null;
+              ownerId: string;
+              login: string;
+            } | null = null;
+            let lastRecycleMessage = minted.message ?? null;
+
+            for (let attempt = 2; recycleBase && attempt <= 3 && !recycled; attempt++) {
+              const nextLogin = generateDistributionLogin(recycleBase, attempt);
+              if (!nextLogin || nextLogin.toLowerCase() === String(savedLoginEmail ?? "").toLowerCase()) continue;
+
+              const nextPassword = generateSubUserPassword();
+              const { data: reCreated, error: reCreateErr } = await admin.functions.invoke("rentalsunited-api", {
+                body: {
+                  action: "create_user",
+                  user: { first_name: firstName, last_name: lastName, email: nextLogin, password: nextPassword },
+                  location_ids: locationIds,
+                },
+              });
+              if (reCreateErr || !reCreated?.success) {
+                lastRecycleMessage = String(reCreateErr?.message ?? reCreated?.error?.message ?? lastRecycleMessage ?? "");
+                continue;
+              }
+              const recycledUserId = usableRuId(reCreated.user_account_id) || null;
+              const recycledOwnerId = usableRuId(reCreated.owner_id) || recycledUserId;
+              if (!recycledOwnerId) continue;
+
+              await mergeRuRosterUser(admin, {
+                owner_id: recycledOwnerId,
+                user_account_id: recycledUserId ?? recycledOwnerId,
+                email: nextLogin,
+                login_email: nextLogin,
+              }, { source: "step-a-recycle" });
+              rosterOnce = null;
+
+              // Store the new identity + password BEFORE minting: the password is the
+              // only copy of a credential the channel has already accepted.
+              const { data: recycledEnc } = await admin.rpc("encrypt_sensitive_text", { plaintext: nextPassword });
+              await admin
+                .from("ru_owner_accounts")
+                .update({
+                  ru_owner_id: recycledOwnerId,
+                  ru_user_id: recycledUserId ?? recycledOwnerId,
+                  ru_login_email: nextLogin,
+                  ru_login_password_enc: recycledEnc ?? null,
+                  company_details_sent: false,
+                  company_filled_at: null,
+                  company_details_status: "pending",
+                })
+                .eq("id", String((saved as any)?.id ?? ""));
+
+              const retryMint = await mintChildKeyPair({
+                ownerId: recycledOwnerId,
+                loginEmail: nextLogin,
+                accountId: String((saved as any)?.id ?? "") || null,
+                authUsername: nextLogin,
+                authPassword: nextPassword,
+              });
+              if (retryMint.ok) {
+                recycled = { accessKey: retryMint.accessKey ?? null, ownerId: recycledOwnerId, login: nextLogin };
+              } else if (retryMint.rateDeferred) {
+                keySource = "deferred";
+                keyWarning = retryMint.message ?? "The channel rate-limited automatic key creation.";
+                keyRetryAfterMs = retryMint.retryAfterMs ?? null;
+                break;
+              } else {
+                lastRecycleMessage = retryMint.message ?? lastRecycleMessage;
+              }
+            }
+
+            if (recycled) {
+              keySource = "minted";
+              mintedAccessKey = recycled.accessKey;
+              ruOwnerId = recycled.ownerId;
+              ownerEmail = recycled.login;
+              recycledLogin = recycled.login;
+              password = generateSubUserPassword.last ?? password;
+            } else if (keySource !== "deferred") {
+              keyCode = "RU_KEY_CREATION_NOT_ENABLED";
+              keyRuStatusId = minted.ruStatusId ?? null;
+              keyRuStatusMessage = minted.ruStatusMessage ?? null;
+              keyWarning =
+                `The channel refused automatic API key creation for this sub-account and for the replacement logins Step A created (${lastRecycleMessage || "incorrect login or password"}). This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
+            }
           } else {
             keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
             keyRuStatusId = minted.ruStatusId ?? null;
             keyRuStatusMessage = minted.ruStatusMessage ?? null;
             keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
           }
+
         }
       } else {
         keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
