@@ -4551,8 +4551,12 @@ Deno.serve(async (req) => {
       rateDeferred?: boolean;
       retryAfterMs?: number;
       authRefused?: boolean;
+      /** Human-readable trail of every envelope tried, in order. */
+      attempts?: string[];
     }> => {
       const keyLabel = opts.keyLabel?.trim() || "ROLOS";
+      const attempts: string[] = [];
+
 
       /**
        * Ordered mint variants. The channel answers a sub-account's own login envelope
