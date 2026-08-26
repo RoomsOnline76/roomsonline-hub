@@ -178,16 +178,48 @@ function readPath(source: Record<string, unknown> | null | undefined, path: stri
   return cursor;
 }
 
+/**
+ * Order- and shape-insensitive canonical form.
+ *
+ * The form re-serialises nested payload objects (seasons, rates, policies, charges) on every
+ * load, so raw `JSON.stringify` comparison reported "changed" for values that are identical —
+ * a key in a different order, `"1200"` vs `1200`, `null` vs missing. Those false positives fired
+ * a full rates/availability push on saves that only touched a property name. Canonicalise first.
+ */
+function canonical(value: unknown): unknown {
+  if (value === null || value === undefined || value === "") return null;
+  if (Array.isArray(value)) return value.map(canonical);
+  if (typeof value === "object") {
+    const src = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src).sort()) {
+      const next = canonical(src[key]);
+      // A key that is absent and a key that is explicitly empty mean the same thing here.
+      if (next === null) continue;
+      out[key] = next;
+    }
+    return out;
+  }
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "boolean") return value;
+  const text = String(value).trim();
+  if (text === "") return null;
+  // Numeric strings compare as numbers so "1200.00" and 1200 are one value.
+  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  return text;
+}
+
 function sameValue(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   const empty = (v: unknown) => v === null || v === undefined || v === "";
   if (empty(a) && empty(b)) return true;
   try {
-    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
   } catch {
     return false;
   }
 }
+
 
 /**
  * Photo lists per unit, keyed by the unit's stable id (falling back to its name).

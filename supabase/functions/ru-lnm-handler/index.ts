@@ -156,6 +156,45 @@ Deno.serve(async (req) => {
       if ((ARI_TYPES.has(changeType) || changeType === 'PropertyStaticDetails') && ruPropertyId) {
         const isStatic = changeType === 'PropertyStaticDetails';
 
+        /**
+         * Self-echo suppression.
+         *
+         * Every `Push_PutProperty_RQ` we send comes straight back as a `PropertyStaticDetails`
+         * notification. Queueing a corrective re-push for our own write turns one save into an
+         * endless push → notify → push loop that burns the owner's write window. If we pushed
+         * this listing ourselves in the last 15 minutes, the channel is simply confirming our
+         * own change: acknowledge and stop.
+         */
+        if (isStatic) {
+          const { data: ownEcho } = await admin
+            .from('ru_api_log')
+            .select('id')
+            .eq('ru_property_id', ruPropertyId)
+            .eq('action', 'Push_PutProperty_RQ')
+            .gte('created_at', new Date(Date.now() - 15 * 60_000).toISOString())
+            .limit(1)
+            .maybeSingle();
+          if (ownEcho) {
+            await admin.from('ru_sync_runs').insert({
+              batch_id: crypto.randomUUID(),
+              action: 'lnm_self_echo_skipped',
+              success: true,
+              error_message: null,
+              elapsed_ms: 0,
+              property_id: propertyUuid,
+              ru_property_id: ruPropertyId,
+              details: {
+                scope: 'lnm_skipped_not_applicable',
+                reason: 'Notification echoes our own recent content push — no corrective re-push owed',
+                change_type: changeType,
+                change_id: changeId,
+              },
+            });
+            return;
+          }
+        }
+
+
         if (isStatic && !propertyUuid) {
           /**
            * The channel notified about a listing ROL'OS has no mapping for (retired / test
