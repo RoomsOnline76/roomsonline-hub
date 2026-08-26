@@ -4702,11 +4702,49 @@ Deno.serve(async (req) => {
         return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair.", attempts };
       }
 
-
-
-
+      /**
+       * 🔒 Master-footprint guard: Push_CreateApiKey_RQ authenticated with the MASTER
+       * envelope returns a key pair that belongs to the MASTER account even though the
+       * request named <OwnerID>. Storing it as this sub-account's pair makes every later
+       * push authenticate as master, so the listing lands in the master account's
+       * footprint (that is how listing 5948442 "Leopard" got there). Prove the new pair
+       * cannot enumerate the roster — only a parent account can — before storing it.
+       */
+      if (opts.ownerId) {
+        const { data: scopeData } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "verify_child_key_owner",
+            owner_id: opts.ownerId,
+            auth_access_key: created.access_key,
+            auth_secret_key: created.secret_key,
+          },
+        });
+        if (scopeData?.key_scope === "master_pair") {
+          attempts.push(`${createdLabel}: discarded — pair authenticates as the master account`);
+          // Best effort: remove the pair we just created on the master account.
+          await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "delete_child_api_key",
+              owner_id: opts.ownerId,
+              access_key: created.access_key,
+              auth_access_key: created.access_key,
+              auth_secret_key: created.secret_key,
+            },
+          }).catch(() => {});
+          return {
+            ok: false,
+            code: "RU_KEY_CREATION_NOT_ENABLED",
+            message:
+              `The channel issued a key pair that authenticates as our MASTER account rather than sub-account ${opts.ownerId}. ` +
+              "It was discarded instead of stored — using it would create the listing on the master account. " +
+              "API key creation must be enabled for this sub-account at the channel before Step A can finish.",
+            attempts,
+          };
+        }
+      }
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
+
       if (encErr || !enc) {
         return {
           ok: false,
@@ -4722,9 +4760,11 @@ Deno.serve(async (req) => {
           access_key: created.access_key,
           secret_enc: enc,
           key_label: createdLabel,
-
+          key_scope: "child",
+          key_scope_verified_at: new Date().toISOString(),
           verified_at: new Date().toISOString(),
         }, { onConflict: "ru_owner_id" });
+
         if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
       }
 
