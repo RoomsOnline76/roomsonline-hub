@@ -237,8 +237,6 @@ export function StepAccountDialog({
     : ((plan?.login_candidates ?? []) as LoginCandidate[]);
   const effectiveLogin = chosenLoginEmail || (emailConflict ? "" : String(plan?.login_email ?? ""));
   // A conflict cannot be re-run against the same address — a usable login must be chosen.
-  const effectiveLogin = chosenLoginEmail || (emailConflict ? "" : String(plan?.login_email ?? ""));
-  // A conflict cannot be re-run against the same address — a usable login must be chosen.
   const canRun = !stepADisabled && !blockedReason && (!emailConflict || effectiveLogin.includes("@"));
   /** The sub-account this property is already registered under, if any. */
   const linkedEmail = emailConflict
