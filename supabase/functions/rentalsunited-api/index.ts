@@ -3044,7 +3044,31 @@ Deno.serve(async (req) => {
         let listing: OwnerListingRow | undefined;
         const ownerId = Number(p.owner_id);
         const wanted = normaliseName(p.name as string);
-        const snapshot = readOwnerListingSnapshot(ownerId);
+        let snapshot = readOwnerListingSnapshot(ownerId);
+        if (!snapshot) {
+          /**
+           * Cross-instance reuse: onboarding Step A already paid for this exact
+           * `Pull_ListOwnerProp_RQ` seconds ago (adoption / resolve_ru_property_ids) and persisted
+           * it. The in-memory snapshot is isolate-local, so the publish used to re-read the same
+           * owner and get throttled twice before finally succeeding ~77s later. An EMPTY listing
+           * array inside the window is a valid hit — treating it as a miss is what re-opened the
+           * storm.
+           */
+          const shared = await readRuOwnerListingCache(getLogClient(), ownerId, {
+            maxAgeMs: RU_RATE_WINDOW_SECONDS * 1000,
+          });
+          if (shared.hit) {
+            snapshot = shared.listings.map((l) => ({
+              id: String(l.id),
+              name: String(l.name ?? ''),
+              is_archived: l.is_archived === true,
+            }));
+            writeOwnerListingSnapshot(ownerId, snapshot);
+            console.log(
+              `[rentalsunited-api] adoption reused the shared listing snapshot for OwnerID ${ownerId} (${snapshot.length} listing(s), fetched ${shared.fetchedAt}) — no Pull_ListOwnerProp_RQ`,
+            );
+          }
+        }
         if (snapshot) {
           // Already read inside the channel's sliding window by an earlier unit of this push.
           listing = snapshot.find((l) => normaliseName(l.name) === wanted);
@@ -3060,8 +3084,10 @@ Deno.serve(async (req) => {
             }
             const listings = extractPropertyIds(listXml) as OwnerListingRow[];
             writeOwnerListingSnapshot(ownerId, listings);
+            await writeRuOwnerListingCache(getLogClient(), ownerId, listings, 'rentalsunited-api:push_property_adoption');
             listing = listings.find((l) => normaliseName(l.name) === wanted);
           } catch (e) {
+
             // A gate deferral means the read never happened — nothing was created, so the caller
             // can safely retry. Carry the gate's own wait so it paces instead of guessing.
             if (e instanceof RuRateDeferredError) {
