@@ -19,13 +19,16 @@ import {
   ArrowRight,
   Check,
   CircleDashed,
+  ChevronsUpDown,
   Clock,
   Hourglass,
   Loader2,
   RefreshCw,
   ShieldCheck,
+  UserPlus,
   X,
 } from "lucide-react";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
