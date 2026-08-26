@@ -7,7 +7,7 @@ import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
 
 import type { ChannelCostMonitorData } from "@/hooks/useChannelCostMonitor";
 
-type TabKey = "cost" | "accounts" | "cert";
+type TabKey = "cost" | "accounts" | "cert" | "onboard";
 
 
 
@@ -49,10 +49,10 @@ export function ChannelRuStatusStrip({ data, onNavigate }: Props) {
 
   const blocker: { label: string; action: string; tab: TabKey; icon: typeof KeyRound } | null = useMemo(() => {
     if (keys.total === 0 || keys.withKeys < keys.total) {
-      return { label: "Sub-account API keys are missing", action: "Store keys", tab: "accounts", icon: KeyRound };
+      return { label: "Sub-account API keys are missing", action: "Run Step A", tab: "onboard", icon: KeyRound };
     }
     if (keys.verified < keys.withKeys) {
-      return { label: "Stored keys have not been verified against the channel", action: "Verify keys", tab: "accounts", icon: KeyRound };
+      return { label: "Stored keys have not been verified against the channel", action: "Run Step A", tab: "onboard", icon: KeyRound };
     }
     if (live === 0) {
       return { label: "No listing is live at the channel manager yet", action: "Push a property", tab: "cost", icon: Upload };
