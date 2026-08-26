@@ -255,6 +255,8 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                               legacy — pre-fix shape
                             </Badge>
                           ) : null}
+                        </div>
+
 
                         <p className="truncate text-muted-foreground">
                           {spec ? `${RU_ENDPOINT_FAMILY_LABELS[spec.family]} · ${RU_ENDPOINT_CADENCE_LABELS[spec.cadence]}` : "Unregistered endpoint"}
