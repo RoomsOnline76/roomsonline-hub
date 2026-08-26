@@ -16175,8 +16175,11 @@ export type Database = {
       }
       ru_retired_accounts: {
         Row: {
+          channel_archive_result: Json | null
+          channel_archived_at: string | null
           created_at: string
           id: string
+          listings_archived: number
           portal_email: string | null
           reason: string | null
           retired_at: string
@@ -16185,8 +16188,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          channel_archive_result?: Json | null
+          channel_archived_at?: string | null
           created_at?: string
           id?: string
+          listings_archived?: number
           portal_email?: string | null
           reason?: string | null
           retired_at?: string
@@ -16195,8 +16201,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          channel_archive_result?: Json | null
+          channel_archived_at?: string | null
           created_at?: string
           id?: string
+          listings_archived?: number
           portal_email?: string | null
           reason?: string | null
           retired_at?: string

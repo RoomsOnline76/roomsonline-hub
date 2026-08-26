@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Archive, CheckCircle2, Loader2, RotateCcw } from "lucide-react";
+import { AlertTriangle, Archive, CheckCircle2, CloudOff, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +42,14 @@ interface RetiredRow {
   portal_email: string | null;
   reason: string | null;
   retired_at: string | null;
+  channel_archived_at: string | null;
+  listings_archived: number | null;
+}
+
+/** Outcome of one channel purge run, shown per row. */
+interface PurgeOutcome {
+  ok: boolean;
+  message: string;
 }
 
 const DEFAULT_REASON = "Orphan distribution account — retired from Channel Monitor";
@@ -55,15 +64,25 @@ function accountLabel(user: RosterUser): string {
 /**
  * Distribution accounts that exist under our master account but that no property or
  * portfolio is bound to. These are what an earlier Step A run left behind when it
- * provisioned replacement logins. Archiving one writes it to the retired registry,
- * which every roster read, cost attribution and compliance sweep excludes at source,
- * so nothing is ever read from or reported against it again.
+ * provisioned replacement logins.
+ *
+ * Archiving one runs the real channel purge — authenticate as the sub-account, read
+ * what it actually owns at the channel, archive every listing and release the stored
+ * API keys — and only then writes the retired registry that every roster read, cost
+ * attribution and compliance sweep excludes at source. A registry entry alone used to
+ * hide the account from us while it stayed fully alive at the channel.
  */
 export function OrphanSubAccountsPanel() {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<RosterUser | null>(null);
   const [reason, setReason] = useState(DEFAULT_REASON);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [hideAnyway, setHideAnyway] = useState(false);
+  /** Portal password, used only for accounts whose keys we no longer hold. Never stored. */
+  const [password, setPassword] = useState("");
+  const [runningOwnerId, setRunningOwnerId] = useState<string | null>(null);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [outcomes, setOutcomes] = useState<Record<string, PurgeOutcome>>({});
 
   const { data, isLoading } = useQuery({
     queryKey: PANEL_QUERY_KEY,
@@ -74,7 +93,7 @@ export function OrphanSubAccountsPanel() {
         supabase.from("ru_owner_accounts").select("ru_owner_id"),
         supabase
           .from("ru_retired_accounts")
-          .select("ru_owner_id, portal_email, reason, retired_at")
+          .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived")
           .order("retired_at", { ascending: false }),
       ]);
 
@@ -110,11 +129,60 @@ export function OrphanSubAccountsPanel() {
   });
 
   /** Invalidate everything that counts or costs sub-accounts, so figures agree. */
-  const refreshDependents = () => {
+  const refreshDependents = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: PANEL_QUERY_KEY });
     void queryClient.invalidateQueries({ queryKey: ["channel-cost-monitor"] });
     void queryClient.invalidateQueries({ queryKey: ["channel-reconciliation"] });
-  };
+  }, [queryClient]);
+
+  /**
+   * One channel purge run. Returns the channel's own answer — never a claim of its own.
+   */
+  const purgeAtChannel = useCallback(
+    async (ownerId: string, loginEmail: string | null, note: string): Promise<PurgeOutcome> => {
+      setRunningOwnerId(ownerId);
+      try {
+        const { data: res, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: {
+            action: "purge_channel_account",
+            ru_owner_id: ownerId,
+            login_email: loginEmail,
+            password: password || undefined,
+            reason: note || undefined,
+          },
+        });
+        const payload = (res ?? {}) as {
+          success?: boolean;
+          archived_listings?: string[];
+          refused_listings?: { listing_id: string; message: string }[];
+          keys_released?: boolean;
+          total_listings?: number;
+          error?: { message?: string };
+        };
+        if (payload.success === true) {
+          const archived = payload.archived_listings?.length ?? 0;
+          return {
+            ok: true,
+            message:
+              `${archived} of ${payload.total_listings ?? archived} listing(s) archived at the channel` +
+              (payload.keys_released ? " · API keys released" : ""),
+          };
+        }
+        const refused = payload.refused_listings?.length ?? 0;
+        return {
+          ok: false,
+          message:
+            payload.error?.message ??
+            (refused ? `${refused} listing(s) refused by the channel` : error?.message ?? "The channel purge failed"),
+        };
+      } catch (e) {
+        return { ok: false, message: e instanceof Error ? e.message : String(e) };
+      } finally {
+        setRunningOwnerId(null);
+      }
+    },
+    [password],
+  );
 
   const archive = useMutation({
     mutationFn: async ({ user, note }: { user: RosterUser; note: string }) => {
@@ -129,24 +197,36 @@ export function OrphanSubAccountsPanel() {
       if ((stillBound ?? []).length > 0) {
         throw new Error(`OwnerID ${ownerId} is now bound to a property or portfolio — not archived.`);
       }
+
+      const outcome = await purgeAtChannel(ownerId, accountLabel(user), note.trim() || DEFAULT_REASON);
+      setOutcomes((prev) => ({ ...prev, [ownerId]: outcome }));
+      if (outcome.ok) return { ownerId, outcome };
+
+      if (!hideAnyway) {
+        throw new Error(`${outcome.message}. Tick "hide locally anyway" to record it regardless.`);
+      }
+      // Explicit operator override: the local hide is recorded, and the reason says
+      // plainly that the channel side is unfinished.
       const { data: session } = await supabase.auth.getSession();
       const { error } = await supabase.from("ru_retired_accounts").upsert(
         {
           ru_owner_id: ownerId,
           portal_email: accountLabel(user),
-          reason: note.trim() || DEFAULT_REASON,
+          reason: `${note.trim() || DEFAULT_REASON} — NOT archived at the channel: ${outcome.message}`,
           retired_by: session.session?.user?.id ?? null,
         },
         { onConflict: "ru_owner_id" },
       );
       if (error) throw error;
-      return ownerId;
+      return { ownerId, outcome };
     },
-    onSuccess: (ownerId) => {
-      toast.success(`OwnerID ${ownerId} archived — excluded from all channel reads`);
+    onSuccess: ({ ownerId, outcome }) => {
+      if (outcome.ok) toast.success(`OwnerID ${ownerId} archived at the channel — ${outcome.message}`);
+      else toast.warning(`OwnerID ${ownerId} hidden locally only — ${outcome.message}`);
       setArchiveOpen(false);
       setPending(null);
       setReason(DEFAULT_REASON);
+      setHideAnyway(false);
       refreshDependents();
     },
     onError: (e: unknown) => {
@@ -169,10 +249,51 @@ export function OrphanSubAccountsPanel() {
     },
   });
 
+  const retired = useMemo(() => data?.retired ?? [], [data?.retired]);
+  /** Registry entries the channel has never confirmed as archived. */
+  const outstanding = useMemo(() => retired.filter((r) => !r.channel_archived_at), [retired]);
+
+  /** Purge one already-retired account at the channel. */
+  const purgeRetired = useCallback(
+    async (row: RetiredRow) => {
+      const outcome = await purgeAtChannel(
+        row.ru_owner_id,
+        row.portal_email,
+        row.reason ?? "Purged at the channel from Channel Monitor",
+      );
+      setOutcomes((prev) => ({ ...prev, [row.ru_owner_id]: outcome }));
+      if (outcome.ok) toast.success(`OwnerID ${row.ru_owner_id} — ${outcome.message}`);
+      else toast.error(`OwnerID ${row.ru_owner_id} — ${outcome.message}`);
+      refreshDependents();
+      return outcome;
+    },
+    [purgeAtChannel, refreshDependents],
+  );
+
+  /** Walk every outstanding registry entry, one at a time — never in parallel. */
+  const purgeAllOutstanding = useCallback(async () => {
+    setBulkRunning(true);
+    let done = 0;
+    let failed = 0;
+    for (const row of outstanding) {
+      const outcome = await purgeAtChannel(
+        row.ru_owner_id,
+        row.portal_email,
+        row.reason ?? "Purged at the channel from Channel Monitor",
+      );
+      setOutcomes((prev) => ({ ...prev, [row.ru_owner_id]: outcome }));
+      if (outcome.ok) done += 1;
+      else failed += 1;
+    }
+    setBulkRunning(false);
+    refreshDependents();
+    if (failed === 0) toast.success(`${done} account(s) archived at the channel`);
+    else toast.warning(`${done} archived, ${failed} refused — see each row for the channel's answer`);
+  }, [outstanding, purgeAtChannel, refreshDependents]);
+
   if (isLoading) return <Skeleton className="h-32 w-full" />;
 
   const orphans = data?.orphans ?? [];
-  const retired = data?.retired ?? [];
 
   return (
     <Card>
@@ -189,13 +310,29 @@ export function OrphanSubAccountsPanel() {
           </Badge>
         </CardTitle>
         <CardDescription className="text-xs">
-          Accounts under our master account with no property or portfolio bound to them. Archive one
-          to drop it from every active read — listing counts, cost, compliance and health checks all
-          skip archived accounts.
+          Accounts under our master account with no property or portfolio bound to them. Archiving
+          one now runs the real channel purge — every listing it owns is archived at the channel and
+          its API keys are released — before it is dropped from listing counts, cost, compliance and
+          health checks.
           {data?.fetchedAt && ` Roster read ${data.fetchedAt.toLocaleString()}.`}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1.5">
+        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 px-3 py-2">
+          <Label htmlFor="orphan-purge-password" className="text-[11px]">
+            Portal password (only used for accounts whose API keys we no longer hold — never stored)
+          </Label>
+          <Input
+            id="orphan-purge-password"
+            type="password"
+            autoComplete="off"
+            value={password}
+            placeholder="Sub-account portal password"
+            onChange={(e) => setPassword(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+
         {orphans.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Every live distribution account is bound to a property or portfolio.
@@ -203,19 +340,27 @@ export function OrphanSubAccountsPanel() {
         ) : (
           orphans.map((u) => {
             const ownerId = String(u.owner_id);
-            const busy = archive.isPending && String(pending?.owner_id ?? "") === ownerId;
+            const busy = (archive.isPending || runningOwnerId === ownerId) && String(pending?.owner_id ?? "") === ownerId;
+            const outcome = outcomes[ownerId];
             return (
               <div
                 key={ownerId}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2"
               >
-                <span className="flex items-center gap-2 text-xs">
-                  {accountLabel(u)}
-                  {u.archived ? (
-                    <Badge variant="outline" className="text-[10px]">
-                      Archived at channel
-                    </Badge>
-                  ) : null}
+                <span className="flex flex-col gap-0.5 text-xs">
+                  <span className="flex items-center gap-2">
+                    {accountLabel(u)}
+                    {u.archived ? (
+                      <Badge variant="outline" className="text-[10px]">
+                        Archived at channel
+                      </Badge>
+                    ) : null}
+                  </span>
+                  {outcome && (
+                    <span className={`text-[10px] ${outcome.ok ? "text-primary" : "text-destructive"}`}>
+                      {outcome.message}
+                    </span>
+                  )}
                 </span>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[10px] text-muted-foreground">
@@ -226,10 +371,11 @@ export function OrphanSubAccountsPanel() {
                     size="sm"
                     variant="outline"
                     className="h-7 gap-1.5 text-[11px]"
-                    disabled={archive.isPending}
+                    disabled={archive.isPending || bulkRunning}
                     onClick={() => {
                       setPending(u);
                       setReason(DEFAULT_REASON);
+                      setHideAnyway(false);
                       setArchiveOpen(true);
                     }}
                   >
@@ -250,38 +396,99 @@ export function OrphanSubAccountsPanel() {
           <Collapsible>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="sm" className="mt-2 h-7 px-2 text-[11px]">
-                Archived accounts ({retired.length})
+                Archived accounts ({retired.length}
+                {outstanding.length > 0 ? ` · ${outstanding.length} not archived at channel` : ""})
               </Button>
             </CollapsibleTrigger>
             <CollapsibleContent className="mt-1.5 space-y-1.5">
-              {retired.map((r) => (
-                <div
-                  key={r.ru_owner_id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-muted-foreground">
-                      {r.portal_email || "(no login recorded)"}
-                      <span className="ml-2 font-mono text-[10px]">OwnerID {r.ru_owner_id}</span>
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {r.reason || "No reason recorded"}
-                      {r.retired_at && ` · ${new Date(r.retired_at).toLocaleDateString()}`}
-                    </p>
-                  </div>
+              {outstanding.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-destructive/50 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    {outstanding.length} archived account(s) are still live at the channel — their
+                    listings and API keys were never released.
+                  </p>
                   <Button
                     type="button"
                     size="sm"
-                    variant="ghost"
+                    variant="outline"
                     className="h-7 gap-1.5 text-[11px]"
-                    disabled={restore.isPending}
-                    onClick={() => restore.mutate(r.ru_owner_id)}
+                    disabled={bulkRunning || archive.isPending}
+                    onClick={() => void purgeAllOutstanding()}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Restore
+                    {bulkRunning ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CloudOff className="h-3.5 w-3.5" />
+                    )}
+                    Archive all at channel
                   </Button>
                 </div>
-              ))}
+              )}
+              {retired.map((r) => {
+                const outcome = outcomes[r.ru_owner_id];
+                const running = runningOwnerId === r.ru_owner_id;
+                return (
+                  <div
+                    key={r.ru_owner_id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+                        {r.portal_email || "(no login recorded)"}
+                        <span className="font-mono text-[10px]">OwnerID {r.ru_owner_id}</span>
+                        {r.channel_archived_at ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Archived at channel · {r.listings_archived ?? 0} listing(s)
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            Still live at channel
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {r.reason || "No reason recorded"}
+                        {r.retired_at && ` · ${new Date(r.retired_at).toLocaleDateString()}`}
+                      </p>
+                      {outcome && (
+                        <p className={`text-[10px] ${outcome.ok ? "text-primary" : "text-destructive"}`}>
+                          {outcome.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {!r.channel_archived_at && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1.5 text-[11px]"
+                          disabled={bulkRunning || running || archive.isPending}
+                          onClick={() => void purgeRetired(r)}
+                        >
+                          {running ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CloudOff className="h-3.5 w-3.5" />
+                          )}
+                          Archive at channel
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 gap-1.5 text-[11px]"
+                        disabled={restore.isPending || bulkRunning}
+                        onClick={() => restore.mutate(r.ru_owner_id)}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restore
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </CollapsibleContent>
           </Collapsible>
         )}
@@ -302,10 +509,10 @@ export function OrphanSubAccountsPanel() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive this distribution account?</AlertDialogTitle>
+            <AlertDialogTitle>Archive this distribution account at the channel?</AlertDialogTitle>
             <AlertDialogDescription>
               {pending
-                ? `${accountLabel(pending)} · OwnerID ${pending.owner_id} will be excluded from every channel read, listing count, cost figure and compliance check. Nothing is deleted at the channel — it can be restored here.`
+                ? `${accountLabel(pending)} · OwnerID ${pending.owner_id}: every listing this account owns will be archived at the channel and its stored API keys released, then it is excluded from every channel read, listing count, cost figure and compliance check.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -319,6 +526,14 @@ export function OrphanSubAccountsPanel() {
               onChange={(e) => setReason(e.target.value)}
               className="text-xs"
             />
+            <label className="flex items-start gap-2 pt-1 text-[11px] text-muted-foreground">
+              <Checkbox
+                checked={hideAnyway}
+                onCheckedChange={(v) => setHideAnyway(v === true)}
+                className="mt-0.5"
+              />
+              Hide locally anyway if the channel refuses (the refusal is recorded in the reason)
+            </label>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={archive.isPending}>Cancel</AlertDialogCancel>
@@ -329,7 +544,7 @@ export function OrphanSubAccountsPanel() {
                 if (pending) archive.mutate({ user: pending, note: reason });
               }}
             >
-              {archive.isPending ? "Archiving…" : "Archive account"}
+              {archive.isPending ? "Archiving…" : "Archive at channel"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
