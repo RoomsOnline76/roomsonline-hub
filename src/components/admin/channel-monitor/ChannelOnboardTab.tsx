@@ -89,7 +89,10 @@ interface PropertyOption {
   id: string;
   name: string;
   owner_email: string | null;
+  /** Units verified live at the channel manager (null/0 = nothing live yet). */
+  ru_listings_verified_units?: number | null;
 }
+
 
 interface ContractRow {
   status: string;
