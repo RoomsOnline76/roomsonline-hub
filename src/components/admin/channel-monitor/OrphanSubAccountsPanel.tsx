@@ -117,7 +117,7 @@ export function OrphanSubAccountsPanel() {
         supabase.from("ru_owner_accounts").select("ru_owner_id"),
         supabase
           .from("ru_retired_accounts")
-          .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived")
+          .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived, channel_archive_result")
           .order("retired_at", { ascending: false }),
         supabase.from("ru_api_credentials").select("ru_owner_id, login_email, key_label, key_scope"),
       ]);
