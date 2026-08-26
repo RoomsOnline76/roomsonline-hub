@@ -7460,7 +7460,9 @@ Deno.serve(async (req) => {
               accessKey: string | null;
               ownerId: string;
               login: string;
+              password: string;
             } | null = null;
+
             let lastRecycleMessage = minted.message ?? null;
 
             for (let attempt = 2; recycleBase && attempt <= 3 && !recycled; attempt++) {
