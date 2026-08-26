@@ -577,11 +577,20 @@ export function ChannelOnboardTab({
 
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
+          if (!plan) {
+            try {
+              setPlan(await planOwnerAccount(propertyId));
+            } catch {
+              // The blocker line and remedy still render without the plan.
+            }
+          }
           setAccountDialogOpen(true);
         }
         if (result.passed) {
           toast.success(
-            step === "a" ? "Distribution account confirmed" : "Property published — channels can now connect",
+            step === "a"
+              ? "Distribution account provisioned — keys minted and company details sent, ready for Step B"
+              : "Property published — channels can now connect",
           );
         } else if (conflict) {
           toast.error("A different distribution login is needed", {
