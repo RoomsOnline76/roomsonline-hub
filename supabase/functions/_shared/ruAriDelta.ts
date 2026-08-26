@@ -39,16 +39,27 @@ async function isRuConnected(supabase: any, propertyId: string): Promise<boolean
 }
 
 
-async function recentlyPushed(supabase: any, propertyId: string): Promise<boolean> {
+/**
+ * Age of the last refresh that actually wrote to the channel.
+ *
+ * A run that skipped both writes because nothing had moved cost the owner nothing, so it must not
+ * lock the property out of the next real delta for five minutes.
+ */
+async function lastRealPushAgeMs(supabase: any, propertyId: string): Promise<number> {
   const since = new Date(Date.now() - RU_ARI_DELTA_DEBOUNCE_MS).toISOString();
   const { data } = await supabase
     .from("ru_sync_runs")
-    .select("id")
+    .select("created_at, details")
     .eq("property_id", propertyId)
     .eq("action", "refresh_ari")
     .gte("created_at", since)
-    .limit(1);
-  return (data?.length ?? 0) > 0;
+    .order("created_at", { ascending: false })
+    .limit(5);
+  for (const row of (data ?? []) as { created_at: string; details?: { skipped?: boolean } | null }[]) {
+    if (row.details?.skipped === true) continue;
+    return Date.now() - Date.parse(row.created_at);
+  }
+  return Number.MAX_SAFE_INTEGER;
 }
 
 /**
@@ -86,7 +97,16 @@ export async function queueRuAriDelta(
    * before the booking, debouncing would drop the only push that closes the sold nights and
    * the unit stays sellable at the channel until the next scheduled run.
    */
-  options: { force?: boolean } = {},
+  options: {
+    force?: boolean;
+    /** Restrict the write to these unit ids. */
+    onlyUnitIds?: string[] | null;
+    /** Affected span — a restriction range, rate-plan season or booking stay. */
+    dateFrom?: string | null;
+    dateTo?: string | null;
+    /** Pull the channel calendar back after the write (booking events only). */
+    verifyAvailabilityReadback?: boolean;
+  } = {},
 ): Promise<RuAriDeltaOutcome> {
   if (!propertyId) return { queued: false, reason: "no_property" };
   try {
@@ -98,13 +118,29 @@ export async function queueRuAriDelta(
       return { queued: false, reason: "confirm_pending" };
     }
 
-    if (!options.force && (await recentlyPushed(supabase, propertyId))) {
-      console.log(`[ruAriDelta] Debounced ${trigger} delta for property ${propertyId}`);
-      return { queued: false, reason: "debounced" };
+    // Wait out the debounce instead of dropping the edit: a burst of restriction/rate clicks
+    // coalesces into one write, but the last click is never stranded until the next cron.
+    if (!options.force) {
+      const sinceLast = await lastRealPushAgeMs(supabase, propertyId);
+      if (sinceLast < RU_ARI_DELTA_DEBOUNCE_MS) {
+        console.log(`[ruAriDelta] Holding ${trigger} delta for property ${propertyId}`);
+        await new Promise((resolve) => setTimeout(resolve, RU_ARI_DELTA_DEBOUNCE_MS - sinceLast));
+      }
     }
 
     const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
-      body: { property_id: propertyId, action: "refresh_ari", trigger },
+      body: {
+        property_id: propertyId,
+        action: "refresh_ari",
+        trigger,
+        ...(options.onlyUnitIds && options.onlyUnitIds.length > 0 ? { only_unit_ids: options.onlyUnitIds } : {}),
+        ...(options.dateFrom ? { ari_date_from: options.dateFrom } : {}),
+        ...(options.dateTo ? { ari_date_to: options.dateTo } : {}),
+        verify_readback: false,
+        verify_availability_readback: options.verifyAvailabilityReadback === true,
+        // A booking must close the sold nights even if a hash race says availability is unchanged.
+        ...(options.force ? { force_availability: true } : {}),
+      },
     });
     // A 422 gate refusal surfaces as an "error" with the structured body on error.context.
     const errorBody = error ? await readInvokeErrorBody(error) : null;

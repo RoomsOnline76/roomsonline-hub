@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readInvokeError } from '../_shared/functionInvokeError.ts';
+import { planStaticPushScope } from '../_shared/ruStaticDelta.ts';
 
 /**
  * Weekly cron job: Push all RU-connected properties to Rentals United.
@@ -114,7 +115,8 @@ Deno.serve(async (req) => {
       property_id: string;
       name: string;
       success: boolean;
-      status: 'complete' | 'resumable' | 'failed';
+      status: 'complete' | 'resumable' | 'failed' | 'skipped';
+      reason?: string;
       error_code?: string;
       error?: string;
       chunks?: number;
@@ -137,6 +139,24 @@ Deno.serve(async (req) => {
         console.log(`[cron-push-all] Run budget reached before ${prop.name} — leaving it for the next run`);
         break;
       }
+      /**
+       * Static scope only. This job used to invoke the full push (static + a full-year ARI +
+       * discounts) on top of the daily ARI cron, so every week each property paid for an ARI
+       * write it had already made. Unchanged content is skipped outright; changed content goes
+       * as a scoped `static_only` push. ARI belongs to `cron-refresh-ru-ari` and the event deltas.
+       */
+      let staticScope: Awaited<ReturnType<typeof planStaticPushScope>> | null = null;
+      try {
+        staticScope = await planStaticPushScope(supabase, prop.id);
+      } catch (planErr) {
+        console.warn(`[cron-push-all] Scope plan failed for ${prop.name}:`, planErr);
+      }
+      if (staticScope?.unchanged) {
+        console.log(`[cron-push-all] ${prop.name}: static content unchanged — skipping`);
+        results.push({ property_id: prop.id, name: prop.name, success: true, status: 'skipped', reason: 'unchanged' });
+        continue;
+      }
+
       const startedAt = Date.now();
       let success = false;
       let status: 'complete' | 'resumable' | 'failed' = 'failed';
@@ -155,7 +175,13 @@ Deno.serve(async (req) => {
           const { data, error: pushErr } = await supabase.functions.invoke('push-property-to-ru', {
             body: {
               property_id: prop.id,
-              ...(remainingUnitIds.length > 0 ? { only_unit_ids: remainingUnitIds } : {}),
+              action: 'static_only',
+              ...(remainingUnitIds.length > 0
+                ? { only_unit_ids: remainingUnitIds }
+                : staticScope?.scope_unit_ids && staticScope.scope_unit_ids.length > 0
+                  ? { only_unit_ids: staticScope.scope_unit_ids }
+                  : {}),
+              ...(staticScope?.changed_fields?.length ? { changed_fields: staticScope.changed_fields } : {}),
               ...(sequenceBatchId ? { batch_id: sequenceBatchId } : {}),
             },
           });

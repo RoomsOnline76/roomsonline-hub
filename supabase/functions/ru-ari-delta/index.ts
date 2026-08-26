@@ -49,8 +49,16 @@ Deno.serve(async (req) => {
       : 'manual';
 
     const supabase = createClient(supabaseUrl, serviceKey);
+    const isoDay = (v: unknown): string | null =>
+      typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
     const work = queueRuAriDelta(supabase, propertyId, trigger, {
       force: body?.force === true,
+      dateFrom: isoDay(body?.date_from),
+      dateTo: isoDay(body?.date_to),
+      onlyUnitIds: Array.isArray(body?.only_unit_ids)
+        ? (body.only_unit_ids as unknown[]).map((u) => String(u)).filter((u) => u.length > 0)
+        : null,
+      verifyAvailabilityReadback: body?.verify_availability_readback === true,
     });
 
     // Save-path callers fire and forget: keep the work alive after the response so closing the

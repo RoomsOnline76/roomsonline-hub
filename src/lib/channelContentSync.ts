@@ -27,6 +27,13 @@ export interface ChannelSyncOptions {
    * console, cron). Bypasses the onboarding gate; ordinary saves must not set this.
    */
   manual?: boolean;
+  /** Affected span — scopes an ARI write to the nights that moved instead of the full year. */
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  /** Restrict an ARI write to these unit ids. */
+  onlyUnitIds?: string[] | null;
+  /** Pull the channel calendar back after the write (booking events only). */
+  verifyAvailabilityReadback?: boolean;
 }
 
 /** Ordinary edits stay silent and make no channel call before wizard step 13. */
@@ -129,6 +136,10 @@ export async function queueChannelRatesSync(
         trigger,
         ...(options.force ? { force: true } : {}),
         ...(options.wait ? { wait: true } : {}),
+        ...(options.dateFrom ? { date_from: options.dateFrom } : {}),
+        ...(options.dateTo ? { date_to: options.dateTo } : {}),
+        ...(options.onlyUnitIds && options.onlyUnitIds.length > 0 ? { only_unit_ids: options.onlyUnitIds } : {}),
+        ...(options.verifyAvailabilityReadback ? { verify_availability_readback: true } : {}),
       },
     });
     if (error) {

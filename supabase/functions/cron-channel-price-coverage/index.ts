@@ -106,7 +106,37 @@ Deno.serve(async (req) => {
     const authCache = new Map<string, Record<string, unknown> | null>();
     const results: Array<Record<string, unknown>> = [];
 
+    /**
+     * A property whose ARI was refreshed minutes ago is priced by definition: auditing it (and
+     * auto-repushing on a stale read) manufactures channel traffic for nothing. Operator-scoped
+     * re-checks always audit — that is the point of asking.
+     */
+    const freshAri = new Set<string>();
+    if (!isScopedRun) {
+      const since = new Date(Date.now() - 45 * 60 * 1000).toISOString();
+      const { data: freshRuns } = await admin
+        .from('ru_sync_runs')
+        .select('property_id, details')
+        .eq('action', 'refresh_ari')
+        .eq('success', true)
+        .gte('created_at', since);
+      for (const row of (freshRuns ?? []) as { property_id: string; details?: { skipped?: boolean } | null }[]) {
+        if (row.details?.skipped === true) continue;
+        if (row.property_id) freshAri.add(row.property_id);
+      }
+    }
+
     for (const t of scoped) {
+      if (freshAri.has(t.property_id)) {
+        results.push({
+          property_id: t.property_id,
+          property_name: t.property_name,
+          listing_id: t.listing_id,
+          unit_name: t.unit_name,
+          skipped_fresh_ari: true,
+        });
+        continue;
+      }
       if (!authCache.has(t.property_id)) {
         authCache.set(t.property_id, await resolveRuChildAuth(admin, t.property_id));
       }

@@ -73,6 +73,43 @@ async function ariPushMeta(
   return { push_type: pushType, changed_fields: changedFields, fingerprint };
 }
 
+/** Deterministic JSON for ARI fingerprints (key order must not change the hash). */
+function stableAriStringify(value: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  if (Array.isArray(value)) return `[${value.map(stableAriStringify).join(',')}]`;
+  if (typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stableAriStringify(v)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+async function ariHash(value: unknown): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(stableAriStringify(value)));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+}
+
+/**
+ * ARI delta options.
+ *
+ * `priorAvailabilityHash` / `priorPricesHash` come from the last successful refresh for this exact
+ * target: when the payload we are about to send hashes the same, the channel already holds it and
+ * the write is pure cost. A booking event forces the availability write regardless (it must close
+ * the sold nights even if a hash race says otherwise); prices are never forced by a booking.
+ */
+export interface AriDeltaOptions {
+  windowFrom?: string;
+  windowTo?: string;
+  /** Calendar read-back after PutAvb — opt-in, booking events only. */
+  availabilityReadback?: boolean;
+  priorAvailabilityHash?: string | null;
+  priorPricesHash?: string | null;
+  forceAvailability?: boolean;
+}
+
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import { loadPropertyDistances } from '../_shared/ruDistances.ts';
 import {
@@ -2597,17 +2634,20 @@ async function pushARI(
   childAuth: Record<string, unknown> = {},
   currency?: CurrencyDecision | null,
   readback: ReadbackOptions = { priceReadback: false, discountReadback: false },
+  ari: AriDeltaOptions = {},
 ) {
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any> } = {};
+  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
 
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
   const oneYearLater = new Date(today);
   oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-  const oneYearStr = oneYearLater.toISOString().slice(0, 10);
+  // A caller that knows the affected span (restriction range, rate-plan season, booking nights)
+  // scopes the write to it; anything else keeps the rolling 365-day window RU requires.
+  const todayStr = ari.windowFrom ?? today.toISOString().slice(0, 10);
+  const oneYearStr = ari.windowTo ?? oneYearLater.toISOString().slice(0, 10);
 
   const authoredPeriods: AvailabilityPeriod[] = [];
   if (Array.isArray(seasons)) {
@@ -2676,6 +2716,18 @@ async function pushARI(
       bookedNights = sold.dates;
       console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
 
+      const availabilityHash = await ariHash({
+        window: { from: todayStr, to: oneYearStr },
+        units: unitUnits,
+        entries: availEntries,
+      });
+      result.availability_hash = availabilityHash;
+      if (!ari.forceAvailability && ari.priorAvailabilityHash && ari.priorAvailabilityHash === availabilityHash) {
+        // The channel already holds this exact availability payload: no PutAvb, no calendar pull.
+        result.availability_pushed = true;
+        result.skipped_avb = true;
+        console.log(`[pushARI] RU ${ruPropertyId}: availability unchanged — skipping the write`);
+      } else {
       const availMeta = await ariPushMeta(
         'ari_availability',
         ['availability.units', 'availability.changeover', 'availability.min_stay'],
@@ -2738,7 +2790,9 @@ async function pushARI(
         result.availability_error = availErrorMessage;
       } else {
         result.availability_pushed = true;
-        // 6.2 + 6.3 — Verify
+        // 6.2 + 6.3 — Verify. Opt-in: only a booking-driven refresh re-reads the calendar; a
+        // restriction/rate/cron write trusts ROL'OS as the source of truth.
+        if (ari.availabilityReadback === true) {
         const verification = await verifyAvailability(supabase, ruPropertyId, availEntries, todayStr, oneYearStr, childAuth, bookedNights);
         result.availability_verification = verification;
         const openSold = verification.booked_days_open ?? [];
@@ -2763,7 +2817,11 @@ async function pushARI(
         } catch (logErr) {
           console.warn(`[pushARI] Failed to persist verification log:`, logErr);
         }
+        } else {
+          result.skipped_availability_readback = true;
+        }
 
+      }
       }
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
@@ -2899,6 +2957,19 @@ async function pushARI(
       const payloadBytes = JSON.stringify(outboundPrices).length;
       result.prices_payload = { seasons: outboundPrices.length, bytes: payloadBytes };
       console.log(`[pushARI] RU ${ruPropertyId}: price payload ${outboundPrices.length} seasons / ${payloadBytes} bytes`);
+
+      const pricesHash = await ariHash({
+        window: { from: todayStr, to: oneYearStr },
+        prices: outboundPrices,
+      });
+      result.prices_hash = pricesHash;
+      if (ari.priorPricesHash && ari.priorPricesHash === pricesHash) {
+        // Rates identical to the last accepted push — PutPrices would be a no-op write.
+        result.prices_pushed = true;
+        result.skipped_prices = true;
+        console.log(`[pushARI] RU ${ruPropertyId}: prices unchanged — skipping the write`);
+        return result;
+      }
 
       const PRICE_CHUNK = 150;
       const priceChunks: typeof outboundPrices[] = [];
@@ -3237,6 +3308,16 @@ Deno.serve(async (req) => {
       discountReadback: reqBody.verify_discount_readback === true || reqBody.verify_readback === true,
     };
     /**
+     * ARI delta scope + read-back opt-in for this request. `verify_availability_readback` defaults
+     * to false: only booking confirm/cancel/modify pulls the channel calendar back.
+     */
+    const ariRequestOptions: AriDeltaOptions = {
+      windowFrom: typeof reqBody.ari_date_from === 'string' ? reqBody.ari_date_from : undefined,
+      windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
+      availabilityReadback: reqBody.verify_availability_readback === true,
+      forceAvailability: reqBody.force_availability === true,
+    };
+    /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
      * brand-new building on each call instead of updating ours — 20+ duplicate "Tidal Pools"
@@ -3290,6 +3371,22 @@ Deno.serve(async (req) => {
      * sliding-minute write window for no reason.
      */
     const staticOnly = action === 'static_only';
+    /**
+     * Image probes fetch and measure every photo on the payload. A scoped static delta that
+     * carries no image field cannot have changed the image set, so the probe is pure cost.
+     * A first/forced push, or any delta naming an image field, still probes.
+     */
+    const deltaChangedFields: string[] | null = Array.isArray(reqBody.changed_fields)
+      ? (reqBody.changed_fields as unknown[]).map((f) => String(f))
+      : null;
+    const skipImageProbe =
+      staticOnly &&
+      !forcePush &&
+      deltaChangedFields !== null &&
+      deltaChangedFields.length > 0 &&
+      !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
+    const verifyPayloadImages = async (payload: Record<string, any>) =>
+      skipImageProbe ? [] : await applyImageVerification(payload);
     /** ARI is pushed on every path except a static-content delta. */
     const pushARIUnlessStatic = async (
       ruPropertyId: number,
@@ -4456,9 +4553,42 @@ Deno.serve(async (req) => {
       const isMissingListing = (msg?: string) =>
         !!msg && /(property (with given id )?does not exist)/i.test(msg);
 
+      /**
+       * Fingerprints from the last successful refresh, per target. An identical payload means the
+       * channel already holds it, so the write is skipped instead of burning the owner's window.
+       * Skip rows carry the same hashes, so they are safe to read from.
+       */
+      const priorAriHashes = new Map<number, { availability?: string; prices?: string }>();
+      if (!ariRequestOptions.windowFrom && !ariRequestOptions.windowTo) {
+        try {
+          const { data: lastAri } = await supabase
+            .from('ru_sync_runs')
+            .select('details')
+            .eq('property_id', property_id)
+            .eq('action', 'refresh_ari')
+            .eq('success', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const priorTargets = (lastAri?.[0]?.details as { targets?: Record<string, any>[] } | null)?.targets ?? [];
+          for (const pt of priorTargets) {
+            const id = Number(pt?.ru_property_id);
+            if (!Number.isFinite(id)) continue;
+            priorAriHashes.set(id, {
+              availability: typeof pt?.availability_hash === 'string' ? pt.availability_hash : undefined,
+              prices: typeof pt?.prices_hash === 'string' ? pt.prices_hash : undefined,
+            });
+          }
+        } catch (_e) { /* no stored hash → full window, as before */ }
+      }
+      const ariOptionsFor = (ruId: number): AriDeltaOptions => ({
+        ...ariRequestOptions,
+        priorAvailabilityHash: priorAriHashes.get(ruId)?.availability ?? null,
+        priorPricesHash: priorAriHashes.get(ruId)?.prices ?? null,
+      });
+
       const ariResults: Record<string, any>[] = [];
       for (const t of targets) {
-        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
+        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions, ariOptionsFor(t.ru_id));
         const stale = isMissingListing(r.availability_error) || isMissingListing(r.prices_error);
         if (stale) {
           console.warn(`[push-property-to-ru] Stale channel listing ${t.ru_id} (${t.label}) — clearing mapping, full push required`);
@@ -4492,7 +4622,7 @@ Deno.serve(async (req) => {
         for (const i of retryIdx) {
           const t = targets[i];
           console.warn(`[push-property-to-ru] Transport failure on "${t.label}" — second pass`);
-          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
+          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions, { ...ariRequestOptions, forceAvailability: true });
           if (r2.availability_pushed === true && !r2.availability_error && !r2.prices_error) {
             ariResults[i] = { target: t.label, ru_property_id: t.ru_id, stale_listing: false, second_pass: true, ...r2 };
           } else {
@@ -4553,6 +4683,11 @@ Deno.serve(async (req) => {
             total_attempts: totalAttempts,
             upstream_only: upstreamOnly,
             partial_transient: partialTransient,
+            window: { from: ariRequestOptions.windowFrom ?? null, to: ariRequestOptions.windowTo ?? null },
+            skipped: ariResults.length > 0 && ariResults.every((r) => r.skipped_avb === true && r.skipped_prices === true),
+            skipped_avb: ariResults.filter((r) => r.skipped_avb === true).length,
+            skipped_prices: ariResults.filter((r) => r.skipped_prices === true).length,
+            reason: ariResults.length > 0 && ariResults.every((r) => r.skipped_avb === true && r.skipped_prices === true) ? 'unchanged' : undefined,
             targets: ariResults,
           },
         });
@@ -4884,7 +5019,7 @@ Deno.serve(async (req) => {
           // buildingId=0 → adapter omits <BuildingID> entirely
           const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, 0, currencyId, propertyCharges), distances: propertyDistances };
           unitPayload.owner_id = ruOwnerId ?? 0;
-          const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+          const unitImageIssues = await verifyPayloadImages(unitPayload as unknown as Record<string, any>);
           if (unitImageIssues.length > 0) {
             console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
           }
@@ -5285,7 +5420,7 @@ Deno.serve(async (req) => {
       for (const unit of unitsToPush) {
         const existingUnitRuId = unit.rentalsunited_property_id ? parseInt(unit.rentalsunited_property_id, 10) : 0;
         const unitPayload = { ...buildUnitPayload(property as PropertyRow, unit, locationId, buildingId, currencyId, propertyCharges), distances: propertyDistances };
-        const unitImageIssues = await applyImageVerification(unitPayload as unknown as Record<string, any>);
+        const unitImageIssues = await verifyPayloadImages(unitPayload as unknown as Record<string, any>);
         if (unitImageIssues.length > 0) {
           console.warn(`[push-property-to-ru] Unit "${unit.name}": dropped ${unitImageIssues.length} image(s) Rentals United would reject`, unitImageIssues.map(i => i.reason));
         }
@@ -5500,7 +5635,7 @@ Deno.serve(async (req) => {
     // ── SINGLE PROPERTY FLOW (legacy) ────────────────────────
     const ruPayload = { ...buildSinglePropertyPayload(property as PropertyRow, activeRoomTypes, locationId, currencyId, propertyCharges), distances: propertyDistances };
     ruPayload.owner_id = ruOwnerId ?? 0;
-    const singleImageIssues = await applyImageVerification(ruPayload as unknown as Record<string, any>);
+    const singleImageIssues = await verifyPayloadImages(ruPayload as unknown as Record<string, any>);
     if (singleImageIssues.length > 0) {
       console.warn(`[push-property-to-ru] Dropped ${singleImageIssues.length} image(s) Rentals United would reject`, singleImageIssues.map(i => i.reason));
     }

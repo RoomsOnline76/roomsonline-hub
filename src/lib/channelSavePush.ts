@@ -153,8 +153,9 @@ export async function pushChangedChannelFields(
  * Confirmed rates & availability push for a rate plan change (new season, new/changed season
  * rate, removed season, plan activated/retired/deleted, plan copied).
  *
- * Rate edits always force the delta: the shared helper debounces rates pushes for five minutes
- * per property, which would otherwise silently drop the very change the operator just made.
+ * The delta is no longer forced: the shared helper now *waits out* the five-minute debounce
+ * instead of dropping the edit, so a burst of rate clicks becomes one channel write and the last
+ * click is still delivered. Pass the season span when it is known to scope the write.
  *
  * Never blocks the caller's own save toast and never turns a channel failure into a save
  * failure — the toast lifecycle resolves in the background.
@@ -167,7 +168,7 @@ export async function pushRatePlanRates(
     | "rate_plan_toggle"
     | "rate_plan_delete"
     | "rate_plan_copy",
-  options: { label?: string } = {},
+  options: { label?: string; dateFrom?: string | null; dateTo?: string | null } = {},
 ): Promise<void> {
   if (!propertyId) return;
   // Gate first, so a property still inside the wizard never even shows a spinner.
@@ -184,7 +185,10 @@ export async function pushRatePlanRates(
 
   toast.loading(`Sending ${label.toLowerCase()} to the ${CHANNEL_MANAGER}…`, { id: toastId });
 
-  const outcome = await queueChannelRatesSync(propertyId, trigger, { force: true });
+  const outcome = await queueChannelRatesSync(propertyId, trigger, {
+    dateFrom: options.dateFrom ?? null,
+    dateTo: options.dateTo ?? null,
+  });
   if (outcome?.error) {
     toast.error(`${CHANNEL_MANAGER} update rejected`, { id: toastId, description: outcome.error });
     return;
