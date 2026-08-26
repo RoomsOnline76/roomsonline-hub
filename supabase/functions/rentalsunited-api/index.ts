@@ -3818,7 +3818,14 @@ Deno.serve(async (req) => {
       console.log(`[rentalsunited-api] SetStatus response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, auth_mode: authMode, message: 'Property status updated', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        auth_mode: archiveOnMaster ? 'master_scoped_archive' : authMode,
+        envelope: archiveOnMaster ? 'master_scoped_archive' : 'child_keys',
+        message: 'Property status updated',
+        raw_xml: response,
+      });
+
     }
 
     // ── delete_property ──
