@@ -572,7 +572,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
-    if (provisioning?.source === "existing" || snapshot.binding.keys_stored) {
+    if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
         id: "api_keys",
         outcome: "skipped",
@@ -591,9 +591,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: provisioning?.code ?? (snapshot.binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
+      code: provisioning?.code ?? (binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
       detail: (provisioning?.warning
-        ?? (snapshot.binding.password_stored
+        ?? (binding.password_stored
           ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
           : "Step A needs the sub-account password to create and store its API key pair automatically.")) + trailText,
     };
