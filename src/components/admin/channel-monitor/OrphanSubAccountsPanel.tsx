@@ -26,6 +26,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { RetireBoundAccountPanel } from "@/components/admin/channel-monitor/RetireBoundAccountPanel";
+import { MasterRosterPanel } from "@/components/admin/channel-monitor/MasterRosterPanel";
+
 
 interface RosterUser {
   owner_id?: string | null;
@@ -285,6 +287,9 @@ export function OrphanSubAccountsPanel() {
         )}
 
         <RetireBoundAccountPanel />
+
+        <MasterRosterPanel />
+
       </CardContent>
 
       <AlertDialog
