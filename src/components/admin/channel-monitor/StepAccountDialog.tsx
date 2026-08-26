@@ -168,9 +168,8 @@ export function StepAccountDialog({
   chosenLoginEmail = null,
   onChosenLoginEmailChange,
   remedyCode = null,
-  runTasks = [],
-  waitLabel = null,
 }: StepAccountDialogProps) {
+
 
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companyLoading, setCompanyLoading] = useState(false);
