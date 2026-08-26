@@ -20,7 +20,8 @@ export const RU_ARI_DELTA_DEBOUNCE_MS = 5 * 60 * 1000;
 
 export interface RuAriDeltaOutcome {
   queued: boolean;
-  reason?: "not_connected" | "debounced" | "error" | "no_property" | "gate_pending" | "confirm_pending";
+  reason?: "not_connected" | "debounced" | "coalesced" | "error" | "no_property" | "gate_pending" | "confirm_pending";
+
   error?: string;
   blockers?: string[];
 }
