@@ -4537,16 +4537,37 @@ Deno.serve(async (req) => {
       ruStatusMessage?: string | null;
       rateDeferred?: boolean;
       retryAfterMs?: number;
+      authRefused?: boolean;
     }> => {
       const keyLabel = opts.keyLabel?.trim() || "ROLOS";
-      const authBody: Record<string, unknown> = { action: "create_child_api_key", key_label: keyLabel };
-      if (opts.authAccessKey && opts.authSecretKey) {
-        authBody.auth_access_key = opts.authAccessKey;
-        authBody.auth_secret_key = opts.authSecretKey;
-      } else if (opts.authUsername && opts.authPassword) {
-        authBody.auth_username = opts.authUsername;
-        authBody.auth_password = opts.authPassword;
-      } else {
+
+      /**
+       * Ordered mint variants. The channel answers a sub-account's own login envelope
+       * with "Incorrect login or password" even on an account created seconds earlier,
+       * so a single attempt is not evidence that the login is wrong:
+       *   1. the credential we hold (existing key pair, else login + password)
+       *   2. the same envelope once more after a short pause — a brand-new account is
+       *      not always live on the XML surface at the instant it is created
+       *   3. a master-authenticated mint scoped to the sub-account's OwnerID
+       */
+      const variants: Array<{ label: string; body: Record<string, unknown>; delayMs?: number }> = [];
+      const credentialBody: Record<string, unknown> | null =
+        opts.authAccessKey && opts.authSecretKey
+          ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
+          : opts.authUsername && opts.authPassword
+            ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
+            : null;
+      if (credentialBody) {
+        variants.push({ label: "child_credential", body: credentialBody });
+        variants.push({ label: "child_credential_retry", body: credentialBody, delayMs: 6_000 });
+      }
+      if (opts.ownerId) {
+        variants.push({
+          label: "master_owner_scoped",
+          body: { owner_scoped_mint: true, owner_id: opts.ownerId },
+        });
+      }
+      if (variants.length === 0) {
         return {
           ok: false,
           code: "NO_STORED_PASSWORD",
@@ -4554,27 +4575,65 @@ Deno.serve(async (req) => {
         };
       }
 
-      const { data: created, error: createError } = await admin.functions.invoke("rentalsunited-api", { body: authBody });
-      const createErrBody = createError ? await readInvokeErrorBody(createError) : null;
-      const rawMessage = String(created?.error?.message ?? createErrBody?.error?.message ?? createError?.message ?? "");
-      const ruStatusId = created?.error?.ru_status_id ?? createErrBody?.error?.ru_status_id ?? null;
-      const ruStatusMessage = created?.ru_status_message ?? createErrBody?.ru_status_message ?? (rawMessage || null);
-      const errorCode = String(created?.error?.code ?? createErrBody?.error?.code ?? "").trim();
-      if (createError || created?.success !== true || !created?.access_key || !created?.secret_key) {
+      let created: any = null;
+      let lastFailure: {
+        code: string;
+        message: string;
+        ruStatusId: string | null;
+        ruStatusMessage: string | null;
+        authRefused: boolean;
+      } | null = null;
+
+      for (const variant of variants) {
+        if (variant.delayMs) await new Promise((resolve) => setTimeout(resolve, variant.delayMs));
+        const { data, error: invokeError } = await admin.functions.invoke("rentalsunited-api", {
+          body: { action: "create_child_api_key", key_label: keyLabel, ...variant.body },
+        });
+        const errBody = invokeError ? await readInvokeErrorBody(invokeError) : null;
+        const rawMessage = String(data?.error?.message ?? errBody?.error?.message ?? invokeError?.message ?? "");
+        const ruStatusId = data?.error?.ru_status_id ?? errBody?.error?.ru_status_id ?? null;
+        const ruStatusMessage = data?.ru_status_message ?? errBody?.ru_status_message ?? (rawMessage || null);
+        const errorCode = String(data?.error?.code ?? errBody?.error?.code ?? "").trim();
+
+        if (!invokeError && data?.success === true && data?.access_key && data?.secret_key) {
+          created = data;
+          break;
+        }
+
         // A channel rate limit is a "come back shortly", never a failure: the caller
         // surfaces the countdown and the task resumes on its own.
         const deferred = /RU_RATE_DEFERRED|rate limit|less than a minute/i.test(rawMessage);
-        const retryMatch = rawMessage.match(/retry in (\d+)s/i);
-        return {
-          ok: false,
-          rateDeferred: deferred,
-          retryAfterMs: deferred ? Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000) : undefined,
-          code: deferred ? "RU_RATE_DEFERRED" : errorCode || "RU_CREATE_KEY_FAILED",
+        if (deferred) {
+          const retryMatch = rawMessage.match(/retry in (\d+)s/i);
+          return {
+            ok: false,
+            rateDeferred: true,
+            retryAfterMs: Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000),
+            code: "RU_RATE_DEFERRED",
+            message: rawMessage || "The channel rate-limited automatic key creation.",
+            ruStatusId,
+            ruStatusMessage,
+          };
+        }
+
+        const authRefused = errorCode === "RU_CREATE_KEY_API_REJECTED"
+          || String(ruStatusId ?? "") === "-4"
+          || /incorrect login|login or password/i.test(`${rawMessage} ${ruStatusMessage ?? ""}`);
+        lastFailure = {
+          code: errorCode || "RU_CREATE_KEY_FAILED",
           message: rawMessage || "Rentals United did not return a new API key pair.",
           ruStatusId,
           ruStatusMessage,
+          authRefused,
         };
+        // Anything that is not an auth refusal will not be cured by another envelope.
+        if (!authRefused) break;
       }
+
+      if (!created) {
+        return { ok: false, ...(lastFailure ?? { code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair." }) };
+      }
+
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
       if (encErr || !enc) {
