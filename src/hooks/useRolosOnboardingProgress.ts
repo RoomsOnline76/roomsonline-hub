@@ -873,13 +873,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
 
     // Macros 12-13 — entitlement & channels
     const entitlementOn = billing?.channel_manager_enabled === true;
-    put("channel_entitlement", "Channel Manager enabled on billing", bound && entitlementOn, {
-      waiting: !bound,
-      detail: !bound
-        ? unboundDependentDetail("entitlement")
-        : entitlementOn
-          ? "Enabled"
-          : "Disabled — switch it on in the property's billing config",
+    // Entitlement is a commercial fact on the billing config alone — it does not
+    // depend on the distribution account binding. Gating it on `bound` reported an
+    // enabled Channel Manager as "not enabled" (false positive).
+    put("channel_entitlement", "Channel Manager enabled on billing", entitlementOn, {
+      detail: entitlementOn ? "Enabled" : "Disabled — switch it on in the property's billing config",
     });
     const connected = ((d?.channels ?? []) as { status: string }[]).filter((c) =>
       ["connected", "active", "live"].includes(String(c.status ?? "").toLowerCase()),

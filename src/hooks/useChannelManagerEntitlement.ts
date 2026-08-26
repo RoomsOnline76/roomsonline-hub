@@ -68,7 +68,9 @@ export function useChannelManagerEntitlement(propertyId: string | undefined) {
   const query = useQuery({
     queryKey: ["channel-manager-entitlement", propertyId],
     enabled: !!propertyId,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    // A billing toggle saved seconds ago must not be reported as "not enabled".
+    refetchOnMount: "always",
     queryFn: async () => {
       const map = await fetchChannelManagerEntitlements([propertyId as string]);
       return map.get(propertyId as string) === true;
@@ -89,7 +91,8 @@ export function useChannelManagerEntitlements(propertyIds: string[]) {
   const query = useQuery({
     queryKey: ["channel-manager-entitlements", key],
     enabled: key.length > 0,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    refetchOnMount: "always",
     queryFn: () => fetchChannelManagerEntitlements(key.split(",")),
   });
 

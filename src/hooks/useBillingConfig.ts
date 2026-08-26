@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { invalidateChannelEditGate } from "@/lib/channelEditGate";
 
 export interface BillingConfig {
   id: string;
@@ -239,6 +240,13 @@ export function useBillingConfig(propertyId: string | undefined) {
     onSuccess: async (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["billing-config", propertyId] });
       queryClient.invalidateQueries({ queryKey: ["billing-config-membership", propertyId] });
+      // The Channel Manager entitlement is cached separately (wizard mounts, list
+      // surfaces) and by the channel edit gate. A saved toggle must be visible the
+      // moment the workspace opens — otherwise it reports a false "not enabled".
+      queryClient.invalidateQueries({ queryKey: ["channel-manager-entitlement"] });
+      queryClient.invalidateQueries({ queryKey: ["channel-manager-entitlements"] });
+      invalidateChannelEditGate(propertyId ?? undefined);
+      (scope.siblingPropertyIds ?? []).forEach((id) => invalidateChannelEditGate(id));
       // Sync white_label_allowed → brand_override_enabled on all affected properties.
       if (data?.white_label_allowed != null) {
         const targetIds =
