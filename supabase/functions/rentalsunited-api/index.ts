@@ -297,6 +297,13 @@ interface RequestBody {
   changed_fields?: string[];
   push_type?: 'delta' | 'full';
   fingerprint?: string;
+  /**
+   * Archive-only escalation for a RETIRED, unbound sub-account: allows the status write
+   * to run on MASTER credentials scoped by OwnerID. Only honoured when the OwnerID is
+   * present in ru_retired_accounts and the write archives/deactivates the listing.
+   */
+  archive_retired?: boolean;
+
 
   // Push payloads
   property?: RUPropertyPayload;
