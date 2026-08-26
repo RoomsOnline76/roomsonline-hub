@@ -142,17 +142,8 @@ const RUN_COOLDOWN_SECONDS = 60;
  */
 const RU_SUB_USER_PASSWORD = "SLPafrica247*";
 
-/**
- * Password for a recycled Step A sub-account. RU policy: 12+ chars with upper, lower,
- * digit and special. Each recycle gets its own password so a refused credential is
- * never re-presented, and it is stored encrypted before the key mint is attempted.
- */
-function generateSubUserPassword(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  const body = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-  return `Rol${body}7*`;
-}
+
+
 
 
 /**
