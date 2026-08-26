@@ -2121,7 +2121,13 @@ Deno.serve(async (req) => {
           })
           .eq("id", unit.property_id);
 
-        if (unitStatus !== "ru_failed") {
+        const unitAriFresh = unitStatus !== "ru_failed"
+          ? await ariAlreadyFresh(admin, unit.property_id, body?.skip_ari_refresh === true)
+          : null;
+        if (unitAriFresh) {
+          unitAri = null;
+          console.log(`[entitlement] ARI refresh skipped for ${unit.property_id} — ${unitAriFresh}`);
+        } else if (unitStatus !== "ru_failed") {
           try {
             const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
               body: { property_id: unit.property_id, action: "refresh_ari", trigger: "channel_monitor_unit_activation" },
@@ -2349,7 +2355,12 @@ Deno.serve(async (req) => {
       // retryable warning — never as a failed reactivation.
       let ariPush: string | null = null;
       let ariRetryable = false;
-      if (!archive && status !== "ru_failed") {
+      const ariFresh = !archive && status !== "ru_failed"
+        ? await ariAlreadyFresh(admin, p.id, body?.skip_ari_refresh === true)
+        : null;
+      if (ariFresh) {
+        console.log(`[entitlement] ARI refresh skipped for ${p.id} — ${ariFresh}`);
+      } else if (!archive && status !== "ru_failed") {
         try {
           const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
             body: { property_id: p.id, action: "refresh_ari", trigger: "channel_monitor_reactivation" },
