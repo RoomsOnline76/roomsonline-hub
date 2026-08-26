@@ -15008,6 +15008,9 @@ export type Database = {
           created_at: string
           id: string
           key_label: string | null
+          key_scope: string
+          key_scope_detail: Json | null
+          key_scope_verified_at: string | null
           login_email: string | null
           ru_owner_id: string
           secret_enc: string | null
@@ -15019,6 +15022,9 @@ export type Database = {
           created_at?: string
           id?: string
           key_label?: string | null
+          key_scope?: string
+          key_scope_detail?: Json | null
+          key_scope_verified_at?: string | null
           login_email?: string | null
           ru_owner_id: string
           secret_enc?: string | null
@@ -15030,6 +15036,9 @@ export type Database = {
           created_at?: string
           id?: string
           key_label?: string | null
+          key_scope?: string
+          key_scope_detail?: Json | null
+          key_scope_verified_at?: string | null
           login_email?: string | null
           ru_owner_id?: string
           secret_enc?: string | null

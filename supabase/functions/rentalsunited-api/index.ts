@@ -2145,6 +2145,96 @@ async function resolveChildAuth(body: RequestBody): Promise<ChildAuth | null> {
   return (await resolveChildAuthDetailed(body)).auth;
 }
 
+/**
+ * 🔒 ADAPTER LOCK (RU child isolation): a key pair minted with the MASTER envelope
+ * (Push_CreateApiKey_RQ + <OwnerID>) belongs to the MASTER account, not to the named
+ * sub-user — the channel ignores <OwnerID> when issuing keys. Storing such a pair as
+ * "child keys" makes every later write authenticate as the master account, so the
+ * listing lands in the master account's footprint while only being tagged with the
+ * sub-account's OwnerID (this is how listing 5948442 "Leopard" reached the master).
+ *
+ * Only a parent account can run Pull_ListMyUsers_RQ, so that call is the definitive
+ * probe: if the pair can enumerate the roster, it is a master pair and must never be
+ * used for a sub-account write. The verdict is cached on ru_api_credentials.
+ */
+async function assertChildKeysAreNotMaster(
+  creds: RUCredentials,
+  childAuth: ChildAuth | null,
+  ownerId: string,
+): Promise<{ ok: boolean; message?: string; visible_owner_ids?: string[] }> {
+  if (!childAuth || childAuth.mode !== 'keys' || !ownerId) return { ok: true };
+
+  const admin = getLogClient();
+  let rowId: string | null = null;
+  try {
+    const { data } = await admin
+      .from('ru_api_credentials')
+      .select('id, key_scope')
+      .eq('ru_owner_id', ownerId)
+      .eq('access_key', childAuth.access_key)
+      .maybeSingle();
+    if (data) {
+      rowId = String(data.id);
+      if (data.key_scope === 'child') return { ok: true };
+      if (data.key_scope === 'master_pair') {
+        return {
+          ok: false,
+          message:
+            `The API key pair stored for OwnerID ${ownerId} authenticates as our MASTER channel account, not as the sub-account. ` +
+            'Writing with it would create the listing on the master account, so it is refused. Re-mint the sub-account key pair (Step A) before pushing.',
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[rentalsunited-api] key scope lookup failed', e);
+  }
+
+  // Unverified (or supplied ad hoc): probe once.
+  let visible: string[] = [];
+  let probed = false;
+  try {
+    const keyCreds = effectiveCreds(creds, childAuth);
+    const response = await callRentalsUnited(creds, buildListUsersXml(keyCreds));
+    if (handleRUStatus(response).ok) {
+      visible = extractUsers(response).map((u) => String(u.owner_id)).filter(Boolean);
+      probed = true;
+    } else {
+      probed = true; // roster refused ⇒ not a parent pair
+    }
+  } catch (e) {
+    console.warn('[rentalsunited-api] key scope probe failed', e);
+  }
+
+  const isMasterPair = visible.some((id) => id !== ownerId);
+  if (probed && rowId) {
+    try {
+      await admin
+        .from('ru_api_credentials')
+        .update({
+          key_scope: isMasterPair ? 'master_pair' : 'child',
+          key_scope_verified_at: new Date().toISOString(),
+          key_scope_detail: { visible_owner_ids: visible.slice(0, 60), probe: 'Pull_ListMyUsers_RQ' },
+        })
+        .eq('id', rowId);
+    } catch (e) {
+      console.warn('[rentalsunited-api] key scope persist failed', e);
+    }
+  }
+
+  if (isMasterPair) {
+    return {
+      ok: false,
+      visible_owner_ids: visible,
+      message:
+        `The API key pair on file for OwnerID ${ownerId} can enumerate the whole channel roster, which only our MASTER account can do. ` +
+        'It is a master key pair, so writing with it would create inventory on the master account. Re-mint the sub-account key pair (Step A) before pushing.',
+    };
+  }
+  return { ok: true };
+}
+
+
+
 
 const CHILD_AUTH_REQUIRED_MESSAGE =
   'This action must authenticate as the RU sub-user. Rentals United requires the sub-user\'s own API keys (AccessKey + SecretKey) — generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.';
@@ -2610,14 +2700,20 @@ Deno.serve(async (req) => {
         // identification is advisory only
       }
 
+      // Only a parent/master pair can enumerate the roster, so ANY other OwnerID in the
+      // listing proves these keys are not the sub-account's own pair — a positive
+      // Pull_ListOwnerProp read is exactly what a master pair would also produce.
+      const seesOtherAccounts =
+        identifiedOwnerIds.some((id) => id !== String(targetOwnerId));
       const seesOtherAccountsOnly =
         identifiedOwnerIds.length > 0 && !identifiedOwnerIds.includes(String(targetOwnerId));
-      const owns = ownerStatus.ok && !seesOtherAccountsOnly;
+      const owns = ownerStatus.ok && !seesOtherAccounts;
 
       return jsonResponse({
         success: true,
         owns,
         verified: ownerStatus.ok,
+        key_scope: seesOtherAccounts ? 'master_pair' : ownerStatus.ok ? 'child' : 'unverified',
         method: 'Pull_ListOwnerProp_RQ',
         auth_mode: childAuthMode(childAuth),
         owner_id: targetOwnerId,
@@ -2629,7 +2725,10 @@ Deno.serve(async (req) => {
           ? null
           : seesOtherAccountsOnly
             ? 'KEYS_BELONG_TO_ANOTHER_ACCOUNT'
-            : 'OWNER_READ_REJECTED',
+            : seesOtherAccounts
+              ? 'KEYS_ARE_MASTER_PAIR'
+              : 'OWNER_READ_REJECTED',
+
       });
     }
 
@@ -2816,6 +2915,32 @@ Deno.serve(async (req) => {
         `[rentalsunited-api] ${action} running on MASTER credentials (owner_id=${ownerScope || 'unscoped read'})`,
       );
     }
+
+    // 🔒 Master-footprint guard: a sub-account WRITE may never run on a key pair that
+    // actually authenticates as our master account (see assertChildKeysAreNotMaster).
+    if (
+      childScoped &&
+      CHILD_SCOPED_WRITE_ACTIONS.has(action) &&
+      childAuth?.mode === 'keys' &&
+      ownerScope &&
+      !isMasterOwnerId(ownerScope)
+    ) {
+      const scopeCheck = await assertChildKeysAreNotMaster(creds, childAuth, ownerScope);
+      if (!scopeCheck.ok) {
+        await logRuNotAttempted(getLogClient(), {
+          ...(ruLogContext.getStore() ?? {}),
+          action: RU_VERB_BY_ACTION[action] ?? `rentalsunited-api:${action}`,
+          error_reason: `master_pair_keys: ${scopeCheck.message}`,
+        });
+        return jsonResponse({
+          success: false,
+          auth_mode: authMode,
+          error: { code: 'RU_KEYS_ARE_MASTER_PAIR', message: scopeCheck.message },
+        }, 422);
+      }
+    }
+
+
 
 
 
