@@ -5663,8 +5663,194 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── retire_owner_account: fully decommission ONE bound distribution account ──
+     * Strict order, reported step by step so nothing is ever claimed silently:
+     *   1. archive the listings at the channel (property + every unit),
+     *   2. archive the sub-account (retired registry — excluded from every read),
+     *   3. disconnect the properties (listing ids, verification, snapshot, push off)
+     *      and delete the binding row.
+     * Afterwards the property has no distribution login, so Step A must provision a
+     * fresh one before any push can happen again.
+     */
+    if (action === "retire_owner_account") {
+      const ownerId = String(body.ru_owner_id ?? "").trim();
+      const note = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
+      const force = body.force === true;
+      if (!/^\d+$/.test(ownerId)) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "A numeric ru_owner_id is required" } }, 400);
+      }
 
+      const { data: accounts } = await admin
+        .from("ru_owner_accounts")
+        .select("id, ru_owner_id, ru_login_email, owner_email, property_id, portfolio_id")
+        .eq("ru_owner_id", ownerId);
+      if (!accounts?.length) {
+        return json({ success: false, error: { code: "NOT_BOUND", message: `OwnerID ${ownerId} is not bound to any property or portfolio.` } }, 404);
+      }
+      const label = accounts[0].ru_login_email || accounts[0].owner_email || `OwnerID ${ownerId}`;
 
+      // Every property this account serves: direct property bindings plus every
+      // member of a bound portfolio.
+      const propertyIds = new Set<string>();
+      for (const acc of accounts) {
+        if (acc.property_id) propertyIds.add(acc.property_id as string);
+        if (acc.portfolio_id) {
+          const { data: members } = await admin
+            .from("property_portfolio_members")
+            .select("property_id")
+            .eq("portfolio_id", acc.portfolio_id);
+          for (const m of members ?? []) if (m.property_id) propertyIds.add(m.property_id as string);
+        }
+      }
+
+      const { data: props } = propertyIds.size
+        ? await admin
+            .from("properties")
+            .select("id, name, rentalsunited_property_id")
+            .in("id", Array.from(propertyIds))
+        : { data: [] as { id: string; name: string; rentalsunited_property_id: string | null }[] };
+
+      // ── Step 1: archive every listing at the channel ──
+      const listings: { listing_id: string; label: string }[] = [];
+      for (const p of props ?? []) {
+        if (p.rentalsunited_property_id) {
+          listings.push({ listing_id: String(p.rentalsunited_property_id), label: p.name ?? "property" });
+        }
+        const { data: units } = await admin
+          .from("hostfully_room_types")
+          .select("name, rentalsunited_property_id")
+          .eq("property_id", p.id)
+          .not("rentalsunited_property_id", "is", null);
+        for (const u of units ?? []) {
+          listings.push({
+            listing_id: String(u.rentalsunited_property_id),
+            label: `${p.name ?? "property"} — ${u.name ?? "unit"}`,
+          });
+        }
+      }
+
+      const archivedListings: string[] = [];
+      const failedListings: { listing_id: string; label: string; message: string }[] = [];
+      for (const l of listings) {
+        try {
+          const { data: res, error: invErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "set_property_status",
+              ru_property_id: Number(l.listing_id),
+              owner_id: Number(ownerId),
+              metadata: { is_active: false, is_archived: true },
+            },
+          });
+          if (invErr || res?.success !== true) {
+            failedListings.push({
+              ...l,
+              message: invErr?.message ?? res?.error ?? "The channel did not accept the archive request",
+            });
+          } else {
+            archivedListings.push(l.listing_id);
+          }
+        } catch (e) {
+          failedListings.push({ ...l, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+
+      // A refusal stops the run before the account is retired, unless the operator
+      // decides knowingly to continue.
+      if (failedListings.length > 0 && !force) {
+        return json({
+          success: false,
+          stopped_after: "archive_listings",
+          account_label: label,
+          ru_owner_id: ownerId,
+          archived_listings: archivedListings,
+          failed_listings: failedListings,
+          error: {
+            code: "LISTING_ARCHIVE_REFUSED",
+            message: `${failedListings.length} listing(s) were not archived at the channel. Retire anyway to continue regardless.`,
+          },
+        }, 409);
+      }
+
+      // ── Step 2: archive the sub-account ──
+      const { error: retErr } = await admin.from("ru_retired_accounts").upsert(
+        {
+          ru_owner_id: ownerId,
+          portal_email: label,
+          reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
+          retired_by: user.id,
+        },
+        { onConflict: "ru_owner_id" },
+      );
+      if (retErr) {
+        return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
+      }
+
+      // ── Step 3: disconnect the properties and drop the binding ──
+      const disconnected: string[] = [];
+      for (const p of props ?? []) {
+        const { error: propErr } = await admin
+          .from("properties")
+          .update({
+            rentalsunited_property_id: null,
+            ru_push_enabled: false,
+            ru_listings_verified_at: null,
+            ru_listings_verified_owner: null,
+            ru_listings_verified_units: null,
+            ru_listings_expected_units: null,
+            ru_listings_unmatched: [],
+          })
+          .eq("id", p.id);
+        if (propErr) {
+          console.warn("[ru-cert-portal] retire could not clear property", p.id, propErr.message);
+          continue;
+        }
+        await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("property_id", p.id)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] retire unit clear failed", e));
+        await admin.from("ru_readiness_snapshots").delete().eq("property_id", p.id)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] retire snapshot delete failed", e));
+        phaseStatusCache.delete(p.id);
+        disconnected.push(p.id);
+      }
+
+      const { error: delErr } = await admin
+        .from("ru_owner_accounts")
+        .delete()
+        .in("id", accounts.map((a: { id: string }) => a.id));
+      if (delErr) {
+        return json({
+          success: false,
+          stopped_after: "disconnect_property",
+          error: { code: "SAVE_FAILED", message: `Listings and account were archived, but the binding could not be removed: ${delErr.message}` },
+        }, 500);
+      }
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_owner_accounts",
+        record_id: accounts[0].id,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Retired distribution account ${label} (OwnerID ${ownerId}): archived ${archivedListings.length} listing(s)${failedListings.length ? `, ${failedListings.length} refused` : ""}, disconnected ${disconnected.length} property(ies)`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({
+        success: true,
+        ru_owner_id: ownerId,
+        account_label: label,
+        archived_listings: archivedListings,
+        failed_listings: failedListings,
+        disconnected_properties: disconnected,
+        total_listings: listings.length,
+      });
+    }
 
 
     // ── phase_status: 4-phase onboarding gate for one property ──
