@@ -712,19 +712,18 @@ export function ChannelOnboardTab({
   );
 
   /**
-   * Picking a property asks the only question that needs a human: is this the right
-   * distribution login? The account modal opens straight away (read-only preview — no
-   * channel write), and accepting it runs Step A end to end.
+   * The distribution login is no longer a question put to the operator: the backend
+   * resolves it (owner email, else the slug login) and Step A provisions it. Selecting
+   * a property therefore opens nothing — the picker card shows the account it is bound
+   * to and a single Create Account button starts Step A.
    */
-  const autoOpenedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!propertyId || gate.loading) return;
-    if (autoOpenedRef.current === propertyId) return;
-    autoOpenedRef.current = propertyId;
-    if (gate.stepAStatus === "passed") return;
-    if (!gate.readyToSell || runningStep !== null) return;
-    void openPlan();
-  }, [gate.loading, gate.readyToSell, gate.stepAStatus, openPlan, propertyId, runningStep]);
+  const boundLogin = useMemo(() => {
+    const b = gate.snapshot?.binding;
+    return (b?.login_email || b?.owner_email || "").trim() || null;
+  }, [gate.snapshot?.binding]);
+  const boundOwnerId = (gate.snapshot?.binding?.ru_owner_id ?? "").trim() || null;
+  const accountProvisioned = Boolean(boundOwnerId) && gate.stepAStatus === "passed";
+
 
 
 
