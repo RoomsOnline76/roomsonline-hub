@@ -237,7 +237,27 @@ export function StepAccountDialog({
     : ((plan?.login_candidates ?? []) as LoginCandidate[]);
   const effectiveLogin = chosenLoginEmail || (emailConflict ? "" : String(plan?.login_email ?? ""));
   // A conflict cannot be re-run against the same address — a usable login must be chosen.
+  const effectiveLogin = chosenLoginEmail || (emailConflict ? "" : String(plan?.login_email ?? ""));
+  // A conflict cannot be re-run against the same address — a usable login must be chosen.
   const canRun = !stepADisabled && !blockedReason && (!emailConflict || effectiveLogin.includes("@"));
+  /** The sub-account this property is already registered under, if any. */
+  const linkedEmail = emailConflict
+    ? ""
+    : String(binding?.login_email ?? plan?.existing_login_email ?? "") || (adopting ? String(plan?.login_email ?? "") : "");
+
+  // A refused login has to be answered before Step A can be re-run, so the chooser opens itself.
+  useEffect(() => {
+    if (!open) return;
+    if (emailConflict) setChangingEmail(true);
+  }, [emailConflict, open]);
+
+  // A property switch resets the disclosure to the read-only statement.
+  useEffect(() => {
+    setChangingEmail(false);
+    setNewLoginEmail("");
+  }, [propertyId, portfolioId]);
+
+
 
 
   // Credential state of the bound sub-account, from the read-only plan.
