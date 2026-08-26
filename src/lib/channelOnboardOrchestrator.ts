@@ -800,7 +800,22 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: "Content is already current on the channel; availability and pricing stay live on the scheduled sync.",
       };
     }
+    /**
+     * Replay cooldown. The channel allows one identical availability write / roster read per
+     * sliding minute, so replaying a step within 60s of the last one manufactures the very 429s
+     * the run just avoided. Wait the remainder out as a countdown instead of spending the slot.
+     */
+    const cooldown = await recentChannelWriteCooldownMs(ctx.propertyId);
+    if (cooldown > 0) {
+      return {
+        id: "push_property",
+        outcome: "pending",
+        retryAfterMs: cooldown,
+        detail: `The channel handled availability for this property moments ago — waiting ${Math.ceil(cooldown / 1000)}s for its one-call-per-minute window to reopen before replaying the push.`,
+      };
+    }
     let result: RuPushResult;
+
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
