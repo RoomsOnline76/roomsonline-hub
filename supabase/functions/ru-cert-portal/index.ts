@@ -6083,7 +6083,10 @@ Deno.serve(async (req) => {
               action: "set_property_status",
               ru_property_id: Number(l.id),
               owner_id: Number(ownerId),
+              ...(archiveIntent ? { archive_retired: true } : {}),
+              parent_action: "ru-cert-portal:purge_channel_account",
               metadata: { is_active: false, is_archived: true },
+
             },
           });
           if (invErr || res?.success !== true) {
