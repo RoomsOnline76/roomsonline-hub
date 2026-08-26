@@ -1,47 +1,42 @@
-# Step A: keep the created sub-account credential path intact
+# Step A automatic key minting: remove the manual-key dead end
 
 ## Verified current state
 
-- The latest channel log shows `Push_CreateUser_RQ` succeeded for the new sub-account at 12:02 UTC and returned id `742536`.
-- The following roster read lists that same id as `OwnerID 742536` for `newjulius@polka.co.za`, so the channel account exists under the master roster.
-- The persisted `ru_roster_cache` row still does not contain `742536`, so later code can see a stale roster and behave as if the freshly-created account is not available.
-- `ru-cert-portal` already encrypts the generated `SLPafrica247*` password on the non-adopted create path, but the post-create identity handoff can still save an incomplete account when the immediate roster read is stale/throttled.
-- The Step A runner currently reports a generic password/key blocker when `key_source` is blocked, even if the account was created and the issue is missing OwnerID resolution or a queued key mint.
+- The DEMO/PufferFish distribution account is bound to OwnerID `742536` and `newjulius@polka.co.za` with a stored password, but no stored API key pair.
+- The latest backend traffic shows `Push_CreateApiKey_RQ` is being sent with a username/password authentication envelope, and the channel returns Status `-4` / `Incorrect login or password`.
+- The adapter lock notes this exact channel behaviour: portal login can work while the XML API surface rejects the same child login until API access is enabled for that sub-account.
+- Some current messages still imply a manual first-key process or password reset, which is misleading for accounts created by Step A.
 
 ## What will change
 
-1. **Normalize create response identity**
-   - Treat the id returned by `Push_CreateUser_RQ` as the new sub-account OwnerID when the roster has not caught up yet.
-   - Keep `ru_user_id` as best-effort metadata only; Step A’s required identity is the OwnerID used by later account-scoped calls.
+1. **Stop showing “generate the first pair manually” anywhere in Step A.**
+   - Replace backend and UI copy that says to generate keys in the channel dashboard.
+   - Replace “reset the password” guidance when a stored/generated password is already present.
 
-2. **Patch the roster cache after successful create**
-   - After a successful create, merge the new sub-account into the local roster cache immediately.
-   - This avoids waiting for the 10-minute cache TTL or a second rate-limited `Pull_ListMyUsers_RQ` before the rest of Step A can find the account.
+2. **Keep Step A automatic and honest.**
+   - When Step A has a stored password and the XML API rejects `Push_CreateApiKey_RQ`, show an amber blocked state:
+     - password retained
+     - OwnerID/login shown
+     - API key creation is waiting on channel-side XML API enablement for that sub-account
+     - retry action stays available
 
-3. **Guarantee password retention for ROLOS-created accounts**
-   - If Step A created the sub-account, encrypt and save the generated password on the saved account row before any key/company task runs.
-   - If an existing local row is updated for the same OwnerID/login, do not blank the password during the update.
+3. **Use a specific failure code for this case.**
+   - Preserve the channel status details from the key-mint response.
+   - Map `RU_CREATE_KEY_API_REJECTED` to a clear Step A remedy instead of collapsing it into generic `RU_CREATE_KEY_FAILED` or `NO_STORED_PASSWORD`.
 
-4. **Improve blocked messaging without manual key capture**
-   - If automatic key creation is blocked because identity is incomplete, show the actual identity/cache issue instead of asking for a password we already generated.
-   - Keep rate-limit outcomes as “waiting” with retry timing, not failed.
-   - Keep manual AccessKey/SecretKey capture scrubbed from Step A.
+4. **Keep the credentials card useful.**
+   - If no password is stored, ask for the portal password so Step A can attempt automatic minting.
+   - If a password is already stored and the XML API rejects it, do not ask for the same password again unless the operator chooses to replace it.
 
-5. **Repair the affected local account if needed**
-   - Update the local PufferFish / DEMO ACCOUNT binding row to hold `OwnerID 742536`, `newjulius@polka.co.za`, and the encrypted generated password if the row is still incomplete.
-   - This is local backend cleanup only; no channel traffic.
+5. **Verify against the affected property.**
+   - Re-run the Step A preview/check for PufferFish.
+   - Confirm the UI no longer instructs manual key generation.
+   - Confirm the backend response retains OwnerID/login/status detail and classifies the stop as recoverable, not failed.
 
 ## Technical notes
 
-- Primary backend change: `supabase/functions/ru-cert-portal/index.ts` in the Step A `ensure_owner_account` flow.
-- Shared cache helper change: `supabase/functions/_shared/ruRosterCache.ts` to add a small merge/upsert helper for one known sub-account.
-- Client copy/result change: `src/lib/channelOnboardOrchestrator.ts` only if needed for clearer blocked details.
-- No change to channel XML builders or adapter wire method shapes.
-- No schema change required.
-
-## Verification
-
-- Confirm the local binding row for PufferFish/DEMO ACCOUNT resolves to `newjulius@polka.co.za` and `OwnerID 742536`.
-- Confirm Step A no longer prompts for the generated password after creating a new sub-account.
-- Confirm a stale roster cache does not hide a just-created sub-account from the same Step A run.
-- Confirm the preview build remains green.
+- Update `src/config/channelStepARemedies.ts` copy and add/handle `RU_CREATE_KEY_API_REJECTED` explicitly.
+- Update `src/lib/channelOnboardOrchestrator.ts` so `api_keys` reports the specific blocked reason from key provisioning instead of defaulting to `NO_STORED_PASSWORD` when a stored password exists.
+- Update `src/components/admin/channel-monitor/StepAccountDialog.tsx` so the credential section distinguishes “password missing” from “password stored but XML API refused key creation”.
+- Update non-locked `ru-cert-portal` response mapping if needed so the client receives the specific code and status detail.
+- Avoid changing locked `rentalsunited-api` child-authentication code unless you explicitly approve that adapter-lock scope.

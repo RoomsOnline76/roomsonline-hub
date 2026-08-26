@@ -10,7 +10,7 @@
 //   compliance       → refresh cadence panel data (from ru_sync_runs)
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
-import { readRuRoster, invalidateRuRosterMemo } from "../_shared/ruRosterCache.ts";
+import { readRuRoster, invalidateRuRosterMemo, mergeRuRosterUser } from "../_shared/ruRosterCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
@@ -6046,7 +6046,7 @@ Deno.serve(async (req) => {
             needs_api_keys: true,
             setup_gap: true,
             error:
-              "Waiting on owner setup: this distribution sub-account has no verified API key pair on file, and Rentals United requires the sub-user's own AccessKey + SecretKey to write company details. Generate them in the RU dashboard under Security settings and save them in Portfolios → RU accounts, then retry.",
+              "Waiting on owner setup: this distribution sub-account has no verified API key pair yet. Step A will create and store the pair automatically once the OwnerID handoff is complete; retry Step A shortly.",
           });
         }
 
@@ -6813,6 +6813,56 @@ Deno.serve(async (req) => {
 
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
+        /** Existing binding: if Step A created this account earlier but the key mint was
+         * interrupted by roster lag, complete the automatic mint before company details.
+         */
+        let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+        let mintedAccessKey: string | null = null;
+        let keyWarning: string | null = null;
+        let keyRetryAfterMs: number | null = null;
+        const existingOwnerId = usableRuId(existing.account.ru_owner_id);
+        const existingLoginEmail = String(
+          (existing.account as any).ru_login_email ?? existing.account.owner_email ?? ownerEmail ?? "",
+        ).trim() || null;
+        if (existingOwnerId) {
+          const { data: existingCred } = await admin
+            .from("ru_api_credentials")
+            .select("access_key")
+            .eq("ru_owner_id", existingOwnerId)
+            .maybeSingle();
+          if (existingCred?.access_key || (existing.account as any).ru_api_access_key) {
+            keySource = "existing";
+            mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
+          } else {
+            let mintPassword: string | null = null;
+            if ((existing.account as any).ru_login_password_enc) {
+              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
+                encrypted_data: (existing.account as any).ru_login_password_enc,
+              });
+              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
+                mintPassword = decrypted;
+              }
+            }
+            const minted = await mintChildKeyPair({
+              ownerId: existingOwnerId,
+              loginEmail: existingLoginEmail,
+              accountId: String((existing.account as any).id ?? "") || null,
+              authUsername: existingLoginEmail,
+              authPassword: mintPassword,
+            });
+            if (minted.ok) {
+              keySource = "minted";
+              mintedAccessKey = minted.accessKey ?? null;
+            } else if (minted.rateDeferred) {
+              keySource = "deferred";
+              keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
+              keyRetryAfterMs = minted.retryAfterMs ?? null;
+            } else {
+              keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
+            }
+          }
+        }
+
         const companyResult = await submitCompanyDetails(existing.account as any);
         const needsPassword = Boolean(
           (companyResult as any).deferred
@@ -6845,6 +6895,11 @@ Deno.serve(async (req) => {
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
+          key_source: keySource,
+          keys_minted: keySource === "minted",
+          access_key: mintedAccessKey,
+          key_warning: keyWarning,
+          key_retry_after_ms: keyRetryAfterMs,
         });
       }
 
@@ -6981,7 +7036,20 @@ Deno.serve(async (req) => {
             }, 502);
           }
         } else {
-          userAccountId = created.user_account_id ?? null;
+          userAccountId = usableRuId(created.user_account_id) || null;
+          // RU's create response gives the stable sub-account id before the roster can
+          // reliably echo it. In the current roster format the same value is the OwnerID
+          // used by every later owner-scoped call, so keep Step A moving on that identity.
+          ruOwnerId = usableRuId(created.owner_id) || userAccountId;
+          if (ruOwnerId) {
+            await mergeRuRosterUser(admin, {
+              owner_id: ruOwnerId,
+              user_account_id: userAccountId ?? ruOwnerId,
+              email: ownerEmail,
+              login_email: ownerEmail,
+            }, { source: "step-a-create" });
+            rosterOnce = null;
+          }
         }
       }
 
@@ -6990,6 +7058,15 @@ Deno.serve(async (req) => {
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
+      }
+
+      if (!adopted && ruOwnerId) {
+        await mergeRuRosterUser(admin, {
+          owner_id: ruOwnerId,
+          user_account_id: userAccountId ?? ruOwnerId,
+          email: ownerEmail,
+          login_email: ownerEmail,
+        }, { source: "step-a-save" });
       }
 
 
@@ -7131,6 +7208,8 @@ Deno.serve(async (req) => {
             keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
           }
         }
+      } else {
+        keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
       }
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
