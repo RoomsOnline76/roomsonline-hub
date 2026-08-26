@@ -335,7 +335,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
       // Immediately persist preset values to this property.
-      persistBuilder(slug, next, billingStartDate, billingEnabled);
+      void persistBuilder(slug, next, billingStartDate, billingEnabled);
     }
   };
 
