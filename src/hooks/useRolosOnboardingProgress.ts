@@ -941,23 +941,27 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       // un-complete a step the local data already proves finished.
       const ledgerRow = ledgerHasVerdict(rawLedgerRow) ? rawLedgerRow : undefined;
       const ledgerStatus = ledgerRow?.status;
-      const ledgerBlockers = ledgerRow?.status === "blocked"
-        ? String(ledgerRow.blocker_summary ?? "")
+      const ledgerComplete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
+      /**
+       * The recorded verdict may be older than the data. When live ROL'OS truth shows
+       * every mandatory item of a Ready-to-sell step satisfied but the ledger still
+       * carries a `blocked` row (for example photos added after the last grading run),
+       * the row is out of date — it is reported as needing a refresh instead of
+       * re-opening finished work. The ledger confirms; it never overrules the data.
+       */
+      const ledgerOutdated =
+        isReadyToSellMacro(macro.key) && ledgerStatus === "blocked" && localComplete;
+      const ledgerBlockers = ledgerStatus === "blocked" && !ledgerOutdated
+        ? String(ledgerRow?.blocker_summary ?? "")
             .split("·")
             .map((part) => part.trim())
             .filter(Boolean)
         : [];
-      /**
-       * A recorded pass may not paint a Ready-to-sell step green while live data
-       * still shows outstanding mandatory work — that is what let all five steps
-       * read complete with real errors listed underneath. The ledger can only
-       * confirm a step, never override the data.
-       */
-      const ledgerComplete = ledgerRow ? ledgerStepComplete(ledgerRow) : localComplete;
       const complete = isReadyToSellMacro(macro.key)
-        ? ledgerComplete && localComplete
+        ? ledgerOutdated || (ledgerComplete && localComplete)
         : ledgerComplete;
-      const needsRefresh = ledgerStatus === "stale";
+      const needsRefresh = ledgerStatus === "stale" || ledgerOutdated;
+
       const channelPending = ledgerStatus === "unknown" && !!ledgerRow?.passed_at;
       completeByKey.set(macro.key, complete);
 
