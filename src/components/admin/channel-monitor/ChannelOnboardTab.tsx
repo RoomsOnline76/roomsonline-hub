@@ -670,25 +670,8 @@ export function ChannelOnboardTab({
                 </div>
               )}
 
-              {step === "a" && (
-                <div className="rounded-md border bg-muted/40 p-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-muted-foreground">
-                      Preview the account, the owner binding and the company details that will be sent — nothing leaves
-                      here until you run the step.
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void openPlan()}
-                      disabled={planLoading || !propertyId}
-                    >
-                      {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                      Preview account
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* The account decision lives in the Preview account modal on the picker card. */}
+
 
               {tasks.map((task) => {
                 const live = taskStates[task.id];
