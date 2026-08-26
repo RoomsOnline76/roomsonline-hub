@@ -50,3 +50,25 @@ export class SessionExpiredError extends Error {
     this.name = "SessionExpiredError";
   }
 }
+
+/**
+ * `supabase.functions.invoke()` with a session guard: renew a stale token first, and
+ * retry once against a freshly refreshed token when the function still answers
+ * `401 Invalid session`. A genuinely dead session throws `SessionExpiredError` so the
+ * caller can surface a re-login instead of a blank screen.
+ */
+export async function invokeWithSession(
+  fn: string,
+  body: Record<string, unknown>,
+): Promise<{ data: unknown; error: unknown }> {
+  if (!(await ensureFreshSession())) throw new SessionExpiredError();
+  let res = await supabase.functions.invoke(fn, { body });
+  if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+    if (!(await ensureFreshSession(true))) throw new SessionExpiredError();
+    res = await supabase.functions.invoke(fn, { body });
+    if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+      throw new SessionExpiredError();
+    }
+  }
+  return { data: res.data, error: res.error };
+}
