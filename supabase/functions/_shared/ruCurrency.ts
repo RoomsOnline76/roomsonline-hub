@@ -37,6 +37,9 @@ export type CurrencyDecision = {
   effective_rate: number | null;
   flip_outcome: 'not_needed' | 'already_set' | 'flipped' | 'failed' | 'unknown_location' | 'deferred';
   reason: string;
+  /** True when no Push_ChangeCurrency_RQ was sent because the channel already holds the ISO. */
+  write_skipped?: boolean;
+  skip_reason?: 'currency_already_set' | 'currency_already_set_location';
   blocked?: boolean;
   block_reason?: string;
   /** The RU account the flip/verification was performed as ('master' or the sub-user OwnerID). */
@@ -104,6 +107,47 @@ export async function recordScopedLocationCurrency(
     }, { onConflict: 'location_id,owner_scope' });
   } catch (e) {
     console.warn('[ruCurrency] Failed to record scoped location currency:', e instanceof Error ? e.message : e);
+  }
+}
+
+/**
+ * Location-level last-seen currency, across every RU account we have talked to.
+ *
+ * RU's own 339 text is location-scoped ("Location already has the requested currency set"),
+ * so once any account has been told a LocationID holds an ISO, a brand-new sub-account's
+ * first list does not need to pay another owner-window write just to be told the same thing.
+ * This is used ONLY to skip a no-op write — the per-account read-back remains the sole
+ * authority for the ZAR-vs-USD publication decision.
+ */
+export async function getLocationCurrencyAnyScope(
+  supabase: any,
+  locationId: number,
+): Promise<{ iso: string; owner_scope: string; source: string; verified_at: string | null } | null> {
+  if (!locationId || locationId <= 1) return null;
+  try {
+    const { data } = await supabase
+      .from('ru_location_currency_scope')
+      .select('currency_iso, owner_scope, source, verified_at, last_synced_at')
+      .eq('location_id', locationId)
+      .not('currency_iso', 'is', null)
+      .order('verified_at', { ascending: false, nullsFirst: false })
+      .limit(10);
+    const rows = (data ?? []) as { currency_iso: string; owner_scope: string; source: string; verified_at: string | null; last_synced_at: string | null }[];
+    // A channel read-back beats an assumption; anything older than 30 days is ignored.
+    const fresh = rows.filter((r) => {
+      const t = r.verified_at ? Date.parse(r.verified_at) : r.last_synced_at ? Date.parse(r.last_synced_at) : 0;
+      return t > 0 && Date.now() - t < 30 * 86400000;
+    });
+    const best = fresh.find((r) => r.source === 'ru_readback') ?? fresh[0];
+    if (!best) return null;
+    return {
+      iso: String(best.currency_iso).toUpperCase(),
+      owner_scope: String(best.owner_scope),
+      source: best.source,
+      verified_at: best.verified_at ?? null,
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -372,7 +416,31 @@ export async function decideRuCurrency(
       flip_outcome: 'already_set',
       ru_reported_iso: verifiedIso,
       verified_at: scoped?.verified_at ?? new Date().toISOString(),
+      write_skipped: true,
+      skip_reason: 'currency_already_set',
       reason: `Rentals United confirmed location ${opts.locationId} holds ${authored} for account ${ownerScope}.`,
+    });
+    await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+    return d;
+  }
+
+  /**
+   * A previous successful write on THIS account (recorded as an assumption, source 'flip')
+   * is enough to skip a *repeat* write for the same OwnerID + LocationID + ISO. It does not
+   * count as verification, so the ZAR-vs-USD publication decision is unchanged: the value is
+   * the authored ISO either way, and the read-back path still owns the verified verdict.
+   */
+  if (!verifiedIso && scoped?.source === 'flip' && !scoped.stale && scoped.iso === authored) {
+    const d = decide({
+      location_iso: authored,
+      published_iso: authored,
+      conversion_in_force: false,
+      fx_rate: null,
+      effective_rate: null,
+      flip_outcome: 'already_set',
+      write_skipped: true,
+      skip_reason: 'currency_already_set',
+      reason: `Location ${opts.locationId} was already set to ${authored} on account ${ownerScope} by an earlier write — no currency write needed.`,
     });
     await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
     return d;
@@ -400,12 +468,43 @@ export async function decideRuCurrency(
         flip_outcome: 'already_set',
         ru_reported_iso: authored,
         verified_at: String(durable.verified_at),
+        write_skipped: true,
+        skip_reason: 'currency_already_set',
         reason: `Rentals United already reported ${authored} for this listing on account ${ownerScope} (verified ${durable.verified_at}) — no currency write needed.`,
       });
       await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
       return d;
     }
   }
+
+  /**
+   * Brand-new sub-account, first list: nothing is known for THIS OwnerID, but another account
+   * has already been told by RU that this LocationID holds the authored ISO. RU's own answer is
+   * location-scoped, so a write here is a guaranteed 339. Skip it; the existing
+   * Pull_ListSpecProp_RQ evidence step confirms the published currency afterwards.
+   */
+  if (!verifiedIso) {
+    const anyScope = await getLocationCurrencyAnyScope(supabase, opts.locationId);
+    if (anyScope && anyScope.iso === authored) {
+      const d = decide({
+        location_iso: authored,
+        published_iso: authored,
+        conversion_in_force: false,
+        fx_rate: null,
+        effective_rate: null,
+        flip_outcome: 'already_set',
+        write_skipped: true,
+        skip_reason: 'currency_already_set_location',
+        reason: `Rentals United reported location ${opts.locationId} as ${authored} (seen on account ${anyScope.owner_scope}, ${anyScope.source}) — no currency write needed for account ${ownerScope}.`,
+      });
+      // Assumption for this account, pending the listing read-back.
+      await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, authored, 'flip');
+      await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+      return d;
+    }
+  }
+
+
 
 
 

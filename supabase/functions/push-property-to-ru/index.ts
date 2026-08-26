@@ -50,6 +50,7 @@ import {
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
+import { collapseAvbRanges, changeoverIsUniform } from '../_shared/ruAvbCollapse.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 
@@ -2089,11 +2090,11 @@ function expandAvailability(
   changeover: { perDow: Record<number, number> | null; defaultCode: number }
 ): { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] {
   const out: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] = [];
-  if (!changeover.perDow) {
-    // No per-day rules — keep ranges (efficient)
+  if (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode)) {
+    // No per-day rules (or every weekday equals the default) — keep ranges (efficient)
     return periods.map(p => ({ date_from: p.from, date_to: p.to, units, min_stay: p.minStay, changeover: changeover.defaultCode }));
   }
-  // Per-day rules — emit one entry per night
+  // Per-day rules — emit one entry per night, then recompact into ranges before the wire.
   for (const p of periods) {
     const start = new Date(p.from + 'T00:00:00Z');
     const end = new Date(p.to + 'T00:00:00Z');
@@ -2104,7 +2105,7 @@ function expandAvailability(
       out.push({ date_from: iso, date_to: iso, units, min_stay: p.minStay, changeover: code });
     }
   }
-  return out;
+  return collapseAvbRanges(out);
 }
 
 type AvailEntry = { date_from: string; date_to: string; units: number; min_stay: number; max_stay?: number; changeover: number };
@@ -2639,7 +2640,7 @@ async function pushARI(
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
+  const result: { availability_reserved_days?: number; availability_entries?: number; availability_payload_bytes?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
 
   const today = new Date();
   const oneYearLater = new Date(today);
@@ -2711,10 +2712,13 @@ async function pushARI(
         const remaining = unit ? 0 : Math.max(0, Math.min(existing.units ?? unitUnits, unitUnits) - 1);
         manual.overrides.set(day, { ...existing, units: Math.min(existing.units ?? unitUnits, remaining) });
       }
-      availEntries = applyManualOverrides(availEntries, manual.overrides);
+      availEntries = collapseAvbRanges(applyManualOverrides(availEntries, manual.overrides));
       result.manual_restrictions = { ...manual.stats, booked_nights: sold.stats.nights, booked_bookings: sold.stats.bookings };
       bookedNights = sold.dates;
-      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
+      // Payload instrumentation: a fat availability request is attributable, not inferred.
+      result.availability_entries = availEntries.length;
+      result.availability_payload_bytes = JSON.stringify(availEntries).length;
+      console.log(`[pushARI] Pushing ${availEntries.length} availability entries (~${result.availability_payload_bytes}B) (per-day rules: ${changeoverConfig.perDow ? 'yes' : 'no'}, default changeover: ${changeoverConfig.defaultCode}, manual override days: ${manual.stats.days}, sold nights: ${sold.stats.nights})`);
 
       const availabilityHash = await ariHash({
         window: { from: todayStr, to: oneYearStr },
@@ -2755,7 +2759,8 @@ async function pushARI(
         }
         // Reserved days usually sit inside a multi-day range, so the range has to be split —
         // dropping only entries whose start date is reserved leaves the day in the payload.
-        const retryEntries = excludeDatesFromAvailability(availEntries, reservedDates);
+        // Collapsing keeps the splits intact (the excluded days genuinely break the ranges).
+        const retryEntries = collapseAvbRanges(excludeDatesFromAvailability(availEntries, reservedDates));
         result.availability_reserved_days = reservedDates.size;
 
         if (reservedDates.size > 0 && retryEntries.length > 0) {
