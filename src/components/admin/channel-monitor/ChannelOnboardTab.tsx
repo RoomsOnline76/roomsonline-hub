@@ -1110,7 +1110,7 @@ export function ChannelOnboardTab({
                       <CommandList>
                         <CommandEmpty>No match.</CommandEmpty>
                         <CommandGroup>
-                          {properties.map((p) => (
+                          {sortedProperties.map((p) => (
                             <CommandItem
                               key={p.id}
                               value={p.label}
@@ -1128,9 +1128,11 @@ export function ChannelOnboardTab({
                               <span className="truncate">{p.label}</span>
                               {p.status && (
                                 <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
-                                  {p.kind === "portfolio" && p.status !== "live" && (
+                                  {p.kind === "portfolio" && (
                                     <span className="text-[10px] text-muted-foreground">
-                                      {p.liveCount ?? 0} of {p.memberCount} live
+                                      {p.status === "awaiting_channels"
+                                        ? `${p.pushedCount ?? 0} of ${p.memberCount} pushed`
+                                        : `${p.connectedCount ?? 0} of ${p.memberCount} connected`}
                                     </span>
                                   )}
                                   <Badge
@@ -1154,9 +1156,10 @@ export function ChannelOnboardTab({
               )}
 
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Live = account, listings and a sales channel in place · No sales channel = listings
-                live but nothing selling · To onboard = not pushed yet.
+                Not pushed = nothing at the channel manager yet · Awaiting channels = pushed, no
+                sales channel connected · Channels connected = pushed and selling.
               </p>
+
 
               {requestNotice && (
                 <p className="mt-1.5 text-xs text-muted-foreground">{requestNotice}</p>
