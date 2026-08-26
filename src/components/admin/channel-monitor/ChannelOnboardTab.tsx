@@ -1190,6 +1190,20 @@ export function ChannelOnboardTab({
                       ? `${boundLogin}${boundOwnerId ? ` · OwnerID ${boundOwnerId}` : " · not created yet"}`
                       : "Not linked to a sub-account yet — Step A will create one from the property slug."}
                 </p>
+                {!boundLogin && chosenLoginEmail && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground">Will use:</span>
+                    <span className="font-mono break-all">{chosenLoginEmail}</span>
+                    <button
+                      type="button"
+                      aria-label="Clear manual sub-account email"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setChosenLoginEmail("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </p>
+                )}
               </div>
             )}
             {propertyId && !accountProvisioned && (
