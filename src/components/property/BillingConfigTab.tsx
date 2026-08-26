@@ -196,8 +196,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
+  // A refused save must not be erased by a background refetch — the operator's
+  // pending choices stay on screen until a save is proven to have landed.
+  const [saveFailed, setSaveFailed] = useState(false);
+
   useEffect(() => {
-    if (config) {
+    if (config && !saveFailed) {
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
@@ -206,7 +210,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setFreePeriodDays(c.free_period_days != null ? String(c.free_period_days) : "");
       setBillingEnabled(!!(config as unknown as { billing_enabled?: boolean }).billing_enabled);
     }
-  }, [config]);
+  }, [config, saveFailed]);
 
   const schedulePreview = useMemo(
     () =>
@@ -239,7 +243,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     } as any;
   }, [selectedPreset]);
 
-  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string, enabled: boolean) => {
+  const persistBuilder = async (
+    nextStrategy: string,
+    v: BillingConfigValue,
+    startDate: string,
+    enabled: boolean,
+  ): Promise<boolean> => {
     // Sync payment toggles → property flags so ROLOS/Integrations unlocks or locks
     // the gateway configurator accordingly. When BOTH the ROL facilitator and the
     // BYO gateway are off the property is reservation-only: no online payment.
@@ -256,7 +265,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       .update({ allow_custom_payment_provider: nextAllowCustom, payment_mode: nextPaymentMode } as any)
       .in("id", targetIds)
       .then(() => { /* silent — surfaced via query invalidation below */ });
-    upsert.mutate({
+    const payload = {
       property_id: propertyId,
       billing_strategy: nextStrategy as BillingConfig["billing_strategy"],
       commission_rate: v.commission_enabled ? toNum(v.commission_rate) : null,
@@ -299,7 +308,16 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       billing_anchor_day: engagementDate ? Number(schedulePreview.paidStart?.slice(8, 10)) || null : null,
 
       billing_enabled: enabled,
-    } as any);
+    } as any;
+    try {
+      await upsert.mutateAsync(payload);
+      setSaveFailed(false);
+      return true;
+    } catch {
+      // The hook already surfaced the reason; keep the operator's choices on screen.
+      setSaveFailed(true);
+      return false;
+    }
   };
 
   const applyPreset = (slug: string) => {
@@ -317,7 +335,7 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
       setBuilder(next);
       setPresetJustApplied(presetLabel(preset));
       // Immediately persist preset values to this property.
-      persistBuilder(slug, next, billingStartDate, billingEnabled);
+      void persistBuilder(slug, next, billingStartDate, billingEnabled);
     }
   };
 
@@ -361,7 +379,10 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   };
 
   const commitSave = async () => {
-    persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    // Only touch the Channel Manager (and the step ledger) once the billing row
+    // is proven saved — never archive or re-activate listings off a failed write.
+    const saved = await persistBuilder(strategy, builder, billingStartDate, billingEnabled);
+    if (!saved) return;
     if (builder.channel_manager_enabled !== savedChannelManager) {
       await runEntitlementFanOut(builder.channel_manager_enabled);
       // Entitlement flipped — the channel ledger's entitlement grade is no longer trustworthy.

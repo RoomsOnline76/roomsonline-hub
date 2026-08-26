@@ -43,6 +43,25 @@ export interface BillingConfig {
   updated_at: string;
 }
 
+/** Toggles and commercial switches whose persistence we prove after every save. */
+const VERIFIED_FIELDS = [
+  "billing_strategy",
+  "channel_manager_enabled",
+  "white_label_allowed",
+  "branding_addon_enabled",
+  "pricelabs_allowed",
+  "payment_facilitator_enabled",
+  "payment_model",
+  "billing_enabled",
+] as const;
+
+function sameBillingValue(stored: unknown, intended: unknown): boolean {
+  if (typeof intended === "boolean") return !!stored === intended;
+  const norm = (v: unknown) => (v === null || v === undefined || v === "" ? null : v);
+  return norm(stored) === norm(intended);
+}
+
+
 export interface BillingScope {
   source: "property" | "portfolio";
   portfolioId: string | null;
@@ -159,6 +178,29 @@ export function useBillingConfig(propertyId: string | undefined) {
         saved = data;
       }
 
+      // A refused write can come back without an error but leave the row
+      // untouched (RLS filters the update away). Read the row back and prove
+      // every submitted value actually landed before we claim success or act
+      // on the change downstream.
+      const { data: after } = await supabase
+        .from(table as any)
+        .select("*")
+        .eq(entityCol, entityId)
+        .maybeSingle();
+      const stored: any = after ?? saved ?? {};
+      const mismatched = VERIFIED_FIELDS.filter((field) => {
+        const intended = (config as any)[field];
+        if (intended === undefined) return false;
+        return !sameBillingValue(stored[field], intended);
+      });
+      if (!after || mismatched.length) {
+        throw new Error(
+          `Billing configuration was not saved — the database did not accept ${
+            mismatched.length ? mismatched.join(", ") : "the change"
+          }. Your account may not have permission to change billing for this property.`,
+        );
+      }
+
       // React to the change: incremental once-off invoice and/or scheduled
       // subscription-model switch, with owner + admin notifications.
       let change: any = null;
@@ -175,7 +217,7 @@ export function useBillingConfig(propertyId: string | undefined) {
       } catch (e) {
         console.error("[useBillingConfig] apply_config_change failed", e);
       }
-      return { ...saved, __change: change };
+      return { ...stored, __change: change, __verified: true };
     },
 
     onSuccess: async (data: any) => {
