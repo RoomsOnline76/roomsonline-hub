@@ -7577,6 +7577,7 @@ Deno.serve(async (req) => {
                 authPassword: nextPassword,
                 keyLabel: `ROLOS-c${attempt}`,
               });
+              keyAttempts.push(...(retryMint.attempts ?? []).map((a) => `  ${a}`));
 
               if (retryMint.ok) {
                 recycled = {
@@ -7607,9 +7608,13 @@ Deno.serve(async (req) => {
               keyCode = "RU_KEY_CREATION_NOT_ENABLED";
               keyRuStatusId = minted.ruStatusId ?? null;
               keyRuStatusMessage = minted.ruStatusMessage ?? null;
+              const createdList = recycledCreated.length
+                ? ` Replacement logins created and bound: ${recycledCreated.join(", ")}.`
+                : " No replacement login could be created.";
               keyWarning =
-                `The channel refused automatic API key creation for this sub-account and for the replacement logins Step A created (${lastRecycleMessage || "incorrect login or password"}). This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
+                `The channel refused automatic API key creation for this sub-account and for every replacement login Step A tried (${lastRecycleMessage || "incorrect login or password"}).${createdList} This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
             }
+
           } else {
             keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
             keyRuStatusId = minted.ruStatusId ?? null;
