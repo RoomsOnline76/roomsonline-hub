@@ -422,7 +422,12 @@ export async function syncBookingToChannel(
     result.ari_reason = 'no_property';
   } else {
     try {
-      const outcome = await queueRuAriDelta(supabase, propertyId, `booking_${change}`, { force: true });
+      const outcome = await queueRuAriDelta(supabase, propertyId, `booking_${change}`, {
+        force: true,
+        // A booking is the one case where the channel calendar must be read back: the sold
+        // nights have to be proven closed. Restriction/rate/cron writes skip the pull.
+        verifyAvailabilityReadback: true,
+      });
       if (outcome?.error) {
         result.ari = 'failed';
         result.ari_reason = String(outcome.error);
