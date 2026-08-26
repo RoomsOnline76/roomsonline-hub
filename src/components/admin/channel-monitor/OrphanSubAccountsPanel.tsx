@@ -527,6 +527,15 @@ export function OrphanSubAccountsPanel() {
                             Still live at channel
                           </Badge>
                         )}
+                        {/* Whether the channel itself deleted the key pair — not whether we
+                            dropped our stored copy, which leaves the pair alive there. */}
+                        {r.channel_archived_at && (
+                          r.channel_archive_result?.keys_revoked_at_channel === true ? (
+                            <Badge variant="secondary" className="text-[10px]">Keys revoked at channel</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px]">Keys still at channel</Badge>
+                          )
+                        )}
                         {!r.channel_archived_at && (
                           <Badge variant={keyBadge.variant} className="text-[10px]">
                             {keyBadge.text}
@@ -534,6 +543,7 @@ export function OrphanSubAccountsPanel() {
                           </Badge>
                         )}
                       </p>
+
 
                       <p className="text-[10px] text-muted-foreground">
                         {r.reason || "No reason recorded"}
