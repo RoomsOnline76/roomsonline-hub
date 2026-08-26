@@ -196,8 +196,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
   const [billingEnabled, setBillingEnabled] = useState(false);
   const [presetJustApplied, setPresetJustApplied] = useState<string | null>(null);
 
+  // A refused save must not be erased by a background refetch — the operator's
+  // pending choices stay on screen until a save is proven to have landed.
+  const [saveFailed, setSaveFailed] = useState(false);
+
   useEffect(() => {
-    if (config) {
+    if (config && !saveFailed) {
       setStrategy(config.billing_strategy || "default");
       setBuilder(configToBuilder(config));
       setBillingStartDate(config.billing_start_date || "");
