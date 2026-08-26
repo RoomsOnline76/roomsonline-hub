@@ -51,6 +51,14 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   AlertDialog,
@@ -296,6 +304,10 @@ export function ChannelOnboardTab({
     { email: string; message: string; candidates: LoginCandidate[] } | null
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+  /** Optional manual sub-account email entry (before any account exists). */
+  const [manualEmailOpen, setManualEmailOpen] = useState(false);
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualEmailError, setManualEmailError] = useState<string | null>(null);
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
   /** Last stop code per task, so a refused task can show its own remedy card inline. */
   const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
@@ -1178,6 +1190,20 @@ export function ChannelOnboardTab({
                       ? `${boundLogin}${boundOwnerId ? ` · OwnerID ${boundOwnerId}` : " · not created yet"}`
                       : "Not linked to a sub-account yet — Step A will create one from the property slug."}
                 </p>
+                {!boundLogin && chosenLoginEmail && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs">
+                    <span className="text-muted-foreground">Will use:</span>
+                    <span className="font-mono break-all">{chosenLoginEmail}</span>
+                    <button
+                      type="button"
+                      aria-label="Clear manual sub-account email"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => setChosenLoginEmail("")}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </p>
+                )}
               </div>
             )}
             {propertyId && !accountProvisioned && (
@@ -1192,6 +1218,21 @@ export function ChannelOnboardTab({
                   <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                 )}
                 {gate.stepAStatus === "blocked" ? "Retry Step A" : "Create Account"}
+              </Button>
+            )}
+            {propertyId && !accountProvisioned && !boundLogin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setManualEmail(chosenLoginEmail);
+                  setManualEmailError(null);
+                  setManualEmailOpen(true);
+                }}
+                disabled={runningStep === "a"}
+              >
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                Add sub-account
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
@@ -1219,6 +1260,57 @@ export function ChannelOnboardTab({
           )}
         </CardContent>
       </Card>
+
+      {/* Optional manual sub-account email: when saved, Step A uses it instead of the slug flow. */}
+      <Dialog open={manualEmailOpen} onOpenChange={setManualEmailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add sub-account email</DialogTitle>
+            <DialogDescription>
+              Enter the owner email to register as the distribution sub-account. Leave it blank or
+              cancel and Step A will generate one from the property slug instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-sub-account-email" className="text-xs">Owner email</Label>
+            <Input
+              id="manual-sub-account-email"
+              type="email"
+              value={manualEmail}
+              onChange={(e) => {
+                setManualEmail(e.target.value);
+                setManualEmailError(null);
+              }}
+              placeholder="owner@example.com"
+              maxLength={50}
+            />
+            {manualEmailError && <p className="text-xs text-destructive">{manualEmailError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setManualEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const email = manualEmail.trim().toLowerCase();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                  setManualEmailError("Enter a valid email address.");
+                  return;
+                }
+                if (email.length > 50) {
+                  setManualEmailError("The channel limits emails to 50 characters.");
+                  return;
+                }
+                setChosenLoginEmail(email);
+                setManualEmailOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {!propertyId ? null : (
         <>
