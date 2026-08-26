@@ -647,7 +647,17 @@ export function ChannelOnboardTab({
     return () => {
       cancelled = true;
     };
-  }, [initialPropertyId, initialPortfolioId]);
+  }, [initialPropertyId, initialPortfolioId, refreshOnboardStatuses]);
+
+  /** Re-read the badges whenever the picker is opened, so a pick made after a run is current. */
+  const handlePickerOpenChange = useCallback(
+    (open: boolean) => {
+      setPickerOpen(open);
+      if (open) void refreshOnboardStatuses(properties);
+    },
+    [properties, refreshOnboardStatuses],
+  );
+
 
 
 
