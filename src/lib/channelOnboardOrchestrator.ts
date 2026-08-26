@@ -20,6 +20,11 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
+import {
+  ensureFreshSession,
+  isUnauthorizedFunctionError,
+  SessionExpiredError,
+} from "@/lib/ensureFreshSession";
 import { pushPropertyToRu, type RuPushResult } from "@/lib/ruPushDriver";
 import { invalidateChannelEditGate } from "@/lib/channelEditGate";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
