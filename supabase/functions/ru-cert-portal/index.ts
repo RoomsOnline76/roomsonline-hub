@@ -7406,6 +7406,10 @@ Deno.serve(async (req) => {
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
       let keyRetryAfterMs: number | null = null;
+      // Set when Step A had to recycle onto a replacement sub-account login.
+      let recycledLogin: string | null = null;
+      let recycledPassword: string | null = null;
+
       const savedOwnerId = String((saved as any)?.ru_owner_id ?? ruOwnerId ?? "").trim();
       const savedLoginEmail = String((saved as any)?.ru_login_email ?? adoptedEmail ?? ownerEmail ?? "").trim() || null;
       if (savedOwnerId) {
