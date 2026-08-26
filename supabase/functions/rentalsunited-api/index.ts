@@ -2624,7 +2624,19 @@ Deno.serve(async (req) => {
     // ── create_child_api_key: Push_CreateApiKey_RQ (authenticated AS the sub-user) ──
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
-      const childAuth = await resolveChildAuth(body);
+      /**
+       * Owner-scoped mint: the channel returns "Incorrect login or password" for the
+       * sub-account's own login envelope even on an account it created seconds earlier,
+       * so Step A may ask for a master-authenticated mint that carries <OwnerID>. This
+       * is key creation only — child-scoped company/building writes still authenticate
+       * as the child (see the RU child isolation lock).
+       */
+      const ownerScopedId = body.owner_scoped_mint === true && body.owner_id != null
+        ? String(body.owner_id).trim()
+        : '';
+      const childAuth: ChildAuthForKeyMint | null = ownerScopedId
+        ? { mode: 'owner_scoped', access_key: creds.api_key, secret_key: creds.api_secret, owner_id: ownerScopedId }
+        : await resolveChildAuth(body);
       if (!childAuth) {
         return jsonResponse({
           success: false,
@@ -2638,6 +2650,7 @@ Deno.serve(async (req) => {
         ? body.key_label.trim().substring(0, 255)
         : 'ROLOS';
       const xml = buildCreateApiKeyXml(childAuth, label);
+
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
