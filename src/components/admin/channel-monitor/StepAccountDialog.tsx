@@ -74,7 +74,6 @@ interface PortalErrorPayload {
   access_key?: string | null;
   login_email?: string | null;
   company_details_warning?: string | null;
-  /** save_login_password mints the key pair inline, so its verdict rides on the same reply. */
   key_minted?: boolean;
   rate_deferred?: boolean;
   retry_after_ms?: number | null;
@@ -252,10 +251,7 @@ export function StepAccountDialog({
     () => resolveStepARemedy(credCode ?? remedyCode, credNote),
     [credCode, credNote, remedyCode],
   );
-  const showManualKeys = useMemo(
-    () => !planHasKeys && (keyMintRefused || activeRemedy?.remedy === "api_keys"),
-    [activeRemedy?.remedy, keyMintRefused, planHasKeys],
-  );
+  const showManualKeys = !planHasKeys;
 
   useEffect(() => {
     setCredEmail(planLogin);
@@ -284,8 +280,7 @@ export function StepAccountDialog({
   }, [activeRemedy?.remedy, open, remedyCode]);
 
 
-  // Storing the password also mints the key pair — that mint is the only place the channel
-  // will tell us whether the password is right, so the save reports its verdict directly.
+  // Portal credentials are retained for portal operations only; they cannot bootstrap API keys.
   const saveCredentials = useCallback(async () => {
     if (!planAccountId) return;
     setSavingCred(true);
@@ -309,27 +304,13 @@ export function StepAccountDialog({
       }
 
       setPasswordStored(true);
-      setPasswordVerified(data.api_access_verified === true);
+      setPasswordVerified(false);
       setCredPassword("");
-      if (data.key_minted === true) {
-        setCredsStored(true);
-        setKeyMintRefused(false);
-        setCredNote("Password accepted — the API key pair was minted and stored.");
-        toast.success("Password accepted and key pair minted");
-        return;
-      }
-      if (data.rate_deferred === true) {
-        setKeyMintRefused(false);
-        setCredNote(data.api_warning ?? "Password stored. The channel is rate limiting key creation — it will be minted on the next attempt.");
-        toast.info("Password stored — minting queued", { description: data.api_warning ?? undefined, duration: 12000 });
-        return;
-      }
-
-      const warning = data.api_warning ?? "Password stored, but the channel refused it when minting an API key.";
-      setCredCode(data.error_code ?? "RU_CREATE_KEY_BAD_LOGIN");
-      setKeyMintRefused(true);
+      const warning = data.api_warning ?? "Portal password stored. Generate and paste the first API key pair below.";
+      setCredCode(data.error_code ?? "RU_FIRST_API_KEY_REQUIRED");
+      setKeyMintRefused(false);
       setCredNote(warning);
-      toast.warning("Password was refused by the channel", { description: warning, duration: 14000 });
+      toast.success("Portal password stored", { description: warning, duration: 12000 });
     } finally {
       setSavingCred(false);
     }
@@ -579,8 +560,8 @@ export function StepAccountDialog({
                 </CardTitle>
                 <CardDescription className="text-xs">
                   {planHasPassword
-                    ? "A portal password is stored for this account, so the key pair is minted when Step A runs. You can replace it below if it changed."
-                    : "No usable credential is stored yet. Save the sub-account's own portal password here and the key pair is minted straight away."}
+                    ? "A portal password is stored for this account. API keys are managed separately."
+                    : "Store the portal password for operator access. It cannot create the first API key pair."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -625,31 +606,16 @@ export function StepAccountDialog({
                     onClick={saveCredentials}
                   >
                     {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Save password &amp; mint keys
+                    Save portal password
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!planHasPassword || savingKeys || savingCred}
-                    onClick={mintKeyPair}
-                  >
-                    {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Retry mint with saved password
-                  </Button>
-                  {passwordVerified ? (
-                    <Badge variant="outline" className="border-emerald-500/40 text-[10px] text-emerald-700 dark:text-emerald-300">
-                      Password proven by mint
-                    </Badge>
-                  ) : null}
-
                 </div>
                 {showManualKeys ? (
                   <div className="rounded-md border border-border bg-muted/30 p-3">
                     <div className="mb-2 flex items-start gap-2 text-xs text-muted-foreground">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
                       <span>
-                        If automatic key creation is refused, generate a key pair while signed in as this sub-account,
-                        then paste both values here. The SecretKey is only shown once.
+                        Generate the first key pair while signed in as this exact sub-account, then paste both values here.
+                        The SecretKey is only shown once. Additional keys can be created automatically afterward.
                       </span>
                     </div>
                     <div className="grid gap-2 sm:grid-cols-2">

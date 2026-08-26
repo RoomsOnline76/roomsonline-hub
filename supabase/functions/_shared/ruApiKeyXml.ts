@@ -1,6 +1,4 @@
-export type RuApiKeyAuth =
-  | { mode: "keys"; access_key: string; secret_key: string }
-  | { mode: "password"; username: string; password: string };
+export type RuApiKeyAuth = { mode: "keys"; access_key: string; secret_key: string };
 
 function escapeXml(value: string): string {
   return value
@@ -12,10 +10,7 @@ function escapeXml(value: string): string {
 }
 
 function buildAuthXml(auth: RuApiKeyAuth): string {
-  if (auth.mode === "keys") {
-    return `<Authentication><AccessKey>${escapeXml(auth.access_key)}</AccessKey><SecretKey>${escapeXml(auth.secret_key)}</SecretKey></Authentication>`;
-  }
-  return `<Authentication><UserName>${escapeXml(auth.username)}</UserName><Password>${escapeXml(auth.password)}</Password></Authentication>`;
+  return `<Authentication><AccessKey>${escapeXml(auth.access_key)}</AccessKey><SecretKey>${escapeXml(auth.secret_key)}</SecretKey></Authentication>`;
 }
 
 /** RU's ordered schema requires Authentication, then Label, then Scope. */

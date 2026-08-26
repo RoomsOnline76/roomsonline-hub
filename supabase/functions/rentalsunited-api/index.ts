@@ -2626,10 +2626,13 @@ Deno.serve(async (req) => {
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
       const childAuth = await resolveChildAuth(body);
-      if (!childAuth) {
+      if (!childAuth || childAuth.mode !== 'keys') {
         return jsonResponse({
           success: false,
-          error: { code: 'RU_CHILD_AUTH_REQUIRED', message: CHILD_AUTH_REQUIRED_MESSAGE },
+          error: {
+            code: 'RU_FIRST_API_KEY_REQUIRED',
+            message: 'Generate the first API key pair in the channel portal for this sub-account, then verify and store it here. Additional keys can be created automatically afterward.',
+          },
         }, 422);
       }
       const label = (typeof body.key_label === 'string' && body.key_label.trim())
