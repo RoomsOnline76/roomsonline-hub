@@ -302,9 +302,10 @@ export function ChannelOnboardTab({
     void (async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, owner_email, ru_archived")
+        .select("id, name, owner_email, ru_archived, ru_listings_verified_units")
         .eq("is_active", true)
         .order("name");
+
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
 
