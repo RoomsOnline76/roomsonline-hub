@@ -4575,12 +4575,16 @@ Deno.serve(async (req) => {
         !!msg && /(property (with given id )?does not exist)/i.test(msg);
 
       /**
-       * Fingerprints from the last successful refresh, per target. An identical payload means the
-       * channel already holds it, so the write is skipped instead of burning the owner's window.
+       * Fingerprints from the last successful refresh **for this exact window**, per target. An
+       * identical payload means the channel already holds it, so the write is skipped instead of
+       * burning the owner's window. A 12-night hash must never be compared to a full-year hash,
+       * so only a run whose stored window matches this request qualifies (null/null = full year).
        * Skip rows carry the same hashes, so they are safe to read from.
        */
       const priorAriHashes = new Map<number, { availability?: string; prices?: string }>();
-      if (!ariRequestOptions.windowFrom && !ariRequestOptions.windowTo) {
+      {
+        const wantFrom = ariRequestOptions.windowFrom ?? null;
+        const wantTo = ariRequestOptions.windowTo ?? null;
         try {
           const { data: lastAri } = await supabase
             .from('ru_sync_runs')
@@ -4589,8 +4593,13 @@ Deno.serve(async (req) => {
             .eq('action', 'refresh_ari')
             .eq('success', true)
             .order('created_at', { ascending: false })
-            .limit(1);
-          const priorTargets = (lastAri?.[0]?.details as { targets?: Record<string, any>[] } | null)?.targets ?? [];
+            .limit(12);
+          const rows = (lastAri ?? []) as { details?: { window?: { from?: string | null; to?: string | null } | null; targets?: Record<string, any>[] } | null }[];
+          const match = rows.find((r) => {
+            const w = r.details?.window ?? null;
+            return (w?.from ?? null) === wantFrom && (w?.to ?? null) === wantTo;
+          });
+          const priorTargets = match?.details?.targets ?? [];
           for (const pt of priorTargets) {
             const id = Number(pt?.ru_property_id);
             if (!Number.isFinite(id)) continue;
@@ -4599,8 +4608,9 @@ Deno.serve(async (req) => {
               prices: typeof pt?.prices_hash === 'string' ? pt.prices_hash : undefined,
             });
           }
-        } catch (_e) { /* no stored hash → full window, as before */ }
+        } catch (_e) { /* no stored hash → write, as before */ }
       }
+
       const ariOptionsFor = (ruId: number): AriDeltaOptions => ({
         ...ariRequestOptions,
         priorAvailabilityHash: priorAriHashes.get(ruId)?.availability ?? null,
