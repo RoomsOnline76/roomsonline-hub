@@ -4262,7 +4262,8 @@ Deno.serve(async (req) => {
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
             // The probe fetches and measures every photo on every unit — the single most
             // expensive part of a save. A scoped delta that names no image field cannot have
-            // changed the image set, so the previously measured sizes still stand.
+            // changed the image set, so the probe is skipped and the photo-size gaps it would
+            // have answered are dropped below (the last probed push already proved them).
             await verifyPayloadImages(payload);
 
             payload.location_authored = locationAuthored;
@@ -4270,7 +4271,13 @@ Deno.serve(async (req) => {
           }),
         );
         precomputedGaps = mandatoryGaps(scored);
+        if (skipImageProbe) {
+          precomputedGaps = precomputedGaps.filter(
+            (gap) => !(/photo/i.test(gap) && /(px|measured|measure)/i.test(gap)),
+          );
+        }
       }
+
       // The bookable-window + MinStay rules are part of the same gate as the content rules,
       // so the wizard and the live push cannot disagree about what "ready" means.
       if (action !== 'refresh_ari') {
