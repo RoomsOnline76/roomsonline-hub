@@ -7363,7 +7363,7 @@ Deno.serve(async (req) => {
       if (!adopted && ruOwnerId) {
         await mergeRuRosterUser(admin, {
           owner_id: ruOwnerId,
-          user_account_id: userAccountId ?? ruOwnerId,
+          user_account_id: userAccountId ?? undefined,
           email: ownerEmail,
           login_email: ownerEmail,
         }, { source: "step-a-save" });
