@@ -37,6 +37,8 @@ import { LiveTrafficFrame } from "@/components/admin/channel-monitor/live/LiveTr
 
 
 import { ChannelReconciliationPanel } from "@/components/admin/channel-monitor/ChannelReconciliationPanel";
+import { OrphanSubAccountsPanel } from "@/components/admin/channel-monitor/OrphanSubAccountsPanel";
+
 
 
 // Heavy panels only load when their tab is opened, keeping the default cost view fast.
@@ -485,6 +487,10 @@ export default function AdminChannelMonitor() {
             {/* Engineers' surface: exchange log, booking trail, refresh compliance, call queue. */}
             {tab === "advanced" && (
               <>
+                <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+                  <OrphanSubAccountsPanel />
+                </Suspense>
+
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
                     <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-left">

@@ -1100,7 +1100,7 @@ export function RuAccountManagerPanel({
                         </span>
                       </Button>
 
-                      {acc.ru_user_id && (
+                      {acc.ru_user_id && acc.ru_user_id !== acc.ru_owner_id && (
                         <Badge variant="secondary" className="font-mono text-[10px]">
                           UID {acc.ru_user_id}
                         </Badge>

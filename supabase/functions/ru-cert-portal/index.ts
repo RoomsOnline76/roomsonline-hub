@@ -142,17 +142,8 @@ const RUN_COOLDOWN_SECONDS = 60;
  */
 const RU_SUB_USER_PASSWORD = "SLPafrica247*";
 
-/**
- * Password for a recycled Step A sub-account. RU policy: 12+ chars with upper, lower,
- * digit and special. Each recycle gets its own password so a refused credential is
- * never re-presented, and it is stored encrypted before the key mint is attempted.
- */
-function generateSubUserPassword(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(10));
-  const body = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-  return `Rol${body}7*`;
-}
+
+
 
 
 /**
@@ -5406,7 +5397,13 @@ Deno.serve(async (req) => {
         ru_login_email: loginEmail || String(match?.email ?? "").trim() || account.ru_login_email,
       };
       const userAccountId = String(match?.user_account_id ?? "").trim();
-      if (userAccountId && userAccountId !== "0") update.ru_user_id = userAccountId;
+      // Never mirror the OwnerID into the sub-user id — one account must not read as two.
+      if (userAccountId && userAccountId !== "0" && userAccountId !== String(ruOwnerId ?? "")) {
+        update.ru_user_id = userAccountId;
+      } else {
+        update.ru_user_id = null;
+      }
+
 
 
       // Rebinding to a different OwnerID: credentials, API keys and verification state
@@ -7341,10 +7338,13 @@ Deno.serve(async (req) => {
           if (ruOwnerId) {
             await mergeRuRosterUser(admin, {
               owner_id: ruOwnerId,
-              user_account_id: userAccountId ?? ruOwnerId,
+              // Only record a sub-user id the channel actually returned. Mirroring the
+              // OwnerID here made one account print as two ("Owner: X · Sub: X").
+              user_account_id: userAccountId ?? undefined,
               email: ownerEmail,
               login_email: ownerEmail,
             }, { source: "step-a-create" });
+
             rosterOnce = null;
           }
         }
@@ -7360,7 +7360,7 @@ Deno.serve(async (req) => {
       if (!adopted && ruOwnerId) {
         await mergeRuRosterUser(admin, {
           owner_id: ruOwnerId,
-          user_account_id: userAccountId ?? ruOwnerId,
+          user_account_id: userAccountId ?? undefined,
           email: ownerEmail,
           login_email: ownerEmail,
         }, { source: "step-a-save" });
@@ -7369,7 +7369,9 @@ Deno.serve(async (req) => {
 
       const row: Record<string, unknown> = {
         owner_email: ownerEmail,
-        ru_user_id: userAccountId,
+        // A sub-user id that merely repeats the OwnerID is not a second identity.
+        ru_user_id: userAccountId && userAccountId !== ruOwnerId ? userAccountId : null,
+
         ru_owner_id: ruOwnerId,
         // The RU-side login is authoritative: an adopted account may have been renamed
         // in the RU portal and that is the username Push_FillCompanyDetails_RQ needs.
@@ -7469,9 +7471,8 @@ Deno.serve(async (req) => {
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
       let keyRetryAfterMs: number | null = null;
-      // Set when Step A had to recycle onto a replacement sub-account login.
-      let recycledLogin: string | null = null;
-      let recycledPassword: string | null = null;
+      // Step A never provisions a replacement sub-account: one run, one account.
+
       // Ordered trail of every mint envelope tried, surfaced on the Step A task line.
       const keyAttempts: string[] = [];
 
@@ -7517,118 +7518,17 @@ Deno.serve(async (req) => {
             /**
              * The channel refused every mint envelope for this sub-account (its own
              * login/password, a retry after propagation, and the owner-scoped master
-             * mint). Rather than stopping and asking an operator to change the email,
-             * Step A recycles itself: it generates the next slug login with a fresh
-             * password, creates that sub-account, rebinds the property to it and
-             * retries the mint. Capped at 2 recycles so a systemic channel refusal
-             * surfaces instead of looping.
+             * mint). Step A must NOT create a replacement sub-account here: a refused
+             * mint is a channel-side entitlement problem, not a bad account, and
+             * provisioning further logins left orphaned sub-accounts under our master
+             * account. Keep the account we just created and report the blocker.
              */
-            const recycleBase = await generatedLoginBase();
-            let recycled: {
-              accessKey: string | null;
-              ownerId: string;
-              login: string;
-              password: string;
-            } | null = null;
+            keyCode = "RU_KEY_CREATION_NOT_ENABLED";
+            keyRuStatusId = minted.ruStatusId ?? null;
+            keyRuStatusMessage = minted.ruStatusMessage ?? null;
+            keyWarning =
+              `The channel refused automatic API key creation for this sub-account (${minted.message || "incorrect login or password"}). The account itself is created and bound — this is a channel-side entitlement, not a wrong password. Ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
 
-            let lastRecycleMessage = minted.message ?? null;
-            const recycledCreated: string[] = [];
-
-
-            for (let attempt = 2; recycleBase && attempt <= 3 && !recycled; attempt++) {
-              const nextLogin = generateDistributionLogin(recycleBase, attempt);
-              if (!nextLogin || nextLogin.toLowerCase() === String(savedLoginEmail ?? "").toLowerCase()) continue;
-
-              const nextPassword = generateSubUserPassword();
-              const { data: reCreated, error: reCreateErr } = await admin.functions.invoke("rentalsunited-api", {
-                body: {
-                  action: "create_user",
-                  user: { first_name: firstName, last_name: lastName, email: nextLogin, password: nextPassword },
-                  location_ids: locationIds,
-                },
-              });
-              if (reCreateErr || !reCreated?.success) {
-                lastRecycleMessage = String(reCreateErr?.message ?? reCreated?.error?.message ?? lastRecycleMessage ?? "");
-                keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): not created`);
-                continue;
-              }
-
-              const recycledUserId = usableRuId(reCreated.user_account_id) || null;
-              const recycledOwnerId = usableRuId(reCreated.owner_id) || recycledUserId;
-              if (!recycledOwnerId) continue;
-              recycledCreated.push(nextLogin);
-              keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): created, OwnerID ${recycledOwnerId}`);
-
-
-              await mergeRuRosterUser(admin, {
-                owner_id: recycledOwnerId,
-                user_account_id: recycledUserId ?? recycledOwnerId,
-                email: nextLogin,
-                login_email: nextLogin,
-              }, { source: "step-a-recycle" });
-              rosterOnce = null;
-
-              // Store the new identity + password BEFORE minting: the password is the
-              // only copy of a credential the channel has already accepted.
-              const { data: recycledEnc } = await admin.rpc("encrypt_sensitive_text", { plaintext: nextPassword });
-              await admin
-                .from("ru_owner_accounts")
-                .update({
-                  ru_owner_id: recycledOwnerId,
-                  ru_user_id: recycledUserId ?? recycledOwnerId,
-                  ru_login_email: nextLogin,
-                  ru_login_password_enc: recycledEnc ?? null,
-                  company_details_sent: false,
-                  company_filled_at: null,
-                  company_details_status: "pending",
-                })
-                .eq("id", String((saved as any)?.id ?? ""));
-
-              const retryMint = await mintChildKeyPair({
-                ownerId: recycledOwnerId,
-                loginEmail: nextLogin,
-                accountId: String((saved as any)?.id ?? "") || null,
-                authUsername: nextLogin,
-                authPassword: nextPassword,
-                keyLabel: `ROLOS-c${attempt}`,
-              });
-              keyAttempts.push(...(retryMint.attempts ?? []).map((a) => `  ${a}`));
-
-              if (retryMint.ok) {
-                recycled = {
-                  accessKey: retryMint.accessKey ?? null,
-                  ownerId: recycledOwnerId,
-                  login: nextLogin,
-                  password: nextPassword,
-                };
-              } else if (retryMint.rateDeferred) {
-                keySource = "deferred";
-                keyWarning = retryMint.message ?? "The channel rate-limited automatic key creation.";
-                keyRetryAfterMs = retryMint.retryAfterMs ?? null;
-                break;
-              } else {
-                lastRecycleMessage = retryMint.message ?? lastRecycleMessage;
-              }
-            }
-
-            if (recycled) {
-              keySource = "minted";
-              mintedAccessKey = recycled.accessKey;
-              ruOwnerId = recycled.ownerId;
-              ownerEmail = recycled.login;
-              recycledLogin = recycled.login;
-              recycledPassword = recycled.password;
-            } else if (keySource !== "deferred") {
-
-              keyCode = "RU_KEY_CREATION_NOT_ENABLED";
-              keyRuStatusId = minted.ruStatusId ?? null;
-              keyRuStatusMessage = minted.ruStatusMessage ?? null;
-              const createdList = recycledCreated.length
-                ? ` Replacement logins created and bound: ${recycledCreated.join(", ")}.`
-                : " No replacement login could be created.";
-              keyWarning =
-                `The channel refused automatic API key creation for this sub-account and for every replacement login Step A tried (${lastRecycleMessage || "incorrect login or password"}).${createdList} This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
-            }
 
           } else {
             keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
@@ -7643,11 +7543,8 @@ Deno.serve(async (req) => {
       }
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      // A recycled run must speak as the replacement sub-account, not the refused one.
-      const companyAccount = recycledLogin
-        ? { ...(saved as any), ru_owner_id: ruOwnerId, ru_login_email: recycledLogin }
-        : (saved as any);
-      const companyResult = await submitCompanyDetails(companyAccount, adopted ? null : (recycledPassword ?? password));
+      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+
 
       const needsPassword = Boolean(
         (companyResult as any).deferred
@@ -7709,12 +7606,8 @@ Deno.serve(async (req) => {
         key_ru_status_message: keyRuStatusMessage,
         key_retry_after_ms: keyRetryAfterMs,
         key_attempts: keyAttempts,
-
-        // Non-null when the channel refused the first sub-account's mint and Step A
-        // provisioned a replacement login by itself.
-        recycled_login: recycledLogin,
-
       });
+
 
 
 

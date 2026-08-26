@@ -300,7 +300,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       );
       const credsOf = (acc?: (typeof ruAccounts)[number]) => ({
         ownerId: acc?.ru_owner_id ?? null,
-        subUserId: acc?.ru_user_id ?? null,
+        // A sub-user id equal to the OwnerID is the same single account, not a second one.
+        subUserId:
+          acc?.ru_user_id && String(acc.ru_user_id) !== String(acc.ru_owner_id ?? "")
+            ? acc.ru_user_id
+            : null,
+
         keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
         companyDetailsSent: acc?.company_details_sent === true,
       });

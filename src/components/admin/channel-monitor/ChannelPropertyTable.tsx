@@ -239,18 +239,19 @@ export function ChannelPropertyTable({
                       <div className="font-medium">{row.name}</div>
                       <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-muted-foreground">
                         {row.ownerId && (
-                          <span className="font-mono" title="RU Owner ID">
-                            Owner: {row.ownerId}
+                          <span className="font-mono" title="Channel sub-account ID">
+                            Sub-account: {row.ownerId}
                           </span>
                         )}
-                        {row.subUserId && (
-                          <span className="font-mono" title="RU Sub-user ID">
-                            Sub: {row.subUserId}
+                        {row.subUserId && row.subUserId !== row.ownerId && (
+                          <span className="font-mono" title="Channel sub-user ID">
+                            User: {row.subUserId}
                           </span>
                         )}
                         {!row.ownerId && !row.subUserId && (
-                          <span className="italic">No RU account linked</span>
+                          <span className="italic">No channel account linked</span>
                         )}
+
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{row.portfolioName || "—"}</TableCell>
