@@ -127,7 +127,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (terminalNoOp === null) {
+    if (terminalNoOp === null && row.action === RU_ARI_DELTA_QUEUE_ACTION) {
+      // A coalesced ARI delta: the debounce window has now elapsed, so replay the LAST snapshot
+      // that was parked for this property against the single owner of the RU push contract.
+      const p = (row.payload ?? {}) as Record<string, unknown>;
+      const propertyId = String(p.property_id ?? row.property_id ?? '').trim();
+      if (!propertyId) {
+        terminalNoOp = 'Parked ARI delta carries no property id.';
+      } else {
+        try {
+          const onlyUnitIds = Array.isArray(p.only_unit_ids) ? (p.only_unit_ids as unknown[]).map(String) : [];
+          const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
+            body: {
+              property_id: propertyId,
+              action: 'refresh_ari',
+              trigger: String(p.trigger ?? 'coalesced_ari_delta'),
+              ...(onlyUnitIds.length > 0 ? { only_unit_ids: onlyUnitIds } : {}),
+              ...(p.ari_date_from ? { ari_date_from: String(p.ari_date_from) } : {}),
+              ...(p.ari_date_to ? { ari_date_to: String(p.ari_date_to) } : {}),
+              verify_readback: false,
+              verify_availability_readback: p.verify_availability_readback === true,
+            },
+          });
+          if (error) throw new Error(await invokeErrorMessage(error));
+          if (data?.success === false) {
+            const code = String(data?.error?.code ?? '');
+            const message = data?.error?.message ?? 'ARI delta failed';
+            // A property that is no longer listed / no longer pushing is a skip, not a defect.
+            if (['RU_NOT_LISTED', 'RU_NOT_CONFIGURED', 'RU_LISTING_STALE', 'CHANNEL_MANAGER_DISABLED'].includes(code)) {
+              terminalNoOp = message;
+            } else {
+              throw new Error(message);
+            }
+          }
+          result = data ?? null;
+        } catch (err) {
+          failure = err instanceof Error ? err.message : String(err);
+        }
+      }
+    } else if (terminalNoOp === null) {
       try {
         // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
         // `action` is taken from the row so legacy payloads queued without it still replay.
@@ -141,6 +179,7 @@ Deno.serve(async (req) => {
         failure = err instanceof Error ? err.message : String(err);
       }
     }
+
 
 
     // A replayed acceptance that the channel refuses because the request's OWN nights read as
