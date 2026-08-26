@@ -47,15 +47,13 @@ const OUTCOME_LABEL: Record<"ok" | "deferred" | "failed", string> = {
   failed: "failed",
 };
 
-/**
- * Rows recorded before the key-mint contract was corrected still show portal credentials on
- * Push_CreateApiKey_RQ. The current adapter can never emit that shape, so flag those rows as
- * historic instead of letting an operator read them as a live failure.
- */
+/** Rows recorded before the key-mint schema-order fix put Scope before Label. */
 function isLegacyShape(row: RuLiveTrafficRow): boolean {
   if (row.action !== "Push_CreateApiKey_RQ") return false;
   const xml = row.request_xml ?? "";
-  return xml.includes("<UserName>") || xml.indexOf("<Scope>") < xml.indexOf("<Label>");
+  const scopeIndex = xml.indexOf("<Scope>");
+  const labelIndex = xml.indexOf("<Label>");
+  return scopeIndex >= 0 && labelIndex >= 0 && scopeIndex < labelIndex;
 }
 
 
@@ -252,7 +250,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                           {row.direction === "inbound" ? <Badge variant="outline">inbound</Badge> : null}
                           {isLegacyShape(row) ? (
                             <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
-                              legacy — pre-fix shape
+                              legacy — pre-fix order
                             </Badge>
                           ) : null}
                         </div>
