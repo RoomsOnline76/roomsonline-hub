@@ -2090,11 +2090,11 @@ function expandAvailability(
   changeover: { perDow: Record<number, number> | null; defaultCode: number }
 ): { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] {
   const out: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] = [];
-  if (!changeover.perDow) {
-    // No per-day rules — keep ranges (efficient)
+  if (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode)) {
+    // No per-day rules (or every weekday equals the default) — keep ranges (efficient)
     return periods.map(p => ({ date_from: p.from, date_to: p.to, units, min_stay: p.minStay, changeover: changeover.defaultCode }));
   }
-  // Per-day rules — emit one entry per night
+  // Per-day rules — emit one entry per night, then recompact into ranges before the wire.
   for (const p of periods) {
     const start = new Date(p.from + 'T00:00:00Z');
     const end = new Date(p.to + 'T00:00:00Z');
@@ -2105,7 +2105,7 @@ function expandAvailability(
       out.push({ date_from: iso, date_to: iso, units, min_stay: p.minStay, changeover: code });
     }
   }
-  return out;
+  return collapseAvbRanges(out);
 }
 
 type AvailEntry = { date_from: string; date_to: string; units: number; min_stay: number; max_stay?: number; changeover: number };
