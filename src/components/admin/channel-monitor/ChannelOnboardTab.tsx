@@ -31,6 +31,7 @@ import {
 
 
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, SessionExpiredError } from "@/lib/ensureFreshSession";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 
 import { cn } from "@/lib/utils";
@@ -635,7 +636,14 @@ export function ChannelOnboardTab({
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "The step could not be run");
+        if (err instanceof SessionExpiredError) {
+          toast.error("Your session expired", {
+            description: "Sign in again, then re-run the step.",
+            duration: 12000,
+          });
+        } else {
+          toast.error(err instanceof Error ? err.message : "The step could not be run");
+        }
       } finally {
         setRunningStep(null);
         await gate.refresh();
@@ -643,6 +651,20 @@ export function ChannelOnboardTab({
     },
     [chosenLoginEmail, gate, plan, propertyId],
   );
+
+  /**
+   * Try a silent token renewal first — a token that merely went stale while the tab sat
+   * open comes back without a login. Only a genuinely dead session goes to /auth.
+   */
+  const handleReauth = useCallback(async () => {
+    const token = await ensureFreshSession(true);
+    if (token) {
+      await gate.refresh();
+      toast.success("Session renewed");
+      return;
+    }
+    window.location.href = `/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+  }, [gate]);
 
   /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
   useEffect(() => {
