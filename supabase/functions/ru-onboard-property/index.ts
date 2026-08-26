@@ -550,7 +550,36 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Leg 5 — the property left the old account archived; it is now simply
+      // unbound, not archived. Lift the archive/hold so it stays visible in the
+      // Onboard picker and Step A can run against the new account. Push stays
+      // off until Step B publishes again.
+      {
+        const { error: unarchiveError } = await admin
+          .from("properties")
+          .update({
+            ru_archived: false,
+            ru_archived_at: null,
+            ru_hold_reason: null,
+            ru_hold_set_at: null,
+          })
+          .eq("id", propertyId);
+        if (unarchiveError) return fail("Clear archive state", unarchiveError.message);
+        legs.push({ leg: "Clear archive state", ok: true, detail: "unbound, not archived" });
+        await admin.from("ru_archive_events").insert({
+          property_id: propertyId,
+          property_name: property.name,
+          direction: "reactivated",
+          unit_count: 0,
+          listing_count: 0,
+          reason: `Owner rebind to ${newEmail} — archive lifted, awaiting Step A`,
+          ru_status: "updated",
+          detail: "Listings archived on the previous account; property left unbound and pushable once re-onboarded",
+        });
+      }
+
       // The monitor steps describe an account and listings that no longer exist.
+
       for (const key of ["monitor_step_a", "monitor_step_b", "ready_to_connect"] as OnboardStepKey[]) {
         await writeStep(admin, propertyId, {
           step_key: key,
