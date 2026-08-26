@@ -65,7 +65,7 @@ export function useFeatureFlags() {
         const { data, error } = await supabase.functions.invoke('get-feature-flags');
         
         if (error || !data?.success) {
-          console.error('Feature flags error:', error || data?.error);
+          console.warn('Feature flags unavailable; using cached defaults');
           return readCachedFlags() ?? DEFAULT_FLAGS;
         }
         
@@ -81,7 +81,7 @@ export function useFeatureFlags() {
 
         return flags;
       } catch (err) {
-        console.error('Feature flags fetch failed:', err);
+        console.warn('Feature flags fetch failed; using cached defaults');
         return readCachedFlags() ?? DEFAULT_FLAGS;
       }
     },
@@ -89,7 +89,7 @@ export function useFeatureFlags() {
     // refreshes them in the background instead of gating the first render.
     initialData: readCachedFlags,
     staleTime: 1000 * 60 * 5,
-    retry: 1,
+    retry: false,
     refetchOnWindowFocus: false,
   });
 }

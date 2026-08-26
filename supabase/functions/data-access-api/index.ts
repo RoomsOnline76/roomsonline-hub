@@ -7,20 +7,24 @@ const corsHeaders = {
 };
 
 
-// Module-scoped so the JWKS / signing-key cache survives between requests.
-// Re-creating the client per call re-fetched keys every time and could hang.
-const supabaseAdmin = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-);
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
 
-async function verifyClaims(token: string, timeoutMs: number) {
-  return (await Promise.race([
-    supabaseAdmin.auth.getClaims(token),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("auth_timeout")), timeoutMs)
-    ),
-  ])) as Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>;
+function tokenSubject(token: string): string | null {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const parsed = JSON.parse(atob(padded)) as { sub?: unknown };
+    return typeof parsed.sub === "string" && parsed.sub.length > 0 ? parsed.sub : null;
+  } catch {
+    return null;
+  }
+}
+
+function timedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, { ...init, signal: AbortSignal.timeout(8000) });
 }
 
 function jsonResponse(body: unknown, status = 200) {
@@ -49,47 +53,22 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const token = authHeader.replace("Bearer ", "");
-
-    let claims: Record<string, unknown> | null = null;
-    try {
-      // Bound the upstream auth call, then retry once: the first call on a cold
-      // isolate has to fetch signing keys and occasionally exceeds the budget.
-      let claimsData: Awaited<ReturnType<typeof supabaseAdmin.auth.getClaims>>["data"] = null;
-      let claimsError: unknown = null;
-      try {
-        ({ data: claimsData, error: claimsError } = await verifyClaims(token, 6000));
-      } catch (firstErr) {
-        if (String((firstErr as Error)?.message) !== "auth_timeout") throw firstErr;
-        console.warn("data-access-api auth verify slow, retrying");
-        ({ data: claimsData, error: claimsError } = await verifyClaims(token, 8000));
-      }
-      if (claimsError || !claimsData?.claims) {
-        return jsonResponse({ error: "Unauthorized", code: "invalid_token" }, 401);
-      }
-      claims = claimsData.claims as Record<string, unknown>;
-    } catch (authErr) {
-      const message = String((authErr as Error)?.message ?? authErr);
-      if (message === "auth_timeout") {
-        console.warn("data-access-api auth verify timed out");
-        return jsonResponse(
-          { error: "Auth verification timed out", code: "auth_timeout" },
-          503
-        );
-      }
-      const expired = /expired/i.test(message);
-      console.warn("data-access-api auth rejected:", message);
-      return jsonResponse(
-        {
-          error: expired ? "Session expired" : "Unauthorized",
-          code: expired ? "token_expired" : "invalid_token",
-        },
-        401
-      );
+    const token = authHeader.slice("Bearer ".length);
+    const userId = tokenSubject(token);
+    if (!userId || !supabaseUrl || !supabaseAnonKey) {
+      return jsonResponse({ error: "Unauthorized", code: "invalid_token" }, 401);
     }
 
-
-    const userId = claims.sub as string;
+    // Use the caller's token for every data read. PostgREST validates the JWT
+    // and RLS constrains access, avoiding a separate Auth verification request
+    // that previously stalled every page load when the Auth service was slow.
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: { Authorization: `Bearer ${token}` },
+        fetch: timedFetch,
+      },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     let action: string | undefined;
     try {
@@ -101,11 +80,11 @@ Deno.serve(async (req) => {
     if (action === "get_user_context") {
       // Fetch roles, profile, and sales_rep_id in parallel
       const [rolesResult, profileResult] = await Promise.all([
-        supabaseAdmin
+        supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", userId),
-        supabaseAdmin
+        supabase
           .from("profiles")
           .select("id, email, full_name, avatar_url, role")
           .eq("id", userId)
@@ -119,7 +98,7 @@ Deno.serve(async (req) => {
       let salesRepId: string | null = null;
 
       if (hasSalesRep) {
-        const { data: repData } = await supabaseAdmin
+        const { data: repData } = await supabase
           .from("sales_reps")
           .select("id")
           .eq("user_id", userId)
@@ -138,8 +117,13 @@ Deno.serve(async (req) => {
     }
 
     return jsonResponse({ error: `Unknown action: ${action}` }, 400);
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("data-access-api error:", err);
-    return jsonResponse({ error: err.message }, 500);
+    const message = err instanceof Error ? err.message : "Unexpected error";
+    const timedOut = /timeout|aborted/i.test(message);
+    return jsonResponse(
+      { error: timedOut ? "Data service temporarily unavailable" : message, code: timedOut ? "data_timeout" : "internal_error" },
+      timedOut ? 503 : 500,
+    );
   }
 });

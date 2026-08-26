@@ -1,5 +1,3 @@
-import { createClient } from 'npm:@supabase/supabase-js@2';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -30,6 +28,19 @@ const EDGE_FUNCTION_SECRETS = [
   'HOSTFULLY_CLIENT_ID',
 ];
 
+const DEFAULT_FLAGS: Record<string, boolean | string | null> = {
+  roomsonline_active: false,
+  home_icon_open_new_tab: true,
+  book_open_new_tab: true,
+  ai_concierge_enabled: false,
+  benson_active_environment: null,
+  google_maps_api_key: null,
+  google_recaptcha_site_key: null,
+  hostfully_client_id: null,
+};
+
+let cachedFlags: Record<string, boolean | string | null> | null = null;
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -45,29 +56,30 @@ Deno.serve(async (req) => {
 
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return new Response(JSON.stringify({ success: true, data: cachedFlags ?? DEFAULT_FLAGS, degraded: true }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // Fetch only whitelisted keys
     const allAllowedKeys = [...ALLOWED_FEATURE_FLAGS, ...ALLOWED_STRING_FLAGS, ...ALLOWED_PUBLIC_KEYS];
     
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('key_name, key_value')
-      .in('key_name', allAllowedKeys);
-
-    if (error) {
-      console.error('Error fetching feature flags:', error);
-      return new Response(
-        JSON.stringify({ success: false, error: error.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const params = new URLSearchParams({
+      select: 'key_name,key_value',
+      key_name: `in.(${allAllowedKeys.join(',')})`,
+    });
+    const response = await fetch(`${supabaseUrl}/rest/v1/api_keys?${params}`, {
+      headers: { apikey: supabaseServiceKey, Authorization: `Bearer ${supabaseServiceKey}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) throw new Error(`Feature flag query failed (${response.status})`);
+    const data = await response.json() as Array<{ key_name: string; key_value: string | null }>;
 
     // Transform to response object
-    const flags: Record<string, boolean | string | null> = {};
+    const flags: Record<string, boolean | string | null> = { ...DEFAULT_FLAGS };
     
     // Boolean flags - convert string "true"/"false" to boolean, default to false
     for (const keyName of ALLOWED_FEATURE_FLAGS) {
@@ -93,6 +105,8 @@ Deno.serve(async (req) => {
       flags[keyName.toLowerCase()] = value || null;
     }
 
+    cachedFlags = flags;
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -103,10 +117,10 @@ Deno.serve(async (req) => {
 
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Unexpected error in get-feature-flags:', err);
+    console.warn('Feature flags unavailable; serving safe defaults:', errorMessage);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: true, data: cachedFlags ?? DEFAULT_FLAGS, degraded: true }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

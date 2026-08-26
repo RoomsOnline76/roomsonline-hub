@@ -68,10 +68,11 @@ async function fetchUserContext(userId: string, isRetry = false): Promise<UserCo
 
   if (error || !response?.success) {
     const code = response?.code;
+    const status = (error as { context?: { status?: number } } | null)?.context?.status;
     const isAuthIssue =
       code === "token_expired" ||
       code === "invalid_token" ||
-      (error as { context?: { status?: number } } | null)?.context?.status === 401;
+      status === 401;
 
     if (isAuthIssue && !isRetry) {
       const { data: refreshed } = await supabase.auth.refreshSession();
@@ -80,6 +81,10 @@ async function fetchUserContext(userId: string, isRetry = false): Promise<UserCo
       return EMPTY_CONTEXT;
     }
 
+    const cached = readCachedContext(userId);
+    if (cached && (status === 502 || status === 503 || code === "data_timeout")) {
+      return cached;
+    }
     throw new Error(String(error?.message ?? response?.error ?? "Failed to fetch user context"));
   }
 
@@ -135,10 +140,9 @@ export function useAuth() {
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
-    // Transient edge-runtime failures (502/503 cold-start kills) should not
-    // leave the shell without roles — retry a couple of times with backoff.
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    // Page loads must never multiply a struggling backend request. Cached role
+    // context keeps the shell usable; a later remount can refresh it.
+    retry: false,
   });
 
   const roles = context?.roles ?? [];
