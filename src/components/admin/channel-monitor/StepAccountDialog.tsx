@@ -271,7 +271,12 @@ export function StepAccountDialog({
     () => resolveStepARemedy(credCode ?? remedyCode, credNote),
     [credCode, credNote, remedyCode],
   );
-  const xmlApiRejectedWithStoredPassword = planHasPassword && activeRemedy?.code === "RU_CREATE_KEY_API_REJECTED";
+  // Both codes mean the channel refused key creation itself — never ask for a password.
+  const xmlApiRejectedWithStoredPassword = planHasPassword && (
+    activeRemedy?.code === "RU_CREATE_KEY_API_REJECTED"
+    || activeRemedy?.code === "RU_KEY_CREATION_NOT_ENABLED"
+  );
+
 
   useEffect(() => {
     setCredEmail(planLogin);
