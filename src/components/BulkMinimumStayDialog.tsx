@@ -169,7 +169,7 @@ export function BulkMinimumStayDialog({
 
       toast.success(`Set minimum stay to ${minStay} nights for ${filteredDates.length} dates`);
       onRuleCreated?.();
-      void syncRestrictionsToChannels(targetPropertyIds, "minimum_stay");
+      void syncRestrictionsToChannels(targetPropertyIds, "minimum_stay", { from: fromDate, to: toDate });
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error creating minimum stay rule:", error);

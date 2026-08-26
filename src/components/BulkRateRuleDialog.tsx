@@ -155,7 +155,7 @@ export function BulkRateRuleDialog({
       toast.success(`Set rate to ${rate} for ${filteredDates.length} dates`);
       // Rates changed — the Channel Manager update fires itself (parked and retried if the
       // listing is currently short of the mandatory readiness gate).
-      if (propertyId) void syncRestrictionsToChannels([propertyId], "rate");
+      if (propertyId) void syncRestrictionsToChannels([propertyId], "rate", { from: fromDate, to: toDate });
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
