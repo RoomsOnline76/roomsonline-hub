@@ -131,11 +131,8 @@ export interface StepAccountDialogProps {
   onChosenLoginEmailChange?: (email: string) => void;
   /** Last recoverable Step A stop code, used to show the exact remedy inside this modal. */
   remedyCode?: string | null;
-  /** Live Step A task progress, so Proceed reports the run without leaving the modal. */
-  runTasks?: Array<{ id: string; title: string; state: string; detail?: string | null }>;
-  /** Human countdown while the step is parked on the channel's rate window. */
-  waitLabel?: string | null;
 }
+
 
 
 
