@@ -422,12 +422,25 @@ export async function syncBookingToChannel(
     result.ari_reason = 'no_property';
   } else {
     try {
+      // Scope the write to the nights the stay touches (old span included, so a moved booking
+      // reopens what it left) and to the booked unit, instead of re-sending the whole year.
+      const spanDates = [
+        String(row.check_in_date ?? ''),
+        String(row.check_out_date ?? ''),
+        String(request.previous?.check_in_date ?? ''),
+        String(request.previous?.check_out_date ?? ''),
+      ].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+      const bookedUnitId = (row.room_type_id as string | null) ?? null;
       const outcome = await queueRuAriDelta(supabase, propertyId, `booking_${change}`, {
         force: true,
+        dateFrom: spanDates[0] ?? null,
+        dateTo: spanDates[spanDates.length - 1] ?? null,
+        onlyUnitIds: bookedUnitId ? [bookedUnitId] : null,
         // A booking is the one case where the channel calendar must be read back: the sold
         // nights have to be proven closed. Restriction/rate/cron writes skip the pull.
         verifyAvailabilityReadback: true,
       });
+
       if (outcome?.error) {
         result.ari = 'failed';
         result.ari_reason = String(outcome.error);
