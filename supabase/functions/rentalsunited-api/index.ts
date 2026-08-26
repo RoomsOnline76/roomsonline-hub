@@ -4453,9 +4453,7 @@ Deno.serve(async (req) => {
         // Log lookup is an optimisation only — fall through to the live call.
       }
 
-      } catch (_e) {
-        // Log lookup is an optimisation only — fall through to the live call.
-      }
+
 
       const xml = `<Push_ChangeCurrency_RQ>${buildAuthXml(scopedCreds)}<Location>${locId}</Location><Currency>${currencyIso}</Currency></Push_ChangeCurrency_RQ>`;
 
