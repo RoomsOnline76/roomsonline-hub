@@ -907,24 +907,53 @@ export function ChannelOnboardTab({
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Select value={propertyId} onValueChange={selectProperty} disabled={properties.length === 0}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue
-                      placeholder={
-                        properties.length === 0
-                              ? "Nothing eligible (contract + Channel Manager add-on)"
-                          : "Select a property or portfolio"
-                      }
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={pickerOpen}
+                      disabled={properties.length === 0}
+                      className="mt-1 w-full justify-between font-normal"
+                    >
+                      <span className="truncate">
+                        {properties.find((p) => p.id === propertyId)?.label
+                          ?? (properties.length === 0
+                            ? "Nothing eligible (contract + Channel Manager add-on)"
+                            : "Search for a property or portfolio")}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search by name…" />
+                      <CommandList>
+                        <CommandEmpty>No match.</CommandEmpty>
+                        <CommandGroup>
+                          {properties.map((p) => (
+                            <CommandItem
+                              key={p.id}
+                              value={p.label}
+                              onSelect={() => {
+                                selectProperty(p.id);
+                                setPickerOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-3.5 w-3.5",
+                                  p.id === propertyId ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              <span className="truncate">{p.label}</span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               )}
 
               {requestNotice && (
@@ -932,25 +961,40 @@ export function ChannelOnboardTab({
               )}
 
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void openPlan()}
-              disabled={planLoading || !propertyId}
-            >
-              {planLoading ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Preview account
-            </Button>
+            {/* The account the pick is bound to, read straight from the gate snapshot. */}
+            {propertyId && (
+              <div className="min-w-[220px] flex-1">
+                <Label className="text-xs">Distribution sub-account</Label>
+                <p className="mt-1 break-all text-xs text-muted-foreground">
+                  {gate.loading
+                    ? "Reading the binding…"
+                    : boundLogin
+                      ? `${boundLogin}${boundOwnerId ? ` · OwnerID ${boundOwnerId}` : " · not created yet"}`
+                      : "Not linked to a sub-account yet — Step A will create one from the property slug."}
+                </p>
+              </div>
+            )}
+            {propertyId && !accountProvisioned && (
+              <Button
+                size="sm"
+                onClick={() => void runStep("a")}
+                disabled={stepDisabled.a}
+              >
+                {runningStep === "a" ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                {gate.stepAStatus === "blocked" ? "Retry Step A" : "Create Account"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
               Refresh
             </Button>
 
           </div>
+
           {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
           {gate.connected && (
             <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
