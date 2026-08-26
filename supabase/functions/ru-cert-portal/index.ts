@@ -7081,69 +7081,123 @@ Deno.serve(async (req) => {
 
 
       if (!adopted) {
-        const { data: created, error: createErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "create_user",
-            user: { first_name: firstName, last_name: lastName, email: ownerEmail, password },
-            location_ids: locationIds,
-          },
-        });
-        const rawMsg = String(createErr?.message ?? created?.error?.message ?? created?.raw ?? "");
-        const emailTaken = /already\s*(exist|registered|taken|in use)/i.test(rawMsg) || /duplicate/i.test(rawMsg);
-
-        if (createErr || !created?.success) {
-          if (emailTaken) {
-            // RU says the email is taken — recover by adopting the existing sub-user.
-            const refreshed = await listRuUsers(true);
-            const recovered = matchByEmail(refreshed)
-              ?? matchByStoredIdentity(refreshed, existing.account as any)
-              ?? await adoptLocalByEmail();
-
-            if (recovered) {
-              userAccountId = recovered.user_account_id ?? null;
-              ruOwnerId = recovered.owner_id ?? null;
-              adoptedEmail = String(recovered.email ?? "").trim() || null;
-              adopted = true;
-            } else {
-              // The address exists at the channel but not under our master account, so the
-              // local row's stored identity (if any) is dead. Clear it here so the operator's
-              // next attempt with a different login starts from a clean binding — no separate
-              // unbind step, and no half-identity left to confuse later reads.
-              if ((existing.account as any)?.id) {
-                await admin
-                  .from("ru_owner_accounts")
-                  .update({
-                    ru_owner_id: null,
-                    ru_user_id: null,
-                    ru_login_password_enc: null,
-                    company_details_sent: false,
-                    company_filled_at: null,
-                    company_details_status: "pending",
-                  })
-                  .eq("id", (existing.account as any).id);
-              }
-              return json({
-                success: false,
-                error: {
-                  code: "RU_EMAIL_IN_USE",
-                  message:
-                    `${ownerEmail} is already registered at the channel but is not listed under our master account, so it cannot become this property's distribution login. Choose one of the alternative logins offered, or give a brand-new email address to create the account under.`,
-                },
-                email_in_use: ownerEmail,
-                login_candidates: await collectLoginCandidates(refreshed, ownerEmail),
-                unbound: Boolean((existing.account as any)?.id),
-                preview: preview(created, 2000),
-              }, 409);
+        /**
+         * One-click Step A: when the resolved login is rejected as already taken /
+         * archived / outside our master account, automatically fall back to a login
+         * generated from the property slug (`<slug>@channels.roomsonline.co.za`,
+         * suffixed -2, -3… on collision) and keep provisioning. The manual
+         * "change email" step only survives as the last-resort modal when every
+         * candidate is exhausted.
+         */
+        const resolvedOwnerEmail = String(ownerEmail);
+        const generatedBase = await generatedLoginBase();
+        const emailCandidates: string[] = [resolvedOwnerEmail];
+        if (generatedBase && !resolvedOwnerEmail.toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)) {
+          for (let attempt = 1; attempt <= 4; attempt++) {
+            const generated = generateDistributionLogin(generatedBase, attempt);
+            if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
+          }
+        }
+        // An address already live as the distribution login for a DIFFERENT property
+        // or portfolio can never be re-used — drop those fallbacks up front.
+        {
+          const { data: claimedRows } = await admin
+            .from("ru_owner_accounts")
+            .select("owner_email, ru_login_email, property_id, portfolio_id")
+            .not("ru_owner_id", "is", null);
+          const claimed = new Set<string>();
+          for (const r of (claimedRows ?? []) as any[]) {
+            const sameScope = portfolioId ? r.portfolio_id === portfolioId : r.property_id === propertyId;
+            if (sameScope) continue;
+            for (const k of [r.owner_email, r.ru_login_email]) {
+              const v = String(k ?? "").trim().toLowerCase();
+              if (v) claimed.add(v);
             }
+          }
+          for (let i = emailCandidates.length - 1; i >= 1; i--) {
+            if (claimed.has(emailCandidates[i].toLowerCase())) emailCandidates.splice(i, 1);
+          }
+        }
 
-          } else {
+        let created: any = null;
+        let createErr: any = null;
+        let rawMsg = "";
+        let emailTaken = false;
+        for (const candidateEmail of emailCandidates) {
+          // The roster/adoption matchers key off `ownerEmail`, so track the candidate.
+          ownerEmail = candidateEmail;
+          const attemptResult = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "create_user",
+              user: { first_name: firstName, last_name: lastName, email: candidateEmail, password },
+              location_ids: locationIds,
+            },
+          });
+          created = attemptResult.data;
+          createErr = attemptResult.error;
+          rawMsg = String(createErr?.message ?? created?.error?.message ?? created?.raw ?? "");
+          emailTaken = /already\s*(exist|registered|taken|in use)/i.test(rawMsg) || /duplicate/i.test(rawMsg);
+
+          if (!createErr && created?.success) break;
+          // A hard failure (not an email conflict) gets no fallback — report it below.
+          if (!emailTaken) break;
+
+          // RU says the address is taken — first try adopting the existing sub-user
+          // (a prior attempt may have committed on the channel under this exact login).
+          const refreshed = await listRuUsers(true);
+          const recovered = matchByEmail(refreshed)
+            ?? matchByStoredIdentity(refreshed, existing.account as any)
+            ?? await adoptLocalByEmail();
+          if (recovered) {
+            userAccountId = recovered.user_account_id ?? null;
+            ruOwnerId = recovered.owner_id ?? null;
+            adoptedEmail = String(recovered.email ?? "").trim() || null;
+            adopted = true;
+            break;
+          }
+          // …otherwise continue with the next generated login.
+        }
+
+        if (!adopted && (createErr || !created?.success)) {
+          if (emailTaken) {
+            // Every candidate — the resolved login and all generated fallbacks — is
+            // taken outside our master account. Clear the stale local identity so the
+            // next attempt starts from a clean binding, then hand the decision back
+            // with the alternatives list (the failure-only preview modal).
+            if ((existing.account as any)?.id) {
+              await admin
+                .from("ru_owner_accounts")
+                .update({
+                  ru_owner_id: null,
+                  ru_user_id: null,
+                  ru_login_password_enc: null,
+                  company_details_sent: false,
+                  company_filled_at: null,
+                  company_details_status: "pending",
+                })
+                .eq("id", (existing.account as any).id);
+            }
             return json({
               success: false,
-              error: { code: "RU_CREATE_USER_FAILED", message: rawMsg || "Rentals United rejected the sub-user creation" },
+              error: {
+                code: "RU_EMAIL_IN_USE",
+                message:
+                  `${resolvedOwnerEmail} is already registered at the channel but is not listed under our master account, and every generated fallback (${emailCandidates.slice(1).join(", ") || "none available"}) was also rejected. Choose one of the alternative logins offered, or give a brand-new email address to create the account under.`,
+              },
+              email_in_use: resolvedOwnerEmail,
+              login_candidates: await collectLoginCandidates(rosterOnce ?? [], resolvedOwnerEmail),
+              unbound: Boolean((existing.account as any)?.id),
               preview: preview(created, 2000),
-            }, 502);
+            }, 409);
           }
-        } else {
+          return json({
+            success: false,
+            error: { code: "RU_CREATE_USER_FAILED", message: rawMsg || "Rentals United rejected the sub-user creation" },
+            preview: preview(created, 2000),
+          }, 502);
+        }
+
+        if (!adopted) {
           userAccountId = usableRuId(created.user_account_id) || null;
           // RU's create response gives the stable sub-account id before the roster can
           // reliably echo it. In the current roster format the same value is the OwnerID
