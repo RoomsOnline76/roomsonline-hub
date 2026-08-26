@@ -556,7 +556,12 @@ export function OrphanSubAccountsPanel() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {(!r.channel_archived_at || r.channel_archive_result?.keys_revoked_at_channel !== true) && (
+                      {/* Key management at the channel only accepts key-pair auth — the portal
+                          password is refused — so a revoke retry is only offered when a proven
+                          child pair is on file. */}
+                      {(!r.channel_archived_at ||
+                        (r.channel_archive_result?.keys_revoked_at_channel !== true &&
+                          keyInfo.state === "child")) && (
                         <Button
                           type="button"
                           size="sm"
@@ -573,6 +578,14 @@ export function OrphanSubAccountsPanel() {
                           {r.channel_archived_at ? "Revoke keys" : "Archive at channel"}
                         </Button>
                       )}
+                      {r.channel_archived_at &&
+                        r.channel_archive_result?.keys_revoked_at_channel !== true &&
+                        keyInfo.state !== "child" && (
+                          <span className="text-[10px] text-muted-foreground">
+                            No sub-account key pair — remove in the channel portal
+                          </span>
+                        )}
+
 
                       <Button
                         type="button"
