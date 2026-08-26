@@ -297,7 +297,13 @@ Deno.serve(async (req) => {
         : "Nothing is published at the channel — Step B must run again.";
       for (const key of downgrade) {
         const row = steps[key];
-        if (!row || row.status === "pending") continue;
+        if (!row) continue;
+        // A row that is already pending still needs rewriting while it carries the
+        // retired run's `details.tasks`: the panel replays those recorded outcomes,
+        // so an unbound property kept showing five green Step A ticks naming the
+        // account that was retired. Resetting the verdict must clear its evidence.
+        const staleTasks = Array.isArray((row.details as { tasks?: unknown } | null)?.tasks);
+        if (row.status === "pending" && !staleTasks) continue;
         await writeStep(admin, propertyId, {
           step_key: key,
           status: "pending",
@@ -308,10 +314,12 @@ Deno.serve(async (req) => {
           ...row,
           status: "pending",
           blocker_summary: reason,
+          details: { reset_reason: reason, reset_at: new Date().toISOString() },
           passed_at: null,
           last_checked_at: new Date().toISOString(),
         };
       }
+
 
       return json({
         success: true,
