@@ -50,7 +50,11 @@ interface RetiredRow {
 interface PurgeOutcome {
   ok: boolean;
   message: string;
+  /** The channel throttled us — the bulk runner waits before the next account. */
+  rateDeferred?: boolean;
+  retryAfterMs?: number;
 }
+
 
 /** What we hold for an account: decides whether a normal child-key archive is possible. */
 type KeyState = "child" | "master_pair" | "unverified" | "none";
