@@ -7372,7 +7372,9 @@ Deno.serve(async (req) => {
 
       const row: Record<string, unknown> = {
         owner_email: ownerEmail,
-        ru_user_id: userAccountId,
+        // A sub-user id that merely repeats the OwnerID is not a second identity.
+        ru_user_id: userAccountId && userAccountId !== ruOwnerId ? userAccountId : null,
+
         ru_owner_id: ruOwnerId,
         // The RU-side login is authoritative: an adopted account may have been renamed
         // in the RU portal and that is the username Push_FillCompanyDetails_RQ needs.
