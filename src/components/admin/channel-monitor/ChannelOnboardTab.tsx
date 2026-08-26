@@ -223,17 +223,20 @@ export function ChannelOnboardTab({
     void (async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, owner_email")
+        .select("id, name, owner_email, ru_archived")
         .eq("is_active", true)
-        // Exclude archived listings. `ru_archived` is nullable, so accept null
-        // or false — only `true` means "held off the distribution layer".
-        .or("ru_archived.is.null,ru_archived.eq.false")
         .order("name");
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
 
-      const rows = (data ?? []) as PropertyOption[];
+      const allRows = (data ?? []) as Array<PropertyOption & { ru_archived: boolean | null }>;
+      // Archived listings are held off the distribution layer, so they cannot be
+      // onboarded — but we keep their ids so a deep link can say exactly that
+      // instead of leaving the picker mysteriously blank.
+      const archivedIds = new Set(allRows.filter((r) => r.ru_archived === true).map((r) => r.id));
+      const rows: PropertyOption[] = allRows.filter((r) => !archivedIds.has(r.id));
       const ids = rows.map((r) => r.id);
+
       let eligible: PropertyOption[] = [];
       if (ids.length > 0) {
         // Contract status is authored per owner in `owner_contracts` (same source
