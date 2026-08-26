@@ -1036,15 +1036,12 @@ export function ChannelOnboardTab({
           chosenLoginEmail={chosenLoginEmail}
           onChosenLoginEmailChange={setChosenLoginEmail}
           remedyCode={stepARemedyCode}
-
-          runTasks={stepATaskLines}
-          waitLabel={
-            waiting.a && waiting.a.until > nowTick ? formatCountdown(Math.max(0, waiting.a.until - nowTick)) : null
-          }
           onRunStepA={() => {
-            // Proceed completes Step A inside the modal — it closes itself once the step passes.
+            // Accepting hands over to the Step A card: close here, then run.
+            setAccountDialogOpen(false);
             void runStep("a");
           }}
+
 
         />
       )}
