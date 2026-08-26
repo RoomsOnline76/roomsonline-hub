@@ -1261,6 +1261,57 @@ export function ChannelOnboardTab({
         </CardContent>
       </Card>
 
+      {/* Optional manual sub-account email: when saved, Step A uses it instead of the slug flow. */}
+      <Dialog open={manualEmailOpen} onOpenChange={setManualEmailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add sub-account email</DialogTitle>
+            <DialogDescription>
+              Enter the owner email to register as the distribution sub-account. Leave it blank or
+              cancel and Step A will generate one from the property slug instead.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="manual-sub-account-email" className="text-xs">Owner email</Label>
+            <Input
+              id="manual-sub-account-email"
+              type="email"
+              value={manualEmail}
+              onChange={(e) => {
+                setManualEmail(e.target.value);
+                setManualEmailError(null);
+              }}
+              placeholder="owner@example.com"
+              maxLength={50}
+            />
+            {manualEmailError && <p className="text-xs text-destructive">{manualEmailError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setManualEmailOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                const email = manualEmail.trim().toLowerCase();
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                  setManualEmailError("Enter a valid email address.");
+                  return;
+                }
+                if (email.length > 50) {
+                  setManualEmailError("The channel limits emails to 50 characters.");
+                  return;
+                }
+                setChosenLoginEmail(email);
+                setManualEmailOpen(false);
+              }}
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {!propertyId ? null : (
         <>
           {/* 2 — readiness gate (hidden once passed — the work is done) */}
