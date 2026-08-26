@@ -4615,7 +4615,10 @@ Deno.serve(async (req) => {
       }
 
 
-      const keys: { access_key: string | null }[] = Array.isArray(listed.keys) ? listed.keys : [];
+      const keys: { access_key: string | null }[] = Array.isArray((listed as { keys?: unknown }).keys)
+        ? ((listed as { keys: { access_key: string | null }[] }).keys)
+        : [];
+
       const targets = keys.map((k) => (k.access_key ?? "").trim()).filter(Boolean);
       if (targets.length === 0) {
         return { status: "nothing_to_revoke", revoked: [], failed: [], message: "Nothing to revoke — the channel lists no API keys for this sub-account" };
