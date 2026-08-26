@@ -731,53 +731,19 @@ export function StepAccountDialog({
               </CollapsibleContent>
             </Card>
           </Collapsible>
-          {/* 5 — the live run, so Proceed finishes Step A without leaving this surface */}
-          {(runningStepA || waitLabel) && (
-            <Card className="border-primary/40">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Completing Step A</CardTitle>
-                <CardDescription className="text-xs">
-                  {waitLabel
-                    ? `Waiting on the channel — ${waitLabel}. Nothing has failed; the step resumes on its own.`
-                    : "Creating or adopting the account, sending the profile, minting and verifying the API keys."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-1.5">
-                {runTasks.map((task) => (
-                  <div key={task.id} className="flex items-start gap-2 rounded-md border p-2 text-xs">
-                    {task.state === "running" ? (
-                      <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-                    ) : task.state === "passed" ? (
-                      <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
-                    ) : task.state === "failed" || task.state === "blocked" ? (
-                      <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
-                    ) : (
-                      <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="font-medium">{task.title}</p>
-                      {task.detail ? <p className="text-[11px] text-muted-foreground">{task.detail}</p> : null}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
+          {/* Accepting closes this modal — Step A then reports its progress on its own card. */}
           <Button disabled={!canRun || runningStepA} onClick={onRunStepA}>
-            {runningStepA ? (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-            )}
-            {runningStepA ? "Completing Step A…" : "Proceed"}
+            <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
+            Accept and run Step A
           </Button>
         </DialogFooter>
+
 
       </DialogContent>
     </Dialog>
