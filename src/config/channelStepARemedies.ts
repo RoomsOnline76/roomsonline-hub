@@ -12,6 +12,17 @@ export interface StepARemedy {
 }
 
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
+  RU_KEY_CREATION_NOT_ENABLED: {
+    code: "RU_KEY_CREATION_NOT_ENABLED",
+    title: "The channel is not letting us create API keys",
+    explain:
+      "Step A created the sub-account, then tried its own login, a retry after propagation, a master-scoped mint and replacement logins of its own. The channel refused every one, so this is an account entitlement on their side — not a wrong password.",
+    guidance:
+      "Do not change the password. Ask the channel to enable XML API key creation for our master account and its sub-accounts, then run Step A again — it will finish on its own.",
+    remedy: "retry",
+    taskHint: "api_keys",
+  },
+
   RU_CREATE_KEY_API_REJECTED: {
     code: "RU_CREATE_KEY_API_REJECTED",
     title: "API key creation is not enabled yet",

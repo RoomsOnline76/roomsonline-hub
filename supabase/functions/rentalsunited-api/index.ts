@@ -327,6 +327,9 @@ interface RequestBody {
   // API key management
   key_label?: string;
   target_access_key?: string;
+  /** Mint the pair with the master envelope + <OwnerID> after a child-login refusal. */
+  owner_scoped_mint?: boolean;
+
   // Reservation / request lifecycle
   reservation_id?: string | number;
   reject_reason?: string;
@@ -1908,10 +1911,19 @@ function buildChildAuthXml(auth: ChildAuth): string {
   </Authentication>`;
 }
 
-function childAuthMode(auth: ChildAuth | null): string {
+/**
+ * Key-mint only: the owner-scoped variant authenticates with the master pair and names
+ * the sub-account in <OwnerID>. It is deliberately NOT part of `ChildAuth`, so it can
+ * never reach a child-scoped write path.
+ */
+type ChildAuthForKeyMint = ChildAuth | { mode: 'owner_scoped'; access_key: string; secret_key: string; owner_id: string };
+
+function childAuthMode(auth: ChildAuthForKeyMint | null): string {
   if (!auth) return 'parent_access_key';
+  if (auth.mode === 'owner_scoped') return 'master_owner_scoped';
   return auth.mode === 'keys' ? 'child_api_keys' : 'child_user_password';
 }
+
 
 /**
  * 🔒 ADAPTER LOCK (RU child isolation): Rentals United treats every sub-user as its
@@ -2624,7 +2636,19 @@ Deno.serve(async (req) => {
     // ── create_child_api_key: Push_CreateApiKey_RQ (authenticated AS the sub-user) ──
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
-      const childAuth = await resolveChildAuth(body);
+      /**
+       * Owner-scoped mint: the channel returns "Incorrect login or password" for the
+       * sub-account's own login envelope even on an account it created seconds earlier,
+       * so Step A may ask for a master-authenticated mint that carries <OwnerID>. This
+       * is key creation only — child-scoped company/building writes still authenticate
+       * as the child (see the RU child isolation lock).
+       */
+      const ownerScopedId = body.owner_scoped_mint === true && body.owner_id != null
+        ? String(body.owner_id).trim()
+        : '';
+      const childAuth: ChildAuthForKeyMint | null = ownerScopedId
+        ? { mode: 'owner_scoped', access_key: creds.api_key, secret_key: creds.api_secret, owner_id: ownerScopedId }
+        : await resolveChildAuth(body);
       if (!childAuth) {
         return jsonResponse({
           success: false,
@@ -2638,6 +2662,7 @@ Deno.serve(async (req) => {
         ? body.key_label.trim().substring(0, 255)
         : 'ROLOS';
       const xml = buildCreateApiKeyXml(childAuth, label);
+
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
