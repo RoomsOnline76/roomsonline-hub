@@ -223,17 +223,20 @@ export function ChannelOnboardTab({
     void (async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, owner_email")
+        .select("id, name, owner_email, ru_archived")
         .eq("is_active", true)
-        // Exclude archived listings. `ru_archived` is nullable, so accept null
-        // or false — only `true` means "held off the distribution layer".
-        .or("ru_archived.is.null,ru_archived.eq.false")
         .order("name");
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
 
-      const rows = (data ?? []) as PropertyOption[];
+      const allRows = (data ?? []) as Array<PropertyOption & { ru_archived: boolean | null }>;
+      // Archived listings are held off the distribution layer, so they cannot be
+      // onboarded — but we keep their ids so a deep link can say exactly that
+      // instead of leaving the picker mysteriously blank.
+      const archivedIds = new Set(allRows.filter((r) => r.ru_archived === true).map((r) => r.id));
+      const rows: PropertyOption[] = allRows.filter((r) => !archivedIds.has(r.id));
       const ids = rows.map((r) => r.id);
+
       let eligible: PropertyOption[] = [];
       if (ids.length > 0) {
         // Contract status is authored per owner in `owner_contracts` (same source
@@ -346,7 +349,8 @@ export function ChannelOnboardTab({
         ? options.find((o) => o.memberIds?.includes(requestedProperty))
         : undefined;
       const resolved = byPortfolio ?? exact ?? viaMember;
-      const requestedName = rows.find((r) => r.id === requestedProperty)?.name ?? null;
+      const requestedName =
+        allRows.find((r) => r.id === requestedProperty)?.name ?? null;
 
       if (resolved) {
         setPropertyId(resolved.id);
@@ -358,11 +362,19 @@ export function ChannelOnboardTab({
         return;
       }
 
+      if (requestedProperty && archivedIds.has(requestedProperty)) {
+        setRequestNotice(
+          `${requestedName ?? "This property"} is archived at the Channel Manager — reactivate its listing (Accounts & Company → listing state) before onboarding it.`,
+        );
+        return;
+      }
+
       setRequestNotice(
         requestedName
           ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and a signed contract, and must not be archived.`
           : "The requested property is not available for onboarding (inactive, archived, or not entitled).",
       );
+
     })();
     return () => {
       cancelled = true;
