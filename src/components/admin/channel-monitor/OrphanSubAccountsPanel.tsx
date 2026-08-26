@@ -285,6 +285,9 @@ export function OrphanSubAccountsPanel() {
         )}
 
         <RetireBoundAccountPanel />
+
+        <MasterRosterPanel />
+
       </CardContent>
 
       <AlertDialog
