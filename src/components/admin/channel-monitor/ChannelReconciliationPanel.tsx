@@ -269,7 +269,7 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
             </Badge>
           )}
 
-          <Button variant="outline" size="sm" onClick={() => void reconcile()} disabled={running || cleaning}>
+          <Button variant="outline" size="sm" onClick={() => void handleReconcile()} disabled={running || cleaning}>
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${running ? "animate-spin" : ""}`} />
             Reconcile with channel
           </Button>
