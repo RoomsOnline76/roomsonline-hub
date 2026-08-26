@@ -53,6 +53,12 @@ const VERIFIED_FIELDS = [
   "payment_facilitator_enabled",
   "payment_model",
   "billing_enabled",
+  "pms_enabled",
+  "commission_enabled",
+  "subscription_fee_monthly",
+  "channel_manager_per_unit_fee",
+  "white_label_monthly_fee",
+  "commission_rate",
 ] as const;
 
 function sameBillingValue(stored: unknown, intended: unknown): boolean {
