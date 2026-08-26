@@ -7,7 +7,7 @@ import { useChannelRailStatus } from "@/hooks/useChannelRailStatus";
 
 import type { ChannelCostMonitorData } from "@/hooks/useChannelCostMonitor";
 
-type TabKey = "cost" | "accounts" | "cert";
+type TabKey = "cost" | "accounts" | "cert" | "onboard";
 
 
 
