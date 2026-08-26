@@ -193,7 +193,22 @@ export function ChannelReconciliationPanel({ billableListings, onChanged }: Prop
 
 
 
-  const gap = result ? result.channel_listing_count - billableListings : 0;
+  /**
+   * The only honest disparity is inside this read: every live listing must land in
+   * exactly one bucket. Comparing the live count against the separately loaded
+   * cost-monitor total produced phantom gaps whenever a listing was published
+   * during the session, because that snapshot was older than the read.
+   */
+  const classificationGap = result ? Math.max(0, result.channel_listing_count - liveBucketTotal) : 0;
+  const billingSnapshotGap = result ? result.channel_listing_count - billableListings : 0;
+
+  // A reconcile changes what we know about the footprint, so the parent's cost
+  // snapshot is refetched from the same moment as the read.
+  const handleReconcile = useCallback(async () => {
+    await reconcile();
+    await onChanged();
+  }, [reconcile, onChanged]);
+
   const cleaning = cleanup !== null;
 
   const handleRestore = useCallback(async (recordId: string, name: string) => {
