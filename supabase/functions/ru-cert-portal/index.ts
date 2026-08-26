@@ -5981,6 +5981,58 @@ Deno.serve(async (req) => {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
       }
 
+      // ── Step 2b: revoke the API keys AT THE CHANNEL ──
+      // Deleting only our stored row leaves the pair alive in the channel portal, so the
+      // channel is asked to delete it first; the local copy is kept when it refuses.
+      let retireKeyResult: {
+        status: string;
+        revoked: string[];
+        failed: { access_key: string; message: string }[];
+        message: string;
+      } | null = null;
+      if (retireChildKeys || (typeof body.password === "string" && body.password)) {
+        let childSecret: string | null = null;
+        if (retireChildKeys && retireCred?.secret_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: retireCred.secret_enc });
+          childSecret = typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]" ? plain : null;
+        }
+        retireKeyResult = await revokeChannelKeys({
+          ownerId,
+          loginEmail: label,
+          accessKey: childSecret ? (retireCred?.access_key ?? null) : null,
+          secretKey: childSecret,
+          password: typeof body.password === "string" && body.password ? body.password : null,
+          parentAction: "ru-cert-portal:retire_owner_account",
+        });
+      } else {
+        retireKeyResult = {
+          status: "no_credentials",
+          revoked: [],
+          failed: [],
+          message: retireCred?.key_scope === "master_pair"
+            ? "Cannot revoke at the channel: the only stored pair authenticates as the master account. Supply the sub-account portal password to revoke its keys."
+            : "Cannot revoke at the channel: no sub-account credentials on file.",
+        };
+      }
+      const retireKeysCleanAtChannel = retireKeyResult.status === "revoked" || retireKeyResult.status === "nothing_to_revoke";
+      if (retireKeysCleanAtChannel && retireCred?.access_key) {
+        await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] retire key row delete failed", e));
+      }
+      await admin.from("ru_retired_accounts").update({
+        channel_archive_result: {
+          ran_at: new Date().toISOString(),
+          ran_by: user.email ?? user.id,
+          source: "retire_owner_account",
+          archived_listings: archivedListings,
+          refused_listings: failedListings,
+          keys_revoked_at_channel: retireKeysCleanAtChannel,
+          key_revoke: retireKeyResult,
+        },
+      }).eq("ru_owner_id", ownerId)
+        .then(() => {}, (e) => console.warn("[ru-cert-portal] retire result stamp failed", e));
+
+
       // ── Step 3: disconnect the properties and drop the binding ──
       const disconnected: string[] = [];
       for (const p of props ?? []) {
