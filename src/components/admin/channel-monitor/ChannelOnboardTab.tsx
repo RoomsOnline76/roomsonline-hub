@@ -908,10 +908,15 @@ export function ChannelOnboardTab({
           onChosenLoginEmailChange={setChosenLoginEmail}
           remedyCode={stepARemedyCode}
 
+          runTasks={stepATaskLines}
+          waitLabel={
+            waiting.a && waiting.a.until > nowTick ? formatCountdown(Math.max(0, waiting.a.until - nowTick)) : null
+          }
           onRunStepA={() => {
-            setAccountDialogOpen(false);
+            // Proceed completes Step A inside the modal — it closes itself once the step passes.
             void runStep("a");
           }}
+
         />
       )}
 
