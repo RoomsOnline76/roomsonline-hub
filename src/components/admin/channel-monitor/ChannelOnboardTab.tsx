@@ -997,7 +997,16 @@ export function ChannelOnboardTab({
 
           </div>
 
-          {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
+          {gate.sessionExpired ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+              <span>Your session expired — sign in again to continue onboarding.</span>
+              <Button size="sm" variant="outline" onClick={() => void handleReauth()}>
+                Sign in
+              </Button>
+            </div>
+          ) : (
+            gate.error && <p className="text-xs text-destructive">{gate.error}</p>
+          )}
           {gate.connected && (
             <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
               <ShieldCheck className="h-4 w-4" />
