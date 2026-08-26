@@ -1,6 +1,6 @@
 import type { ChannelOnboardTaskId } from "@/config/channelOnboard";
 
-export type StepARemedyKind = "password" | "api_keys" | "login_choice" | "binding" | "fresh_login" | "retry";
+export type StepARemedyKind = "password" | "login_choice" | "binding" | "fresh_login" | "retry";
 
 export interface StepARemedy {
   code: string;
@@ -14,26 +14,26 @@ export interface StepARemedy {
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
   RU_CREATE_KEY_BAD_LOGIN: {
     code: "RU_CREATE_KEY_BAD_LOGIN",
-    title: "First API key pair needed",
-    explain: "The channel does not allow a portal password to create the first API key pair through its API.",
-    guidance: "Sign in as this sub-account, generate the first AccessKey/SecretKey pair, then paste both values below.",
-    remedy: "api_keys",
+    title: "Sub-account password was refused",
+    explain: "Step A could not create the API key pair with the stored sub-account password.",
+    guidance: "Enter the current password below. Step A will create, verify and store the pair automatically.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   RU_PASSWORD_PROBE_UNSUPPORTED: {
     code: "RU_PASSWORD_PROBE_UNSUPPORTED",
-    title: "Password cannot be tested on its own",
-    explain: "Portal authentication and API-key authentication are separate.",
-    guidance: "Generate the first AccessKey/SecretKey pair in the portal and paste it below.",
-    remedy: "api_keys",
+    title: "Sub-account password needed",
+    explain: "Step A needs the current sub-account password for automatic key creation.",
+    guidance: "Enter the password below, then Step A will create and store the pair.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   RU_CREATE_KEY_FAILED: {
     code: "RU_CREATE_KEY_FAILED",
     title: "Key creation was refused",
-    explain: "The portal password can be correct while the channel still refuses the API key-creation request.",
-    guidance: "Generate an AccessKey/SecretKey in the channel portal while signed in as this sub-account and paste it here.",
-    remedy: "api_keys",
+    explain: "The channel refused automatic key creation for this sub-account.",
+    guidance: "Confirm the sub-account password below and retry the atomic Step A process.",
+    remedy: "password",
     taskHint: "api_keys",
   },
 
@@ -41,16 +41,16 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "RU_CHILD_LOGIN_REJECTED",
     title: "Sub-account login was refused",
     explain: "The channel did not accept the saved sub-account password on its XML API surface.",
-    guidance: "Confirm the portal login, then generate and paste the first API key pair below.",
-    remedy: "api_keys",
+    guidance: "Enter the current sub-account password below so Step A can retry automatically.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   NO_CHILD_CREDENTIALS: {
     code: "NO_CHILD_CREDENTIALS",
     title: "First API key pair needed",
     explain: "This account has no API key pair stored.",
-    guidance: "Generate the first pair in the channel portal for this exact sub-account, then paste it below.",
-    remedy: "api_keys",
+    guidance: "Save the current sub-account password below. Step A will create and store the pair automatically.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   NO_STORED_PASSWORD: {
@@ -65,24 +65,24 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "RU_CHILD_KEYS_REJECTED",
     title: "API key pair was refused",
     explain: "The channel did not accept the stored AccessKey/SecretKey pair.",
-    guidance: "Generate a fresh pair while signed in as this sub-account, then paste both values here.",
-    remedy: "api_keys",
+    guidance: "Save the current sub-account password below so Step A can replace the rejected pair automatically.",
+    remedy: "password",
     taskHint: "verify_keys",
   },
   RU_CHILD_KEYS_WRONG_ACCOUNT: {
     code: "RU_CHILD_KEYS_WRONG_ACCOUNT",
     title: "API key pair belongs to another account",
     explain: "The supplied key pair authenticates a different sub-account.",
-    guidance: "Sign in as the login shown in this dialog and generate a key pair for this OwnerID only.",
-    remedy: "api_keys",
+    guidance: "Confirm this account binding and save its current password; Step A will create the correct pair automatically.",
+    remedy: "password",
     taskHint: "verify_keys",
   },
   RU_CHILD_KEYS_DUPLICATE: {
     code: "RU_CHILD_KEYS_DUPLICATE",
     title: "API key pair is already in use",
     explain: "One AccessKey cannot serve two sub-accounts.",
-    guidance: "Generate a separate pair while signed in as this exact sub-account, then paste it here.",
-    remedy: "api_keys",
+    guidance: "Save this sub-account's current password; Step A will create a unique replacement pair automatically.",
+    remedy: "password",
     taskHint: "verify_keys",
   },
   RU_EMAIL_IN_USE: {
@@ -183,16 +183,16 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "NO_API_KEYS",
     title: "API key pair needed",
     explain: "No AccessKey/SecretKey pair is stored for this sub-account.",
-    guidance: "Generate the first pair in the portal for this sub-account, then paste both values below.",
-    remedy: "api_keys",
+    guidance: "Save the sub-account password below. Step A will create and store the pair automatically.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   RU_FIRST_API_KEY_REQUIRED: {
     code: "RU_FIRST_API_KEY_REQUIRED",
     title: "First API key pair needed",
-    explain: "The channel requires an existing key pair before its API can create additional keys.",
-    guidance: "Sign in as this sub-account, generate its first AccessKey/SecretKey pair, then paste both values below. This is required once per new account.",
-    remedy: "api_keys",
+    explain: "Step A has not yet created the account's API key pair.",
+    guidance: "Save the current sub-account password below and Step A will create, verify and store the pair automatically.",
+    remedy: "password",
     taskHint: "api_keys",
   },
   NO_RU_LOCATION: {

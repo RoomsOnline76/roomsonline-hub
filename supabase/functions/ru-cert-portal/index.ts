@@ -4636,6 +4636,7 @@ Deno.serve(async (req) => {
 
       let existingKey: string | null = null;
       let existingSecret: string | null = null;
+      let retainedPassword: string | null = null;
       let loginEmail: string | null = account?.ru_login_email ?? account?.owner_email ?? null;
       if (ownerId) {
         const { data: credRow } = await admin
@@ -4659,6 +4660,9 @@ Deno.serve(async (req) => {
           existingSecret = plain;
         }
       }
+      if (!existingKey && account?.ru_login_password_enc) {
+        retainedPassword = await decrypt(account.ru_login_password_enc);
+      }
 
       const minted = await mintChildKeyPair({
         ownerId,
@@ -4667,6 +4671,8 @@ Deno.serve(async (req) => {
         keyLabel,
         authAccessKey: existingKey,
         authSecretKey: existingSecret,
+        authUsername: loginEmail,
+        authPassword: retainedPassword,
       });
       if (!minted.ok) {
         return json({
@@ -4682,7 +4688,7 @@ Deno.serve(async (req) => {
         }, minted.rateDeferred ? 429 : 422);
       }
 
-      return json({ success: true, access_key: minted.accessKey, label: keyLabel, login_email: loginEmail, ru_owner_id: ownerId });
+      return json({ success: true, key_minted: true, access_key: minted.accessKey, label: keyLabel, login_email: loginEmail, ru_owner_id: ownerId });
     }
 
     /**
@@ -5103,13 +5109,30 @@ Deno.serve(async (req) => {
         change_summary: `Stored Rentals United portal password for ${canonicalEmail} (OwnerID ${ownerId}); API access is verified separately`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
+      const minted = await mintChildKeyPair({
+        ownerId,
+        loginEmail: canonicalEmail,
+        accountId,
+        authUsername: canonicalEmail,
+        authPassword: newPassword,
+      });
+      if (!minted.ok) {
+        return json({
+          success: false,
+          password_stored: true,
+          error: {
+            code: minted.code ?? "RU_CREATE_KEY_FAILED",
+            message: minted.message ?? "The password was stored, but Step A could not create the API key pair.",
+          },
+          ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
+        }, minted.rateDeferred ? 429 : 422);
+      }
       return json({
         success: true,
         password_stored: true,
-        api_access_verified: false,
-        key_minted: false,
-        error_code: "RU_FIRST_API_KEY_REQUIRED",
-        api_warning: "Portal password stored. Generate the first API key pair in the channel portal, then verify and store it here.",
+        api_access_verified: true,
+        key_minted: true,
+        access_key: minted.accessKey,
         login_email: canonicalEmail,
       });
 
@@ -7063,10 +7086,7 @@ Deno.serve(async (req) => {
 
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
-      /**
-       * RU requires an existing child key pair to create another one. A new account therefore
-       * remains blocked until its first pair is generated in the portal and captured here.
-       */
+      /** Step A creates and stores the first pair before continuing to company details. */
       let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
@@ -7083,8 +7103,32 @@ Deno.serve(async (req) => {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
         } else {
-          keyWarning =
-            "Generate the first API key pair in the channel portal for this sub-account, then verify and store it here. Additional keys can be created automatically afterward.";
+          let mintPassword: string | null = adopted ? null : password;
+          if (!mintPassword && (saved as any)?.ru_login_password_enc) {
+            const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
+              encrypted_data: (saved as any).ru_login_password_enc,
+            });
+            if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
+              mintPassword = decrypted;
+            }
+          }
+          const minted = await mintChildKeyPair({
+            ownerId: savedOwnerId,
+            loginEmail: savedLoginEmail,
+            accountId: String((saved as any)?.id ?? "") || null,
+            authUsername: savedLoginEmail,
+            authPassword: mintPassword,
+          });
+          if (minted.ok) {
+            keySource = "minted";
+            mintedAccessKey = minted.accessKey ?? null;
+          } else if (minted.rateDeferred) {
+            keySource = "deferred";
+            keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
+            keyRetryAfterMs = minted.retryAfterMs ?? null;
+          } else {
+            keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
+          }
         }
       }
 
@@ -7142,7 +7186,7 @@ Deno.serve(async (req) => {
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
         key_source: keySource,
-        keys_minted: false,
+        keys_minted: keySource === "minted",
         access_key: mintedAccessKey,
         key_warning: keyWarning,
         key_retry_after_ms: keyRetryAfterMs,
