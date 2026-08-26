@@ -6813,6 +6813,56 @@ Deno.serve(async (req) => {
 
       if (existing.account?.ru_owner_id && !staleIdentity) {
 
+        /** Existing binding: if Step A created this account earlier but the key mint was
+         * interrupted by roster lag, complete the automatic mint before company details.
+         */
+        let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+        let mintedAccessKey: string | null = null;
+        let keyWarning: string | null = null;
+        let keyRetryAfterMs: number | null = null;
+        const existingOwnerId = usableRuId(existing.account.ru_owner_id);
+        const existingLoginEmail = String(
+          (existing.account as any).ru_login_email ?? existing.account.owner_email ?? ownerEmail ?? "",
+        ).trim() || null;
+        if (existingOwnerId) {
+          const { data: existingCred } = await admin
+            .from("ru_api_credentials")
+            .select("access_key")
+            .eq("ru_owner_id", existingOwnerId)
+            .maybeSingle();
+          if (existingCred?.access_key || (existing.account as any).ru_api_access_key) {
+            keySource = "existing";
+            mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
+          } else {
+            let mintPassword: string | null = null;
+            if ((existing.account as any).ru_login_password_enc) {
+              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
+                encrypted_data: (existing.account as any).ru_login_password_enc,
+              });
+              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
+                mintPassword = decrypted;
+              }
+            }
+            const minted = await mintChildKeyPair({
+              ownerId: existingOwnerId,
+              loginEmail: existingLoginEmail,
+              accountId: String((existing.account as any).id ?? "") || null,
+              authUsername: existingLoginEmail,
+              authPassword: mintPassword,
+            });
+            if (minted.ok) {
+              keySource = "minted";
+              mintedAccessKey = minted.accessKey ?? null;
+            } else if (minted.rateDeferred) {
+              keySource = "deferred";
+              keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
+              keyRetryAfterMs = minted.retryAfterMs ?? null;
+            } else {
+              keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
+            }
+          }
+        }
+
         const companyResult = await submitCompanyDetails(existing.account as any);
         const needsPassword = Boolean(
           (companyResult as any).deferred
@@ -6845,6 +6895,11 @@ Deno.serve(async (req) => {
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
           scope: existing.scope,
+          key_source: keySource,
+          keys_minted: keySource === "minted",
+          access_key: mintedAccessKey,
+          key_warning: keyWarning,
+          key_retry_after_ms: keyRetryAfterMs,
         });
       }
 
