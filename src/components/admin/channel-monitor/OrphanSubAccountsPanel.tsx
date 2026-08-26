@@ -90,7 +90,10 @@ export function OrphanSubAccountsPanel() {
       const retiredIds = new Set(retired.map((r) => r.ru_owner_id));
 
       const users = (Array.isArray(roster?.users) ? (roster?.users as RosterUser[]) : []).filter(
-        (u) => !u?.archived && String(u?.owner_id ?? "").trim() && !retiredIds.has(String(u.owner_id).trim()),
+        // An account archived at the channel is still read here until it is in the
+        // retired registry, so it must stay visible and archivable — only registry
+        // entries are hidden (they show under "Archived accounts").
+        (u) => String(u?.owner_id ?? "").trim() && !retiredIds.has(String(u.owner_id).trim()),
       );
 
       return {
@@ -203,7 +206,14 @@ export function OrphanSubAccountsPanel() {
                 key={ownerId}
                 className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2"
               >
-                <span className="text-xs">{accountLabel(u)}</span>
+                <span className="flex items-center gap-2 text-xs">
+                  {accountLabel(u)}
+                  {u.archived ? (
+                    <Badge variant="outline" className="text-[10px]">
+                      Archived at channel
+                    </Badge>
+                  ) : null}
+                </span>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[10px] text-muted-foreground">
                     Sub-account: {ownerId}
