@@ -349,7 +349,8 @@ export function ChannelOnboardTab({
         ? options.find((o) => o.memberIds?.includes(requestedProperty))
         : undefined;
       const resolved = byPortfolio ?? exact ?? viaMember;
-      const requestedName = rows.find((r) => r.id === requestedProperty)?.name ?? null;
+      const requestedName =
+        allRows.find((r) => r.id === requestedProperty)?.name ?? null;
 
       if (resolved) {
         setPropertyId(resolved.id);
@@ -361,11 +362,19 @@ export function ChannelOnboardTab({
         return;
       }
 
+      if (requestedProperty && archivedIds.has(requestedProperty)) {
+        setRequestNotice(
+          `${requestedName ?? "This property"} is archived at the Channel Manager — reactivate its listing (Accounts & Company → listing state) before onboarding it.`,
+        );
+        return;
+      }
+
       setRequestNotice(
         requestedName
           ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated and a signed contract, and must not be archived.`
           : "The requested property is not available for onboarding (inactive, archived, or not entitled).",
       );
+
     })();
     return () => {
       cancelled = true;
