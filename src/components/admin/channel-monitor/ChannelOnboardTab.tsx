@@ -800,10 +800,24 @@ export function ChannelOnboardTab({
               )}
 
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void openPlan()}
+              disabled={planLoading || !propertyId}
+            >
+              {planLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Preview account
+            </Button>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
               Refresh
             </Button>
+
           </div>
           {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
           {gate.connected && (
