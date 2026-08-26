@@ -12,6 +12,14 @@ export interface StepARemedy {
 }
 
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
+  RU_CREATE_KEY_API_REJECTED: {
+    code: "RU_CREATE_KEY_API_REJECTED",
+    title: "API key creation is not enabled yet",
+    explain: "Step A retained the sub-account password, but the channel XML API refused automatic key creation for this OwnerID.",
+    guidance: "Keep the password as-is and retry Step A after XML API access is enabled for this sub-account. Only replace the password below if it was changed at the channel.",
+    remedy: "retry",
+    taskHint: "api_keys",
+  },
   RU_CREATE_KEY_BAD_LOGIN: {
     code: "RU_CREATE_KEY_BAD_LOGIN",
     title: "Sub-account password was refused",
@@ -32,8 +40,8 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "RU_CREATE_KEY_FAILED",
     title: "Key creation was refused",
     explain: "The channel refused automatic key creation for this sub-account.",
-    guidance: "Confirm the sub-account password below and retry the atomic Step A process.",
-    remedy: "password",
+    guidance: "Retry Step A. If the password is already stored, do not re-enter it unless it was changed at the channel.",
+    remedy: "retry",
     taskHint: "api_keys",
   },
 
@@ -57,7 +65,7 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "NO_STORED_PASSWORD",
     title: "Portal password needed",
     explain: "No password is stored for this sub-account.",
-    guidance: "Save the current portal password here. If you do not know it, reset it in the channel portal first.",
+    guidance: "Save the current portal password here so Step A can attempt automatic key creation.",
     remedy: "password",
     taskHint: "api_keys",
   },

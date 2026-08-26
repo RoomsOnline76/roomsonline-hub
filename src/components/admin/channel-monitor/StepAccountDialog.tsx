@@ -246,6 +246,7 @@ export function StepAccountDialog({
     () => resolveStepARemedy(credCode ?? remedyCode, credNote),
     [credCode, credNote, remedyCode],
   );
+  const xmlApiRejectedWithStoredPassword = planHasPassword && activeRemedy?.code === "RU_CREATE_KEY_API_REJECTED";
 
   useEffect(() => {
     setCredEmail(planLogin);
@@ -482,9 +483,11 @@ export function StepAccountDialog({
                   Sub-account credentials
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {planHasPassword
-                    ? "A sub-account password is stored. Step A creates and stores the API key pair automatically."
-                    : "Enter the sub-account password and Step A will create, verify and store its API key pair automatically."}
+                  {xmlApiRejectedWithStoredPassword
+                    ? "The sub-account password is stored. Key creation is waiting for the channel XML API to accept this OwnerID."
+                    : planHasPassword
+                      ? "A sub-account password is stored. Step A creates and stores the API key pair automatically when the channel XML API accepts this sub-account."
+                      : "Enter the sub-account password and Step A will create, verify and store its API key pair automatically."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -522,6 +525,11 @@ export function StepAccountDialog({
                     />
                   </div>
                 </div>
+                {xmlApiRejectedWithStoredPassword ? (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
+                    No password action is needed unless the channel password was changed. Use Run Step A to retry automatic key creation after XML API access is enabled for this OwnerID.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
@@ -529,7 +537,7 @@ export function StepAccountDialog({
                     onClick={saveCredentials}
                   >
                     {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    Save password &amp; complete credentials
+                    {planHasPassword ? "Replace password & retry credentials" : "Save password & complete credentials"}
                   </Button>
                 </div>
                 {credNote ? <p className="text-xs text-muted-foreground">{credNote}</p> : null}

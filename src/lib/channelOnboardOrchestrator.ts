@@ -106,6 +106,9 @@ interface RunContext {
     source: KeySource;
     accessKey: string | null;
     warning: string | null;
+    code: string | null;
+    ruStatusId: string | null;
+    ruStatusMessage: string | null;
     retryAfterMs: number | null;
   };
   /**
@@ -138,6 +141,7 @@ export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 
 const STEP_A_RECOVERABLE_CODES = new Set([
+  "RU_CREATE_KEY_API_REJECTED",
   "RU_CREATE_KEY_FAILED",
   "RU_CREATE_KEY_BAD_LOGIN",
   "RU_PASSWORD_PROBE_UNSUPPORTED",
@@ -438,6 +442,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       source: String(data.key_source ?? "") as KeySource,
       accessKey: (data.access_key as string | null) ?? null,
       warning: (data.key_warning as string | null) ?? null,
+      code: (data.key_code as string | null) ?? null,
+      ruStatusId: (data.key_ru_status_id as string | null) ?? null,
+      ruStatusMessage: (data.key_ru_status_message as string | null) ?? null,
       retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
     };
     // Minting sends the company profile as part of provisioning; remember that so the
@@ -503,10 +510,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: "NO_STORED_PASSWORD",
+      code: provisioning?.code ?? (snapshot.binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
       detail: provisioning?.warning
         ?? (snapshot.binding.password_stored
-          ? "Step A has the generated sub-account password, but the account identity is not complete yet. Re-run Step A to finish the OwnerID handoff and automatic key creation."
+          ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
           : "Step A needs the sub-account password to create and store its API key pair automatically."),
     };
   },
