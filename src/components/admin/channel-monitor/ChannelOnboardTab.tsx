@@ -673,6 +673,30 @@ export function ChannelOnboardTab({
     setStepARemedyCode(null);
   }, [propertyId]);
 
+  /**
+   * A reset performed elsewhere (retiring the bound account, another tab) sends the
+   * step back to `pending`. Drop this session's task trail for that step so the panel
+   * cannot keep showing ticks for work the gate no longer stands behind.
+   */
+  useEffect(() => {
+    if (runningStep !== null) return;
+    const stale = new Set(
+      CHANNEL_ONBOARD_TASKS.filter((task) =>
+        (task.step === "a" ? gate.stepAStatus : gate.stepBStatus) === "pending",
+      ).map((task) => task.id),
+    );
+    if (stale.size === 0) return;
+    setTaskStates((prev) => {
+      const keys = Object.keys(prev).filter((id) => stale.has(id));
+      if (keys.length === 0) return prev;
+      const next = { ...prev };
+      keys.forEach((id) => delete next[id]);
+      return next;
+    });
+  }, [gate.stepAStatus, gate.stepBStatus, runningStep]);
+
+
+
   const binding = gate.snapshot?.binding;
   const property = gate.snapshot?.property;
   const bindingUnreadable = Boolean(binding?.read_error);
