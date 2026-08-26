@@ -91,6 +91,10 @@ interface PropertyOption {
   owner_email: string | null;
   /** Units verified live at the channel manager (null/0 = nothing live yet). */
   ru_listings_verified_units?: number | null;
+  /** When the listing verification last ran — proof the property was pushed. */
+  ru_listings_verified_at?: string | null;
+  /** The account the listings were verified under — also proof of a push. */
+  ru_listings_verified_owner?: string | null;
 }
 
 
@@ -115,40 +119,47 @@ function normalizeEmail(value: string | null | undefined): string | null {
 
 /**
  * How far a pick has travelled towards selling on a channel:
- * - `to_onboard`  — no distribution account bound, or no listings live yet.
- * - `no_sales_channel` — listings live at the channel manager, but no sales channel linked.
- * - `live` — account bound, listings live and a sales channel linked.
+ * - `not_pushed` (red) — no distribution account bound, or never pushed.
+ * - `awaiting_channels` (orange) — pushed to the channel manager, no sales channel linked.
+ * - `connected` (green) — pushed and a sales channel is linked for it.
  */
-type OnboardStatus = "to_onboard" | "live" | "no_sales_channel";
+type OnboardStatus = "not_pushed" | "awaiting_channels" | "connected";
+
+/** Red first, then orange, then green — the order of work outstanding. */
+const ONBOARD_STATUS_RANK: Record<OnboardStatus, number> = {
+  not_pushed: 0,
+  awaiting_channels: 1,
+  connected: 2,
+};
 
 /** Per-property channel signals, read from the database only (no channel traffic). */
 interface PropertyChannelSignals {
   /** A distribution sub-account with a real OwnerID covers this property. */
   bound: boolean;
-  /** Listings verified live at the channel manager. */
-  listingsLive: boolean;
-  /** A sales channel (ChannelID) is resolved for it. */
+  /** The property has been pushed: listing verification ran, or units are live. */
+  pushed: boolean;
+  /** A property-scoped sales channel (ChannelID) is mapped for it. */
   salesChannel: boolean;
 }
 
 /** Pure derivation so the badge rule can be read without the query code around it. */
 function deriveOnboardStatus(signals: PropertyChannelSignals): OnboardStatus {
-  if (!signals.bound || !signals.listingsLive) return "to_onboard";
-  return signals.salesChannel ? "live" : "no_sales_channel";
+  if (!signals.bound || !signals.pushed) return "not_pushed";
+  return signals.salesChannel ? "connected" : "awaiting_channels";
 }
 
 const ONBOARD_STATUS_BADGE: Record<OnboardStatus, { label: string; className: string }> = {
-  to_onboard: {
-    label: "To onboard",
+  not_pushed: {
+    label: "Not pushed",
+    className: "border-destructive/40 bg-destructive/10 text-destructive",
+  },
+  awaiting_channels: {
+    label: "Awaiting channels",
     className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
-  live: {
-    label: "Live",
+  connected: {
+    label: "Channels connected",
     className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  },
-  no_sales_channel: {
-    label: "No sales channel",
-    className: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
   },
 };
 
@@ -168,8 +179,10 @@ interface OnboardOption {
   memberIds?: string[];
   /** Undefined until the status read lands — the row then renders without a badge. */
   status?: OnboardStatus;
-  /** Portfolio entries: how many members are fully live. */
-  liveCount?: number;
+  /** Portfolio entries: how many members are pushed to the channel manager. */
+  pushedCount?: number;
+  /** Portfolio entries: how many members have a sales channel connected. */
+  connectedCount?: number;
 }
 
 
@@ -302,7 +315,9 @@ export function ChannelOnboardTab({
     void (async () => {
       const { data, error } = await supabase
         .from("properties")
-        .select("id, name, owner_email, ru_archived, ru_listings_verified_units")
+        .select(
+          "id, name, owner_email, ru_archived, ru_listings_verified_units, ru_listings_verified_at, ru_listings_verified_owner",
+        )
         .eq("is_active", true)
         .order("name");
 
@@ -456,9 +471,10 @@ export function ChannelOnboardTab({
 
       /**
        * Onboarding status per entry, from the database only: the account binding
-       * (property-scoped or inherited from the portfolio), whether listings are
-       * verified live, and whether a sales channel (ChannelID) is resolved. The
-       * badge lands a moment after the list so the picker never blocks on it.
+       * (property-scoped or inherited from the portfolio), whether the property
+       * has actually been pushed, and whether a property-scoped sales channel
+       * (ChannelID) is mapped. The badge lands a moment after the list so the
+       * picker never blocks on it.
        */
       void (async () => {
         const [{ data: accountRows }, { data: settingRows }] = await Promise.all([
@@ -484,18 +500,28 @@ export function ChannelOnboardTab({
             .map((row) => row.key ?? "")
             .filter(Boolean),
         );
-        // Account-wide ChannelID covers every property that has no scoped key.
-        const accountWideChannel = settingKeys.has("ru_channel_id");
 
-        const unitsById = new Map(
-          eligible.map((p) => [p.id, Number(p.ru_listings_verified_units ?? 0)]),
+        // A push is proven by the listing verification record (owner or timestamp)
+        // or by verified units — a freshly pushed property can legitimately report
+        // zero units while its listings settle.
+        const pushedIds = new Set(
+          eligible
+            .filter(
+              (p) =>
+                Number(p.ru_listings_verified_units ?? 0) > 0 ||
+                Boolean(p.ru_listings_verified_at) ||
+                Boolean(p.ru_listings_verified_owner),
+            )
+            .map((p) => p.id),
         );
         const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
           bound:
             boundProperties.has(propertyId) ||
             (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
-          listingsLive: (unitsById.get(propertyId) ?? 0) > 0,
-          salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`) || accountWideChannel,
+          pushed: pushedIds.has(propertyId),
+          // Only a property-scoped mapping counts as selling: the account-wide
+          // ChannelID says the master account can sell, not that this property does.
+          salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`),
         });
 
         const withStatus = options.map((option) => {
@@ -503,17 +529,20 @@ export function ChannelOnboardTab({
           const statuses = memberIds.map((memberId) =>
             deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
           );
-          const liveCount = statuses.filter((s) => s === "live").length;
-          const status: OnboardStatus = statuses.every((s) => s === "live")
-            ? "live"
-            : statuses.some((s) => s === "no_sales_channel")
-              ? "no_sales_channel"
-              : "to_onboard";
-          return { ...option, status, liveCount };
+          const connectedCount = statuses.filter((s) => s === "connected").length;
+          const pushedCount = statuses.filter((s) => s !== "not_pushed").length;
+          const status: OnboardStatus =
+            connectedCount === statuses.length
+              ? "connected"
+              : pushedCount > 0
+                ? "awaiting_channels"
+                : "not_pushed";
+          return { ...option, status, pushedCount, connectedCount };
         });
         if (cancelled) return;
         setProperties(withStatus);
       })();
+
 
 
       /**
@@ -592,6 +621,22 @@ export function ChannelOnboardTab({
   const sameEmailReset =
     rebindEmail.trim().length > 0 &&
     rebindEmail.trim().toLowerCase() === (property?.owner_email ?? "").trim().toLowerCase();
+
+  /**
+   * Render order: red (not pushed), then orange (awaiting channels), then green
+   * (connected), alphabetically inside each colour. Entries whose status has not
+   * landed yet sort last until the badge read resolves.
+   */
+  const sortedProperties = useMemo(
+    () =>
+      [...properties].sort((a, b) => {
+        const rankA = a.status ? ONBOARD_STATUS_RANK[a.status] : 3;
+        const rankB = b.status ? ONBOARD_STATUS_RANK[b.status] : 3;
+        if (rankA !== rankB) return rankA - rankB;
+        return a.label.localeCompare(b.label);
+      }),
+    [properties],
+  );
 
   /** The selected entry — a portfolio pick carries its portfolio id and member list. */
   const selectedOption = useMemo(
@@ -1065,7 +1110,7 @@ export function ChannelOnboardTab({
                       <CommandList>
                         <CommandEmpty>No match.</CommandEmpty>
                         <CommandGroup>
-                          {properties.map((p) => (
+                          {sortedProperties.map((p) => (
                             <CommandItem
                               key={p.id}
                               value={p.label}
@@ -1083,9 +1128,11 @@ export function ChannelOnboardTab({
                               <span className="truncate">{p.label}</span>
                               {p.status && (
                                 <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
-                                  {p.kind === "portfolio" && p.status !== "live" && (
+                                  {p.kind === "portfolio" && (
                                     <span className="text-[10px] text-muted-foreground">
-                                      {p.liveCount ?? 0} of {p.memberCount} live
+                                      {p.status === "awaiting_channels"
+                                        ? `${p.pushedCount ?? 0} of ${p.memberCount} pushed`
+                                        : `${p.connectedCount ?? 0} of ${p.memberCount} connected`}
                                     </span>
                                   )}
                                   <Badge
@@ -1109,9 +1156,10 @@ export function ChannelOnboardTab({
               )}
 
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Live = account, listings and a sales channel in place · No sales channel = listings
-                live but nothing selling · To onboard = not pushed yet.
+                Not pushed = nothing at the channel manager yet · Awaiting channels = pushed, no
+                sales channel connected · Channels connected = pushed and selling.
               </p>
+
 
               {requestNotice && (
                 <p className="mt-1.5 text-xs text-muted-foreground">{requestNotice}</p>
