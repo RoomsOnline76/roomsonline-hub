@@ -7552,7 +7552,9 @@ Deno.serve(async (req) => {
                 accountId: String((saved as any)?.id ?? "") || null,
                 authUsername: nextLogin,
                 authPassword: nextPassword,
+                keyLabel: `ROLOS-c${attempt}`,
               });
+
               if (retryMint.ok) {
                 recycled = {
                   accessKey: retryMint.accessKey ?? null,
