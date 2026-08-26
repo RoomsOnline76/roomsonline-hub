@@ -334,10 +334,18 @@ export function StepAccountDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* 1 — what will happen */}
-          <Card>
+          {/* 1 — the account this property is (or will be) linked to */}
+          <Card className={cn(emailConflict && "border-destructive/50")}>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm">What will happen</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <UserCog className="h-4 w-4" />
+                Distribution account
+              </CardTitle>
+              <CardDescription className="text-xs">
+                {emailConflict
+                  ? "The channel refused the resolved login — choose a usable account email below, then proceed."
+                  : "Confirm the account this property is registered under, then proceed to complete Step A."}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {planLoading && !plan ? (
@@ -346,31 +354,35 @@ export function StepAccountDialog({
                 <p className="text-xs text-muted-foreground">The account plan could not be loaded.</p>
               ) : (
                 <>
-                  <p className="text-xs">
-                    {emailConflict
-                      ? `The channel will not accept ${emailConflict.email} as a login, so the stale local binding was cleared. Step A will create a new distribution account under the login chosen below.`
-                      : adopting
-                        ? "The existing distribution account will be adopted — no new account is created."
-                        : "A new distribution account will be created under the master account."}
+                  {bindingUnreadable ? (
+                    <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
+                      The distribution binding could not be read — this property may well be bound. Changing the account
+                      email is blocked until the lookup succeeds. Detail: {binding?.read_error}
+                    </p>
+                  ) : null}
+
+                  <p className="text-sm">
+                    {emailConflict ? (
+                      <>
+                        <span className="font-medium break-all">{emailConflict.email}</span> is registered at the channel
+                        outside our master account, so it cannot be used. The stale local binding was cleared — choose
+                        another account email below.
+                      </>
+                    ) : linkedEmail ? (
+                      <>
+                        This property is linked to sub-account{" "}
+                        <span className="font-medium break-all">{linkedEmail}</span>.
+                      </>
+                    ) : (
+                      <>
+                        This property is <span className="font-medium">not linked</span> to a distribution account. Step A
+                        will create one under{" "}
+                        <span className="font-medium break-all">{effectiveLogin || "an unresolved email"}</span>.
+                      </>
+                    )}
                   </p>
 
                   <dl className="grid gap-2 text-xs sm:grid-cols-2">
-                    <Row
-                      label="Login email"
-                      value={effectiveLogin || (emailConflict ? "choose one below" : plan.login_email ?? "unresolved")}
-                    />
-                    <Row
-                      label="Login source"
-                      value={chosenLoginEmail ? "chosen by the operator" : String(plan.login_source ?? "—")}
-                    />
-
-                    <Row
-                      label="Contact name"
-                      value={
-                        [plan.contact_first_name, plan.contact_last_name].filter(Boolean).join(" ") ||
-                        (plan.owner_name ?? "—")
-                      }
-                    />
                     <Row
                       label="Account scope"
                       value={
@@ -381,12 +393,145 @@ export function StepAccountDialog({
                           : "This property only"
                       }
                     />
+                    <Row label="Listing" value={describeListingState(property as never)} />
+                    <Row label="Owner email" value={property?.owner_email ?? "—"} />
+                    <Row
+                      label="Login source"
+                      value={chosenLoginEmail ? "chosen by the operator" : String(plan.login_source ?? "—")}
+                    />
+                    <Row
+                      label="Contact name"
+                      value={
+                        [plan.contact_first_name, plan.contact_last_name].filter(Boolean).join(" ") ||
+                        (plan.owner_name ?? "—")
+                      }
+                    />
                     <Row label="Country / location" value={String(plan.company_country ?? plan.country ?? "—")} />
                     <Row
                       label="Existing OwnerID"
                       value={(plan.existing_owner_id as string | null) ?? (plan.ru_owner_id ?? "none yet")}
                     />
+                    <Row
+                      label="Bound account"
+                      value={
+                        bindingUnreadable
+                          ? "could not be read"
+                          : `${binding?.login_email ?? "not bound"}${
+                              binding ? ` · ${describeAccountScope(binding as never)}` : ""
+                            }`
+                      }
+                    />
                   </dl>
+
+                  {/* The account email is read-only until the operator asks to change it. */}
+                  {!changingEmail ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bindingUnreadable}
+                      onClick={() => setChangingEmail(true)}
+                    >
+                      <KeyRound className="mr-1.5 h-3.5 w-3.5" />
+                      Change account email
+                    </Button>
+                  ) : (
+                    <div className="space-y-3 rounded-md border bg-muted/40 p-3">
+                      {candidates.length > 0 ? (
+                        <div>
+                          <Label className="text-xs">Use one of these logins</Label>
+                          <RadioGroup
+                            value={chosenLoginEmail ?? ""}
+                            onValueChange={(value) => onChosenLoginEmailChange?.(value)}
+                            className="mt-1.5 space-y-1.5"
+                          >
+                            {candidates.map((candidate) => (
+                              <label
+                                key={candidate.email}
+                                className={cn(
+                                  "flex items-start gap-2 rounded-md border bg-background px-2.5 py-2 text-xs",
+                                  candidate.usable ? "cursor-pointer hover:bg-muted/50" : "opacity-70",
+                                )}
+                              >
+                                <RadioGroupItem value={candidate.email} disabled={!candidate.usable} className="mt-0.5" />
+                                <span className="min-w-0">
+                                  <span className="block font-medium break-all">{candidate.email}</span>
+                                  <span className="block text-muted-foreground">
+                                    From {candidate.source}
+                                    {candidate.on_roster ? " · already on our master account" : ""}
+                                  </span>
+                                  {candidate.blocked_reason ? (
+                                    <span className="mt-0.5 block text-destructive">{candidate.blocked_reason}</span>
+                                  ) : null}
+                                </span>
+                              </label>
+                            ))}
+                          </RadioGroup>
+                        </div>
+                      ) : null}
+
+                      {linkedEmail && !emailConflict ? (
+                        <div className="flex flex-wrap items-end gap-2">
+                          <div className="min-w-[240px] flex-1">
+                            <Label className="text-xs">Re-assign to account email</Label>
+                            <Input
+                              className="mt-1"
+                              type="email"
+                              placeholder="new.owner@example.com"
+                              value={rebindEmail}
+                              onChange={(event) => onRebindEmailChange(event.target.value)}
+                            />
+                          </div>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={!rebindEmail.includes("@") || rebinding || bindingUnreadable}
+                            onClick={onRequestRebind}
+                          >
+                            {rebinding ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                            Unbind &amp; re-assign
+                          </Button>
+                        </div>
+                      ) : (
+                        <div>
+                          <Label className="text-xs">Account email to register under</Label>
+                          <Input
+                            className="mt-1"
+                            type="email"
+                            placeholder="distribution@example.com"
+                            value={newLoginEmail}
+                            onChange={(event) => {
+                              setNewLoginEmail(event.target.value);
+                              if (event.target.value.includes("@")) onChosenLoginEmailChange?.(event.target.value.trim());
+                            }}
+                          />
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            Used as the sub-account login and identity. It does not have to be a ROL'OS user or the
+                            owner — the owner email stays the primary contact on the property.
+                          </p>
+                        </div>
+                      )}
+
+                      {sameEmailReset ? (
+                        <p className="text-xs text-muted-foreground">
+                          That is the owner email already on file — this will reset the binding (archive listings, clear
+                          the account link) and Step A must be run again.
+                        </p>
+                      ) : null}
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setChangingEmail(false);
+                          setNewLoginEmail("");
+                          onRebindEmailChange("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+
                   {((plan.location_ids as unknown[]) ?? []).length === 0 && (
                     <p className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -413,66 +558,6 @@ export function StepAccountDialog({
             </CardContent>
           </Card>
 
-          {/* 2 — owner binding */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm">
-                <UserCog className="h-4 w-4" />
-                Owner binding
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Re-assigning archives this property's listings, clears the old binding and, when nothing is left on it,
-                archives the old distribution account. All of it runs as one operation.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {bindingUnreadable ? (
-                <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">
-                  The distribution binding could not be read — this property may well be bound. Re-assigning is blocked
-                  until the lookup succeeds. Detail: {binding?.read_error}
-                </p>
-              ) : null}
-              <dl className="grid gap-2 text-xs sm:grid-cols-2">
-                <Row label="Owner email" value={property?.owner_email ?? "—"} />
-                <Row
-                  label="Account login"
-                  value={bindingUnreadable ? "could not be read" : binding?.login_email ?? "not bound"}
-                />
-                <Row
-                  label="Account scope"
-                  value={bindingUnreadable ? "could not be read" : describeAccountScope(binding as never)}
-                />
-                <Row label="Listing" value={describeListingState(property as never)} />
-              </dl>
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="min-w-[240px] flex-1">
-                  <Label className="text-xs">Re-assign to owner email</Label>
-                  <Input
-                    className="mt-1"
-                    type="email"
-                    placeholder="new.owner@example.com"
-                    value={rebindEmail}
-                    onChange={(event) => onRebindEmailChange(event.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={!rebindEmail.includes("@") || rebinding || bindingUnreadable}
-                  onClick={onRequestRebind}
-                >
-                  {rebinding ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                  Unbind &amp; re-assign
-                </Button>
-              </div>
-              {sameEmailReset ? (
-                <p className="text-xs text-muted-foreground">
-                  That is the owner email already on file — this will reset the binding (archive listings, clear the
-                  account link) and Step A must be run again.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
 
           {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
           {planAccountId && !planHasKeys && (
