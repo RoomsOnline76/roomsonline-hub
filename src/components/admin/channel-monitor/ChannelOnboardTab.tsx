@@ -111,6 +111,45 @@ function normalizeEmail(value: string | null | undefined): string | null {
 }
 
 /**
+ * How far a pick has travelled towards selling on a channel:
+ * - `to_onboard`  — no distribution account bound, or no listings live yet.
+ * - `no_sales_channel` — listings live at the channel manager, but no sales channel linked.
+ * - `live` — account bound, listings live and a sales channel linked.
+ */
+type OnboardStatus = "to_onboard" | "live" | "no_sales_channel";
+
+/** Per-property channel signals, read from the database only (no channel traffic). */
+interface PropertyChannelSignals {
+  /** A distribution sub-account with a real OwnerID covers this property. */
+  bound: boolean;
+  /** Listings verified live at the channel manager. */
+  listingsLive: boolean;
+  /** A sales channel (ChannelID) is resolved for it. */
+  salesChannel: boolean;
+}
+
+/** Pure derivation so the badge rule can be read without the query code around it. */
+function deriveOnboardStatus(signals: PropertyChannelSignals): OnboardStatus {
+  if (!signals.bound || !signals.listingsLive) return "to_onboard";
+  return signals.salesChannel ? "live" : "no_sales_channel";
+}
+
+const ONBOARD_STATUS_BADGE: Record<OnboardStatus, { label: string; className: string }> = {
+  to_onboard: {
+    label: "To onboard",
+    className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  },
+  live: {
+    label: "Live",
+    className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  },
+  no_sales_channel: {
+    label: "No sales channel",
+    className: "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  },
+};
+
+/**
  * A pick in the onboarding dropdown. Channel accounts are inherited from the
  * portfolio, so an eligible portfolio is offered as a single entry (anchored to
  * its first eligible member) and its members are dropped from the flat list.
@@ -124,7 +163,12 @@ interface OnboardOption {
   /** Portfolio entries only: the portfolio and every eligible member it covers. */
   portfolioId?: string;
   memberIds?: string[];
+  /** Undefined until the status read lands — the row then renders without a badge. */
+  status?: OnboardStatus;
+  /** Portfolio entries: how many members are fully live. */
+  liveCount?: number;
 }
+
 
 
 type TaskState = {
