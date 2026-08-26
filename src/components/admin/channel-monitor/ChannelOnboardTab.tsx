@@ -699,34 +699,21 @@ export function ChannelOnboardTab({
     [gate.readyToSell, gate.stepAStatus, runningStep],
   );
 
-  /** Step A's live task lines, so Proceed reports the run inside the account modal. */
-  const stepATaskLines = useMemo(
-    () =>
-      CHANNEL_ONBOARD_TASKS.filter((task) => task.step === "a").map((task) => ({
-        id: task.id,
-        title: task.title,
-        state: taskStates[task.id]?.state ?? "idle",
-        detail: taskStates[task.id]?.detail ?? null,
-      })),
-    [taskStates],
-  );
-
   /**
-   * One-click Step A: picking a property runs the step immediately and atomically —
-   * the backend resolves the login, auto-generates a slug-based one when the owner
-   * email is unusable, creates the sub-account, mints the keys and pushes the company
-   * details. The account preview modal only opens when the run hits a blocker it
-   * cannot resolve on its own.
+   * Picking a property asks the only question that needs a human: is this the right
+   * distribution login? The account modal opens straight away (read-only preview — no
+   * channel write), and accepting it runs Step A end to end.
    */
-  const autoRanRef = useRef<string | null>(null);
+  const autoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!propertyId || gate.loading) return;
-    if (autoRanRef.current === propertyId) return;
-    autoRanRef.current = propertyId;
+    if (autoOpenedRef.current === propertyId) return;
+    autoOpenedRef.current = propertyId;
     if (gate.stepAStatus === "passed") return;
     if (!gate.readyToSell || runningStep !== null) return;
-    void runStep("a");
-  }, [gate.loading, gate.readyToSell, gate.stepAStatus, propertyId, runStep, runningStep]);
+    void openPlan();
+  }, [gate.loading, gate.readyToSell, gate.stepAStatus, openPlan, propertyId, runningStep]);
+
 
 
   const renderStep = (step: ChannelOnboardStep) => {
@@ -763,18 +750,18 @@ export function ChannelOnboardTab({
                   {collapsed ? "Show detail" : "Hide detail"}
                 </Button>
               )}
-              <Button
-                size="sm"
-                onClick={() => void runStep(step)}
-                disabled={stepDisabled[step]}
-              >
-                {runningStep === step ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                {status === "passed" ? "Re-run" : meta.cta}
-              </Button>
+              {/* Step A has no run button: it starts when the account modal is accepted. */}
+              {step === "b" && (
+                <Button size="sm" onClick={() => void runStep(step)} disabled={stepDisabled[step]}>
+                  {runningStep === step ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  {status === "passed" ? "Re-run" : meta.cta}
+                </Button>
+              )}
+
             </div>
           </div>
         </CardHeader>
@@ -1049,15 +1036,12 @@ export function ChannelOnboardTab({
           chosenLoginEmail={chosenLoginEmail}
           onChosenLoginEmailChange={setChosenLoginEmail}
           remedyCode={stepARemedyCode}
-
-          runTasks={stepATaskLines}
-          waitLabel={
-            waiting.a && waiting.a.until > nowTick ? formatCountdown(Math.max(0, waiting.a.until - nowTick)) : null
-          }
           onRunStepA={() => {
-            // Proceed completes Step A inside the modal — it closes itself once the step passes.
+            // Accepting hands over to the Step A card: close here, then run.
+            setAccountDialogOpen(false);
             void runStep("a");
           }}
+
 
         />
       )}
