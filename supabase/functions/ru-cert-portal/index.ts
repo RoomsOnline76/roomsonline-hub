@@ -7469,9 +7469,8 @@ Deno.serve(async (req) => {
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
       let keyRetryAfterMs: number | null = null;
-      // Set when Step A had to recycle onto a replacement sub-account login.
-      let recycledLogin: string | null = null;
-      let recycledPassword: string | null = null;
+      // Step A never provisions a replacement sub-account: one run, one account.
+
       // Ordered trail of every mint envelope tried, surfaced on the Step A task line.
       const keyAttempts: string[] = [];
 
