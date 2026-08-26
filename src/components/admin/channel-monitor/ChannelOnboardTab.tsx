@@ -469,6 +469,9 @@ export function ChannelOnboardTab({
           setEmailConflict(null);
           setChosenLoginEmail("");
           setStepARemedyCode(null);
+          // Step A is settled — the account modal has nothing left to ask.
+          setAccountDialogOpen(false);
+
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
           setAccountDialogOpen(true);
@@ -584,6 +587,35 @@ export function ChannelOnboardTab({
     [gate.readyToSell, gate.stepAStatus, runningStep],
   );
 
+  /** Step A's live task lines, so Proceed reports the run inside the account modal. */
+  const stepATaskLines = useMemo(
+    () =>
+      CHANNEL_ONBOARD_TASKS.filter((task) => task.step === "a").map((task) => ({
+        id: task.id,
+        title: task.title,
+        state: taskStates[task.id]?.state ?? "idle",
+        detail: taskStates[task.id]?.detail ?? null,
+      })),
+    [taskStates],
+  );
+
+  /**
+   * Picking a property asks the account question first: the modal opens itself once per
+   * selection while Step A has not passed. A gate refresh must not reopen it.
+   */
+  const autoOpenedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!propertyId || gate.loading) return;
+    if (autoOpenedRef.current === propertyId) return;
+    if (gate.stepAStatus === "passed") {
+      autoOpenedRef.current = propertyId;
+      return;
+    }
+    autoOpenedRef.current = propertyId;
+    void openPlan();
+  }, [gate.loading, gate.stepAStatus, openPlan, propertyId]);
+
+
   const renderStep = (step: ChannelOnboardStep) => {
     const meta = CHANNEL_ONBOARD_STEP_META[step];
     const status = step === "a" ? gate.stepAStatus : gate.stepBStatus;
@@ -670,25 +702,8 @@ export function ChannelOnboardTab({
                 </div>
               )}
 
-              {step === "a" && (
-                <div className="rounded-md border bg-muted/40 p-3 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-muted-foreground">
-                      Preview the account, the owner binding and the company details that will be sent — nothing leaves
-                      here until you run the step.
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void openPlan()}
-                      disabled={planLoading || !propertyId}
-                    >
-                      {planLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                      Preview account
-                    </Button>
-                  </div>
-                </div>
-              )}
+              {/* The account decision lives in the Preview account modal on the picker card. */}
+
 
               {tasks.map((task) => {
                 const live = taskStates[task.id];
@@ -800,10 +815,24 @@ export function ChannelOnboardTab({
               )}
 
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void openPlan()}
+              disabled={planLoading || !propertyId}
+            >
+              {planLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ShieldCheck className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Preview account
+            </Button>
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
               Refresh
             </Button>
+
           </div>
           {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
           {gate.connected && (
@@ -908,10 +937,15 @@ export function ChannelOnboardTab({
           onChosenLoginEmailChange={setChosenLoginEmail}
           remedyCode={stepARemedyCode}
 
+          runTasks={stepATaskLines}
+          waitLabel={
+            waiting.a && waiting.a.until > nowTick ? formatCountdown(Math.max(0, waiting.a.until - nowTick)) : null
+          }
           onRunStepA={() => {
-            setAccountDialogOpen(false);
+            // Proceed completes Step A inside the modal — it closes itself once the step passes.
             void runStep("a");
           }}
+
         />
       )}
 
