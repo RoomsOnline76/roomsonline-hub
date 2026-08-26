@@ -3239,8 +3239,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Keep the warm-worker snapshot truthful: a listing just created (or adopted) must be
-      // visible to the next unit of this push, which reads the snapshot instead of the channel.
+      // Keep the snapshot truthful: a listing just created (or adopted) must be visible to the
+      // next unit of this push AND to the next invocation, which reads the shared cache instead
+      // of the channel.
       if (returnedPropertyId != null) {
         const ownerIdNum = Number(p.owner_id);
         const snap = readOwnerListingSnapshot(ownerIdNum);
@@ -3249,8 +3250,10 @@ Deno.serve(async (req) => {
           const next = snap.filter((l) => String(l.id) !== idStr);
           next.push({ id: idStr, name: String(p.name ?? ''), is_archived: false });
           writeOwnerListingSnapshot(ownerIdNum, next);
+          await writeRuOwnerListingCache(getLogClient(), ownerIdNum, next, 'rentalsunited-api:push_property_result');
         }
       }
+
 
       return jsonResponse({
 
