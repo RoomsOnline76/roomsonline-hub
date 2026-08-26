@@ -327,7 +327,8 @@ export default function AdminChannelMonitor() {
   );
 
   // Every chip below reads state the page already has in memory — no extra queries.
-  const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string }>>(() => {
+  type RailChip = { tone: ChipTone; label: string };
+  const railChips = useMemo<Partial<Record<TabKey, RailChip>>>(() => {
     const loading = data.loading || railStatus.loading;
     const neverPushed = data.properties.filter((p) => p.neverPushed).length;
     const run = railStatus.latestRun;
@@ -351,9 +352,9 @@ export default function AdminChannelMonitor() {
               tone: keys.withKeys < keys.total ? "bad" : "warn",
               label: `${keys.total - keys.verified} account key(s) unverified`,
             }
-          : neverPushed === 0
-            ? { tone: "ok", label: "All properties pushed" }
-            : { tone: "warn", label: `${neverPushed} awaiting go-live` },
+          : neverPushed > 0
+            ? { tone: "warn", label: `${neverPushed} awaiting go-live` }
+            : undefined,
       cost: { tone: "muted", label: `${data.billableListings} listings billable` },
       // Cost chip already reports listings; footprint/ARI/live counts feed the cert chip context.
 
@@ -414,14 +415,16 @@ export default function AdminChannelMonitor() {
                     )}
                   >
                     <span className="block text-sm font-medium">{item.title}</span>
-                    <span
-                      className={cn(
-                        "mt-1 inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                        CHIP_TONE[railChips[item.key].tone],
-                      )}
-                    >
-                      {railChips[item.key].label}
-                    </span>
+                    {railChips[item.key] && (
+                      <span
+                        className={cn(
+                          "mt-1 inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                          CHIP_TONE[railChips[item.key]!.tone],
+                        )}
+                      >
+                        {railChips[item.key]!.label}
+                      </span>
+                    )}
                     <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                       {item.tests}
                     </span>
