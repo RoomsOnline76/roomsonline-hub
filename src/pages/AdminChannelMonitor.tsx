@@ -393,8 +393,6 @@ export default function AdminChannelMonitor() {
           </Card>
         )}
 
-        <ChannelRuStatusStrip data={data} onNavigate={(t) => setTab(t)} />
-
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
           {/* Compact sticky rail: every testable surface is one click away. */}
           <nav className="lg:sticky lg:top-4 lg:self-start">
