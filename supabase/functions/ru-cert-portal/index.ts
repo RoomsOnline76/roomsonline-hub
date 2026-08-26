@@ -7220,13 +7220,17 @@ Deno.serve(async (req) => {
          */
         const resolvedOwnerEmail = String(ownerEmail);
         const generatedBase = await generatedLoginBase();
-        const emailCandidates: string[] = [resolvedOwnerEmail];
+        // The channel refuses logins over 50 characters outright (status 378), so an
+        // over-long resolved email is never offered as a candidate.
+        const emailCandidates: string[] =
+          resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
         if (generatedBase && !resolvedOwnerEmail.toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)) {
           for (let attempt = 1; attempt <= 4; attempt++) {
             const generated = generateDistributionLogin(generatedBase, attempt);
             if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
           }
         }
+
         // An address already live as the distribution login for a DIFFERENT property
         // or portfolio can never be re-used — drop those fallbacks up front.
         {
