@@ -4718,6 +4718,7 @@ export type Database = {
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
+          commission_enabled: boolean
           commission_rate: number | null
           created_at: string
           current_period_end: string | null
@@ -4751,6 +4752,7 @@ export type Database = {
           plan_change_reason: string | null
           plan_changed_at: string | null
           pms_commission_rate: number | null
+          pms_enabled: boolean
           portfolio_id: string
           previous_subscription_fee: number | null
           pricelabs_allowed: boolean
@@ -4794,6 +4796,7 @@ export type Database = {
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
+          commission_enabled?: boolean
           commission_rate?: number | null
           created_at?: string
           current_period_end?: string | null
@@ -4827,6 +4830,7 @@ export type Database = {
           plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          pms_enabled?: boolean
           portfolio_id: string
           previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
@@ -4870,6 +4874,7 @@ export type Database = {
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
+          commission_enabled?: boolean
           commission_rate?: number | null
           created_at?: string
           current_period_end?: string | null
@@ -4903,6 +4908,7 @@ export type Database = {
           plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          pms_enabled?: boolean
           portfolio_id?: string
           previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
@@ -6050,6 +6056,7 @@ export type Database = {
           channel_manager_enabled: boolean | null
           channel_manager_per_unit_fee: number | null
           cloudflare_custom_hostname_id: string | null
+          commission_enabled: boolean
           commission_rate: number | null
           created_at: string | null
           current_period_end: string | null
@@ -6084,6 +6091,7 @@ export type Database = {
           plan_change_reason: string | null
           plan_changed_at: string | null
           pms_commission_rate: number | null
+          pms_enabled: boolean
           previous_subscription_fee: number | null
           pricelabs_allowed: boolean
           pricelabs_monthly_fee: number | null
@@ -6128,6 +6136,7 @@ export type Database = {
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
+          commission_enabled?: boolean
           commission_rate?: number | null
           created_at?: string | null
           current_period_end?: string | null
@@ -6162,6 +6171,7 @@ export type Database = {
           plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          pms_enabled?: boolean
           previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
@@ -6206,6 +6216,7 @@ export type Database = {
           channel_manager_enabled?: boolean | null
           channel_manager_per_unit_fee?: number | null
           cloudflare_custom_hostname_id?: string | null
+          commission_enabled?: boolean
           commission_rate?: number | null
           created_at?: string | null
           current_period_end?: string | null
@@ -6240,6 +6251,7 @@ export type Database = {
           plan_change_reason?: string | null
           plan_changed_at?: string | null
           pms_commission_rate?: number | null
+          pms_enabled?: boolean
           previous_subscription_fee?: number | null
           pricelabs_allowed?: boolean
           pricelabs_monthly_fee?: number | null
