@@ -7604,12 +7604,8 @@ Deno.serve(async (req) => {
         key_ru_status_message: keyRuStatusMessage,
         key_retry_after_ms: keyRetryAfterMs,
         key_attempts: keyAttempts,
-
-        // Non-null when the channel refused the first sub-account's mint and Step A
-        // provisioned a replacement login by itself.
-        recycled_login: recycledLogin,
-
       });
+
 
 
 
