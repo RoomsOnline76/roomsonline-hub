@@ -4,6 +4,7 @@ import { RefreshCw, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeWithSession } from "@/lib/ensureFreshSession";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
@@ -157,7 +158,7 @@ export default function AdminChannelMonitor() {
     async (row: ChannelPropertyRow, unit: ChannelUnitRow, activate: boolean) => {
       setBusyUnitId(unit.id);
       try {
-        const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+        const { data: res, error } = await invokeWithSession("channel-manager-entitlement", {
           body: {
             scope: "unit",
             entity_id: unit.id,
@@ -197,7 +198,7 @@ export default function AdminChannelMonitor() {
       if (unit) setBusyUnitId(unit.id);
       else setBusyId(row.id);
       try {
-        const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+        const { data: res, error } = await invokeWithSession("channel-manager-entitlement", {
           body: {
             scope: "purge_duplicates",
             entity_id: row.id,
@@ -230,7 +231,7 @@ export default function AdminChannelMonitor() {
     async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string) => {
       setBusyId(row.id);
       try {
-        const { data: res, error } = await supabase.functions.invoke("channel-manager-entitlement", {
+        const { data: res, error } = await invokeWithSession("channel-manager-entitlement", {
           body: {
             scope: "property",
             entity_id: row.id,

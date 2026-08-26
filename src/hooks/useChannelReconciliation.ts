@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invokeWithSession } from "@/lib/ensureFreshSession";
 
 export interface ReconAccount {
   owner_id: string;
@@ -268,7 +269,7 @@ export function useChannelReconciliation() {
       setRefused({});
     }
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+      const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
         body: { scope: "reconcile", entity_id: "all" },
       });
       if (fnError) throw fnError;
@@ -326,7 +327,7 @@ export function useChannelReconciliation() {
    */
   const purgeListing = useCallback(
     async (listing: { listing_id: string; owner_id: string; name?: string }): Promise<PurgeOutcome> => {
-      const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+      const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
         body: {
           scope: "purge_listing",
           entity_id: listing.listing_id,
@@ -408,7 +409,7 @@ export function useChannelReconciliation() {
     owner_id: string;
     listing_id: string;
   }) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+    const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
       body: {
         scope: "repoint_local_listing",
         entity_id: row.record_id,
@@ -442,7 +443,7 @@ export function useChannelReconciliation() {
     unit_ids: string[];
   }) => {
     if (row.unit_ids.length === 0) return;
-    const { data, error: fnError } = await supabase.functions.invoke("push-property-to-ru", {
+    const { data, error: fnError } = await invokeWithSession("push-property-to-ru", {
       body: { property_id: row.property_id, only_unit_ids: row.unit_ids },
     });
     if (fnError) throw new Error((await readFunctionError(fnError)) || fnError.message);
@@ -454,7 +455,7 @@ export function useChannelReconciliation() {
   }, [reconcile]);
 
   const restoreLocalUnit = useCallback(async (recordId: string) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+    const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
       body: {
         scope: "restore_local_unit",
         entity_id: recordId,
@@ -474,7 +475,7 @@ export function useChannelReconciliation() {
     record_id: string;
     kind: "property" | "unit";
   }) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+    const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
       body: { scope: "clear_local_listing", entity_id: row.record_id, record_kind: row.kind },
     });
     if (fnError) throw fnError;
@@ -503,7 +504,7 @@ export function useChannelReconciliation() {
    * listing still sells and bills. A channel refusal keeps the row in the list.
    */
   const clearStale = useCallback(async (row: ReconStale) => {
-    const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+    const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
       body: {
         scope: "clear_local_listing",
         entity_id: row.record_id,
@@ -623,7 +624,7 @@ export function useChannelReconciliation() {
       );
       let guard = 0;
       while (queue.length > 0 && guard++ < 20) {
-        const { data, error: fnError } = await supabase.functions.invoke("channel-manager-entitlement", {
+        const { data, error: fnError } = await invokeWithSession("channel-manager-entitlement", {
           body: {
             scope: "cleanup_batch",
             entity_id: "batch",
