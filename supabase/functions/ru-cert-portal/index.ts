@@ -7517,6 +7517,8 @@ Deno.serve(async (req) => {
             } | null = null;
 
             let lastRecycleMessage = minted.message ?? null;
+            const recycledCreated: string[] = [];
+
 
             for (let attempt = 2; recycleBase && attempt <= 3 && !recycled; attempt++) {
               const nextLogin = generateDistributionLogin(recycleBase, attempt);
