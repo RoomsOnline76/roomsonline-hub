@@ -3308,6 +3308,16 @@ Deno.serve(async (req) => {
       discountReadback: reqBody.verify_discount_readback === true || reqBody.verify_readback === true,
     };
     /**
+     * ARI delta scope + read-back opt-in for this request. `verify_availability_readback` defaults
+     * to false: only booking confirm/cancel/modify pulls the channel calendar back.
+     */
+    const ariRequestOptions: AriDeltaOptions = {
+      windowFrom: typeof reqBody.ari_date_from === 'string' ? reqBody.ari_date_from : undefined,
+      windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
+      availabilityReadback: reqBody.verify_availability_readback === true,
+      forceAvailability: reqBody.force_availability === true,
+    };
+    /**
      * Building containers are OPT-IN only.
      * Every RU push used to run the building flow (Push_PutBuilding_RQ) first, and RU created a
      * brand-new building on each call instead of updating ours — 20+ duplicate "Tidal Pools"
@@ -4527,9 +4537,42 @@ Deno.serve(async (req) => {
       const isMissingListing = (msg?: string) =>
         !!msg && /(property (with given id )?does not exist)/i.test(msg);
 
+      /**
+       * Fingerprints from the last successful refresh, per target. An identical payload means the
+       * channel already holds it, so the write is skipped instead of burning the owner's window.
+       * Skip rows carry the same hashes, so they are safe to read from.
+       */
+      const priorAriHashes = new Map<number, { availability?: string; prices?: string }>();
+      if (!ariRequestOptions.windowFrom && !ariRequestOptions.windowTo) {
+        try {
+          const { data: lastAri } = await supabase
+            .from('ru_sync_runs')
+            .select('details')
+            .eq('property_id', property_id)
+            .eq('action', 'refresh_ari')
+            .eq('success', true)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          const priorTargets = (lastAri?.[0]?.details as { targets?: Record<string, any>[] } | null)?.targets ?? [];
+          for (const pt of priorTargets) {
+            const id = Number(pt?.ru_property_id);
+            if (!Number.isFinite(id)) continue;
+            priorAriHashes.set(id, {
+              availability: typeof pt?.availability_hash === 'string' ? pt.availability_hash : undefined,
+              prices: typeof pt?.prices_hash === 'string' ? pt.prices_hash : undefined,
+            });
+          }
+        } catch (_e) { /* no stored hash → full window, as before */ }
+      }
+      const ariOptionsFor = (ruId: number): AriDeltaOptions => ({
+        ...ariRequestOptions,
+        priorAvailabilityHash: priorAriHashes.get(ruId)?.availability ?? null,
+        priorPricesHash: priorAriHashes.get(ruId)?.prices ?? null,
+      });
+
       const ariResults: Record<string, any>[] = [];
       for (const t of targets) {
-        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
+        const r = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions, ariOptionsFor(t.ru_id));
         const stale = isMissingListing(r.availability_error) || isMissingListing(r.prices_error);
         if (stale) {
           console.warn(`[push-property-to-ru] Stale channel listing ${t.ru_id} (${t.label}) — clearing mapping, full push required`);
@@ -4563,7 +4606,7 @@ Deno.serve(async (req) => {
         for (const i of retryIdx) {
           const t = targets[i];
           console.warn(`[push-property-to-ru] Transport failure on "${t.label}" — second pass`);
-          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions);
+          const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions, { ...ariRequestOptions, forceAvailability: true });
           if (r2.availability_pushed === true && !r2.availability_error && !r2.prices_error) {
             ariResults[i] = { target: t.label, ru_property_id: t.ru_id, stale_listing: false, second_pass: true, ...r2 };
           } else {
@@ -4624,6 +4667,11 @@ Deno.serve(async (req) => {
             total_attempts: totalAttempts,
             upstream_only: upstreamOnly,
             partial_transient: partialTransient,
+            window: { from: ariRequestOptions.windowFrom ?? null, to: ariRequestOptions.windowTo ?? null },
+            skipped: ariResults.length > 0 && ariResults.every((r) => r.skipped_avb === true && r.skipped_prices === true),
+            skipped_avb: ariResults.filter((r) => r.skipped_avb === true).length,
+            skipped_prices: ariResults.filter((r) => r.skipped_prices === true).length,
+            reason: ariResults.length > 0 && ariResults.every((r) => r.skipped_avb === true && r.skipped_prices === true) ? 'unchanged' : undefined,
             targets: ariResults,
           },
         });
