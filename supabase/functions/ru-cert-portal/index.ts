@@ -6360,13 +6360,6 @@ Deno.serve(async (req) => {
         refused_listings: refused,
         keys_revoked_at_channel: keyRevoke.status === "revoked" || keyRevoke.status === "nothing_to_revoke",
         key_revoke: keyRevoke,
-
-        ran_at: new Date().toISOString(),
-        ran_by: user.email ?? user.id,
-        envelope,
-        total_listings: remote.length,
-        archived_listings: archived,
-        refused_listings: refused,
         keys_released: keysReleased,
         // The channel exposes no verb to archive or rename a sub-account itself — only its
         // listings. Recorded so nobody later reads a silent gap as a success.
