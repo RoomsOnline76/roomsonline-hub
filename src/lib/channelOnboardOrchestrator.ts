@@ -20,6 +20,11 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
+import {
+  ensureFreshSession,
+  isUnauthorizedFunctionError,
+  SessionExpiredError,
+} from "@/lib/ensureFreshSession";
 import { pushPropertyToRu, type RuPushResult } from "@/lib/ruPushDriver";
 import { invalidateChannelEditGate } from "@/lib/channelEditGate";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
@@ -170,6 +175,28 @@ function isRecoverableStepACode(code: string | undefined): boolean {
   return Boolean(code && STEP_A_RECOVERABLE_CODES.has(code));
 }
 
+/**
+ * Every onboarding edge call goes through here: the login token is renewed when it is
+ * expired or nearly so, and a session refusal is retried once against a fresh token.
+ * A genuinely dead session throws `SessionExpiredError` so the UI can offer a re-login
+ * instead of printing "Invalid session (UNAUTHORIZED)".
+ */
+async function invokeWithSession(
+  fn: string,
+  body: Record<string, unknown>,
+): Promise<{ data: unknown; error: unknown }> {
+  if (!(await ensureFreshSession())) throw new SessionExpiredError();
+  let res = await supabase.functions.invoke(fn, { body });
+  if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+    if (!(await ensureFreshSession(true))) throw new SessionExpiredError();
+    res = await supabase.functions.invoke(fn, { body });
+    if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
+      throw new SessionExpiredError();
+    }
+  }
+  return { data: res.data, error: res.error };
+}
+
 /** Normalise whatever the channel surface reported as a wait into milliseconds. */
 function readRetryAfterMs(payload: Record<string, unknown>): number {
   const raw = Number(payload.retry_after_ms ?? payload.retryAfterMs ?? 0);
@@ -189,7 +216,7 @@ async function portal(
   code?: string;
   data: Record<string, unknown>;
 }> {
-  const { data, error } = await supabase.functions.invoke("ru-cert-portal", { body });
+  const { data, error } = await invokeWithSession("ru-cert-portal", body);
   let payload = (data ?? {}) as Record<string, unknown>;
   // A non-2xx answer (409 email conflict, 502 channel refusal) arrives as an error with the
   // JSON body attached; recover it so the code and any candidate logins survive.
@@ -314,7 +341,7 @@ export function describeAccountScope(binding: OnboardGateSnapshot["binding"] | n
 
 
 async function gate(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  const { data, error } = await supabase.functions.invoke("ru-onboard-property", { body });
+  const { data, error } = await invokeWithSession("ru-onboard-property", body);
   const payload = (data ?? {}) as Record<string, unknown>;
   if (error) throw new Error(await extractFunctionError(error, "The onboarding gate could not be read"));
   if (payload.success !== true) {
@@ -681,8 +708,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // Read-only: compare what is published with local content so the push below only
     // re-sends what actually moved. A failure here is never fatal — the scope simply
     // stays unset and the push falls back to sending everything.
-    const { data, error } = await supabase.functions.invoke("ru-onboard-property", {
-      body: { action: "plan_push_scope", property_id: ctx.propertyId },
+    const { data, error } = await invokeWithSession("ru-onboard-property", {
+      action: "plan_push_scope",
+      property_id: ctx.propertyId,
     });
     const payload = (data ?? {}) as Record<string, unknown>;
     if (error || payload.success !== true) {
@@ -818,8 +846,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
    * the cert portal — sending it to the portal is what produced `UNKNOWN_ACTION`.
    */
   verify_currency: async (ctx) => {
-    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
-      body: { action: "verify_ru_currency", property_ids: [ctx.propertyId] },
+    const { data, error } = await invokeWithSession("push-property-to-ru", {
+      action: "verify_ru_currency",
+      property_ids: [ctx.propertyId],
     });
     if (error) {
       return {
@@ -875,8 +904,12 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   entitlement: async (ctx) => {
-    const { data, error } = await supabase.functions.invoke("channel-manager-entitlement", {
-      body: { scope: "property", entity_id: ctx.propertyId, enabled: true, include_units: true, notify: false },
+    const { data, error } = await invokeWithSession("channel-manager-entitlement", {
+      scope: "property",
+      entity_id: ctx.propertyId,
+      enabled: true,
+      include_units: true,
+      notify: false,
     });
     if (error) {
       return {

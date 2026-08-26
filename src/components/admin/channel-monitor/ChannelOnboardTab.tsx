@@ -31,6 +31,7 @@ import {
 
 
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSession, SessionExpiredError } from "@/lib/ensureFreshSession";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 
 import { cn } from "@/lib/utils";
@@ -635,7 +636,14 @@ export function ChannelOnboardTab({
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "The step could not be run");
+        if (err instanceof SessionExpiredError) {
+          toast.error("Your session expired", {
+            description: "Sign in again, then re-run the step.",
+            duration: 12000,
+          });
+        } else {
+          toast.error(err instanceof Error ? err.message : "The step could not be run");
+        }
       } finally {
         setRunningStep(null);
         await gate.refresh();
@@ -643,6 +651,20 @@ export function ChannelOnboardTab({
     },
     [chosenLoginEmail, gate, plan, propertyId],
   );
+
+  /**
+   * Try a silent token renewal first — a token that merely went stale while the tab sat
+   * open comes back without a login. Only a genuinely dead session goes to /auth.
+   */
+  const handleReauth = useCallback(async () => {
+    const token = await ensureFreshSession(true);
+    if (token) {
+      await gate.refresh();
+      toast.success("Session renewed");
+      return;
+    }
+    window.location.href = `/auth?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+  }, [gate]);
 
   /** Drive the waiting countdowns, and fire the automatic resume when a window reopens. */
   useEffect(() => {
@@ -997,7 +1019,16 @@ export function ChannelOnboardTab({
 
           </div>
 
-          {gate.error && <p className="text-xs text-destructive">{gate.error}</p>}
+          {gate.sessionExpired ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+              <span>Your session expired — sign in again to continue onboarding.</span>
+              <Button size="sm" variant="outline" onClick={() => void handleReauth()}>
+                Sign in
+              </Button>
+            </div>
+          ) : (
+            gate.error && <p className="text-xs text-destructive">{gate.error}</p>
+          )}
           {gate.connected && (
             <div className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-700 dark:text-emerald-300">
               <ShieldCheck className="h-4 w-4" />
