@@ -4548,13 +4548,34 @@ Deno.serve(async (req) => {
       failed: { access_key: string; message: string }[];
       message: string;
     }> => {
-      const childAuth = (opts.accessKey && opts.secretKey)
-        ? { auth_access_key: opts.accessKey, auth_secret_key: opts.secretKey }
-        : (opts.loginEmail && opts.password)
-          ? { auth_username: opts.loginEmail, auth_password: opts.password }
-          : null;
+      // Candidate envelopes, tried in order until the channel lists the keys.
+      // Archived sub-accounts are renamed `Archived_<email>` at the portal, so both the
+      // bare and the prefixed login are tried, and the shared operator password is used
+      // as an automatic fallback when the operator supplied nothing.
+      const logins: string[] = [];
+      const pushLogin = (v?: string | null) => {
+        const t = (v ?? "").trim();
+        if (t && !logins.includes(t)) logins.push(t);
+      };
+      pushLogin(opts.loginEmail);
+      if (opts.loginEmail?.startsWith("Archived_")) pushLogin(opts.loginEmail.slice("Archived_".length));
+      else pushLogin(opts.loginEmail ? `Archived_${opts.loginEmail}` : null);
 
-      if (!childAuth) {
+      const passwords = [opts.password, RU_SUB_USER_PASSWORD]
+        .map((p) => (p ?? "").trim())
+        .filter((p, i, arr) => p.length > 0 && arr.indexOf(p) === i);
+
+      const candidates: Record<string, string>[] = [];
+      if (opts.accessKey && opts.secretKey) {
+        candidates.push({ auth_access_key: opts.accessKey, auth_secret_key: opts.secretKey });
+      }
+      for (const login of logins) {
+        for (const pw of passwords) {
+          candidates.push({ auth_username: login, auth_password: pw });
+        }
+      }
+
+      if (candidates.length === 0) {
         return {
           status: "no_credentials",
           revoked: [],
@@ -4564,22 +4585,35 @@ Deno.serve(async (req) => {
         };
       }
 
-      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: {
-          action: "list_child_api_keys",
-          owner_id: Number(opts.ownerId),
-          ...childAuth,
-          parent_action: opts.parentAction,
-        },
-      });
-      if (listErr || listed?.success !== true) {
+      let childAuth: Record<string, string> | null = null;
+      let listed: Record<string, unknown> | null = null;
+      let lastRefusal = "unknown refusal";
+      for (const candidate of candidates) {
+        const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "list_child_api_keys",
+            owner_id: Number(opts.ownerId),
+            ...candidate,
+            parent_action: opts.parentAction,
+          },
+        });
+        if (!error && data?.success === true) {
+          childAuth = candidate;
+          listed = data;
+          break;
+        }
+        lastRefusal = error?.message ?? String(data?.error?.message ?? data?.error ?? "unknown refusal");
+      }
+
+      if (!childAuth || !listed) {
         return {
           status: "refused",
           revoked: [],
           failed: [],
-          message: `The channel would not list this sub-account's API keys: ${listErr?.message ?? String(listed?.error?.message ?? listed?.error ?? "unknown refusal")}`,
+          message: `The channel would not list this sub-account's API keys: ${lastRefusal}`,
         };
       }
+
 
       const keys: { access_key: string | null }[] = Array.isArray(listed.keys) ? listed.keys : [];
       const targets = keys.map((k) => (k.access_key ?? "").trim()).filter(Boolean);
