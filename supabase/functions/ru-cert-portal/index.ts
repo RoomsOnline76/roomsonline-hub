@@ -158,15 +158,15 @@ function generateSubUserPassword(): string {
 /**
  * Domain hosting auto-generated distribution logins. When the resolved owner email
  * cannot become a channel sub-account (taken, archived, not under our master account,
- * or a shared platform login), Step A mints `<slug>@channels.roomsonline.co.za` from
- * the property and keeps going — there is no manual "change email" step.
+ * or a shared platform login), Step A mints `<slug>@roomsonline.co.za` from the
+ * property and keeps going — there is no manual "change email" step.
  */
-const RU_GENERATED_LOGIN_DOMAIN = "channels.roomsonline.co.za";
+const RU_GENERATED_LOGIN_DOMAIN = "roomsonline.co.za";
 
 /** The channel refuses any login longer than this (status 378). */
 const RU_LOGIN_MAX_LENGTH = 50;
 
-/** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>-N@…`. */
+/** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>N@…`. */
 const generateDistributionLogin = (slugOrName: string, attempt = 1): string | null => {
   const base = String(slugOrName ?? "")
     .toLowerCase()
@@ -175,7 +175,7 @@ const generateDistributionLogin = (slugOrName: string, attempt = 1): string | nu
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   if (!base) return null;
-  const suffix = attempt > 1 ? `-${attempt}` : "";
+  const suffix = attempt > 1 ? String(attempt) : "";
   // The channel rejects logins over 50 characters, so the local part is trimmed to fit
   // the domain and the attempt suffix rather than being sent and refused.
   const room = RU_LOGIN_MAX_LENGTH - RU_GENERATED_LOGIN_DOMAIN.length - 1 - suffix.length;
@@ -6015,7 +6015,7 @@ Deno.serve(async (req) => {
        * Auto-generated slug login (memoized). When every resolved address is unusable —
        * a shared platform login, or one the channel later rejects as taken — Step A
        * must not stall on a manual email change: it mints
-       * `<slug>@channels.roomsonline.co.za` from the property and provisions on it.
+       * `<slug>@roomsonline.co.za` from the property and provisions on it.
        */
       let generatedBaseCache: string | null | undefined;
       const generatedLoginBase = async (): Promise<string | null> => {
@@ -7213,8 +7213,8 @@ Deno.serve(async (req) => {
         /**
          * One-click Step A: when the resolved login is rejected as already taken /
          * archived / outside our master account, automatically fall back to a login
-         * generated from the property slug (`<slug>@channels.roomsonline.co.za`,
-         * suffixed -2, -3… on collision) and keep provisioning. The manual
+         * generated from the property slug (`<slug>@roomsonline.co.za`,
+         * suffixed 2, 3… on collision) and keep provisioning. The manual
          * "change email" step only survives as the last-resort modal when every
          * candidate is exhausted.
          */
@@ -7224,7 +7224,9 @@ Deno.serve(async (req) => {
         // over-long resolved email is never offered as a candidate.
         const emailCandidates: string[] =
           resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
-        if (generatedBase && !resolvedOwnerEmail.toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)) {
+        // The generated domain is our own company domain, so an address merely sitting on it
+        // is not proof of a generated login — the de-dupe below is what prevents repeats.
+        if (generatedBase) {
           for (let attempt = 1; attempt <= 4; attempt++) {
             const generated = generateDistributionLogin(generatedBase, attempt);
             if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
