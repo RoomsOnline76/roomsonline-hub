@@ -4490,11 +4490,11 @@ Deno.serve(async (req) => {
     /**
      * ── mintChildKeyPair ─────────────────────────────────────────────────────────
      * Single implementation of "get this sub-account a stored AccessKey/SecretKey pair".
-     * Authenticates AS the child with an existing key pair and calls Push_CreateApiKey_RQ, then
+     * Authenticates AS the child and calls Push_CreateApiKey_RQ, then
      * persists the pair immediately — RU returns the SecretKey exactly once.
      *
-     * Used for key rotation after the first pair has been captured. RU requires an existing
-     * AccessKey/SecretKey for this method; portal credentials cannot bootstrap the first pair.
+     * New accounts use the login/password created in the same atomic Step A run;
+     * existing accounts use stored keys for rotation or their retained password.
      */
     const mintChildKeyPair = async (opts: {
       ownerId: string;
@@ -4503,6 +4503,8 @@ Deno.serve(async (req) => {
       keyLabel?: string;
       authAccessKey?: string | null;
       authSecretKey?: string | null;
+      authUsername?: string | null;
+      authPassword?: string | null;
     }): Promise<{
       ok: boolean;
       accessKey?: string;
@@ -4518,12 +4520,14 @@ Deno.serve(async (req) => {
       if (opts.authAccessKey && opts.authSecretKey) {
         authBody.auth_access_key = opts.authAccessKey;
         authBody.auth_secret_key = opts.authSecretKey;
+      } else if (opts.authUsername && opts.authPassword) {
+        authBody.auth_username = opts.authUsername;
+        authBody.auth_password = opts.authPassword;
       } else {
         return {
           ok: false,
-          code: "RU_FIRST_API_KEY_REQUIRED",
-          message:
-            "Generate the first API key pair in the channel portal for this sub-account, then verify and store it here. Additional keys can be created automatically afterward.",
+          code: "NO_STORED_PASSWORD",
+          message: "No usable sub-account credential is stored. Save the current password and Step A will create the API key pair automatically.",
         };
       }
 
@@ -4672,9 +4676,7 @@ Deno.serve(async (req) => {
           error: {
             code: minted.code ?? "RU_CREATE_KEY_FAILED",
             ru_status_id: minted.ruStatusId ?? null,
-            message: minted.code === "RU_FIRST_API_KEY_REQUIRED"
-              ? "Generate the first API key pair in the channel portal for this sub-account, then verify and store it here. Additional keys can be created automatically afterward."
-              : minted.message ?? "Rentals United did not return a new API key pair.",
+            message: minted.message ?? "Rentals United did not return a new API key pair.",
           },
           ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
         }, minted.rateDeferred ? 429 : 422);

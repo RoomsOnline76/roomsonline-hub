@@ -2625,12 +2625,12 @@ Deno.serve(async (req) => {
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
       const childAuth = await resolveChildAuth(body);
-      if (!childAuth || childAuth.mode !== 'keys') {
+      if (!childAuth) {
         return jsonResponse({
           success: false,
           error: {
-            code: 'RU_FIRST_API_KEY_REQUIRED',
-            message: 'Generate the first API key pair in the channel portal for this sub-account, then verify and store it here. Additional keys can be created automatically afterward.',
+            code: 'RU_CHILD_AUTH_REQUIRED',
+            message: 'The sub-account login and password or an existing key pair are required to create its API key pair.',
           },
         }, 422);
       }
@@ -2641,7 +2641,6 @@ Deno.serve(async (req) => {
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
-        // A refusal here means the existing child key pair is no longer usable for rotation.
         if (/incorrect login|incorrect password|login or password/i.test(String(status.message ?? ''))) {
           return jsonResponse({
             success: false,
@@ -2649,10 +2648,10 @@ Deno.serve(async (req) => {
             ru_status_id: status.id ?? null,
             ru_status_message: status.message ?? null,
             error: {
-              code: 'RU_CREATE_KEY_BAD_LOGIN',
-              code_detail: 'RU_CREATE_KEY_BAD_LOGIN',
+              code: 'RU_CHILD_LOGIN_REJECTED',
+              code_detail: 'RU_CHILD_LOGIN_REJECTED',
               ru_status_id: status.id ?? null,
-              message: 'Rentals United refused the stored key pair when minting a new key. Regenerate the pair in the channel portal and save it here.',
+              message: 'The channel refused the sub-account credentials while Step A was creating its API key pair. Confirm the sub-account password and retry Step A.',
             },
           }, 422);
         }
