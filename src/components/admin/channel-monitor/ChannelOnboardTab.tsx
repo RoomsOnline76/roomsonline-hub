@@ -741,15 +741,21 @@ export function ChannelOnboardTab({
      */
     const collapsed =
       status === "passed" && runningStep !== step && !stepWaiting && stepDetailOpen[step] !== true;
+    // A settled Step A names the account it provisioned — the operator's one takeaway.
+    const title =
+      step === "a" && status === "passed" && boundLogin
+        ? `${meta.title} — Distribution account: ${boundLogin}`
+        : meta.title;
 
     return (
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="min-w-0">
-              <CardTitle className="text-base">{meta.title}</CardTitle>
+              <CardTitle className="text-base break-all">{title}</CardTitle>
               <CardDescription className="text-xs">{meta.goal}</CardDescription>
             </div>
+
             <div className="flex items-center gap-2">
               <StatusBadge status={status} />
               {status === "passed" && runningStep !== step && !stepWaiting && (
