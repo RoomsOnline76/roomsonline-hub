@@ -43,6 +43,25 @@ export interface BillingConfig {
   updated_at: string;
 }
 
+/** Toggles and commercial switches whose persistence we prove after every save. */
+const VERIFIED_FIELDS = [
+  "billing_strategy",
+  "channel_manager_enabled",
+  "white_label_allowed",
+  "branding_addon_enabled",
+  "pricelabs_allowed",
+  "payment_facilitator_enabled",
+  "payment_model",
+  "billing_enabled",
+] as const;
+
+function sameBillingValue(stored: unknown, intended: unknown): boolean {
+  if (typeof intended === "boolean") return !!stored === intended;
+  const norm = (v: unknown) => (v === null || v === undefined || v === "" ? null : v);
+  return norm(stored) === norm(intended);
+}
+
+
 export interface BillingScope {
   source: "property" | "portfolio";
   portfolioId: string | null;
