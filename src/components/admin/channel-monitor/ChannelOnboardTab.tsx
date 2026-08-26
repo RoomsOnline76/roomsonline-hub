@@ -257,8 +257,32 @@ export function ChannelOnboardTab({
       const ids = rows.map((r) => r.id);
 
       let eligible: PropertyOption[] = [];
+      // Why an active property was left out, so a deep link can name the reason
+      // instead of leaving the picker mysteriously blank.
+      const exclusions = new Map<string, string>();
       if (ids.length > 0) {
-        const ownerEmails = [...new Set(rows.map((r) => r.owner_email?.trim()).filter((email): email is string => Boolean(email)))];
+        // Contract standing follows the *owner*, not one email string: a linked
+        // owner on `property_owners` counts too, so correcting or re-assigning an
+        // email never silently revokes a signed contract.
+        const { data: ownerLinks } = await supabase
+          .from("property_owners")
+          .select("property_id, owner_email")
+          .in("property_id", ids);
+        const linkedEmails = new Map<string, string[]>();
+        ((ownerLinks ?? []) as Array<{ property_id: string; owner_email: string | null }>).forEach((link) => {
+          const email = normalizeEmail(link.owner_email);
+          if (!email) return;
+          linkedEmails.set(link.property_id, [...(linkedEmails.get(link.property_id) ?? []), email]);
+        });
+
+        const ownerEmails = [
+          ...new Set(
+            [
+              ...rows.map((r) => normalizeEmail(r.owner_email)),
+              ...[...linkedEmails.values()].flat(),
+            ].filter((email): email is string => Boolean(email)),
+          ),
+        ];
         const [entitlements, ownerContractsResult, propertyContractsResult] = await Promise.all([
           fetchChannelManagerEntitlements(ids),
           ownerEmails.length > 0
@@ -288,10 +312,26 @@ export function ChannelOnboardTab({
             .filter((id): id is string => Boolean(id)),
         );
         eligible = rows.filter((r) => {
-          const ownerEmail = normalizeEmail(r.owner_email);
-          return entitlements.get(r.id) === true && (signedProperties.has(r.id) || (ownerEmail ? signedEmails.has(ownerEmail) : false));
+          const emails = [normalizeEmail(r.owner_email), ...(linkedEmails.get(r.id) ?? [])].filter(
+            (email): email is string => Boolean(email),
+          );
+          const entitled = entitlements.get(r.id) === true;
+          const contracted = signedProperties.has(r.id) || emails.some((email) => signedEmails.has(email));
+          if (!entitled) {
+            exclusions.set(r.id, "the Channel Manager add-on is not activated for it");
+            return false;
+          }
+          if (!contracted) {
+            exclusions.set(
+              r.id,
+              `no signed or overridden contract was found for ${emails[0] ?? "its owner"}`,
+            );
+            return false;
+          }
+          return true;
         });
       }
+
 
       if (cancelled) return;
 
