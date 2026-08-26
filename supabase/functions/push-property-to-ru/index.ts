@@ -3390,6 +3390,20 @@ Deno.serve(async (req) => {
       deltaChangedFields !== null &&
       deltaChangedFields.length > 0 &&
       !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
+    /**
+     * The same economy for the channel's location lookups: a scoped delta that names no
+     * address, city, country, coordinate or location field cannot have moved the listing,
+     * so `get_location_by_coordinates` / `get_location_by_name` are not worth the calls.
+     */
+    const skipLocationLookup =
+      staticOnly &&
+      !forcePush &&
+      deltaChangedFields !== null &&
+      deltaChangedFields.length > 0 &&
+      !deltaChangedFields.some((f) =>
+        /address|city|town|country|latitude|longitude|location|postal/i.test(f),
+      );
+
     const verifyPayloadImages = async (payload: Record<string, any>) =>
       skipImageProbe ? [] : await applyImageVerification(payload);
     /** ARI is pushed on every path except a static-content delta. */
