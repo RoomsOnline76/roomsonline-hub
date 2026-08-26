@@ -258,9 +258,7 @@ export function ChannelOnboardTab({
 
       let eligible: PropertyOption[] = [];
       if (ids.length > 0) {
-        const ownerEmails = [
-          ...new Set(rows.map((r) => normalizeEmail(r.owner_email)).filter((email): email is string => Boolean(email))),
-        ];
+        const ownerEmails = [...new Set(rows.map((r) => r.owner_email?.trim()).filter((email): email is string => Boolean(email)))];
         const [entitlements, ownerContractsResult, propertyContractsResult] = await Promise.all([
           fetchChannelManagerEntitlements(ids),
           ownerEmails.length > 0
