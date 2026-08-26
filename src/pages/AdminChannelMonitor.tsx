@@ -30,7 +30,7 @@ import { ChannelBillingSchedule } from "@/components/admin/channel-monitor/Chann
 import { ChannelPropertyTable } from "@/components/admin/channel-monitor/ChannelPropertyTable";
 import { ChannelArchiveLog } from "@/components/admin/channel-monitor/ChannelArchiveLog";
 import { ArchivePropertyDialog } from "@/components/admin/channel-monitor/ArchivePropertyDialog";
-import { ChannelRuStatusStrip } from "@/components/admin/channel-monitor/ChannelRuStatusStrip";
+
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ChannelCallQueuePanel } from "@/components/admin/channel-monitor/ChannelCallQueuePanel";
 import { LiveTrafficFrame } from "@/components/admin/channel-monitor/live/LiveTrafficFrame";
@@ -392,8 +392,6 @@ export default function AdminChannelMonitor() {
             <CardContent className="p-4 text-sm text-destructive">{data.error}</CardContent>
           </Card>
         )}
-
-        <ChannelRuStatusStrip data={data} onNavigate={(t) => setTab(t)} />
 
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
           {/* Compact sticky rail: every testable surface is one click away. */}
