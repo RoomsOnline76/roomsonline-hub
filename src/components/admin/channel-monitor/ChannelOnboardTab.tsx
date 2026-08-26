@@ -587,6 +587,35 @@ export function ChannelOnboardTab({
     [gate.readyToSell, gate.stepAStatus, runningStep],
   );
 
+  /** Step A's live task lines, so Proceed reports the run inside the account modal. */
+  const stepATaskLines = useMemo(
+    () =>
+      CHANNEL_ONBOARD_TASKS.filter((task) => task.step === "a").map((task) => ({
+        id: task.id,
+        title: task.title,
+        state: taskStates[task.id]?.state ?? "idle",
+        detail: taskStates[task.id]?.detail ?? null,
+      })),
+    [taskStates],
+  );
+
+  /**
+   * Picking a property asks the account question first: the modal opens itself once per
+   * selection while Step A has not passed. A gate refresh must not reopen it.
+   */
+  const autoOpenedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!propertyId || gate.loading) return;
+    if (autoOpenedRef.current === propertyId) return;
+    if (gate.stepAStatus === "passed") {
+      autoOpenedRef.current = propertyId;
+      return;
+    }
+    autoOpenedRef.current = propertyId;
+    void openPlan();
+  }, [gate.loading, gate.stepAStatus, openPlan, propertyId]);
+
+
   const renderStep = (step: ChannelOnboardStep) => {
     const meta = CHANNEL_ONBOARD_STEP_META[step];
     const status = step === "a" ? gate.stepAStatus : gate.stepBStatus;
