@@ -44,7 +44,10 @@ interface RetiredRow {
   retired_at: string | null;
   channel_archived_at: string | null;
   listings_archived: number | null;
+  /** The recorded answer of the last channel run, including whether keys were revoked there. */
+  channel_archive_result?: { keys_revoked_at_channel?: boolean; key_revoke?: { status?: string; message?: string } } | null;
 }
+
 
 /** Outcome of one channel purge run, shown per row. */
 interface PurgeOutcome {
