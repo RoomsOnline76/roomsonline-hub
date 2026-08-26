@@ -433,11 +433,15 @@ export function ChannelOnboardTab({
         return;
       }
 
+      const reason = requestedProperty ? exclusions.get(requestedProperty) : null;
       setRequestNotice(
-        requestedName
-          ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated, a signed or overridden contract, and must not be archived.`
-          : "The requested property is not available for onboarding (inactive, archived, unsigned, or not entitled).",
+        reason
+          ? `${requestedName ?? "This property"} cannot be onboarded yet: ${reason}.`
+          : requestedName
+            ? `${requestedName} cannot be onboarded yet: it needs the Channel Manager add-on activated, a signed or overridden contract, and must not be archived.`
+            : "The requested property is not available for onboarding (inactive, archived, unsigned, or not entitled).",
       );
+
 
     })();
     return () => {
