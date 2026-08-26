@@ -168,7 +168,14 @@ export async function pushRatePlanRates(
     | "rate_plan_toggle"
     | "rate_plan_delete"
     | "rate_plan_copy",
-  options: { label?: string; dateFrom?: string | null; dateTo?: string | null } = {},
+  options: {
+    label?: string;
+    dateFrom?: string | null;
+    dateTo?: string | null;
+    /** Units the plan touches — scopes the channel write to those listings only. */
+    onlyUnitIds?: string[] | null;
+  } = {},
+
 ): Promise<void> {
   if (!propertyId) return;
   // Gate first, so a property still inside the wizard never even shows a spinner.
