@@ -60,7 +60,7 @@ export class SessionExpiredError extends Error {
 export async function invokeWithSession(
   fn: string,
   body: Record<string, unknown>,
-): Promise<{ data: unknown; error: unknown }> {
+): Promise<{ data: unknown; error: (Error & { context?: unknown }) | null }> {
   if (!(await ensureFreshSession())) throw new SessionExpiredError();
   let res = await supabase.functions.invoke(fn, { body });
   if (isUnauthorizedFunctionError(res.error, (res.data ?? {}) as Record<string, unknown>)) {
@@ -70,5 +70,5 @@ export async function invokeWithSession(
       throw new SessionExpiredError();
     }
   }
-  return { data: res.data, error: res.error };
+  return { data: res.data, error: (res.error as (Error & { context?: unknown }) | null) ?? null };
 }
