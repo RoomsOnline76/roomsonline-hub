@@ -2648,10 +2648,10 @@ Deno.serve(async (req) => {
             ru_status_id: status.id ?? null,
             ru_status_message: status.message ?? null,
             error: {
-              code: 'RU_CHILD_LOGIN_REJECTED',
-              code_detail: 'RU_CHILD_LOGIN_REJECTED',
+              code: 'RU_CREATE_KEY_API_REJECTED',
+              code_detail: 'RU_CREATE_KEY_API_REJECTED',
               ru_status_id: status.id ?? null,
-              message: 'The channel refused the sub-account credentials while Step A was creating its API key pair. Confirm the sub-account password and retry Step A.',
+              message: 'The sub-account password was stored, but the channel XML API refused automatic key creation. Portal login can still be valid; retry Step A or escalate this OwnerID for API key creation enablement.',
             },
           }, 422);
         }

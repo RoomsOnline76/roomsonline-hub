@@ -5118,14 +5118,15 @@ Deno.serve(async (req) => {
       });
       if (!minted.ok) {
         return json({
-          success: false,
+          success: true,
           password_stored: true,
+          key_minted: false,
           error: {
             code: minted.code ?? "RU_CREATE_KEY_FAILED",
             message: minted.message ?? "The password was stored, but Step A could not create the API key pair.",
           },
           ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
-        }, minted.rateDeferred ? 429 : 422);
+        }, 200);
       }
       return json({
         success: true,
