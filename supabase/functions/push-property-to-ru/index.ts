@@ -4260,7 +4260,11 @@ Deno.serve(async (req) => {
             const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId, propertyCharges), distances: propertyDistances } as Record<string, any>;
             // Probe image dimensions exactly like the dry run does — without this the
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
-            await applyImageVerification(payload);
+            // The probe fetches and measures every photo on every unit — the single most
+            // expensive part of a save. A scoped delta that names no image field cannot have
+            // changed the image set, so the previously measured sizes still stand.
+            await verifyPayloadImages(payload);
+
             payload.location_authored = locationAuthored;
             return { name: rt.name, validation: buildValidation(payload) as any };
           }),
