@@ -4760,9 +4760,11 @@ Deno.serve(async (req) => {
           access_key: created.access_key,
           secret_enc: enc,
           key_label: createdLabel,
-
+          key_scope: "child",
+          key_scope_verified_at: new Date().toISOString(),
           verified_at: new Date().toISOString(),
         }, { onConflict: "ru_owner_id" });
+
         if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
       }
 
