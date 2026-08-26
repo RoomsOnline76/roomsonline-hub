@@ -4590,6 +4590,18 @@ Deno.serve(async (req) => {
           keyLabel: `${keyLabel}-m`,
         });
       }
+      // Last resort, and ONLY when an operator supplied the portal password for this
+      // run (decommissioning an account whose keys we no longer hold): the sub-account's
+      // own login envelope. It is refused for freshly created children, which is why it
+      // is never tried first, but on an older account it is the only envelope left.
+      if (opts.authUsername && opts.authPassword) {
+        variants.push({
+          label: "child_password",
+          body: { auth_username: opts.authUsername, auth_password: opts.authPassword },
+          keyLabel: `${keyLabel}-p`,
+        });
+      }
+
 
       if (variants.length === 0) {
         return {
