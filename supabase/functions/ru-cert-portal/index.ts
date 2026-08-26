@@ -7517,7 +7517,12 @@ Deno.serve(async (req) => {
                 authPassword: nextPassword,
               });
               if (retryMint.ok) {
-                recycled = { accessKey: retryMint.accessKey ?? null, ownerId: recycledOwnerId, login: nextLogin };
+                recycled = {
+                  accessKey: retryMint.accessKey ?? null,
+                  ownerId: recycledOwnerId,
+                  login: nextLogin,
+                  password: nextPassword,
+                };
               } else if (retryMint.rateDeferred) {
                 keySource = "deferred";
                 keyWarning = retryMint.message ?? "The channel rate-limited automatic key creation.";
@@ -7534,8 +7539,9 @@ Deno.serve(async (req) => {
               ruOwnerId = recycled.ownerId;
               ownerEmail = recycled.login;
               recycledLogin = recycled.login;
-              password = generateSubUserPassword.last ?? password;
+              recycledPassword = recycled.password;
             } else if (keySource !== "deferred") {
+
               keyCode = "RU_KEY_CREATION_NOT_ENABLED";
               keyRuStatusId = minted.ruStatusId ?? null;
               keyRuStatusMessage = minted.ruStatusMessage ?? null;
