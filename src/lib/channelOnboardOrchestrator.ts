@@ -150,6 +150,11 @@ interface RunContext {
 }
 
 
+/** The binding as it stands NOW: the account task refreshes it mid-run. */
+function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGateSnapshot["binding"] {
+  return ctx.binding ?? snapshot.binding;
+}
+
 /** How the sub-account's key pair was resolved during account provisioning. */
 export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 
@@ -601,12 +606,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_keys: async (ctx, snapshot) => {
-    if (!snapshot.binding.ru_owner_id) {
+    const binding = liveBinding(ctx, snapshot);
+    // A mint earlier in this run IS the verdict — check it before the binding so a freshly
+    // created account never reads as "not bound" just because the snapshot predates it.
+    if (!binding.ru_owner_id && !ctx.keysProvenInRun) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
     // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
     // rather than authenticating as a child we hold no credential for.
-    if (!snapshot.binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+    if (!binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
       return {
         id: "verify_keys",
         outcome: "blocked",
@@ -618,8 +626,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // this run. Re-asking the channel spends its most rate-limited read on a known answer.
     if (ctx.keysProvenInRun) {
       const label = [
-        `OwnerID ${snapshot.binding.ru_owner_id}`,
-        snapshot.binding.login_email || snapshot.binding.owner_email || null,
+        `OwnerID ${binding.ru_owner_id}`,
+        binding.login_email || binding.owner_email || null,
       ].filter(Boolean).join(" · ");
       return {
         id: "verify_keys",
@@ -630,8 +638,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
         action: "verify_api_keys",
-        ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
-        ru_owner_id: snapshot.binding.ru_owner_id,
+        ...(binding.account_id ? { account_id: binding.account_id } : {}),
+        ru_owner_id: binding.ru_owner_id,
       },
       "The sub-account credentials did not verify",
     );
@@ -660,10 +668,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
     const verifiedLabel = [
-      String(data.ru_owner_id ?? snapshot.binding.ru_owner_id ?? "").trim()
-        ? `OwnerID ${String(data.ru_owner_id ?? snapshot.binding.ru_owner_id)}`
+      String(data.ru_owner_id ?? binding.ru_owner_id ?? "").trim()
+        ? `OwnerID ${String(data.ru_owner_id ?? binding.ru_owner_id)}`
         : null,
-      String(data.login_email ?? snapshot.binding.login_email ?? snapshot.binding.owner_email ?? "").trim() || null,
+      String(data.login_email ?? binding.login_email ?? binding.owner_email ?? "").trim() || null,
     ].filter(Boolean).join(" · ");
     return {
       id: "verify_keys",
@@ -673,8 +681,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   company_profile: async (ctx, snapshot) => {
-    const companyLabel = snapshot.binding.ru_owner_id ? ` (OwnerID ${snapshot.binding.ru_owner_id})` : "";
-    if (snapshot.binding.company_details_sent) {
+    const companyLabel = binding.ru_owner_id ? ` (OwnerID ${binding.ru_owner_id})` : "";
+    if (binding.company_details_sent) {
       return {
         id: "company_profile",
         outcome: "skipped",
