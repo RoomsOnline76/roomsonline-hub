@@ -162,6 +162,36 @@ export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 
+/** Channel verbs whose sliding minute a replayed Step B would immediately collide with. */
+const REPLAY_GUARDED_ACTIONS = ["Push_PutAvbUnits_RQ", "Pull_ListOwnerProp_RQ"];
+
+/**
+ * Milliseconds left on the channel's one-call-per-minute window for this property's last
+ * availability write or roster read. 0 when the window is clear (or the check itself fails —
+ * bookkeeping must never block a real push).
+ */
+async function recentChannelWriteCooldownMs(propertyId: string): Promise<number> {
+  try {
+    const sinceIso = new Date(Date.now() - DEFAULT_RATE_WINDOW_MS).toISOString();
+    const { data } = await supabase
+      .from("ru_api_log")
+      .select("created_at")
+      .eq("property_id", propertyId)
+      .in("action", REPLAY_GUARDED_ACTIONS)
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data?.created_at) return 0;
+    const elapsed = Date.now() - new Date(data.created_at).getTime();
+    return Math.max(0, DEFAULT_RATE_WINDOW_MS - elapsed);
+  } catch {
+    return 0;
+  }
+}
+
+
+
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_CREATE_KEY_API_REJECTED",
   "RU_KEY_CREATION_NOT_ENABLED",
@@ -596,12 +626,13 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: provisioning?.code ?? (binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
+      // Key creation is master-authenticated and scoped to the OwnerID, so a missing
+      // sub-account password is no longer a reason for this step to be blocked.
+      code: provisioning?.code ?? "RU_CREATE_KEY_API_REJECTED",
       detail: (provisioning?.warning
-        ?? (binding.password_stored
-          ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
-          : "Step A needs the sub-account password to create and store its API key pair automatically.")) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}The channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A once XML API access is enabled for this OwnerID.`) + trailText,
     };
+
 
   },
 
@@ -799,7 +830,22 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: "Content is already current on the channel; availability and pricing stay live on the scheduled sync.",
       };
     }
+    /**
+     * Replay cooldown. The channel allows one identical availability write / roster read per
+     * sliding minute, so replaying a step within 60s of the last one manufactures the very 429s
+     * the run just avoided. Wait the remainder out as a countdown instead of spending the slot.
+     */
+    const cooldown = await recentChannelWriteCooldownMs(ctx.propertyId);
+    if (cooldown > 0) {
+      return {
+        id: "push_property",
+        outcome: "pending",
+        retryAfterMs: cooldown,
+        detail: `The channel handled availability for this property moments ago — waiting ${Math.ceil(cooldown / 1000)}s for its one-call-per-minute window to reopen before replaying the push.`,
+      };
+    }
     let result: RuPushResult;
+
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,

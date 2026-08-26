@@ -4559,13 +4559,14 @@ Deno.serve(async (req) => {
 
 
       /**
-       * Ordered mint variants. The channel answers a sub-account's own login envelope
-       * with "Incorrect login or password" even on an account created seconds earlier,
-       * so a single attempt is not evidence that the login is wrong:
-       *   1. the credential we hold (existing key pair, else login + password)
-       *   2. the same envelope once more after a short pause — a brand-new account is
-       *      not always live on the XML surface at the instant it is created
-       *   3. a master-authenticated mint scoped to the sub-account's OwnerID
+       * Ordered mint variants:
+       *   1. an EXISTING stored key pair (rotation on an account that already has one), and one
+       *      short-delayed repeat of it, because a transport blip there is a real possibility
+       *   2. a master-authenticated mint scoped to the sub-account's OwnerID
+       *
+       * The sub-account's own login/password envelope is deliberately NOT tried: the channel
+       * answers it with "Incorrect login or password" (-4) for every freshly created child, so it
+       * only ever produced two guaranteed refusals before the owner-scoped mint succeeded.
        */
       /**
        * Each variant carries its OWN key label. The channel (and our sliding-window
@@ -4577,9 +4578,7 @@ Deno.serve(async (req) => {
       const credentialBody: Record<string, unknown> | null =
         opts.authAccessKey && opts.authSecretKey
           ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
-          : opts.authUsername && opts.authPassword
-            ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
-            : null;
+          : null;
       if (credentialBody) {
         variants.push({ label: "child_credential", body: credentialBody, keyLabel });
         variants.push({ label: "child_credential_retry", body: credentialBody, keyLabel: `${keyLabel}-r2`, delayMs: 6_000 });
@@ -4591,13 +4590,15 @@ Deno.serve(async (req) => {
           keyLabel: `${keyLabel}-m`,
         });
       }
+
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "NO_STORED_PASSWORD",
-          message: "No usable sub-account credential is stored. Save the current password and Step A will create the API key pair automatically.",
+          code: "NO_OWNER_ID",
+          message: "No OwnerID is bound for this sub-account, so no key pair can be created. Complete Step A's account creation first.",
         };
       }
+
 
       let created: any = null;
       let createdLabel = keyLabel;
