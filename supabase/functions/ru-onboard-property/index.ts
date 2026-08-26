@@ -278,6 +278,41 @@ Deno.serve(async (req) => {
           .eq("property_id", propertyId)
           .not("rentalsunited_property_id", "is", null),
       ]);
+
+      const recordedUnits = Number(unitListings?.count ?? 0);
+      const verifiedUnits = Number(property.ru_listings_verified_units ?? 0);
+      const published = Boolean(property.rentalsunited_property_id) || recordedUnits > 0 || verifiedUnits > 0;
+
+      // A stored "passed" only stays true while the evidence behind it still exists.
+      // A sold/unbound property must never keep green Step A/B verdicts. A binding
+      // read error is never read as "not bound".
+      const downgrade: OnboardStepKey[] = [];
+      if (!binding.account_id && !binding.read_error) {
+        downgrade.push("monitor_step_a", "monitor_step_b", "ready_to_connect");
+      } else if (binding.account_id && !published) {
+        downgrade.push("monitor_step_b", "ready_to_connect");
+      }
+      const reason = !binding.account_id
+        ? "No distribution account is bound — Step A must run again."
+        : "Nothing is published at the channel — Step B must run again.";
+      for (const key of downgrade) {
+        const row = steps[key];
+        if (!row || row.status === "pending") continue;
+        await writeStep(admin, propertyId, {
+          step_key: key,
+          status: "pending",
+          blocker_summary: reason,
+          details: { reset_reason: reason, reset_at: new Date().toISOString() },
+        });
+        steps[key] = {
+          ...row,
+          status: "pending",
+          blocker_summary: reason,
+          passed_at: null,
+          last_checked_at: new Date().toISOString(),
+        };
+      }
+
       return json({
         success: true,
         property: {
@@ -286,7 +321,7 @@ Deno.serve(async (req) => {
           owner_email: property.owner_email ?? null,
           listing_id: property.rentalsunited_property_id ?? null,
           push_enabled: property.ru_push_enabled !== false,
-          unit_listings_recorded: Number(unitListings?.count ?? 0),
+          unit_listings_recorded: recordedUnits,
           unit_listings_verified: property.ru_listings_verified_units ?? null,
           unit_listings_expected: property.ru_listings_expected_units ?? null,
           listings_verified_at: property.ru_listings_verified_at ?? null,
@@ -295,6 +330,7 @@ Deno.serve(async (req) => {
         steps,
       });
     }
+
 
 
     // ── grade_ready_to_sell ─────────────────────────────────────────────────
