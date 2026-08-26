@@ -378,6 +378,37 @@ export async function decideRuCurrency(
     return d;
   }
 
+  /**
+   * No scoped location read-back, but this property already carries a durable, listing-level
+   * verdict from the channel's own answer on the SAME account and location for the SAME ISO.
+   * Firing Push_ChangeCurrency_RQ again in that state changes nothing at the channel and only
+   * burns a write inside the sliding minute (it is what throttled the tail of an onboarding run).
+   */
+  if (!verifiedIso) {
+    const durable = await loadCurrencyState(supabase, opts.propertyId);
+    const durableIso = String(durable?.ru_reported_currency_iso ?? '').toUpperCase();
+    const durableScope = String(durable?.owner_scope ?? '').trim();
+    const sameScope = !durableScope || durableScope === ownerScope;
+    const sameLocation = !durable?.ru_location_id || Number(durable.ru_location_id) === Number(opts.locationId);
+    if (durable?.verified_at && durableIso === authored && sameScope && sameLocation) {
+      const d = decide({
+        location_iso: authored,
+        published_iso: authored,
+        conversion_in_force: false,
+        fx_rate: null,
+        effective_rate: null,
+        flip_outcome: 'already_set',
+        ru_reported_iso: authored,
+        verified_at: String(durable.verified_at),
+        reason: `Rentals United already reported ${authored} for this listing on account ${ownerScope} (verified ${durable.verified_at}) — no currency write needed.`,
+      });
+      await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+      return d;
+    }
+  }
+
+
+
   // Location currency unknown or unverified — attempt the flip as the owning account;
   // a 339 ("already set") tells us it was correct all along.
   let flip: CurrencyDecision['flip_outcome'] = locationIso ? 'failed' : 'unknown_location';

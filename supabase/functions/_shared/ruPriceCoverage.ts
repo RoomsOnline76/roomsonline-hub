@@ -69,7 +69,17 @@ export interface AuditOptions {
   /** Skip the local-pricing evaluation when the caller already knows it is complete. */
   localUnpricedDays?: number;
   localFirstGapDate?: string | null;
+  /**
+   * A `get_prices` response the caller already holds (the post-push verification read-back).
+   * Supplying it makes the audit free: the channel allows roughly one price read per sliding
+   * minute, so pulling the same year twice back-to-back only earned a 429 on the second read.
+   */
+  priceXml?: string | null;
+  /** Window the supplied `priceXml` covers. Ignored unless `priceXml` is set. */
+  windowFrom?: string | null;
+  windowTo?: string | null;
 }
+
 
 /**
  * Pull the channel's own stored prices for the next year and derive coverage from that answer.
@@ -80,7 +90,16 @@ export async function auditChannelPriceCoverage(
   opts: AuditOptions,
 ): Promise<PriceCoverageResult> {
   const days = opts.days ?? AUDIT_DAYS;
-  const { from, to } = auditWindow(days);
+  const supplied = typeof opts.priceXml === 'string' && opts.priceXml.trim().length > 0
+    ? { xml: opts.priceXml, from: opts.windowFrom ?? null, to: opts.windowTo ?? null }
+    : null;
+  const fallbackWindow = auditWindow(days);
+  const from = supplied?.from ?? fallbackWindow.from;
+  const to = supplied?.to ?? fallbackWindow.to;
+  const expectedDays = Math.max(
+    1,
+    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1,
+  );
   const listingId = String(opts.ruPropertyId ?? '').trim();
 
   const result: PriceCoverageResult = {
@@ -91,7 +110,7 @@ export async function auditChannelPriceCoverage(
     room_type_id: opts.roomTypeId ?? null,
     window_from: from,
     window_to: to,
-    expected_days: days,
+    expected_days: Number.isFinite(expectedDays) ? expectedDays : days,
     channel_priced_days: 0,
     channel_seasons: 0,
     channel_zero_priced_days: 0,
@@ -108,31 +127,37 @@ export async function auditChannelPriceCoverage(
     return result;
   }
 
-  // Owner-scoped credentials are mandatory: an unscoped read hits the master account and comes
-  // back "Property does not exist", which previously looked like a channel-side gap.
-  let childAuth = opts.childAuth ?? null;
-  if (!childAuth || !(childAuth as Record<string, unknown>).owner_id) {
-    childAuth = await resolveRuChildAuth(admin, opts.propertyId);
-  }
-  if (!childAuth) {
-    result.error_message = 'No channel sub-account credentials resolved for this property';
-    return result;
+  let rawXml = supplied?.xml ?? null;
+
+  if (!rawXml) {
+    // Owner-scoped credentials are mandatory: an unscoped read hits the master account and comes
+    // back "Property does not exist", which previously looked like a channel-side gap.
+    let childAuth = opts.childAuth ?? null;
+    if (!childAuth || !(childAuth as Record<string, unknown>).owner_id) {
+      childAuth = await resolveRuChildAuth(admin, opts.propertyId);
+    }
+    if (!childAuth) {
+      result.error_message = 'No channel sub-account credentials resolved for this property';
+      return result;
+    }
+
+    const attempt = await invokeRuWithRetry(
+      admin,
+      { action: 'get_prices', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
+      { label: `price_coverage ${listingId}` },
+    );
+
+    if (!attempt.ok || !attempt.data?.raw_xml) {
+      result.error_message = attempt.message || attempt.errorCode || 'Channel price read-back could not be performed';
+      result.gap_summary = 'Price coverage could not be verified at the channel — re-queued for another read.';
+      return result;
+    }
+    rawXml = String(attempt.data.raw_xml);
   }
 
-  const attempt = await invokeRuWithRetry(
-    admin,
-    { action: 'get_prices', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
-    { label: `price_coverage ${listingId}` },
-  );
-
-  if (!attempt.ok || !attempt.data?.raw_xml) {
-    result.error_message = attempt.message || attempt.errorCode || 'Channel price read-back could not be performed';
-    result.gap_summary = 'Price coverage could not be verified at the channel — re-queued for another read.';
-    return result;
-  }
-
-  const seasons = parseRuPriceSeasons(String(attempt.data.raw_xml)).filter(
+  const seasons = parseRuPriceSeasons(String(rawXml)).filter(
     (s): s is typeof s & { date_from: string; date_to: string } => Boolean(s.date_from && s.date_to),
+
   );
   result.channel_seasons = seasons.length;
 
@@ -156,7 +181,7 @@ export async function auditChannelPriceCoverage(
   // First missing night and how long the gap runs.
   let lastMissingIndex = -1;
   let firstMissingIndex = -1;
-  for (let i = 0; i < days; i++) {
+  for (let i = 0; i < result.expected_days; i++) {
     const iso = addDays(from, i);
     if (!priced.has(iso)) {
       if (firstMissingIndex < 0) firstMissingIndex = i;
@@ -175,8 +200,8 @@ export async function auditChannelPriceCoverage(
   // nothing wrong locally. Treating that tail as a gap made the wizard warning impossible to clear —
   // a re-check would pass the read and still paint amber. Only real gaps inside the window count.
   const tailOnly =
-    firstMissingIndex >= 0 && firstMissingIndex >= days - TAIL_TOLERANCE_DAYS && lastMissingIndex === days - 1;
-  const channelComplete = result.channel_priced_days >= days || tailOnly;
+    firstMissingIndex >= 0 && firstMissingIndex >= result.expected_days - TAIL_TOLERANCE_DAYS && lastMissingIndex === result.expected_days - 1;
+  const channelComplete = result.channel_priced_days >= result.expected_days || tailOnly;
 
   // Local truth: only consulted when the channel is short, because a complete channel year needs
   // no repair regardless of how ROL'OS authored it.
@@ -199,16 +224,17 @@ export async function auditChannelPriceCoverage(
 
   if (channelComplete) {
     result.verdict = 'verified';
-    result.gap_summary = tailOnly && result.channel_priced_days < days
-      ? `The channel holds prices for ${result.channel_priced_days} of ${days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
+    result.gap_summary = tailOnly && result.channel_priced_days < result.expected_days
+      ? `The channel holds prices for ${result.channel_priced_days} of ${result.expected_days} nights — the shortfall is only the tail of the rolling year and clears as seasons roll forward.`
       : null;
   } else if (result.local_unpriced_days > 0) {
     result.verdict = 'local_incomplete';
     result.gap_summary = `${result.local_unpriced_days} night${result.local_unpriced_days === 1 ? '' : 's'} in the next year have no rate in ROL'OS — author them in Rate Manager and the channel will be updated automatically.`;
   } else {
     result.verdict = 'channel_short';
-    const missing = days - result.channel_priced_days;
-    result.gap_summary = `The channel holds prices for ${result.channel_priced_days} of ${days} nights${result.first_gap_date ? ` (first gap ${result.first_gap_date}, ${result.gap_length} night${result.gap_length === 1 ? '' : 's'})` : ''} — ${missing} night${missing === 1 ? '' : 's'} short. Rates are being re-sent.`;
+    const missing = result.expected_days - result.channel_priced_days;
+    result.gap_summary = `The channel holds prices for ${result.channel_priced_days} of ${result.expected_days} nights${result.first_gap_date ? ` (first gap ${result.first_gap_date}, ${result.gap_length} night${result.gap_length === 1 ? '' : 's'})` : ''} — ${missing} night${missing === 1 ? '' : 's'} short. Rates are being re-sent.`;
+
   }
 
   return result;

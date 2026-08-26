@@ -36,6 +36,8 @@ interface Body {
     /** Restore an authored unit that is live upstream but inactive locally. */
     | "restore_local_unit";
   entity_id: string;
+  /** Onboarding already pushed ARI in the previous step — don't re-send it on activation. */
+  skip_ari_refresh?: boolean;
   /** cleanup_batch: everything to resolve on this account, in order. */
   targets?: Array<{
     type: "listing" | "stale";
@@ -129,6 +131,40 @@ async function sendReactivationNotice(payload: {
     return e instanceof Error ? e.message : "Email send failed";
   }
 }
+
+/**
+ * Activation used to fire an unconditional `refresh_ari`. During channel onboarding the very
+ * previous step already pushed availability and prices for this listing, so the refresh re-sent
+ * the same year seconds later and the channel throttled it. Skip the refresh when the caller
+ * says the ARI is already fresh, or when a successful read-back was logged inside the window.
+ */
+const ARI_FRESH_WINDOW_MS = 10 * 60 * 1000;
+
+async function ariAlreadyFresh(
+  admin: ReturnType<typeof createClient>,
+  propertyId: string,
+  skipRequested: boolean,
+): Promise<string | null> {
+  if (skipRequested) return "caller reported the ARI was just pushed";
+  try {
+    const since = new Date(Date.now() - ARI_FRESH_WINDOW_MS).toISOString();
+    const { data, error } = await admin
+      .from("sync_logs")
+      .select("sync_type, created_at")
+      .eq("property_id", propertyId)
+      .eq("external_system", "rentals_united")
+      .eq("status", "success")
+      .in("sync_type", ["availability_verification", "prices_verification"])
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (error || !data || data.length === 0) return null;
+    return `ARI was pushed at ${data[0].created_at} (${data[0].sync_type})`;
+  } catch {
+    return null;
+  }
+}
+
 
 /**
  * RU listings for white-label properties live on a sub-user account. Calling
@@ -2087,7 +2123,13 @@ Deno.serve(async (req) => {
           })
           .eq("id", unit.property_id);
 
-        if (unitStatus !== "ru_failed") {
+        const unitAriFresh = unitStatus !== "ru_failed"
+          ? await ariAlreadyFresh(admin, unit.property_id, raw.skip_ari_refresh === true)
+          : null;
+        if (unitAriFresh) {
+          unitAri = null;
+          console.log(`[entitlement] ARI refresh skipped for ${unit.property_id} — ${unitAriFresh}`);
+        } else if (unitStatus !== "ru_failed") {
           try {
             const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
               body: { property_id: unit.property_id, action: "refresh_ari", trigger: "channel_monitor_unit_activation" },
@@ -2315,7 +2357,12 @@ Deno.serve(async (req) => {
       // retryable warning — never as a failed reactivation.
       let ariPush: string | null = null;
       let ariRetryable = false;
-      if (!archive && status !== "ru_failed") {
+      const ariFresh = !archive && status !== "ru_failed"
+        ? await ariAlreadyFresh(admin, p.id, raw.skip_ari_refresh === true)
+        : null;
+      if (ariFresh) {
+        console.log(`[entitlement] ARI refresh skipped for ${p.id} — ${ariFresh}`);
+      } else if (!archive && status !== "ru_failed") {
         try {
           const { data: ariRes, error: ariErr } = await admin.functions.invoke("push-property-to-ru", {
             body: { property_id: p.id, action: "refresh_ari", trigger: "channel_monitor_reactivation" },
