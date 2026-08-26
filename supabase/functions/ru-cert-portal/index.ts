@@ -5814,15 +5814,23 @@ Deno.serve(async (req) => {
         await admin.from("ru_readiness_snapshots").delete().eq("property_id", p.id)
           .then(() => {}, (e) => console.warn("[ru-cert-portal] retire snapshot delete failed", e));
         // The monitor verdicts describe an account and listings that no longer exist.
+        // `details` carries the recorded task trail the panel replays, so it must be
+        // replaced too — otherwise a retired property keeps green Step A ticks naming
+        // the account that was just retired.
         await admin
           .from("property_channel_step_status")
           .update({
             status: "pending",
             blocker_summary: `Reset — distribution account ${label} was retired`,
+            details: {
+              reset_reason: `Distribution account ${label} was retired`,
+              reset_at: new Date().toISOString(),
+            },
             passed_at: null,
             last_checked_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
+
           .eq("property_id", p.id)
           .in("step_key", ["monitor_step_a", "monitor_step_b", "ready_to_connect"])
           .then(() => {}, (e) => console.warn("[ru-cert-portal] retire step reset failed", e));

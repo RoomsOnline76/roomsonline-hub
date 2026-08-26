@@ -673,6 +673,31 @@ export function ChannelOnboardTab({
     setStepARemedyCode(null);
   }, [propertyId]);
 
+  /**
+   * A reset performed elsewhere (retiring the bound account, another tab) sends the
+   * step back to `pending`. Drop this session's task trail for that step so the panel
+   * cannot keep showing ticks for work the gate no longer stands behind.
+   */
+  useEffect(() => {
+    if (runningStep !== null) return;
+    const stale = new Set<string>(
+      CHANNEL_ONBOARD_TASKS.filter((task) =>
+        (task.step === "a" ? gate.stepAStatus : gate.stepBStatus) === "pending",
+      ).map((task) => task.id as string),
+    );
+    if (stale.size === 0) return;
+    setTaskStates((prev) => {
+      const keys = Object.keys(prev).filter((id) => stale.has(id));
+
+      if (keys.length === 0) return prev;
+      const next = { ...prev };
+      keys.forEach((id) => delete next[id]);
+      return next;
+    });
+  }, [gate.stepAStatus, gate.stepBStatus, runningStep]);
+
+
+
   const binding = gate.snapshot?.binding;
   const property = gate.snapshot?.property;
   const bindingUnreadable = Boolean(binding?.read_error);
@@ -984,8 +1009,16 @@ export function ChannelOnboardTab({
     const meta = CHANNEL_ONBOARD_STEP_META[step];
     const status = step === "a" ? gate.stepAStatus : gate.stepBStatus;
     const tasks = CHANNEL_ONBOARD_TASKS.filter((task) => task.step === step);
-    const ledgerTasks = ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
-      ?.tasks ?? []);
+    /**
+     * Recorded outcomes are evidence for a verdict — a `pending` step has no verdict,
+     * so its (possibly retired) task history must not be replayed as green ticks.
+     */
+    const ledgerTasks =
+      status === "pending" || status === "unknown"
+        ? []
+        : ((gate.snapshot?.steps?.[meta.key]?.details as { tasks?: Array<{ id: string; outcome: TaskOutcome; detail: string }> } | null)
+            ?.tasks ?? []);
+
     const stepWaiting = waiting[step];
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
