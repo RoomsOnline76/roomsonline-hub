@@ -7541,6 +7541,9 @@ Deno.serve(async (req) => {
               const recycledUserId = usableRuId(reCreated.user_account_id) || null;
               const recycledOwnerId = usableRuId(reCreated.owner_id) || recycledUserId;
               if (!recycledOwnerId) continue;
+              recycledCreated.push(nextLogin);
+              keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): created, OwnerID ${recycledOwnerId}`);
+
 
               await mergeRuRosterUser(admin, {
                 owner_id: recycledOwnerId,
