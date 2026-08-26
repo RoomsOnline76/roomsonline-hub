@@ -163,19 +163,28 @@ function generateSubUserPassword(): string {
  */
 const RU_GENERATED_LOGIN_DOMAIN = "channels.roomsonline.co.za";
 
+/** The channel refuses any login longer than this (status 378). */
+const RU_LOGIN_MAX_LENGTH = 50;
+
 /** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>-N@…`. */
 const generateDistributionLogin = (slugOrName: string, attempt = 1): string | null => {
   const base = String(slugOrName ?? "")
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
+    .replace(/^-+|-+$/g, "");
   if (!base) return null;
-  return `${attempt > 1 ? `${base}-${attempt}` : base}@${RU_GENERATED_LOGIN_DOMAIN}`;
+  const suffix = attempt > 1 ? `-${attempt}` : "";
+  // The channel rejects logins over 50 characters, so the local part is trimmed to fit
+  // the domain and the attempt suffix rather than being sent and refused.
+  const room = RU_LOGIN_MAX_LENGTH - RU_GENERATED_LOGIN_DOMAIN.length - 1 - suffix.length;
+  if (room < 1) return null;
+  const localBase = base.slice(0, room).replace(/-+$/g, "");
+  if (!localBase) return null;
+  return `${localBase}${suffix}@${RU_GENERATED_LOGIN_DOMAIN}`;
 };
+
 
 /** external_system values that mean "ROL'OS is the PMS" (mirrors src/lib/pmsIdentity.ts). */
 const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
