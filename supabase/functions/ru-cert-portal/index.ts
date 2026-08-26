@@ -7457,6 +7457,9 @@ Deno.serve(async (req) => {
       // Set when Step A had to recycle onto a replacement sub-account login.
       let recycledLogin: string | null = null;
       let recycledPassword: string | null = null;
+      // Ordered trail of every mint envelope tried, surfaced on the Step A task line.
+      const keyAttempts: string[] = [];
+
 
       const savedOwnerId = String((saved as any)?.ru_owner_id ?? ruOwnerId ?? "").trim();
       const savedLoginEmail = String((saved as any)?.ru_login_email ?? adoptedEmail ?? ownerEmail ?? "").trim() || null;
