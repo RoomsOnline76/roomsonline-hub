@@ -239,7 +239,12 @@ export function BillingConfigTab({ propertyId, onSwitchTab }: BillingConfigTabPr
     } as any;
   }, [selectedPreset]);
 
-  const persistBuilder = (nextStrategy: string, v: BillingConfigValue, startDate: string, enabled: boolean) => {
+  const persistBuilder = async (
+    nextStrategy: string,
+    v: BillingConfigValue,
+    startDate: string,
+    enabled: boolean,
+  ): Promise<boolean> => {
     // Sync payment toggles → property flags so ROLOS/Integrations unlocks or locks
     // the gateway configurator accordingly. When BOTH the ROL facilitator and the
     // BYO gateway are off the property is reservation-only: no online payment.
