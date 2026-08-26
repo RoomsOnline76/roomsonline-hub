@@ -232,8 +232,9 @@ export async function auditChannelPriceCoverage(
     result.gap_summary = `${result.local_unpriced_days} night${result.local_unpriced_days === 1 ? '' : 's'} in the next year have no rate in ROL'OS — author them in Rate Manager and the channel will be updated automatically.`;
   } else {
     result.verdict = 'channel_short';
-    const missing = days - result.channel_priced_days;
-    result.gap_summary = `The channel holds prices for ${result.channel_priced_days} of ${days} nights${result.first_gap_date ? ` (first gap ${result.first_gap_date}, ${result.gap_length} night${result.gap_length === 1 ? '' : 's'})` : ''} — ${missing} night${missing === 1 ? '' : 's'} short. Rates are being re-sent.`;
+    const missing = result.expected_days - result.channel_priced_days;
+    result.gap_summary = `The channel holds prices for ${result.channel_priced_days} of ${result.expected_days} nights${result.first_gap_date ? ` (first gap ${result.first_gap_date}, ${result.gap_length} night${result.gap_length === 1 ? '' : 's'})` : ''} — ${missing} night${missing === 1 ? '' : 's'} short. Rates are being re-sent.`;
+
   }
 
   return result;
