@@ -17,6 +17,8 @@ import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEdi
 export async function syncRestrictionsToChannels(
   propertyIds: string[],
   label = "restriction",
+  /** The nights this restriction touched — scopes the channel write to that span. */
+  range: { from?: string | null; to?: string | null } = {},
 ): Promise<{ pushed: number; skipped: number; failed: number; pending: number }> {
   const unique = Array.from(new Set(propertyIds.filter(Boolean)));
   const summary = { pushed: 0, skipped: 0, failed: 0, pending: 0 };
@@ -39,8 +41,11 @@ export async function syncRestrictionsToChannels(
     try {
       // Not awaited to completion at the channel: the delta is queued server-side and the push
       // continues in the background so the save never hangs on the round-trip.
+      // No force: repeated clicks coalesce into one full-window write instead of one write
+      // each, and the shared helper waits out the debounce rather than dropping the edit.
       const result = await queueChannelRatesSync(propertyId, `${label}_change`, {
-        force: true,
+        dateFrom: range.from ?? null,
+        dateTo: range.to ?? null,
       });
       if (result?.reason === "gate_pending") {
         summary.pending += 1;
