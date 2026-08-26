@@ -36,6 +36,8 @@ interface Body {
     /** Restore an authored unit that is live upstream but inactive locally. */
     | "restore_local_unit";
   entity_id: string;
+  /** Onboarding already pushed ARI in the previous step — don't re-send it on activation. */
+  skip_ari_refresh?: boolean;
   /** cleanup_batch: everything to resolve on this account, in order. */
   targets?: Array<{
     type: "listing" | "stale";
@@ -2122,7 +2124,7 @@ Deno.serve(async (req) => {
           .eq("id", unit.property_id);
 
         const unitAriFresh = unitStatus !== "ru_failed"
-          ? await ariAlreadyFresh(admin, unit.property_id, body?.skip_ari_refresh === true)
+          ? await ariAlreadyFresh(admin, unit.property_id, raw.skip_ari_refresh === true)
           : null;
         if (unitAriFresh) {
           unitAri = null;
@@ -2356,7 +2358,7 @@ Deno.serve(async (req) => {
       let ariPush: string | null = null;
       let ariRetryable = false;
       const ariFresh = !archive && status !== "ru_failed"
-        ? await ariAlreadyFresh(admin, p.id, body?.skip_ari_refresh === true)
+        ? await ariAlreadyFresh(admin, p.id, raw.skip_ari_refresh === true)
         : null;
       if (ariFresh) {
         console.log(`[entitlement] ARI refresh skipped for ${p.id} — ${ariFresh}`);
