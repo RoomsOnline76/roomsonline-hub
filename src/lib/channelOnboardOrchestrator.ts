@@ -110,7 +110,10 @@ interface RunContext {
     ruStatusId: string | null;
     ruStatusMessage: string | null;
     retryAfterMs: number | null;
+    /** Ordered trail of every mint envelope / replacement login Step A tried. */
+    attempts: string[];
   };
+
   /**
    * Set when a task in this run already sent the company profile (key provisioning does it
    * as part of minting), so the company task never re-sends it in the same run.
