@@ -6043,8 +6043,15 @@ Deno.serve(async (req) => {
 
       // ── Step 2: what does this account really own? ──
       const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "list_properties", owner_id: Number(ownerId), force_fresh: true, parent_action: "ru-cert-portal:purge_channel_account" },
+        body: {
+          action: "list_properties",
+          owner_id: Number(ownerId),
+          force_fresh: true,
+          ...(archiveIntent ? { archive_retired: true } : {}),
+          parent_action: "ru-cert-portal:purge_channel_account",
+        },
       });
+
       if (listErr || listed?.success !== true) {
         return json({
           success: false,
