@@ -455,6 +455,74 @@ export function ChannelOnboardTab({
       setPropertiesLoading(false);
 
       /**
+       * Onboarding status per entry, from the database only: the account binding
+       * (property-scoped or inherited from the portfolio), whether listings are
+       * verified live, and whether a sales channel (ChannelID) is resolved. The
+       * badge lands a moment after the list so the picker never blocks on it.
+       */
+      void (async () => {
+        const optionPortfolioIds = options
+          .map((o) => o.portfolioId)
+          .filter((id): id is string => Boolean(id));
+        const [{ data: accountRows }, { data: settingRows }] = await Promise.all([
+          supabase.from("ru_owner_accounts").select("property_id, portfolio_id, ru_owner_id"),
+          supabase.from("ru_platform_settings").select("key"),
+        ]);
+        if (cancelled) return;
+
+        const boundProperties = new Set<string>();
+        const boundPortfolios = new Set<string>();
+        ((accountRows ?? []) as Array<{
+          property_id: string | null;
+          portfolio_id: string | null;
+          ru_owner_id: string | null;
+        }>).forEach((row) => {
+          if (!String(row.ru_owner_id ?? "").trim()) return;
+          if (row.property_id) boundProperties.add(row.property_id);
+          if (row.portfolio_id) boundPortfolios.add(row.portfolio_id);
+        });
+
+        const settingKeys = new Set(
+          ((settingRows ?? []) as Array<{ key: string | null }>)
+            .map((row) => row.key ?? "")
+            .filter(Boolean),
+        );
+        // Account-wide ChannelID covers every property that has no scoped key.
+        const accountWideChannel = settingKeys.has("ru_channel_id");
+
+        const unitsById = new Map(
+          eligible.map((p) => [p.id, Number(p.ru_listings_verified_units ?? 0)]),
+        );
+        const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
+          bound:
+            boundProperties.has(propertyId) ||
+            (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
+          listingsLive: (unitsById.get(propertyId) ?? 0) > 0,
+          salesChannel: settingKeys.has(`ru_channel_id:${propertyId}`) || accountWideChannel,
+        });
+
+        const withStatus = options.map((option) => {
+          const memberIds = option.memberIds ?? [option.id];
+          const statuses = memberIds.map((memberId) =>
+            deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
+          );
+          const liveCount = statuses.filter((s) => s === "live").length;
+          const status: OnboardStatus = statuses.every((s) => s === "live")
+            ? "live"
+            : statuses.some((s) => s === "no_sales_channel")
+              ? "no_sales_channel"
+              : "to_onboard";
+          return { ...option, status, liveCount };
+        });
+        // Only portfolio entries carry a portfolio id, so the unused list above is
+        // kept out of the derivation — referenced here to keep intent explicit.
+        void optionPortfolioIds;
+        if (cancelled) return;
+        setProperties(withStatus);
+      })();
+
+
+      /**
        * Resolve the deep link from the wizard ("Open Channel Monitor"). A portfolio
        * member is not itself an option — its portfolio entry is — so a raw property
        * id must be mapped onto the entry that actually onboards it. When nothing
