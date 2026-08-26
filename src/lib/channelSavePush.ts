@@ -27,10 +27,46 @@ export interface ChannelPushNotifier {
 
 const activeConfirmations = new Map<string, symbol>();
 
+/**
+ * One push per property + section per save burst.
+ *
+ * A save surface can fire this twice (re-render, nested submit), and each duplicate used to
+ * cost a full channel round trip — the company section in particular re-enters the account
+ * flow. Identical section work started inside this window is joined, never repeated.
+ */
+const IN_FLIGHT_WINDOW_MS = 15_000;
+const inFlightSections = new Map<string, { at: number; work: Promise<string | null> }>();
+
 async function triggerSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
+  const key = `${propertyId}:${section}`;
+  const existing = inFlightSections.get(key);
+  if (existing && Date.now() - existing.at < IN_FLIGHT_WINDOW_MS) {
+    console.log(`[channel save push] joining in-flight ${section} push for ${propertyId}`);
+    return await existing.work;
+  }
+  const work = runSection(propertyId, section);
+  inFlightSections.set(key, { at: Date.now(), work });
+  try {
+    return await work;
+  } finally {
+    // Keep the entry for the rest of the window so a duplicate save joins the result.
+    setTimeout(() => {
+      if (inFlightSections.get(key)?.work === work) inFlightSections.delete(key);
+    }, IN_FLIGHT_WINDOW_MS);
+  }
+}
+
+async function runSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
   if (section === "company") {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-      body: { action: "ensure_company_details", property_id: propertyId, resend_if_changed: true },
+      body: {
+        action: "ensure_company_details",
+        property_id: propertyId,
+        resend_if_changed: true,
+        // A save may never pull the sub-account roster: the account was resolved when Step A
+        // ran, so the cached roster is the only read this path is allowed to make.
+        from_save: true,
+      },
     });
     if (error) return error.message;
     if (data?.success === false) return data?.error?.message ?? "The channel rejected the company profile.";
@@ -41,6 +77,7 @@ async function triggerSection(propertyId: string, section: ChannelPushSection): 
     : await queueChannelRatesSync(propertyId, "property_save_mandatory_fields");
   return outcome?.error ?? null;
 }
+
 
 /**
  * Push and confirm every section touched by this save, then report per section with the

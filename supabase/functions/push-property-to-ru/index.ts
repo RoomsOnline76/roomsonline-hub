@@ -3390,6 +3390,20 @@ Deno.serve(async (req) => {
       deltaChangedFields !== null &&
       deltaChangedFields.length > 0 &&
       !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
+    /**
+     * The same economy for the channel's location lookups: a scoped delta that names no
+     * address, city, country, coordinate or location field cannot have moved the listing,
+     * so `get_location_by_coordinates` / `get_location_by_name` are not worth the calls.
+     */
+    const skipLocationLookup =
+      staticOnly &&
+      !forcePush &&
+      deltaChangedFields !== null &&
+      deltaChangedFields.length > 0 &&
+      !deltaChangedFields.some((f) =>
+        /address|city|town|country|latitude|longitude|location|postal/i.test(f),
+      );
+
     const verifyPayloadImages = async (payload: Record<string, any>) =>
       skipImageProbe ? [] : await applyImageVerification(payload);
     /** ARI is pushed on every path except a static-content delta. */
@@ -4201,9 +4215,15 @@ Deno.serve(async (req) => {
     } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
+    } else if (cached?.ru_location_id && skipLocationLookup) {
+      // A scoped delta that names no address/coordinate field cannot have moved the listing,
+      // so the cached LocationID stands and the channel lookups are pure cost.
+      locationId = Number(cached.ru_location_id);
+      console.log(`[push-property-to-ru] Reusing cached RU LocationID ${locationId} (delta carries no location field)`);
     } else {
       locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
+
 
 
     // Did the owner actually pick the Channel Manager location, or did we guess it?
@@ -4260,13 +4280,24 @@ Deno.serve(async (req) => {
             const payload = { ...buildUnitPayload(property as PropertyRow, rt, locationId, undefined, currencyId, propertyCharges), distances: propertyDistances } as Record<string, any>;
             // Probe image dimensions exactly like the dry run does — without this the
             // sizes stay "unverified" and readiness falsely reports every photo as too small.
-            await applyImageVerification(payload);
+            // The probe fetches and measures every photo on every unit — the single most
+            // expensive part of a save. A scoped delta that names no image field cannot have
+            // changed the image set, so the probe is skipped and the photo-size gaps it would
+            // have answered are dropped below (the last probed push already proved them).
+            await verifyPayloadImages(payload);
+
             payload.location_authored = locationAuthored;
             return { name: rt.name, validation: buildValidation(payload) as any };
           }),
         );
         precomputedGaps = mandatoryGaps(scored);
+        if (skipImageProbe) {
+          precomputedGaps = precomputedGaps.filter(
+            (gap) => !(/photo/i.test(gap) && /(px|measured|measure)/i.test(gap)),
+          );
+        }
       }
+
       // The bookable-window + MinStay rules are part of the same gate as the content rules,
       // so the wizard and the live push cannot disagree about what "ready" means.
       if (action !== 'refresh_ari') {

@@ -223,8 +223,13 @@ export function usePropertyReadiness(
   const channelQuery = useQuery({
     queryKey: channelChecksQueryKey(propertyId),
     enabled: !!propertyId && channelChecks,
-    staleTime: 60_000,
+    // The scorecard costs 10s+ per run server-side, so several editor surfaces mounting
+    // around one save must share a single answer instead of each triggering their own.
+    staleTime: 300_000,
+    gcTime: 600_000,
+    refetchOnMount: false,
     refetchOnWindowFocus: false,
+
     queryFn: async (): Promise<ChannelCheckMap> => {
       const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
         // Never probe the channel from an editor mount — score locally / from the stored verdict.

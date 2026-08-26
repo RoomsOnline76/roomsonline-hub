@@ -348,28 +348,51 @@ async function loadSnapshot(supabase: any, propertyId: string): Promise<StaticSn
   };
 }
 
+/**
+ * Baseline for the next delta.
+ *
+ * `hash` / `at` describe the last *delivered* push (only a delivered push proves the channel
+ * holds that content). The fingerprint map is taken from the most recent run that computed
+ * one — delivered or parked — so a refused/parked delta still leaves a baseline behind and
+ * the next save is a real diff instead of another full push.
+ */
 async function lastStaticRun(
   supabase: any,
   propertyId: string,
 ): Promise<{ hash: string | null; at: number | null; fields: Record<string, string> | null }> {
   const { data } = await supabase
     .from('ru_sync_runs')
-    .select('created_at, details')
+    .select('created_at, success, action, details')
     .eq('property_id', propertyId)
-    .eq('action', RU_STATIC_DELTA_ACTION)
+    .in('action', [RU_STATIC_DELTA_ACTION, RU_STATIC_DELTA_PENDING_ACTION])
     .order('created_at', { ascending: false })
-    .limit(1);
-  const row = (data ?? [])[0];
-  if (!row) return { hash: null, at: null, fields: null };
-  const details = row.details as Record<string, unknown> | null;
-  const hash = details?.content_hash;
-  const fields = details?.field_fingerprints;
-  return {
-    hash: typeof hash === 'string' ? hash : null,
-    at: row.created_at ? new Date(row.created_at).getTime() : null,
-    fields: fields && typeof fields === 'object' ? (fields as Record<string, string>) : null,
-  };
+    .limit(20);
+
+  const rows = (data ?? []) as { created_at: string; success: boolean | null; action: string; details: Record<string, unknown> | null }[];
+
+  let hash: string | null = null;
+  let at: number | null = null;
+  let fields: Record<string, string> | null = null;
+
+  for (const row of rows) {
+    const details = row.details ?? {};
+    if (!fields) {
+      const candidate = details.field_fingerprints;
+      if (candidate && typeof candidate === 'object') fields = candidate as Record<string, string>;
+    }
+    if (!hash && row.action === RU_STATIC_DELTA_ACTION && row.success === true) {
+      const candidate = details.content_hash;
+      if (typeof candidate === 'string') {
+        hash = candidate;
+        at = row.created_at ? new Date(row.created_at).getTime() : null;
+      }
+    }
+    if (hash && fields) break;
+  }
+
+  return { hash, at, fields };
 }
+
 
 /**
  * Fire a static-content delta for one property. Awaiting it is optional — callers in a save
@@ -477,7 +500,12 @@ export async function queueRuStaticDelta(
           changed_field_count: changedFields.length,
           scope: scopeUnitIds ? 'units' : 'property',
           scope_unit_ids: scopeUnitIds,
-          field_fingerprints: success ? currentFields : previous.fields,
+          // Always leave a baseline behind: a parked/refused run records what the content
+          // looked like so the next save diffs against it (`baseline_only`) instead of
+          // falling back to a full push forever.
+          field_fingerprints: currentFields,
+          ...(success ? {} : { baseline_only: true }),
+
           forced: options.force === true,
           chunks,
           units,
