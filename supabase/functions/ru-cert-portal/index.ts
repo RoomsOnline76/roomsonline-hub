@@ -4551,8 +4551,12 @@ Deno.serve(async (req) => {
       rateDeferred?: boolean;
       retryAfterMs?: number;
       authRefused?: boolean;
+      /** Human-readable trail of every envelope tried, in order. */
+      attempts?: string[];
     }> => {
       const keyLabel = opts.keyLabel?.trim() || "ROLOS";
+      const attempts: string[] = [];
+
 
       /**
        * Ordered mint variants. The channel answers a sub-account's own login envelope
@@ -4563,7 +4567,13 @@ Deno.serve(async (req) => {
        *      not always live on the XML surface at the instant it is created
        *   3. a master-authenticated mint scoped to the sub-account's OwnerID
        */
-      const variants: Array<{ label: string; body: Record<string, unknown>; delayMs?: number }> = [];
+      /**
+       * Each variant carries its OWN key label. The channel (and our sliding-window
+       * gate in front of it) allows one call per method with the same parameters per
+       * minute — a byte-identical retry was being rejected as a duplicate before it
+       * ever reached the channel, which masked the real refusal as a rate deferral.
+       */
+      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string; delayMs?: number }> = [];
       const credentialBody: Record<string, unknown> | null =
         opts.authAccessKey && opts.authSecretKey
           ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
@@ -4571,13 +4581,14 @@ Deno.serve(async (req) => {
             ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
             : null;
       if (credentialBody) {
-        variants.push({ label: "child_credential", body: credentialBody });
-        variants.push({ label: "child_credential_retry", body: credentialBody, delayMs: 6_000 });
+        variants.push({ label: "child_credential", body: credentialBody, keyLabel });
+        variants.push({ label: "child_credential_retry", body: credentialBody, keyLabel: `${keyLabel}-r2`, delayMs: 6_000 });
       }
       if (opts.ownerId) {
         variants.push({
           label: "master_owner_scoped",
           body: { owner_scoped_mint: true, owner_id: opts.ownerId },
+          keyLabel: `${keyLabel}-m`,
         });
       }
       if (variants.length === 0) {
@@ -4589,6 +4600,7 @@ Deno.serve(async (req) => {
       }
 
       let created: any = null;
+      let createdLabel = keyLabel;
       let lastFailure: {
         code: string;
         message: string;
@@ -4596,11 +4608,13 @@ Deno.serve(async (req) => {
         ruStatusMessage: string | null;
         authRefused: boolean;
       } | null = null;
+      // A deferral is only reported when nothing has been refused outright.
+      let deferral: { retryAfterMs: number; message: string; ruStatusId: string | null; ruStatusMessage: string | null } | null = null;
 
       for (const variant of variants) {
         if (variant.delayMs) await new Promise((resolve) => setTimeout(resolve, variant.delayMs));
         const { data, error: invokeError } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "create_child_api_key", key_label: keyLabel, ...variant.body },
+          body: { action: "create_child_api_key", key_label: variant.keyLabel, ...variant.body },
         });
         const errBody = invokeError ? await readInvokeErrorBody(invokeError) : null;
         const rawMessage = String(data?.error?.message ?? errBody?.error?.message ?? invokeError?.message ?? "");
@@ -4610,28 +4624,43 @@ Deno.serve(async (req) => {
 
         if (!invokeError && data?.success === true && data?.access_key && data?.secret_key) {
           created = data;
+          createdLabel = variant.keyLabel;
+          attempts.push(`${variant.label}: key pair issued`);
           break;
         }
 
-        // A channel rate limit is a "come back shortly", never a failure: the caller
-        // surfaces the countdown and the task resumes on its own.
+        // A channel rate limit is a "come back shortly" — but it must never cancel a
+        // refusal we have already seen, otherwise the self-healing recycle never runs.
         const deferred = /RU_RATE_DEFERRED|rate limit|less than a minute/i.test(rawMessage);
         if (deferred) {
           const retryMatch = rawMessage.match(/retry in (\d+)s/i);
-          return {
-            ok: false,
-            rateDeferred: true,
+          attempts.push(`${variant.label}: rate window`);
+          deferral = {
             retryAfterMs: Math.max(5_000, Number(retryMatch?.[1] ?? 60) * 1000),
-            code: "RU_RATE_DEFERRED",
             message: rawMessage || "The channel rate-limited automatic key creation.",
             ruStatusId,
             ruStatusMessage,
           };
+          if (!lastFailure?.authRefused) {
+            // Nothing refused yet: a genuine wait, surfaced as a countdown.
+            return {
+              ok: false,
+              rateDeferred: true,
+              retryAfterMs: deferral.retryAfterMs,
+              code: "RU_RATE_DEFERRED",
+              message: deferral.message,
+              ruStatusId,
+              ruStatusMessage,
+              attempts,
+            };
+          }
+          continue;
         }
 
         const authRefused = errorCode === "RU_CREATE_KEY_API_REJECTED"
           || String(ruStatusId ?? "") === "-4"
           || /incorrect login|login or password/i.test(`${rawMessage} ${ruStatusMessage ?? ""}`);
+        attempts.push(`${variant.label}: ${authRefused ? "refused (-4)" : (errorCode || "failed")}`);
         lastFailure = {
           code: errorCode || "RU_CREATE_KEY_FAILED",
           message: rawMessage || "Rentals United did not return a new API key pair.",
@@ -4644,8 +4673,24 @@ Deno.serve(async (req) => {
       }
 
       if (!created) {
-        return { ok: false, ...(lastFailure ?? { code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair." }) };
+        if (lastFailure) return { ok: false, ...lastFailure, attempts };
+        if (deferral) {
+          return {
+            ok: false,
+            rateDeferred: true,
+            retryAfterMs: deferral.retryAfterMs,
+            code: "RU_RATE_DEFERRED",
+            message: deferral.message,
+            ruStatusId: deferral.ruStatusId,
+            ruStatusMessage: deferral.ruStatusMessage,
+            attempts,
+          };
+        }
+        return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair.", attempts };
       }
+
+
+
 
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
@@ -4663,7 +4708,8 @@ Deno.serve(async (req) => {
           login_email: opts.loginEmail,
           access_key: created.access_key,
           secret_enc: enc,
-          key_label: keyLabel,
+          key_label: createdLabel,
+
           verified_at: new Date().toISOString(),
         }, { onConflict: "ru_owner_id" });
         if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
@@ -4673,7 +4719,8 @@ Deno.serve(async (req) => {
         const { error: upErr } = await admin.from("ru_owner_accounts").update({
           ru_api_access_key: created.access_key,
           ru_api_secret_enc: enc,
-          ru_api_key_label: keyLabel,
+          ru_api_key_label: createdLabel,
+
           ru_api_keys_verified_at: new Date().toISOString(),
         }).eq("id", opts.accountId);
         if (upErr) return { ok: false, code: "SAVE_FAILED", message: upErr.message };
@@ -4689,10 +4736,11 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Created Rentals United sub-user API key "${keyLabel}" for ${opts.loginEmail ?? "unknown"} (OwnerID ${opts.ownerId || "?"})`,
+        change_summary: `Created Rentals United sub-user API key "${createdLabel}" for ${opts.loginEmail ?? "unknown"} (OwnerID ${opts.ownerId || "?"})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      return { ok: true, accessKey: String(created.access_key) };
+      return { ok: true, accessKey: String(created.access_key), attempts };
+
     };
 
     /**
@@ -7409,6 +7457,9 @@ Deno.serve(async (req) => {
       // Set when Step A had to recycle onto a replacement sub-account login.
       let recycledLogin: string | null = null;
       let recycledPassword: string | null = null;
+      // Ordered trail of every mint envelope tried, surfaced on the Step A task line.
+      const keyAttempts: string[] = [];
+
 
       const savedOwnerId = String((saved as any)?.ru_owner_id ?? ruOwnerId ?? "").trim();
       const savedLoginEmail = String((saved as any)?.ru_login_email ?? adoptedEmail ?? ownerEmail ?? "").trim() || null;
@@ -7438,9 +7489,11 @@ Deno.serve(async (req) => {
             authUsername: savedLoginEmail,
             authPassword: mintPassword,
           });
+          keyAttempts.push(...(minted.attempts ?? []));
           if (minted.ok) {
             keySource = "minted";
             mintedAccessKey = minted.accessKey ?? null;
+
           } else if (minted.rateDeferred) {
             keySource = "deferred";
             keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
@@ -7464,6 +7517,8 @@ Deno.serve(async (req) => {
             } | null = null;
 
             let lastRecycleMessage = minted.message ?? null;
+            const recycledCreated: string[] = [];
+
 
             for (let attempt = 2; recycleBase && attempt <= 3 && !recycled; attempt++) {
               const nextLogin = generateDistributionLogin(recycleBase, attempt);
@@ -7479,11 +7534,16 @@ Deno.serve(async (req) => {
               });
               if (reCreateErr || !reCreated?.success) {
                 lastRecycleMessage = String(reCreateErr?.message ?? reCreated?.error?.message ?? lastRecycleMessage ?? "");
+                keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): not created`);
                 continue;
               }
+
               const recycledUserId = usableRuId(reCreated.user_account_id) || null;
               const recycledOwnerId = usableRuId(reCreated.owner_id) || recycledUserId;
               if (!recycledOwnerId) continue;
+              recycledCreated.push(nextLogin);
+              keyAttempts.push(`replacement login ${attempt - 1} of 2 (${nextLogin}): created, OwnerID ${recycledOwnerId}`);
+
 
               await mergeRuRosterUser(admin, {
                 owner_id: recycledOwnerId,
@@ -7515,7 +7575,10 @@ Deno.serve(async (req) => {
                 accountId: String((saved as any)?.id ?? "") || null,
                 authUsername: nextLogin,
                 authPassword: nextPassword,
+                keyLabel: `ROLOS-c${attempt}`,
               });
+              keyAttempts.push(...(retryMint.attempts ?? []).map((a) => `  ${a}`));
+
               if (retryMint.ok) {
                 recycled = {
                   accessKey: retryMint.accessKey ?? null,
@@ -7545,9 +7608,13 @@ Deno.serve(async (req) => {
               keyCode = "RU_KEY_CREATION_NOT_ENABLED";
               keyRuStatusId = minted.ruStatusId ?? null;
               keyRuStatusMessage = minted.ruStatusMessage ?? null;
+              const createdList = recycledCreated.length
+                ? ` Replacement logins created and bound: ${recycledCreated.join(", ")}.`
+                : " No replacement login could be created.";
               keyWarning =
-                `The channel refused automatic API key creation for this sub-account and for the replacement logins Step A created (${lastRecycleMessage || "incorrect login or password"}). This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
+                `The channel refused automatic API key creation for this sub-account and for every replacement login Step A tried (${lastRecycleMessage || "incorrect login or password"}).${createdList} This is a channel-side entitlement, not a wrong password — ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
             }
+
           } else {
             keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
             keyRuStatusId = minted.ruStatusId ?? null;
@@ -7626,6 +7693,8 @@ Deno.serve(async (req) => {
         key_ru_status_id: keyRuStatusId,
         key_ru_status_message: keyRuStatusMessage,
         key_retry_after_ms: keyRetryAfterMs,
+        key_attempts: keyAttempts,
+
         // Non-null when the channel refused the first sub-account's mint and Step A
         // provisioned a replacement login by itself.
         recycled_login: recycledLogin,
