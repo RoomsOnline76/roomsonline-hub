@@ -4603,6 +4603,17 @@ Deno.serve(async (req) => {
           break;
         }
         lastRefusal = error?.message ?? String(data?.error?.message ?? data?.error ?? "unknown refusal");
+        // The channel no longer accepts login/password for key management (status -4 on
+        // Pull_GetApiKeys_RQ), so retrying other password variants is pointless.
+        if (candidate.auth_password && String(data?.error?.ru_status_id ?? "") === "-4") {
+          return {
+            status: "refused",
+            revoked: [],
+            failed: [],
+            message:
+              "The channel only accepts API-key authentication for key management, and refuses the portal login/password. Without a stored sub-account key pair the keys cannot be revoked over the API — they must be removed in the channel portal (or by channel support) for this sub-account.",
+          };
+        }
       }
 
       if (!childAuth || !listed) {
@@ -4613,6 +4624,7 @@ Deno.serve(async (req) => {
           message: `The channel would not list this sub-account's API keys: ${lastRefusal}`,
         };
       }
+
 
 
       const keys: { access_key: string | null }[] = Array.isArray((listed as { keys?: unknown }).keys)
