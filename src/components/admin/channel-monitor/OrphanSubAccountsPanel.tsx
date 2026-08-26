@@ -194,6 +194,8 @@ export function OrphanSubAccountsPanel() {
           archived_listings?: string[];
           refused_listings?: { listing_id: string; message: string }[];
           keys_released?: boolean;
+          keys_revoked_at_channel?: boolean;
+          key_revoke?: { status?: string; revoked?: string[]; message?: string };
           total_listings?: number;
           envelope?: string;
           rate_deferred?: boolean;
@@ -203,14 +205,24 @@ export function OrphanSubAccountsPanel() {
         const via = payload.envelope === "master_scoped_archive" ? " · via master credentials" : "";
         if (payload.success === true) {
           const archived = payload.archived_listings?.length ?? 0;
+          // Only the channel's own delete answer may be reported as a released key —
+          // dropping our stored row leaves the pair alive in the channel portal.
+          const keyNote = payload.keys_revoked_at_channel === true
+            ? (payload.key_revoke?.status === "nothing_to_revoke"
+              ? " · no API keys at the channel"
+              : ` · ${payload.key_revoke?.revoked?.length ?? 0} API key(s) revoked at the channel`)
+            : payload.key_revoke?.message
+              ? ` · keys NOT revoked (${payload.key_revoke.message})`
+              : "";
           return {
             ok: true,
             message:
               `${archived} of ${payload.total_listings ?? archived} listing(s) archived at the channel` +
-              (payload.keys_released ? " · API keys released" : "") +
+              keyNote +
               via,
           };
         }
+
         const refused = payload.refused_listings?.length ?? 0;
         return {
           ok: false,
