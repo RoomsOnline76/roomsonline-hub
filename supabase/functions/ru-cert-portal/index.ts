@@ -4156,7 +4156,7 @@ Deno.serve(async (req) => {
             ru_status_message: owned?.ru_status_message ?? null,
             error: {
               code: "RU_CHILD_KEYS_WRONG_ACCOUNT",
-              message: `This key pair authenticates as ${belongsTo}, not ${who}. Sign in at the channel AS ${who} and generate a key pair there.`,
+              message: `This key pair authenticates as ${belongsTo}, not ${who}. Use the AccessKey/SecretKey assigned to ${who}.`,
             },
           }, 200);
         }
