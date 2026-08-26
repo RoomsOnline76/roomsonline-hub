@@ -67,7 +67,14 @@ const VERIFIED_FIELDS = [
 function sameBillingValue(stored: unknown, intended: unknown): boolean {
   if (typeof intended === "boolean") return !!stored === intended;
   const norm = (v: unknown) => (v === null || v === undefined || v === "" ? null : v);
-  return norm(stored) === norm(intended);
+  const a = norm(stored);
+  const b = norm(intended);
+  if (a === b) return true;
+  // Numerics can come back as strings ("1500.00") — compare by value, not text.
+  const na = Number(a);
+  const nb = Number(b);
+  if (a !== null && b !== null && Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+  return false;
 }
 
 
