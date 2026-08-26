@@ -90,14 +90,35 @@ export interface RuPushScopePlan {
   content_hash: string;
 }
 
+/**
+ * The one canonical static-content hash.
+ *
+ * Every call site (plan, pre-push skip check, post-push rehash) must hash the *same* shape,
+ * otherwise a surroundings-only edit hashes as unchanged, and the first save after a good push
+ * always looks changed. Attractions are part of the pushed listing (Distances block), charges too.
+ */
+export async function staticSnapshotHash(snapshot: {
+  property: Record<string, unknown> | null;
+  units: Record<string, unknown>[];
+  charges: Record<string, unknown>[];
+  attractions: Record<string, unknown>[];
+}): Promise<string> {
+  return await sha256(
+    stableStringify({
+      property: snapshot.property,
+      units: snapshot.units,
+      charges: snapshot.charges,
+      attractions: snapshot.attractions,
+    }),
+  );
+}
+
 export async function planStaticPushScope(
   supabase: any,
   propertyId: string,
 ): Promise<RuPushScopePlan> {
   const snapshot = await loadSnapshot(supabase, propertyId);
-  const contentHash = await sha256(
-    stableStringify({ property: snapshot.property, units: snapshot.units, charges: snapshot.charges }),
-  );
+  const contentHash = await staticSnapshotHash(snapshot);
   const previous = await lastStaticRun(supabase, propertyId);
   const currentFields = await fieldFingerprints(snapshot);
   const changedFields = diffFingerprints(previous.fields, currentFields);
@@ -381,9 +402,7 @@ export async function queueRuStaticDelta(
       return { queued: false, reason: 'not_connected' };
     }
 
-    const contentHash = await sha256(
-      stableStringify({ property: snapshot.property, units: snapshot.units, charges: snapshot.charges }),
-    );
+    const contentHash = await staticSnapshotHash(snapshot);
     const previous = await lastStaticRun(supabase, propertyId);
     const currentFields = await fieldFingerprints(snapshot);
     // Named for the auditor: which fields this delta carries, and whether it is a targeted delta
@@ -431,7 +450,7 @@ export async function queueRuStaticDelta(
       try {
         const after = await loadSnapshot(supabase, propertyId);
         if (after.property) {
-          storedHash = await sha256(stableStringify({ property: after.property, units: after.units }));
+          storedHash = await staticSnapshotHash(after);
         }
       } catch (rehashErr) {
         console.warn('[ruStaticDelta] post-push rehash failed', rehashErr);
