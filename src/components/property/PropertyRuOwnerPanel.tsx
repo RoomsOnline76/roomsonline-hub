@@ -30,6 +30,9 @@ import { toast } from "sonner";
 import { extractFunctionError } from "@/lib/functionError";
 import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+import { useChannelOnboardGate } from "@/hooks/useChannelOnboardGate";
+
 
 
 const RU_SECURITY_SETTINGS_URL = "https://new.rentalsunited.com/My/SecuritySettings";
@@ -101,15 +104,25 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     () => ["roomsonline", "rolos", "rol_os", "rolos_pms"].includes((pmsSystem ?? "").trim().toLowerCase()),
     [pmsSystem],
   );
+  const navigate = useNavigate();
+  // Mandatory ROL'OS steps 1–5 (Ready-to-sell). Graded locally — no channel traffic.
+  const gate = useChannelOnboardGate(isRolos ? propertyId : null);
+  const blockedReason = useMemo(() => {
+    if (gate.readyToSell) return "";
+    const failing = gate.readyToSellBlockers.slice(0, 3).join("; ");
+    return failing
+      ? `Steps 1–5 are not complete yet: ${failing}${gate.readyToSellBlockers.length > 3 ? "…" : ""}`
+      : "Complete the mandatory steps 1–5 for this property before creating a distribution account.";
+  }, [gate.readyToSell, gate.readyToSellBlockers]);
 
   const [showWlTokens, setShowWlTokens] = useState(false);
 
 
+
   const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [confirmCreate, setConfirmCreate] = useState(false);
+
   const [identity, setIdentity] = useState<RuOwnerIdentity | null>(null);
   const [accessKey, setAccessKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
@@ -173,24 +186,14 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     void load();
   }, [load]);
 
-  const createSubAccount = async () => {
-    setCreating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
-        body: { action: "ensure_owner_account", property_id: propertyId },
-      });
-      if (error) throw new Error(await extractFunctionError(error));
-      if (!data?.success) throw new Error(data?.error?.message ?? "Distribution account creation failed");
-      toast.success("Distribution account linked to this owner");
-      notifyRuAccountsChanged();
-      setConfirmCreate(false);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Distribution account creation failed");
-    } finally {
-      setCreating(false);
-    }
-  };
+  /**
+   * Account provisioning belongs to Step A on the Channel onboarding surface — this
+   * card only routes there once the mandatory steps 1–5 have passed.
+   */
+  const startOnboarding = useCallback(() => {
+    navigate(`/admin/channel-monitor?tab=onboard&property=${propertyId}`);
+  }, [navigate, propertyId]);
+
 
   /**
    * Push_FillCompanyDetails_RQ. RU applies the profile to whichever account
@@ -403,12 +406,12 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           </div>
         )}
 
-        {/* Not linked → readiness + create */}
+        {/* Not linked → readiness + route to Step A */}
         {!linked && identity && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
-              No distribution account exists for this owner. Complete the checks below, then create it — the new
-              account is linked to this property and shared with its portfolio siblings.
+              No distribution account exists for this owner. Once the mandatory steps 1–5 pass, confirm below and the
+              Channel onboarding page provisions the account (Step A) for this property and its portfolio siblings.
             </p>
             <ul className="space-y-1">
               {identity.readiness.checks.map((c) => (
@@ -426,34 +429,34 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               ))}
             </ul>
             {!readOnly && (
-              confirmCreate ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs">
-                    Create a distribution account for {identity.property.owner_email ?? "this owner"}?
-                  </span>
-                  <Button size="sm" onClick={() => void createSubAccount()} disabled={creating} className="gap-1.5">
-                    {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
-                    Confirm &amp; create
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setConfirmCreate(false)} disabled={creating}>
-                    Cancel
-                  </Button>
-                </div>
-              ) : (
+              <div className="space-y-1.5">
                 <Button
                   size="sm"
                   variant="outline"
                   className="gap-1.5"
-                  disabled={!identity.readiness.ready}
-                  onClick={() => setConfirmCreate(true)}
+                  disabled={!gate.readyToSell || gate.loading || gate.grading}
+                  title={
+                    gate.readyToSell
+                      ? "Open Channel onboarding and run Step A for this property"
+                      : blockedReason
+                  }
+                  onClick={startOnboarding}
                 >
-                  <UserPlus className="h-3.5 w-3.5" />
-                  Create distribution account
+                  {gate.loading || gate.grading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="h-3.5 w-3.5" />
+                  )}
+                  Confirm &amp; create
                 </Button>
-              )
+                {!gate.readyToSell && !gate.loading && !gate.grading && (
+                  <p className="text-[11px] text-muted-foreground">{blockedReason}</p>
+                )}
+              </div>
             )}
           </div>
         )}
+
 
         {/* API keys */}
         {linked && (
