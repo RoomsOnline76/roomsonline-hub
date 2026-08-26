@@ -902,6 +902,22 @@ export function ChannelOnboardTab({
     setStepDetailOpen({});
   }, [propertyId]);
 
+  /**
+   * A run that just finished changes the picked entry's badge. Re-read the statuses
+   * once the run leaves the "running" state so the dropdown reflects it immediately.
+   */
+  const lastRunningStep = useRef<ChannelOnboardStep | null>(null);
+  useEffect(() => {
+    if (runningStep !== null) {
+      lastRunningStep.current = runningStep;
+      return;
+    }
+    if (lastRunningStep.current === null) return;
+    lastRunningStep.current = null;
+    void refreshOnboardStatuses(properties);
+  }, [runningStep, properties, refreshOnboardStatuses]);
+
+
   const doRebind = useCallback(
     async (confirmPortfolioScope: boolean) => {
       if (!propertyId) return;
