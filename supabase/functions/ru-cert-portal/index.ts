@@ -5865,15 +5865,21 @@ Deno.serve(async (req) => {
       }
 
       // ── Step 2: archive the sub-account ──
+      // channel_archived_at is stamped only when the channel confirmed EVERY listing —
+      // a forced retire with refusals stays visibly unfinished at the channel.
+      const fullyArchivedAtChannel = failedListings.length === 0;
       const { error: retErr } = await admin.from("ru_retired_accounts").upsert(
         {
           ru_owner_id: ownerId,
           portal_email: label,
           reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
           retired_by: user.id,
+          listings_archived: archivedListings.length,
+          channel_archived_at: fullyArchivedAtChannel ? new Date().toISOString() : null,
         },
         { onConflict: "ru_owner_id" },
       );
+
       if (retErr) {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
       }
