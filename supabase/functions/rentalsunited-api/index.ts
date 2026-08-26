@@ -26,6 +26,7 @@ import { logRuExchange, logRuNotAttempted, newRuTraceId, type RuApiLogContext, t
 import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, reserveRuSlot, enqueueRuCall, isDeferrableRuCall, ruQueuePriority, ruGateWaitMs, isReservationWriteAction } from '../_shared/ruRateGate.ts';
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
 import { readRuOwnerListingCache, writeRuOwnerListingCache } from '../_shared/ruOwnerListingCache.ts';
+import { buildCreateApiKeyXml } from '../_shared/ruApiKeyXml.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
@@ -2634,8 +2635,7 @@ Deno.serve(async (req) => {
       const label = (typeof body.key_label === 'string' && body.key_label.trim())
         ? body.key_label.trim().substring(0, 255)
         : 'ROLOS';
-      const xml = `<?xml version="1.0" encoding="utf-8"?>
-<Push_CreateApiKey_RQ>${buildChildAuthXml(childAuth)}<Scope>XmlApi</Scope><Label>${escapeXml(label)}</Label></Push_CreateApiKey_RQ>`;
+      const xml = buildCreateApiKeyXml(childAuth, label);
       const response = await callRentalsUnited(creds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) {
