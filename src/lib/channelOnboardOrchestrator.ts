@@ -139,6 +139,20 @@ interface RunContext {
   /** RU property IDs the push itself confirmed per unit, used instead of a read-back. */
   pushConfirmedListings?: { units: number; ids: string[] };
 
+  /**
+   * The LIVE account binding for this run. The gate snapshot is read once, before the
+   * account task runs, so on a first run it still says "not bound" — every later task that
+   * trusted it reported a freshly created sub-account as missing. The account task updates
+   * this instead, and all later tasks read it.
+   */
+  binding?: OnboardGateSnapshot["binding"];
+
+}
+
+
+/** The binding as it stands NOW: the account task refreshes it mid-run. */
+function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGateSnapshot["binding"] {
+  return ctx.binding ?? snapshot.binding;
 }
 
 /** How the sub-account's key pair was resolved during account provisioning. */
@@ -498,6 +512,36 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       loginEmail || null,
       scope ? `${scope} scope` : null,
     ].filter(Boolean).join(" · ");
+
+    // Hand the account this task just created or adopted to every later task. Without this
+    // they keep reading the pre-run snapshot, which for a new account still says "not bound".
+    if (ownerId) {
+      ctx.binding = {
+        ...(ctx.binding ?? ({} as OnboardGateSnapshot["binding"])),
+        account_id: (account?.id as string | null) ?? ctx.binding?.account_id ?? null,
+        account_scope: (scope === "portfolio" || scope === "property"
+          ? scope
+          : ctx.binding?.account_scope ?? null) as "portfolio" | "property" | null,
+        ru_owner_id: ownerId,
+        login_email: loginEmail || ctx.binding?.login_email || null,
+        owner_email: loginEmail || ctx.binding?.owner_email || null,
+        keys_stored:
+          ctx.keyProvisioning?.source === "minted"
+          || ctx.keyProvisioning?.source === "existing"
+          || ctx.binding?.keys_stored === true,
+        company_details_sent:
+          data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
+      };
+    } else {
+      // No OwnerID in the payload: never guess it — re-read the gate so later tasks work off
+      // a real binding rather than a stale one.
+      try {
+        ctx.binding = (await fetchOnboardGate(ctx.propertyId)).binding;
+      } catch {
+        /* keep the pre-run binding; the next task reports the missing binding itself */
+      }
+    }
+
     return {
       id: "owner_account",
       outcome: "passed",
@@ -508,10 +552,12 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
 
   api_keys: async (ctx, snapshot) => {
+    const binding = liveBinding(ctx, snapshot);
     const accountLabel = [
-      snapshot.binding.ru_owner_id ? `OwnerID ${snapshot.binding.ru_owner_id}` : null,
-      snapshot.binding.login_email || snapshot.binding.owner_email || null,
+      binding.ru_owner_id ? `OwnerID ${binding.ru_owner_id}` : null,
+      binding.login_email || binding.owner_email || null,
     ].filter(Boolean).join(" · ");
+
     const provisioning = ctx.keyProvisioning;
     const keyLabel = (access: string | null) =>
       access ? ` · AccessKey ${access.slice(0, 6)}…` : "";
@@ -531,7 +577,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
-    if (provisioning?.source === "existing" || snapshot.binding.keys_stored) {
+    if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
         id: "api_keys",
         outcome: "skipped",
@@ -550,9 +596,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     return {
       id: "api_keys",
       outcome: "blocked",
-      code: provisioning?.code ?? (snapshot.binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
+      code: provisioning?.code ?? (binding.password_stored ? "RU_CREATE_KEY_API_REJECTED" : "NO_STORED_PASSWORD"),
       detail: (provisioning?.warning
-        ?? (snapshot.binding.password_stored
+        ?? (binding.password_stored
           ? `${accountLabel ? `${accountLabel}: ` : ""}Step A retained the generated sub-account password, but the channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A after XML API access is enabled for this OwnerID.`
           : "Step A needs the sub-account password to create and store its API key pair automatically.")) + trailText,
     };
@@ -560,12 +606,15 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   verify_keys: async (ctx, snapshot) => {
-    if (!snapshot.binding.ru_owner_id) {
+    const binding = liveBinding(ctx, snapshot);
+    // A mint earlier in this run IS the verdict — check it before the binding so a freshly
+    // created account never reads as "not bound" just because the snapshot predates it.
+    if (!binding.ru_owner_id && !ctx.keysProvenInRun) {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
     // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
     // rather than authenticating as a child we hold no credential for.
-    if (!snapshot.binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+    if (!binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
       return {
         id: "verify_keys",
         outcome: "blocked",
@@ -577,8 +626,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // this run. Re-asking the channel spends its most rate-limited read on a known answer.
     if (ctx.keysProvenInRun) {
       const label = [
-        `OwnerID ${snapshot.binding.ru_owner_id}`,
-        snapshot.binding.login_email || snapshot.binding.owner_email || null,
+        `OwnerID ${binding.ru_owner_id}`,
+        binding.login_email || binding.owner_email || null,
       ].filter(Boolean).join(" · ");
       return {
         id: "verify_keys",
@@ -589,8 +638,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       {
         action: "verify_api_keys",
-        ...(snapshot.binding.account_id ? { account_id: snapshot.binding.account_id } : {}),
-        ru_owner_id: snapshot.binding.ru_owner_id,
+        ...(binding.account_id ? { account_id: binding.account_id } : {}),
+        ru_owner_id: binding.ru_owner_id,
       },
       "The sub-account credentials did not verify",
     );
@@ -619,10 +668,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
     const verifiedLabel = [
-      String(data.ru_owner_id ?? snapshot.binding.ru_owner_id ?? "").trim()
-        ? `OwnerID ${String(data.ru_owner_id ?? snapshot.binding.ru_owner_id)}`
+      String(data.ru_owner_id ?? binding.ru_owner_id ?? "").trim()
+        ? `OwnerID ${String(data.ru_owner_id ?? binding.ru_owner_id)}`
         : null,
-      String(data.login_email ?? snapshot.binding.login_email ?? snapshot.binding.owner_email ?? "").trim() || null,
+      String(data.login_email ?? binding.login_email ?? binding.owner_email ?? "").trim() || null,
     ].filter(Boolean).join(" · ");
     return {
       id: "verify_keys",
@@ -632,8 +681,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
   company_profile: async (ctx, snapshot) => {
-    const companyLabel = snapshot.binding.ru_owner_id ? ` (OwnerID ${snapshot.binding.ru_owner_id})` : "";
-    if (snapshot.binding.company_details_sent) {
+    const binding = liveBinding(ctx, snapshot);
+    const companyLabel = binding.ru_owner_id ? ` (OwnerID ${binding.ru_owner_id})` : "";
+
+    if (binding.company_details_sent) {
       return {
         id: "company_profile",
         outcome: "skipped",
