@@ -680,14 +680,15 @@ export function ChannelOnboardTab({
    */
   useEffect(() => {
     if (runningStep !== null) return;
-    const stale = new Set(
+    const stale = new Set<string>(
       CHANNEL_ONBOARD_TASKS.filter((task) =>
         (task.step === "a" ? gate.stepAStatus : gate.stepBStatus) === "pending",
-      ).map((task) => task.id),
+      ).map((task) => task.id as string),
     );
     if (stale.size === 0) return;
     setTaskStates((prev) => {
       const keys = Object.keys(prev).filter((id) => stale.has(id));
+
       if (keys.length === 0) return prev;
       const next = { ...prev };
       keys.forEach((id) => delete next[id]);
