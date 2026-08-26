@@ -699,34 +699,21 @@ export function ChannelOnboardTab({
     [gate.readyToSell, gate.stepAStatus, runningStep],
   );
 
-  /** Step A's live task lines, so Proceed reports the run inside the account modal. */
-  const stepATaskLines = useMemo(
-    () =>
-      CHANNEL_ONBOARD_TASKS.filter((task) => task.step === "a").map((task) => ({
-        id: task.id,
-        title: task.title,
-        state: taskStates[task.id]?.state ?? "idle",
-        detail: taskStates[task.id]?.detail ?? null,
-      })),
-    [taskStates],
-  );
-
   /**
-   * One-click Step A: picking a property runs the step immediately and atomically —
-   * the backend resolves the login, auto-generates a slug-based one when the owner
-   * email is unusable, creates the sub-account, mints the keys and pushes the company
-   * details. The account preview modal only opens when the run hits a blocker it
-   * cannot resolve on its own.
+   * Picking a property asks the only question that needs a human: is this the right
+   * distribution login? The account modal opens straight away (read-only preview — no
+   * channel write), and accepting it runs Step A end to end.
    */
-  const autoRanRef = useRef<string | null>(null);
+  const autoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!propertyId || gate.loading) return;
-    if (autoRanRef.current === propertyId) return;
-    autoRanRef.current = propertyId;
+    if (autoOpenedRef.current === propertyId) return;
+    autoOpenedRef.current = propertyId;
     if (gate.stepAStatus === "passed") return;
     if (!gate.readyToSell || runningStep !== null) return;
-    void runStep("a");
-  }, [gate.loading, gate.readyToSell, gate.stepAStatus, propertyId, runStep, runningStep]);
+    void openPlan();
+  }, [gate.loading, gate.readyToSell, gate.stepAStatus, openPlan, propertyId, runningStep]);
+
 
 
   const renderStep = (step: ChannelOnboardStep) => {
