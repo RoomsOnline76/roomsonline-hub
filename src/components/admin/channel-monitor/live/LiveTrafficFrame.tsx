@@ -250,7 +250,12 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                           </span>
                           <span className="truncate font-medium">{row.action}</span>
                           {row.direction === "inbound" ? <Badge variant="outline">inbound</Badge> : null}
-                        </div>
+                          {isLegacyShape(row) ? (
+                            <Badge variant="outline" className="border-slate-300 bg-slate-100 text-slate-700">
+                              legacy — pre-fix shape
+                            </Badge>
+                          ) : null}
+
                         <p className="truncate text-muted-foreground">
                           {spec ? `${RU_ENDPOINT_FAMILY_LABELS[spec.family]} · ${RU_ENDPOINT_CADENCE_LABELS[spec.cadence]}` : "Unregistered endpoint"}
                           {row.parent_action ? ` · ${row.parent_action}` : ""}
