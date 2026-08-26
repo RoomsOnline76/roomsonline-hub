@@ -29,3 +29,18 @@ Deno.test("Push_CreateApiKey_RQ mints the first pair with child login credential
   assertStringIncludes(xml, "<Authentication><UserName>sub-user@example.com</UserName><Password>secret</Password></Authentication><Label>ROLOS</Label><Scope>XmlApi</Scope>");
   assertEquals(xml.includes("<AccessKey>"), false);
 });
+
+Deno.test("Push_CreateApiKey_RQ owner-scoped variant keeps Authentication → OwnerID → Label → Scope", () => {
+  const xml = buildCreateApiKeyXml({
+    mode: "owner_scoped",
+    access_key: "master-access",
+    secret_key: "master-secret",
+    owner_id: "742555",
+  }, "ROLOS");
+  assertStringIncludes(
+    xml,
+    "<Authentication><AccessKey>master-access</AccessKey><SecretKey>master-secret</SecretKey></Authentication><OwnerID>742555</OwnerID><Label>ROLOS</Label><Scope>XmlApi</Scope>",
+  );
+  assertEquals(xml.includes("<UserName>"), false);
+});
+
