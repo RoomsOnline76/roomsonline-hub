@@ -546,17 +546,19 @@ export function StepAccountDialog({
                         </p>
                       ) : null}
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setChangingEmail(false);
-                          setNewLoginEmail("");
-                          onRebindEmailChange("");
-                        }}
-                      >
-                        Cancel
-                      </Button>
+                      {!emailConflict ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => {
+                            setChangingEmail(false);
+                            setNewLoginEmail("");
+                            onRebindEmailChange("");
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
                     </div>
                   )}
 
