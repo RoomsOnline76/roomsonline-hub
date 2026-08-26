@@ -453,7 +453,9 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       ruStatusId: (data.key_ru_status_id as string | null) ?? null,
       ruStatusMessage: (data.key_ru_status_message as string | null) ?? null,
       retryAfterMs: Number(data.key_retry_after_ms ?? 0) || null,
+      attempts: Array.isArray(data.key_attempts) ? (data.key_attempts as string[]) : [],
     };
+
     // Minting sends the company profile as part of provisioning; remember that so the
     // company task does not send Push_FillCompanyDetails_RQ a second time in this run.
     if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
