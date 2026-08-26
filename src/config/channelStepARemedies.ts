@@ -187,14 +187,6 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     remedy: "password",
     taskHint: "api_keys",
   },
-  RU_FIRST_API_KEY_REQUIRED: {
-    code: "RU_FIRST_API_KEY_REQUIRED",
-    title: "First API key pair needed",
-    explain: "Step A has not yet created the account's API key pair.",
-    guidance: "Save the current sub-account password below and Step A will create, verify and store the pair automatically.",
-    remedy: "password",
-    taskHint: "api_keys",
-  },
   NO_RU_LOCATION: {
     code: "NO_RU_LOCATION",
     title: "Channel location cannot be resolved",
