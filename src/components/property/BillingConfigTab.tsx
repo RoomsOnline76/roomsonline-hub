@@ -92,7 +92,11 @@ function configToBuilder(config: BillingConfig | null): BillingConfigValue {
   const tiers = normalizeTiers((config as any).tier_pricing_json);
   const isWidget = config.billing_strategy === "widget";
   const v = emptyBuilderValue();
-  v.commission_enabled = config.commission_rate != null && !isWidget;
+  // The stored switch is authoritative; the rate is only a fallback for rows
+  // saved before the switch had its own column.
+  v.commission_enabled = (config as any).commission_enabled != null
+    ? !!(config as any).commission_enabled && !isWidget
+    : config.commission_rate != null && !isWidget;
   v.commission_rate = config.commission_rate != null ? String(config.commission_rate) : "";
   v.pms_commission_rate = (config as any).pms_commission_rate != null ? String((config as any).pms_commission_rate) : "";
 
