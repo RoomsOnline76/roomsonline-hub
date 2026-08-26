@@ -11,31 +11,28 @@ export interface StepARemedy {
   taskHint?: ChannelOnboardTaskId;
 }
 
-const PASSWORD_GUIDANCE =
-  "If the password works in the portal but not here, keep it saved and use the API key fields below. Portal login and XML API key creation are separate checks.";
-
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
   RU_CREATE_KEY_BAD_LOGIN: {
     code: "RU_CREATE_KEY_BAD_LOGIN",
-    title: "Wrong sub-account password",
-    explain: "Minting the key pair is the only place the channel checks a sub-account password, and it refused this one.",
-    guidance: "Sign in to the channel portal as this sub-account to confirm the password — or reset it there — then save the working password below and minting runs again automatically.",
-    remedy: "password",
+    title: "First API key pair needed",
+    explain: "The channel does not allow a portal password to create the first API key pair through its API.",
+    guidance: "Sign in as this sub-account, generate the first AccessKey/SecretKey pair, then paste both values below.",
+    remedy: "api_keys",
     taskHint: "api_keys",
   },
   RU_PASSWORD_PROBE_UNSUPPORTED: {
     code: "RU_PASSWORD_PROBE_UNSUPPORTED",
     title: "Password cannot be tested on its own",
-    explain: "The channel no longer accepts password-only requests, so a password can only be proven by minting a key pair with it.",
-    guidance: "Save the password below — the key pair is minted straight away and its result is the verdict on the password.",
-    remedy: "password",
+    explain: "Portal authentication and API-key authentication are separate.",
+    guidance: "Generate the first AccessKey/SecretKey pair in the portal and paste it below.",
+    remedy: "api_keys",
     taskHint: "api_keys",
   },
   RU_CREATE_KEY_FAILED: {
     code: "RU_CREATE_KEY_FAILED",
     title: "Key creation was refused",
     explain: "The portal password can be correct while the channel still refuses the API key-creation request.",
-    guidance: "Re-save the password to mint again. If minting stays refused, generate an AccessKey/SecretKey in the channel portal while signed in as this sub-account and paste it here.",
+    guidance: "Generate an AccessKey/SecretKey in the channel portal while signed in as this sub-account and paste it here.",
     remedy: "api_keys",
     taskHint: "api_keys",
   },
@@ -44,16 +41,16 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "RU_CHILD_LOGIN_REJECTED",
     title: "Sub-account login was refused",
     explain: "The channel did not accept the saved sub-account password on its XML API surface.",
-    guidance: `Reset or confirm the portal password for this login, then save it here. ${PASSWORD_GUIDANCE}`,
-    remedy: "password",
+    guidance: "Confirm the portal login, then generate and paste the first API key pair below.",
+    remedy: "api_keys",
     taskHint: "api_keys",
   },
   NO_CHILD_CREDENTIALS: {
     code: "NO_CHILD_CREDENTIALS",
-    title: "Sub-account credential needed",
-    explain: "This account was adopted or created before a usable credential was stored.",
-    guidance: "Save the sub-account portal password here, or create the account under a fresh login so Step A can continue.",
-    remedy: "password",
+    title: "First API key pair needed",
+    explain: "This account has no API key pair stored.",
+    guidance: "Generate the first pair in the channel portal for this exact sub-account, then paste it below.",
+    remedy: "api_keys",
     taskHint: "api_keys",
   },
   NO_STORED_PASSWORD: {
@@ -186,7 +183,15 @@ export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
     code: "NO_API_KEYS",
     title: "API key pair needed",
     explain: "No AccessKey/SecretKey pair is stored for this sub-account.",
-    guidance: "Save the portal password to mint the pair automatically, or paste a pair generated in the portal for this sub-account.",
+    guidance: "Generate the first pair in the portal for this sub-account, then paste both values below.",
+    remedy: "api_keys",
+    taskHint: "api_keys",
+  },
+  RU_FIRST_API_KEY_REQUIRED: {
+    code: "RU_FIRST_API_KEY_REQUIRED",
+    title: "First API key pair needed",
+    explain: "The channel requires an existing key pair before its API can create additional keys.",
+    guidance: "Sign in as this sub-account, generate its first AccessKey/SecretKey pair, then paste both values below. This is required once per new account.",
     remedy: "api_keys",
     taskHint: "api_keys",
   },

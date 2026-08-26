@@ -140,6 +140,7 @@ const DEFAULT_RATE_WINDOW_MS = 60_000;
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_CREATE_KEY_FAILED",
   "RU_CREATE_KEY_BAD_LOGIN",
+  "RU_FIRST_API_KEY_REQUIRED",
   "RU_PASSWORD_PROBE_UNSUPPORTED",
 
   "RU_CHILD_LOGIN_REJECTED",
@@ -433,8 +434,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
 
     notifyRuAccountsChanged();
-    // The account step now provisions the key pair too (RU returns the SecretKey once),
-    // so record what it did for the credentials task that follows.
+    // Record whether an existing key pair was found; new accounts require one portal capture.
     ctx.keyProvisioning = {
       source: String(data.key_source ?? "") as KeySource,
       accessKey: (data.access_key as string | null) ?? null,
@@ -474,8 +474,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const keyLabel = (access: string | null) =>
       access ? ` · AccessKey ${access.slice(0, 6)}…` : "";
 
-    // The account task mints the pair as part of creating the sub-account, so most runs
-    // only report what already happened instead of making a second wire call.
+    // Existing accounts can report a stored pair without another wire call.
     if (provisioning?.source === "minted") {
       // A successful mint IS the credential verdict — the next task must not re-probe it.
       ctx.keysProvenInRun = true;
@@ -502,38 +501,12 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           ?? "The channel rate-limited the key request — waiting for the window to reopen.",
       };
     }
-    if (!snapshot.binding.password_stored) {
-      return {
-        id: "api_keys",
-        outcome: "blocked",
-        code: provisioning?.source === "blocked" ? "NO_CHILD_CREDENTIALS" : "NO_STORED_PASSWORD",
-        detail:
-          provisioning?.warning
-          ?? "This account was adopted and no password is held for it, so a key pair cannot be minted automatically. Save its portal password on the Accounts tab, or create the account under a fresh login — minting then runs on its own.",
-      };
-    }
-
-    // A password is held but no pair exists yet (older accounts): mint it now.
-    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
-      { action: "create_api_key", property_id: ctx.propertyId, ru_owner_id: snapshot.binding.ru_owner_id },
-      "Could not mint the sub-account key pair",
-    );
-    if (ok) {
-      ctx.keysProvenInRun = true;
-      if (data.company_details_pushed === true) ctx.companyPushedInRun = true;
-      return {
-        id: "api_keys",
-        outcome: "passed",
-        detail: `Key pair minted and stored${accountLabel ? ` for ${accountLabel}` : ""}${keyLabel((data.access_key as string | null) ?? null)}`,
-      };
-    }
-
     return {
       id: "api_keys",
-      outcome: pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
-      retryAfterMs,
-      detail,
-      code,
+      outcome: "blocked",
+      code: "RU_FIRST_API_KEY_REQUIRED",
+      detail: provisioning?.warning
+        ?? "Generate the first API key pair in the channel portal for this sub-account, then verify and store it here.",
     };
   },
 
