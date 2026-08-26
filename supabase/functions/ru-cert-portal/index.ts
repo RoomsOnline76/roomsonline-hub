@@ -163,19 +163,28 @@ function generateSubUserPassword(): string {
  */
 const RU_GENERATED_LOGIN_DOMAIN = "channels.roomsonline.co.za";
 
+/** The channel refuses any login longer than this (status 378). */
+const RU_LOGIN_MAX_LENGTH = 50;
+
 /** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>-N@…`. */
 const generateDistributionLogin = (slugOrName: string, attempt = 1): string | null => {
   const base = String(slugOrName ?? "")
     .toLowerCase()
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/g, "");
+    .replace(/^-+|-+$/g, "");
   if (!base) return null;
-  return `${attempt > 1 ? `${base}-${attempt}` : base}@${RU_GENERATED_LOGIN_DOMAIN}`;
+  const suffix = attempt > 1 ? `-${attempt}` : "";
+  // The channel rejects logins over 50 characters, so the local part is trimmed to fit
+  // the domain and the attempt suffix rather than being sent and refused.
+  const room = RU_LOGIN_MAX_LENGTH - RU_GENERATED_LOGIN_DOMAIN.length - 1 - suffix.length;
+  if (room < 1) return null;
+  const localBase = base.slice(0, room).replace(/-+$/g, "");
+  if (!localBase) return null;
+  return `${localBase}${suffix}@${RU_GENERATED_LOGIN_DOMAIN}`;
 };
+
 
 /** external_system values that mean "ROL'OS is the PMS" (mirrors src/lib/pmsIdentity.ts). */
 const ROLOS_PMS_VALUES = new Set(["roomsonline", "rolos", "rol_os", "rolos_pms"]);
@@ -7211,13 +7220,17 @@ Deno.serve(async (req) => {
          */
         const resolvedOwnerEmail = String(ownerEmail);
         const generatedBase = await generatedLoginBase();
-        const emailCandidates: string[] = [resolvedOwnerEmail];
+        // The channel refuses logins over 50 characters outright (status 378), so an
+        // over-long resolved email is never offered as a candidate.
+        const emailCandidates: string[] =
+          resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
         if (generatedBase && !resolvedOwnerEmail.toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)) {
           for (let attempt = 1; attempt <= 4; attempt++) {
             const generated = generateDistributionLogin(generatedBase, attempt);
             if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
           }
         }
+
         // An address already live as the distribution login for a DIFFERENT property
         // or portfolio can never be re-used — drop those fallbacks up front.
         {
