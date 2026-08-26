@@ -469,6 +469,9 @@ export function ChannelOnboardTab({
           setEmailConflict(null);
           setChosenLoginEmail("");
           setStepARemedyCode(null);
+          // Step A is settled — the account modal has nothing left to ask.
+          setAccountDialogOpen(false);
+
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
           setAccountDialogOpen(true);
