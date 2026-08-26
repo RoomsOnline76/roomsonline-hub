@@ -7541,11 +7541,8 @@ Deno.serve(async (req) => {
       }
 
       // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      // A recycled run must speak as the replacement sub-account, not the refused one.
-      const companyAccount = recycledLogin
-        ? { ...(saved as any), ru_owner_id: ruOwnerId, ru_login_email: recycledLogin }
-        : (saved as any);
-      const companyResult = await submitCompanyDetails(companyAccount, adopted ? null : (recycledPassword ?? password));
+      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+
 
       const needsPassword = Boolean(
         (companyResult as any).deferred
