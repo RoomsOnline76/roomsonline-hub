@@ -4522,6 +4522,103 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── revokeChannelKeys ────────────────────────────────────────────────────────
+     * Deleting our stored row does NOT remove the key pair from the channel — the pair
+     * keeps existing (and keeps counting) in the channel portal until Push_DeleteApiKey_RQ
+     * runs. Both verbs authenticate AS the sub-account, so this needs child credentials:
+     * a proven CHILD key pair, or the operator-supplied portal password. A master pair is
+     * never used — it would enumerate and delete the MASTER account's keys.
+     *
+     * Returns an honest verdict; the caller keeps the local row when the channel side
+     * could not be cleared, so a later run can retry.
+     */
+    const revokeChannelKeys = async (opts: {
+      ownerId: string;
+      loginEmail: string | null;
+      /** Proven child key pair, when one is on file and usable. */
+      accessKey?: string | null;
+      secretKey?: string | null;
+      /** Portal password fallback, when the operator supplied one. */
+      password?: string | null;
+      parentAction: string;
+    }): Promise<{
+      status: "revoked" | "nothing_to_revoke" | "no_credentials" | "refused";
+      revoked: string[];
+      failed: { access_key: string; message: string }[];
+      message: string;
+    }> => {
+      const childAuth = (opts.accessKey && opts.secretKey)
+        ? { auth_access_key: opts.accessKey, auth_secret_key: opts.secretKey }
+        : (opts.loginEmail && opts.password)
+          ? { auth_username: opts.loginEmail, auth_password: opts.password }
+          : null;
+
+      if (!childAuth) {
+        return {
+          status: "no_credentials",
+          revoked: [],
+          failed: [],
+          message:
+            "Cannot revoke at the channel: no sub-account credentials (a child key pair or the portal password is required). The local copy was left in place so this can be retried.",
+        };
+      }
+
+      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "list_child_api_keys",
+          owner_id: Number(opts.ownerId),
+          ...childAuth,
+          parent_action: opts.parentAction,
+        },
+      });
+      if (listErr || listed?.success !== true) {
+        return {
+          status: "refused",
+          revoked: [],
+          failed: [],
+          message: `The channel would not list this sub-account's API keys: ${listErr?.message ?? String(listed?.error?.message ?? listed?.error ?? "unknown refusal")}`,
+        };
+      }
+
+      const keys: { access_key: string | null }[] = Array.isArray(listed.keys) ? listed.keys : [];
+      const targets = keys.map((k) => (k.access_key ?? "").trim()).filter(Boolean);
+      if (targets.length === 0) {
+        return { status: "nothing_to_revoke", revoked: [], failed: [], message: "Nothing to revoke — the channel lists no API keys for this sub-account" };
+      }
+
+      const revoked: string[] = [];
+      const failed: { access_key: string; message: string }[] = [];
+      for (const target of targets) {
+        const { data: del, error: delErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "delete_child_api_key",
+            owner_id: Number(opts.ownerId),
+            target_access_key: target,
+            ...childAuth,
+            parent_action: opts.parentAction,
+          },
+        });
+        if (delErr || del?.success !== true) {
+          failed.push({
+            access_key: target,
+            message: delErr?.message ?? String(del?.error?.message ?? del?.error ?? "The channel did not accept the delete request"),
+          });
+        } else {
+          revoked.push(target);
+        }
+      }
+
+      return {
+        status: failed.length === 0 ? "revoked" : "refused",
+        revoked,
+        failed,
+        message: failed.length === 0
+          ? `Revoked at the channel (${revoked.length} key(s))`
+          : `${revoked.length} key(s) revoked, ${failed.length} refused by the channel — the local copy was kept so this can be retried`,
+      };
+    };
+
 
     /**
      * ── mintChildKeyPair ─────────────────────────────────────────────────────────
