@@ -717,7 +717,9 @@ export function ChannelOnboardTab({
    * a property therefore opens nothing — the picker card shows the account it is bound
    * to and a single Create Account button starts Step A.
    */
+  const [pickerOpen, setPickerOpen] = useState(false);
   const boundLogin = useMemo(() => {
+
     const b = gate.snapshot?.binding;
     return (b?.login_email || b?.owner_email || "").trim() || null;
   }, [gate.snapshot?.binding]);
