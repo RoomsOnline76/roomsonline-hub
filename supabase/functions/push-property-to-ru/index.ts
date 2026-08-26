@@ -50,6 +50,7 @@ import {
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
+import { collapseAvbRanges, changeoverIsUniform } from '../_shared/ruAvbCollapse.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 
