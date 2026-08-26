@@ -5812,7 +5812,21 @@ Deno.serve(async (req) => {
           .then(() => {}, (e) => console.warn("[ru-cert-portal] retire unit clear failed", e));
         await admin.from("ru_readiness_snapshots").delete().eq("property_id", p.id)
           .then(() => {}, (e) => console.warn("[ru-cert-portal] retire snapshot delete failed", e));
+        // The monitor verdicts describe an account and listings that no longer exist.
+        await admin
+          .from("property_channel_step_status")
+          .update({
+            status: "pending",
+            blocker_summary: `Reset — distribution account ${label} was retired`,
+            passed_at: null,
+            last_checked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("property_id", p.id)
+          .in("step_key", ["monitor_step_a", "monitor_step_b", "ready_to_connect"])
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] retire step reset failed", e));
         phaseStatusCache.delete(p.id);
+
         disconnected.push(p.id);
       }
 
