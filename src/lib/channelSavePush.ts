@@ -195,7 +195,9 @@ export async function pushRatePlanRates(
   const outcome = await queueChannelRatesSync(propertyId, trigger, {
     dateFrom: options.dateFrom ?? null,
     dateTo: options.dateTo ?? null,
+    onlyUnitIds: options.onlyUnitIds && options.onlyUnitIds.length > 0 ? options.onlyUnitIds : null,
   });
+
   if (outcome?.error) {
     toast.error(`${CHANNEL_MANAGER} update rejected`, { id: toastId, description: outcome.error });
     return;
