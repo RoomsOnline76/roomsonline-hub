@@ -1144,7 +1144,7 @@ export function ChannelOnboardTab({
               {propertiesLoading ? (
                 <Skeleton className="mt-1 h-9 w-full" />
               ) : (
-                <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <Popover open={pickerOpen} onOpenChange={handlePickerOpenChange}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
