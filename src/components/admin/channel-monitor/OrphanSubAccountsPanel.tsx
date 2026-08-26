@@ -556,7 +556,7 @@ export function OrphanSubAccountsPanel() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {!r.channel_archived_at && (
+                      {(!r.channel_archived_at || r.channel_archive_result?.keys_revoked_at_channel !== true) && (
                         <Button
                           type="button"
                           size="sm"
@@ -570,9 +570,10 @@ export function OrphanSubAccountsPanel() {
                           ) : (
                             <CloudOff className="h-3.5 w-3.5" />
                           )}
-                          Archive at channel
+                          {r.channel_archived_at ? "Revoke keys" : "Archive at channel"}
                         </Button>
                       )}
+
                       <Button
                         type="button"
                         size="sm"
