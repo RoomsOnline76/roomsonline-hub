@@ -4594,10 +4594,11 @@ Deno.serve(async (req) => {
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "NO_STORED_PASSWORD",
-          message: "No usable sub-account credential is stored. Save the current password and Step A will create the API key pair automatically.",
+          code: "NO_OWNER_ID",
+          message: "No OwnerID is bound for this sub-account, so no key pair can be created. Complete Step A's account creation first.",
         };
       }
+
 
       let created: any = null;
       let createdLabel = keyLabel;
