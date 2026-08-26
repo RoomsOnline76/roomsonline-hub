@@ -4201,9 +4201,15 @@ Deno.serve(async (req) => {
     } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
+    } else if (cached?.ru_location_id && skipLocationLookup) {
+      // A scoped delta that names no address/coordinate field cannot have moved the listing,
+      // so the cached LocationID stands and the channel lookups are pure cost.
+      locationId = Number(cached.ru_location_id);
+      console.log(`[push-property-to-ru] Reusing cached RU LocationID ${locationId} (delta carries no location field)`);
     } else {
       locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
+
 
 
     // Did the owner actually pick the Channel Manager location, or did we guess it?
