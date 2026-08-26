@@ -327,6 +327,9 @@ interface RequestBody {
   // API key management
   key_label?: string;
   target_access_key?: string;
+  /** Mint the pair with the master envelope + <OwnerID> after a child-login refusal. */
+  owner_scoped_mint?: boolean;
+
   // Reservation / request lifecycle
   reservation_id?: string | number;
   reject_reason?: string;
