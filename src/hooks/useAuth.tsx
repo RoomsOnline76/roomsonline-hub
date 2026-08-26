@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -68,10 +68,11 @@ async function fetchUserContext(userId: string, isRetry = false): Promise<UserCo
 
   if (error || !response?.success) {
     const code = response?.code;
+    const status = (error as { context?: { status?: number } } | null)?.context?.status;
     const isAuthIssue =
       code === "token_expired" ||
       code === "invalid_token" ||
-      (error as { context?: { status?: number } } | null)?.context?.status === 401;
+      status === 401;
 
     if (isAuthIssue && !isRetry) {
       const { data: refreshed } = await supabase.auth.refreshSession();
@@ -80,6 +81,10 @@ async function fetchUserContext(userId: string, isRetry = false): Promise<UserCo
       return EMPTY_CONTEXT;
     }
 
+    const cached = readCachedContext(userId);
+    if (cached && (status === 502 || status === 503 || code === "data_timeout")) {
+      return cached;
+    }
     throw new Error(String(error?.message ?? response?.error ?? "Failed to fetch user context"));
   }
 
@@ -92,7 +97,7 @@ async function fetchUserContext(userId: string, isRetry = false): Promise<UserCo
   return ctx;
 }
 
-export function useAuth() {
+function useAuthState() {
   const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -135,10 +140,9 @@ export function useAuth() {
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
-    // Transient edge-runtime failures (502/503 cold-start kills) should not
-    // leave the shell without roles — retry a couple of times with backoff.
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
+    // Page loads must never multiply a struggling backend request. Cached role
+    // context keeps the shell usable; a later remount can refresh it.
+    retry: false,
   });
 
   const roles = context?.roles ?? [];
@@ -239,4 +243,19 @@ export function useAuth() {
     userRole,
     signOut,
   };
+}
+
+type AuthContextValue = ReturnType<typeof useAuthState>;
+
+const AuthContext = createContext<AuthContextValue | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const value = useAuthState();
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextValue {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
 }
