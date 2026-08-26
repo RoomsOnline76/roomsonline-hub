@@ -5,7 +5,7 @@ import { onRuAccountsChanged } from "@/lib/ruAccountsSignal";
 /**
  * Read-only readiness snapshot shared by the Channel Monitor status strip and the
  * left-rail status chips. The three queries below were previously issued inside
- * ChannelRuStatusStrip; they were moved here unchanged so both surfaces read the same
+ * the removed Channel Monitor status strip; kept here so every surface reads the same
  * snapshot from a single fetch instead of duplicating it.
  */
 export interface CertRunLite {
