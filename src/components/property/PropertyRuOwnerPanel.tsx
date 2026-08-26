@@ -104,8 +104,19 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
     () => ["roomsonline", "rolos", "rol_os", "rolos_pms"].includes((pmsSystem ?? "").trim().toLowerCase()),
     [pmsSystem],
   );
+  const navigate = useNavigate();
+  // Mandatory ROL'OS steps 1–5 (Ready-to-sell). Graded locally — no channel traffic.
+  const gate = useChannelOnboardGate(isRolos ? propertyId : null);
+  const blockedReason = useMemo(() => {
+    if (gate.readyToSell) return "";
+    const failing = gate.readyToSellBlockers.slice(0, 3).join("; ");
+    return failing
+      ? `Steps 1–5 are not complete yet: ${failing}${gate.readyToSellBlockers.length > 3 ? "…" : ""}`
+      : "Complete the mandatory steps 1–5 for this property before creating a distribution account.";
+  }, [gate.readyToSell, gate.readyToSellBlockers]);
 
   const [showWlTokens, setShowWlTokens] = useState(false);
+
 
 
   const [loading, setLoading] = useState(false);
