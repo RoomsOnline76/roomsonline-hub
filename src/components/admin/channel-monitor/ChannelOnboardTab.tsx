@@ -51,6 +51,14 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import {
   AlertDialog,
@@ -296,6 +304,10 @@ export function ChannelOnboardTab({
     { email: string; message: string; candidates: LoginCandidate[] } | null
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+  /** Optional manual sub-account email entry (before any account exists). */
+  const [manualEmailOpen, setManualEmailOpen] = useState(false);
+  const [manualEmail, setManualEmail] = useState("");
+  const [manualEmailError, setManualEmailError] = useState<string | null>(null);
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
   /** Last stop code per task, so a refused task can show its own remedy card inline. */
   const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
