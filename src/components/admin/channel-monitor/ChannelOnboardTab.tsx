@@ -461,9 +461,6 @@ export function ChannelOnboardTab({
        * badge lands a moment after the list so the picker never blocks on it.
        */
       void (async () => {
-        const optionPortfolioIds = options
-          .map((o) => o.portfolioId)
-          .filter((id): id is string => Boolean(id));
         const [{ data: accountRows }, { data: settingRows }] = await Promise.all([
           supabase.from("ru_owner_accounts").select("property_id, portfolio_id, ru_owner_id"),
           supabase.from("ru_platform_settings").select("key"),
@@ -514,9 +511,6 @@ export function ChannelOnboardTab({
               : "to_onboard";
           return { ...option, status, liveCount };
         });
-        // Only portfolio entries carry a portfolio id, so the unused list above is
-        // kept out of the derivation — referenced here to keep intent explicit.
-        void optionPortfolioIds;
         if (cancelled) return;
         setProperties(withStatus);
       })();
