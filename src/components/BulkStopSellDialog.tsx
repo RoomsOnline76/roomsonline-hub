@@ -204,7 +204,7 @@ export function BulkStopSellDialog({
       if (applyMode === "rooms") {
         // Rate-plan closures have no Rentals United equivalent — they stay ROL'OS/direct only.
         // Fire-and-forget: the calendar refreshes now, the channel delta follows behind.
-        void syncRestrictionsToChannels(targetPropertyIds, "stop_sell");
+        void syncRestrictionsToChannels(targetPropertyIds, "stop_sell", { from: fromDate, to: toDate });
       }
       onOpenChange(false);
     } catch (error: any) {

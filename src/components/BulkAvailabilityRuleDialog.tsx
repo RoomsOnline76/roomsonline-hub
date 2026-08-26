@@ -154,7 +154,7 @@ export function BulkAvailabilityRuleDialog({
       if (error) throw error;
 
       toast.success(`Updated availability to ${units} units for ${filteredDates.length} dates`);
-      if (propertyId) await syncRestrictionsToChannels([propertyId], "availability");
+      if (propertyId) await syncRestrictionsToChannels([propertyId], "availability", { from: fromDate, to: toDate });
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
