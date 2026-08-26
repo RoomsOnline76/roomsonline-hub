@@ -47,6 +47,18 @@ const OUTCOME_LABEL: Record<"ok" | "deferred" | "failed", string> = {
   failed: "failed",
 };
 
+/**
+ * Rows recorded before the key-mint contract was corrected still show portal credentials on
+ * Push_CreateApiKey_RQ. The current adapter can never emit that shape, so flag those rows as
+ * historic instead of letting an operator read them as a live failure.
+ */
+function isLegacyShape(row: RuLiveTrafficRow): boolean {
+  if (row.action !== "Push_CreateApiKey_RQ") return false;
+  const xml = row.request_xml ?? "";
+  return xml.includes("<UserName>") || xml.indexOf("<Scope>") < xml.indexOf("<Label>");
+}
+
+
 function bytes(value: number | null): string {
   if (!value) return "—";
   if (value < 1024) return `${value} B`;
