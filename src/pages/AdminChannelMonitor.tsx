@@ -327,7 +327,8 @@ export default function AdminChannelMonitor() {
   );
 
   // Every chip below reads state the page already has in memory — no extra queries.
-  const railChips = useMemo<Record<TabKey, { tone: ChipTone; label: string } | undefined>(() => {
+  type RailChip = { tone: ChipTone; label: string };
+  const railChips = useMemo<Partial<Record<TabKey, RailChip>>>(() => {
     const loading = data.loading || railStatus.loading;
     const neverPushed = data.properties.filter((p) => p.neverPushed).length;
     const run = railStatus.latestRun;
