@@ -44,7 +44,10 @@ interface RetiredRow {
   retired_at: string | null;
   channel_archived_at: string | null;
   listings_archived: number | null;
+  /** The recorded answer of the last channel run, including whether keys were revoked there. */
+  channel_archive_result?: { keys_revoked_at_channel?: boolean; key_revoke?: { status?: string; message?: string } } | null;
 }
+
 
 /** Outcome of one channel purge run, shown per row. */
 interface PurgeOutcome {
@@ -114,7 +117,7 @@ export function OrphanSubAccountsPanel() {
         supabase.from("ru_owner_accounts").select("ru_owner_id"),
         supabase
           .from("ru_retired_accounts")
-          .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived")
+          .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived, channel_archive_result")
           .order("retired_at", { ascending: false }),
         supabase.from("ru_api_credentials").select("ru_owner_id, login_email, key_label, key_scope"),
       ]);
@@ -194,6 +197,8 @@ export function OrphanSubAccountsPanel() {
           archived_listings?: string[];
           refused_listings?: { listing_id: string; message: string }[];
           keys_released?: boolean;
+          keys_revoked_at_channel?: boolean;
+          key_revoke?: { status?: string; revoked?: string[]; message?: string };
           total_listings?: number;
           envelope?: string;
           rate_deferred?: boolean;
@@ -203,14 +208,24 @@ export function OrphanSubAccountsPanel() {
         const via = payload.envelope === "master_scoped_archive" ? " · via master credentials" : "";
         if (payload.success === true) {
           const archived = payload.archived_listings?.length ?? 0;
+          // Only the channel's own delete answer may be reported as a released key —
+          // dropping our stored row leaves the pair alive in the channel portal.
+          const keyNote = payload.keys_revoked_at_channel === true
+            ? (payload.key_revoke?.status === "nothing_to_revoke"
+              ? " · no API keys at the channel"
+              : ` · ${payload.key_revoke?.revoked?.length ?? 0} API key(s) revoked at the channel`)
+            : payload.key_revoke?.message
+              ? ` · keys NOT revoked (${payload.key_revoke.message})`
+              : "";
           return {
             ok: true,
             message:
               `${archived} of ${payload.total_listings ?? archived} listing(s) archived at the channel` +
-              (payload.keys_released ? " · API keys released" : "") +
+              keyNote +
               via,
           };
         }
+
         const refused = payload.refused_listings?.length ?? 0;
         return {
           ok: false,
@@ -512,6 +527,15 @@ export function OrphanSubAccountsPanel() {
                             Still live at channel
                           </Badge>
                         )}
+                        {/* Whether the channel itself deleted the key pair — not whether we
+                            dropped our stored copy, which leaves the pair alive there. */}
+                        {r.channel_archived_at && (
+                          r.channel_archive_result?.keys_revoked_at_channel === true ? (
+                            <Badge variant="secondary" className="text-[10px]">Keys revoked at channel</Badge>
+                          ) : (
+                            <Badge variant="destructive" className="text-[10px]">Keys still at channel</Badge>
+                          )
+                        )}
                         {!r.channel_archived_at && (
                           <Badge variant={keyBadge.variant} className="text-[10px]">
                             {keyBadge.text}
@@ -519,6 +543,7 @@ export function OrphanSubAccountsPanel() {
                           </Badge>
                         )}
                       </p>
+
 
                       <p className="text-[10px] text-muted-foreground">
                         {r.reason || "No reason recorded"}
@@ -531,7 +556,7 @@ export function OrphanSubAccountsPanel() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      {!r.channel_archived_at && (
+                      {(!r.channel_archived_at || r.channel_archive_result?.keys_revoked_at_channel !== true) && (
                         <Button
                           type="button"
                           size="sm"
@@ -545,9 +570,10 @@ export function OrphanSubAccountsPanel() {
                           ) : (
                             <CloudOff className="h-3.5 w-3.5" />
                           )}
-                          Archive at channel
+                          {r.channel_archived_at ? "Revoke keys" : "Archive at channel"}
                         </Button>
                       )}
+
                       <Button
                         type="button"
                         size="sm"

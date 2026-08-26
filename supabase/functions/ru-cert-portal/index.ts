@@ -4522,6 +4522,103 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── revokeChannelKeys ────────────────────────────────────────────────────────
+     * Deleting our stored row does NOT remove the key pair from the channel — the pair
+     * keeps existing (and keeps counting) in the channel portal until Push_DeleteApiKey_RQ
+     * runs. Both verbs authenticate AS the sub-account, so this needs child credentials:
+     * a proven CHILD key pair, or the operator-supplied portal password. A master pair is
+     * never used — it would enumerate and delete the MASTER account's keys.
+     *
+     * Returns an honest verdict; the caller keeps the local row when the channel side
+     * could not be cleared, so a later run can retry.
+     */
+    const revokeChannelKeys = async (opts: {
+      ownerId: string;
+      loginEmail: string | null;
+      /** Proven child key pair, when one is on file and usable. */
+      accessKey?: string | null;
+      secretKey?: string | null;
+      /** Portal password fallback, when the operator supplied one. */
+      password?: string | null;
+      parentAction: string;
+    }): Promise<{
+      status: "revoked" | "nothing_to_revoke" | "no_credentials" | "refused";
+      revoked: string[];
+      failed: { access_key: string; message: string }[];
+      message: string;
+    }> => {
+      const childAuth = (opts.accessKey && opts.secretKey)
+        ? { auth_access_key: opts.accessKey, auth_secret_key: opts.secretKey }
+        : (opts.loginEmail && opts.password)
+          ? { auth_username: opts.loginEmail, auth_password: opts.password }
+          : null;
+
+      if (!childAuth) {
+        return {
+          status: "no_credentials",
+          revoked: [],
+          failed: [],
+          message:
+            "Cannot revoke at the channel: no sub-account credentials (a child key pair or the portal password is required). The local copy was left in place so this can be retried.",
+        };
+      }
+
+      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "list_child_api_keys",
+          owner_id: Number(opts.ownerId),
+          ...childAuth,
+          parent_action: opts.parentAction,
+        },
+      });
+      if (listErr || listed?.success !== true) {
+        return {
+          status: "refused",
+          revoked: [],
+          failed: [],
+          message: `The channel would not list this sub-account's API keys: ${listErr?.message ?? String(listed?.error?.message ?? listed?.error ?? "unknown refusal")}`,
+        };
+      }
+
+      const keys: { access_key: string | null }[] = Array.isArray(listed.keys) ? listed.keys : [];
+      const targets = keys.map((k) => (k.access_key ?? "").trim()).filter(Boolean);
+      if (targets.length === 0) {
+        return { status: "nothing_to_revoke", revoked: [], failed: [], message: "Nothing to revoke — the channel lists no API keys for this sub-account" };
+      }
+
+      const revoked: string[] = [];
+      const failed: { access_key: string; message: string }[] = [];
+      for (const target of targets) {
+        const { data: del, error: delErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "delete_child_api_key",
+            owner_id: Number(opts.ownerId),
+            target_access_key: target,
+            ...childAuth,
+            parent_action: opts.parentAction,
+          },
+        });
+        if (delErr || del?.success !== true) {
+          failed.push({
+            access_key: target,
+            message: delErr?.message ?? String(del?.error?.message ?? del?.error ?? "The channel did not accept the delete request"),
+          });
+        } else {
+          revoked.push(target);
+        }
+      }
+
+      return {
+        status: failed.length === 0 ? "revoked" : "refused",
+        revoked,
+        failed,
+        message: failed.length === 0
+          ? `Revoked at the channel (${revoked.length} key(s))`
+          : `${revoked.length} key(s) revoked, ${failed.length} refused by the channel — the local copy was kept so this can be retried`,
+      };
+    };
+
 
     /**
      * ── mintChildKeyPair ─────────────────────────────────────────────────────────
@@ -5884,6 +5981,58 @@ Deno.serve(async (req) => {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
       }
 
+      // ── Step 2b: revoke the API keys AT THE CHANNEL ──
+      // Deleting only our stored row leaves the pair alive in the channel portal, so the
+      // channel is asked to delete it first; the local copy is kept when it refuses.
+      let retireKeyResult: {
+        status: string;
+        revoked: string[];
+        failed: { access_key: string; message: string }[];
+        message: string;
+      } | null = null;
+      if (retireChildKeys || (typeof body.password === "string" && body.password)) {
+        let childSecret: string | null = null;
+        if (retireChildKeys && retireCred?.secret_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: retireCred.secret_enc });
+          childSecret = typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]" ? plain : null;
+        }
+        retireKeyResult = await revokeChannelKeys({
+          ownerId,
+          loginEmail: label,
+          accessKey: childSecret ? (retireCred?.access_key ?? null) : null,
+          secretKey: childSecret,
+          password: typeof body.password === "string" && body.password ? body.password : null,
+          parentAction: "ru-cert-portal:retire_owner_account",
+        });
+      } else {
+        retireKeyResult = {
+          status: "no_credentials",
+          revoked: [],
+          failed: [],
+          message: retireCred?.key_scope === "master_pair"
+            ? "Cannot revoke at the channel: the only stored pair authenticates as the master account. Supply the sub-account portal password to revoke its keys."
+            : "Cannot revoke at the channel: no sub-account credentials on file.",
+        };
+      }
+      const retireKeysCleanAtChannel = retireKeyResult.status === "revoked" || retireKeyResult.status === "nothing_to_revoke";
+      if (retireKeysCleanAtChannel && retireCred?.access_key) {
+        await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] retire key row delete failed", e));
+      }
+      await admin.from("ru_retired_accounts").update({
+        channel_archive_result: {
+          ran_at: new Date().toISOString(),
+          ran_by: user.email ?? user.id,
+          source: "retire_owner_account",
+          archived_listings: archivedListings,
+          refused_listings: failedListings,
+          keys_revoked_at_channel: retireKeysCleanAtChannel,
+          key_revoke: retireKeyResult,
+        },
+      }).eq("ru_owner_id", ownerId)
+        .then(() => {}, (e) => console.warn("[ru-cert-portal] retire result stamp failed", e));
+
+
       // ── Step 3: disconnect the properties and drop the binding ──
       const disconnected: string[] = [];
       for (const p of props ?? []) {
@@ -5968,7 +6117,10 @@ Deno.serve(async (req) => {
         archived_listings: archivedListings,
         failed_listings: failedListings,
         disconnected_properties: disconnected,
+        keys_revoked_at_channel: retireKeysCleanAtChannel,
+        key_revoke: retireKeyResult,
         total_listings: listings.length,
+
       });
     }
 
@@ -6157,18 +6309,46 @@ Deno.serve(async (req) => {
 
       const fullyArchived = refused.length === 0;
 
-      // ── Step 4: release the keys we hold (only once the channel side is clean) ──
+      // ── Step 4: revoke the keys AT THE CHANNEL, then drop our copy ──
+      // Deleting our row alone leaves the pair alive (and counting) in the channel portal,
+      // so the channel is asked to delete every key it lists for this sub-account first.
       let keysReleased = false;
+      let keyRevoke: {
+        status: string;
+        revoked: string[];
+        failed: { access_key: string; message: string }[];
+        message: string;
+      } = { status: "skipped", revoked: [], failed: [], message: "Kept — listings still live at the channel" };
       if (fullyArchived) {
-        const { error: keyErr } = await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
-        keysReleased = !keyErr;
-        steps.push({
-          step: "release_keys",
-          ok: keysReleased,
-          message: keysReleased ? "Stored API key pair deleted" : (keyErr?.message ?? "Could not delete the stored key pair"),
+        let childSecret: string | null = null;
+        if (haveChildKeys && credRow?.secret_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
+          childSecret = typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]" ? plain : null;
+        }
+        keyRevoke = await revokeChannelKeys({
+          ownerId,
+          loginEmail,
+          accessKey: childSecret ? (credRow?.access_key ?? null) : null,
+          secretKey: childSecret,
+          password: suppliedPassword,
+          parentAction: "ru-cert-portal:purge_channel_account",
         });
+        const cleanAtChannel = keyRevoke.status === "revoked" || keyRevoke.status === "nothing_to_revoke";
+        if (cleanAtChannel) {
+          const { error: keyErr } = await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+          keysReleased = !keyErr;
+          steps.push({
+            step: "release_keys",
+            ok: keysReleased,
+            message: keysReleased
+              ? `${keyRevoke.message} · local copy removed`
+              : (keyErr?.message ?? "Revoked at the channel but the local copy could not be removed"),
+          });
+        } else {
+          steps.push({ step: "release_keys", ok: false, message: keyRevoke.message });
+        }
       } else {
-        steps.push({ step: "release_keys", ok: false, message: "Kept — listings still live at the channel" });
+        steps.push({ step: "release_keys", ok: false, message: keyRevoke.message });
       }
 
       const result = {
@@ -6178,6 +6358,8 @@ Deno.serve(async (req) => {
         total_listings: remote.length,
         archived_listings: archived,
         refused_listings: refused,
+        keys_revoked_at_channel: keyRevoke.status === "revoked" || keyRevoke.status === "nothing_to_revoke",
+        key_revoke: keyRevoke,
         keys_released: keysReleased,
         // The channel exposes no verb to archive or rename a sub-account itself — only its
         // listings. Recorded so nobody later reads a silent gap as a success.
