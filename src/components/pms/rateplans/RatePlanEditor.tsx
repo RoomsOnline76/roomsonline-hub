@@ -453,9 +453,23 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
     // Prices changed — push rates & availability to the Channel Manager and report the
     // confirmed outcome. Fire-and-forget: a channel failure never fails the save.
+    // Scope the write to the span this plan actually prices and the units it links, so a single
+    // season edit no longer re-sends the whole year for every listing.
+    const pricedSeasonIds = new Set(
+      draft.season_rates.filter((s) => s.mode !== "none").map((s) => s.calendar_season_id),
+    );
+    const windows = seasons
+      .filter((s) => pricedSeasonIds.has(s.calendar_season_id))
+      .flatMap((s) => s.periods ?? []);
+    const froms = windows.map((w) => w.from).filter(Boolean).sort();
+    const tos = windows.map((w) => w.to).filter(Boolean).sort();
     void pushRatePlanRates(propertyId, ratePlanId ? "rate_plan_update" : "rate_plan_create", {
       label: "Rates",
+      dateFrom: froms[0] ?? null,
+      dateTo: tos[tos.length - 1] ?? null,
+      onlyUnitIds: draft.units.map((u) => u.room_type_id),
     });
+
     setLegacyRefresh((n) => n + 1);
     onSaved();
   }, [draft, propertyId, ratePlanId, onSaved, noun]);
