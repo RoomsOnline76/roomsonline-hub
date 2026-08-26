@@ -153,9 +153,22 @@ Deno.serve(async (req) => {
       }
       if (staticScope?.unchanged) {
         console.log(`[cron-push-all] ${prop.name}: static content unchanged — skipping`);
+        // Log the skip: without a run row the operator log looked as if the weekly job never
+        // considered this property at all.
+        try {
+          await supabase.from('ru_sync_runs').insert({
+            property_id: prop.id,
+            action: 'weekly_content_refresh',
+            success: true,
+            details: { skipped: true, reason: 'unchanged', content_hash: staticScope.content_hash },
+          });
+        } catch (logErr) {
+          console.warn(`[cron-push-all] skip log failed for ${prop.name}:`, logErr);
+        }
         results.push({ property_id: prop.id, name: prop.name, success: true, status: 'skipped', reason: 'unchanged' });
         continue;
       }
+
 
       const startedAt = Date.now();
       let success = false;
