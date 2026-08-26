@@ -547,10 +547,12 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
 
   api_keys: async (ctx, snapshot) => {
+    const binding = liveBinding(ctx, snapshot);
     const accountLabel = [
-      snapshot.binding.ru_owner_id ? `OwnerID ${snapshot.binding.ru_owner_id}` : null,
-      snapshot.binding.login_email || snapshot.binding.owner_email || null,
+      binding.ru_owner_id ? `OwnerID ${binding.ru_owner_id}` : null,
+      binding.login_email || binding.owner_email || null,
     ].filter(Boolean).join(" · ");
+
     const provisioning = ctx.keyProvisioning;
     const keyLabel = (access: string | null) =>
       access ? ` · AccessKey ${access.slice(0, 6)}…` : "";
