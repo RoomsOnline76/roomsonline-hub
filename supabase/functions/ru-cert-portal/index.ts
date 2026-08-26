@@ -5764,6 +5764,42 @@ Deno.serve(async (req) => {
             .in("id", Array.from(propertyIds))
         : { data: [] as { id: string; name: string; rentalsunited_property_id: string | null }[] };
 
+      // ── Step 0: credential triage ──
+      // A stored pair only archives as the sub-account when it is proven CHILD scope.
+      // A master pair (or no keys at all) would be refused outright, so the archive runs
+      // on MASTER credentials scoped to this OwnerID — which rentalsunited-api allows only
+      // for an archive/deactivate on an OwnerID already in the retired registry. That
+      // registry row is therefore written BEFORE the listings, not after.
+      const { data: retireCred } = await admin
+        .from("ru_api_credentials")
+        .select("access_key, secret_enc, key_scope")
+        .eq("ru_owner_id", ownerId)
+        .maybeSingle();
+      let retireChildKeys = false;
+      if (retireCred?.access_key && retireCred.key_scope !== "master_pair") {
+        const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: retireCred.secret_enc });
+        retireChildKeys = Boolean(plain && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]");
+      }
+      const archiveIntent = !retireChildKeys;
+      if (archiveIntent) {
+        const { error: preErr } = await admin.from("ru_retired_accounts").upsert(
+          {
+            ru_owner_id: ownerId,
+            portal_email: label,
+            reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
+            retired_by: user.id,
+          },
+          { onConflict: "ru_owner_id" },
+        );
+        if (preErr) {
+          return json({
+            success: false,
+            stopped_after: "archive_account",
+            error: { code: "SAVE_FAILED", message: preErr.message },
+          }, 500);
+        }
+      }
+
       // ── Step 1: archive every listing at the channel ──
       const listings: { listing_id: string; label: string }[] = [];
       for (const p of props ?? []) {
@@ -5793,12 +5829,14 @@ Deno.serve(async (req) => {
               ru_property_id: Number(l.listing_id),
               owner_id: Number(ownerId),
               metadata: { is_active: false, is_archived: true },
+              ...(archiveIntent ? { archive_retired: true } : {}),
+              parent_action: "ru-cert-portal:retire_owner_account",
             },
           });
           if (invErr || res?.success !== true) {
             failedListings.push({
               ...l,
-              message: invErr?.message ?? res?.error ?? "The channel did not accept the archive request",
+              message: invErr?.message ?? res?.error?.message ?? res?.error ?? "The channel did not accept the archive request",
             });
           } else {
             archivedListings.push(l.listing_id);
@@ -5807,6 +5845,7 @@ Deno.serve(async (req) => {
           failedListings.push({ ...l, message: e instanceof Error ? e.message : String(e) });
         }
       }
+
 
       // A refusal stops the run before the account is retired, unless the operator
       // decides knowingly to continue.
@@ -5826,15 +5865,21 @@ Deno.serve(async (req) => {
       }
 
       // ── Step 2: archive the sub-account ──
+      // channel_archived_at is stamped only when the channel confirmed EVERY listing —
+      // a forced retire with refusals stays visibly unfinished at the channel.
+      const fullyArchivedAtChannel = failedListings.length === 0;
       const { error: retErr } = await admin.from("ru_retired_accounts").upsert(
         {
           ru_owner_id: ownerId,
           portal_email: label,
           reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
           retired_by: user.id,
+          listings_archived: archivedListings.length,
+          channel_archived_at: fullyArchivedAtChannel ? new Date().toISOString() : null,
         },
         { onConflict: "ru_owner_id" },
       );
+
       if (retErr) {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
       }
