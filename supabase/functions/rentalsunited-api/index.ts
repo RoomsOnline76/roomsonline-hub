@@ -2965,8 +2965,10 @@ Deno.serve(async (req) => {
       CHILD_SCOPED_WRITE_ACTIONS.has(action) &&
       childAuth?.mode === 'keys' &&
       ownerScope &&
+      !archiveRetiredGranted &&
       !isMasterOwnerId(ownerScope)
     ) {
+
       const scopeCheck = await assertChildKeysAreNotMaster(creds, childAuth, ownerScope);
       if (!scopeCheck.ok) {
         await logRuNotAttempted(getLogClient(), {
