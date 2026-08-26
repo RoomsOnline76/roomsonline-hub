@@ -105,13 +105,14 @@ export function OrphanSubAccountsPanel() {
     queryKey: PANEL_QUERY_KEY,
     staleTime: 60_000,
     queryFn: async () => {
-      const [{ data: roster }, { data: accounts }, { data: retiredRows }] = await Promise.all([
+      const [{ data: roster }, { data: accounts }, { data: retiredRows }, { data: credRows }] = await Promise.all([
         supabase.from("ru_roster_cache").select("users, fetched_at").eq("cache_key", "master").maybeSingle(),
         supabase.from("ru_owner_accounts").select("ru_owner_id"),
         supabase
           .from("ru_retired_accounts")
           .select("ru_owner_id, portal_email, reason, retired_at, channel_archived_at, listings_archived")
           .order("retired_at", { ascending: false }),
+        supabase.from("ru_api_credentials").select("ru_owner_id, login_email, key_label, key_scope"),
       ]);
 
       const bound = new Set(
@@ -128,6 +129,20 @@ export function OrphanSubAccountsPanel() {
       // keep showing up here as an orphan.
       const retiredIds = new Set(retired.map((r) => r.ru_owner_id));
 
+      // Match the API key pairs we actually hold to these accounts, so an operator can
+      // see up front why a row archives on child keys or on master credentials.
+      const keys = new Map<string, KeyInfo>();
+      for (const c of credRows ?? []) {
+        const id = String((c as { ru_owner_id?: string }).ru_owner_id ?? "").trim();
+        if (!id) continue;
+        const scope = String((c as { key_scope?: string }).key_scope ?? "unverified");
+        keys.set(id, {
+          state: scope === "child" ? "child" : scope === "master_pair" ? "master_pair" : "unverified",
+          login_email: (c as { login_email?: string | null }).login_email ?? null,
+          key_label: (c as { key_label?: string | null }).key_label ?? null,
+        });
+      }
+
       const users = (Array.isArray(roster?.users) ? (roster?.users as RosterUser[]) : []).filter(
         // An account archived at the channel is still read here until it is in the
         // retired registry, so it must stay visible and archivable — only registry
@@ -141,8 +156,10 @@ export function OrphanSubAccountsPanel() {
         orphans: users.filter((u) => !bound.has(String(u.owner_id).trim())),
         bound,
         retired,
+        keys,
       };
     },
+
   });
 
   /** Invalidate everything that counts or costs sub-accounts, so figures agree. */
