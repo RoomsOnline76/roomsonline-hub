@@ -32,29 +32,27 @@ const activeConfirmations = new Map<string, symbol>();
  *
  * A save surface can fire this twice (re-render, nested submit), and each duplicate used to
  * cost a full channel round trip — the company section in particular re-enters the account
- * flow. Identical section work started inside this window is joined, never repeated.
+ * flow. Only work that is genuinely still running is joined; once a push settles the entry is
+ * dropped immediately so a later save with new field values always starts its own push.
  */
-const IN_FLIGHT_WINDOW_MS = 15_000;
-const inFlightSections = new Map<string, { at: number; work: Promise<string | null> }>();
+const inFlightSections = new Map<string, Promise<string | null>>();
 
 async function triggerSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
   const key = `${propertyId}:${section}`;
   const existing = inFlightSections.get(key);
-  if (existing && Date.now() - existing.at < IN_FLIGHT_WINDOW_MS) {
+  if (existing) {
     console.log(`[channel save push] joining in-flight ${section} push for ${propertyId}`);
-    return await existing.work;
+    return await existing;
   }
   const work = runSection(propertyId, section);
-  inFlightSections.set(key, { at: Date.now(), work });
+  inFlightSections.set(key, work);
   try {
     return await work;
   } finally {
-    // Keep the entry for the rest of the window so a duplicate save joins the result.
-    setTimeout(() => {
-      if (inFlightSections.get(key)?.work === work) inFlightSections.delete(key);
-    }, IN_FLIGHT_WINDOW_MS);
+    if (inFlightSections.get(key) === work) inFlightSections.delete(key);
   }
 }
+
 
 async function runSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
   if (section === "company") {
