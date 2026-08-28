@@ -852,7 +852,11 @@ export function ChannelOnboardTab({
         } else if (result.pending) {
 
           const waitMs = result.retryAfterMs ?? 60_000;
-          const canAutoResume = attempt + 1 < MAX_AUTO_RESUMES;
+          // A.0 is the one authoritative master-roster read. Never replay account creation
+          // automatically after a roster deferral; the operator may retry it explicitly.
+          const canAutoResume = !(
+            step === "a" && result.resumeFromTaskId === "owner_account"
+          ) && attempt + 1 < MAX_AUTO_RESUMES;
           setWaiting((prev) => ({
             ...prev,
             [step]: {

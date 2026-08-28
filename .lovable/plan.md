@@ -1,51 +1,49 @@
-# Stop Step A roster rereads after account creation
+# Make Step A.3–A.5 a single clean progression
 
-## Verified cause
+## Confirmed call sequence
 
-The live traffic for the new account shows this exact sequence:
-
-```text
-19:39:22  Pull_ListMyUsers_RQ          roster:step-a              success
-19:39:24  Push_CreateUser_RQ                                        success; UserAccountId 742620
-19:39:24  Pull_ListMyUsers_RQ          roster:step-a-create-readback throttled
-19:39:48  Pull_ListMyUsers_RQ          roster:step-a-create-readback throttled
-19:40:23  Pull_ListMyUsers_RQ          roster:step-a-create-readback success
-19:40:23  Pull_ListMyUsers_RQ          roster:step-a              throttled
-19:41:23  Pull_ListMyUsers_RQ          roster:step-a              success
-```
-
-The database now has the account bound to OwnerID `742620`, and the roster cache includes that owner. The create response itself returned `<UserAccountId>742620</UserAccountId>`.
-
-The running backend is not aligned with the current repository: `roster:step-a-create-readback` does not exist in the current Step A source, but the deployed function is still executing its old paced read-back loop. The subsequent `roster:step-a` calls are the old run being parked and automatically resumed after those deferrals.
-
-## Fix
-
-1. **Use the successful create response immediately.** In the channel API wrapper, retain the parsed positive `UserAccountId` from `Push_CreateUser_RS`. In Step A, persist that value as the new account's OwnerID and bind the account immediately. Do not call the roster after create.
-
-2. **Keep the one required A.0 roster read only.** Account selection/adoption may perform one `roster:step-a` read before creation. Every later A.1 branch must reuse that in-run result; no `forceFresh`, polling loop, timer, or create read-back is allowed.
-
-3. **Support the response-without-ID edge case without polling.** If a future create response omits `UserAccountId`, save the account as pending and pause at A.2. Resolve its OwnerID once when the operator submits the key pair, then perform the existing owner-scoped key verification. Never poll between A.1 and A.2.
-
-4. **Prevent Step A from replaying because of a roster deferral.** A roster deferral during A.0 must return a single parked result based on the shared cache/backoff state; it must not schedule repeated `owner_account` runs. Once create succeeds, A.1 is terminal and cannot be replayed by the generic auto-resume timer.
-
-5. **Preserve forward-only continuation.** After key save/verification, resume at `company_profile`, then `adopt_listings`. Keep `owner_account`, `api_keys`, and `verify_keys` as passed in the ledger; do not run them again.
-
-6. **Deploy the corrected functions.** Redeploy `rentalsunited-api` and `ru-cert-portal` together so the live runtime matches the source. No changes to locked listing, inventory, reservation, or child-authentication regions.
-
-## Verification
-
-- Add focused tests for create responses with and without `UserAccountId`, and for the forward-only A.2 continuation.
-- Run Step A against one fresh test account and inspect live traffic.
-- Acceptance sequence:
+The current key verification action deliberately performs two different checks:
 
 ```text
-Pull_ListMyUsers_RQ   exactly once before create
-Push_CreateUser_RQ   exactly once
-(no roster read after create)
-(wait for manual AccessKey/SecretKey)
-verify key pair      exactly once
-company profile      exactly once
-pull listings        exactly once
+A.3 Pull_ListOwnerProp_RQ  proves the submitted pair can access OwnerID 742620
+A.3 Pull_ListMyUsers_RQ    rules out a master key pair (a child pair returns no owners)
+A.4 Push_FillCompanyDetails_RQ
+A.5 Pull_ListOwnerProp_RQ  reads/adopts listings
 ```
 
-- Confirm there are zero `roster:step-a-create-readback` entries, zero `RU_RATE_DEFERRED` roster entries, and no automatic replay of `ensure_owner_account` after create.
+Those two A.3 endpoints answer different security questions and are not duplicates. The extra listing traffic is in A.5: `resolve_ru_property_ids` sends a normal `list_properties` request, immediately sends a second non-deferrable request when the first is deferred, schedules a background job, and also tells the UI to auto-resume. That accounts for the two simultaneous throttled calls at 21:50:02 and the third call at 21:51:03.
+
+The successful A.3 `Pull_ListOwnerProp_RQ` already returned the complete listing payload (`<Properties />`) for the same OwnerID, but it is not currently written to the shared owner-listing cache, so A.5 needlessly reads the same endpoint again.
+
+## Changes
+
+1. **Keep A.3 secure but singular.** Retain exactly one owner-scoped listing probe and one master-scope exclusion probe. Persist the successful `Pull_ListOwnerProp_RQ` property list into the OwnerID listing cache as part of verification. Persist the child/master scope verdict with the saved credentials so later child writes do not re-run `Pull_ListMyUsers_RQ`.
+
+2. **Make A.5 consume A.3 evidence.** `resolve_ru_property_ids` will use the fresh OwnerID listing cache populated seconds earlier by A.3. For a newly-created empty account, `<Properties />` is valid evidence and must be cached as an empty list rather than interpreted as missing data.
+
+3. **Delete the immediate duplicate retry.** Remove the internal second `list_properties` invocation with `deferrable: false`. One A.5 invocation may make at most one wire read when no fresh cache exists.
+
+4. **Choose one retry owner.** Keep the visible UI countdown/resume for a genuine A.5 deferral and remove the additional background-job enqueue from this interactive Step A path. Guard the timer with an in-flight ref so a timer tick and a manual click cannot launch the same resumed task together.
+
+5. **Complete the already-approved A.1 identity correction.** Use the positive `UserAccountId` returned by `Push_CreateUser_RS` as the newly-created OwnerID, persist it immediately, and do not perform a post-create roster read. If the response omits the ID, pause at A.2 and resolve it once during key submission.
+
+6. **Preserve forward-only state.** Key submission performs A.3 once, then resumes only at `company_profile`; completed account creation and key verification cannot be replayed by generic retry logic.
+
+## Technical verification
+
+- Add parser tests for create responses with a positive `UserAccountId`, alternate casing, and no ID.
+- Add focused tests for verification caching, including an empty `<Properties />` payload.
+- Add a regression test proving a deferred listing adoption performs one request and selects only one retry mechanism.
+- Verify the live Step A sequence for a fresh account:
+
+```text
+Pull_ListMyUsers_RQ         once at A.0
+Push_CreateUser_RQ         once at A.1
+manual key entry
+Pull_ListOwnerProp_RQ      once at A.3
+Pull_ListMyUsers_RQ        once at A.3 security scope check
+Push_FillCompanyDetails_RQ once at A.4
+A.5 consumes A.3 cache     zero additional listing calls
+```
+
+- Confirm there are no simultaneous identical calls, no `step-a-create-readback`, no automatic replay of account creation, and no `RU_RATE_DEFERRED` generated by Step A calling itself.

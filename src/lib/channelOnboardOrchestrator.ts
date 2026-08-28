@@ -1116,6 +1116,15 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
   // against the channel (which is what closed the rate window in the first place).
   const startIndex = ctx.startAtTaskId ? Math.max(0, allTasks.findIndex((t) => t.id === ctx.startAtTaskId)) : 0;
   const tasks = allTasks.slice(startIndex);
+  // Account creation is not idempotent from the browser's point of view. A deferred A.0
+  // roster read may be retried explicitly, but a generic resume must never enter the chain
+  // downstream and then replay `owner_account` after A.1 has already succeeded.
+  if (step === "a" && ctx.startAtTaskId && startIndex > allTasks.findIndex((t) => t.id === "owner_account")) {
+    const replayedOwnerTask = tasks.find((task) => task.id === "owner_account");
+    if (replayedOwnerTask) {
+      throw new Error("Step A cannot replay sub-account creation after it has advanced past A.1.");
+    }
+  }
   const stepKeyForLedger = step === "a" ? "monitor_step_a" : "monitor_step_b";
   /**
    * A resume must not erase the legs it deliberately skipped. Recording only the resumed

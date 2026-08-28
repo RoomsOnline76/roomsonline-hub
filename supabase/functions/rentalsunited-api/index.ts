@@ -27,6 +27,7 @@ import { RU_RATE_DEFERRED_CODE, RU_RATE_WINDOW_SECONDS, RuRateDeferredError, res
 import { fetchRetiredRuOwnerIds } from '../_shared/ruRetiredAccounts.ts';
 import { readRuOwnerListingCache, writeRuOwnerListingCache } from '../_shared/ruOwnerListingCache.ts';
 import { buildCreateApiKeyXml } from '../_shared/ruApiKeyXml.ts';
+import { parseRuCreatedUserIdentity } from '../_shared/ruCreateUserResponse.ts';
 
 /**
  * Request-scoped logging context for the durable RU exchange log.
@@ -2361,13 +2362,6 @@ ${locations}
 }
 
 
-function extractUserAccountId(xml: string): string | null {
-  // The roster spells it `UserAccountID`; older payloads use `UserAccountId`. Accept both.
-  const match = xml.match(/<UserAccountI[dD]>(\d+)<\/UserAccountI[dD]>/);
-  return match?.[1] || null;
-}
-
-
 interface RUListedUser {
   user_account_id: string;
   email: string;
@@ -4290,16 +4284,17 @@ Deno.serve(async (req) => {
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      // Push_CreateUser_RS carries ONLY Status and ResponseID — no account id. Any id we
-      // used to "parse" here was always empty, so the caller must resolve the new OwnerID
-      // from Pull_ListMyUsers_RQ. `user_account_id` is echoed only when the channel ever
-      // sends one and must never be treated as authoritative.
-      const userAccountId = extractUserAccountId(response);
+      // A successful create can return the new child's identity directly. Preserve it so
+      // Step A can bind the account without immediately spending another master-roster read.
+      const createdIdentity = parseRuCreatedUserIdentity(response);
       return jsonResponse({
         success: true,
-        user_account_id: userAccountId,
-        identity_authoritative: false,
-        message: 'User created successfully — resolve the OwnerID from the master roster',
+        user_account_id: createdIdentity.userAccountId,
+        owner_id: createdIdentity.ownerId,
+        identity_authoritative: createdIdentity.ownerId !== null,
+        message: createdIdentity.ownerId
+          ? 'User created successfully — account identity captured from the create response'
+          : 'User created successfully — account identity will be resolved when the key pair is submitted',
         raw_xml: response,
       });
     }
