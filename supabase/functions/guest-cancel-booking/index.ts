@@ -277,10 +277,21 @@ Deno.serve(async (req) => {
     // sees the confirmation immediately instead of waiting on the channel round-trip.
     await enqueueJobs(supabase, [
       {
-        type: "channel_ari_delta" as const,
-        payload: { property_id: booking.property_id, trigger: "guest_cancelled", force: true },
-        options: { dedupeKey: `ari:${booking.property_id}` },
+        // Focused push: only the cancelled unit(s) and the nights the stay releases.
+        type: "channel_booking_sync" as const,
+        payload: {
+          booking_id: booking.id,
+          change: "cancelled",
+          reason: reason.trim(),
+          previous: {
+            room_type_id: booking.room_type_id ?? null,
+            check_in_date: booking.check_in_date ?? null,
+            check_out_date: booking.check_out_date ?? null,
+          },
+        },
+        options: { dedupeKey: `channel_booking_sync:${booking.id}:cancelled` },
       },
+
       {
         type: "booking_email" as const,
         payload: {

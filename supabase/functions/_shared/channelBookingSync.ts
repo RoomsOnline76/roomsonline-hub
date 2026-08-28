@@ -61,6 +61,8 @@ export interface ChannelBookingSyncRequest {
   cancel_type_id?: number | null;
   /** Skip the availability/rates delta (the caller already queued it). */
   skip_ari?: boolean;
+  /** Extra units the change touches (multi-room stays, partial cancels). */
+  only_unit_ids?: string[] | null;
   /** Where the action was triggered — recorded on the diagnostics trail. */
   source?: string | null;
 }
@@ -73,8 +75,11 @@ export interface ChannelBookingSyncResult {
   message?: string | null;
   ari: 'queued' | 'skipped' | 'failed';
   ari_reason?: string | null;
+  /** What the availability/rates write was narrowed to — proof it was not a whole-property push. */
+  ari_scope?: { unit_ids: string[]; date_from: string | null; date_to: string | null } | null;
   deferred: boolean;
 }
+
 
 /**
  * The listing the channel believes the reservation sits on. Reservations ingested before we stored
@@ -178,12 +183,52 @@ async function confirmAlreadyAttempted(
 /** Changes that carry no information the channel's reservation record holds. */
 const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
 
+/**
+ * Changes that cannot move a single night or price at the channel. Check-in, check-out, a note or
+ * a payment leaves the sold nights exactly as they were, so pushing availability and prices for
+ * them only burns the owner's rate window — and it was doing so several times per stay.
+ */
+const ARI_IRRELEVANT = new Set<ChannelBookingChange>(['notes', 'deposit', 'payment', 'status']);
+
+/**
+ * Every unit the stay occupies — the booking's own unit, the unit it came from (a move must reopen
+ * what it left) and every room line, so a multi-room stay scopes to all of its units instead of
+ * only the header one. An empty result means "unknown", and the caller falls back to the property.
+ */
+async function resolveAffectedUnitIds(
+  supabase: Db,
+  request: ChannelBookingSyncRequest,
+  row: Record<string, unknown>,
+): Promise<string[]> {
+  const ids = new Set<string>();
+  const add = (value: unknown) => {
+    const id = typeof value === 'string' ? value.trim() : '';
+    if (id) ids.add(id);
+  };
+
+  add(row.room_type_id);
+  add(request.previous?.room_type_id ?? null);
+  for (const id of request.only_unit_ids ?? []) add(id);
+
+  try {
+    const { data } = await supabase
+      .from('rolos_booking_rooms')
+      .select('room_type_id')
+      .eq('booking_id', String(row.id));
+    for (const line of (data ?? []) as { room_type_id?: string | null }[]) add(line.room_type_id);
+  } catch (_err) {
+    // Line lookup is an enrichment: the header unit is still a valid scope on its own.
+  }
+
+  return [...ids];
+}
 
 function guestCount(row: Record<string, unknown>): number | null {
   const total = (Number(row.adults ?? 0) || 0) + (Number(row.children ?? 0) || 0) +
     (Number(row.teens ?? 0) || 0);
   return total > 0 ? total : null;
 }
+
 
 export async function syncBookingToChannel(
   supabase: Db,
@@ -413,33 +458,44 @@ export async function syncBookingToChannel(
     }
   }
 
-  // ── 2. Availability + rates delta (every booking change, local or channel-sourced) ──
+  // ── 2. Availability + rates delta — only for changes the channel's calendar can see ──
   if (request.skip_ari) {
     result.ari = 'skipped';
     result.ari_reason = 'caller_handled';
   } else if (!propertyId) {
     result.ari = 'skipped';
     result.ari_reason = 'no_property';
+  } else if (ARI_IRRELEVANT.has(change)) {
+    // Notes, money and check-in/out moves change nothing the channel sells. Re-pushing
+    // availability and prices for them was pure noise against the owner's rate window.
+    result.ari = 'skipped';
+    result.ari_reason = 'change_does_not_move_inventory';
   } else {
     try {
       // Scope the write to the nights the stay touches (old span included, so a moved booking
-      // reopens what it left) and to the booked unit, instead of re-sending the whole year.
+      // reopens what it left) and to the booked unit(s), instead of re-sending the whole year.
       const spanDates = [
         String(row.check_in_date ?? ''),
         String(row.check_out_date ?? ''),
         String(request.previous?.check_in_date ?? ''),
         String(request.previous?.check_out_date ?? ''),
       ].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-      const bookedUnitId = (row.room_type_id as string | null) ?? null;
+      const bookedUnitIds = await resolveAffectedUnitIds(supabase, request, row);
       const outcome = await queueRuAriDelta(supabase, propertyId, `booking_${change}`, {
         force: true,
         dateFrom: spanDates[0] ?? null,
         dateTo: spanDates[spanDates.length - 1] ?? null,
-        onlyUnitIds: bookedUnitId ? [bookedUnitId] : null,
+        onlyUnitIds: bookedUnitIds.length > 0 ? bookedUnitIds : null,
         // A booking is the one case where the channel calendar must be read back: the sold
         // nights have to be proven closed. Restriction/rate/cron writes skip the pull.
         verifyAvailabilityReadback: true,
       });
+      result.ari_scope = {
+        unit_ids: bookedUnitIds,
+        date_from: spanDates[0] ?? null,
+        date_to: spanDates[spanDates.length - 1] ?? null,
+      };
+
 
       if (outcome?.error) {
         result.ari = 'failed';
@@ -503,6 +559,8 @@ export async function syncBookingToChannel(
       reservation_method: result.reservation_method ?? null,
       ari: result.ari,
       ari_reason: result.ari_reason ?? null,
+      ari_scope: result.ari_scope ?? null,
+
       deferred: result.deferred,
       message: result.message ?? null,
       status,

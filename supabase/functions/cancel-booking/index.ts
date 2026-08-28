@@ -508,10 +508,23 @@ Deno.serve(async (req) => {
           }]
         : []),
       {
-        type: "channel_ari_delta" as const,
-        payload: { property_id: booking.property_id, trigger: "booking_cancelled", force: true },
-        options: { dedupeKey: `ari:${booking.property_id}` },
+        // Focused push: the cancelled unit(s) and the freed nights only, never the whole
+        // property for a full year. Same dedupe key the booking trigger uses, so the event
+        // produces exactly one channel push.
+        type: "channel_booking_sync" as const,
+        payload: {
+          booking_id,
+          change: "cancelled",
+          reason: reason ?? null,
+          previous: {
+            room_type_id: booking.room_type_id ?? null,
+            check_in_date: booking.check_in_date ?? null,
+            check_out_date: booking.check_out_date ?? null,
+          },
+        },
+        options: { dedupeKey: `channel_booking_sync:${booking_id}:cancelled` },
       },
+
     ]);
 
 
