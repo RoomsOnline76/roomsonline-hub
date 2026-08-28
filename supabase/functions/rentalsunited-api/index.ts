@@ -4582,15 +4582,15 @@ Deno.serve(async (req) => {
     }
 
     // ── list_cities_and_currencies ──
-    // Pull_ListCitiesAndCurrencies_RQ — list every RU city with its country + assigned currency.
+    // Pull_ListCurrenciesWithCities_RQ — list every RU city with its country + assigned currency.
     // Used to seed the public.ru_locations cache. Optionally filtered by country IDs in body.country_ids.
     if (action === 'list_cities_and_currencies') {
-      // Pull_ListCitiesAndCurrencies_RQ — returns every RU city with its assigned currency.
+      // Pull_ListCurrenciesWithCities_RQ — returns every RU city with its assigned currency.
       // Shape: <City CurrencyCode="ZAR" LocationID="1611" Name="Cape Town">...</City>
       // (NOTE: Pull_ListCitiesProps_RQ is a different endpoint — it only lists cities where
       // THIS account already has active props. We need the master list to detect currency drift
       // on locations we haven't pushed yet.)
-      const xml = `<Pull_ListCitiesAndCurrencies_RQ>${buildAuthXml(creds)}</Pull_ListCitiesAndCurrencies_RQ>`;
+      const xml = `<Pull_ListCurrenciesWithCities_RQ>${buildAuthXml(creds)}</Pull_ListCurrenciesWithCities_RQ>`;
       let response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] list_cities_and_currencies response (first 800): ${response.substring(0, 800)}`);
       let { ok, status } = handleRUStatus(response);
@@ -4617,7 +4617,7 @@ Deno.serve(async (req) => {
             locations: [],
             count: 0,
             endpoint_disabled: true,
-            note: 'Rentals United has not enabled Pull_ListCitiesAndCurrencies_RQ or Pull_ListCitiesProps_RQ for this integration — location currency is probed per property via Push_ChangeCurrency_RQ instead.',
+            note: 'Rentals United has not enabled Pull_ListCurrenciesWithCities_RQ or Pull_ListCitiesProps_RQ for this integration — location currency is probed per property via Push_ChangeCurrency_RQ instead.',
           });
         }
       }
@@ -4626,7 +4626,7 @@ Deno.serve(async (req) => {
 
       const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
 
-      // Try <City ...> first (the correct Pull_ListCitiesAndCurrencies_RQ shape).
+      // Try <City ...> first (the Pull_ListCurrenciesWithCities_RQ / Pull_ListCitiesProps_RQ shape).
       const cityRe = /<City\b([^>]*)(?:\/>|>([\s\S]*?)<\/City>)/gi;
       let cm: RegExpExecArray | null;
       while ((cm = cityRe.exec(response)) !== null) {
