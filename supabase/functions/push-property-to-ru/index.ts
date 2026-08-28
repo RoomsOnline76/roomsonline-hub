@@ -5668,7 +5668,19 @@ Deno.serve(async (req) => {
         currencyVerification = { ...v, expected_iso: currencyDecision?.published_iso ?? authoredIso, ru_property_id: discountRuIds[0].ruId };
         if (!v.matches) {
           console.warn(`[push-property-to-ru] Currency drift: RU reports ${v.ru_reported_iso ?? 'unknown'} for ${discountRuIds[0].ruId} (expected ${currencyDecision?.published_iso ?? authoredIso})`);
+          // Drift is corrected by flipping again as this account — never by converting rates to USD.
+          const corrective = await correctCurrencyDrift(supabase, {
+            propertyId: property_id,
+            locationId,
+            authoredIso,
+            ruPropertyId: discountRuIds[0].ruId,
+            childAuth: childAuthPayload,
+            ownerScope: String(ruOwnerId),
+            expectedLocationId: locationId,
+          });
+          currencyVerification = { ...currencyVerification, corrective_flip: corrective };
         }
+
       }
 
 
