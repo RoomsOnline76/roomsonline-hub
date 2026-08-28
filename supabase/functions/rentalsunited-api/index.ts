@@ -3906,25 +3906,18 @@ Deno.serve(async (req) => {
 
 
 
-    // ── get_long_stay_discounts (verification) ──
-    if (action === 'get_long_stay_discounts') {
+    // ── get_property_discounts (verification) ──
+    // One documented method returns BOTH ladders. The two legacy action names are kept as
+    // aliases so existing callers keep working; they now all send Pull_ListPropertyDiscounts_RQ.
+    if (action === 'get_property_discounts' || action === 'get_long_stay_discounts' || action === 'get_last_minute_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLongStayDiscountsXml(scopedCreds, ru_property_id);
+      const xml = buildGetPropertyDiscountsXml(scopedCreds, ru_property_id);
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, ru_method: 'Pull_ListPropertyDiscounts_RQ', raw_xml: response });
     }
 
-    // ── get_last_minute_discounts (verification) ──
-    if (action === 'get_last_minute_discounts') {
-      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLastMinuteDiscountsXml(scopedCreds, ru_property_id);
-      const response = await callRentalsUnited(scopedCreds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
-    }
 
     // ── push_long_stay_discounts (optional) ──
     if (action === 'push_long_stay_discounts') {
