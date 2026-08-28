@@ -4301,8 +4301,10 @@ Deno.serve(async (req) => {
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       const company = await provisionCompanyAfterKeyVerification();
-      // Verified keys mean this account can be monitored — subscribe it now.
-      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
+      // Live-notification subscription is deliberately NOT run here: Step A must stay a
+      // linear create → keys → verify → company → listings sequence, and the LNM
+      // push/read-back added failing calls and extra roster reads mid-onboarding. The
+      // nightly `ru-rlnm-daily` cron owns subscriptions.
       // Keys were stored AND verified here — that is the verdict for step 7. Only the
       // company profile still needs re-confirming against the new credentials.
       await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
@@ -4531,7 +4533,6 @@ Deno.serve(async (req) => {
         }, 200);
       }
       const company = await provisionCompanyAfterKeyVerification();
-      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
