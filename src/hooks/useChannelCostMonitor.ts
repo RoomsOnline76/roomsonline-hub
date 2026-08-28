@@ -270,10 +270,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       // switched on yet nothing upstream, so a failed first push stays visible
       // instead of silently vanishing from the monitor.
       const relevant = allProps.filter((p) => {
+        // Archived properties belong in the archive history, not in the current
+        // "Properties on the Channel Manager" inventory table.
+        if (p.ru_archived === true || p.is_active === false) return false;
         const units = unitsByProperty.get(p.id) || [];
         const hasFootprint =
           !!p.rentalsunited_property_id ||
-          !!p.ru_archived ||
           units.some((u) => !!u.rentalsunited_property_id);
         return hasFootprint || (p.ru_push_enabled === true && p.is_active !== false);
       });

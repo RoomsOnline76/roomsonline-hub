@@ -64,15 +64,23 @@ Deno.serve(async (req) => {
   const startedAt = Date.now();
   const deadline = startedAt + RUN_BUDGET_MS;
   const batchId = crypto.randomUUID();
+  const requestBody = await req.json().catch(() => ({})) as { owner_id?: string };
+  const requestedOwnerId = String(requestBody.owner_id ?? '').trim();
 
   const results: StepResult[] = [];
   const deferred: string[] = [];
   const skipped: string[] = [];
 
-  const scopes = await resolveRuOwnerScopes(supabase, 'PutHandlerUrl', {
+  const resolvedScopes = await resolveRuOwnerScopes(supabase, 'PutHandlerUrl', {
     includeMaster: false,
     requireOperationalPush: true,
   });
+  // Onboarding invokes this endpoint for the account that has just become operational.
+  // Limiting the run to that OwnerID avoids waiting behind every other account's RU
+  // sliding-minute windows and makes live reservation notifications active immediately.
+  const scopes = requestedOwnerId
+    ? resolvedScopes.filter((scope) => scope.ownerId === requestedOwnerId)
+    : resolvedScopes;
 
   // Owners the master subscription should observe. Only MONITORED accounts qualify:
   // an OwnerID whose API keys have never been captured is not provisioned at the channel,
