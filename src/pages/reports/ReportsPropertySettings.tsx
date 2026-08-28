@@ -48,6 +48,13 @@ import {
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/** "TOURVEST, Staff" -> ["TOURVEST", "Staff"] */
+const splitPatterns = (value: string): string[] =>
+  value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
   const navigate = useNavigate();
