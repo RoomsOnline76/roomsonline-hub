@@ -4203,12 +4203,36 @@ Deno.serve(async (req) => {
           error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
         }, 422);
       }
-      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childAuth);
-      const response = await callRentalsUnited(creds, xml);
+      const wantedId = parseInt(String(bId), 10);
+      const xml = buildGetBuildingXml(creds, wantedId, childAuth);
+      let response = await callRentalsUnited(creds, xml);
 
 
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+      /**
+       * `Pull_GetBuilding_RQ` is not a published method (it is absent from the channel docs and
+       * answers Status -1 "not implemented method" on accounts where it was never enabled). The
+       * documented read is `Pull_ListBuildings_RQ`, which returns every building on the account —
+       * so on a -1 we re-read the list and isolate the requested building from it.
+       */
+      if (!ok && (String(status.id) === '-1' || /not implemented|not enabled/i.test(status.message || ''))) {
+        const listXml = buildListBuildingsXml(creds, childAuth);
+        const listResponse = await callRentalsUnited(creds, listXml);
+        const listStatus = handleRUStatus(listResponse);
+        if (listStatus.ok) {
+          const one = new RegExp(
+            `<Building\\b[^>]*\\bBuildingID="${wantedId}"[^>]*>[\\s\\S]*?</Building>`,
+            'i',
+          ).exec(listResponse);
+          if (one) {
+            response = one[0];
+            ok = true;
+            status = listStatus.status;
+          }
+        }
+      }
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
+
       const buildingId = extractBuildingId(response);
       const nameMatch = response.match(/<BuildingName>([\s\S]*?)<\/BuildingName>/i);
       const unitTypeObjectIds = extractUnitTypeObjectIds(response);
