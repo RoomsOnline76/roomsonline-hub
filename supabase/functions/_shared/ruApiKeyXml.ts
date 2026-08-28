@@ -1,13 +1,7 @@
 export type RuApiKeyAuth =
   | { mode: "keys"; access_key: string; secret_key: string }
   | { mode: "password"; username: string; password: string }
-  /**
-   * Master-authenticated, sub-account-scoped mint. Used only after the sub-account's
-   * own login/password envelope has been refused ("Incorrect login or password"),
-   * which the channel returns even for an account created seconds earlier. The
-   * OwnerID keeps the pair scoped to the sub-account, so this is not a master
-   * fallback for child-scoped writes (those stay password-authenticated).
-   */
+  /** Master-authenticated white-label key creation for the selected child OwnerID only. */
   | { mode: "owner_scoped"; access_key: string; secret_key: string; owner_id: string };
 
 function escapeXml(value: string): string {

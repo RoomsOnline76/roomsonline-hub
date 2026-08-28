@@ -16,3 +16,18 @@ Deno.test("Push_CreateApiKey_RQ requires child keys and preserves schema order",
   assertEquals(xml.includes("<Password>"), false);
   assertEquals(xml.indexOf("<Label>") < xml.indexOf("<Scope>"), true);
 });
+
+Deno.test("Push_CreateApiKey_RQ supports the verified white-label OwnerID mint", () => {
+  const xml = buildCreateApiKeyXml({
+    mode: "owner_scoped",
+    access_key: "master-access",
+    secret_key: "master-secret",
+    owner_id: "742612",
+  }, "ROLOS-m");
+
+  assertStringIncludes(
+    xml,
+    "<Authentication><AccessKey>master-access</AccessKey><SecretKey>master-secret</SecretKey></Authentication><OwnerID>742612</OwnerID><Label>ROLOS-m</Label><Scope>XmlApi</Scope>",
+  );
+  assertEquals(xml.includes("<UserName>"), false);
+});

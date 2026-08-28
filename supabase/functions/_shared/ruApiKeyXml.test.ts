@@ -30,7 +30,7 @@ Deno.test("Push_CreateApiKey_RQ mints the first pair with child login credential
   assertEquals(xml.includes("<AccessKey>"), false);
 });
 
-Deno.test("Push_CreateApiKey_RQ owner-scoped variant keeps Authentication → OwnerID → Label → Scope", () => {
+Deno.test("Push_CreateApiKey_RQ white-label mint keeps Authentication → OwnerID → Label → Scope", () => {
   const xml = buildCreateApiKeyXml({
     mode: "owner_scoped",
     access_key: "master-access",
@@ -42,5 +42,8 @@ Deno.test("Push_CreateApiKey_RQ owner-scoped variant keeps Authentication → Ow
     "<Authentication><AccessKey>master-access</AccessKey><SecretKey>master-secret</SecretKey></Authentication><OwnerID>742555</OwnerID><Label>ROLOS</Label><Scope>XmlApi</Scope>",
   );
   assertEquals(xml.includes("<UserName>"), false);
+  assertEquals(xml.indexOf("<Authentication>") < xml.indexOf("<OwnerID>"), true);
+  assertEquals(xml.indexOf("<OwnerID>") < xml.indexOf("<Label>"), true);
+  assertEquals(xml.indexOf("<Label>") < xml.indexOf("<Scope>"), true);
 });
 
