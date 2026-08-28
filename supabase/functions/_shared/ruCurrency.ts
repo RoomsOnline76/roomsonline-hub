@@ -833,7 +833,7 @@ export async function correctCurrencyDrift(
   let message = '';
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...(opts.childAuth ?? {}) },
+      body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, owner_id: opts.ownerScope, ...(opts.childAuth ?? {}) },
     });
     if (error || !data?.success) {
       const body = error ? await readInvokeErrorBody(error) : null;
