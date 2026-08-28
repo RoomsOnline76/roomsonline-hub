@@ -8562,7 +8562,8 @@ Deno.serve(async (req) => {
         /** Existing binding: if Step A created this account earlier but the key mint was
          * interrupted by roster lag, complete the automatic mint before company details.
          */
-        let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+        let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+
         let mintedAccessKey: string | null = null;
         let keyWarning: string | null = null;
         let keyCode: string | null = null;
