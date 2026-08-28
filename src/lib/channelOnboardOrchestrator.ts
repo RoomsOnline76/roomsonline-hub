@@ -1203,6 +1203,23 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     await recordStep(ctx.propertyId, "ready_to_connect", "passed", "");
     invalidateChannelEditGate(ctx.propertyId);
     notifyRuAccountsChanged();
+
+    // The daily subscription sweep may already have run before this account became
+    // operational. Register this newly-live OwnerID now so reservations and booking
+    // changes arrive immediately instead of waiting for the next day's sweep.
+    const ownerId = liveBinding(ctx, snapshot)?.ru_owner_id;
+    if (ownerId) {
+      const { data: subscriptionResult, error: subscriptionError } = await invokeWithSession(
+        "cron-ru-rlnm-refresh",
+        { owner_id: ownerId, trigger: "onboarding_completed" },
+      );
+      if (subscriptionError || subscriptionResult?.success !== true) {
+        console.warn(
+          "[channel-onboard] Live notification registration did not complete; the daily repair remains scheduled.",
+          subscriptionError ?? subscriptionResult,
+        );
+      }
+    }
   }
 
   const finalBinding = ctx.binding;
