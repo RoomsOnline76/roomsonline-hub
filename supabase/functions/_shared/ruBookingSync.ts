@@ -13,6 +13,12 @@
 import { findOwnerAccount } from './ruPhaseGate.ts';
 import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
 import { enqueueRuCall, supersedeQueuedRuCalls } from './ruRateGate.ts';
+import {
+  claimOutcomeFor,
+  claimReservationOp,
+  reservationFingerprint,
+  settleReservationOp,
+} from './ruReservationOpClaim.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -422,6 +428,40 @@ export async function cancelRuReservation(
 
   const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
 
+  // The mutation handler and the background sync job both reach here for the same cancel. Only
+  // one of them may talk to the channel: a second Push_CancelReservation_RQ can only be answered
+  // "Reservation does not exist." and burns the owner's rate window.
+  const fingerprint = reservationFingerprint([reservationId, cancelTypeId]);
+  const claim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'cancel',
+    fingerprint,
+    reservationId,
+  });
+  if (!claim.granted) {
+    console.log(`[ruBookingSync] cancel skipped for ${booking.id} — ${claim.reason}`);
+    return {
+      ok: claim.priorOutcome === 'delivered' || claim.priorOutcome === 'absent',
+      method: 'cancel_reservation',
+      code: claim.priorOutcome === 'terminal' ? 'RU_CANCEL_REFUSED' : 'RU_ALREADY_SENT',
+      message: claim.priorOutcome === 'delivered'
+        ? 'The cancellation was already delivered to the channel — not sent again.'
+        : claim.priorOutcome === 'absent'
+          ? 'The channel no longer holds this reservation — nothing to cancel.'
+          : claim.priorDetail ?? 'An identical cancellation is already on its way to the channel.',
+      traceId,
+    };
+  }
+  const settle = (r: { ok: boolean; deferred?: boolean; code?: string; message?: string }) =>
+    settleReservationOp(supabase, {
+      bookingId: booking.id,
+      op: 'cancel',
+      fingerprint,
+      outcome: claimOutcomeFor(r),
+      detail: r.message ?? null,
+      reservationId,
+    });
+
   const logCtx = {
     propertyId: booking.property_id,
     traceId,
@@ -435,7 +475,10 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
-    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
+    if (rejected.ok) {
+      await settle(rejected);
+      return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
+    }
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
@@ -443,6 +486,7 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
+    await settle(cancelled);
     return cancelled.ok
       ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation', traceId }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message, traceId };
@@ -454,6 +498,7 @@ export async function cancelRuReservation(
     reject_reason: opts.reason,
     ...auth,
   }, logCtx);
+  await settle(result);
   return result.ok
     ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation', traceId }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message, traceId };
