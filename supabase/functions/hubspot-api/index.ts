@@ -238,8 +238,9 @@ Deno.serve(async (req) => {
 
     // Operator CRM screens are property-scoped. A platform user's own HubSpot
     // connection must never make an unrelated selected property look connected.
-    // Resolve the selected property's owner (direct owner first, portfolio owner
-    // second) and use that identity for every read/control action on that screen.
+    // Resolve the selected property's owner (direct link, then authoritative
+    // property owner email, then portfolio owner) and use that identity for
+    // every read/control action on that screen.
     if (body.property_id) {
       const { data: directOwners, error: directOwnerError } = await admin
         .from("property_owners")
@@ -251,6 +252,28 @@ Deno.serve(async (req) => {
       let propertyOwnerId = directOwners?.[0]?.user_id
         ? String(directOwners[0].user_id)
         : null;
+
+      if (!propertyOwnerId) {
+        const { data: property, error: propertyError } = await admin
+          .from("properties")
+          .select("owner_email")
+          .eq("id", body.property_id)
+          .maybeSingle();
+        if (propertyError) return fail(`Could not resolve property: ${propertyError.message}`, 500);
+
+        const ownerEmail = typeof property?.owner_email === "string"
+          ? property.owner_email.trim().toLowerCase()
+          : "";
+        if (ownerEmail) {
+          const { data: profile, error: profileError } = await admin
+            .from("profiles")
+            .select("id")
+            .ilike("email", ownerEmail)
+            .maybeSingle();
+          if (profileError) return fail(`Could not resolve property owner profile: ${profileError.message}`, 500);
+          propertyOwnerId = profile?.id ? String(profile.id) : null;
+        }
+      }
 
       if (!propertyOwnerId) {
         const { data: memberships, error: membershipError } = await admin
