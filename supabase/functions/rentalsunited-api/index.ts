@@ -817,6 +817,7 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
   ${buildAuthXml(creds)}
   <DateFrom>${normalizeRUDateTime(dateFrom)}</DateFrom>
   <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
+  <LocationID>0</LocationID>
 </Pull_GetLeads_RQ>`;
 }
 
@@ -831,7 +832,8 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
 <Push_RejectRequest_RQ>
   ${buildAuthXml(creds)}
   <ReservationID>${escapeXml(reservationId)}</ReservationID>${reason ? `
-  <Comments>${escapeXml(reason)}</Comments>` : ''}
+  <Reason>${escapeXml(reason)}</Reason>
+  <MessageToChannel>${escapeXml(reason)}</MessageToChannel>` : ''}
 </Push_RejectRequest_RQ>`;
 }
 
@@ -907,7 +909,6 @@ function buildPutConfirmedReservationXml(
           <ClientPrice>${money(stay.client_price)}</ClientPrice>
           <AlreadyPaid>${money(stay.already_paid)}</AlreadyPaid>
           <ChannelCommission>0.00</ChannelCommission>
-          <PriceScale>1</PriceScale>
         </Costs>
       </StayInfo>
     </StayInfos>
@@ -951,9 +952,12 @@ function buildModifyStayXml(
   if (modify.arrival_time) {
     modifyNodes.push(`<ArrivalTime>${escapeXml(String(modify.arrival_time))}</ArrivalTime>`);
   }
-  if (modify.use_current_price != null) {
-    modifyNodes.push(`<UseCurrentPrice>${modify.use_current_price ? 'true' : 'false'}</UseCurrentPrice>`);
-  }
+
+  // AllowOverbooking / UseCurrentPrice are documented as siblings of <Modify>, at the
+  // request root — nesting them inside <Modify> means the channel never sees them.
+  const rootFlags = modify.use_current_price != null
+    ? `\n  <UseCurrentPrice>${modify.use_current_price ? 'true' : 'false'}</UseCurrentPrice>`
+    : '';
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_ModifyStay_RQ>
@@ -967,7 +971,7 @@ function buildModifyStayXml(
   </Current>
   <Modify>
     ${modifyNodes.join('\n    ')}
-  </Modify>
+  </Modify>${rootFlags}
 </Push_ModifyStay_RQ>`;
 }
 
@@ -1309,21 +1313,22 @@ function validateFspSeason(s: RUFspSeason): string | null {
   return null;
 }
 
-function buildGetLongStayDiscountsXml(creds: RUCredentials, propertyId: number): string {
+/**
+ * Pull_ListPropertyDiscounts_RQ — the ONLY documented discount read-back method.
+ * It returns BOTH ladders in one response:
+ *   <Discounts PropertyID="1"><LongStays>…</LongStays><LastMinutes>…</LastMinutes></Discounts>
+ * There is no per-feature pull method: `Pull_ListPropertyLongStayDiscounts_RQ` /
+ * `Pull_ListPropertyLastMinuteDiscounts_RQ` do not exist in the channel API and were
+ * answered with Status -1 ("The XML contains not implemented method") on every call.
+ */
+function buildGetPropertyDiscountsXml(creds: RUCredentials, propertyId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListPropertyLongStayDiscounts_RQ>
+<Pull_ListPropertyDiscounts_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-</Pull_ListPropertyLongStayDiscounts_RQ>`;
+</Pull_ListPropertyDiscounts_RQ>`;
 }
 
-function buildGetLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListPropertyLastMinuteDiscounts_RQ>
-  ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-</Pull_ListPropertyLastMinuteDiscounts_RQ>`;
-}
 
 function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -3905,25 +3910,18 @@ Deno.serve(async (req) => {
 
 
 
-    // ── get_long_stay_discounts (verification) ──
-    if (action === 'get_long_stay_discounts') {
+    // ── get_property_discounts (verification) ──
+    // One documented method returns BOTH ladders. The two legacy action names are kept as
+    // aliases so existing callers keep working; they now all send Pull_ListPropertyDiscounts_RQ.
+    if (action === 'get_property_discounts' || action === 'get_long_stay_discounts' || action === 'get_last_minute_discounts') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLongStayDiscountsXml(scopedCreds, ru_property_id);
+      const xml = buildGetPropertyDiscountsXml(scopedCreds, ru_property_id);
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
+      return jsonResponse({ success: true, ru_method: 'Pull_ListPropertyDiscounts_RQ', raw_xml: response });
     }
 
-    // ── get_last_minute_discounts (verification) ──
-    if (action === 'get_last_minute_discounts') {
-      if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const xml = buildGetLastMinuteDiscountsXml(scopedCreds, ru_property_id);
-      const response = await callRentalsUnited(scopedCreds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
-      return jsonResponse({ success: true, raw_xml: response });
-    }
 
     // ── push_long_stay_discounts (optional) ──
     if (action === 'push_long_stay_discounts') {
@@ -3990,43 +3988,28 @@ Deno.serve(async (req) => {
     }
 
     // ── delete_property ──
-    // Hard removal. Never throws on an unrecognised verb: the caller needs to
-    // know "the account does not support deletion" as data so it can fall back
-    // to archiving and report that honestly instead of claiming a removal.
+    // The channel API has NO hard-delete method (`Push_DeleteProperty_RQ` /
+    // `Push_RemoveProperty_RQ` are not published and answered Status -1
+    // "The XML contains not implemented method" on every attempt). The documented
+    // retirement path is Push_SetPropertiesStatus_RQ with IsArchived=1, so that is
+    // what we do — and we report it as an archive, never as a deletion.
     if (action === 'delete_property') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const verbs = ['Push_DeleteProperty_RQ', 'Push_RemoveProperty_RQ'];
-      const attempts: Array<{ verb: string; status_id: string | null; message: string | null }> = [];
-      for (const verb of verbs) {
-        const xml = buildDeletePropertyXml(scopedCreds, ru_property_id, verb);
-        let response: string;
-        try {
-          response = await callRentalsUnited(scopedCreds, xml);
-        } catch (err) {
-          attempts.push({ verb, status_id: null, message: err instanceof Error ? err.message : String(err) });
-          continue;
-        }
-        const { ok, status } = handleRUStatus(response);
-        attempts.push({ verb, status_id: status?.id ?? null, message: status?.message ?? null });
-        if (ok) {
-          return jsonResponse({
-            success: true,
-            auth_mode: authMode,
-            verb,
-            attempts,
-            message: `Listing removal accepted (${verb})`,
-            raw_xml: response,
-          });
-        }
-      }
+      const xml = buildSetPropertyStatusXml(scopedCreds, ru_property_id, false, true);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
       return jsonResponse({
-        success: false,
+        success: true,
         supported: false,
-        auth_mode: authMode,
-        attempts,
-        error: 'The channel account did not accept a listing deletion request',
+        archived: true,
+        auth_mode: archiveOnMaster ? 'master_scoped_archive' : authMode,
+        verb: 'Push_SetPropertiesStatus_RQ',
+        message: 'The channel does not support listing deletion — the listing was archived (deactivated) instead',
+        raw_xml: response,
       });
     }
+
 
 
 
@@ -4220,12 +4203,36 @@ Deno.serve(async (req) => {
           error: { code: 'RU_CHILD_AUTH_REQUIRED', message: reason ?? CHILD_AUTH_REQUIRED_MESSAGE },
         }, 422);
       }
-      const xml = buildGetBuildingXml(creds, parseInt(String(bId), 10), childAuth);
-      const response = await callRentalsUnited(creds, xml);
+      const wantedId = parseInt(String(bId), 10);
+      const xml = buildGetBuildingXml(creds, wantedId, childAuth);
+      let response = await callRentalsUnited(creds, xml);
 
 
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+      /**
+       * `Pull_GetBuilding_RQ` is not a published method (it is absent from the channel docs and
+       * answers Status -1 "not implemented method" on accounts where it was never enabled). The
+       * documented read is `Pull_ListBuildings_RQ`, which returns every building on the account —
+       * so on a -1 we re-read the list and isolate the requested building from it.
+       */
+      if (!ok && (String(status.id) === '-1' || /not implemented|not enabled/i.test(status.message || ''))) {
+        const listXml = buildListBuildingsXml(creds, childAuth);
+        const listResponse = await callRentalsUnited(creds, listXml);
+        const listStatus = handleRUStatus(listResponse);
+        if (listStatus.ok) {
+          const one = new RegExp(
+            `<Building\\b[^>]*\\bBuildingID="${wantedId}"[^>]*>[\\s\\S]*?</Building>`,
+            'i',
+          ).exec(listResponse);
+          if (one) {
+            response = one[0];
+            ok = true;
+            status = listStatus.status;
+          }
+        }
+      }
       if (!ok) return ruErrorResponse(status, buildDiagnostics(compactXml(xml), status, 'get_building', response));
+
       const buildingId = extractBuildingId(response);
       const nameMatch = response.match(/<BuildingName>([\s\S]*?)<\/BuildingName>/i);
       const unitTypeObjectIds = extractUnitTypeObjectIds(response);
@@ -4599,15 +4606,15 @@ Deno.serve(async (req) => {
     }
 
     // ── list_cities_and_currencies ──
-    // Pull_ListCitiesAndCurrencies_RQ — list every RU city with its country + assigned currency.
+    // Pull_ListCurrenciesWithCities_RQ — list every RU city with its country + assigned currency.
     // Used to seed the public.ru_locations cache. Optionally filtered by country IDs in body.country_ids.
     if (action === 'list_cities_and_currencies') {
-      // Pull_ListCitiesAndCurrencies_RQ — returns every RU city with its assigned currency.
+      // Pull_ListCurrenciesWithCities_RQ — returns every RU city with its assigned currency.
       // Shape: <City CurrencyCode="ZAR" LocationID="1611" Name="Cape Town">...</City>
       // (NOTE: Pull_ListCitiesProps_RQ is a different endpoint — it only lists cities where
       // THIS account already has active props. We need the master list to detect currency drift
       // on locations we haven't pushed yet.)
-      const xml = `<Pull_ListCitiesAndCurrencies_RQ>${buildAuthXml(creds)}</Pull_ListCitiesAndCurrencies_RQ>`;
+      const xml = `<Pull_ListCurrenciesWithCities_RQ>${buildAuthXml(creds)}</Pull_ListCurrenciesWithCities_RQ>`;
       let response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] list_cities_and_currencies response (first 800): ${response.substring(0, 800)}`);
       let { ok, status } = handleRUStatus(response);
@@ -4634,7 +4641,7 @@ Deno.serve(async (req) => {
             locations: [],
             count: 0,
             endpoint_disabled: true,
-            note: 'Rentals United has not enabled Pull_ListCitiesAndCurrencies_RQ or Pull_ListCitiesProps_RQ for this integration — location currency is probed per property via Push_ChangeCurrency_RQ instead.',
+            note: 'Rentals United has not enabled Pull_ListCurrenciesWithCities_RQ or Pull_ListCitiesProps_RQ for this integration — location currency is probed per property via Push_ChangeCurrency_RQ instead.',
           });
         }
       }
@@ -4643,10 +4650,28 @@ Deno.serve(async (req) => {
 
       const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
 
-      // Try <City ...> first (the correct Pull_ListCitiesAndCurrencies_RQ shape).
+      // Documented Pull_ListCurrenciesWithCities_RS shape:
+      //   <Currencies><Currency CurrencyCode="ZAR"><Locations><LocationID>1611</LocationID>…
+      const ccyRe = /<Currency\b[^>]*\bCurrencyCode="([A-Za-z]{3})"[^>]*>([\s\S]*?)<\/Currency>/gi;
+      let ccm: RegExpExecArray | null;
+      while ((ccm = ccyRe.exec(response)) !== null) {
+        const iso = ccm[1].toUpperCase();
+        const idRe = /<LocationID[^>]*>(\d+)<\/LocationID>/gi;
+        let im: RegExpExecArray | null;
+        while ((im = idRe.exec(ccm[2] || '')) !== null) {
+          const id = parseInt(im[1], 10);
+          if (!Number.isFinite(id)) continue;
+          locs.push({ id, name: `Location ${id}`, parent_id: null, currency_iso: iso, type: null });
+        }
+      }
+
+      // Fallback: the Pull_ListCitiesProps_RQ shape carries <City ... CurrencyCode="…">.
+      const hadCurrencyRows = locs.length > 0;
       const cityRe = /<City\b([^>]*)(?:\/>|>([\s\S]*?)<\/City>)/gi;
       let cm: RegExpExecArray | null;
-      while ((cm = cityRe.exec(response)) !== null) {
+      while (!hadCurrencyRows && (cm = cityRe.exec(response)) !== null) {
+
+
         const attrs = cm[1] || '';
         const inner = cm[2] || '';
         const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
