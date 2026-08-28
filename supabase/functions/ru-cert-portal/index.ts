@@ -7977,6 +7977,36 @@ Deno.serve(async (req) => {
           repObj.region = String(c.region).trim();
         }
 
+        /**
+         * Legal-representative coverage. Rentals United has no location field on the
+         * representative — only city/region/country IDs — so this is the honest list of what
+         * the block does and does not carry, reported back for the Step B card.
+         */
+        const REP_KEYS: Array<{ key: string; label: string }> = [
+          { key: "first_name", label: "First name" },
+          { key: "last_name", label: "Last name" },
+          { key: "email", label: "Email" },
+          { key: "birthday", label: "Date of birth" },
+          { key: "address", label: "Address" },
+          { key: "city", label: "City" },
+          { key: "region", label: "Region" },
+          { key: "post_code", label: "Postal code" },
+          { key: "nationality_id", label: "Nationality" },
+          { key: "country_of_residence_id", label: "Country of residence" },
+        ];
+        const repFilled = (k: string) => {
+          const v = (repObj ?? {})[k] ?? (repObj ?? {})[k.replace(/_id$/, "Id")];
+          return v !== null && v !== undefined && String(v).trim() !== "";
+        };
+        const legalRepCoverage = {
+          present: Boolean(repObj),
+          sent: REP_KEYS.filter((f) => repFilled(f.key)).map((f) => f.label),
+          missing: REP_KEYS.filter((f) => !repFilled(f.key)).map((f) => f.label),
+        };
+        const companyLocationIds = Array.isArray((c as Record<string, unknown>).location_ids)
+          ? ((c as Record<string, unknown>).location_ids as unknown[]).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
         // ── Gate: never write placeholder contact data onto the RU profile ──
         const incomplete: string[] = [];
         if (!String(c.first_name ?? "").trim()) incomplete.push("contact first name");
