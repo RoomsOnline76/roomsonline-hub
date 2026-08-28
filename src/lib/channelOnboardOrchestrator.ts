@@ -625,15 +625,25 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           ?? "The channel rate-limited the key request — waiting for the window to reopen.") + trailText,
       };
     }
+    // Step A.2 is a deliberate manual pause: the sub-account exists, and the operator now
+    // pastes the AccessKey/SecretKey pair issued in the channel portal for that login.
+    if (provisioning?.source === "manual" || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED") {
+      return {
+        id: "api_keys",
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: (provisioning?.warning
+          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
+      };
+    }
     return {
       id: "api_keys",
       outcome: "blocked",
-      // Key creation is master-authenticated and scoped to the OwnerID, so a missing
-      // sub-account password is no longer a reason for this step to be blocked.
-      code: provisioning?.code ?? "RU_CREATE_KEY_API_REJECTED",
+      code: provisioning?.code ?? "RU_MANUAL_KEYS_REQUIRED",
       detail: (provisioning?.warning
-        ?? `${accountLabel ? `${accountLabel}: ` : ""}The channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A once XML API access is enabled for this OwnerID.`) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText,
     };
+
 
 
   },
