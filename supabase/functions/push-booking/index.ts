@@ -453,10 +453,13 @@ Deno.serve(async (req) => {
       const ownerEmail = property.owner_email;
       await enqueueJobs(supabaseClient, [
         {
-          type: "channel_ari_delta" as const,
-          payload: { property_id: property.id, trigger: "booking_confirmed", force: true },
-          options: { dedupeKey: `ari:${property.id}` },
+          // Focused push: the booked unit and the sold nights only. The shared booking sync
+          // registers the reservation and queues the scoped availability/price delta.
+          type: "channel_booking_sync" as const,
+          payload: { booking_id, change: "created" },
+          options: { dedupeKey: `channel_booking_sync:${booking_id}:created` },
         },
+
         ...(ownerEmail
           ? [{
               type: "booking_email" as const,
