@@ -11,10 +11,12 @@ import type { LedgerRow } from "./nightsbridgeAggregate.ts";
 export type RowClass =
   | "sellable"
   | "blocked_zero_revenue"
+  | "unavailable"
   | "room_zero"
   | "event"
   | "holding_credit"
   | "excluded_by_rule";
+
 
 export interface RowRules {
   /** Labels whose zero-revenue rows still count as occupied nights. */
@@ -44,11 +46,13 @@ export const EMPTY_ROW_RULES: RowRules = {
 export const ROW_CLASS_LABELS: Record<RowClass, string> = {
   sellable: "Sold nights",
   blocked_zero_revenue: "Zero revenue (block / maintenance / owner)",
+  unavailable: "Unavailable (room out of order)",
   room_zero: "Room 0",
   event: "Events",
   holding_credit: "Holding in credit",
   excluded_by_rule: "Excluded by property rule",
 };
+
 
 export function normaliseRules(
   keepPatterns: unknown,
@@ -96,7 +100,17 @@ export function classifyRow(row: LedgerRow, rules: RowRules = EMPTY_ROW_RULES): 
     return { klass: "holding_credit", matched: null };
   }
 
+  // Rooms flagged Unavailable are out of order, never sold nights and never
+  // complimentary — whatever revenue the export prints against them.
+  const status = String(row.status ?? "").trim().toLowerCase();
+  if (rules.dropZeroRevenue && status.includes("unavailable")) {
+    const kept = firstMatch(row, rules.keepPatterns);
+    if (kept) return { klass: "sellable", matched: kept };
+    return { klass: "unavailable", matched: null };
+  }
+
   const revenue = Number(row.revenue);
+
   if (rules.dropZeroRevenue && Number.isFinite(revenue) && revenue === 0) {
     const kept = firstMatch(row, rules.keepPatterns);
     if (kept) return { klass: "sellable", matched: kept };
