@@ -1027,6 +1027,39 @@ export async function pushRuConfirmedReservation(
   const guests = (Number(booking.adults ?? 0) || 0) + (Number(booking.children ?? 0) || 0) +
     (Number(booking.teens ?? 0) || 0);
 
+  // Same content, same booking → one channel write. A refusal the channel repeats for the same
+  // stay (dates it will not sell) is terminal: it was being re-sent every minute forever.
+  const fingerprint = reservationFingerprint([
+    ruPropertyId,
+    booking.check_in_date,
+    booking.check_out_date,
+    guests,
+    booking.total_price ?? 0,
+  ]);
+  const claim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'create',
+    fingerprint,
+    ruPropertyId,
+  });
+  if (!claim.granted) {
+    console.log(`[ruBookingSync] create skipped for ${booking.id} — ${claim.reason}`);
+    return {
+      ok: claim.priorOutcome === 'delivered',
+      method: 'push_confirmed_reservation',
+      code: claim.priorOutcome === 'terminal' ? 'RU_STAY_REFUSED' : 'RU_ALREADY_SENT',
+      message: claim.priorOutcome === 'delivered'
+        ? 'This stay was already handed to the channel — not sent again.'
+        : claim.priorOutcome === 'terminal'
+          ? claim.priorDetail ??
+            'The channel refused these dates for this listing and will keep refusing them — resolve it in the channel portal, then resend.'
+          : 'An identical stay push is already on its way to the channel.',
+      traceId,
+      ruPropertyId,
+      reservationId: claim.priorReservationId ?? null,
+    };
+  }
+
   const result = await invokeRu(supabase, 'push_confirmed_reservation', {
     stay: {
       ru_property_id: ruPropertyId,
@@ -1052,6 +1085,16 @@ export async function pushRuConfirmedReservation(
     details: { booking_id: booking.id },
   });
 
+  const reservationId = typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null;
+  await settleReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'create',
+    fingerprint,
+    outcome: claimOutcomeFor(result),
+    detail: result.message ?? null,
+    reservationId,
+  });
+
   if (!result.ok) {
     return {
       ok: false,
@@ -1069,6 +1112,6 @@ export async function pushRuConfirmedReservation(
     method: 'push_confirmed_reservation',
     traceId,
     ruPropertyId,
-    reservationId: typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null,
+    reservationId,
   };
 }
