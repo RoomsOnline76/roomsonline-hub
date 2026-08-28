@@ -5038,7 +5038,110 @@ Deno.serve(async (req) => {
      * ── list_stored_api_keys: which RU OwnerIDs we hold key pairs for (no secrets returned).
      * Drives the per-sub-user key state in the RU accounts UI.
      */
+    /**
+     * ── generate_child_key: mint + verify + store a child key pair for one roster account ──
+     * Used from Channel Monitor → Advanced → Master account roster for accounts that hold no
+     * usable child pair (so the close verb, which authenticates AS the sub-account, is blocked).
+     *
+     * Authenticates as the SUB-ACCOUNT (its own login + password). The master account is never
+     * used to mint a child key — mintChildKeyPair already discards any pair that turns out to
+     * authenticate as the master account.
+     */
+    if (action === "generate_child_key") {
+      const ownerId = String(body.ru_owner_id ?? "").trim();
+      if (!ownerId) {
+        return json({ success: false, error: { code: "MISSING_PARAM", message: "ru_owner_id is required" } }, 400);
+      }
+      const suppliedEmail = typeof body.login_email === "string" ? body.login_email.trim() : "";
+      const suppliedPassword = typeof body.password === "string" && body.password.trim()
+        ? body.password.trim()
+        : RU_SUB_USER_PASSWORD;
+      const keyLabel = typeof body.key_label === "string" && body.key_label.trim()
+        ? body.key_label.trim()
+        : "ROLOS";
+
+      const [{ data: credRow }, { data: acctRow }] = await Promise.all([
+        admin
+          .from("ru_api_credentials")
+          .select("id, login_email, access_key, key_scope")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle(),
+        admin
+          .from("ru_owner_accounts")
+          .select("id, ru_login_email, owner_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle(),
+      ]);
+
+      // A verified child pair is already usable — nothing to do unless the caller forces a rotation.
+      if (credRow?.key_scope === "child" && body.force !== true) {
+        return json({
+          success: true,
+          status: "already_held",
+          owner_id: ownerId,
+          access_key_last4: String(credRow.access_key ?? "").slice(-4),
+          message: "A verified sub-account key pair is already stored for this account.",
+        });
+      }
+
+      const loginEmail = suppliedEmail
+        || String(credRow?.login_email ?? "").trim()
+        || String(acctRow?.ru_login_email ?? "").trim()
+        || String(acctRow?.owner_email ?? "").trim()
+        || "";
+      if (!loginEmail) {
+        return json({
+          success: false,
+          status: "refused",
+          error: {
+            code: "NO_LOGIN_EMAIL",
+            message: "No sub-account login email is on record for this OwnerID, so the channel cannot be asked to mint its key.",
+          },
+        }, 422);
+      }
+
+      const minted = await mintChildKeyPair({
+        ownerId,
+        loginEmail,
+        accountId: acctRow?.id ? String(acctRow.id) : null,
+        keyLabel,
+        authUsername: loginEmail,
+        authPassword: suppliedPassword,
+      });
+
+      if (minted.ok) {
+        return json({
+          success: true,
+          status: "minted",
+          owner_id: ownerId,
+          login_email: loginEmail,
+          access_key_last4: String(minted.accessKey ?? "").slice(-4),
+          attempts: minted.attempts ?? [],
+          message: `Key pair minted, verified as sub-account ${ownerId} and stored.`,
+        });
+      }
+
+      const status = minted.rateDeferred
+        ? "rate_limited"
+        : minted.code === "RU_KEY_CREATION_NOT_ENABLED"
+          ? "master_pair"
+          : "refused";
+      return json({
+        success: false,
+        status,
+        owner_id: ownerId,
+        login_email: loginEmail,
+        attempts: minted.attempts ?? [],
+        ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
+        error: {
+          code: minted.code ?? "RU_CREATE_KEY_FAILED",
+          message: minted.message ?? "The channel did not issue a key pair for this sub-account.",
+        },
+      }, minted.rateDeferred ? 429 : 422);
+    }
+
     if (action === "list_stored_api_keys") {
+
       const { data, error } = await admin
         .from("ru_api_credentials")
         .select("id, ru_owner_id, login_email, access_key, key_label, verified_at, key_scope, key_scope_verified_at")
