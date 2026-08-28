@@ -3119,36 +3119,30 @@ async function verifyDiscounts(
   lastMinuteRequested: RuDiscountWire[],
   childAuth: Record<string, unknown> = {},
 ): Promise<{ long_stay: any; last_minute: any }> {
-  const report: { long_stay: any; last_minute: any } = { long_stay: null, last_minute: null };
+  // ONE read-back call: the channel's Pull_ListPropertyDiscounts_RQ returns both ladders
+  // (<LongStays> and <LastMinutes>) in a single response, so we pull once and diff twice.
+  const failure = (message: string) => ({
+    long_stay: { error: message, requested: longStayRequested.length, returned: 0, matches: 0, mismatches: [] },
+    last_minute: { error: message, requested: lastMinuteRequested.length, returned: 0, matches: 0, mismatches: [] },
+  });
 
-  const pull = async (
-    action: 'get_long_stay_discounts' | 'get_last_minute_discounts',
-    element: 'LongStay' | 'LastMinute',
-    requested: RuDiscountWire[],
-  ) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action, ru_property_id: ruPropertyId, ...childAuth },
-      });
-      if (error || !data?.success) {
-        return {
-          error: error?.message || data?.error?.message || 'pull failed',
-          requested: requested.length,
-          returned: 0,
-          matches: 0,
-          mismatches: [],
-        };
-      }
-      return diffRuDiscountEcho(data.raw_xml || '', element, requested);
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : String(e), requested: requested.length };
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'get_property_discounts', ru_property_id: ruPropertyId, ...childAuth },
+    });
+    if (error || !data?.success) {
+      return failure(error?.message || data?.error?.message || 'pull failed');
     }
-  };
-
-  report.long_stay = await pull('get_long_stay_discounts', 'LongStay', longStayRequested);
-  report.last_minute = await pull('get_last_minute_discounts', 'LastMinute', lastMinuteRequested);
-  return report;
+    const raw = data.raw_xml || '';
+    return {
+      long_stay: diffRuDiscountEcho(raw, 'LongStay', longStayRequested),
+      last_minute: diffRuDiscountEcho(raw, 'LastMinute', lastMinuteRequested),
+    };
+  } catch (e) {
+    return failure(e instanceof Error ? e.message : String(e));
+  }
 }
+
 
 async function pushDiscounts(
   supabase: any,
