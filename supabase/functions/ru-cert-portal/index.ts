@@ -1134,24 +1134,6 @@ Deno.serve(async (req) => {
       }
     };
 
-    /**
-     * Register live notifications for a sub-account the moment its keys verify.
-     *
-     * Runs in the background: a portfolio must never be left unmonitored until the
-     * nightly cron, but a subscription failure must never fail key verification.
-     */
-    const autoSubscribeLiveNotifications = (ruOwnerId: string | null | undefined, label: string) => {
-      const ownerId = String(ruOwnerId ?? "").trim();
-      if (!/^\d+$/.test(ownerId)) return;
-      const task = ensureLiveNotificationsForOwner(admin, ownerId, label)
-        .then((outcome) => {
-          if (outcome.warning) console.warn(`[ru-cert-portal] auto-subscribe ${label}: ${outcome.warning}`);
-          else console.log(`[ru-cert-portal] live notifications subscribed + verified for ${label}`);
-        })
-        .catch((e) => console.warn("[ru-cert-portal] auto-subscribe threw", e instanceof Error ? e.message : e));
-      const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
-      if (runtime?.waitUntil) runtime.waitUntil(task);
-    };
 
 
 
