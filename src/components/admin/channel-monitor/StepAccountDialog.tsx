@@ -709,12 +709,11 @@ export function StepAccountDialog({
                   Sub-account credentials
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {xmlApiRejectedWithStoredPassword
-                    ? "The sub-account password is stored. Key creation is waiting for the channel XML API to accept this OwnerID."
-                    : planHasPassword
-                      ? "A sub-account password is stored. Step A creates and stores the API key pair automatically when the channel XML API accepts this sub-account."
-                      : "Enter the sub-account password and Step A will create, verify and store its API key pair automatically."}
+                  {planHasPassword
+                    ? "The sub-account portal password is on record — use it to sign in to the channel portal and create the key pair above."
+                    : "Store the sub-account portal password here so it can be used to sign in and create the key pair above."}
                 </CardDescription>
+
               </CardHeader>
               <CardContent className="space-y-3">
                 {activeRemedy ? (
