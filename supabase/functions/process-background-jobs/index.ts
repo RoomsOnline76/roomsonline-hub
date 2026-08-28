@@ -196,13 +196,18 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
     case "channel_booking_sync": {
       const bookingId = payload.booking_id as string | undefined;
       if (!bookingId) return;
+      const onlyUnitIds = Array.isArray(payload.only_unit_ids)
+        ? (payload.only_unit_ids as unknown[]).map((u) => String(u)).filter((u) => u.length > 0)
+        : null;
       const outcome = await syncBookingToChannel(supabase, {
         booking_id: bookingId,
         change: (payload.change as ChannelBookingChange | undefined) ?? "unknown",
         previous: (payload.previous as Record<string, string | null> | null) ?? null,
         reason: (payload.reason as string | null) ?? null,
+        only_unit_ids: onlyUnitIds && onlyUnitIds.length > 0 ? onlyUnitIds : null,
         source: "background_job",
       });
+
       if (outcome.reservation === "failed") {
         throw new Error(outcome.message ?? outcome.code ?? "Channel refused the booking change");
       }
