@@ -76,8 +76,8 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Push_CreateUser_RQ", "Create sub-account", "account", "onboarding", true),
   spec("Push_ArchiveUser_RQ", "Archive sub-account", "account", "on_demand", true),
   spec("Push_PutOwner_RQ", "Put owner", "account", "onboarding", true),
-  spec("Push_PutOwnerDetails_RQ", "Put owner details", "account", "on_change", true),
-  spec("Push_PutCompanyDetails_RQ", "Put company details", "account", "onboarding", true),
+  // Owner/company detail edits ride Push_PutOwner_RQ and Push_FillCompanyDetails_RQ; the
+  // `Push_PutOwnerDetails_RQ` / `Push_PutCompanyDetails_RQ` spellings are not published.
   spec("Push_FillCompanyDetails_RQ", "Fill company details", "account", "onboarding", true),
   spec("Push_ChangeCurrency_RQ", "Change account currency", "account", "onboarding", true),
   spec("Pull_GetApiKeys_RQ", "List API keys", "account", "on_demand", false),
@@ -86,19 +86,15 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
 
   // ---- Listing content ---------------------------------------------------------------------
   spec("Push_PutProperty_RQ", "Publish listing", "content", "on_change", true, "Delta-only static push"),
-  spec("Pull_GetProperty_RQ", "Read one listing", "content", "on_demand", false),
   spec("Pull_ListProp_RQ", "List listings", "content", "on_demand", false),
   spec("Pull_ListOwnerProp_RQ", "List account listings", "content", "on_demand", false),
-  spec("Pull_ListSpecProp_RQ", "List specific listings", "content", "on_demand", false),
+  spec("Pull_ListSpecProp_RQ", "Read specific listings", "content", "on_demand", false, "Single-listing read-back — there is no Pull_GetProperty_RQ"),
   spec("Pull_ListCitiesProps_RQ", "List listings by city", "content", "on_demand", false),
-  spec("Push_PutPropertyStatus_RQ", "Set listing status", "content", "on_change", true),
   spec("Push_SetPropertiesStatus_RQ", "Set listings status (bulk)", "content", "on_change", true),
   // The channel publishes no hard-delete verb: `Push_DeleteProperty_RQ` and
   // `Push_RemoveProperty_RQ` are not implemented (Status -1). Removal = archive via
   // Push_SetPropertiesStatus_RQ with IsArchived=1, already listed above.
   spec("Pull_ListBuildings_RQ", "List buildings", "content", "on_demand", false),
-  spec("Pull_ListOwnerBuildings_RQ", "List account buildings", "content", "on_demand", false),
-  spec("Pull_GetBuilding_RQ", "Read building", "content", "on_demand", false),
   spec("Push_PutBuilding_RQ", "Put building", "content", "on_demand", true),
 
   // ---- Availability, rates, restrictions ---------------------------------------------------
@@ -142,11 +138,10 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Pull_ListAmenities_RQ", "Amenity dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListCompositionRooms_RQ", "Composition room dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListPropTypes_RQ", "Property-type dictionary", "dictionary", "on_demand", false),
-  spec("Pull_ListCurrencies_RQ", "Currency dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListCurrenciesWithCities_RQ", "Currencies with cities", "dictionary", "on_demand", false),
-  spec("Pull_ListCities_RQ", "City dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListLocations_RQ", "Location dictionary", "dictionary", "on_demand", false),
-  spec("Pull_ListLocationsBySearchString_RQ", "Location search", "dictionary", "on_demand", false),
+  spec("Pull_ListLocationTypes_RQ", "Location-type dictionary", "dictionary", "on_demand", false),
+  spec("Pull_GetLocationsListByName_RQ", "Location search by name", "dictionary", "on_demand", false),
   spec("Pull_ListDestinations_RQ", "Destination dictionary", "dictionary", "on_demand", false),
   spec("Pull_GetLocationByName_RQ", "Resolve location by name", "dictionary", "on_demand", false),
   spec("Pull_GetLocationByCoordinates_RQ", "Resolve location by coordinates", "dictionary", "on_demand", false),
