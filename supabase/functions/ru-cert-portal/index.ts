@@ -4750,10 +4750,12 @@ Deno.serve(async (req) => {
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "NO_OWNER_ID",
-          message: "No OwnerID is bound for this sub-account, so no key pair can be created. Complete Step A's account creation first.",
+          code: "RU_CHILD_AUTH_REQUIRED",
+          message:
+            "No sub-account credential is available to mint with. The sub-account's own login and password (or an existing child key pair) are required — the master account is never used to mint a child key.",
         };
       }
+
 
 
       let created: any = null;
