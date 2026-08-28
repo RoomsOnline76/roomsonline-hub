@@ -3757,12 +3757,20 @@ Deno.serve(async (req) => {
         const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
         const locId = Number(p.ru_location_id) || Number(state?.ru_location_id) || 0;
         const listings: any[] = [];
-        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; persisted: boolean; error?: string } | null = null;
+        let primaryVerification: {
+          ru_reported_iso: string | null;
+          matches: boolean;
+          persisted: boolean;
+          error?: string;
+          ru_reported_location_id?: number | null;
+          location_matches?: boolean | null;
+        } | null = null;
 
         for (const ruId of ruIds) {
           const readback = await verifyRuPropertyCurrency(supabase, ruId, childAuth);
           let onMaster = false;
           let iso = readback.iso;
+          let reportedLocationId = readback.location_id ?? null;
           let err = readback.error ?? null;
           // "Property does not exist" on the sub-user means the listing was created on the
           // master account and never migrated — the account, not the currency, is the fault.
@@ -3771,12 +3779,17 @@ Deno.serve(async (req) => {
             if (masterRead.iso) {
               onMaster = true;
               iso = masterRead.iso;
+              reportedLocationId = masterRead.location_id ?? reportedLocationId;
               err = 'RU_LISTING_ON_MASTER_ACCOUNT';
             }
           }
           listings.push({
             ru_property_id: ruId,
             ru_reported_iso: iso ?? null,
+            // The same read-back already carries the published location, so the location
+            // verdict is a comparison — never a second call and never a re-write.
+            ru_reported_location_id: reportedLocationId,
+            location_matches: reportedLocationId == null || locId <= 0 ? null : reportedLocationId === locId,
             on_master_account: onMaster,
             deferred: !iso && readback.deferred === true,
             matches: !!iso && iso.toUpperCase() === expectedIso.toUpperCase(),
@@ -3785,6 +3798,7 @@ Deno.serve(async (req) => {
 
           await new Promise(r => setTimeout(r, 400));
         }
+
 
         // Persist only after considering the complete listing set. A property-level verdict
         // must not depend on listing order or account placement: if every successful read-back
@@ -3806,7 +3820,10 @@ Deno.serve(async (req) => {
               ownerScope: String(ownerId),
               decision: null,
               knownIso: evidence.ru_reported_iso,
+              knownLocationId: evidence.ru_reported_location_id ?? null,
+              expectedLocationId: locId > 0 ? locId : null,
             });
+
             const durableState = await loadCurrencyState(supabase, p.id);
             const durableMatch = !!durableState?.verified_at
               && String(durableState.ru_reported_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase()
@@ -3864,6 +3881,17 @@ Deno.serve(async (req) => {
               : transport.length === listings.length && listings.length > 0
                 ? 'Could not reach Rentals United for this property — transport error, currency not checked. Retry.'
                 : (listings.find(l => l.error && !l.deferred)?.error ?? notes[0] ?? null);
+        // Location provenance: Step A already sent the account's region list and the property
+        // push carries the listing location, so Step B only compares what the channel reports.
+        const locationAnswered = listings.filter((l) => l.ru_reported_location_id != null);
+        const locationMismatches = locationAnswered.filter((l) => l.location_matches === false);
+        const locationVerdict = locId <= 0
+          ? 'no_local_location'
+          : locationAnswered.length === 0
+            ? 'unknown'
+            : locationMismatches.length > 0
+              ? 'mismatch'
+              : 'matched';
         results.push({
           property_id: p.id,
           name: p.name,
@@ -3876,7 +3904,15 @@ Deno.serve(async (req) => {
           unreachable: transport.length === listings.length && listings.length > 0,
           rate_deferred: allDeferred,
           retry_after_ms: allDeferred ? 60_000 : undefined,
+          expected_location_id: locId > 0 ? locId : null,
+          location_verdict: locationVerdict,
+          location_mismatches: locationMismatches.map((l: any) => ({
+            ru_property_id: l.ru_property_id,
+            ru_reported_location_id: l.ru_reported_location_id,
+          })),
+          currency_write_skipped: gatePassed && !usedExistingVerdict,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
+
           matches: gatePassed,
           state_persisted: primaryVerification?.persisted === true,
           gate_passed: gatePassed,

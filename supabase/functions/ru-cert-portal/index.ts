@@ -7977,6 +7977,36 @@ Deno.serve(async (req) => {
           repObj.region = String(c.region).trim();
         }
 
+        /**
+         * Legal-representative coverage. Rentals United has no location field on the
+         * representative — only city/region/country IDs — so this is the honest list of what
+         * the block does and does not carry, reported back for the Step B card.
+         */
+        const REP_KEYS: Array<{ key: string; label: string }> = [
+          { key: "first_name", label: "First name" },
+          { key: "last_name", label: "Last name" },
+          { key: "email", label: "Email" },
+          { key: "birthday", label: "Date of birth" },
+          { key: "address", label: "Address" },
+          { key: "city", label: "City" },
+          { key: "region", label: "Region" },
+          { key: "post_code", label: "Postal code" },
+          { key: "nationality_id", label: "Nationality" },
+          { key: "country_of_residence_id", label: "Country of residence" },
+        ];
+        const repFilled = (k: string) => {
+          const v = (repObj ?? {})[k] ?? (repObj ?? {})[k.replace(/_id$/, "Id")];
+          return v !== null && v !== undefined && String(v).trim() !== "";
+        };
+        const legalRepCoverage = {
+          present: Boolean(repObj),
+          sent: REP_KEYS.filter((f) => repFilled(f.key)).map((f) => f.label),
+          missing: REP_KEYS.filter((f) => !repFilled(f.key)).map((f) => f.label),
+        };
+        const companyLocationIds = Array.isArray((c as Record<string, unknown>).location_ids)
+          ? ((c as Record<string, unknown>).location_ids as unknown[]).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
         // ── Gate: never write placeholder contact data onto the RU profile ──
         const incomplete: string[] = [];
         if (!String(c.first_name ?? "").trim()) incomplete.push("contact first name");
@@ -7994,6 +8024,8 @@ Deno.serve(async (req) => {
             dry_run: true as const,
             company: c,
             incomplete,
+            legal_rep_coverage: legalRepCoverage,
+            location_ids: companyLocationIds,
             source_property_id: sourcePropertyId,
           };
         }
@@ -8024,9 +8056,24 @@ Deno.serve(async (req) => {
         };
         const previousPayload = (account.company_payload ?? null) as Record<string, unknown> | null;
         const payloadUnchanged = Boolean(previousPayload) && stableJson(previousPayload) === stableJson(c);
+        // The account's region list is part of that fingerprint: an unchanged set is never
+        // re-sent, so Step A's location write is not repeated by Step B or by a save.
+        const previousLocationIds = Array.isArray(previousPayload?.location_ids)
+          ? (previousPayload!.location_ids as unknown[]).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+        const locationsUnchanged = previousLocationIds.length === companyLocationIds.length
+          && [...previousLocationIds].sort().join(",") === [...companyLocationIds].sort().join(",");
         if (body.force !== true && companyState.satisfied && payloadUnchanged) {
-          return { sent: true, skipped: true as const, unchanged: true as const };
+          return {
+            sent: true,
+            skipped: true as const,
+            unchanged: true as const,
+            locations_unchanged: locationsUnchanged,
+            location_ids: companyLocationIds,
+            legal_rep_coverage: legalRepCoverage,
+          };
         }
+
 
         // Retry transient RU/network failures — Phase 1 must not be left half-done.
         let filled: any = null;
@@ -8086,7 +8133,13 @@ Deno.serve(async (req) => {
             company_payload: company,
           })
           .eq("id", account.id);
-        return { sent: true };
+        return {
+          sent: true,
+          location_ids: companyLocationIds,
+          locations_unchanged: locationsUnchanged,
+          legal_rep_coverage: legalRepCoverage,
+        };
+
       };
 
       // RU requires at least one LocationId on the sub-user (and on company details).
@@ -8567,6 +8620,10 @@ Deno.serve(async (req) => {
           created: false,
           company_details_sent: companyResult.sent,
           company_details_pushed: companyResult.sent,
+          company_location_ids: (companyResult as { location_ids?: number[] }).location_ids ?? null,
+          company_locations_unchanged: (companyResult as { locations_unchanged?: boolean }).locations_unchanged ?? null,
+          legal_rep_coverage: (companyResult as { legal_rep_coverage?: unknown }).legal_rep_coverage ?? null,
+
           company_details_manual_required: needsPassword,
           company_details_warning: companyResult.sent ? null : companyResult.error,
           account: refreshed ?? existing.account,
@@ -9026,6 +9083,10 @@ Deno.serve(async (req) => {
         adopted,
         company_details_sent: companyResult.sent,
         company_details_pushed: companyResult.sent,
+        company_location_ids: (companyResult as { location_ids?: number[] }).location_ids ?? null,
+        company_locations_unchanged: (companyResult as { locations_unchanged?: boolean }).locations_unchanged ?? null,
+        legal_rep_coverage: (companyResult as { legal_rep_coverage?: unknown }).legal_rep_coverage ?? null,
+
         company_details_manual_required: needsPassword,
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
