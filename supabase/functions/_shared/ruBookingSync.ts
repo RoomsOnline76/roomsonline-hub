@@ -506,6 +506,64 @@ export async function cancelRuReservation(
 
 
 /**
+ * The channel refuses any reservation write whose target nights read as closed on ITS calendar —
+ * "Property is not available for a given dates / Can't check in or check out on selected dates".
+ *
+ * In practice that block is OURS: the availability delta that follows every booking event publishes
+ * the sold nights as 0 units, and when it lands before the reservation write (a queued delta, a
+ * drag-and-drop move, a re-priced edit) the channel then rejects the very reservation that justified
+ * the closure. The cure is always the same: reopen exactly those nights (plus the departure day,
+ * which the channel validates for changeover), then replay the write.
+ */
+export function isRuBlockedDatesRefusal(message?: string | null): boolean {
+  return /not available for a given dates|check ?in or check ?out/i.test(String(message ?? ''));
+}
+
+/**
+ * Reopen a stay's own nights at the channel so a reservation write can land. Idempotent: the
+ * availability delta that follows re-publishes the true unit counts.
+ */
+async function reopenStayNightsAtChannel(
+  supabase: Db,
+  booking: RuBookingRef,
+  args: {
+    auth: Record<string, unknown>;
+    ruPropertyId: string;
+    dateFrom: string;
+    dateTo: string;
+    traceId: string;
+    parentAction: string;
+    details?: Record<string, unknown>;
+  },
+): Promise<boolean> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(args.dateTo)) return false;
+  // RU's Date From/To covers nights, so the departure day is not part of the stay — but it is still
+  // validated for arrival/departure, so it is reopened as its own single-day span.
+  const lastNight = new Date(`${args.dateTo}T00:00:00Z`);
+  lastNight.setUTCDate(lastNight.getUTCDate() - 1);
+  const lastNightStr = lastNight.toISOString().slice(0, 10);
+  const spans: Array<Record<string, unknown>> = [];
+  if (lastNightStr >= args.dateFrom) {
+    spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 1 });
+  }
+  spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 1 });
+
+  const reopened = await invokeRu(supabase, 'push_availability', {
+    ru_property_id: Number(args.ruPropertyId),
+    availability: spans,
+    ...args.auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId: args.ruPropertyId,
+    traceId: args.traceId,
+    parentAction: args.parentAction,
+    details: { booking_id: booking.id, ...(args.details ?? {}) },
+  });
+  return reopened.ok === true;
+}
+
+
+/**
  * Accept an unconfirmed channel request so the reservation becomes modifiable.
  *
  * The channel holds a request (StatusID 4) as a lead: it refuses every stay modification while
