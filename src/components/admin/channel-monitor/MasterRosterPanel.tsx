@@ -129,17 +129,22 @@ export function MasterRosterPanel() {
   const [cooldownSeconds, setCooldownSeconds] = useState(DEFAULT_COOLDOWN_SECONDS);
   const [closing, setClosing] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
+  const [rematching, setRematching] = useState(false);
+  const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
   const cancelled = useRef(false);
+  const rematchCancelled = useRef(false);
 
   const read = useMutation({
     mutationFn: async (): Promise<RosterResult> => {
-      const [{ data, error }, { data: accounts }, { data: retiredRows }] = await Promise.all([
-        supabase.functions.invoke("rentalsunited-api", {
-          body: { action: "list_users", include_retired: true },
-        }),
-        supabase.from("ru_owner_accounts").select("ru_owner_id"),
-        supabase.from("ru_retired_accounts").select("ru_owner_id"),
-      ]);
+      const [{ data, error }, { data: accounts }, { data: retiredRows }, { data: keyData }] =
+        await Promise.all([
+          supabase.functions.invoke("rentalsunited-api", {
+            body: { action: "list_users", include_retired: true },
+          }),
+          supabase.from("ru_owner_accounts").select("ru_owner_id"),
+          supabase.from("ru_retired_accounts").select("ru_owner_id"),
+          supabase.functions.invoke("ru-cert-portal", { body: { action: "list_stored_api_keys" } }),
+        ]);
       if (error) throw error;
       if (data?.success === false) {
         throw new Error(data?.error?.message || "The channel refused the roster read");
@@ -153,6 +158,9 @@ export function MasterRosterPanel() {
         retiredIds: new Set(
           (retiredRows ?? []).map((r) => String(r.ru_owner_id ?? "").trim()).filter(Boolean),
         ),
+        storedKeys: Array.isArray(keyData?.credentials)
+          ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
+          : [],
         readAt: new Date(),
       };
     },
