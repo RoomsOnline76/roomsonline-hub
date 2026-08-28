@@ -3984,35 +3984,28 @@ Deno.serve(async (req) => {
     }
 
     // ── delete_property ──
-    // Hard removal. Never throws on an unrecognised verb: the caller needs to
-    // know "the account does not support deletion" as data so it can fall back
-    // to archiving and report that honestly instead of claiming a removal.
+    // The channel API has NO hard-delete method (`Push_DeleteProperty_RQ` /
+    // `Push_RemoveProperty_RQ` are not published and answered Status -1
+    // "The XML contains not implemented method" on every attempt). The documented
+    // retirement path is Push_SetPropertiesStatus_RQ with IsArchived=1, so that is
+    // what we do — and we report it as an archive, never as a deletion.
     if (action === 'delete_property') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
-      const verbs = ['Push_DeleteProperty_RQ', 'Push_RemoveProperty_RQ'];
-      const attempts: Array<{ verb: string; status_id: string | null; message: string | null }> = [];
-      for (const verb of verbs) {
-        const xml = buildDeletePropertyXml(scopedCreds, ru_property_id, verb);
-        let response: string;
-        try {
-          response = await callRentalsUnited(scopedCreds, xml);
-        } catch (err) {
-          attempts.push({ verb, status_id: null, message: err instanceof Error ? err.message : String(err) });
-          continue;
-        }
-        const { ok, status } = handleRUStatus(response);
-        attempts.push({ verb, status_id: status?.id ?? null, message: status?.message ?? null });
-        if (ok) {
-          return jsonResponse({
-            success: true,
-            auth_mode: authMode,
-            verb,
-            attempts,
-            message: `Listing removal accepted (${verb})`,
-            raw_xml: response,
-          });
-        }
-      }
+      const xml = buildSetPropertyStatusXml(scopedCreds, ru_property_id, false, true);
+      const response = await callRentalsUnited(scopedCreds, xml);
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) return ruErrorResponse(status);
+      return jsonResponse({
+        success: true,
+        supported: false,
+        archived: true,
+        auth_mode: archiveOnMaster ? 'master_scoped_archive' : authMode,
+        verb: 'Push_SetPropertiesStatus_RQ',
+        message: 'The channel does not support listing deletion — the listing was archived (deactivated) instead',
+        raw_xml: response,
+      });
+    }
+
       return jsonResponse({
         success: false,
         supported: false,
