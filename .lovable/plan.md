@@ -1,26 +1,72 @@
-# Confirm sub-user creation entitlement, then settle the key-mint refusal
+# Rebuild Step A from scratch — one linear sub-account run
 
-Michał's mail confirms one thing precisely: the master account `sleepinafrica@roomsonline.co.za` now has the **create sub-user** privilege. That matches what we see — `Push_CreateUser_RQ` succeeds and accounts appear on the roster.
+Step A today is a tangle: it re-reads the user roster after almost every leg, treats a
+submitted email as a suggestion and jumps straight to a generated slug login, auto-subscribes
+live notifications mid-run, and then lands on a failure screen even after the account was
+created and keys were stored. It gets throttled by the channel because of the repeated roster
+reads. Replace it with a single, strictly ordered run.
 
-It says nothing about **API key creation for the created sub-user**, which is where Step A currently stops (channel status `-4` on `Push_CreateApiKey_RQ` authenticated as the sub-user). Step A was just rebuilt as one atomic run (generate compliant password → create user → resolve OwnerID → persist password encrypted → mint with that child login), and that new flow has not yet been proven end-to-end on a fresh account. So the next move is evidence, not more code changes.
+## The new sequence
 
-## Steps
+Exactly these legs, in this order, once each, with no hidden extra channel calls:
 
-1. **Prove the atomic run on a brand-new account.** Create one fresh sub-account through Step A (new slug login, freshly generated compliant password) and let the same run mint its first key pair. A brand-new login is the only clean test: existing accounts (Leopard / 742612 included) may have a password the channel never accepted, so their `-4` is ambiguous.
+```text
+property selected      → read the sub-account roster ONCE (cache it for the whole run)
+Step A.0  account?     → if the property is already linked, adopt that account and skip to A.2
+                       → if not linked: use the email the operator submitted;
+                         only when none was given, generate <slug>@roomsonline.co.za
+Step A.1  create user  → one Push_CreateUser_RQ with that email + the shared password
+                         (no second roster read; resolve OwnerID from the run's read-back)
+Step A.2  keys         → PAUSE. Operator pastes the AccessKey / SecretKey from the portal
+Step A.3  verify pair  → confirm the pair belongs to the account used in A.1, then store it
+Step A.4  company      → push the company profile as that sub-account
+Step A.5  listings     → pull the sub-account's listings and adopt them
+                       → Step A complete; wait for Step B
+```
 
-2. **Record the exact wire evidence for that run.** From the live traffic monitor, capture for each call: method, envelope element order, status id and the channel's verbatim status message, timestamp. Specifically the `Push_CreateUser_RQ` (with the password we sent, redacted in the report) and the immediately following `Push_CreateApiKey_RQ` for the same login.
+## Rules the rebuild enforces
 
-3. **Branch on the result.**
-   - Mint succeeds → Step A completes, keys verified as child-scoped, Step B unblocked. Then re-run the same flow for the parked accounts using their persisted passwords, and roll it through the roster's "Generate missing keys" runner.
-   - Mint still returns `-4` → the refusal is either a wrong-credential path on our side or a missing key-creation entitlement on the sub-user. The evidence from step 2 distinguishes them: if the same login/password pair authenticates a plain read (e.g. a sub-user-scoped listing pull) but only the key call fails, it is an entitlement question for Michał.
+- **One roster read per run.** The read happens when the property is picked. Every later leg
+  reads that cached list. The only exception is the single read-back that resolves the new
+  OwnerID after create; a throttled read-back parks the run for its cooldown instead of
+  looping.
+- **The submitted email is authoritative.** A generated slug login is a fallback used only
+  when no email was supplied, or after the channel itself rejects the submitted one
+  (already in use / archived / not under our master). No silent substitution.
+- **"Email already exists" is an adopt, not a retry.** The roster already in memory tells us
+  which OwnerID owns that login: bind it and go to A.2. No further create attempt, no
+  further roster call.
+- **Keys are manual.** A.2 always stops and asks. No mint attempt, no `-4` refusals, no
+  master-authenticated fallback.
+- **A.3 proves ownership before storing.** The pair must identify the exact login used in
+  A.1/A.0. A pair that enumerates the roster is a master pair and is rejected outright.
+- **No live-notification work in Step A.** RLNM / LNM subscribe and read-back move out of
+  this run entirely (they belong to Step B / the notifications panel), so a failed LNM push
+  can never fail or noise up Step A.
+- **Outcome is honest and terminal per leg.** A run that created the account and stored a
+  verified pair reports success even if a later leg parks; the screen shows the leg reached,
+  never a red "failed" over a completed account.
 
-4. **If it is an entitlement question, send it with evidence.** Draft the reply to Michał in that case: confirm sub-user creation is working, name one example OwnerID and login, quote the `Push_CreateApiKey_RQ` request shape and the verbatim `-4` response, and ask whether XML API key creation must also be enabled for accounts created under our master — and whether we should instead be issued keys via a white-label provisioning path.
+## Technical notes
 
-5. **Ask RU for the two optional create fields while we are in the thread.** `PMSId` and `ConfigurationString` are supported by `Push_CreateUser_RQ` and we currently send `PMSId` only if `RU_PMS_ID` is configured. Ask Michał for our PMS id (and any configuration string) so children are created as PMS-linked accounts rather than bare portal users — a plausible contributor to the key refusal.
+- `supabase/functions/ru-cert-portal/index.ts`: replace the `ensure_owner_account` /
+  `plan_owner_account` body with a staged runner (`resolve → create → adopt-or-park`) whose
+  only roster source is one run-scoped read; delete the in-run auto-subscribe hook and the
+  duplicate roster look-ups in the create/adopt branches. Keep `save_api_keys` and
+  `verify_child_key_owner` as the A.2/A.3 surface, and keep the existing per-account row
+  writes (`ru_owner_accounts`, `ru_api_credentials`) unchanged.
+- `src/lib/channelOnboardOrchestrator.ts`: Step A becomes the five tasks above
+  (`owner_account`, `api_keys`, `verify_keys`, `company_profile`, `adopt_listings`); the
+  `RU_MANUAL_KEYS_REQUIRED` pause stays the normal path rather than a recoverable error.
+- `src/components/admin/channel-monitor/ChannelOnboardTab.tsx` +
+  `StepAccountDialog.tsx`: the optional email input is offered before the run starts (A.0),
+  the key/secret card is the A.2 pause, and a completed account never renders the failure
+  screen — it renders the stage reached plus the account details.
+- Channel-call budget per Step A run: 1 roster read, 1 create, 1 verify, 1 company push,
+  1 listings pull. Anything beyond that is a bug.
 
-## Technical scope
+## Verification
 
-- No new adapter behaviour is planned in step 1–2; it exercises the code already in `supabase/functions/ru-cert-portal/index.ts` (atomic Step A) and `supabase/functions/rentalsunited-api/index.ts` (`buildCreateUserXml`, `create_child_api_key`).
-- Only if the fresh-account mint succeeds do we touch code: extend the parked-account recovery to reuse persisted passwords, and surface the outcome verbatim in Step A and the roster runner.
-- If RU supplies a PMS id, it is stored as the `RU_PMS_ID` setting — no schema change.
-- No master-authenticated key mint is reintroduced under any branch.
+Run Step A against a fresh property with a supplied email and with no email, and read the
+live traffic monitor to confirm the exact call budget above and no `Pull_ListMyUsers_RQ`
+repeats.
