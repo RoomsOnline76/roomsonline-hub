@@ -538,16 +538,32 @@ export async function confirmRuRequest(
     // RU's Date From/To covers nights, so the departure day is excluded.
     const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
     lastNight.setUTCDate(lastNight.getUTCDate() - 1);
+    /**
+     * The channel validates the departure day too: "Can't check in or check out on selected date"
+     * is raised when the check-out date itself carries a changeover restriction that bars a
+     * departure, even though that night is not part of the stay. So the reopen covers the stay's
+     * nights AND the departure day, both with wire changeover 1 ("arrival and departure allowed").
+     * The following ARI delta re-publishes the true units for the departure day.
+     */
     const reopened = await invokeRu(supabase, 'push_availability', {
       ru_property_id: Number(ruPropertyId),
-      availability: [{
-        date_from: booking.check_in_date,
-        date_to: lastNight.toISOString().slice(0, 10),
-        units: 1,
-        changeover: 1,
-      }],
+      availability: [
+        {
+          date_from: booking.check_in_date,
+          date_to: lastNight.toISOString().slice(0, 10),
+          units: 1,
+          changeover: 1,
+        },
+        {
+          date_from: booking.check_out_date,
+          date_to: booking.check_out_date,
+          units: 1,
+          changeover: 1,
+        },
+      ],
       ...auth,
     }, {
+
       propertyId: booking.property_id,
       ruPropertyId,
       traceId,
