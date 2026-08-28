@@ -602,6 +602,9 @@ export function MasterRosterPanel() {
                       <Badge variant={bound ? "secondary" : "destructive"} className="text-[10px]">
                         {bound ? "Bound" : "No binding"}
                       </Badge>
+                      <Badge variant={keyBadge.variant} className="text-[10px]">
+                        {keyBadge.text}
+                      </Badge>
                       {outcome ? (
                         <Badge variant={STATE_VARIANT[outcome.state]} className="text-[10px]">
                           {outcome.state === "running" ? (
