@@ -13,8 +13,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readInvokeErrorBody } from '../_shared/ruInvokeBody.ts';
 import { RU_RATE_DEFERRED_CODE } from '../_shared/ruRateGate.ts';
 import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
-import { confirmRuRequest } from '../_shared/ruBookingSync.ts';
+import { confirmRuRequest, reopenStayNightsAtChannel } from '../_shared/ruBookingSync.ts';
 import { RU_ARI_DELTA_QUEUE_ACTION } from '../_shared/ruAriDelta.ts';
+import { settleReservationOp } from '../_shared/ruReservationOpClaim.ts';
 
 
 /** The channel refuses to accept a held request whose own nights read as closed on its calendar. */
@@ -67,6 +68,20 @@ function isNoOp(message: string | null | undefined): boolean {
   return /reservation\s+does\s+not\s+exist|already\s+cancell?ed|no\s+such\s+reservation|nothing\s+to\s+(cancel|update)|no\s+listing\s+\d+\s+for\s+this\s+unit|republish\s+the\s+unit/i.test(
     String(message ?? ''),
   );
+}
+
+function queuedBookingId(row: QueueRow): string {
+  const payloadId = String(row.payload?.booking_id ?? '').trim();
+  if (payloadId) return payloadId;
+  return row.method_key.startsWith('push_confirmed_reservation:')
+    ? row.method_key.slice('push_confirmed_reservation:'.length)
+    : '';
+}
+
+function queuedReservationId(result: unknown): string | null {
+  const value = (result as { reservation_id?: unknown } | null)?.reservation_id ??
+    (result as { data?: { reservation_id?: unknown } } | null)?.data?.reservation_id;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
 /** A stay in one of these states can never be accepted at the channel again. */
@@ -169,6 +184,44 @@ Deno.serve(async (req) => {
       }
     } else if (terminalNoOp === null) {
       try {
+        // A locally-created stay may have been reopened when it was first queued, but an unrelated
+        // ARI refresh can legitimately publish its now-sold nights as closed during the channel's
+        // sliding-minute wait. Reopen the exact stay immediately before the terminal create replay,
+        // making reopen + registration one drainer operation rather than relying on stale calendar
+        // state from the enqueue attempt.
+        if (row.action === 'push_confirmed_reservation') {
+          const bookingId = queuedBookingId(row);
+          const stay = (row.payload?.stay ?? {}) as Record<string, unknown>;
+          const ruPropertyId = String(stay.ru_property_id ?? '').trim();
+          const dateFrom = String(stay.date_from ?? '').slice(0, 10);
+          const dateTo = String(stay.date_to ?? '').slice(0, 10);
+          if (!bookingId || !ruPropertyId || !dateFrom || !dateTo) {
+            throw new Error('Queued reservation is missing booking, listing, or stay dates.');
+          }
+          const { data: booking } = await supabase
+            .from('bookings')
+            .select('id, property_id, room_type_id, external_reservation_id, booking_channel, integration_type, check_in_date, check_out_date')
+            .eq('id', bookingId)
+            .maybeSingle();
+          if (!booking) throw new Error('Queued reservation booking no longer exists.');
+          const auth = { ...(row.payload ?? {}) };
+          delete auth.action;
+          delete auth.stay;
+          delete auth.guest;
+          delete auth.booking_id;
+          delete auth.reservation_fingerprint;
+          const reopened = await reopenStayNightsAtChannel(supabase, booking as never, {
+            auth,
+            ruPropertyId,
+            dateFrom,
+            dateTo,
+            traceId: crypto.randomUUID(),
+            parentAction: 'ruQueueDrain:create:reopen',
+            details: { queue_id: row.id, attempt: row.attempts },
+          });
+          if (!reopened) throw new Error('Could not reopen the stay dates immediately before registration.');
+        }
+
         // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
         // `action` is taken from the row so legacy payloads queued without it still replay.
         const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
@@ -177,6 +230,9 @@ Deno.serve(async (req) => {
         if (error) throw new Error(await invokeErrorMessage(error));
         if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
         result = data ?? null;
+        // A replay can itself hit the sliding window and hand the work to a new queue row. That is
+        // not delivery: the nested row carries our booking metadata and owns terminal completion.
+        if (data?.queued === true) terminalNoOp = 'Handed off to the next channel rate-window slot.';
       } catch (err) {
         failure = err instanceof Error ? err.message : String(err);
       }
@@ -247,16 +303,13 @@ Deno.serve(async (req) => {
        * booking id.
        */
       if (row.action === 'push_confirmed_reservation') {
-        const bookingId = row.method_key.split(':')[1] ?? '';
-        const reservationId =
-          typeof (result as { data?: { reservation_id?: unknown } })?.data?.reservation_id === 'string'
-            ? String((result as { data: { reservation_id: string } }).data.reservation_id)
-            : null;
-        if (bookingId) {
+        const bookingId = queuedBookingId(row);
+        const reservationId = queuedReservationId(result);
+        if (bookingId && reservationId) {
           await supabase
             .from('bookings')
             .update({
-              ...(reservationId ? { external_reservation_id: reservationId } : {}),
+              external_reservation_id: reservationId,
               integration_type: 'rentalsunited',
             })
             .eq('id', bookingId);
@@ -269,6 +322,16 @@ Deno.serve(async (req) => {
             error_message: null,
             last_error_message: null,
           }, { onConflict: 'booking_id,external_system' });
+          const fingerprint = String(row.payload?.reservation_fingerprint ?? '').trim();
+          if (fingerprint) {
+            await settleReservationOp(supabase, {
+              bookingId,
+              op: 'create',
+              fingerprint,
+              outcome: 'delivered',
+              reservationId,
+            });
+          }
         }
       }
 
@@ -314,6 +377,31 @@ Deno.serve(async (req) => {
           ).toISOString(),
         })
         .eq('id', row.id);
+
+      if (row.action === 'push_confirmed_reservation' && (noOp || giveUp)) {
+        const bookingId = queuedBookingId(row);
+        if (bookingId) {
+          await supabase.from('booking_sync_status').upsert({
+            booking_id: bookingId,
+            external_system: 'rentalsunited',
+            sync_status: 'failed',
+            last_action: 'create',
+            last_action_at: nowIso,
+            error_message: failure,
+            last_error_message: failure,
+          }, { onConflict: 'booking_id,external_system' });
+          const fingerprint = String(row.payload?.reservation_fingerprint ?? '').trim();
+          if (fingerprint) {
+            await settleReservationOp(supabase, {
+              bookingId,
+              op: 'create',
+              fingerprint,
+              outcome: giveUp ? 'terminal' : 'absent',
+              detail: failure,
+            });
+          }
+        }
+      }
     }
 
     console.log(

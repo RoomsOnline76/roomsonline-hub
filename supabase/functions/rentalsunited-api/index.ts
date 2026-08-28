@@ -383,6 +383,9 @@ interface RequestBody {
   deferrable?: boolean;
   /** Set by the queue drainer so a replayed call is never re-queued. */
   queued_replay?: boolean;
+  /** Internal queue correlation; ignored by the channel XML builders. */
+  booking_id?: string;
+  reservation_fingerprint?: string;
 }
 
 
