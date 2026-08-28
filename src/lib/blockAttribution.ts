@@ -78,3 +78,22 @@ export function formatBlockedTooltip(date: Date, detail?: BlockDetail | null): s
   if (detail?.reason) lines.push(detail.reason);
   return lines.join("\n");
 }
+
+/**
+ * Rows written as a side effect of a ROLOS booking (`external_system = 'rolos'`,
+ * no operator attribution) are NOT property blocks. Occupancy is derived from
+ * `bookings` + `rolos_booking_rooms`; these leftover rows outlive cancellations
+ * and used to paint a night as "Blocked by the property" with nothing behind it
+ * — and they were never pushed to the channel, so the channel showed it open.
+ */
+export function isBookingOccupancyRow(
+  source: string | null | undefined,
+  reason?: string | null,
+  blockedBy?: string | null,
+): boolean {
+  const r = (reason ?? "").trim();
+  // A stamped reservation hold is never an operator block, whatever the source tag.
+  if (r.startsWith("channel_booking:") || r.startsWith("booking:")) return true;
+  const key = (source ?? "").trim().toLowerCase();
+  return key === "rolos" && !blockedBy && r.length === 0;
+}

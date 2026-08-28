@@ -464,15 +464,25 @@ Deno.serve(async (req) => {
         }
 
         if (dates.length > 0) {
-          // Set available_units back and remove stop_sell
-          for (const date of dates) {
-            await supabase
-              .from("property_availability")
-              .update({ is_stop_sell: false, available_units: 1 })
-              .eq("property_id", booking.property_id)
-              .eq("date", date)
-              .eq("external_system", "manual");
-          }
+          // Delete the booking side-effect rows only. An operator's manual block on the
+          // same night is a deliberate closure and must survive a cancellation, and a
+          // leftover booking row would keep painting "Blocked by the property".
+          // This stay's own holds, whatever source tag they carry.
+          await supabase
+            .from("property_availability")
+            .delete()
+            .eq("property_id", booking.property_id)
+            .in("date", dates)
+            .eq("blocked_reason", `booking:${booking.id}`);
+          // Legacy unstamped booking rows.
+          await supabase
+            .from("property_availability")
+            .delete()
+            .eq("property_id", booking.property_id)
+            .in("date", dates)
+            .eq("external_system", "rolos")
+            .is("blocked_by", null)
+            .is("blocked_reason", null);
         }
       } catch (availErr) {
         console.error("Failed to restore availability (non-critical):", availErr);

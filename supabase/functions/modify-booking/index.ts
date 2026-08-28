@@ -245,7 +245,14 @@ async function recalculateRolPrice(
 }
 
 
-// Update property_availability when dates change (release old dates, block new dates)
+/**
+ * Release availability rows a stay previously authored when its dates move.
+ *
+ * Occupancy is derived from `bookings` + `rolos_booking_rooms`, so a modification must
+ * NOT author stop-sell rows for the new dates: those rows are invisible to the channel
+ * and outlive cancellations, which painted nights as "Blocked by the property" with no
+ * reservation behind them. Only the legacy booking-authored rows are cleaned up here.
+ */
 async function updateAvailabilityBlockout(
   supabase: any,
   propertyId: string,
@@ -254,50 +261,34 @@ async function updateAvailabilityBlockout(
   oldCheckOut: string,
   newCheckIn: string,
   newCheckOut: string,
-  externalSystem: string
+  externalSystem: string,
+  bookingId: string
 ) {
   const roomType = roomTypeId || "default";
 
-  // 1. Release old dates that are NOT in the new range
   const oldDates = dateRange(oldCheckIn, oldCheckOut);
   const newDates = dateRange(newCheckIn, newCheckOut);
   const datesToRelease = oldDates.filter((d) => !newDates.includes(d));
-  const datesToBlock = newDates.filter((d) => !oldDates.includes(d));
+  if (datesToRelease.length === 0) return;
 
-  // Release: increment available_units for old dates no longer booked
-  for (const date of datesToRelease) {
-    await supabase.rpc("increment_availability", {
-      p_property_id: propertyId,
-      p_room_type: roomType,
-      p_date: date,
-    }).then(() => {}).catch(() => {
-      // If RPC doesn't exist, do direct update
-      return supabase
-        .from("property_availability")
-        .update({ available_units: 1, is_stop_sell: false })
-        .eq("property_id", propertyId)
-        .eq("room_type", roomType)
-        .eq("date", date);
-    });
-  }
+  // This stay's own stamped holds on the nights it gives up.
+  await supabase
+    .from("property_availability")
+    .delete()
+    .eq("property_id", propertyId)
+    .in("date", datesToRelease)
+    .eq("blocked_reason", `booking:${bookingId}`);
 
-  // Block: decrement available_units / set stop_sell for new dates
-  for (const date of datesToBlock) {
-    // Upsert with 0 available units
-    await supabase
-      .from("property_availability")
-      .upsert(
-        {
-          property_id: propertyId,
-          room_type: roomType,
-          date,
-          external_system: externalSystem || "rolos",
-          available_units: 0,
-          is_stop_sell: true,
-        },
-        { onConflict: "property_id,room_type,date,external_system" }
-      );
-  }
+  // Legacy unstamped booking rows. Manual and channel-owned restrictions survive.
+  await supabase
+    .from("property_availability")
+    .delete()
+    .eq("property_id", propertyId)
+    .eq("room_type", roomType)
+    .in("date", datesToRelease)
+    .in("external_system", [externalSystem || "rolos", "rolos"])
+    .is("blocked_by", null)
+    .is("blocked_reason", null);
 }
 
 Deno.serve(async (req) => {
@@ -764,7 +755,8 @@ Deno.serve(async (req) => {
           booking.check_out_date,
           newCheckIn,
           newCheckOut,
-          isRolNative ? "rolos" : externalSystem
+          isRolNative ? "rolos" : externalSystem,
+          booking.id
         );
         console.log("Updated availability blockout for date change");
       } catch (err) {

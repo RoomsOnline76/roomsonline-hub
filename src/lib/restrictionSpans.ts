@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, eachDayOfInterval, format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { currentBlockAttribution, systemBlockLabel } from "@/lib/blockAttribution";
+import { currentBlockAttribution, isBookingOccupancyRow, systemBlockLabel } from "@/lib/blockAttribution";
 
 /**
  * Restrictions are stored one row per night in `property_availability` (and one row per
@@ -23,6 +23,7 @@ export interface AvailabilityNightRow {
   lead_days_advance: number | null;
   lead_days_post: number | null;
   external_system: string | null;
+  blocked_by?: string | null;
   blocked_by_label?: string | null;
   blocked_reason?: string | null;
   blocked_at?: string | null;
@@ -73,7 +74,8 @@ export const RESTRICTION_KIND_LABELS: Record<RestrictionKind, string> = {
  * purely to carry a min stay must never read as a block.
  */
 const isBlocked = (row: AvailabilityNightRow): boolean =>
-  row.is_stop_sell === true || (row.available_units === 0 && !isManualSource(row.external_system));
+  !isBookingOccupancyRow(row.external_system, row.blocked_reason, row.blocked_by) &&
+  (row.is_stop_sell === true || (row.available_units === 0 && !isManualSource(row.external_system)));
 
 /** The restriction kinds a single night row carries. */
 function kindsOnRow(row: AvailabilityNightRow): { kind: RestrictionKind; value: number | null }[] {
