@@ -38,7 +38,7 @@ export const parseReportLayoutTemplate = (raw: unknown): ReportLayoutTemplate =>
           slot_key: String(entry.slot_key ?? ""),
           section: String(entry.section ?? entry.title ?? "Additional slides"),
           title: String(entry.title ?? entry.section ?? "Additional slides"),
-          layout: entry.layout === "half" ? "half" : "full",
+          layout: entry.layout === "half" ? ("half" as const) : ("full" as const),
           sort_order: Number(entry.sort_order ?? index) || 0,
         }))
         .filter((slot) => slot.slot_key.length > 0)
