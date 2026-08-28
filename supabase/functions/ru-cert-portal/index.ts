@@ -8609,6 +8609,12 @@ Deno.serve(async (req) => {
                 mintPassword = decrypted;
               }
             }
+            // A login we generated was created with the platform password — use it when the
+            // stored copy is missing, so an adopted generated account can still mint its pair.
+            if (!mintPassword && isGeneratedDistributionLogin(existingLoginEmail)) {
+              mintPassword = RU_SUB_USER_PASSWORD;
+            }
+
             const minted = await mintChildKeyPair({
               ownerId: existingOwnerId,
               loginEmail: existingLoginEmail,
