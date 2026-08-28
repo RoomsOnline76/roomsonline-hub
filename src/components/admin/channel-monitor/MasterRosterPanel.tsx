@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, RefreshCw, Users, XCircle } from "lucide-react";
+import { AlertTriangle, KeyRound, Loader2, RefreshCw, Trash2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -27,10 +27,20 @@ interface RosterUser {
   archived?: boolean | null;
 }
 
+interface StoredKey {
+  id: string;
+  ru_owner_id: string | null;
+  login_email: string | null;
+  access_key: string | null;
+  key_label: string | null;
+  key_scope: string | null;
+}
+
 interface RosterResult {
   users: RosterUser[];
   retiredIds: Set<string>;
   boundIds: Set<string>;
+  storedKeys: StoredKey[];
   readAt: Date;
 }
 
@@ -40,6 +50,36 @@ interface CloseOutcome {
   state: CloseState;
   message: string;
 }
+
+type RematchOutcome = "queued" | "running" | "already_correct" | "rematched" | "master_pair" | "duplicate" | "orphan" | "failed";
+
+interface RematchResult {
+  outcome: RematchOutcome;
+  message: string;
+  ownerId: string | null;
+}
+
+const REMATCH_LABEL: Record<RematchOutcome, string> = {
+  queued: "Waiting",
+  running: "Probing…",
+  already_correct: "Already correct",
+  rematched: "Rematched",
+  master_pair: "Master pair (unusable)",
+  duplicate: "Duplicate — not moved",
+  orphan: "Orphan — no account accepts it",
+  failed: "Probe failed",
+};
+
+const REMATCH_VARIANT: Record<RematchOutcome, "secondary" | "outline" | "destructive"> = {
+  queued: "outline",
+  running: "outline",
+  already_correct: "secondary",
+  rematched: "secondary",
+  master_pair: "destructive",
+  duplicate: "destructive",
+  orphan: "destructive",
+  failed: "destructive",
+};
 
 /** The channel closes accounts one at a time; this is the gap we leave between them. */
 const DEFAULT_COOLDOWN_SECONDS = 60;
@@ -89,17 +129,22 @@ export function MasterRosterPanel() {
   const [cooldownSeconds, setCooldownSeconds] = useState(DEFAULT_COOLDOWN_SECONDS);
   const [closing, setClosing] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
+  const [rematching, setRematching] = useState(false);
+  const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
   const cancelled = useRef(false);
+  const rematchCancelled = useRef(false);
 
   const read = useMutation({
     mutationFn: async (): Promise<RosterResult> => {
-      const [{ data, error }, { data: accounts }, { data: retiredRows }] = await Promise.all([
-        supabase.functions.invoke("rentalsunited-api", {
-          body: { action: "list_users", include_retired: true },
-        }),
-        supabase.from("ru_owner_accounts").select("ru_owner_id"),
-        supabase.from("ru_retired_accounts").select("ru_owner_id"),
-      ]);
+      const [{ data, error }, { data: accounts }, { data: retiredRows }, { data: keyData }] =
+        await Promise.all([
+          supabase.functions.invoke("rentalsunited-api", {
+            body: { action: "list_users", include_retired: true },
+          }),
+          supabase.from("ru_owner_accounts").select("ru_owner_id"),
+          supabase.from("ru_retired_accounts").select("ru_owner_id"),
+          supabase.functions.invoke("ru-cert-portal", { body: { action: "list_stored_api_keys" } }),
+        ]);
       if (error) throw error;
       if (data?.success === false) {
         throw new Error(data?.error?.message || "The channel refused the roster read");
@@ -113,6 +158,9 @@ export function MasterRosterPanel() {
         retiredIds: new Set(
           (retiredRows ?? []).map((r) => String(r.ru_owner_id ?? "").trim()).filter(Boolean),
         ),
+        storedKeys: Array.isArray(keyData?.credentials)
+          ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
+          : [],
         readAt: new Date(),
       };
     },
@@ -259,6 +307,110 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closeOne, cooldownSeconds, selectedList]);
 
+  /** Which OwnerID currently holds which stored pair — drives the per-row key badge. */
+  const keyByOwner = useMemo(() => {
+    const map = new Map<string, StoredKey>();
+    for (const key of result?.storedKeys ?? []) {
+      const id = String(key.ru_owner_id ?? "").trim();
+      if (id) map.set(id, key);
+    }
+    return map;
+  }, [result]);
+
+  /**
+   * Rematch every stored pair against this roster read.
+   *
+   * One pair per call, paced, so the channel's read limits are respected and the operator
+   * can stop after the current pair. Candidates are the roster's unarchived accounts; the
+   * backend probes them in order and stops on the first account that accepts the pair.
+   */
+  const runRematch = useCallback(async () => {
+    const pairs = result?.storedKeys ?? [];
+    if (pairs.length === 0) {
+      toast.info("No stored key pairs to rematch");
+      return;
+    }
+    const candidates = (result?.users ?? [])
+      .filter((u) => !u.archived && String(u.owner_id ?? "").trim())
+      .map((u) => ({ owner_id: String(u.owner_id).trim(), login_email: label(u) }));
+
+    rematchCancelled.current = false;
+    setRematching(true);
+    setRematchResults(
+      Object.fromEntries(
+        pairs.map((p) => [p.id, { outcome: "queued" as RematchOutcome, message: "Waiting its turn", ownerId: p.ru_owner_id }]),
+      ),
+    );
+
+    let moved = 0;
+    for (const pair of pairs) {
+      if (rematchCancelled.current) break;
+      setRematchResults((prev) => ({
+        ...prev,
+        [pair.id]: { outcome: "running", message: "Probing the roster for its real owner", ownerId: pair.ru_owner_id },
+      }));
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "rematch_stored_keys", credential_id: pair.id, candidates },
+        });
+        if (data?.success === true) {
+          const outcome = String(data.outcome ?? "failed") as RematchOutcome;
+          if (outcome === "rematched") moved += 1;
+          setRematchResults((prev) => ({
+            ...prev,
+            [pair.id]: {
+              outcome: REMATCH_LABEL[outcome] ? outcome : "failed",
+              message: String(data.message ?? ""),
+              ownerId: String(data.ru_owner_id ?? pair.ru_owner_id ?? "") || null,
+            },
+          }));
+        } else {
+          setRematchResults((prev) => ({
+            ...prev,
+            [pair.id]: {
+              outcome: "failed",
+              message: data?.error?.message ?? error?.message ?? "The probe did not complete",
+              ownerId: pair.ru_owner_id,
+            },
+          }));
+        }
+      } catch (e) {
+        setRematchResults((prev) => ({
+          ...prev,
+          [pair.id]: { outcome: "failed", message: e instanceof Error ? e.message : String(e), ownerId: pair.ru_owner_id },
+        }));
+      }
+      if (!rematchCancelled.current) await new Promise((r) => setTimeout(r, 1200));
+    }
+
+    setRematching(false);
+    if (moved > 0) toast.success(`${moved} key pair${moved === 1 ? "" : "s"} refiled against the right sub-account`);
+    else toast.success("Rematch finished — no pair needed moving");
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const forgetKey = useCallback(async (credentialId: string) => {
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      body: { action: "forget_stored_key", credential_id: credentialId },
+    });
+    if (data?.success !== true) {
+      toast.error(data?.error?.message ?? error?.message ?? "Could not remove the local copy");
+      return;
+    }
+    toast.success("Local copy removed — any key still at the channel is untouched");
+    setRematchResults((prev) => {
+      const next = { ...prev };
+      delete next[credentialId];
+      return next;
+    });
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -279,21 +431,52 @@ export function MasterRosterPanel() {
             {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 gap-1.5 text-[11px]"
-          disabled={read.isPending || closing}
-          onClick={() => read.mutate()}
-        >
-          {read.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {result ? "Re-read master" : "Read master account"}
-        </Button>
+        <span className="flex flex-wrap items-center gap-2">
+          {result ? (
+            rematching ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                onClick={() => {
+                  rematchCancelled.current = true;
+                  toast.info("Stopping after the current key pair");
+                }}
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Stop after this pair
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                disabled={closing || read.isPending || (result.storedKeys.length === 0)}
+                onClick={() => void runRematch()}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Rematch stored keys ({result.storedKeys.length})
+              </Button>
+            )
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 text-[11px]"
+            disabled={read.isPending || closing || rematching}
+            onClick={() => read.mutate()}
+          >
+            {read.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {result ? "Re-read master" : "Read master account"}
+          </Button>
+        </span>
       </div>
 
       {result ? (
@@ -306,6 +489,57 @@ export function MasterRosterPanel() {
               className="h-7 text-xs"
             />
           )}
+
+          {Object.keys(rematchResults).length > 0 && (
+            <div className="space-y-1 rounded-md border border-border bg-background p-2">
+              <p className="text-[11px] font-medium">
+                Stored key pairs {rematching ? "— probing…" : "— last rematch"}
+              </p>
+              {(result.storedKeys.length > 0 ? result.storedKeys : []).map((pair) => {
+                const res = rematchResults[pair.id];
+                if (!res) return null;
+                return (
+                  <div key={pair.id} className="rounded-md border border-border/60 px-2 py-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="font-mono">····{String(pair.access_key ?? "").slice(-4)}</span>
+                        <span className="text-muted-foreground">
+                          {pair.login_email || "no login recorded"}
+                        </span>
+                        <Badge variant={REMATCH_VARIANT[res.outcome]} className="text-[10px]">
+                          {res.outcome === "running" ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          {REMATCH_LABEL[res.outcome]}
+                        </Badge>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          OwnerID {res.ownerId || pair.ru_owner_id || "—"}
+                        </span>
+                        {res.outcome === "orphan" && !rematching ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 gap-1 text-[10px]"
+                            onClick={() => void forgetKey(pair.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remove locally
+                          </Button>
+                        ) : null}
+                      </span>
+                    </div>
+                    {res.message ? (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{res.message}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
 
           {closableIds.size > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2">
@@ -382,6 +616,14 @@ export function MasterRosterPanel() {
               const retired = result.retiredIds.has(ownerId);
               const closable = closableIds.has(ownerId);
               const outcome = outcomes[ownerId];
+              const storedKey = keyByOwner.get(ownerId);
+              const keyBadge = !storedKey
+                ? { text: "No key", variant: "outline" as const }
+                : storedKey.key_scope === "child"
+                  ? { text: `Child key held ····${String(storedKey.access_key ?? "").slice(-4)}`, variant: "secondary" as const }
+                  : storedKey.key_scope === "master_pair"
+                    ? { text: "Master pair (unusable)", variant: "destructive" as const }
+                    : { text: "Key held — unverified", variant: "outline" as const };
               return (
                 <div
                   key={ownerId || label(u)}
@@ -410,6 +652,9 @@ export function MasterRosterPanel() {
                       ) : null}
                       <Badge variant={bound ? "secondary" : "destructive"} className="text-[10px]">
                         {bound ? "Bound" : "No binding"}
+                      </Badge>
+                      <Badge variant={keyBadge.variant} className="text-[10px]">
+                        {keyBadge.text}
                       </Badge>
                       {outcome ? (
                         <Badge variant={STATE_VARIANT[outcome.state]} className="text-[10px]">

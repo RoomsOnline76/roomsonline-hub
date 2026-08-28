@@ -5041,7 +5041,7 @@ Deno.serve(async (req) => {
     if (action === "list_stored_api_keys") {
       const { data, error } = await admin
         .from("ru_api_credentials")
-        .select("ru_owner_id, login_email, access_key, key_label, verified_at")
+        .select("id, ru_owner_id, login_email, access_key, key_label, verified_at, key_scope, key_scope_verified_at")
         .order("updated_at", { ascending: false });
       if (error) return json({ success: false, error: { code: "READ_FAILED", message: error.message } }, 500);
       // Flag any AccessKey held against more than one OwnerID — that means one sub-user's keys
@@ -5056,6 +5056,252 @@ Deno.serve(async (req) => {
         shared_with_other_account: (seen.get(String((row as { access_key?: string }).access_key ?? "")) ?? 0) > 1,
       }));
       return json({ success: true, credentials });
+    }
+
+    /**
+     * ── rematch_stored_keys: attach a stored key pair to the sub-account it really is.
+     *
+     * A stored pair is only trustworthy while the OwnerID on its row is the account the
+     * pair authenticates as. Rebinds, re-mints and closed accounts can leave a perfectly
+     * valid pair filed against the wrong OwnerID, after which every "sub-account scoped"
+     * call reads or writes the wrong channel account (or silently the master account).
+     *
+     * One row per call so the caller can pace the channel reads and stop mid-run:
+     *   1. probe the pair against the OwnerID it is filed under,
+     *   2. a pair that can enumerate the roster is a MASTER pair — marked, never rematched,
+     *   3. otherwise try the supplied roster candidates until one accepts an owner-scoped
+     *      read; the first accept is the real owner.
+     */
+    if (action === "rematch_stored_keys") {
+      const credentialId = typeof body.credential_id === "string" ? body.credential_id.trim() : "";
+      if (!credentialId) {
+        return json({ success: false, error: { code: "MISSING_PARAM", message: "credential_id is required" } }, 400);
+      }
+      const candidates: { owner_id: string; login_email?: string | null }[] = Array.isArray(body.candidates)
+        ? (body.candidates as { owner_id?: unknown; login_email?: unknown }[])
+            .map((c) => ({
+              owner_id: String(c?.owner_id ?? "").trim(),
+              login_email: typeof c?.login_email === "string" ? c.login_email : null,
+            }))
+            .filter((c) => c.owner_id)
+        : [];
+
+      const { data: row, error: rowError } = await admin
+        .from("ru_api_credentials")
+        .select("id, ru_owner_id, login_email, access_key, secret_enc, key_label, key_scope")
+        .eq("id", credentialId)
+        .maybeSingle();
+      if (rowError) return json({ success: false, error: { code: "READ_FAILED", message: rowError.message } }, 500);
+      if (!row) return json({ success: false, error: { code: "NOT_FOUND", message: "No stored key pair with that id" } }, 404);
+
+      const accessKey = String(row.access_key ?? "").trim();
+      let secretKey = "";
+      if (row.secret_enc) {
+        const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: row.secret_enc });
+        secretKey = typeof plain === "string" ? plain : "";
+      }
+      if (!accessKey || !secretKey) {
+        return json({
+          success: true,
+          outcome: "orphan",
+          ru_owner_id: row.ru_owner_id,
+          access_key_last4: accessKey.slice(-4),
+          message: "The stored row has no usable secret — it cannot be matched to any sub-account.",
+        });
+      }
+
+      const probe = async (ownerId: string) => {
+        const { data, error } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "verify_child_key_owner",
+            auth_access_key: accessKey,
+            auth_secret_key: secretKey,
+            owner_id: ownerId,
+          },
+        });
+        if (error) {
+          const bodyErr = await readInvokeErrorBody(error);
+          return {
+            owns: false,
+            key_scope: "unverified",
+            identified: [] as string[],
+            deferred: String(bodyErr?.error?.code ?? "") === "RU_RATE_DEFERRED",
+            message: bodyErr?.error?.message ?? error.message ?? "The channel refused the probe",
+          };
+        }
+        const payload = (data ?? {}) as {
+          owns?: boolean;
+          key_scope?: string;
+          identified_owner_ids?: string[];
+          error?: { code?: string; message?: string };
+          ru_status_message?: string | null;
+        };
+        return {
+          owns: payload.owns === true,
+          key_scope: String(payload.key_scope ?? "unverified"),
+          identified: Array.isArray(payload.identified_owner_ids) ? payload.identified_owner_ids : [],
+          deferred: String(payload.error?.code ?? "") === "RU_RATE_DEFERRED",
+          message: payload.error?.message ?? payload.ru_status_message ?? null,
+        };
+      };
+
+      const stamp = new Date().toISOString();
+      const currentOwnerId = String(row.ru_owner_id ?? "").trim();
+      const first = currentOwnerId ? await probe(currentOwnerId) : null;
+
+      if (first?.deferred) {
+        return json({
+          success: false,
+          error: { code: "RU_RATE_DEFERRED", message: "The channel is rate-limiting reads — try this pair again shortly." },
+        }, 429);
+      }
+
+      // A pair that can enumerate the roster belongs to the MASTER account. It is recorded as
+      // such and never rematched onto a sub-account: child writes with it land on the master.
+      if (first && first.key_scope === "master_pair") {
+        await admin
+          .from("ru_api_credentials")
+          .update({
+            key_scope: "master_pair",
+            key_scope_verified_at: stamp,
+            key_scope_detail: { probe: "verify_child_key_owner", visible_owner_ids: first.identified.slice(0, 60) },
+          })
+          .eq("id", row.id);
+        return json({
+          success: true,
+          outcome: "master_pair",
+          ru_owner_id: currentOwnerId,
+          access_key_last4: accessKey.slice(-4),
+          message:
+            "This pair authenticates as our master channel account, so it can never be used for a sub-account. Mint a real sub-account pair in Step A.",
+        });
+      }
+
+      if (first?.owns) {
+        await admin
+          .from("ru_api_credentials")
+          .update({
+            key_scope: "child",
+            key_scope_verified_at: stamp,
+            verified_at: stamp,
+            key_scope_detail: { probe: "verify_child_key_owner", matched_owner_id: currentOwnerId },
+          })
+          .eq("id", row.id);
+        return json({
+          success: true,
+          outcome: "already_correct",
+          ru_owner_id: currentOwnerId,
+          access_key_last4: accessKey.slice(-4),
+          message: "The pair belongs to the sub-account it is filed under.",
+        });
+      }
+
+      // Try the roster candidates, stopping on the first account that accepts the pair.
+      for (const candidate of candidates) {
+        if (candidate.owner_id === currentOwnerId) continue;
+        const verdict = await probe(candidate.owner_id);
+        if (verdict.deferred) {
+          return json({
+            success: false,
+            error: { code: "RU_RATE_DEFERRED", message: "The channel is rate-limiting reads — try this pair again shortly." },
+          }, 429);
+        }
+        if (verdict.key_scope === "master_pair") {
+          await admin
+            .from("ru_api_credentials")
+            .update({ key_scope: "master_pair", key_scope_verified_at: stamp })
+            .eq("id", row.id);
+          return json({
+            success: true,
+            outcome: "master_pair",
+            ru_owner_id: currentOwnerId,
+            access_key_last4: accessKey.slice(-4),
+            message: "This pair authenticates as our master channel account and cannot be filed against a sub-account.",
+          });
+        }
+        if (!verdict.owns) {
+          await new Promise((r) => setTimeout(r, 800));
+          continue;
+        }
+
+        // One AccessKey must never sit on two OwnerIDs: report the clash, never overwrite.
+        const { data: occupant } = await admin
+          .from("ru_api_credentials")
+          .select("id, access_key")
+          .eq("ru_owner_id", candidate.owner_id)
+          .maybeSingle();
+        if (occupant && String(occupant.id) !== String(row.id)) {
+          return json({
+            success: true,
+            outcome: "duplicate",
+            ru_owner_id: currentOwnerId,
+            matched_owner_id: candidate.owner_id,
+            access_key_last4: accessKey.slice(-4),
+            message:
+              `This pair belongs to OwnerID ${candidate.owner_id}, but that account already holds a different stored pair. ` +
+              "Remove the stale pair on that account first — nothing was overwritten.",
+          });
+        }
+
+        const { error: moveError } = await admin
+          .from("ru_api_credentials")
+          .update({
+            ru_owner_id: candidate.owner_id,
+            login_email: candidate.login_email ?? row.login_email ?? null,
+            key_scope: "child",
+            key_scope_verified_at: stamp,
+            verified_at: stamp,
+            key_scope_detail: {
+              probe: "verify_child_key_owner",
+              matched_owner_id: candidate.owner_id,
+              rematched_from: currentOwnerId || null,
+            },
+          })
+          .eq("id", row.id);
+        if (moveError) {
+          return json({ success: false, error: { code: "WRITE_FAILED", message: moveError.message } }, 500);
+        }
+        return json({
+          success: true,
+          outcome: "rematched",
+          ru_owner_id: candidate.owner_id,
+          previous_owner_id: currentOwnerId || null,
+          matched_owner_id: candidate.owner_id,
+          access_key_last4: accessKey.slice(-4),
+          message: `Rematched: the pair authenticates as OwnerID ${candidate.owner_id} and is now filed there.`,
+        });
+      }
+
+      await admin
+        .from("ru_api_credentials")
+        .update({
+          key_scope: "unverified",
+          key_scope_verified_at: stamp,
+          key_scope_detail: { probe: "verify_child_key_owner", matched_owner_id: null, candidates_tried: candidates.length },
+        })
+        .eq("id", row.id);
+      return json({
+        success: true,
+        outcome: "orphan",
+        ru_owner_id: currentOwnerId,
+        access_key_last4: accessKey.slice(-4),
+        message:
+          "No sub-account on the roster accepts this pair — the account was closed, or the key was revoked at the channel.",
+      });
+    }
+
+    /**
+     * ── forget_stored_key: drop our local copy of a pair that no channel account accepts.
+     * Local only: it never claims a channel-side revoke.
+     */
+    if (action === "forget_stored_key") {
+      const credentialId = typeof body.credential_id === "string" ? body.credential_id.trim() : "";
+      if (!credentialId) {
+        return json({ success: false, error: { code: "MISSING_PARAM", message: "credential_id is required" } }, 400);
+      }
+      const { error } = await admin.from("ru_api_credentials").delete().eq("id", credentialId);
+      if (error) return json({ success: false, error: { code: "WRITE_FAILED", message: error.message } }, 500);
+      return json({ success: true, removed: true, message: "Local copy removed. Any key still at the channel is untouched." });
     }
     /**
      * ── resolve_ru_property_ids: capture the RUIDs RU already holds for a property.

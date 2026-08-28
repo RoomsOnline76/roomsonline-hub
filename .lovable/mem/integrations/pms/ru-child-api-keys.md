@@ -52,3 +52,11 @@ flags it. `list_properties` is child-auth strict: with no stored pair it returns
 `RU_CHILD_AUTH_REQUIRED` instead of reading the master account (a master read looks like "the
 sub-account was empty"). The wizard's pull card shows the account the pull authenticated as, separate
 from the operator who clicked.
+
+Rematch (Channel Monitor → Advanced → Master account roster → **Rematch stored keys**):
+`ru-cert-portal` action `rematch_stored_keys` probes ONE stored pair per call (`credential_id` +
+roster `candidates`) via `verify_child_key_owner`. A pair that enumerates the roster is stamped
+`master_pair` and never refiled onto a sub-account. Outcomes: already correct / rematched (row's
+`ru_owner_id` + `login_email` moved) / master pair / duplicate (target already holds a different
+pair — never overwritten) / orphan (`forget_stored_key` removes only our local copy, never claims a
+channel-side revoke). Secrets never leave the edge function — only the AccessKey's last 4.
