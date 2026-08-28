@@ -2354,9 +2354,11 @@ ${locations}
 
 
 function extractUserAccountId(xml: string): string | null {
-  const match = xml.match(/<UserAccountId>(\d+)<\/UserAccountId>/);
+  // The roster spells it `UserAccountID`; older payloads use `UserAccountId`. Accept both.
+  const match = xml.match(/<UserAccountI[dD]>(\d+)<\/UserAccountI[dD]>/);
   return match?.[1] || null;
 }
+
 
 interface RUListedUser {
   user_account_id: string;
