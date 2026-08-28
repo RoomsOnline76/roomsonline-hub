@@ -5689,7 +5689,33 @@ Deno.serve(async (req) => {
             expectedLocationId: locationId,
           });
           currencyVerification = { ...currencyVerification, corrective_flip: corrective };
+
+          /**
+           * Rates that went up while the listing was on the wrong ISO are published as that
+           * ISO — the channel does not restate them when the location flips. Re-send the same
+           * amounts (hash unchanged, so the write must be forced) so nights read as authored.
+           */
+          if (corrective?.matches === true && !dry_run) {
+            const repushed: Record<string, unknown>[] = [];
+            for (const u of unitsToPush as any[]) {
+              const uid = parseInt(String(u?.rentalsunited_property_id ?? '0'), 10);
+              if (!(uid > 0)) continue;
+              const r = await pushARIUnlessStatic(
+                uid,
+                property as PropertyRow,
+                1,
+                { id: u.id, name: u.name, linked_rolos_id: u.linked_rolos_id, amenities: (u as any).amenities ?? null },
+                childAuthPayload,
+                currencyDecision,
+                { forcePrices: true },
+              );
+              repushed.push({ ru_property_id: uid, prices_pushed: r.prices_pushed === true, error: r.prices_error ?? null });
+              await new Promise((res) => setTimeout(res, 1000));
+            }
+            currencyVerification = { ...currencyVerification, prices_repushed_after_flip: repushed };
+          }
         }
+
 
       }
 
