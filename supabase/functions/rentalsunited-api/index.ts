@@ -4006,14 +4006,6 @@ Deno.serve(async (req) => {
       });
     }
 
-      return jsonResponse({
-        success: false,
-        supported: false,
-        auth_mode: authMode,
-        attempts,
-        error: 'The channel account did not accept a listing deletion request',
-      });
-    }
 
 
 
