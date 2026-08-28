@@ -93,8 +93,9 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Pull_ListCitiesProps_RQ", "List listings by city", "content", "on_demand", false),
   spec("Push_PutPropertyStatus_RQ", "Set listing status", "content", "on_change", true),
   spec("Push_SetPropertiesStatus_RQ", "Set listings status (bulk)", "content", "on_change", true),
-  spec("Push_DeleteProperty_RQ", "Delete listing", "content", "on_demand", true),
-  spec("Push_RemoveProperty_RQ", "Remove listing", "content", "on_demand", true),
+  // The channel publishes no hard-delete verb: `Push_DeleteProperty_RQ` and
+  // `Push_RemoveProperty_RQ` are not implemented (Status -1). Removal = archive via
+  // Push_SetPropertiesStatus_RQ with IsArchived=1, already listed above.
   spec("Pull_ListBuildings_RQ", "List buildings", "content", "on_demand", false),
   spec("Pull_ListOwnerBuildings_RQ", "List account buildings", "content", "on_demand", false),
   spec("Pull_GetBuilding_RQ", "Read building", "content", "on_demand", false),
@@ -121,10 +122,9 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   ),
 
   // ---- Discounts ---------------------------------------------------------------------------
-  spec("Pull_ListLastMinuteDiscounts_RQ", "List last-minute discounts", "discounts", "on_demand", false),
-  spec("Pull_ListLongStayDiscounts_RQ", "List long-stay discounts", "discounts", "on_demand", false),
-  spec("Pull_ListPropertyLastMinuteDiscounts_RQ", "Listing last-minute discounts", "discounts", "onboarding", false),
-  spec("Pull_ListPropertyLongStayDiscounts_RQ", "Listing long-stay discounts", "discounts", "onboarding", false),
+  // One documented read-back returns BOTH ladders (<LongStays> + <LastMinutes>). The
+  // per-feature pull verbs do not exist in the channel API (Status -1 on every call).
+  spec("Pull_ListPropertyDiscounts_RQ", "Read listing discounts", "discounts", "onboarding", false, "Returns both ladders in one call"),
   spec("Push_PutLastMinuteDiscounts_RQ", "Push last-minute discounts", "discounts", "on_change", true),
   spec("Push_PutLongStayDiscounts_RQ", "Push long-stay discounts", "discounts", "on_change", true),
 
@@ -133,7 +133,6 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Push_ModifyStay_RQ", "Modify stay", "bookings", "on_change", true),
   spec("Push_CancelReservation_RQ", "Cancel reservation", "bookings", "on_change", true),
   spec("Push_ConfirmReservation_RQ", "Confirm reservation", "bookings", "on_change", true),
-  spec("Push_ConfirmRequest_RQ", "Confirm request", "bookings", "on_change", true),
   spec("Push_RejectRequest_RQ", "Reject / withdraw request", "bookings", "on_change", true),
   spec("Pull_ListReservations_RQ", "Reservation poll", "bookings", "scheduled", false, "Every 30 minutes"),
   spec("Pull_GetReservationByID_RQ", "Read reservation", "bookings", "on_demand", false),
@@ -144,7 +143,7 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Pull_ListCompositionRooms_RQ", "Composition room dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListPropTypes_RQ", "Property-type dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListCurrencies_RQ", "Currency dictionary", "dictionary", "on_demand", false),
-  spec("Pull_ListCitiesAndCurrencies_RQ", "Cities & currencies", "dictionary", "on_demand", false),
+  spec("Pull_ListCurrenciesWithCities_RQ", "Currencies with cities", "dictionary", "on_demand", false),
   spec("Pull_ListCities_RQ", "City dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListLocations_RQ", "Location dictionary", "dictionary", "on_demand", false),
   spec("Pull_ListLocationsBySearchString_RQ", "Location search", "dictionary", "on_demand", false),
