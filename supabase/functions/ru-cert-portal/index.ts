@@ -5142,7 +5142,7 @@ Deno.serve(async (req) => {
       const status = minted.rateDeferred
         ? "rate_limited"
         : minted.code === "RU_KEY_CREATION_NOT_ENABLED"
-          ? "master_pair"
+          ? "not_enabled"
           : "refused";
       // A channel refusal is a handled business outcome, not an edge-function runtime
       // failure. Return it in the normal response envelope so the roster can render the
