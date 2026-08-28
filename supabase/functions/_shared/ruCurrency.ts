@@ -39,7 +39,7 @@ export type CurrencyDecision = {
   reason: string;
   /** True when no Push_ChangeCurrency_RQ was sent because the channel already holds the ISO. */
   write_skipped?: boolean;
-  skip_reason?: 'currency_already_set' | 'currency_already_set_location' | 'currency_already_set_readback';
+  skip_reason?: 'currency_already_set' | 'currency_already_set_readback';
   blocked?: boolean;
   block_reason?: string;
   /** The RU account the flip/verification was performed as ('master' or the sub-user OwnerID). */
