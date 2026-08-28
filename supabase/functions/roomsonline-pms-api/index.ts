@@ -2704,8 +2704,7 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     rooms: context.rooms,
     baseOccupancy: context.baseOccupancy,
     roomTypeIds: context.roomTypeIds,
-
-    currency: undefined,
+  
   });
 
   await supabase.from("bookings").update({
