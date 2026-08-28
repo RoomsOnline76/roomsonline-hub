@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/collapsible";
 import { RetireBoundAccountPanel } from "@/components/admin/channel-monitor/RetireBoundAccountPanel";
 import { MasterRosterPanel } from "@/components/admin/channel-monitor/MasterRosterPanel";
+import { SterilizePropertyPanel } from "@/components/admin/channel-monitor/SterilizePropertyPanel";
 
 
 interface RosterUser {
@@ -609,6 +610,8 @@ export function OrphanSubAccountsPanel() {
         <RetireBoundAccountPanel />
 
         <MasterRosterPanel />
+
+        <SterilizePropertyPanel />
 
       </CardContent>
 

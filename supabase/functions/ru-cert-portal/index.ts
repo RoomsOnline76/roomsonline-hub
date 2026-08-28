@@ -6491,7 +6491,6 @@ Deno.serve(async (req) => {
     if (action === "close_unbound_account") {
       const ownerId = String(body.ru_owner_id ?? "").trim();
       const note = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
-      const suppliedPassword = typeof body.password === "string" && body.password ? body.password : null;
       const cooldownSeconds = Math.min(
         300,
         Math.max(30, Number.isFinite(Number(body.cooldown_seconds)) ? Number(body.cooldown_seconds) : 60),
@@ -7118,6 +7117,313 @@ Deno.serve(async (req) => {
             },
           }),
       }, fullyArchived ? 200 : 409);
+    }
+
+
+    /**
+     * sterilize_property — put one property back to "the channel has never seen this".
+     *
+     * A property that has been connected before carries a second life: listings it used to own at
+     * the channel, a queue of parked calls, stored notifications, earned onboarding gates, price
+     * coverage, currency state and geo authority. Reconnecting it then *resumes* that life — old
+     * listings keep selling, the parked backlog fires at the new account the moment keys exist, and
+     * gates read "passed" without anything having been proven against the new listing.
+     *
+     * This action ends the old life and leaves the property connectable from zero:
+     *   1. cancel the parked call backlog and drop stored notifications / re-pull entries
+     *   2. archive every historical listing at the channel (skipping any the caller keeps)
+     *   3. wipe local channel state and reset every onboarding gate to pending
+     *
+     * `keep_ru_property_ids` preserves a current binding: Albatros keeps listing 5966579 under
+     * OwnerID 742620 while everything from before that binding is cleared. `keep_binding` (default
+     * true when a listing is kept) leaves the account row and its keys alone.
+     *
+     * History (`ru_api_log`, `ru_sync_runs`, archive events) is the audit trail of what was done and
+     * is retained — sterilizing removes operational state, it does not erase the record.
+     */
+    if (action === "sterilize_property") {
+      const propertyId = String(body.property_id ?? "").trim();
+      if (!propertyId) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "property_id is required" } }, 400);
+      }
+      const keepListings = new Set(
+        (Array.isArray(body.keep_ru_property_ids) ? body.keep_ru_property_ids : [])
+          .map((v: unknown) => String(v ?? "").trim())
+          .filter((v: string) => /^\d+$/.test(v)),
+      );
+      const keepBinding = typeof body.keep_binding === "boolean" ? body.keep_binding : keepListings.size > 0;
+      const suppliedPassword = typeof body.password === "string" && body.password ? body.password : null;
+      const dryRun = body.dry_run === true;
+
+      const { data: prop, error: propErr } = await admin
+        .from("properties")
+        .select("id, name, rentalsunited_property_id")
+        .eq("id", propertyId)
+        .maybeSingle();
+      if (propErr || !prop) {
+        return json({ success: false, error: { code: "NOT_FOUND", message: "That property could not be read." } }, 404);
+      }
+
+      const steps: { step: string; ok: boolean; message: string }[] = [];
+
+      // ── 1. Every listing this property has ever touched, and who owned it ──
+      // The log is the only complete record: local columns are cleared each time a connection is
+      // torn down, so without it the old listings stay live at the channel forever.
+      const listingOwners = new Map<string, string | null>();
+      const { data: logRows } = await admin
+        .from("ru_api_log")
+        .select("ru_property_id, ru_owner_id")
+        .eq("property_id", propertyId)
+        .not("ru_property_id", "is", null)
+        .limit(20000);
+      for (const r of logRows ?? []) {
+        const listing = String((r as { ru_property_id?: unknown }).ru_property_id ?? "").trim();
+        if (!/^\d+$/.test(listing)) continue;
+        const owner = String((r as { ru_owner_id?: unknown }).ru_owner_id ?? "").trim();
+        // Later rows win only when they actually name an owner: a null must not erase a known one.
+        if (!listingOwners.has(listing) || (owner && !listingOwners.get(listing))) {
+          listingOwners.set(listing, /^\d+$/.test(owner) ? owner : null);
+        }
+      }
+      if (prop.rentalsunited_property_id && /^\d+$/.test(String(prop.rentalsunited_property_id))) {
+        const cur = String(prop.rentalsunited_property_id);
+        if (!listingOwners.has(cur)) listingOwners.set(cur, null);
+      }
+      const targets = [...listingOwners.keys()].filter((id) => !keepListings.has(id)).sort();
+      steps.push({
+        step: "collect_listings",
+        ok: true,
+        message: `${listingOwners.size} listing(s) seen in this property's history — ${targets.length} to archive, ${keepListings.size} kept`,
+      });
+
+      if (dryRun) {
+        return json({
+          success: true,
+          dry_run: true,
+          property: { id: prop.id, name: prop.name },
+          listings_to_archive: targets.map((id) => ({ ru_property_id: id, ru_owner_id: listingOwners.get(id) ?? null })),
+          listings_kept: [...keepListings],
+          keep_binding: keepBinding,
+          steps,
+        });
+      }
+
+      // ── 2. Stop the backlog BEFORE touching the channel ──
+      // Parked calls carry old listing ids; letting them drain after the wipe would re-create the
+      // very state being removed.
+      const { count: cancelledCalls } = await admin
+        .from("ru_call_queue")
+        .update({
+          status: "cancelled",
+          last_error: "Cancelled: property sterilized for a fresh channel connection",
+          completed_at: new Date().toISOString(),
+        }, { count: "exact" })
+        .eq("property_id", propertyId)
+        .in("status", ["pending", "deferred", "claimed", "queued", "retry"]);
+      await admin.from("ru_notifications").delete().eq("property_id", propertyId);
+      await admin.from("ru_lnm_repull_queue").delete().eq("property_id", propertyId);
+      steps.push({
+        step: "stop_backlog",
+        ok: true,
+        message: `${cancelledCalls ?? 0} parked call(s) cancelled, stored notifications and re-pull entries cleared`,
+      });
+
+      // ── 3. Archive the historical listings at the channel ──
+      /**
+       * The accounts that own the stale listings are being retired by this run, so they are
+       * recorded in the retired registry first. That registry is what authorises the archive-only
+       * master-scoped write: without the entry the channel refuses the archive (a dead account has
+       * no child keys and the API will not mint any), and the listing would stay live forever.
+       * The kept binding is never registered — it is still in service.
+       */
+      const keptOwners = new Set<string>();
+      for (const id of keepListings) {
+        const o = listingOwners.get(id);
+        if (o) keptOwners.add(o);
+      }
+      if (keepBinding) {
+        const { data: boundRow } = await admin
+          .from("ru_owner_accounts")
+          .select("ru_owner_id")
+          .eq("property_id", propertyId)
+          .maybeSingle();
+        const bound = String(boundRow?.ru_owner_id ?? "").trim();
+        if (/^\d+$/.test(bound)) keptOwners.add(bound);
+      }
+      const staleOwners = [...new Set(targets.map((id) => listingOwners.get(id)).filter((o): o is string => !!o))]
+        .filter((o) => !keptOwners.has(o));
+      for (const owner of staleOwners) {
+        const { data: cred } = await admin
+          .from("ru_api_credentials")
+          .select("login_email")
+          .eq("ru_owner_id", owner)
+          .maybeSingle();
+        await admin.from("ru_retired_accounts").upsert({
+          ru_owner_id: owner,
+          portal_email: cred?.login_email ?? null,
+          reason: `Sterilized with ${prop.name} for a fresh channel connection`,
+          retired_by: user.id,
+        }, { onConflict: "ru_owner_id" });
+      }
+
+      const archived: string[] = [];
+      const orphaned: { ru_property_id: string; ru_owner_id: string | null; message: string }[] = [];
+
+      for (const listing of targets) {
+        const owner = listingOwners.get(listing) ?? null;
+        if (!owner) {
+          // No owner was ever recorded against this listing, so there is no account to
+          // authenticate as. It cannot collide with the fresh push (which mints new ids), so it is
+          // reported as an orphan rather than allowed to block the run.
+          orphaned.push({ ru_property_id: listing, ru_owner_id: null, message: "No owning account recorded for this listing" });
+          continue;
+        }
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, key_scope")
+          .eq("ru_owner_id", owner)
+          .maybeSingle();
+        // No usable child pair → the channel refuses to mint one for a dead account, so the archive
+        // runs on master credentials scoped to this OwnerID (the only path the API allows).
+        const escalate = !credRow?.access_key || credRow.key_scope === "master_pair";
+        try {
+          const { data: res, error: invErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "set_property_status",
+              ru_property_id: Number(listing),
+              owner_id: Number(owner),
+              ...(escalate ? { archive_retired: true } : {}),
+              parent_action: "ru-cert-portal:sterilize_property",
+              metadata: { is_active: false, is_archived: true },
+            },
+          });
+          if (invErr || res?.success !== true) {
+            orphaned.push({
+              ru_property_id: listing,
+              ru_owner_id: owner,
+              message: invErr?.message ?? String(res?.error?.message ?? res?.error ?? "The channel did not accept the archive request"),
+            });
+          } else {
+            archived.push(listing);
+          }
+        } catch (e) {
+          orphaned.push({ ru_property_id: listing, ru_owner_id: owner, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      steps.push({
+        step: "archive_listings",
+        ok: true,
+        message: orphaned.length === 0
+          ? `${archived.length} old listing(s) archived at the channel`
+          : `${archived.length} archived, ${orphaned.length} left as orphans (recorded, not blocking)`,
+      });
+
+      // ── 4. Wipe local channel state ──
+      const wipes: string[] = [];
+      const clearTable = async (table: string, extra?: (q: unknown) => unknown) => {
+        let q = admin.from(table).delete({ count: "exact" }).eq("property_id", propertyId);
+        if (extra) q = extra(q) as typeof q;
+        const { count, error } = await q;
+        if (error) {
+          wipes.push(`${table}: ${error.message}`);
+        } else if ((count ?? 0) > 0) {
+          wipes.push(`${table}: ${count}`);
+        }
+      };
+      await clearTable("channel_price_coverage_status");
+      await clearTable("ru_currency_state");
+      await clearTable("ru_readiness_snapshots");
+      await clearTable("ru_cert_runs");
+      await clearTable("ru_archive_events");
+      await clearTable("ru_discounts");
+      await clearTable("ru_mcq_orders");
+      await clearTable("ru_duplicate_repairs");
+      // Only the channel's own authority mapping goes: other PMS mappings are unrelated.
+      await clearTable("pms_mappings", (q) => (q as { eq: (a: string, b: string) => unknown }).eq("system_type", "rentals_united"));
+
+      await admin
+        .from("properties")
+        .update({
+          // A kept listing stays; otherwise the property has no listing at the channel any more.
+          ...(keepListings.size > 0 ? {} : { rentalsunited_property_id: null, rentalsunited_building_id: null }),
+          ru_push_enabled: false,
+          ru_archived: false,
+          ru_archived_at: null,
+          ru_hold_reason: null,
+          ru_hold_set_at: null,
+          ru_hold_set_by: null,
+          ru_listings_verified_at: null,
+          ru_listings_verified_owner: null,
+          ru_listings_verified_units: null,
+          ru_listings_expected_units: null,
+          ru_listings_unmatched: [],
+        })
+        .eq("id", propertyId);
+      if (keepListings.size === 0) {
+        await admin
+          .from("hostfully_room_types")
+          .update({ rentalsunited_property_id: null })
+          .eq("property_id", propertyId);
+      }
+
+      if (!keepBinding) {
+        await admin.from("ru_owner_accounts").delete().eq("property_id", propertyId);
+        wipes.push("distribution account binding removed");
+      }
+
+      // ── 5. Every gate earned again from zero ──
+      const { data: gateRows } = await admin
+        .from("property_channel_step_status")
+        .select("step_key")
+        .eq("property_id", propertyId);
+      await admin
+        .from("property_channel_step_status")
+        .update({
+          status: "pending",
+          input_fingerprint: null,
+          source: "seed",
+          passed_at: null,
+          stale_at: null,
+          last_checked_at: null,
+          blocker_summary: "Property sterilized — the channel connection must be earned from the first step.",
+          details: { sterilized_at: new Date().toISOString(), sterilized_by: user.email ?? user.id },
+        })
+        .eq("property_id", propertyId);
+      steps.push({
+        step: "reset_state",
+        ok: true,
+        message: `${(gateRows ?? []).length} onboarding gate(s) reset to pending${wipes.length ? ` · cleared ${wipes.join(", ")}` : ""}`,
+      });
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "properties",
+        record_id: propertyId,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary:
+          `Sterilized ${prop.name} for a fresh channel connection: ${archived.length} old listing(s) archived` +
+          `${orphaned.length ? `, ${orphaned.length} orphaned` : ""}` +
+          `${keepListings.size ? `, kept listing(s) ${[...keepListings].join(", ")}` : ""}` +
+          `, ${cancelledCalls ?? 0} parked call(s) cancelled, gates reset`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      return json({
+        success: true,
+        property: { id: prop.id, name: prop.name },
+        archived_listings: archived,
+        orphaned_listings: orphaned,
+        listings_kept: [...keepListings],
+        keep_binding: keepBinding,
+        cancelled_queued_calls: cancelledCalls ?? 0,
+        cleared: wipes,
+        gates_reset: (gateRows ?? []).length,
+        steps,
+      });
     }
 
 
