@@ -9083,6 +9083,10 @@ Deno.serve(async (req) => {
         adopted,
         company_details_sent: companyResult.sent,
         company_details_pushed: companyResult.sent,
+        company_location_ids: (companyResult as { location_ids?: number[] }).location_ids ?? null,
+        company_locations_unchanged: (companyResult as { locations_unchanged?: boolean }).locations_unchanged ?? null,
+        legal_rep_coverage: (companyResult as { legal_rep_coverage?: unknown }).legal_rep_coverage ?? null,
+
         company_details_manual_required: needsPassword,
         company_details_warning: companyResult.sent ? null : companyResult.error,
         account: finalAccount ?? saved,
