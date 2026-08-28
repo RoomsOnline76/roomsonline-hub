@@ -3416,8 +3416,10 @@ Deno.serve(async (req) => {
       unit?: UnitContext,
       childAuth: Record<string, unknown> = {},
       currency?: CurrencyDecision | null,
+      ariOverrides: AriDeltaOptions = {},
     ): Promise<Record<string, any>> =>
-      staticOnly ? {} : await pushARI(supabase, ruPropertyId, targetProperty, unitUnits, unit, childAuth, currency, readbackOptions);
+      staticOnly ? {} : await pushARI(supabase, ruPropertyId, targetProperty, unitUnits, unit, childAuth, currency, readbackOptions, ariOverrides);
+
     const pushDiscountsUnlessStatic = async (
       propertyId: string,
       ruPropertyIds: { ruId: number; roomTypeId?: string }[],
