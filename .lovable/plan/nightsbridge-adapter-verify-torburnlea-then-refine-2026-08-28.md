@@ -6,21 +6,23 @@ The zero-revenue filtering, calculated Dinner / Room 0 / Comp room nights and th
 
 Reference material already in the repo:
 
-- Source: the four `bookingsummary` exports in `docs/reference/nightsbridge/source/`
+- Source: Review all source marterial files in `docs/reference/nightsbridge/source/`
 - Consolidated: `31.07.26_Torburnlea Homestead-Revenue Report.xlsx`
 - Final: `31 Jul 26 _ Revenue Report _ Torburnlea Homestead.pdf`
 
 Reprocess the four exports at room count 7 and compare, per month:
 
-| Line | Compared against |
-| --- | --- |
-| Accommodation revenue | consolidated workbook |
-| Room nights | consolidated workbook |
-| ADR | consolidated workbook |
-| Occupancy % | consolidated workbook |
-| Dinner (calculated) | consolidated workbook |
-| Room 0 revenue (calculated) | consolidated workbook |
+
+| Line                          | Compared against      |
+| ----------------------------- | --------------------- |
+| Accommodation revenue         | consolidated workbook |
+| Room nights                   | consolidated workbook |
+| ADR                           | consolidated workbook |
+| Occupancy %                   | consolidated workbook |
+| Dinner (calculated)           | consolidated workbook |
+| Room 0 revenue (calculated)   | consolidated workbook |
 | Comp room nights (calculated) | consolidated workbook |
+
 
 Confirm the two exclusion rules explicitly: Room 0 nights and comp nights are absent from Room Nights, and comp nights are absent from the Room 0 count.
 
