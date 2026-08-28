@@ -1788,22 +1788,36 @@ function buildCreateUserXml(
   creds: RUCredentials,
   user: { first_name: string; last_name: string; email: string; password: string },
   locationIds: number[],
+  pmsId?: number | null,
 ): string {
   // Per RU spec: FirstName/LastName/Email/Password are DIRECT children of the root
   // (no <User> wrapper) and <Locations> with at least one <LocationId> is mandatory.
+  // FirstName/LastName are String(50) at the channel: an over-long owner or property
+  // name was previously sent unchanged and rejected outright, exactly like the
+  // over-long email was before the 50-character login cap.
+  const first = String(user.first_name).trim().slice(0, RU_NAME_MAX_LENGTH);
+  const last = String(user.last_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const locations = locationIds.map((id) => `    <LocationId>${id}</LocationId>`).join('\n');
+  // Optional per spec, and it must sit between <Password> and <Locations>. It associates
+  // the new sub-user with the PMS service provided by the channel; without it a child
+  // account is not tied to our provider, which is the documented shape of accounts that
+  // refuse automatic API-key creation.
+  const pms = Number.isFinite(Number(pmsId)) && Number(pmsId) > 0
+    ? `\n  <PMSId>${Number(pmsId)}</PMSId>`
+    : '';
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CreateUser_RQ>
   ${buildAuthXml(creds)}
-  <FirstName>${escapeXml(user.first_name)}</FirstName>
-  <LastName>${escapeXml(user.last_name)}</LastName>
+  <FirstName>${escapeXml(first)}</FirstName>
+  <LastName>${escapeXml(last)}</LastName>
   <Email>${escapeXml(user.email)}</Email>
-  <Password>${escapeXml(user.password)}</Password>
+  <Password>${escapeXml(user.password)}</Password>${pms}
   <Locations>
 ${locations}
   </Locations>
 </Push_CreateUser_RQ>`;
 }
+
 
 
 function buildListUsersXml(creds: RUCredentials): string {
