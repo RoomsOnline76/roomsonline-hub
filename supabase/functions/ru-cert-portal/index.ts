@@ -9125,6 +9125,22 @@ Deno.serve(async (req) => {
               mintPassword = decrypted;
             }
           }
+          // A generated `<slug>@roomsonline.co.za` login was created by us with the platform
+          // password: an adopted account with no stored copy can still mint its own pair.
+          if (!mintPassword && isGeneratedDistributionLogin(savedLoginEmail)) {
+            mintPassword = RU_SUB_USER_PASSWORD;
+          }
+          // Keep the working password on record so later steps never re-derive it.
+          if (mintPassword && !(saved as any)?.ru_login_password_enc && (saved as any)?.id) {
+            const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: mintPassword });
+            if (enc) {
+              await admin
+                .from("ru_owner_accounts")
+                .update({ ru_login_password_enc: enc })
+                .eq("id", (saved as any).id);
+            }
+          }
+
           const minted = await mintChildKeyPair({
             ownerId: savedOwnerId,
             loginEmail: savedLoginEmail,
