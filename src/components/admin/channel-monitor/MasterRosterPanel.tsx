@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, RefreshCw, Users } from "lucide-react";
+import { AlertTriangle, Loader2, RefreshCw, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface RosterUser {
   owner_id?: string | null;
@@ -24,19 +34,62 @@ interface RosterResult {
   readAt: Date;
 }
 
+type CloseState = "queued" | "running" | "closed" | "pending" | "blocked" | "failed";
+
+interface CloseOutcome {
+  state: CloseState;
+  message: string;
+}
+
+/** The channel closes accounts one at a time; this is the gap we leave between them. */
+const DEFAULT_COOLDOWN_SECONDS = 60;
+const MIN_COOLDOWN_SECONDS = 30;
+const MAX_COOLDOWN_SECONDS = 300;
+
 function label(user: RosterUser): string {
   return user.login_email || user.email || "(no login recorded)";
 }
+
+const STATE_LABEL: Record<CloseState, string> = {
+  queued: "Waiting",
+  running: "Closing…",
+  closed: "Closed at channel",
+  pending: "Close sent — confirming",
+  blocked: "Cannot close via API",
+  failed: "Close failed",
+};
+
+const STATE_VARIANT: Record<CloseState, "secondary" | "outline" | "destructive"> = {
+  queued: "outline",
+  running: "outline",
+  closed: "secondary",
+  pending: "outline",
+  blocked: "destructive",
+  failed: "destructive",
+};
 
 /**
  * Third section of the Advanced orphan tooling: a live read of the master account's
  * own sub-account roster (Pull_ListMyUsers_RQ, include_retired), so an operator can
  * see exactly what the channel holds under our master — including entries we have
  * retired locally — next to whether ROLOS has a binding for each one.
+ *
+ * Unbound rows can also be CLOSED at the channel from here. The channel's close verb is
+ * irreversible and resource-heavy, so closes run strictly one at a time with a cooldown
+ * between them, and the backend refuses any account that still has a ROLOS binding.
  */
 export function MasterRosterPanel() {
   const [result, setResult] = useState<RosterResult | null>(null);
   const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [outcomes, setOutcomes] = useState<Record<string, CloseOutcome>>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [reason, setReason] = useState("");
+  const [cooldownSeconds, setCooldownSeconds] = useState(DEFAULT_COOLDOWN_SECONDS);
+  const [closing, setClosing] = useState(false);
+  const [waitSeconds, setWaitSeconds] = useState(0);
+  const cancelled = useRef(false);
 
   const read = useMutation({
     mutationFn: async (): Promise<RosterResult> => {
@@ -73,10 +126,138 @@ export function MasterRosterPanel() {
   });
 
   const needle = filter.trim().toLowerCase();
-  const rows = (result?.users ?? []).filter((u) => {
-    if (!needle) return true;
-    return `${label(u)} ${u.owner_id ?? ""}`.toLowerCase().includes(needle);
-  });
+  const rows = useMemo(
+    () =>
+      (result?.users ?? []).filter((u) => {
+        if (!needle) return true;
+        return `${label(u)} ${u.owner_id ?? ""}`.toLowerCase().includes(needle);
+      }),
+    [needle, result],
+  );
+
+  /** Only unbound, not-yet-archived accounts can be closed. */
+  const closableIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const u of result?.users ?? []) {
+      const ownerId = String(u.owner_id ?? "").trim();
+      if (!ownerId || u.archived) continue;
+      if (result?.boundIds.has(ownerId)) continue;
+      ids.add(ownerId);
+    }
+    return ids;
+  }, [result]);
+
+  const selectedList = useMemo(
+    () => [...selected].filter((id) => closableIds.has(id)),
+    [closableIds, selected],
+  );
+
+  const accountLabel = useCallback(
+    (ownerId: string) => {
+      const match = (result?.users ?? []).find((u) => String(u.owner_id ?? "").trim() === ownerId);
+      return match ? label(match) : `OwnerID ${ownerId}`;
+    },
+    [result],
+  );
+
+  const toggle = (ownerId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(ownerId)) next.delete(ownerId);
+      else next.add(ownerId);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (waitSeconds <= 0) return;
+    const t = setTimeout(() => setWaitSeconds((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [waitSeconds]);
+
+  const expectedConfirm = selectedList.length === 1 ? selectedList[0] : "CLOSE";
+
+  const closeOne = useCallback(
+    async (ownerId: string): Promise<CloseOutcome> => {
+      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+        body: {
+          action: "close_unbound_account",
+          ru_owner_id: ownerId,
+          reason: reason.trim() || null,
+          cooldown_seconds: cooldownSeconds,
+        },
+      });
+      if (data?.success === true) {
+        return {
+          state: data.confirmed ? "closed" : "pending",
+          message: data.confirmed
+            ? "The channel confirmed the account is archived and its keys are gone."
+            : "The channel accepted the close — it can take several minutes to show on the roster.",
+        };
+      }
+      const code = String(data?.error?.code ?? "");
+      const message = data?.error?.message ?? error?.message ?? "The close did not complete";
+      if (code === "NEEDS_KEYS") return { state: "blocked", message };
+      if (code === "RATE_LIMITED" || code === "CLOSE_COOLDOWN" || code === "CLOSE_IN_PROGRESS") {
+        return { state: "failed", message: `${message} Run it again in a moment.` };
+      }
+      return { state: "failed", message };
+    },
+    [cooldownSeconds, reason],
+  );
+
+  const runCloses = useCallback(async () => {
+    const queue = [...selectedList];
+    if (queue.length === 0) return;
+    cancelled.current = false;
+    setClosing(true);
+    setConfirmOpen(false);
+    setOutcomes(
+      Object.fromEntries(
+        queue.map((id) => [id, { state: "queued" as CloseState, message: "Waiting its turn" }]),
+      ),
+    );
+
+    let closed = 0;
+    for (let i = 0; i < queue.length; i += 1) {
+      if (cancelled.current) break;
+      const ownerId = queue[i];
+      setOutcomes((prev) => ({
+        ...prev,
+        [ownerId]: { state: "running", message: "Closing at the channel — this can take minutes" },
+      }));
+      let outcome: CloseOutcome;
+      try {
+        outcome = await closeOne(ownerId);
+      } catch (e) {
+        outcome = { state: "failed", message: e instanceof Error ? e.message : String(e) };
+      }
+      setOutcomes((prev) => ({ ...prev, [ownerId]: outcome }));
+      if (outcome.state === "closed" || outcome.state === "pending") closed += 1;
+
+      // Honour the gap between closes: the channel treats this verb as resource-heavy.
+      const isLast = i === queue.length - 1;
+      if (!isLast && !cancelled.current) {
+        setWaitSeconds(cooldownSeconds);
+        for (let s = 0; s < cooldownSeconds && !cancelled.current; s += 1) {
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        setWaitSeconds(0);
+      }
+    }
+
+    setClosing(false);
+    setSelected(new Set());
+    setConfirmText("");
+    if (closed > 0) {
+      toast.success(`${closed} sub-account${closed === 1 ? "" : "s"} closed at the channel`);
+      read.mutate();
+    } else {
+      toast.error("No sub-account was closed");
+    }
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeOne, cooldownSeconds, selectedList]);
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/20 p-3">
@@ -93,7 +274,8 @@ export function MasterRosterPanel() {
           </p>
           <p className="text-[11px] text-muted-foreground">
             Live read of every sub-account the channel lists under our master account, retired
-            entries included, with the ROLOS binding state for each.
+            entries included, with the ROLOS binding state for each. Unbound accounts can be closed
+            at the channel — one at a time, with a pause between each.
             {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
           </p>
         </div>
@@ -102,7 +284,7 @@ export function MasterRosterPanel() {
           size="sm"
           variant="outline"
           className="h-7 gap-1.5 text-[11px]"
-          disabled={read.isPending}
+          disabled={read.isPending || closing}
           onClick={() => read.mutate()}
         >
           {read.isPending ? (
@@ -124,6 +306,69 @@ export function MasterRosterPanel() {
               className="h-7 text-xs"
             />
           )}
+
+          {closableIds.size > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2">
+              <span className="text-[11px] text-muted-foreground">
+                {selectedList.length === 0
+                  ? `${closableIds.size} unbound account${closableIds.size === 1 ? "" : "s"} can be closed at the channel.`
+                  : `${selectedList.length} selected for closing.`}
+                {closing && waitSeconds > 0 ? ` Pausing ${waitSeconds}s before the next close.` : ""}
+              </span>
+              <span className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  Gap
+                  <Input
+                    type="number"
+                    min={MIN_COOLDOWN_SECONDS}
+                    max={MAX_COOLDOWN_SECONDS}
+                    value={cooldownSeconds}
+                    disabled={closing}
+                    onChange={(e) =>
+                      setCooldownSeconds(
+                        Math.min(
+                          MAX_COOLDOWN_SECONDS,
+                          Math.max(MIN_COOLDOWN_SECONDS, Number(e.target.value) || DEFAULT_COOLDOWN_SECONDS),
+                        ),
+                      )
+                    }
+                    className="h-6 w-16 text-[11px]"
+                  />
+                  s
+                </label>
+                {closing ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={() => {
+                      cancelled.current = true;
+                      toast.info("Stopping after the current account");
+                    }}
+                  >
+                    Stop after this one
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 gap-1.5 text-[11px]"
+                    disabled={selectedList.length === 0}
+                    onClick={() => {
+                      setConfirmText("");
+                      setConfirmOpen(true);
+                    }}
+                  >
+                    <XCircle className="h-3.5 w-3.5" />
+                    Close {selectedList.length || ""} account{selectedList.length === 1 ? "" : "s"}
+                  </Button>
+                )}
+              </span>
+            </div>
+          )}
+
           {rows.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">
               {result.users.length === 0
@@ -135,39 +380,122 @@ export function MasterRosterPanel() {
               const ownerId = String(u.owner_id ?? "").trim();
               const bound = result.boundIds.has(ownerId);
               const retired = result.retiredIds.has(ownerId);
+              const closable = closableIds.has(ownerId);
+              const outcome = outcomes[ownerId];
               return (
                 <div
                   key={ownerId || label(u)}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-1.5"
+                  className="rounded-md border border-border bg-background px-3 py-1.5"
                 >
-                  <span className="flex flex-wrap items-center gap-2 text-xs">
-                    {label(u)}
-                    {u.archived ? (
-                      <Badge variant="outline" className="text-[10px]">
-                        Archived at channel
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex flex-wrap items-center gap-2 text-xs">
+                      {closable ? (
+                        <Checkbox
+                          checked={selected.has(ownerId)}
+                          disabled={closing}
+                          onCheckedChange={() => toggle(ownerId)}
+                          aria-label={`Select ${label(u)} for closing`}
+                        />
+                      ) : null}
+                      {label(u)}
+                      {u.archived ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Archived at channel
+                        </Badge>
+                      ) : null}
+                      {retired ? (
+                        <Badge variant="outline" className="text-[10px]">
+                          Retired in ROLOS
+                        </Badge>
+                      ) : null}
+                      <Badge variant={bound ? "secondary" : "destructive"} className="text-[10px]">
+                        {bound ? "Bound" : "No binding"}
                       </Badge>
-                    ) : null}
-                    {retired ? (
-                      <Badge variant="outline" className="text-[10px]">
-                        Retired in ROLOS
-                      </Badge>
-                    ) : null}
-                    <Badge
-                      variant={bound ? "secondary" : "destructive"}
-                      className="text-[10px]"
-                    >
-                      {bound ? "Bound" : "No binding"}
-                    </Badge>
-                  </span>
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    Sub-account: {ownerId || "—"}
-                  </span>
+                      {outcome ? (
+                        <Badge variant={STATE_VARIANT[outcome.state]} className="text-[10px]">
+                          {outcome.state === "running" ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          {STATE_LABEL[outcome.state]}
+                        </Badge>
+                      ) : null}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      Sub-account: {ownerId || "—"}
+                    </span>
+                  </div>
+                  {outcome && outcome.state !== "queued" ? (
+                    <p className="mt-1 text-[10px] text-muted-foreground">{outcome.message}</p>
+                  ) : null}
                 </div>
               );
             })
           )}
         </div>
       ) : null}
+
+      <Dialog open={confirmOpen} onOpenChange={(next) => (!next ? setConfirmOpen(false) : undefined)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Close {selectedList.length} sub-account{selectedList.length === 1 ? "" : "s"} at the channel</DialogTitle>
+            <DialogDescription>
+              This is the channel's own close-account action and it cannot be undone. For each
+              account the channel removes portal access, drops every channel connection, archives
+              all of its listings and destroys its API keys. The account is then recorded as retired
+              in ROLOS so every roster read, listing count and cost attribution skips it.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <ul className="max-h-40 space-y-1 overflow-auto rounded-md border border-border p-2 text-xs">
+              {selectedList.map((id) => (
+                <li key={id} className="flex items-center justify-between gap-2">
+                  <span className="truncate">{accountLabel(id)}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">{id}</span>
+                </li>
+              ))}
+            </ul>
+
+            <p className="flex gap-2 rounded-md border border-destructive/40 p-2 text-[11px] text-destructive">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Only accounts with no ROLOS binding are offered here, and the backend refuses any
+              account that is still bound. Closes run one at a time with a {cooldownSeconds}s gap.
+            </p>
+
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Reason (optional) — stored with the retirement record"
+              className="min-h-[60px] text-xs"
+            />
+
+            <div className="space-y-1">
+              <p className="text-[11px] text-muted-foreground">
+                Type <span className="font-mono">{expectedConfirm}</span> to confirm.
+              </p>
+              <Input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder={expectedConfirm}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={confirmText.trim() !== expectedConfirm || selectedList.length === 0}
+              onClick={() => void runCloses()}
+            >
+              Close {selectedList.length === 1 ? "this account" : "these accounts"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
