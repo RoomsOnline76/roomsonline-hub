@@ -8614,6 +8614,19 @@ Deno.serve(async (req) => {
             if (!mintPassword && isGeneratedDistributionLogin(existingLoginEmail)) {
               mintPassword = RU_SUB_USER_PASSWORD;
             }
+            // Keep the working password on record so later runs never re-derive it.
+            if (mintPassword && !(existing.account as any).ru_login_password_enc && (existing.account as any).id) {
+              const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: mintPassword });
+              if (enc) {
+                await admin
+                  .from("ru_owner_accounts")
+                  .update({ ru_login_password_enc: enc })
+                  .eq("id", (existing.account as any).id);
+                (existing.account as any).ru_login_password_enc = enc;
+              }
+            }
+
+
 
             const minted = await mintChildKeyPair({
               ownerId: existingOwnerId,
