@@ -4705,14 +4705,14 @@ Deno.serve(async (req) => {
 
 
       /**
-       * Ordered mint variants:
-       *   1. an EXISTING stored key pair (rotation on an account that already has one), and one
-       *      short-delayed repeat of it, because a transport blip there is a real possibility
-       *   2. a master-authenticated mint scoped to the sub-account's OwnerID
+       * Ordered mint variants — CHILD IDENTITY ONLY:
+       *   1. the sub-account's OWN login/password envelope (the account mints its own pair)
+       *   2. an EXISTING stored child key pair (rotation on an account that already holds one)
+       *   3. one short-delayed repeat of whichever envelope was available, for transport blips
        *
-       * The sub-account's own login/password envelope is deliberately NOT tried: the channel
-       * answers it with "Incorrect login or password" (-4) for every freshly created child, so it
-       * only ever produced two guaranteed refusals before the owner-scoped mint succeeded.
+       * The master account is NEVER used to mint a key for a sub-account: the channel returns a
+       * pair that belongs to the MASTER even when <OwnerID> names the child, which is exactly how
+       * unusable "master pairs" (and master-footprint listings) were created.
        */
       /**
        * Each variant carries its OWN key label. The channel (and our sliding-window
@@ -4721,32 +4721,30 @@ Deno.serve(async (req) => {
        * ever reached the channel, which masked the real refusal as a rate deferral.
        */
       const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string; delayMs?: number }> = [];
+      const passwordBody: Record<string, unknown> | null =
+        opts.authUsername && opts.authPassword
+          ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
+          : null;
       const credentialBody: Record<string, unknown> | null =
         opts.authAccessKey && opts.authSecretKey
           ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
           : null;
+      if (passwordBody) {
+        variants.push({ label: "child_password", body: passwordBody, keyLabel: `${keyLabel}-p` });
+      }
       if (credentialBody) {
         variants.push({ label: "child_credential", body: credentialBody, keyLabel });
-        variants.push({ label: "child_credential_retry", body: credentialBody, keyLabel: `${keyLabel}-r2`, delayMs: 6_000 });
       }
-      if (opts.ownerId) {
+      const retryBody = passwordBody ?? credentialBody;
+      if (retryBody) {
         variants.push({
-          label: "master_owner_scoped",
-          body: { owner_scoped_mint: true, owner_id: opts.ownerId },
-          keyLabel: `${keyLabel}-m`,
+          label: passwordBody ? "child_password_retry" : "child_credential_retry",
+          body: retryBody,
+          keyLabel: `${keyLabel}-r2`,
+          delayMs: 6_000,
         });
       }
-      // Last resort, and ONLY when an operator supplied the portal password for this
-      // run (decommissioning an account whose keys we no longer hold): the sub-account's
-      // own login envelope. It is refused for freshly created children, which is why it
-      // is never tried first, but on an older account it is the only envelope left.
-      if (opts.authUsername && opts.authPassword) {
-        variants.push({
-          label: "child_password",
-          body: { auth_username: opts.authUsername, auth_password: opts.authPassword },
-          keyLabel: `${keyLabel}-p`,
-        });
-      }
+
 
 
       if (variants.length === 0) {
