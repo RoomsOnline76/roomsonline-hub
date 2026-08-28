@@ -1799,21 +1799,21 @@ function buildCreateUserXml(
   user: { first_name: string; last_name: string; email: string; password: string },
   locationIds: number[],
   pmsId?: number | null,
+  configurationString?: string | null,
 ): string {
-  // Per RU spec: FirstName/LastName/Email/Password are DIRECT children of the root
-  // (no <User> wrapper) and <Locations> with at least one <LocationId> is mandatory.
-  // FirstName/LastName are String(50) at the channel: an over-long owner or property
-  // name was previously sent unchanged and rejected outright, exactly like the
-  // over-long email was before the 50-character login cap.
+  // Documented order: Authentication → FirstName → LastName → Email → Password →
+  // [PMSId] → [ConfigurationString] → Locations/LocationId (at least one).
+  // FirstName/LastName/Email/Password are String(50) at the channel.
   const first = String(user.first_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const last = String(user.last_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const locations = locationIds.map((id) => `    <LocationId>${id}</LocationId>`).join('\n');
-  // Optional per spec, and it must sit between <Password> and <Locations>. It associates
-  // the new sub-user with the PMS service provided by the channel; without it a child
-  // account is not tied to our provider, which is the documented shape of accounts that
-  // refuse automatic API-key creation.
+  // PMSId associates the new sub-user with the PMS service provided by the channel;
+  // without it a child account is not tied to our provider.
   const pms = Number.isFinite(Number(pmsId)) && Number(pmsId) > 0
     ? `\n  <PMSId>${Number(pmsId)}</PMSId>`
+    : '';
+  const config = configurationString && configurationString.trim()
+    ? `\n  <ConfigurationString>${escapeXml(configurationString.trim().slice(0, 150))}</ConfigurationString>`
     : '';
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CreateUser_RQ>
@@ -1821,12 +1821,13 @@ function buildCreateUserXml(
   <FirstName>${escapeXml(first)}</FirstName>
   <LastName>${escapeXml(last)}</LastName>
   <Email>${escapeXml(user.email)}</Email>
-  <Password>${escapeXml(user.password)}</Password>${pms}
+  <Password>${escapeXml(user.password)}</Password>${pms}${config}
   <Locations>
 ${locations}
   </Locations>
 </Push_CreateUser_RQ>`;
 }
+
 
 
 
