@@ -100,6 +100,8 @@ export default function ReportsPropertySettings() {
     setLogoInvert(Boolean(settings.logoInvert));
     setBaseline(settings.historicalBaseline ?? {});
     setSpecialSet(settings.specialReportSet ?? "none");
+    setKeepPatterns((settings.zeroRevenueKeepPatterns ?? []).join(", "));
+    setExcludePatterns((settings.rowExcludePatterns ?? []).join(", "));
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
         ? settings.defaultSourceType
