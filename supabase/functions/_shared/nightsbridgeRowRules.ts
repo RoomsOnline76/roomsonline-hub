@@ -100,7 +100,17 @@ export function classifyRow(row: LedgerRow, rules: RowRules = EMPTY_ROW_RULES): 
     return { klass: "holding_credit", matched: null };
   }
 
+  // Rooms flagged Unavailable are out of order, never sold nights and never
+  // complimentary — whatever revenue the export prints against them.
+  const status = String(row.status ?? "").trim().toLowerCase();
+  if (rules.dropZeroRevenue && status.includes("unavailable")) {
+    const kept = firstMatch(row, rules.keepPatterns);
+    if (kept) return { klass: "sellable", matched: kept };
+    return { klass: "unavailable", matched: null };
+  }
+
   const revenue = Number(row.revenue);
+
   if (rules.dropZeroRevenue && Number.isFinite(revenue) && revenue === 0) {
     const kept = firstMatch(row, rules.keepPatterns);
     if (kept) return { klass: "sellable", matched: kept };
