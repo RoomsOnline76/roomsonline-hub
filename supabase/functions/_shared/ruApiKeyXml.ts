@@ -1,8 +1,6 @@
 export type RuApiKeyAuth =
   | { mode: "keys"; access_key: string; secret_key: string }
-  | { mode: "password"; username: string; password: string }
-  /** Master-authenticated white-label key creation for the selected child OwnerID only. */
-  | { mode: "owner_scoped"; access_key: string; secret_key: string; owner_id: string };
+  | { mode: "password"; username: string; password: string };
 
 function escapeXml(value: string): string {
   return value
@@ -21,11 +19,13 @@ function buildAuthXml(auth: RuApiKeyAuth): string {
 }
 
 /**
- * RU's ordered schema requires Authentication, then (owner-scoped only) OwnerID,
- * then Label, then Scope.
+ * Push_CreateApiKey_RQ per the documented schema: Authentication, then Label, then Scope.
+ * The documented request has NO OwnerID element — the channel always issues the pair for
+ * whichever account authenticates. A master-authenticated envelope therefore only ever
+ * yields a MASTER pair, so it is not expressible here.
  *
- * A newly-created sub-account uses its generated username/password to mint the
- * first pair atomically. Existing accounts may use their current pair for rotation.
+ * A newly-created sub-account uses the login/password sent in Push_CreateUser_RQ to mint
+ * its first pair atomically. Existing accounts may use their current pair for rotation.
  */
 export function buildCreateApiKeyXml(auth: RuApiKeyAuth, label: string): string {
   if (auth.mode === "keys" && (!auth.access_key || !auth.secret_key)) {
@@ -34,10 +34,7 @@ export function buildCreateApiKeyXml(auth: RuApiKeyAuth, label: string): string 
   if (auth.mode === "password" && (!auth.username || !auth.password)) {
     throw new Error("RU_CHILD_AUTH_REQUIRED: UserName and Password are required");
   }
-  if (auth.mode === "owner_scoped" && (!auth.access_key || !auth.secret_key || !auth.owner_id)) {
-    throw new Error("RU_CHILD_AUTH_REQUIRED: AccessKey, SecretKey and OwnerID are required");
-  }
-  const ownerXml = auth.mode === "owner_scoped" ? `<OwnerID>${escapeXml(auth.owner_id)}</OwnerID>` : "";
-  return `<?xml version="1.0" encoding="utf-8"?>\n<Push_CreateApiKey_RQ>${buildAuthXml(auth)}${ownerXml}<Label>${escapeXml(label)}</Label><Scope>XmlApi</Scope></Push_CreateApiKey_RQ>`;
+  return `<?xml version="1.0" encoding="utf-8"?>\n<Push_CreateApiKey_RQ>${buildAuthXml(auth)}<Label>${escapeXml(label)}</Label><Scope>XmlApi</Scope></Push_CreateApiKey_RQ>`;
 }
+
 

@@ -334,8 +334,10 @@ interface RequestBody {
   // API key management
   key_label?: string;
   target_access_key?: string;
-  /** Mint the pair with the master envelope + <OwnerID> after a child-login refusal. */
-  owner_scoped_mint?: boolean;
+  /** Push_CreateUser_RQ optionals (RU-supplied). */
+  pms_id?: number | string;
+  configuration_string?: string;
+
 
   // Reservation / request lifecycle
   reservation_id?: string | number;
@@ -1799,21 +1801,21 @@ function buildCreateUserXml(
   user: { first_name: string; last_name: string; email: string; password: string },
   locationIds: number[],
   pmsId?: number | null,
+  configurationString?: string | null,
 ): string {
-  // Per RU spec: FirstName/LastName/Email/Password are DIRECT children of the root
-  // (no <User> wrapper) and <Locations> with at least one <LocationId> is mandatory.
-  // FirstName/LastName are String(50) at the channel: an over-long owner or property
-  // name was previously sent unchanged and rejected outright, exactly like the
-  // over-long email was before the 50-character login cap.
+  // Documented order: Authentication → FirstName → LastName → Email → Password →
+  // [PMSId] → [ConfigurationString] → Locations/LocationId (at least one).
+  // FirstName/LastName/Email/Password are String(50) at the channel.
   const first = String(user.first_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const last = String(user.last_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const locations = locationIds.map((id) => `    <LocationId>${id}</LocationId>`).join('\n');
-  // Optional per spec, and it must sit between <Password> and <Locations>. It associates
-  // the new sub-user with the PMS service provided by the channel; without it a child
-  // account is not tied to our provider, which is the documented shape of accounts that
-  // refuse automatic API-key creation.
+  // PMSId associates the new sub-user with the PMS service provided by the channel;
+  // without it a child account is not tied to our provider.
   const pms = Number.isFinite(Number(pmsId)) && Number(pmsId) > 0
     ? `\n  <PMSId>${Number(pmsId)}</PMSId>`
+    : '';
+  const config = configurationString && configurationString.trim()
+    ? `\n  <ConfigurationString>${escapeXml(configurationString.trim().slice(0, 150))}</ConfigurationString>`
     : '';
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CreateUser_RQ>
@@ -1821,12 +1823,13 @@ function buildCreateUserXml(
   <FirstName>${escapeXml(first)}</FirstName>
   <LastName>${escapeXml(last)}</LastName>
   <Email>${escapeXml(user.email)}</Email>
-  <Password>${escapeXml(user.password)}</Password>${pms}
+  <Password>${escapeXml(user.password)}</Password>${pms}${config}
   <Locations>
 ${locations}
   </Locations>
 </Push_CreateUser_RQ>`;
 }
+
 
 
 
@@ -1945,17 +1948,17 @@ function buildChildAuthXml(auth: ChildAuth): string {
 }
 
 /**
- * Key-mint only: the owner-scoped variant authenticates with the master pair and names
- * the sub-account in <OwnerID>. It is deliberately NOT part of `ChildAuth`, so it can
- * never reach a child-scoped write path.
+ * Key-mint auth. Push_CreateApiKey_RQ has NO OwnerID element in the documented schema:
+ * the channel issues the pair for whichever account authenticates, so a master envelope
+ * can only ever produce a MASTER pair. A child mint is therefore child-credentialled only.
  */
-type ChildAuthForKeyMint = ChildAuth | { mode: 'owner_scoped'; access_key: string; secret_key: string; owner_id: string };
+type ChildAuthForKeyMint = ChildAuth;
 
 function childAuthMode(auth: ChildAuthForKeyMint | null): string {
   if (!auth) return 'parent_access_key';
-  if (auth.mode === 'owner_scoped') return 'master_owner_scoped';
   return auth.mode === 'keys' ? 'child_api_keys' : 'child_user_password';
 }
+
 
 
 /**
@@ -2773,16 +2776,13 @@ Deno.serve(async (req) => {
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
       /**
-       * White-label first-key mint: authenticate with the WL master pair and carry the
-       * target child <OwnerID>. This capability is limited to this key-creation action;
-       * every company, property, content and ARI write remains child-authenticated.
+       * The documented Push_CreateApiKey_RQ carries no OwnerID: the pair belongs to the
+       * authenticating account. A child mint must therefore authenticate AS the child —
+       * either its own login/password (the one sent in Push_CreateUser_RQ) or an existing
+       * child pair for rotation. Master-authenticated mints are refused here.
        */
-      const ownerScopedId = body.owner_scoped_mint === true && body.owner_id != null
-        ? String(body.owner_id).trim()
-        : '';
-      const childAuth: ChildAuthForKeyMint | null = ownerScopedId
-        ? { mode: 'owner_scoped', access_key: creds.api_key, secret_key: creds.api_secret, owner_id: ownerScopedId }
-        : await resolveChildAuth(body);
+      const childAuth: ChildAuthForKeyMint | null = await resolveChildAuth(body);
+
       if (!childAuth) {
         return jsonResponse({
           success: false,
@@ -4274,12 +4274,18 @@ Deno.serve(async (req) => {
       }
 
       const pmsId = Number(body.pms_id ?? Deno.env.get('RU_PMS_ID') ?? 0);
+      // Optional per spec (String(150)), supplied by RU support for PMS/white-label partners.
+      const configurationString = String(
+        body.configuration_string ?? Deno.env.get('RU_CONFIGURATION_STRING') ?? '',
+      ).trim().slice(0, 150) || null;
       const xml = buildCreateUserXml(
         creds,
         { first_name, last_name, email, password },
         locationIds,
         Number.isFinite(pmsId) && pmsId > 0 ? pmsId : null,
+        configurationString,
       );
+
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);

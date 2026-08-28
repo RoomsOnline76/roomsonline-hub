@@ -135,12 +135,45 @@ async function recordLedgerPassForOwnerAccount(
 const RUN_COOLDOWN_SECONDS = 60;
 
 /**
- * Shared operator password for every ROLOS-created RU sub-account. Step A retains it
- * so automatic API key creation can be retried without asking the operator for a value
- * the system already generated. Meets RU policy (12+ chars, upper, lower, digit and a
- * special character from RU's set).
+ * LEGACY shared operator password. Sub-accounts created before per-account passwords were
+ * introduced were all created with this literal, so it stays available as a last-resort mint
+ * credential for those accounts. New accounts NEVER use it — see generateSubUserPassword().
+ * Meets RU policy (12+ chars, upper, lower, digit and a special character from RU's set).
  */
 const RU_SUB_USER_PASSWORD = "SLPafrica247*";
+
+/**
+ * Per-account channel password, generated once and persisted verbatim (encrypted) in the same
+ * Step A run that sends it in Push_CreateUser_RQ. Documented RU policy: at least 12 chars,
+ * at least one lowercase, one uppercase, one digit, one special character, and it must not
+ * contain the user's email address.
+ */
+const generateSubUserPassword = (loginEmail?: string | null): string => {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const specials = "!*#$%&+-=?";
+  const pool = lower + upper + digits + specials;
+  const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
+  const emailLocal = String(loginEmail ?? "").trim().toLowerCase().split("@")[0] ?? "";
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const chars = [pick(lower), pick(upper), pick(digits), pick(specials)];
+    while (chars.length < 16) chars.push(pick(pool));
+    // Shuffle so the guaranteed classes are not always in the first four positions.
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    const candidate = chars.join("");
+    const lowered = candidate.toLowerCase();
+    const containsEmail = Boolean(loginEmail && lowered.includes(String(loginEmail).trim().toLowerCase()))
+      || Boolean(emailLocal.length >= 4 && lowered.includes(emailLocal));
+    if (!containsEmail) return candidate;
+  }
+  // Deterministic compliant fallback (still never contains the email).
+  return `Rol${Date.now().toString(36)}!Ch9`;
+};
+
 
 
 
@@ -3849,7 +3882,10 @@ Deno.serve(async (req) => {
             : null,
         siblings,
         readiness: { ready, checks },
-        sub_user_password_hint: RU_SUB_USER_PASSWORD,
+        // Passwords are now per-account and stored encrypted: there is no shared literal to
+        // hint at. Use "Reveal password" (reveal_login_password) for the real value.
+        sub_user_password_hint: null,
+
       });
     }
 
@@ -4715,30 +4751,40 @@ Deno.serve(async (req) => {
 
 
       /**
-       * RU white-label key provisioning is owner-scoped: authenticate the key-creation
-       * request with the WL master pair and identify the child with <OwnerID>. Live request
-       * history confirms this succeeds while a new child's UserName/Password envelope is
-       * rejected with status -4. This authority is restricted to key creation; it is never
-       * passed to company, property, content or ARI writes.
-       *
-       * Use one deterministic request. Repeating Push_CreateApiKey_RQ inside the one-minute
-       * method window only creates misleading local/channel throttles.
+       * Push_CreateApiKey_RQ carries no OwnerID in the documented schema: the pair belongs
+       * to whichever account authenticates. A master-authenticated envelope therefore only
+       * ever yields a MASTER pair (that is how master-footprint listings happened), so the
+       * only valid child mint is a CHILD-credentialled one:
+       *   1) an existing verified child key pair (rotation), then
+       *   2) the sub-account's own login + the password sent in Push_CreateUser_RQ.
+       * One request per envelope: repeating inside RU's one-minute method window only
+       * manufactures throttles.
        */
-      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string }> = opts.ownerId
-        ? [{
-            label: "master_owner_scoped",
-            body: { owner_scoped_mint: true, owner_id: opts.ownerId },
-            keyLabel: `${keyLabel}-m`,
-          }]
-        : [];
+      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string }> = [];
+      if (opts.authAccessKey && opts.authSecretKey) {
+        variants.push({
+          label: "child_api_keys",
+          body: { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey },
+          keyLabel,
+        });
+      }
+      if (opts.loginEmail && opts.authPassword) {
+        variants.push({
+          label: "child_login",
+          body: { auth_username: opts.authUsername ?? opts.loginEmail, auth_password: opts.authPassword },
+          keyLabel,
+        });
+      }
 
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "RU_OWNER_ID_REQUIRED",
-          message: "A child OwnerID is required for white-label API-key creation.",
+          code: "RU_CHILD_AUTH_REQUIRED",
+          message:
+            "The sub-account's own login and password (or an existing child key pair) are required: the channel issues API keys only to the authenticating account.",
         };
       }
+
 
 
 
@@ -8669,10 +8715,11 @@ Deno.serve(async (req) => {
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
 
-       // Every ROLOS-created RU sub-account uses one shared operator password; atomic
-       // Step A uses it immediately to mint and securely store the first API key pair.
-       // RU policy: 12+ chars incl. upper, lower, digit and special.
-      const password = RU_SUB_USER_PASSWORD;
+      // Per-account password, generated once here, sent in Push_CreateUser_RQ and persisted
+      // verbatim (encrypted) in this same run. It is the ONLY credential that can mint this
+      // sub-account's first API key pair, so it is never re-derived later.
+      const password = generateSubUserPassword(ownerEmail);
+
 
 
 
