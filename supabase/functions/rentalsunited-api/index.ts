@@ -1309,21 +1309,22 @@ function validateFspSeason(s: RUFspSeason): string | null {
   return null;
 }
 
-function buildGetLongStayDiscountsXml(creds: RUCredentials, propertyId: number): string {
+/**
+ * Pull_ListPropertyDiscounts_RQ — the ONLY documented discount read-back method.
+ * It returns BOTH ladders in one response:
+ *   <Discounts PropertyID="1"><LongStays>…</LongStays><LastMinutes>…</LastMinutes></Discounts>
+ * There is no per-feature pull method: `Pull_ListPropertyLongStayDiscounts_RQ` /
+ * `Pull_ListPropertyLastMinuteDiscounts_RQ` do not exist in the channel API and were
+ * answered with Status -1 ("The XML contains not implemented method") on every call.
+ */
+function buildGetPropertyDiscountsXml(creds: RUCredentials, propertyId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListPropertyLongStayDiscounts_RQ>
+<Pull_ListPropertyDiscounts_RQ>
   ${buildAuthXml(creds)}
   <PropertyID>${propertyId}</PropertyID>
-</Pull_ListPropertyLongStayDiscounts_RQ>`;
+</Pull_ListPropertyDiscounts_RQ>`;
 }
 
-function buildGetLastMinuteDiscountsXml(creds: RUCredentials, propertyId: number): string {
-  return `<?xml version="1.0" encoding="utf-8"?>
-<Pull_ListPropertyLastMinuteDiscounts_RQ>
-  ${buildAuthXml(creds)}
-  <PropertyID>${propertyId}</PropertyID>
-</Pull_ListPropertyLastMinuteDiscounts_RQ>`;
-}
 
 function buildSubscribeNotificationsXml(creds: RUCredentials, handlerUrl: string): string {
   return `<?xml version="1.0" encoding="utf-8"?>
