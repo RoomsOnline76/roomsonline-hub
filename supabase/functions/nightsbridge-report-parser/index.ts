@@ -10,6 +10,7 @@ import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
+import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
   gridFromDelimited,
   gridFromPdfItems,
@@ -622,6 +623,7 @@ Deno.serve(async (req) => {
         non_sellable: aggregate.non_sellable,
         totals: aggregate.totals,
         room_count: roomCount,
+        booking_trends: buildBookingTrends(ledger, aggregate.months),
       },
       { onConflict: "run_id" },
     );

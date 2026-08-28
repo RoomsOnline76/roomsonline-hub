@@ -244,6 +244,7 @@ Deno.serve(async (req) => {
       source_breakdown: (snapshot.source_breakdown ?? {}) as DraftSnapshot["source_breakdown"],
       room_count: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
       totals: (snapshot.totals ?? {}) as Record<string, number | undefined>,
+      booking_trends: (snapshot.booking_trends ?? null) as DraftSnapshot["booking_trends"],
     };
 
     const draft = buildDraftReport({

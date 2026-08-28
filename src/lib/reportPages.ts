@@ -18,6 +18,7 @@ export const REPORT_DATA_PAGES: readonly ReportPageDefinition[] = [
   { key: "rate_comparison", title: "Rate & Comparison Review", summary: "ADR grid + comparison review" },
   { key: "revenue_review", title: "Revenue Review", summary: "Revenue / occupancy / ADR charts" },
   { key: "pickup_rate_trend", title: "Pickup & Rate Trend", summary: "Pickup variance + ADR trend" },
+  { key: "booking_trends", title: "Booking Trends", summary: "Length of stay, booking weekdays, lead time" },
   { key: "traveller_trends", title: "Traveller Trends", summary: "Source mix, source table, occupancy strip" },
 ] as const;
 

@@ -38,6 +38,18 @@ export interface DraftSnapshot {
   source_breakdown: Record<string, { revenue?: number; nights?: number }>;
   room_count: number;
   totals: Record<string, number | undefined>;
+  /** Booking-trend block written by the source parser; absent on older runs. */
+  booking_trends?: {
+    alos?: number;
+    alos_by_month?: Record<string, number>;
+    bookings?: number;
+    arrival_weekdays?: number[];
+    booked_weekdays?: number[];
+    lead_time_buckets?: Record<string, number>;
+    lead_time_avg?: number | null;
+    lead_time_median?: number | null;
+    has_booked_dates?: boolean;
+  } | null;
 }
 
 export interface DraftInputs {
@@ -1115,6 +1127,102 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       }
     </div>`;
 
+  const kpiRowForTrends = (block: NonNullable<DraftSnapshot["booking_trends"]>): string => `
+    <div class="kpis">
+      ${kpi("Average stay", `${(Number(block.alos) || 0).toFixed(1)} nights`, "sellable bookings")}
+      ${kpi("Bookings counted", Math.round(Number(block.bookings) || 0).toLocaleString("en-ZA"), "arriving in this window")}
+      ${
+        block.has_booked_dates
+          ? kpi("Average lead time", `${Math.round(Number(block.lead_time_avg) || 0)} days`, "booked before arrival")
+          : kpi("Lead time", "not available", "no booking-made date in the upload")
+      }
+    </div>`;
+
+  /* ── Booking trends: length of stay, booking weekdays, lead time ───── */
+  const trends = snapshot.booking_trends ?? null;
+  const weekdayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const weekdayTable = (heading: string, counts: number[] | undefined): string => {
+    if (!Array.isArray(counts) || counts.length !== 7) return "";
+    const total = counts.reduce((sum, value) => sum + (Number(value) || 0), 0);
+    if (total === 0) return "";
+    return `
+    <table class="grid">
+      <thead><tr><th class="left">${esc(heading)}</th>${weekdayNames
+        .map((name) => `<th>${name}</th>`)
+        .join("")}</tr></thead>
+      <tbody>
+        <tr><td class="left">Bookings</td>${counts
+          .map((value) => `<td>${Math.round(Number(value) || 0).toLocaleString("en-ZA")}</td>`)
+          .join("")}</tr>
+        <tr><td class="left muted">Share</td>${counts
+          .map(
+            (value) =>
+              `<td class="muted">${esc(percent((Number(value) || 0) / total, 0))}</td>`,
+          )
+          .join("")}</tr>
+      </tbody>
+    </table>`;
+  };
+  const alosRow = (trends?.alos_by_month ?? {}) as Record<string, number>;
+  const alosTable =
+    Object.keys(alosRow).length === 0
+      ? ""
+      : `
+    <table class="grid">
+      <thead><tr><th class="left">Average length of stay</th>${months
+        .map((key) => `<th>${esc(monthLabel(key))}</th>`)
+        .join("")}</tr></thead>
+      <tbody>
+        <tr><td class="left">Nights per booking</td>${months
+          .map((key) => `<td>${(Number(alosRow[key]) || 0).toFixed(1)}</td>`)
+          .join("")}</tr>
+      </tbody>
+    </table>`;
+  const leadBuckets = (trends?.lead_time_buckets ?? {}) as Record<string, number>;
+  const leadLabels: Record<string, string> = {
+    d0_7: "0–7 days",
+    d8_30: "8–30 days",
+    d31_90: "31–90 days",
+    d91_plus: "91+ days",
+  };
+  const leadTotal = Object.values(leadBuckets).reduce(
+    (sum, value) => sum + (Number(value) || 0),
+    0,
+  );
+  const leadTable =
+    !trends?.has_booked_dates || leadTotal === 0
+      ? `<p class="note">The upload carried no booking-made date, so booking lead time and the
+         weekday bookings were taken on cannot be shown for this period.</p>`
+      : `
+    <table class="grid">
+      <thead><tr><th class="left">Booking lead time</th>${Object.keys(leadLabels)
+        .map((key) => `<th>${esc(leadLabels[key])}</th>`)
+        .join("")}</tr></thead>
+      <tbody>
+        <tr><td class="left">Bookings</td>${Object.keys(leadLabels)
+          .map(
+            (key) =>
+              `<td>${Math.round(Number(leadBuckets[key]) || 0).toLocaleString("en-ZA")}</td>`,
+          )
+          .join("")}</tr>
+        <tr><td class="left muted">Share</td>${Object.keys(leadLabels)
+          .map(
+            (key) =>
+              `<td class="muted">${esc(percent((Number(leadBuckets[key]) || 0) / leadTotal, 0))}</td>`,
+          )
+          .join("")}</tr>
+      </tbody>
+    </table>
+    <p class="note">Average lead time ${Math.round(Number(trends?.lead_time_avg) || 0)} days,
+       median ${Math.round(Number(trends?.lead_time_median) || 0)} days.</p>`;
+  const bookingTrendsBody =
+    !trends || !Number(trends.bookings ?? 0)
+      ? ""
+      : `${kpiRowForTrends(trends)}${alosTable}${weekdayTable(
+          "Arrivals by weekday",
+          trends.arrival_weekdays,
+        )}${weekdayTable("Bookings taken by weekday", trends.booked_weekdays)}${leadTable}`;
+
   const builtPages: { key: string; title: string; body: string }[] = [
     {
       key: "revenue_performance",
@@ -1142,6 +1250,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       title: "Pickup & Rate Trend",
       body: `${figure("pickup-variance")}${figure("adr-trend")}`,
     },
+    ...(bookingTrendsBody.trim().length > 0
+      ? [
+          {
+            key: "booking_trends",
+            title: "Booking Trends",
+            body: bookingTrendsBody,
+          },
+        ]
+      : []),
     ...(sourceEntries.length > 0
       ? [
           {

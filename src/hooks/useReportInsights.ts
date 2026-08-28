@@ -27,6 +27,8 @@ export type SuggestionField =
 export interface InsightSelection {
   include: boolean;
   text: string;
+  /** True once the reviewer reworded it — such text survives a regeneration. */
+  edited?: boolean;
 }
 
 /** TOBI's freer "consultant" second opinion, produced by the experimental pass. */
