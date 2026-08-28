@@ -277,7 +277,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         const hasFootprint =
           !!p.rentalsunited_property_id ||
           units.some((u) => !!u.rentalsunited_property_id);
-        return hasFootprint || (p.ru_push_enabled === true && p.is_active !== false);
+        return hasFootprint || p.ru_push_enabled === true;
       });
 
       // Map each property to its RU owner/sub-user credentials. Prefer a direct
