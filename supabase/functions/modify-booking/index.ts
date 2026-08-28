@@ -261,7 +261,8 @@ async function updateAvailabilityBlockout(
   oldCheckOut: string,
   newCheckIn: string,
   newCheckOut: string,
-  externalSystem: string
+  externalSystem: string,
+  bookingId: string
 ) {
   const roomType = roomTypeId || "default";
 
@@ -270,8 +271,15 @@ async function updateAvailabilityBlockout(
   const datesToRelease = oldDates.filter((d) => !newDates.includes(d));
   if (datesToRelease.length === 0) return;
 
-  // Delete only booking side-effect rows (no operator attribution). Manual and
-  // channel-owned restrictions on the same night are left untouched.
+  // This stay's own stamped holds on the nights it gives up.
+  await supabase
+    .from("property_availability")
+    .delete()
+    .eq("property_id", propertyId)
+    .in("date", datesToRelease)
+    .eq("blocked_reason", `booking:${bookingId}`);
+
+  // Legacy unstamped booking rows. Manual and channel-owned restrictions survive.
   await supabase
     .from("property_availability")
     .delete()
@@ -747,7 +755,8 @@ Deno.serve(async (req) => {
           booking.check_out_date,
           newCheckIn,
           newCheckOut,
-          isRolNative ? "rolos" : externalSystem
+          isRolNative ? "rolos" : externalSystem,
+          booking.id
         );
         console.log("Updated availability blockout for date change");
       } catch (err) {
