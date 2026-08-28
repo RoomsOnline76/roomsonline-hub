@@ -53,7 +53,7 @@ interface CloseOutcome {
   message: string;
 }
 
-type KeyGenState = "queued" | "running" | "minted" | "already_held" | "master_pair" | "rate_limited" | "refused";
+type KeyGenState = "queued" | "running" | "minted" | "already_held" | "master_pair" | "not_enabled" | "rate_limited" | "refused";
 
 interface KeyGenOutcome {
   state: KeyGenState;
@@ -66,6 +66,7 @@ const KEYGEN_LABEL: Record<KeyGenState, string> = {
   minted: "Key minted & stored",
   already_held: "Key already held",
   master_pair: "Channel issued a master pair — discarded",
+  not_enabled: "API key creation not enabled",
   rate_limited: "Rate limited — retry shortly",
   refused: "Channel refused the mint",
 };
@@ -76,6 +77,7 @@ const KEYGEN_VARIANT: Record<KeyGenState, "secondary" | "outline" | "destructive
   minted: "secondary",
   already_held: "secondary",
   master_pair: "destructive",
+  not_enabled: "destructive",
   rate_limited: "outline",
   refused: "destructive",
 };

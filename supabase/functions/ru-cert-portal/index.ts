@@ -4832,7 +4832,25 @@ Deno.serve(async (req) => {
       }
 
       if (!created) {
-        if (lastFailure) return { ok: false, ...lastFailure, attempts };
+        if (lastFailure) {
+          // RU uses Status -4 for password-envelope key creation even when the portal
+          // credentials are valid but XML API key creation is not enabled for the child.
+          // After both child-only attempts have been refused, classify the result as an
+          // entitlement block instead of telling the operator to keep changing a known
+          // password. Never fall back to the master account here.
+          if (lastFailure.authRefused && attempts.length > 1 && attempts.every((attempt) => attempt.includes("refused (-4)"))) {
+            return {
+              ok: false,
+              ...lastFailure,
+              code: "RU_KEY_CREATION_NOT_ENABLED",
+              message:
+                `The channel refused both child-authenticated API-key creation attempts for sub-account ${opts.ownerId}. ` +
+                "The portal password may still be valid; XML API key creation must be enabled for this sub-account before a child key can be issued.",
+              attempts,
+            };
+          }
+          return { ok: false, ...lastFailure, attempts };
+        }
         if (deferral) {
           return {
             ok: false,
@@ -5124,8 +5142,11 @@ Deno.serve(async (req) => {
       const status = minted.rateDeferred
         ? "rate_limited"
         : minted.code === "RU_KEY_CREATION_NOT_ENABLED"
-          ? "master_pair"
+          ? "not_enabled"
           : "refused";
+      // A channel refusal is a handled business outcome, not an edge-function runtime
+      // failure. Return it in the normal response envelope so the roster can render the
+      // per-account remedy instead of the preview surfacing a generic function error.
       return json({
         success: false,
         status,
@@ -5137,7 +5158,7 @@ Deno.serve(async (req) => {
           code: minted.code ?? "RU_CREATE_KEY_FAILED",
           message: minted.message ?? "The channel did not issue a key pair for this sub-account.",
         },
-      }, minted.rateDeferred ? 429 : 422);
+      }, 200);
     }
 
     if (action === "list_stored_api_keys") {
