@@ -565,6 +565,14 @@ export function MasterRosterPanel() {
               const retired = result.retiredIds.has(ownerId);
               const closable = closableIds.has(ownerId);
               const outcome = outcomes[ownerId];
+              const storedKey = keyByOwner.get(ownerId);
+              const keyBadge = !storedKey
+                ? { text: "No key", variant: "outline" as const }
+                : storedKey.key_scope === "child"
+                  ? { text: `Child key held ····${String(storedKey.access_key ?? "").slice(-4)}`, variant: "secondary" as const }
+                  : storedKey.key_scope === "master_pair"
+                    ? { text: "Master pair (unusable)", variant: "destructive" as const }
+                    : { text: "Key held — unverified", variant: "outline" as const };
               return (
                 <div
                   key={ownerId || label(u)}
