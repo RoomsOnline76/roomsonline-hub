@@ -1945,17 +1945,17 @@ function buildChildAuthXml(auth: ChildAuth): string {
 }
 
 /**
- * Key-mint only: the owner-scoped variant authenticates with the master pair and names
- * the sub-account in <OwnerID>. It is deliberately NOT part of `ChildAuth`, so it can
- * never reach a child-scoped write path.
+ * Key-mint auth. Push_CreateApiKey_RQ has NO OwnerID element in the documented schema:
+ * the channel issues the pair for whichever account authenticates, so a master envelope
+ * can only ever produce a MASTER pair. A child mint is therefore child-credentialled only.
  */
-type ChildAuthForKeyMint = ChildAuth | { mode: 'owner_scoped'; access_key: string; secret_key: string; owner_id: string };
+type ChildAuthForKeyMint = ChildAuth;
 
 function childAuthMode(auth: ChildAuthForKeyMint | null): string {
   if (!auth) return 'parent_access_key';
-  if (auth.mode === 'owner_scoped') return 'master_owner_scoped';
   return auth.mode === 'keys' ? 'child_api_keys' : 'child_user_password';
 }
+
 
 
 /**
