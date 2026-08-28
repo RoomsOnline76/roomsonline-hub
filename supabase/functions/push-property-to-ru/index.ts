@@ -5883,7 +5883,29 @@ Deno.serve(async (req) => {
           expectedLocationId: locationId,
         });
         pushExtras.currency_verification = { ...pushExtras.currency_verification, corrective_flip: corrective };
+
+        /**
+         * Amounts already published under the wrong ISO are not restated by the channel when the
+         * location flips, so re-send the identical price payload with the write forced past the
+         * unchanged-hash skip. Nights then read as the authored currency, not converted USD.
+         */
+        if (corrective?.matches === true && !dry_run) {
+          const repush = await pushARIUnlessStatic(
+            finalRuId,
+            property as PropertyRow,
+            1,
+            undefined,
+            childAuthPayload,
+            currencyDecision,
+            { forcePrices: true },
+          );
+          pushExtras.currency_verification = {
+            ...pushExtras.currency_verification,
+            prices_repushed_after_flip: { prices_pushed: repush.prices_pushed === true, error: repush.prices_error ?? null },
+          };
+        }
       }
+
 
     }
 
