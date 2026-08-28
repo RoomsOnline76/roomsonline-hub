@@ -135,12 +135,45 @@ async function recordLedgerPassForOwnerAccount(
 const RUN_COOLDOWN_SECONDS = 60;
 
 /**
- * Shared operator password for every ROLOS-created RU sub-account. Step A retains it
- * so automatic API key creation can be retried without asking the operator for a value
- * the system already generated. Meets RU policy (12+ chars, upper, lower, digit and a
- * special character from RU's set).
+ * LEGACY shared operator password. Sub-accounts created before per-account passwords were
+ * introduced were all created with this literal, so it stays available as a last-resort mint
+ * credential for those accounts. New accounts NEVER use it — see generateSubUserPassword().
+ * Meets RU policy (12+ chars, upper, lower, digit and a special character from RU's set).
  */
 const RU_SUB_USER_PASSWORD = "SLPafrica247*";
+
+/**
+ * Per-account channel password, generated once and persisted verbatim (encrypted) in the same
+ * Step A run that sends it in Push_CreateUser_RQ. Documented RU policy: at least 12 chars,
+ * at least one lowercase, one uppercase, one digit, one special character, and it must not
+ * contain the user's email address.
+ */
+const generateSubUserPassword = (loginEmail?: string | null): string => {
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const digits = "23456789";
+  const specials = "!*#$%&+-=?";
+  const pool = lower + upper + digits + specials;
+  const pick = (set: string) => set[crypto.getRandomValues(new Uint32Array(1))[0] % set.length];
+  const emailLocal = String(loginEmail ?? "").trim().toLowerCase().split("@")[0] ?? "";
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const chars = [pick(lower), pick(upper), pick(digits), pick(specials)];
+    while (chars.length < 16) chars.push(pick(pool));
+    // Shuffle so the guaranteed classes are not always in the first four positions.
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = crypto.getRandomValues(new Uint32Array(1))[0] % (i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    const candidate = chars.join("");
+    const lowered = candidate.toLowerCase();
+    const containsEmail = Boolean(loginEmail && lowered.includes(String(loginEmail).trim().toLowerCase()))
+      || Boolean(emailLocal.length >= 4 && lowered.includes(emailLocal));
+    if (!containsEmail) return candidate;
+  }
+  // Deterministic compliant fallback (still never contains the email).
+  return `Rol${Date.now().toString(36)}!Ch9`;
+};
+
 
 
 
