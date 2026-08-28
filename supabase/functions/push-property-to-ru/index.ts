@@ -5697,9 +5697,10 @@ Deno.serve(async (req) => {
            */
           if (corrective?.matches === true && !dry_run) {
             const repushed: Record<string, unknown>[] = [];
-            for (const u of unitsToPush as any[]) {
-              const uid = parseInt(String(u?.rentalsunited_property_id ?? '0'), 10);
-              if (!(uid > 0)) continue;
+            for (const done of unitResults.filter((u: any) => u.success && u.rentalsunited_property_id) as any[]) {
+              const uid = parseInt(String(done.rentalsunited_property_id), 10);
+              const u = (unitsToPush as any[]).find((x: any) => x.id === done.room_type_id);
+              if (!(uid > 0) || !u) continue;
               const r = await pushARIUnlessStatic(
                 uid,
                 property as PropertyRow,
@@ -5709,6 +5710,7 @@ Deno.serve(async (req) => {
                 currencyDecision,
                 { forcePrices: true },
               );
+
               repushed.push({ ru_property_id: uid, prices_pushed: r.prices_pushed === true, error: r.prices_error ?? null });
               await new Promise((res) => setTimeout(res, 1000));
             }
