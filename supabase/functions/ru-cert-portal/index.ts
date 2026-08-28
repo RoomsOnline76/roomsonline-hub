@@ -6491,7 +6491,6 @@ Deno.serve(async (req) => {
     if (action === "close_unbound_account") {
       const ownerId = String(body.ru_owner_id ?? "").trim();
       const note = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
-      const suppliedPassword = typeof body.password === "string" && body.password ? body.password : null;
       const cooldownSeconds = Math.min(
         300,
         Math.max(30, Number.isFinite(Number(body.cooldown_seconds)) ? Number(body.cooldown_seconds) : 60),
@@ -7256,12 +7255,12 @@ Deno.serve(async (req) => {
       for (const owner of staleOwners) {
         const { data: cred } = await admin
           .from("ru_api_credentials")
-          .select("portal_email")
+          .select("login_email")
           .eq("ru_owner_id", owner)
           .maybeSingle();
         await admin.from("ru_retired_accounts").upsert({
           ru_owner_id: owner,
-          portal_email: cred?.portal_email ?? null,
+          portal_email: cred?.login_email ?? null,
           reason: `Sterilized with ${prop.name} for a fresh channel connection`,
           retired_by: user.id,
         }, { onConflict: "ru_owner_id" });
