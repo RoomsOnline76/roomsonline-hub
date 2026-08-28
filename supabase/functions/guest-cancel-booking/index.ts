@@ -254,14 +254,15 @@ Deno.serve(async (req) => {
         for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
           dates.push(d.toISOString().split("T")[0]);
         }
-        for (const date of dates) {
-          await supabase
-            .from("property_availability")
-            .update({ is_stop_sell: false, available_units: 1 })
-            .eq("property_id", booking.property_id)
-            .eq("date", date)
-            .eq("external_system", "manual");
-        }
+        // Booking side-effect rows only — a manual operator block stays closed.
+        await supabase
+          .from("property_availability")
+          .delete()
+          .eq("property_id", booking.property_id)
+          .in("date", dates)
+          .eq("external_system", "rolos")
+          .is("blocked_by", null)
+          .is("blocked_reason", null);
       } catch (e) {
         console.error("Availability restore failed (non-critical):", e);
       }
