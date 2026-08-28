@@ -2769,15 +2769,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── create_child_api_key: Push_CreateApiKey_RQ (authenticated AS the sub-user) ──
+    // ── create_child_api_key: Push_CreateApiKey_RQ ──
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
       /**
-       * Owner-scoped mint: the channel returns "Incorrect login or password" for the
-       * sub-account's own login envelope even on an account it created seconds earlier,
-       * so Step A may ask for a master-authenticated mint that carries <OwnerID>. This
-       * is key creation only — child-scoped company/building writes still authenticate
-       * as the child (see the RU child isolation lock).
+       * White-label first-key mint: authenticate with the WL master pair and carry the
+       * target child <OwnerID>. This capability is limited to this key-creation action;
+       * every company, property, content and ARI write remains child-authenticated.
        */
       const ownerScopedId = body.owner_scoped_mint === true && body.owner_id != null
         ? String(body.owner_id).trim()

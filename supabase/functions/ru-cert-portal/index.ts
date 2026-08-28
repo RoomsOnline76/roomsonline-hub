@@ -4715,54 +4715,28 @@ Deno.serve(async (req) => {
 
 
       /**
-       * Ordered mint variants — CHILD IDENTITY ONLY:
-       *   1. the sub-account's OWN login/password envelope (the account mints its own pair)
-       *   2. an EXISTING stored child key pair (rotation on an account that already holds one)
-       *   3. one short-delayed repeat of whichever envelope was available, for transport blips
+       * RU white-label key provisioning is owner-scoped: authenticate the key-creation
+       * request with the WL master pair and identify the child with <OwnerID>. Live request
+       * history confirms this succeeds while a new child's UserName/Password envelope is
+       * rejected with status -4. This authority is restricted to key creation; it is never
+       * passed to company, property, content or ARI writes.
        *
-       * The master account is NEVER used to mint a key for a sub-account: the channel returns a
-       * pair that belongs to the MASTER even when <OwnerID> names the child, which is exactly how
-       * unusable "master pairs" (and master-footprint listings) were created.
+       * Use one deterministic request. Repeating Push_CreateApiKey_RQ inside the one-minute
+       * method window only creates misleading local/channel throttles.
        */
-      /**
-       * Each variant carries its OWN key label. The channel (and our sliding-window
-       * gate in front of it) allows one call per method with the same parameters per
-       * minute — a byte-identical retry was being rejected as a duplicate before it
-       * ever reached the channel, which masked the real refusal as a rate deferral.
-       */
-      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string; delayMs?: number }> = [];
-      const passwordBody: Record<string, unknown> | null =
-        opts.authUsername && opts.authPassword
-          ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
-          : null;
-      const credentialBody: Record<string, unknown> | null =
-        opts.authAccessKey && opts.authSecretKey
-          ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
-          : null;
-      if (passwordBody) {
-        variants.push({ label: "child_password", body: passwordBody, keyLabel: `${keyLabel}-p` });
-      }
-      if (credentialBody) {
-        variants.push({ label: "child_credential", body: credentialBody, keyLabel });
-      }
-      const retryBody = passwordBody ?? credentialBody;
-      if (retryBody) {
-        variants.push({
-          label: passwordBody ? "child_password_retry" : "child_credential_retry",
-          body: retryBody,
-          keyLabel: `${keyLabel}-r2`,
-          delayMs: 6_000,
-        });
-      }
-
-
+      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string }> = opts.ownerId
+        ? [{
+            label: "master_owner_scoped",
+            body: { owner_scoped_mint: true, owner_id: opts.ownerId },
+            keyLabel: `${keyLabel}-m`,
+          }]
+        : [];
 
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "RU_CHILD_AUTH_REQUIRED",
-          message:
-            "No sub-account credential is available to mint with. The sub-account's own login and password (or an existing child key pair) are required — the master account is never used to mint a child key.",
+          code: "RU_OWNER_ID_REQUIRED",
+          message: "A child OwnerID is required for white-label API-key creation.",
         };
       }
 
@@ -4781,7 +4755,6 @@ Deno.serve(async (req) => {
       let deferral: { retryAfterMs: number; message: string; ruStatusId: string | null; ruStatusMessage: string | null } | null = null;
 
       for (const variant of variants) {
-        if (variant.delayMs) await new Promise((resolve) => setTimeout(resolve, variant.delayMs));
         const { data, error: invokeError } = await admin.functions.invoke("rentalsunited-api", {
           body: { action: "create_child_api_key", key_label: variant.keyLabel, ...variant.body },
         });
@@ -4830,8 +4803,10 @@ Deno.serve(async (req) => {
           || String(ruStatusId ?? "") === "-4"
           || /incorrect login|login or password/i.test(`${rawMessage} ${ruStatusMessage ?? ""}`);
         attempts.push(`${variant.label}: ${authRefused ? "refused (-4)" : (errorCode || "failed")}`);
+        const keyLimitReached = String(ruStatusId ?? "") === "387"
+          || /limit of 10 keys/i.test(`${rawMessage} ${ruStatusMessage ?? ""}`);
         lastFailure = {
-          code: errorCode || "RU_CREATE_KEY_FAILED",
+          code: keyLimitReached ? "RU_MASTER_KEY_LIMIT_REACHED" : (errorCode || "RU_CREATE_KEY_FAILED"),
           message: rawMessage || "Rentals United did not return a new API key pair.",
           ruStatusId,
           ruStatusMessage,
@@ -4843,22 +4818,6 @@ Deno.serve(async (req) => {
 
       if (!created) {
         if (lastFailure) {
-          // RU uses Status -4 for password-envelope key creation even when the portal
-          // credentials are valid but XML API key creation is not enabled for the child.
-          // After both child-only attempts have been refused, classify the result as an
-          // entitlement block instead of telling the operator to keep changing a known
-          // password. Never fall back to the master account here.
-          if (lastFailure.authRefused && attempts.length > 1 && attempts.every((attempt) => attempt.includes("refused (-4)"))) {
-            return {
-              ok: false,
-              ...lastFailure,
-              code: "RU_KEY_CREATION_NOT_ENABLED",
-              message:
-                `The channel refused both child-authenticated API-key creation attempts for sub-account ${opts.ownerId}. ` +
-                "The portal password may still be valid; XML API key creation must be enabled for this sub-account before a child key can be issued.",
-              attempts,
-            };
-          }
           return { ok: false, ...lastFailure, attempts };
         }
         if (deferral) {
@@ -4876,16 +4835,9 @@ Deno.serve(async (req) => {
         return { ok: false, code: "RU_CREATE_KEY_FAILED", message: "Rentals United did not return a new API key pair.", attempts };
       }
 
-      /**
-       * 🔒 Master-footprint guard: Push_CreateApiKey_RQ authenticated with the MASTER
-       * envelope returns a key pair that belongs to the MASTER account even though the
-       * request named <OwnerID>. Storing it as this sub-account's pair makes every later
-       * push authenticate as master, so the listing lands in the master account's
-       * footprint (that is how listing 5948442 "Leopard" got there). Prove the new pair
-       * cannot enumerate the roster — only a parent account can — before storing it.
-       */
+      /** Prove the issued pair belongs to the requested child before storing or using it. */
       if (opts.ownerId) {
-        const { data: scopeData } = await admin.functions.invoke("rentalsunited-api", {
+        const { data: scopeData, error: scopeError } = await admin.functions.invoke("rentalsunited-api", {
           body: {
             action: "verify_child_key_owner",
             owner_id: opts.ownerId,
@@ -4893,9 +4845,15 @@ Deno.serve(async (req) => {
             auth_secret_key: created.secret_key,
           },
         });
-        if (scopeData?.key_scope === "master_pair") {
-          attempts.push(`${createdLabel}: discarded — pair authenticates as the master account`);
-          // Best effort: remove the pair we just created on the master account.
+        const verifiedChild = !scopeError
+          && scopeData?.success === true
+          && scopeData?.owns === true
+          && scopeData?.key_scope === "child";
+        if (!verifiedChild) {
+          const verificationReason = scopeData?.reason
+            ?? (scopeData?.key_scope === "master_pair" ? "KEYS_ARE_MASTER_PAIR" : "OWNER_VERIFICATION_FAILED");
+          attempts.push(`${createdLabel}: discarded — ${verificationReason}`);
+          // Best effort: revoke the untrusted pair. It is never persisted or used for writes.
           await admin.functions.invoke("rentalsunited-api", {
             body: {
               action: "delete_child_api_key",
@@ -4907,14 +4865,18 @@ Deno.serve(async (req) => {
           }).catch(() => {});
           return {
             ok: false,
-            code: "RU_KEY_CREATION_NOT_ENABLED",
+            code: verificationReason === "KEYS_ARE_MASTER_PAIR"
+              ? "RU_KEYS_ARE_MASTER_PAIR"
+              : verificationReason === "KEYS_BELONG_TO_ANOTHER_ACCOUNT"
+                ? "RU_KEY_OWNER_MISMATCH"
+                : "RU_KEY_OWNER_VERIFICATION_FAILED",
             message:
-              `The channel issued a key pair that authenticates as our MASTER account rather than sub-account ${opts.ownerId}. ` +
-              "It was discarded instead of stored — using it would create the listing on the master account. " +
-              "API key creation must be enabled for this sub-account at the channel before Step A can finish.",
+              `The channel issued a key pair, but it was not proven to belong to sub-account ${opts.ownerId}. ` +
+              `It was discarded before any inventory write (${verificationReason}).`,
             attempts,
           };
         }
+        attempts.push(`${createdLabel}: verified child OwnerID ${opts.ownerId}`);
       }
 
       const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: created.secret_key });
