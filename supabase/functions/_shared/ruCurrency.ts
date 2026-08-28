@@ -570,8 +570,26 @@ export async function decideRuCurrency(
     return d;
   }
 
+  // Only an explicit refusal by the channel may tip a property into USD publication. A dry run,
+  // or a state where no flip was ever attempted, is inconclusive — never a refusal.
+  if (flip !== 'failed' || opts.dryRun) {
+    const d = decide({
+      location_iso: locationIso,
+      published_iso: authored,
+      conversion_in_force: false,
+      fx_rate: null,
+      effective_rate: null,
+      flip_outcome: flip,
+      reason: opts.dryRun
+        ? `Dry run: no currency write sent for location ${opts.locationId}; ${authored} would be retained.`
+        : `Currency for location ${opts.locationId} is not confirmed yet (${flip}). ${authored} is retained pending the listing read-back.`,
+    });
+    await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+    return d;
+  }
 
   // ZAR cannot be held for this location → USD fallback with live rate + margin.
+
   const fx = await getFxRate(supabase, authored, FALLBACK_ISO);
   if (fx.rate == null) {
     const d = decide({
