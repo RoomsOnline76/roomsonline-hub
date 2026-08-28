@@ -35,19 +35,22 @@ export type CurrencyDecision = {
   fx_rate: number | null;
   margin_pct: number;
   effective_rate: number | null;
-  flip_outcome: 'not_needed' | 'already_set' | 'flipped' | 'failed' | 'unknown_location' | 'deferred';
+  flip_outcome: 'not_needed' | 'already_set' | 'already_set_readback' | 'flipped' | 'failed' | 'unknown_location' | 'deferred';
   reason: string;
   /** True when no Push_ChangeCurrency_RQ was sent because the channel already holds the ISO. */
   write_skipped?: boolean;
-  skip_reason?: 'currency_already_set' | 'currency_already_set_location';
+  skip_reason?: 'currency_already_set' | 'currency_already_set_location' | 'currency_already_set_readback';
   blocked?: boolean;
   block_reason?: string;
   /** The RU account the flip/verification was performed as ('master' or the sub-user OwnerID). */
   owner_scope?: string;
   /** Currency RU itself reported on read-back (Pull_GetProperty_RQ). Null = never verified. */
   ru_reported_iso?: string | null;
+  /** Location RU itself reported on the same read-back. Null = not reported. */
+  ru_reported_location_id?: number | null;
   verified_at?: string | null;
   verified_ru_property_id?: number | null;
+
 };
 
 /** RU applies currency per authenticating account, so every cached value is scoped to one. */
