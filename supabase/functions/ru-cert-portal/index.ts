@@ -7230,8 +7230,46 @@ Deno.serve(async (req) => {
       });
 
       // ── 3. Archive the historical listings at the channel ──
+      /**
+       * The accounts that own the stale listings are being retired by this run, so they are
+       * recorded in the retired registry first. That registry is what authorises the archive-only
+       * master-scoped write: without the entry the channel refuses the archive (a dead account has
+       * no child keys and the API will not mint any), and the listing would stay live forever.
+       * The kept binding is never registered — it is still in service.
+       */
+      const keptOwners = new Set<string>();
+      for (const id of keepListings) {
+        const o = listingOwners.get(id);
+        if (o) keptOwners.add(o);
+      }
+      if (keepBinding) {
+        const { data: boundRow } = await admin
+          .from("ru_owner_accounts")
+          .select("ru_owner_id")
+          .eq("property_id", propertyId)
+          .maybeSingle();
+        const bound = String(boundRow?.ru_owner_id ?? "").trim();
+        if (/^\d+$/.test(bound)) keptOwners.add(bound);
+      }
+      const staleOwners = [...new Set(targets.map((id) => listingOwners.get(id)).filter((o): o is string => !!o))]
+        .filter((o) => !keptOwners.has(o));
+      for (const owner of staleOwners) {
+        const { data: cred } = await admin
+          .from("ru_api_credentials")
+          .select("portal_email")
+          .eq("ru_owner_id", owner)
+          .maybeSingle();
+        await admin.from("ru_retired_accounts").upsert({
+          ru_owner_id: owner,
+          portal_email: cred?.portal_email ?? null,
+          reason: `Sterilized with ${prop.name} for a fresh channel connection`,
+          retired_by: user.id,
+        }, { onConflict: "ru_owner_id" });
+      }
+
       const archived: string[] = [];
       const orphaned: { ru_property_id: string; ru_owner_id: string | null; message: string }[] = [];
+
       for (const listing of targets) {
         const owner = listingOwners.get(listing) ?? null;
         if (!owner) {
