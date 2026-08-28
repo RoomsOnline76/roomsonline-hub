@@ -71,7 +71,7 @@ export async function enqueueJob(
     if (options.dedupeKey) {
       const { data: existing, error: readError } = await supabase
         .from("background_jobs")
-        .select("id, payload")
+        .select("id, payload, max_attempts")
         .eq("job_type", jobType)
         .eq("dedupe_key", options.dedupeKey)
         .eq("status", "pending")
