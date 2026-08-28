@@ -8783,11 +8783,13 @@ Deno.serve(async (req) => {
           // A hard failure (not an email conflict) gets no fallback — report it below.
           if (!emailTaken) break;
 
-          // RU says the address is taken — first try adopting the existing sub-user
-          // (a prior attempt may have committed on the channel under this exact login).
-          const refreshed = await listRuUsers(true);
-          const recovered = matchByEmail(refreshed)
-            ?? matchByStoredIdentity(refreshed, existing.account as any)
+          // RU says the address is taken — try adopting the sub-user we may already know.
+          // This uses the roster this run ALREADY read (Step A.0) plus our local rows: a
+          // second Pull_ListMyUsers_RQ here is what produced the roster storm and the
+          // throttle loop, and a throttled read is not evidence either way.
+          const known = await listRuUsers();
+          const recovered = matchByEmail(known)
+            ?? matchByStoredIdentity(known, existing.account as any)
             ?? await adoptLocalByEmail();
           if (recovered) {
             userAccountId = recovered.user_account_id ?? null;
@@ -8796,7 +8798,11 @@ Deno.serve(async (req) => {
             adopted = true;
             break;
           }
+          // A login the operator submitted explicitly is never swapped for another —
+          // report the conflict and let them choose.
+          if (confirmedEmail) break;
           // …otherwise continue with the next generated login.
+
         }
 
         if (!adopted && (createErr || !created?.success)) {
