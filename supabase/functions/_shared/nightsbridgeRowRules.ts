@@ -11,10 +11,12 @@ import type { LedgerRow } from "./nightsbridgeAggregate.ts";
 export type RowClass =
   | "sellable"
   | "blocked_zero_revenue"
+  | "unavailable"
   | "room_zero"
   | "event"
   | "holding_credit"
   | "excluded_by_rule";
+
 
 export interface RowRules {
   /** Labels whose zero-revenue rows still count as occupied nights. */
