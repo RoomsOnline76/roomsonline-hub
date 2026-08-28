@@ -1,6 +1,6 @@
 import type { ChannelOnboardTaskId } from "@/config/channelOnboard";
 
-export type StepARemedyKind = "password" | "login_choice" | "binding" | "fresh_login" | "retry";
+export type StepARemedyKind = "password" | "login_choice" | "binding" | "fresh_login" | "retry" | "api_keys";
 
 export interface StepARemedy {
   code: string;
