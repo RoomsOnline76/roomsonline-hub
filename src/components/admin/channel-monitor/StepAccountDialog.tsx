@@ -644,8 +644,63 @@ export function StepAccountDialog({
             </CardContent>
           </Card>
 
+          {/* 2a — Step A.2 pause: enter the AccessKey/SecretKey issued for this sub-account */}
+          {(planAccountId || plan?.ru_owner_id) && !planHasKeys && (
+            <Card className="border-amber-500/50" ref={keyCardRef}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <KeyRound className="h-4 w-4" />
+                  Step A.2 — API key pair
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  The sub-account is created. Sign in to the channel portal as{" "}
+                  <span className="font-mono">{planLogin || "this sub-account"}</span>, create its API key
+                  pair, then enter both values here. Step A verifies and stores them, then continues.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">AccessKey</Label>
+                    <Input
+                      ref={keyAccessRef}
+                      className="mt-1 font-mono"
+                      value={keyAccess}
+                      onChange={(event) => setKeyAccess(event.target.value)}
+                      placeholder="AccessKey from the channel portal"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SecretKey</Label>
+                    <Input
+                      className="mt-1 font-mono"
+                      value={keySecret}
+                      onChange={(event) => setKeySecret(event.target.value)}
+                      placeholder="SecretKey (shown once)"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={savingKeys || keyAccess.trim().length < 6 || keySecret.trim().length < 6}
+                    onClick={saveKeyPair}
+                  >
+                    {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    Save key pair & verify
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={runningStepA || stepADisabled} onClick={onRunStepA}>
+                    Continue Step A
+                  </Button>
+                </div>
+                {keyNote ? <p className="text-xs text-muted-foreground">{keyNote}</p> : null}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
+
+          {/* 2b — sub-account credentials: portal password for signing in to create the pair */}
+
           {planAccountId && !planHasKeys && (
             <Card className="border-amber-500/50" ref={credCardRef}>
               <CardHeader className="pb-3">
