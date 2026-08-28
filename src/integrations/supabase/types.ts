@@ -16203,6 +16203,69 @@ export type Database = {
           },
         ]
       }
+      ru_reservation_op_claims: {
+        Row: {
+          attempts: number
+          booking_id: string
+          claimed_at: string
+          created_at: string
+          detail: string | null
+          fingerprint: string
+          id: string
+          op: string
+          outcome: string
+          reservation_id: string | null
+          ru_property_id: string | null
+          settled_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          booking_id: string
+          claimed_at?: string
+          created_at?: string
+          detail?: string | null
+          fingerprint: string
+          id?: string
+          op: string
+          outcome?: string
+          reservation_id?: string | null
+          ru_property_id?: string | null
+          settled_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          booking_id?: string
+          claimed_at?: string
+          created_at?: string
+          detail?: string | null
+          fingerprint?: string
+          id?: string
+          op?: string
+          outcome?: string
+          reservation_id?: string | null
+          ru_property_id?: string | null
+          settled_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_reservation_op_claims_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_reservation_op_claims_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings_decrypted"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_retired_accounts: {
         Row: {
           channel_archive_result: Json | null
