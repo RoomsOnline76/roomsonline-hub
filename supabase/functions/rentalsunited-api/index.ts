@@ -408,7 +408,9 @@ function extractStatusId(xml: string): { id: string; message: string } {
   if (errorMatch) {
     return { id: errorMatch[1], message: errorMatch[2]?.trim() || 'RU error' };
   }
-  const idMatch = xml.match(/<Status\s+ID="(\d+)"/);
+  // RU failure and throttling statuses are signed (for example -4, -5 and -6).
+  // Treating the sign as absent made these responses fall back to ID 0 (success).
+  const idMatch = xml.match(/<Status\s+ID="(-?\d+)"/);
   const msgMatch = xml.match(/<Status[^>]*>(.*?)<\/Status>/s);
   return {
     id: idMatch?.[1] || '0',
