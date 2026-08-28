@@ -10,6 +10,8 @@ import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
+import { normaliseRules } from "../_shared/nightsbridgeRowRules.ts";
+import { resolveAdditionalInputs } from "../_shared/reportAdditionalInputs.ts";
 import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
   gridFromDelimited,
@@ -435,10 +437,10 @@ Deno.serve(async (req) => {
     await admin.from("report_snapshots").delete().eq("run_id", runId);
 
 
-    // Property capacity configuration.
+    // Property capacity configuration + zero-revenue row rules.
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, historical_baseline")
+      .select("room_count, historical_baseline, zero_revenue_keep_patterns, row_exclude_patterns")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -466,7 +468,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const aggregate = aggregateLedger(ledger, roomCount);
+    const rowRules = normaliseRules(
+      (settings as { zero_revenue_keep_patterns?: unknown } | null)?.zero_revenue_keep_patterns,
+      (settings as { row_exclude_patterns?: unknown } | null)?.row_exclude_patterns,
+    );
+    const aggregate = aggregateLedger(ledger, roomCount, rowRules);
 
 
     // Uploaded extracts for months before this review window (last year's
@@ -592,18 +598,20 @@ Deno.serve(async (req) => {
       lastYearNights,
     });
 
-    // Manual extras (dinner / room 0 / comp nights) supplied by the reviewer.
+    // Monthly extras: calculated from the export, with reviewer overrides on top.
     const { data: inputs } = await admin
       .from("report_additional_inputs")
-      .select("dinner_by_month, room0_by_month")
+      .select("dinner_by_month, room0_by_month, comp_rns_by_month, overrides")
       .eq("run_id", runId)
       .maybeSingle();
-    const dinner = (inputs?.dinner_by_month ?? {}) as Record<string, number>;
-    const room0 = (inputs?.room0_by_month ?? {}) as Record<string, number>;
+    const resolvedInputs = resolveAdditionalInputs(aggregate.derived_inputs, inputs ?? null);
+    const dinner = resolvedInputs.dinner_by_month;
+    const room0 = resolvedInputs.room0_by_month;
     const additional: Record<string, number> = {};
     for (const key of aggregate.months) {
       additional[key] = (Number(dinner[key]) || 0) + (Number(room0[key]) || 0);
     }
+
 
     const { error: snapshotError } = await admin.from("report_snapshots").upsert(
       {
@@ -621,6 +629,12 @@ Deno.serve(async (req) => {
         adr: aggregate.adr,
         occupancy: aggregate.occupancy,
         non_sellable: aggregate.non_sellable,
+        derived_inputs: aggregate.derived_inputs,
+        excluded_rows: {
+          months: aggregate.excluded_rows,
+          by_reason: aggregate.non_sellable_by_reason,
+          kept_zero_revenue: aggregate.kept_zero_revenue,
+        },
         totals: aggregate.totals,
         room_count: roomCount,
         booking_trends: buildBookingTrends(ledger, aggregate.months),

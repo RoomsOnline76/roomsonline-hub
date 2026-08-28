@@ -1,5 +1,11 @@
 // Shared NightsBridge ledger normalisation + aggregation.
 // Pure functions only — reused by the parser and the Excel/PDF generators.
+import {
+  classifyRow,
+  EMPTY_ROW_RULES,
+  type RowClass,
+  type RowRules,
+} from "./nightsbridgeRowRules.ts";
 
 export interface LedgerRow {
   booking_id: string;
@@ -17,7 +23,31 @@ export interface LedgerRow {
   currency: string;
   /** Date the booking was made, when the export carries one. */
   booked_date?: string | null;
+  /** Guest / company labels, used by the zero-revenue keep and exclude rules. */
+  guest_name?: string | null;
+  company?: string | null;
 }
+
+export interface ExcludedRow {
+  booking_id: string;
+  arrival: string;
+  nights: number;
+  revenue: number;
+  room_name: string;
+  guest_name: string;
+  company: string;
+  source: string;
+  reason: RowClass;
+  matched: string | null;
+}
+
+export interface DerivedInputs {
+  dinner_by_month: Record<string, number>;
+  room0_by_month: Record<string, number>;
+  comp_rns_by_month: Record<string, number>;
+}
+
+export type NonSellableBucket = { revenue: number; nights: number; rows: number };
 
 export interface AggregateResult {
   months: string[]; // ["2026-08", ...]
@@ -27,7 +57,16 @@ export interface AggregateResult {
   adr: Record<string, number>;
   occupancy: Record<string, number>;
   source_breakdown: Record<string, { revenue: number; nights: number }>;
-  non_sellable: Record<string, { revenue: number; nights: number; rows: number }>;
+  /** Combined non-sellable totals per month (kept for backwards compatibility). */
+  non_sellable: Record<string, NonSellableBucket>;
+  /** The same figures split by why the rows were set aside. */
+  non_sellable_by_reason: Partial<Record<RowClass, Record<string, NonSellableBucket>>>;
+  /** Rows set aside, per month, so a reviewer can audit the filter. */
+  excluded_rows: Record<string, ExcludedRow[]>;
+  /** Figures calculated from the ledger that used to be typed in by hand. */
+  derived_inputs: DerivedInputs;
+  /** Zero-revenue rows rescued by the property's keep-list. */
+  kept_zero_revenue: { rows: number; nights: number; patterns: Record<string, number> };
   totals: {
     revenue: number;
     nights: number;
@@ -39,6 +78,10 @@ export interface AggregateResult {
     non_sellable_rows: number;
   };
 }
+
+/** Most rows a single month keeps in the audit list, to bound the payload. */
+const EXCLUDED_ROW_CAP = 250;
+
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -91,18 +134,34 @@ export function daysInMonth(key: string): number {
 /**
  * Aggregates a normalised ledger by arrival month.
  * Occupancy uses roomCount × days-in-month as the denominator.
+ *
+ * Rows that are not sold nights (zero-revenue blocks, Room 0, events, holding in
+ * credit, property exclude-list matches) are set aside per reason and never enter
+ * revenue, room nights, ADR or occupancy.
  */
-export function aggregateLedger(rows: LedgerRow[], roomCount: number): AggregateResult {
+export function aggregateLedger(
+  rows: LedgerRow[],
+  roomCount: number,
+  rules: RowRules = EMPTY_ROW_RULES,
+): AggregateResult {
   const rooms = Number.isFinite(roomCount) && roomCount > 0 ? Math.floor(roomCount) : 1;
 
   const revenue: Record<string, number> = {};
   const nights: Record<string, number> = {};
   const sources: Record<string, { revenue: number; nights: number }> = {};
-  const nonSellable: Record<string, { revenue: number; nights: number; rows: number }> = {};
+  const nonSellable: Record<string, NonSellableBucket> = {};
+  const byReason: Partial<Record<RowClass, Record<string, NonSellableBucket>>> = {};
+  const excludedRows: Record<string, ExcludedRow[]> = {};
+  const dinner: Record<string, number> = {};
+  const roomZero: Record<string, number> = {};
+  const compNights: Record<string, number> = {};
+  const keptPatterns: Record<string, number> = {};
   const monthSet = new Set<string>();
   let extrasTotal = 0;
   let bookings = 0;
   let nonSellableRows = 0;
+  let keptRows = 0;
+  let keptNights = 0;
 
   for (const row of rows) {
     if (!row.arrival) continue;
@@ -111,15 +170,59 @@ export function aggregateLedger(rows: LedgerRow[], roomCount: number): Aggregate
     const key = monthKey(row.arrival);
     monthSet.add(key);
     extrasTotal += row.extras || 0;
+    // Dinner is every row's extras, Events and Room 0 included.
+    dinner[key] = (dinner[key] ?? 0) + (row.extras || 0);
 
-    if (isNonSellableRoom(row.room_name)) {
+    const { klass, matched } = classifyRow(row, rules);
+
+    if (klass !== "sellable") {
       nonSellableRows += 1;
+
       const bucket = nonSellable[key] ?? { revenue: 0, nights: 0, rows: 0 };
       bucket.revenue += row.revenue;
       bucket.nights += row.nights;
       bucket.rows += 1;
       nonSellable[key] = bucket;
+
+      const reasonMonths = byReason[klass] ?? {};
+      const reasonBucket = reasonMonths[key] ?? { revenue: 0, nights: 0, rows: 0 };
+      reasonBucket.revenue += row.revenue;
+      reasonBucket.nights += row.nights;
+      reasonBucket.rows += 1;
+      reasonMonths[key] = reasonBucket;
+      byReason[klass] = reasonMonths;
+
+      if (klass === "room_zero") {
+        roomZero[key] = (roomZero[key] ?? 0) + row.revenue;
+      }
+      if (klass === "blocked_zero_revenue") {
+        compNights[key] = (compNights[key] ?? 0) + row.nights;
+      }
+
+      const list = excludedRows[key] ?? [];
+      if (list.length < EXCLUDED_ROW_CAP) {
+        list.push({
+          booking_id: row.booking_id,
+          arrival: row.arrival,
+          nights: row.nights,
+          revenue: round2(row.revenue),
+          room_name: row.room_name,
+          guest_name: row.guest_name ?? "",
+          company: row.company ?? "",
+          source: row.source,
+          reason: klass,
+          matched,
+        });
+      }
+      excludedRows[key] = list;
       continue;
+    }
+
+    if (matched) {
+      // A zero-revenue row the property's keep-list rescued.
+      keptRows += 1;
+      keptNights += row.nights;
+      keptPatterns[matched] = (keptPatterns[matched] ?? 0) + 1;
     }
 
     bookings += 1;
@@ -153,6 +256,10 @@ export function aggregateLedger(rows: LedgerRow[], roomCount: number): Aggregate
     adr[key] = monthNights > 0 ? round2(monthRevenue / monthNights) : 0;
     occupancy[key] = monthCapacity > 0 ? monthNights / monthCapacity : 0;
 
+    dinner[key] = round2(dinner[key] ?? 0);
+    roomZero[key] = round2(roomZero[key] ?? 0);
+    compNights[key] = compNights[key] ?? 0;
+
     totalRevenue += monthRevenue;
     totalNights += monthNights;
     totalCapacity += monthCapacity;
@@ -164,6 +271,13 @@ export function aggregateLedger(rows: LedgerRow[], roomCount: number): Aggregate
   for (const key of Object.keys(nonSellable)) {
     nonSellable[key].revenue = round2(nonSellable[key].revenue);
   }
+  for (const reason of Object.keys(byReason) as RowClass[]) {
+    const buckets = byReason[reason];
+    if (!buckets) continue;
+    for (const key of Object.keys(buckets)) {
+      buckets[key].revenue = round2(buckets[key].revenue);
+    }
+  }
 
   return {
     months,
@@ -174,6 +288,14 @@ export function aggregateLedger(rows: LedgerRow[], roomCount: number): Aggregate
     occupancy,
     source_breakdown: sources,
     non_sellable: nonSellable,
+    non_sellable_by_reason: byReason,
+    excluded_rows: excludedRows,
+    derived_inputs: {
+      dinner_by_month: dinner,
+      room0_by_month: roomZero,
+      comp_rns_by_month: compNights,
+    },
+    kept_zero_revenue: { rows: keptRows, nights: keptNights, patterns: keptPatterns },
     totals: {
       revenue: round2(totalRevenue),
       nights: totalNights,

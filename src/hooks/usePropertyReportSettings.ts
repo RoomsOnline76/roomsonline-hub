@@ -16,9 +16,24 @@ export interface PropertyReportSettings {
   defaultSourceType: string;
   /** Bespoke report set flag, e.g. `cheetaplains`. */
   specialReportSet: string | null;
+  /** Labels whose 0.00 rows are real nights (e.g. `TOURVEST`). */
+  zeroRevenueKeepPatterns: string[];
+  /** Labels that are never sold nights, whatever the revenue. */
+  rowExcludePatterns: string[];
 }
 
 const KEY = ["reports", "property-settings"] as const;
+
+/** Trimmed, de-duplicated pattern list. */
+const asPatternList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    const text = String(entry ?? "").trim();
+    if (text) seen.add(text);
+  }
+  return [...seen];
+};
 
 export function usePropertyReportSettings(propertyId: string | undefined) {
   const queryClient = useQueryClient();
@@ -49,6 +64,12 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
         defaultSourceType: data.default_source_type ?? "nightsbridge",
         specialReportSet:
           (data as { special_report_set?: string | null }).special_report_set ?? null,
+        zeroRevenueKeepPatterns: asPatternList(
+          (data as { zero_revenue_keep_patterns?: unknown }).zero_revenue_keep_patterns,
+        ),
+        rowExcludePatterns: asPatternList(
+          (data as { row_exclude_patterns?: unknown }).row_exclude_patterns,
+        ),
       };
     },
   });
@@ -68,6 +89,14 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           historical_baseline: (input.historicalBaseline ?? {}) as never,
           default_source_type: input.defaultSourceType ?? "nightsbridge",
           special_report_set: input.specialReportSet ?? null,
+          // Only written when the caller supplies them, so a save from another
+          // card cannot wipe the property's row rules.
+          ...(input.zeroRevenueKeepPatterns
+            ? { zero_revenue_keep_patterns: asPatternList(input.zeroRevenueKeepPatterns) as never }
+            : {}),
+          ...(input.rowExcludePatterns
+            ? { row_exclude_patterns: asPatternList(input.rowExcludePatterns) as never }
+            : {}),
         },
         { onConflict: "property_id" },
       );
@@ -85,25 +114,43 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
   };
 }
 
+export type MonthlyInputField = "dinnerByMonth" | "room0ByMonth" | "compRnsByMonth";
+
+/** Which months the reviewer typed over, so a re-parse leaves them alone. */
+export interface MonthlyOverrideFlags {
+  dinner_by_month: Record<string, boolean>;
+  room0_by_month: Record<string, boolean>;
+  comp_rns_by_month: Record<string, boolean>;
+}
+
 export interface ReportAdditionalInputs {
   dinnerByMonth: Record<string, number>;
   room0ByMonth: Record<string, number>;
   compRnsByMonth: Record<string, number>;
+  overrides: MonthlyOverrideFlags;
   minStayNotes: string | null;
   promotionsNotes: string | null;
   rateOverrideNotes: string | null;
   freeCommentary: string | null;
 }
 
+const EMPTY_OVERRIDES: MonthlyOverrideFlags = {
+  dinner_by_month: {},
+  room0_by_month: {},
+  comp_rns_by_month: {},
+};
+
 const EMPTY_INPUTS: ReportAdditionalInputs = {
   dinnerByMonth: {},
   room0ByMonth: {},
   compRnsByMonth: {},
+  overrides: EMPTY_OVERRIDES,
   minStayNotes: null,
   promotionsNotes: null,
   rateOverrideNotes: null,
   freeCommentary: null,
 };
+
 
 export function useReportAdditionalInputs(runId: string | undefined) {
   const queryClient = useQueryClient();
@@ -116,15 +163,21 @@ export function useReportAdditionalInputs(runId: string | undefined) {
       const { data, error } = await supabase
         .from("report_additional_inputs")
         .select(
-          "dinner_by_month, room0_by_month, comp_rns_by_month, min_stay_notes, promotions_notes, rate_override_notes, free_commentary",
+          "dinner_by_month, room0_by_month, comp_rns_by_month, overrides, min_stay_notes, promotions_notes, rate_override_notes, free_commentary",
         )
         .eq("run_id", runId)
         .maybeSingle();
       if (error) throw error;
+      const rawOverrides = (data?.overrides ?? {}) as Partial<MonthlyOverrideFlags>;
       return {
         dinnerByMonth: (data?.dinner_by_month ?? {}) as Record<string, number>,
         room0ByMonth: (data?.room0_by_month ?? {}) as Record<string, number>,
         compRnsByMonth: (data?.comp_rns_by_month ?? {}) as Record<string, number>,
+        overrides: {
+          dinner_by_month: rawOverrides.dinner_by_month ?? {},
+          room0_by_month: rawOverrides.room0_by_month ?? {},
+          comp_rns_by_month: rawOverrides.comp_rns_by_month ?? {},
+        },
         minStayNotes: data?.min_stay_notes ?? null,
         promotionsNotes: data?.promotions_notes ?? null,
         rateOverrideNotes: data?.rate_override_notes ?? null,
@@ -142,6 +195,7 @@ export function useReportAdditionalInputs(runId: string | undefined) {
           dinner_by_month: input.dinnerByMonth,
           room0_by_month: input.room0ByMonth,
           comp_rns_by_month: input.compRnsByMonth,
+          overrides: input.overrides as never,
           min_stay_notes: input.minStayNotes,
           promotions_notes: input.promotionsNotes,
           rate_override_notes: input.rateOverrideNotes,

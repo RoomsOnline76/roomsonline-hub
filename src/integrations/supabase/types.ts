@@ -7762,8 +7762,10 @@ export type Database = {
           report_layout_template: Json
           report_logo_url: string | null
           room_count: number
+          row_exclude_patterns: string[]
           special_report_set: string | null
           updated_at: string
+          zero_revenue_keep_patterns: string[]
         }
         Insert: {
           brand_primary?: string | null
@@ -7779,8 +7781,10 @@ export type Database = {
           report_layout_template?: Json
           report_logo_url?: string | null
           room_count?: number
+          row_exclude_patterns?: string[]
           special_report_set?: string | null
           updated_at?: string
+          zero_revenue_keep_patterns?: string[]
         }
         Update: {
           brand_primary?: string | null
@@ -7796,8 +7800,10 @@ export type Database = {
           report_layout_template?: Json
           report_logo_url?: string | null
           room_count?: number
+          row_exclude_patterns?: string[]
           special_report_set?: string | null
           updated_at?: string
+          zero_revenue_keep_patterns?: string[]
         }
         Relationships: [
           {
@@ -8426,6 +8432,7 @@ export type Database = {
           dinner_by_month: Json
           free_commentary: string | null
           min_stay_notes: string | null
+          overrides: Json
           promotions_notes: string | null
           rate_override_notes: string | null
           room0_by_month: Json
@@ -8438,6 +8445,7 @@ export type Database = {
           dinner_by_month?: Json
           free_commentary?: string | null
           min_stay_notes?: string | null
+          overrides?: Json
           promotions_notes?: string | null
           rate_override_notes?: string | null
           room0_by_month?: Json
@@ -8450,6 +8458,7 @@ export type Database = {
           dinner_by_month?: Json
           free_commentary?: string | null
           min_stay_notes?: string | null
+          overrides?: Json
           promotions_notes?: string | null
           rate_override_notes?: string | null
           room0_by_month?: Json
@@ -8798,6 +8807,8 @@ export type Database = {
           booking_trends: Json
           capacity_days: Json
           created_at: string
+          derived_inputs: Json
+          excluded_rows: Json
           last_year_actual: Json
           last_year_room_nights: Json
           months: Json
@@ -8819,6 +8830,8 @@ export type Database = {
           booking_trends?: Json
           capacity_days?: Json
           created_at?: string
+          derived_inputs?: Json
+          excluded_rows?: Json
           last_year_actual?: Json
           last_year_room_nights?: Json
           months?: Json
@@ -8840,6 +8853,8 @@ export type Database = {
           booking_trends?: Json
           capacity_days?: Json
           created_at?: string
+          derived_inputs?: Json
+          excluded_rows?: Json
           last_year_actual?: Json
           last_year_room_nights?: Json
           months?: Json

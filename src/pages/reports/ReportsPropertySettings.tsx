@@ -48,6 +48,13 @@ import {
 
 const HEX = /^#[0-9a-f]{6}$/i;
 
+/** "TOURVEST, Staff" -> ["TOURVEST", "Staff"] */
+const splitPatterns = (value: string): string[] =>
+  value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
 export default function ReportsPropertySettings() {
   const { propertyId } = useParams();
   const navigate = useNavigate();
@@ -74,6 +81,9 @@ export default function ReportsPropertySettings() {
   const [roomCountTouched, setRoomCountTouched] = useState(false);
   const [sourceType, setSourceType] = useState<ReportSourceKey>(DEFAULT_REPORT_SOURCE);
   const [specialSet, setSpecialSet] = useState<string>("none");
+  // Comma-separated while editing; stored as arrays.
+  const [keepPatterns, setKeepPatterns] = useState("");
+  const [excludePatterns, setExcludePatterns] = useState("");
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -97,6 +107,8 @@ export default function ReportsPropertySettings() {
     setLogoInvert(Boolean(settings.logoInvert));
     setBaseline(settings.historicalBaseline ?? {});
     setSpecialSet(settings.specialReportSet ?? "none");
+    setKeepPatterns((settings.zeroRevenueKeepPatterns ?? []).join(", "));
+    setExcludePatterns((settings.rowExcludePatterns ?? []).join(", "));
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
         ? settings.defaultSourceType
@@ -232,6 +244,8 @@ export default function ReportsPropertySettings() {
         historicalBaseline: baseline,
         defaultSourceType: sourceType,
         specialReportSet: specialSet === "none" ? null : specialSet,
+        zeroRevenueKeepPatterns: splitPatterns(keepPatterns),
+        rowExcludePatterns: splitPatterns(excludePatterns),
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -606,6 +620,36 @@ export default function ReportsPropertySettings() {
               onChange={setBaseline}
             />
           </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="keep-patterns">Keep these zero-revenue rows</Label>
+              <Input
+                id="keep-patterns"
+                value={keepPatterns}
+                onChange={(e) => setKeepPatterns(e.target.value)}
+                placeholder="TOURVEST"
+              />
+              <p className="text-xs text-muted-foreground">
+                Rows exported at 0.00 are treated as blocks, maintenance or owner stays and
+                left out of room nights. Comma-separated labels listed here are kept as real
+                nights — matched against guest, company, source and room.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exclude-patterns">Always exclude these rows</Label>
+              <Input
+                id="exclude-patterns"
+                value={excludePatterns}
+                onChange={(e) => setExcludePatterns(e.target.value)}
+                placeholder="Staff, Maintenance"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated labels that are never sold nights, whatever the revenue.
+              </p>
+            </div>
+          </div>
+
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>
