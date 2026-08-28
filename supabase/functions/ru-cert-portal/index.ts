@@ -8858,23 +8858,49 @@ Deno.serve(async (req) => {
         }
 
         if (!adopted) {
-          userAccountId = usableRuId(created.user_account_id) || null;
-          // RU's create response gives the stable sub-account id before the roster can
-          // reliably echo it. In the current roster format the same value is the OwnerID
-          // used by every later owner-scoped call, so keep Step A moving on that identity.
-          ruOwnerId = usableRuId(created.owner_id) || userAccountId;
-          if (ruOwnerId) {
-            await mergeRuRosterUser(admin, {
-              owner_id: ruOwnerId,
-              // Only record a sub-user id the channel actually returned. Mirroring the
-              // OwnerID here made one account print as two ("Owner: X · Sub: X").
-              user_account_id: userAccountId ?? undefined,
-              email: ownerEmail,
-              login_email: ownerEmail,
-            }, { source: "step-a-create" });
-
+          /**
+           * Push_CreateUser_RS returns ONLY Status and ResponseID — the channel never sends
+           * an account id back. The master roster (Pull_ListMyUsers_RQ) is therefore the
+           * single authoritative source for the new OwnerID, and it can lag a fresh create
+           * by a few seconds: read it with a short paced retry rather than saving a row
+           * with a null OwnerID that leaves Step A.2/A.3 running against nothing.
+           */
+          for (let attempt = 1; attempt <= 3 && !ruOwnerId; attempt++) {
+            if (attempt > 1) await new Promise((r) => setTimeout(r, 2000));
             rosterOnce = null;
+            freshRosterRead = false;
+            const refreshed = await listRuUsers(true);
+            const matched = matchByEmail(refreshed);
+            if (matched?.owner_id) {
+              ruOwnerId = usableRuId(matched.owner_id) || null;
+              userAccountId = usableRuId(matched.user_account_id) || null;
+            }
+
           }
+
+          if (!ruOwnerId) {
+            return json({
+              success: false,
+              error: {
+                code: "RU_CREATE_USER_NOT_LISTED",
+                message:
+                  `The sub-user ${ownerEmail} was created at the channel, but the master roster does not list it yet, so its OwnerID could not be resolved. Nothing was saved against a blank identity — re-run Step A in a moment and it will adopt the account.`,
+              },
+              created_at_channel: true,
+              login_email: ownerEmail,
+              preview: preview(created, 2000),
+            }, 202);
+          }
+
+          await mergeRuRosterUser(admin, {
+            owner_id: ruOwnerId,
+            // Only record a sub-user id the channel actually returned. Mirroring the
+            // OwnerID here made one account print as two ("Owner: X · Sub: X").
+            user_account_id: userAccountId && userAccountId !== ruOwnerId ? userAccountId : undefined,
+            email: ownerEmail,
+            login_email: ownerEmail,
+          }, { source: "step-a-create" });
+          rosterOnce = null;
         }
       }
 
@@ -8884,6 +8910,7 @@ Deno.serve(async (req) => {
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
         ruOwnerId = ruOwnerId ?? matched?.owner_id ?? null;
       }
+
 
       if (!adopted && ruOwnerId) {
         await mergeRuRosterUser(admin, {

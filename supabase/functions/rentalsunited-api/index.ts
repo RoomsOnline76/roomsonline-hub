@@ -1784,26 +1784,45 @@ function extractBuildings(xml: string): { id: string; name: string }[] {
 
 // ── User Management XML Builders ─────────────────────────────
 
+/** Push_CreateUser_RQ/FirstName and /LastName are String(50) at the channel. */
+const RU_NAME_MAX_LENGTH = 50;
+
+
+
 function buildCreateUserXml(
   creds: RUCredentials,
   user: { first_name: string; last_name: string; email: string; password: string },
   locationIds: number[],
+  pmsId?: number | null,
 ): string {
   // Per RU spec: FirstName/LastName/Email/Password are DIRECT children of the root
   // (no <User> wrapper) and <Locations> with at least one <LocationId> is mandatory.
+  // FirstName/LastName are String(50) at the channel: an over-long owner or property
+  // name was previously sent unchanged and rejected outright, exactly like the
+  // over-long email was before the 50-character login cap.
+  const first = String(user.first_name).trim().slice(0, RU_NAME_MAX_LENGTH);
+  const last = String(user.last_name).trim().slice(0, RU_NAME_MAX_LENGTH);
   const locations = locationIds.map((id) => `    <LocationId>${id}</LocationId>`).join('\n');
+  // Optional per spec, and it must sit between <Password> and <Locations>. It associates
+  // the new sub-user with the PMS service provided by the channel; without it a child
+  // account is not tied to our provider, which is the documented shape of accounts that
+  // refuse automatic API-key creation.
+  const pms = Number.isFinite(Number(pmsId)) && Number(pmsId) > 0
+    ? `\n  <PMSId>${Number(pmsId)}</PMSId>`
+    : '';
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CreateUser_RQ>
   ${buildAuthXml(creds)}
-  <FirstName>${escapeXml(user.first_name)}</FirstName>
-  <LastName>${escapeXml(user.last_name)}</LastName>
+  <FirstName>${escapeXml(first)}</FirstName>
+  <LastName>${escapeXml(last)}</LastName>
   <Email>${escapeXml(user.email)}</Email>
-  <Password>${escapeXml(user.password)}</Password>
+  <Password>${escapeXml(user.password)}</Password>${pms}
   <Locations>
 ${locations}
   </Locations>
 </Push_CreateUser_RQ>`;
 }
+
 
 
 function buildListUsersXml(creds: RUCredentials): string {
@@ -2335,9 +2354,11 @@ ${locations}
 
 
 function extractUserAccountId(xml: string): string | null {
-  const match = xml.match(/<UserAccountId>(\d+)<\/UserAccountId>/);
+  // The roster spells it `UserAccountID`; older payloads use `UserAccountId`. Accept both.
+  const match = xml.match(/<UserAccountI[dD]>(\d+)<\/UserAccountI[dD]>/);
   return match?.[1] || null;
 }
+
 
 interface RUListedUser {
   user_account_id: string;
@@ -4239,19 +4260,39 @@ Deno.serve(async (req) => {
       const rawLocations = Array.isArray(body.location_ids)
         ? body.location_ids
         : (body.location_id != null ? [body.location_id] : []);
-      const locationIds = rawLocations.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 1);
+      // The LocationId comes from the property setup and is used as given. Only blank,
+      // zero and non-numeric values are dropped — 1 is a valid channel LocationId and
+      // was previously discarded by a `> 1` filter.
+      const locationIds = rawLocations.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0);
       if (locationIds.length === 0) {
         return errorResponse('VALIDATION', 'At least one valid Rentals United LocationId is required to create a sub-user (location_id or location_ids)');
       }
 
-      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password }, locationIds);
+      const pmsId = Number(body.pms_id ?? Deno.env.get('RU_PMS_ID') ?? 0);
+      const xml = buildCreateUserXml(
+        creds,
+        { first_name, last_name, email, password },
+        locationIds,
+        Number.isFinite(pmsId) && pmsId > 0 ? pmsId : null,
+      );
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
+      // Push_CreateUser_RS carries ONLY Status and ResponseID — no account id. Any id we
+      // used to "parse" here was always empty, so the caller must resolve the new OwnerID
+      // from Pull_ListMyUsers_RQ. `user_account_id` is echoed only when the channel ever
+      // sends one and must never be treated as authoritative.
       const userAccountId = extractUserAccountId(response);
-      return jsonResponse({ success: true, user_account_id: userAccountId, message: 'User created successfully', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        user_account_id: userAccountId,
+        identity_authoritative: false,
+        message: 'User created successfully — resolve the OwnerID from the master roster',
+        raw_xml: response,
+      });
     }
+
 
 
     // ── list_users ──
