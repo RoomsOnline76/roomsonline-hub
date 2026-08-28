@@ -3323,6 +3323,10 @@ Deno.serve(async (req) => {
       windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
       availabilityReadback: reqBody.verify_availability_readback === true,
       forceAvailability: reqBody.force_availability === true,
+      // Re-send identical rates on request — needed after a corrective currency flip, where the
+      // amounts are unchanged but were published under the wrong ISO.
+      forcePrices: reqBody.force_prices === true,
+
     };
     /**
      * Building containers are OPT-IN only.
