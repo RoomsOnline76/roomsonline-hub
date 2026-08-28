@@ -193,8 +193,10 @@ async function recentChannelWriteCooldownMs(propertyId: string): Promise<number>
 
 
 const STEP_A_RECOVERABLE_CODES = new Set([
+  "RU_MANUAL_KEYS_REQUIRED",
   "RU_CREATE_KEY_API_REJECTED",
   "RU_KEY_CREATION_NOT_ENABLED",
+
 
   "RU_CREATE_KEY_FAILED",
   "RU_CREATE_KEY_BAD_LOGIN",
