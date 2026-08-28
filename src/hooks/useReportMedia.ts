@@ -96,7 +96,10 @@ export function useReportMedia(
     },
   });
 
-  const slotsQueryKey = useMemo(() => ["report-media-slots", runId], [runId]);
+  const slotsQueryKey = useMemo(
+    () => ["report-media-slots", runId, template.slots.length],
+    [runId, template.slots.length],
+  );
 
   const customSlots = useQuery({
     queryKey: slotsQueryKey,
@@ -286,7 +289,7 @@ export function useReportMedia(
     },
     onSuccess: () => {
       toast.success("Slide section added");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not add the slide section"),
   });
@@ -312,7 +315,7 @@ export function useReportMedia(
       const { error } = await supabase.from("report_media_slots").update(patch as never).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: invalidate,
+    onSuccess: invalidateAndSyncSlots,
     onError: (error: Error) => toast.error(error.message || "Could not update the slide section"),
   });
 
@@ -329,7 +332,7 @@ export function useReportMedia(
     },
     onSuccess: () => {
       toast.success("Slide section removed");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not remove the slide section"),
   });
@@ -372,7 +375,7 @@ export function useReportMedia(
     },
     onSuccess: () => {
       toast.success("Section heading saved");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not save the heading"),
   });
