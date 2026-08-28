@@ -159,7 +159,7 @@ export async function verifyRuPropertyCurrency(
   supabase: any,
   ruPropertyId: number,
   childAuth: Record<string, unknown> = {},
-): Promise<{ iso: string | null; currency_id: number | null; error?: string; deferred?: boolean; retry_after_ms?: number }> {
+): Promise<{ iso: string | null; currency_id: number | null; location_id?: number | null; error?: string; deferred?: boolean; retry_after_ms?: number }> {
   if (!ruPropertyId || ruPropertyId <= 0) return { iso: null, currency_id: null, error: 'no ru_property_id' };
   try {
     // Batch verification fans out many invocations; a single transport blip (worker boot
