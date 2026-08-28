@@ -210,7 +210,16 @@ export async function verifyRuPropertyCurrency(
     }
     if (!iso && currencyId != null) iso = ISO_BY_RU_CURRENCY_ID[currencyId] ?? null;
     if (iso && currencyId == null) currencyId = RU_CURRENCY_BY_ISO[iso] ?? null;
-    return { iso, currency_id: currencyId, error: iso == null ? 'RU response carried no currency' : undefined };
+    // The same read carries the listing's published location, so the location comparison
+    // costs nothing extra — it must never be a separate write or a separate read.
+    const locId = Number(data.detailed_location_id);
+    return {
+      iso,
+      currency_id: currencyId,
+      location_id: Number.isFinite(locId) && locId > 0 ? locId : null,
+      error: iso == null ? 'RU response carried no currency' : undefined,
+    };
+
 
   } catch (e) {
     return { iso: null, currency_id: null, error: e instanceof Error ? e.message : 'read-back threw' };
