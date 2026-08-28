@@ -30,20 +30,21 @@ Deno.test("Push_CreateApiKey_RQ mints the first pair with child login credential
   assertEquals(xml.includes("<AccessKey>"), false);
 });
 
-Deno.test("Push_CreateApiKey_RQ white-label mint keeps Authentication → OwnerID → Label → Scope", () => {
+Deno.test("Push_CreateApiKey_RQ has no OwnerID element and refuses incomplete auth", () => {
   const xml = buildCreateApiKeyXml({
-    mode: "owner_scoped",
-    access_key: "master-access",
-    secret_key: "master-secret",
-    owner_id: "742555",
+    mode: "password",
+    username: "sub-user@example.com",
+    password: "Str0ng!Passw0rd",
   }, "ROLOS");
-  assertStringIncludes(
-    xml,
-    "<Authentication><AccessKey>master-access</AccessKey><SecretKey>master-secret</SecretKey></Authentication><OwnerID>742555</OwnerID><Label>ROLOS</Label><Scope>XmlApi</Scope>",
-  );
-  assertEquals(xml.includes("<UserName>"), false);
-  assertEquals(xml.indexOf("<Authentication>") < xml.indexOf("<OwnerID>"), true);
-  assertEquals(xml.indexOf("<OwnerID>") < xml.indexOf("<Label>"), true);
-  assertEquals(xml.indexOf("<Label>") < xml.indexOf("<Scope>"), true);
+  assertEquals(xml.includes("<OwnerID>"), false);
+
+  let threw = false;
+  try {
+    buildCreateApiKeyXml({ mode: "keys", access_key: "", secret_key: "s" }, "ROLOS");
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
 });
+
 
