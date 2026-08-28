@@ -631,49 +631,22 @@ export async function confirmRuRequest(
   });
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
-  const isBlockedDatesMsg = (msg?: string | null) =>
-    /not available for a given dates|check in or check out/i.test(msg ?? '');
+  const isBlockedDatesMsg = isRuBlockedDatesRefusal;
 
   // Reopen exactly the request's own nights so the channel can accept it. Idempotent.
   const reopenOwnNights = async (): Promise<boolean> => {
     const ruPropertyId = await resolveRuPropertyId(supabase, booking);
     if (!ruPropertyId) return false;
-    // RU's Date From/To covers nights, so the departure day is excluded.
-    const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
-    lastNight.setUTCDate(lastNight.getUTCDate() - 1);
-    /**
-     * The channel validates the departure day too: "Can't check in or check out on selected date"
-     * is raised when the check-out date itself carries a changeover restriction that bars a
-     * departure, even though that night is not part of the stay. So the reopen covers the stay's
-     * nights AND the departure day, both with wire changeover 1 ("arrival and departure allowed").
-     * The following ARI delta re-publishes the true units for the departure day.
-     */
-    const reopened = await invokeRu(supabase, 'push_availability', {
-      ru_property_id: Number(ruPropertyId),
-      availability: [
-        {
-          date_from: booking.check_in_date,
-          date_to: lastNight.toISOString().slice(0, 10),
-          units: 1,
-          changeover: 1,
-        },
-        {
-          date_from: booking.check_out_date,
-          date_to: booking.check_out_date,
-          units: 1,
-          changeover: 1,
-        },
-      ],
-      ...auth,
-    }, {
-
-      propertyId: booking.property_id,
+    return await reopenStayNightsAtChannel(supabase, booking, {
+      auth,
       ruPropertyId,
+      dateFrom: booking.check_in_date,
+      dateTo: booking.check_out_date,
       traceId,
       parentAction: 'ruBookingSync:confirm:reopen',
-      details: { booking_id: booking.id, reservation_id: reservationId },
+      details: { reservation_id: reservationId },
     });
-    return reopened.ok === true;
+
   };
 
   // A confirm parked behind the rate limit retries from the call queue, where the self-heal below
