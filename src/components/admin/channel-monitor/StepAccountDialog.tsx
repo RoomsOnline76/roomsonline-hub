@@ -293,6 +293,9 @@ export function StepAccountDialog({
     setCredCode(null);
     setCredsStored(false);
     setPasswordStored(Boolean(plan?.has_stored_password));
+    setKeyAccess("");
+    setKeySecret("");
+    setKeyNote(null);
   }, [plan?.has_stored_password, planAccountId, planLogin]);
 
   // A credential/key remedy scrolls the card into view and focuses the password field, so the
@@ -307,6 +310,50 @@ export function StepAccountDialog({
     }, 150);
     return () => window.clearTimeout(timer);
   }, [activeRemedy?.remedy, open, remedyCode]);
+
+  // Step A.2 waits for the key pair: put the operator straight on the AccessKey field.
+  useEffect(() => {
+    if (!open) return;
+    if (activeRemedy?.remedy !== "api_keys") return;
+    const timer = window.setTimeout(() => {
+      keyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      keyAccessRef.current?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [activeRemedy?.remedy, open]);
+
+  /** Store the pair issued in the channel portal, then let Step A continue. */
+  const saveKeyPair = useCallback(async () => {
+    if (!planAccountId && !plan?.ru_owner_id) return;
+    setSavingKeys(true);
+    setKeyNote(null);
+    try {
+      const data = await invokeCertPortal({
+        action: "save_api_keys",
+        ...(planAccountId ? { account_id: planAccountId } : {}),
+        ...(plan?.ru_owner_id ? { ru_owner_id: String(plan.ru_owner_id) } : {}),
+        ...(credEmail.trim() ? { login_email: credEmail.trim() } : {}),
+        access_key: keyAccess.trim(),
+        secret_key: keySecret.trim(),
+      }, "The key pair could not be stored");
+
+      if (data.success !== true) {
+        const message = data.error?.message ?? "The key pair could not be stored";
+        setKeyNote(message);
+        toast.error("Key pair was not accepted", { description: message, duration: 12000 });
+        return;
+      }
+      setCredsStored(true);
+      setKeySecret("");
+      setKeyNote("Key pair verified and stored. Continue Step A to finish the account.");
+      toast.success("API key pair stored", {
+        description: "Step A can now complete this sub-account.",
+      });
+    } finally {
+      setSavingKeys(false);
+    }
+  }, [credEmail, keyAccess, keySecret, plan?.ru_owner_id, planAccountId]);
+
 
 
   // Saving the password immediately retries automatic key creation and secure storage.
