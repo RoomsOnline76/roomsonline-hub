@@ -912,6 +912,7 @@ function buildPutConfirmedReservationXml(
           <ClientPrice>${money(stay.client_price)}</ClientPrice>
           <AlreadyPaid>${money(stay.already_paid)}</AlreadyPaid>
           <ChannelCommission>0.00</ChannelCommission>
+          <PriceScale>0</PriceScale>
         </Costs>
       </StayInfo>
     </StayInfos>
