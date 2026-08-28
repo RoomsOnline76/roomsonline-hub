@@ -986,7 +986,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: "Behind the channel's read window — the currency check resumes automatically.",
       };
     }
-    const listings = (row.listings ?? []) as Array<{ ru_reported_iso?: string | null; matches?: boolean; deferred?: boolean }>;
+    const listings = (row.listings ?? []) as Array<{
+      ru_property_id?: number;
+      ru_reported_iso?: string | null;
+      ru_reported_location_id?: number | null;
+      location_matches?: boolean | null;
+      matches?: boolean;
+      deferred?: boolean;
+    }>;
     if (listings.length > 0 && listings.every((l) => l.deferred === true)) {
       return {
         id: "verify_currency",
@@ -1003,14 +1010,46 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `The channel reports ${mismatched.map((l) => l.ru_reported_iso).join(", ")} on ${mismatched.length} listing(s)`,
       };
     }
+    // Location travelled with the property push and the account's region list was sent in
+    // Step A — this step only states which side said what, it never re-writes either.
+    const expectedLocation = row.expected_location_id ?? null;
+    const locationVerdict = String(row.location_verdict ?? "unknown");
+    const locationMismatches = (row.location_mismatches ?? []) as Array<{
+      ru_property_id?: number;
+      ru_reported_location_id?: number | null;
+    }>;
+    if (locationVerdict === "mismatch") {
+      return {
+        id: "verify_currency",
+        outcome: "failed",
+        detail:
+          `The channel publishes a different location than the property authors: expected ${expectedLocation}, ` +
+          `channel reports ${locationMismatches.map((l) => `${l.ru_reported_location_id} on listing ${l.ru_property_id}`).join(", ")}. ` +
+          "Re-push the property so the listing carries the authored location.",
+      };
+    }
     if (row.gate_passed === true || listings.some((l) => l.matches === true)) {
-      return { id: "verify_currency", outcome: "passed", detail: "Location and currency agree on both sides" };
+      const iso = String(row.ru_reported_iso ?? row.expected_iso ?? "").toUpperCase();
+      const locationLine = locationVerdict === "matched"
+        ? `location ${expectedLocation} confirmed on the published listing`
+        : expectedLocation
+          ? `location ${expectedLocation} authored locally (the channel reported none to compare)`
+          : "no location authored locally to compare";
+      const currencyLine = row.used_existing_verdict === true
+        ? `${iso} already confirmed earlier — no read needed`
+        : `${iso} already set at the channel — no write sent`;
+      return {
+        id: "verify_currency",
+        outcome: "passed",
+        detail: `Read-back: ${locationLine}; currency ${currencyLine}.`,
+      };
     }
     return {
       id: "verify_currency",
       outcome: "failed",
       detail: String(row.error ?? row.reason ?? "The channel did not answer with a currency"),
     };
+
   },
 
   entitlement: async (ctx) => {
