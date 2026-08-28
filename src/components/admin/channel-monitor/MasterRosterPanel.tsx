@@ -359,6 +359,16 @@ export function MasterRosterPanel() {
     return map;
   }, [result]);
 
+  /** Live accounts with no verified child key pair — the close verb cannot authenticate for these. */
+  const missingKeyIds = useMemo(
+    () =>
+      (result?.users ?? [])
+        .map((u) => String(u.owner_id ?? "").trim())
+        .filter((id) => id && keyByOwner.get(id)?.key_scope !== "child"),
+    [keyByOwner, result],
+  );
+
+
   /**
    * Rematch every stored pair against this roster read.
    *
