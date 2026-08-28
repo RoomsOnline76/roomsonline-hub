@@ -507,7 +507,7 @@ export function MasterRosterPanel() {
       }
 
       setGenerating(false);
-      setKeySelected(new Set());
+      
       if (minted > 0) {
         toast.success(`${minted} sub-account key pair${minted === 1 ? "" : "s"} minted, verified and stored`);
         read.mutate();
