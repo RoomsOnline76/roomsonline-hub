@@ -24,6 +24,17 @@ export interface PropertyReportSettings {
 
 const KEY = ["reports", "property-settings"] as const;
 
+/** Trimmed, de-duplicated pattern list. */
+const asPatternList = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    const text = String(entry ?? "").trim();
+    if (text) seen.add(text);
+  }
+  return [...seen];
+};
+
 export function usePropertyReportSettings(propertyId: string | undefined) {
   const queryClient = useQueryClient();
 
