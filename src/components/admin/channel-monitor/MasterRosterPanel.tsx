@@ -41,6 +41,8 @@ interface RosterResult {
   retiredIds: Set<string>;
   boundIds: Set<string>;
   storedKeys: StoredKey[];
+  /** Accounts the channel reports as archived/closed — excluded from the list and the counts. */
+  archivedExcluded: number;
   readAt: Date;
 }
 
@@ -51,6 +53,33 @@ interface CloseOutcome {
   message: string;
 }
 
+type KeyGenState = "queued" | "running" | "minted" | "already_held" | "master_pair" | "rate_limited" | "refused";
+
+interface KeyGenOutcome {
+  state: KeyGenState;
+  message: string;
+}
+
+const KEYGEN_LABEL: Record<KeyGenState, string> = {
+  queued: "Waiting",
+  running: "Minting…",
+  minted: "Key minted & stored",
+  already_held: "Key already held",
+  master_pair: "Channel issued a master pair — discarded",
+  rate_limited: "Rate limited — retry shortly",
+  refused: "Channel refused the mint",
+};
+
+const KEYGEN_VARIANT: Record<KeyGenState, "secondary" | "outline" | "destructive"> = {
+  queued: "outline",
+  running: "outline",
+  minted: "secondary",
+  already_held: "secondary",
+  master_pair: "destructive",
+  rate_limited: "outline",
+  refused: "destructive",
+};
+
 type RematchOutcome = "queued" | "running" | "already_correct" | "rematched" | "master_pair" | "duplicate" | "orphan" | "failed";
 
 interface RematchResult {
@@ -58,6 +87,7 @@ interface RematchResult {
   message: string;
   ownerId: string | null;
 }
+
 
 const REMATCH_LABEL: Record<RematchOutcome, string> = {
   queued: "Waiting",
