@@ -23,7 +23,9 @@ export type LedgerField =
   | "status"
   | "type"
   | "currency"
-  | "booked_date";
+  | "booked_date"
+  | "guest_name"
+  | "company";
 
 export type MatchBasis =
   | "exact_header"
@@ -106,7 +108,16 @@ const ALIASES: Record<LedgerField, string[]> = {
     "booking date", "date of booking", "reservation date", "created",
     "created date", "created on", "date captured", "capture date", "date entered",
   ],
+  guest_name: [
+    "guest name", "guest", "guest names", "client", "client name", "name",
+    "made by", "booked by", "lead guest", "main guest", "surname",
+  ],
+  company: [
+    "company", "company name", "account", "account name", "agent name",
+    "travel agent", "organisation", "organization", "group",
+  ],
 };
+
 
 /** Fields the ledger cannot be built without. */
 export const REQUIRED_FIELDS: LedgerField[] = ["arrival", "nights", "revenue", "room_name"];
@@ -130,6 +141,8 @@ export const FIELD_LABELS: Record<LedgerField, string> = {
   type: "Type",
   currency: "Currency",
   booked_date: "Date booked",
+  guest_name: "Guest name",
+  company: "Company / account",
 };
 
 /* ------------------------------------------------------------- value helpers */
@@ -545,6 +558,8 @@ function buildRows(
       type: text(at(row, "type")),
       currency: text(at(row, "currency")) || fallbackCurrency,
       booked_date: toIsoDate(at(row, "booked_date")) || null,
+      guest_name: text(at(row, "guest_name")) || null,
+      company: text(at(row, "company")) || null,
     });
   }
 

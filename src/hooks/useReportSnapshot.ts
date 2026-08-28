@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdapter, unsupportedSourceMessage } from "@/lib/report-adapters";
+import type { DerivedMonthlyInputs } from "@/components/reports/ManualInputsCard";
+import type { ExcludedRowsPayload } from "@/components/reports/ExcludedRowsCard";
 
 /** Booking-behaviour figures derived from the uploaded ledger. */
 export interface BookingTrends {
@@ -30,6 +32,10 @@ export interface ReportSnapshot {
   additionalRevenue: Record<string, number>;
   sourceBreakdown: Record<string, { revenue: number; nights: number }>;
   nonSellable: Record<string, { revenue: number; nights: number; rows: number }>;
+  /** Dinner / Room 0 / Comp RN figures calculated from the export. */
+  derivedInputs: DerivedMonthlyInputs | null;
+  /** Every row the parser set aside, grouped by month, plus keep-list hits. */
+  excludedRows: ExcludedRowsPayload | null;
   adr: Record<string, number>;
   occupancy: Record<string, number>;
   roomCount: number | null;
@@ -136,6 +142,8 @@ export function useReportSnapshot(runId: string | undefined) {
         additionalRevenue: asNumberMap(data.additional_revenue),
         sourceBreakdown: (data.source_breakdown ?? {}) as ReportSnapshot["sourceBreakdown"],
         nonSellable: (data.non_sellable ?? {}) as ReportSnapshot["nonSellable"],
+        derivedInputs: (data.derived_inputs ?? null) as DerivedMonthlyInputs | null,
+        excludedRows: (data.excluded_rows ?? null) as ExcludedRowsPayload | null,
         adr: asNumberMap(data.adr),
         occupancy: asNumberMap(data.occupancy),
         roomCount: data.room_count ?? null,

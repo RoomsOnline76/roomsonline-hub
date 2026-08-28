@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Play, Save } from "lucide-react";
+import { Loader2, Play, RotateCcw, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,24 @@ const money = (value: number): string =>
     maximumFractionDigits: 0,
   }).format(value || 0);
 
-type Draft = Record<string, { dinner: string; room0: string; comp: string }>;
+type DraftField = "dinner" | "room0" | "comp";
+type Draft = Record<string, Record<DraftField, string>>;
+type OverrideSet = Record<DraftField, Record<string, boolean>>;
+
+/** Figures the parser calculated from the export, before any reviewer override. */
+export interface DerivedMonthlyInputs {
+  dinner_by_month?: Record<string, number> | null;
+  room0_by_month?: Record<string, number> | null;
+  comp_rns_by_month?: Record<string, number> | null;
+}
+
+const FIELD_TO_COLUMN: Record<DraftField, keyof DerivedMonthlyInputs> = {
+  dinner: "dinner_by_month",
+  room0: "room0_by_month",
+  comp: "comp_rns_by_month",
+};
+
+const EMPTY_OVERRIDES: OverrideSet = { dinner: {}, room0: {}, comp: {} };
 
 interface Props {
   runId: string;
@@ -25,6 +42,8 @@ interface Props {
   sourceType?: string | null;
   months: string[];
   otbRevenue: Record<string, number>;
+  /** Calculated Dinner / Room 0 / Comp RN figures from the latest parse. */
+  derivedInputs?: DerivedMonthlyInputs | null;
   /** Which half of the card to show: monthly figures, narrative notes, or both. */
   sections?: "all" | "monthly" | "narrative";
   onSaved?: () => void | Promise<void>;
@@ -32,12 +51,14 @@ interface Props {
   isProcessing?: boolean;
 }
 
+
 /** Adapter-driven monthly extras (Dinner / Room 0 / comp nights) and narrative notes. */
 export function ManualInputsCard({
   runId,
   sourceType,
   months,
   otbRevenue,
+  derivedInputs,
   sections = "all",
   onSaved,
   onReprocess,
@@ -66,6 +87,7 @@ export function ManualInputsCard({
       showComp ? "1fr" : null,
       showAdditional ? "7rem" : null,
       "8rem",
+      "2.5rem",
     ]
       .filter(Boolean)
       .join(" "),
@@ -76,29 +98,82 @@ export function ManualInputsCard({
 
   const { inputs, save } = useReportAdditionalInputs(runId);
   const [draft, setDraft] = useState<Draft>({});
+  const [overrides, setOverrides] = useState<OverrideSet>(EMPTY_OVERRIDES);
   const [minStay, setMinStay] = useState("");
   const [promotions, setPromotions] = useState("");
   const [rateOverrides, setRateOverrides] = useState("");
   const [commentary, setCommentary] = useState("");
 
+  /** The parser's figure for a month, empty when it calculated nothing. */
+  const calculated = (field: DraftField, key: string): string => {
+    const value = derivedInputs?.[FIELD_TO_COLUMN[field]]?.[key];
+    return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
+  };
+
   useEffect(() => {
+    const nextOverrides: OverrideSet = {
+      dinner: { ...(inputs?.overrides?.dinner_by_month ?? {}) },
+      room0: { ...(inputs?.overrides?.room0_by_month ?? {}) },
+      comp: { ...(inputs?.overrides?.comp_rns_by_month ?? {}) },
+    };
+    const stored: Record<DraftField, Record<string, number>> = {
+      dinner: inputs?.dinnerByMonth ?? {},
+      room0: inputs?.room0ByMonth ?? {},
+      comp: inputs?.compRnsByMonth ?? {},
+    };
     const next: Draft = {};
     for (const key of months) {
-      next[key] = {
-        dinner: String(inputs?.dinnerByMonth?.[key] ?? ""),
-        room0: String(inputs?.room0ByMonth?.[key] ?? ""),
-        comp: String(inputs?.compRnsByMonth?.[key] ?? ""),
-      };
+      const row = {} as Record<DraftField, string>;
+      for (const field of ["dinner", "room0", "comp"] as DraftField[]) {
+        const derived = calculated(field, key);
+        const typed = stored[field]?.[key];
+        // Legacy runs kept reviewer values without a flag: honour them, and mark
+        // them as overrides so a re-process does not wipe them.
+        const hasTyped = typeof typed === "number" && Number.isFinite(typed);
+        if (hasTyped && (nextOverrides[field][key] || !derived)) {
+          nextOverrides[field][key] = true;
+          row[field] = String(typed);
+        } else {
+          row[field] = derived;
+        }
+      }
+      next[key] = row;
     }
     setDraft(next);
+    setOverrides(nextOverrides);
     setMinStay(inputs?.minStayNotes ?? "");
     setPromotions(inputs?.promotionsNotes ?? "");
     setRateOverrides(inputs?.rateOverrideNotes ?? "");
     setCommentary(inputs?.freeCommentary ?? "");
-  }, [inputs, months]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputs, months, derivedInputs]);
 
-  const update = (key: string, field: keyof Draft[string], value: string) =>
+  const update = (key: string, field: DraftField, value: string) => {
     setDraft((prev) => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+    setOverrides((prev) => ({ ...prev, [field]: { ...prev[field], [key]: true } }));
+  };
+
+  /** Drop the reviewer's figure and fall back to what the export produced. */
+  const revert = (key: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      [key]: {
+        dinner: calculated("dinner", key),
+        room0: calculated("room0", key),
+        comp: calculated("comp", key),
+      },
+    }));
+    setOverrides((prev) => {
+      const next: OverrideSet = { dinner: { ...prev.dinner }, room0: { ...prev.room0 }, comp: { ...prev.comp } };
+      delete next.dinner[key];
+      delete next.room0[key];
+      delete next.comp[key];
+      return next;
+    });
+  };
+
+  const isOverridden = (key: string): boolean =>
+    Boolean(overrides.dinner[key] || overrides.room0[key] || overrides.comp[key]);
 
   const totals = useMemo(() => {
     let additional = 0;
@@ -134,6 +209,11 @@ export function ManualInputsCard({
         dinnerByMonth,
         room0ByMonth,
         compRnsByMonth,
+        overrides: {
+          dinner_by_month: overrides.dinner,
+          room0_by_month: overrides.room0,
+          comp_rns_by_month: overrides.comp,
+        },
         minStayNotes: minStay.trim() || null,
         promotionsNotes: promotions.trim() || null,
         rateOverrideNotes: rateOverrides.trim() || null,
@@ -149,6 +229,7 @@ export function ManualInputsCard({
       });
     }
   };
+
 
   if (months.length === 0) return null;
 
@@ -166,7 +247,12 @@ export function ManualInputsCard({
       <CardContent className="space-y-5">
         {showMonthly && (
         <div className="overflow-x-auto">
-          <div className="min-w-[40rem] space-y-2">
+          <div className="min-w-[42rem] space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Figures are calculated from the uploaded export. Type over any month to
+              override it — overridden months survive a re-process, and the arrow puts
+              the calculated figure back.
+            </p>
             <div
               className="grid gap-2 text-xs uppercase tracking-wide text-muted-foreground"
               style={gridStyle}
@@ -177,10 +263,18 @@ export function ManualInputsCard({
               {showComp && <span>Comp RNs</span>}
               {showAdditional && <span className="text-right">Additional</span>}
               <span className="text-right">{showAdditional ? "Combined" : "OTB revenue"}</span>
+              <span className="sr-only">Revert</span>
             </div>
             {months.map((key) => (
               <div key={key} className="grid items-center gap-2" style={gridStyle}>
-                <span className="text-sm font-medium">{monthLabel(key)}</span>
+                <span className="text-sm font-medium">
+                  {monthLabel(key)}
+                  {isOverridden(key) && (
+                    <span className="block text-[0.65rem] font-normal uppercase tracking-wide text-primary">
+                      Overridden
+                    </span>
+                  )}
+                </span>
                 {showDinner && (
                   <Input
                     type="number"
@@ -216,8 +310,20 @@ export function ManualInputsCard({
                 <span className="text-sm text-right tabular-nums font-medium">
                   {money(totals.perMonth[key]?.combined ?? 0)}
                 </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={!isOverridden(key)}
+                  onClick={() => revert(key)}
+                  aria-label={`Use the calculated figures for ${monthLabel(key)}`}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
               </div>
             ))}
+
             <div
               className="grid items-center gap-2 border-t pt-2 text-sm font-medium"
               style={gridStyle}
@@ -236,6 +342,8 @@ export function ManualInputsCard({
                 <span className="text-right tabular-nums">{money(totals.additional)}</span>
               )}
               <span className="text-right tabular-nums">{money(totals.combined)}</span>
+              <span />
+
             </div>
           </div>
         </div>

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
 import { BookingTrendsCard } from "@/components/reports/BookingTrendsCard";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
+import { ExcludedRowsCard } from "@/components/reports/ExcludedRowsCard";
 import { monthLabel } from "@/lib/historicalBaseline";
 import { reportMonthAnchor, windowMonths } from "@/lib/reportWindow";
 import type { RunBuilderContext } from "./types";
@@ -125,11 +126,15 @@ export function StageReview({ ctx }: { ctx: RunBuilderContext }) {
           sourceType={ctx.run.sourceType}
           months={snapshot.months}
           otbRevenue={snapshot.otbRevenue}
+          derivedInputs={snapshot.derivedInputs}
           sections="monthly"
           onReprocess={async () => ctx.onProcess()}
           isProcessing={ctx.isProcessing}
         />
       )}
+
+      {snapshot && <ExcludedRowsCard excludedRows={snapshot.excludedRows} />}
+
     </div>
   );
 }
