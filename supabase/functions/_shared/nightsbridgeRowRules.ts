@@ -46,11 +46,13 @@ export const EMPTY_ROW_RULES: RowRules = {
 export const ROW_CLASS_LABELS: Record<RowClass, string> = {
   sellable: "Sold nights",
   blocked_zero_revenue: "Zero revenue (block / maintenance / owner)",
+  unavailable: "Unavailable (room out of order)",
   room_zero: "Room 0",
   event: "Events",
   holding_credit: "Holding in credit",
   excluded_by_rule: "Excluded by property rule",
 };
+
 
 export function normaliseRules(
   keepPatterns: unknown,
