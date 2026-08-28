@@ -161,7 +161,7 @@ export function MasterRosterPanel() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [rematching, setRematching] = useState(false);
   const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
-  const [keySelected, setKeySelected] = useState<Set<string>>(new Set());
+  const [keyOutcomesReserved] = useState<null>(null);
   const [keyOutcomes, setKeyOutcomes] = useState<Record<string, KeyGenOutcome>>({});
   const [generating, setGenerating] = useState(false);
   const cancelled = useRef(false);
