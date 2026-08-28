@@ -419,24 +419,30 @@ export async function decideRuCurrency(
 
   /**
    * A previous successful write on THIS account (recorded as an assumption, source 'flip')
-   * is enough to skip a *repeat* write for the same OwnerID + LocationID + ISO. It does not
-   * count as verification, so the ZAR-vs-USD publication decision is unchanged: the value is
-   * the authored ISO either way, and the read-back path still owns the verified verdict.
+   * may skip a *repeat* write — but ONLY when the exchange log actually holds a successful
+   * Push_ChangeCurrency_RQ for this OwnerID + Location + ISO. A scoped row on its own is not
+   * evidence: rows written by since-removed cross-account shortcuts left brand-new sub-accounts
+   * publishing USD while the tracker echoed our own assumption back as ZAR.
    */
   if (!verifiedIso && scoped?.source === 'flip' && !scoped.stale && scoped.iso === authored) {
-    const d = decide({
-      location_iso: authored,
-      published_iso: authored,
-      conversion_in_force: false,
-      fx_rate: null,
-      effective_rate: null,
-      flip_outcome: 'already_set',
-      write_skipped: true,
-      skip_reason: 'currency_already_set',
-      reason: `Location ${opts.locationId} was already set to ${authored} on account ${ownerScope} by an earlier write — no currency write needed.`,
-    });
-    await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
-    return d;
+    const logged = await hasLoggedCurrencyFlip(supabase, opts.locationId, ownerScope, authored);
+    if (logged) {
+      const d = decide({
+        location_iso: authored,
+        published_iso: authored,
+        conversion_in_force: false,
+        fx_rate: null,
+        effective_rate: null,
+        flip_outcome: 'already_set',
+        write_skipped: true,
+        skip_reason: 'currency_already_set',
+        reason: `Location ${opts.locationId} was already set to ${authored} on account ${ownerScope} by an earlier confirmed write (${logged}) — no currency write needed.`,
+      });
+      await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+      return d;
+    }
+    // Unproven scoped row: forget it so it can never suppress the write again.
+    await clearScopedLocationCurrency(supabase, opts.locationId, ownerScope);
   }
 
   /**
@@ -444,13 +450,16 @@ export async function decideRuCurrency(
    * verdict from the channel's own answer on the SAME account and location for the SAME ISO.
    * Firing Push_ChangeCurrency_RQ again in that state changes nothing at the channel and only
    * burns a write inside the sliding minute (it is what throttled the tail of an onboarding run).
+   *
+   * The scope must match EXACTLY: a legacy row with no owner_scope belongs to some other
+   * account's answer and is never evidence for this OwnerID.
    */
   if (!verifiedIso) {
     const durable = await loadCurrencyState(supabase, opts.propertyId);
     const durableIso = String(durable?.ru_reported_currency_iso ?? '').toUpperCase();
     const durableScope = String(durable?.owner_scope ?? '').trim();
-    const sameScope = !durableScope || durableScope === ownerScope;
-    const sameLocation = !durable?.ru_location_id || Number(durable.ru_location_id) === Number(opts.locationId);
+    const sameScope = durableScope !== '' && durableScope === ownerScope;
+    const sameLocation = Number(durable?.ru_location_id) === Number(opts.locationId);
     if (durable?.verified_at && durableIso === authored && sameScope && sameLocation) {
       const d = decide({
         location_iso: authored,
@@ -469,6 +478,8 @@ export async function decideRuCurrency(
       return d;
     }
   }
+
+
 
   /**
    * NOTE: cross-account location knowledge is deliberately NOT consulted here. Rentals United
