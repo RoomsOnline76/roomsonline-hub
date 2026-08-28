@@ -7,6 +7,7 @@ import { monthLabel } from "@/lib/historicalBaseline";
 
 export type ExcludedReason =
   | "blocked_zero_revenue"
+  | "unavailable"
   | "room_zero"
   | "event"
   | "holding_credit"
@@ -14,11 +15,13 @@ export type ExcludedReason =
 
 const REASON_LABELS: Record<ExcludedReason, string> = {
   blocked_zero_revenue: "Zero revenue (block / maintenance / owner)",
+  unavailable: "Unavailable (room out of order)",
   room_zero: "Room 0",
   event: "Events",
   holding_credit: "Holding in credit",
   excluded_by_rule: "Excluded by property rule",
 };
+
 
 export interface ExcludedRow {
   booking_id: string;
