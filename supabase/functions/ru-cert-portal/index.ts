@@ -157,6 +157,16 @@ const RU_GENERATED_LOGIN_DOMAIN = "roomsonline.co.za";
 /** The channel refuses any login longer than this (status 378). */
 const RU_LOGIN_MAX_LENGTH = 50;
 
+/**
+ * A login on our own generated distribution domain was created BY US with the platform
+ * sub-user password, so that password is a valid mint credential even when the stored copy
+ * was lost (e.g. an earlier run that could not resolve the OwnerID). It is never assumed for
+ * an owner's own mailbox — only for `<slug>@roomsonline.co.za` logins we issued.
+ */
+const isGeneratedDistributionLogin = (email: unknown): boolean =>
+  String(email ?? "").trim().toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`);
+
+
 /** Slug/name → distribution login. attempt 1 = `<slug>@…`, attempt N = `<slug>N@…`. */
 const generateDistributionLogin = (slugOrName: string, attempt = 1): string | null => {
   const base = String(slugOrName ?? "")
