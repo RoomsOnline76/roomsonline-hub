@@ -954,7 +954,7 @@ export async function modifyRuStay(
     };
   }
 
-  const result = await invokeRu(supabase, 'modify_stay', {
+  const modifyPayload = {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
       ru_property_id: currentRuPropertyId || ruPropertyId,
@@ -971,7 +971,9 @@ export async function modifyRuStay(
       arrival_time: modify.arrival_time ?? null,
     },
     ...auth,
-  }, {
+  };
+
+  const result = await invokeRu(supabase, 'modify_stay', modifyPayload, {
     propertyId: booking.property_id,
     ruPropertyId,
     traceId,
@@ -986,6 +988,55 @@ export async function modifyRuStay(
     },
   });
 
+  /**
+   * A move or a date change is refused when the NEW nights read as closed at the channel — which is
+   * our own availability delta having published them as sold before the reservation itself moved.
+   * Reopen the target nights on the target listing and replay the modification past the channel's
+   * sliding minute instead of failing the edit.
+   */
+  if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
+    const reopened = await reopenStayNightsAtChannel(supabase, booking, {
+      auth,
+      ruPropertyId,
+      dateFrom: modifyPayload.modify_stay.date_from,
+      dateTo: modifyPayload.modify_stay.date_to,
+      traceId,
+      parentAction: 'ruBookingSync:modify:reopen',
+      details: { reservation_id: String(booking.external_reservation_id ?? '') },
+    });
+    if (reopened) {
+      const queuedId = await enqueueRuCall(supabase, {
+        methodKey: `modify_stay:${booking.external_reservation_id}`,
+        action: 'modify_stay',
+        payload: { action: 'modify_stay', ...modifyPayload },
+        propertyId: booking.property_id,
+        priority: 1,
+        delayMs: 65_000,
+      });
+      if (queuedId) {
+        await settleReservationOp(supabase, {
+          bookingId: booking.id,
+          op: 'modify',
+          fingerprint: modifyFingerprint,
+          outcome: 'deferred',
+          detail: 'Target nights reopened at the channel — stay change queued for the next channel slot.',
+          reservationId: String(booking.external_reservation_id ?? ''),
+        });
+        return {
+          ok: false,
+          queued: true,
+          deferred: true,
+          method: 'modify_stay',
+          code: 'RU_MODIFY_QUEUED',
+          message:
+            'The channel had the new nights closed (our own sold-out push). They were reopened and the stay ' +
+            'change is queued for the next channel slot, about a minute away.',
+          confirmedLead,
+          traceId,
+        };
+      }
+    }
+  }
 
   /**
    * Status 106 "You can only modify stay in confirmed reservation" means the channel still holds
@@ -1001,6 +1052,7 @@ export async function modifyRuStay(
     detail: result.message ?? null,
     reservationId: String(booking.external_reservation_id ?? ''),
   });
+
 
   if (!result.ok && /only modify stay in confirmed reservation/i.test(result.message ?? '')) {
     if (!isRuLead(booking)) {
