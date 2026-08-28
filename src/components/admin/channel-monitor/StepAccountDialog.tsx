@@ -187,9 +187,17 @@ export function StepAccountDialog({
   const [credCode, setCredCode] = useState<string | null>(null);
   const [credsStored, setCredsStored] = useState(false);
   const [passwordStored, setPasswordStored] = useState(false);
+  /** Step A.2 pause: the AccessKey/SecretKey pair issued for this sub-account is typed here. */
+  const [keyAccess, setKeyAccess] = useState("");
+  const [keySecret, setKeySecret] = useState("");
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [keyNote, setKeyNote] = useState<string | null>(null);
   // A credential remedy must land the operator on the field it needs, not just open the modal.
   const credCardRef = useRef<HTMLDivElement | null>(null);
   const credPasswordRef = useRef<HTMLInputElement | null>(null);
+  const keyCardRef = useRef<HTMLDivElement | null>(null);
+  const keyAccessRef = useRef<HTMLInputElement | null>(null);
+
 
 
 
