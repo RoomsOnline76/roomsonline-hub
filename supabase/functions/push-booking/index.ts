@@ -423,6 +423,12 @@ Deno.serve(async (req) => {
               is_stop_sell: true, // Mark as stop-sell
               room_type: String(roomType), // Ensure string format
               external_system: 'manual', // Match existing records for manual properties
+              // Stamped so the row is recognisable as this reservation's own hold: an
+              // unstamped row is indistinguishable from an operator block and kept
+              // painting "Blocked by the property" after the stay was cancelled.
+              blocked_reason: `booking:${booking_id}`,
+              blocked_by_label: "ROL'OS reservation",
+              blocked_at: new Date().toISOString(),
             });
           }
         }

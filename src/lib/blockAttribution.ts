@@ -91,9 +91,9 @@ export function isBookingOccupancyRow(
   reason?: string | null,
   blockedBy?: string | null,
 ): boolean {
-  const key = (source ?? "").trim().toLowerCase();
-  if (key !== "rolos") return false;
-  if (blockedBy) return false;
   const r = (reason ?? "").trim();
-  return r.length === 0 || r.startsWith("channel_booking:") || r.startsWith("booking:");
+  // A stamped reservation hold is never an operator block, whatever the source tag.
+  if (r.startsWith("channel_booking:") || r.startsWith("booking:")) return true;
+  const key = (source ?? "").trim().toLowerCase();
+  return key === "rolos" && !blockedBy && r.length === 0;
 }
