@@ -586,6 +586,36 @@ export function MasterRosterPanel() {
               </Button>
             )
           ) : null}
+          {result && missingKeyIds.length > 0 ? (
+            generating ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                onClick={() => {
+                  keyGenCancelled.current = true;
+                  toast.info("Stopping after the current account");
+                }}
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Stop after this account
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                disabled={closing || rematching || read.isPending}
+                onClick={() => void generateKeys(missingKeyIds)}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Generate missing keys ({missingKeyIds.length})
+              </Button>
+            )
+          ) : null}
+
           <Button
             type="button"
             size="sm"
