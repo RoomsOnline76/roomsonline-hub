@@ -531,7 +531,10 @@ export async function decideRuCurrency(
   if (!opts.dryRun) {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...childAuth },
+        // owner_id scopes the API's identical-call shortcut to THIS account: without it, another
+        // sub-account's recent flip could answer for this one and no write would ever be sent.
+        body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, owner_id: ownerScope, ...childAuth },
+
       });
       if (error || !data?.success) {
         // Our own sliding-window rate gate answers an identical repeat call with 429 /
