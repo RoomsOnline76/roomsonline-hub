@@ -413,33 +413,44 @@ export async function syncBookingToChannel(
     }
   }
 
-  // ── 2. Availability + rates delta (every booking change, local or channel-sourced) ──
+  // ── 2. Availability + rates delta — only for changes the channel's calendar can see ──
   if (request.skip_ari) {
     result.ari = 'skipped';
     result.ari_reason = 'caller_handled';
   } else if (!propertyId) {
     result.ari = 'skipped';
     result.ari_reason = 'no_property';
+  } else if (ARI_IRRELEVANT.has(change)) {
+    // Notes, money and check-in/out moves change nothing the channel sells. Re-pushing
+    // availability and prices for them was pure noise against the owner's rate window.
+    result.ari = 'skipped';
+    result.ari_reason = 'change_does_not_move_inventory';
   } else {
     try {
       // Scope the write to the nights the stay touches (old span included, so a moved booking
-      // reopens what it left) and to the booked unit, instead of re-sending the whole year.
+      // reopens what it left) and to the booked unit(s), instead of re-sending the whole year.
       const spanDates = [
         String(row.check_in_date ?? ''),
         String(row.check_out_date ?? ''),
         String(request.previous?.check_in_date ?? ''),
         String(request.previous?.check_out_date ?? ''),
       ].filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
-      const bookedUnitId = (row.room_type_id as string | null) ?? null;
+      const bookedUnitIds = await resolveAffectedUnitIds(supabase, request, row);
       const outcome = await queueRuAriDelta(supabase, propertyId, `booking_${change}`, {
         force: true,
         dateFrom: spanDates[0] ?? null,
         dateTo: spanDates[spanDates.length - 1] ?? null,
-        onlyUnitIds: bookedUnitId ? [bookedUnitId] : null,
+        onlyUnitIds: bookedUnitIds.length > 0 ? bookedUnitIds : null,
         // A booking is the one case where the channel calendar must be read back: the sold
         // nights have to be proven closed. Restriction/rate/cron writes skip the pull.
         verifyAvailabilityReadback: true,
       });
+      result.ari_scope = {
+        unit_ids: bookedUnitIds,
+        date_from: spanDates[0] ?? null,
+        date_to: spanDates[spanDates.length - 1] ?? null,
+      };
+
 
       if (outcome?.error) {
         result.ari = 'failed';
