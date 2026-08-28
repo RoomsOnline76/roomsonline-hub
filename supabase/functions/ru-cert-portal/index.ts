@@ -8133,7 +8133,13 @@ Deno.serve(async (req) => {
             company_payload: company,
           })
           .eq("id", account.id);
-        return { sent: true };
+        return {
+          sent: true,
+          location_ids: companyLocationIds,
+          locations_unchanged: locationsUnchanged,
+          legal_rep_coverage: legalRepCoverage,
+        };
+
       };
 
       // RU requires at least one LocationId on the sub-user (and on company details).
