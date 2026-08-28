@@ -2016,6 +2016,7 @@ const CHILD_SCOPED_ACTIONS = new Set([
   'confirm_request',
   'cancel_reservation',
   'modify_stay',
+  'push_confirmed_reservation',
   'subscribe_notifications',
   // LNM subscriptions are per-account: subscribing on master credentials leaves the
   // sub-user's content/ARI changes unnotified.
@@ -2046,6 +2047,7 @@ const CHILD_SCOPED_WRITE_ACTIONS = new Set([
   'confirm_request',
   'cancel_reservation',
   'modify_stay',
+  'push_confirmed_reservation',
   'subscribe_notifications',
   'put_lnm_subscriptions',
 ]);
