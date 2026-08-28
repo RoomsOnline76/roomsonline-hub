@@ -1213,7 +1213,8 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
         "cron-ru-rlnm-refresh",
         { owner_id: ownerId, trigger: "onboarding_completed" },
       );
-      if (subscriptionError || subscriptionResult?.success !== true) {
+      const subscriptionPayload = (subscriptionResult ?? {}) as { success?: boolean };
+      if (subscriptionError || subscriptionPayload.success !== true) {
         console.warn(
           "[channel-onboard] Live notification registration did not complete; the daily repair remains scheduled.",
           subscriptionError ?? subscriptionResult,
