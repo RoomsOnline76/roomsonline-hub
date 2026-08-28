@@ -678,11 +678,13 @@ export function StepAccountDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
-          {/* Accepting closes this modal — Step A then reports its progress on its own card. */}
-          <Button disabled={!canRun || runningStepA} onClick={onRunStepA}>
-            <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-            Accept and run Step A
-          </Button>
+          {/* While A.2 is waiting, only saving the pair may advance the sequence. */}
+          {!((planAccountId || plan?.ru_owner_id) && !planHasKeys) ? (
+            <Button disabled={!canRun || runningStepA} onClick={onRunStepA}>
+              <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
+              Accept and run Step A
+            </Button>
+          ) : null}
         </DialogFooter>
 
 

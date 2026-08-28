@@ -4015,10 +4015,8 @@ Deno.serve(async (req) => {
 
     /**
      * ── save_api_keys: store a sub-user's own RU API key pair (encrypted) ──
-     * Since RU's Nov-2025 rollout, every sub-user must authenticate API calls with its own
-     * AccessKey/SecretKey. Step A creates the pair automatically when the channel XML API
-     * accepts the retained sub-account credential; this action is only a controlled repair
-     * path for already-issued pairs.
+     * Every sub-user authenticates API calls with its own AccessKey/SecretKey. A.2 receives
+     * the portal-issued pair here; A.3 verifies ownership before anything is stored.
      */
     if (action === "save_api_keys") {
       const accountId: string = body.account_id ?? "";
