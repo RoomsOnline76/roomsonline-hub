@@ -1784,6 +1784,11 @@ function extractBuildings(xml: string): { id: string; name: string }[] {
 
 // ── User Management XML Builders ─────────────────────────────
 
+/** Push_CreateUser_RQ/FirstName and /LastName are String(50) at the channel. */
+const RU_NAME_MAX_LENGTH = 50;
+
+
+
 function buildCreateUserXml(
   creds: RUCredentials,
   user: { first_name: string; last_name: string; email: string; password: string },
