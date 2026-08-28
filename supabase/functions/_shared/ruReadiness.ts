@@ -646,10 +646,12 @@ export function currencyVerificationChecks(
   const intended = state?.published_currency_iso ?? null;
   // A channel "already set" answer is itself a read-back of the account's location currency;
   // a listing whose currency was correct from the start must not be stuck unverified forever.
+  const alreadySet = state?.flip_outcome === "already_set" || state?.flip_outcome === "already_set_readback";
   const reported = state?.ru_reported_currency_iso
-    ?? (state?.flip_outcome === "already_set" ? state?.location_currency_iso ?? null : null);
+    ?? (alreadySet ? state?.location_currency_iso ?? null : null);
   const verified = !!intended && !!reported && intended === reported
-    && (!!state?.verified_at || state?.flip_outcome === "already_set");
+    && (!!state?.verified_at || alreadySet);
+
 
   return [
     {
