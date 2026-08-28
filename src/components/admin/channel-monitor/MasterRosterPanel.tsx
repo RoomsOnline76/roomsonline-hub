@@ -431,21 +431,52 @@ export function MasterRosterPanel() {
             {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-7 gap-1.5 text-[11px]"
-          disabled={read.isPending || closing}
-          onClick={() => read.mutate()}
-        >
-          {read.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <RefreshCw className="h-3.5 w-3.5" />
-          )}
-          {result ? "Re-read master" : "Read master account"}
-        </Button>
+        <span className="flex flex-wrap items-center gap-2">
+          {result ? (
+            rematching ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                onClick={() => {
+                  rematchCancelled.current = true;
+                  toast.info("Stopping after the current key pair");
+                }}
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Stop after this pair
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                disabled={closing || read.isPending || (result.storedKeys.length === 0)}
+                onClick={() => void runRematch()}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Rematch stored keys ({result.storedKeys.length})
+              </Button>
+            )
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 text-[11px]"
+            disabled={read.isPending || closing || rematching}
+            onClick={() => read.mutate()}
+          >
+            {read.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {result ? "Re-read master" : "Read master account"}
+          </Button>
+        </span>
       </div>
 
       {result ? (
