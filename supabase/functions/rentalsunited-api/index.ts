@@ -817,6 +817,7 @@ function buildGetLeadsXml(creds: RUCredentials, dateFrom: string, dateTo: string
   ${buildAuthXml(creds)}
   <DateFrom>${normalizeRUDateTime(dateFrom)}</DateFrom>
   <DateTo>${normalizeRUDateTime(dateTo, true)}</DateTo>
+  <LocationID>0</LocationID>
 </Pull_GetLeads_RQ>`;
 }
 
@@ -831,7 +832,8 @@ function buildRejectRequestXml(creds: RUCredentials, reservationId: string, reas
 <Push_RejectRequest_RQ>
   ${buildAuthXml(creds)}
   <ReservationID>${escapeXml(reservationId)}</ReservationID>${reason ? `
-  <Comments>${escapeXml(reason)}</Comments>` : ''}
+  <Reason>${escapeXml(reason)}</Reason>
+  <MessageToChannel>${escapeXml(reason)}</MessageToChannel>` : ''}
 </Push_RejectRequest_RQ>`;
 }
 
