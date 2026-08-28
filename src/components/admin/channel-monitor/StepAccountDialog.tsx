@@ -4,8 +4,7 @@
  * One surface that shows exactly what Step A will do before anything is sent:
  *   1. what will happen (create vs adopt, login and its source, scope, location)
  *   2. owner binding — including the atomic re-assign correction
- *   3. the distribution login Step A registers under, with alternatives when the owner
- *      email is already taken at the channel outside our master account
+ *   3. the authoritative distribution login Step A registers under
  *   4. the company details that will be sent, read-only and collapsed by default
  *
  * Nothing here pushes company details by hand: Step A owns that, and it only sends
@@ -428,14 +427,6 @@ export function StepAccountDialog({
                     />
                   </dl>
 
-                  {plan.fallback_login && !emailConflict ? (
-                    <p className="rounded-md border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground">
-                      If this login is already taken at the channel, Step A automatically provisions under{" "}
-                      <span className="font-medium break-all">{String(plan.fallback_login)}</span> instead — no manual
-                      email change is needed.
-                    </p>
-                  ) : null}
-
                   {/* The login chooser only appears as the last resort: the channel refused
                       the resolved login AND every generated fallback. */}
                   {!changingEmail ? null : (
@@ -609,91 +600,11 @@ export function StepAccountDialog({
                     {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                     Save key pair & verify
                   </Button>
-                  <Button size="sm" variant="outline" disabled={runningStepA || stepADisabled} onClick={onRunStepA}>
-                    Continue Step A
-                  </Button>
                 </div>
                 {keyNote ? <p className="text-xs text-muted-foreground">{keyNote}</p> : null}
               </CardContent>
             </Card>
           )}
-
-
-          {/* 2b — sub-account credentials: portal password for signing in to create the pair */}
-
-          {planAccountId && !planHasKeys && (
-            <Card className="border-amber-500/50" ref={credCardRef}>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <KeyRound className="h-4 w-4" />
-                  Sub-account credentials
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {planHasPassword
-                    ? "The sub-account portal password is on record — use it to sign in to the channel portal and create the key pair above."
-                    : "Store the sub-account portal password here so it can be used to sign in and create the key pair above."}
-                </CardDescription>
-
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {activeRemedy ? (
-                  <Alert className="border-amber-500/40 bg-amber-500/10">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle className="text-sm">{activeRemedy.title}</AlertTitle>
-                    <AlertDescription className="space-y-1 text-xs">
-                      <p>{activeRemedy.explain}</p>
-                      <p>{activeRemedy.guidance}</p>
-                      <p className="font-mono text-[10px] text-muted-foreground">Reference: {activeRemedy.code}</p>
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <Label className="text-xs">Sub-account login</Label>
-                    <Input
-                      className="mt-1"
-                      type="email"
-                      value={credEmail}
-                      onChange={(event) => setCredEmail(event.target.value)}
-                      placeholder="owner@example.com"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Portal password</Label>
-                    <Input
-                      ref={credPasswordRef}
-                      className="mt-1 font-mono"
-                      type="text"
-                      value={credPassword}
-                      onChange={(event) => setCredPassword(event.target.value)}
-                      placeholder="Minimum 8 characters"
-                    />
-                  </div>
-                </div>
-                {xmlApiRejectedWithStoredPassword ? (
-                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
-                    No password action is needed unless the channel password was changed. Use Run Step A to retry automatic key creation after XML API access is enabled for this OwnerID.
-                  </p>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    disabled={credPassword.trim().length < 8 || !credEmail.includes("@") || savingCred}
-                    onClick={saveCredentials}
-                  >
-                    {savingCred ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                    {planHasPassword ? "Replace password & retry credentials" : "Save password & complete credentials"}
-                  </Button>
-                </div>
-                {credNote ? <p className="text-xs text-muted-foreground">{credNote}</p> : null}
-              </CardContent>
-            </Card>
-          )}
-
-
-
-
-
           {/* 4 — company details to be sent */}
           <Collapsible open={companyOpen} onOpenChange={setCompanyOpen}>
             <Card>

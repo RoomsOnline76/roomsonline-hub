@@ -1081,62 +1081,6 @@ Deno.serve(async (req) => {
 
 
 
-    /**
-     * Complete key verification and company provisioning as one server-owned workflow.
-     * Re-entering through the public function keeps company payload construction in its
-     * single canonical path while preserving this user's authorization and audit trail.
-     */
-    const provisionCompanyAfterKeyVerification = async (): Promise<{
-      pushed: boolean;
-      pushedAt: string | null;
-      warning: string | null;
-    }> => {
-      const propertyId = typeof body.property_id === "string" ? body.property_id : "";
-      if (!propertyId) {
-        return {
-          pushed: false,
-          pushedAt: null,
-          warning: "Keys were verified, but property_id was missing so company details could not be provisioned.",
-        };
-      }
-      const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ru-cert-portal`;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const authorization = req.headers.get("Authorization");
-      const apiKey = req.headers.get("apikey");
-      if (authorization) headers.Authorization = authorization;
-      if (apiKey) headers.apikey = apiKey;
-      try {
-        const response = await fetch(functionUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ action: "ensure_company_details", property_id: propertyId, force: true }),
-        });
-        const result = await response.json().catch(() => ({}));
-        const account = result?.account ?? null;
-        const pushed = response.ok
-          && result?.success === true
-          && result?.company_details_sent === true
-          && ["sent", "already_set"].includes(String(account?.company_details_status ?? "").toLowerCase())
-          && Boolean(account?.company_filled_at);
-        return {
-          pushed,
-          pushedAt: pushed ? account.company_filled_at : null,
-          warning: pushed
-            ? null
-            : String(result?.error?.message ?? result?.company_details_warning ?? "The Channel Manager did not confirm the company-details push."),
-        };
-      } catch (error) {
-        return {
-          pushed: false,
-          pushedAt: null,
-          warning: error instanceof Error ? error.message : "Company-details provisioning failed.",
-        };
-      }
-    };
-
-
-
-
     // Property-scoped users (ROLOS owners / staff) may read status/readiness
     // information for a property they can access — everything else is admin-only.
     const PROPERTY_SCOPED_READ_ACTIONS = [
@@ -8592,7 +8536,9 @@ Deno.serve(async (req) => {
 
         }
 
-        const companyResult = await submitCompanyDetails(existing.account as any);
+        const companyResult = isCompanyEnsure
+          ? await submitCompanyDetails(existing.account as any)
+          : { sent: Boolean((existing.account as any).company_details_sent), error: null };
         const needsPassword = Boolean(
           (companyResult as any).deferred
           || (companyResult as any).authFailed
@@ -9025,8 +8971,10 @@ Deno.serve(async (req) => {
         keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
       }
 
-      // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+      // A.1 ends after create/adopt. A.4 is the only action allowed to push company details.
+      const companyResult = isCompanyEnsure
+        ? await submitCompanyDetails(saved as any, adopted ? null : password)
+        : { sent: false, error: null };
 
 
       const needsPassword = Boolean(
