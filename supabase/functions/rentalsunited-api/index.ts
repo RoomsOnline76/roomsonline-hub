@@ -4642,9 +4642,11 @@ Deno.serve(async (req) => {
       }
 
       // Fallback: the Pull_ListCitiesProps_RQ shape carries <City ... CurrencyCode="…">.
+      const hadCurrencyRows = locs.length > 0;
       const cityRe = /<City\b([^>]*)(?:\/>|>([\s\S]*?)<\/City>)/gi;
       let cm: RegExpExecArray | null;
-      while (locs.length === 0 && (cm = cityRe.exec(response)) !== null) {
+      while (!hadCurrencyRows && (cm = cityRe.exec(response)) !== null) {
+
 
         const attrs = cm[1] || '';
         const inner = cm[2] || '';
