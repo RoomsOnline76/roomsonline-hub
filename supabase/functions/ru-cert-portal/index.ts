@@ -8024,6 +8024,8 @@ Deno.serve(async (req) => {
             dry_run: true as const,
             company: c,
             incomplete,
+            legal_rep_coverage: legalRepCoverage,
+            location_ids: companyLocationIds,
             source_property_id: sourcePropertyId,
           };
         }
@@ -8054,9 +8056,24 @@ Deno.serve(async (req) => {
         };
         const previousPayload = (account.company_payload ?? null) as Record<string, unknown> | null;
         const payloadUnchanged = Boolean(previousPayload) && stableJson(previousPayload) === stableJson(c);
+        // The account's region list is part of that fingerprint: an unchanged set is never
+        // re-sent, so Step A's location write is not repeated by Step B or by a save.
+        const previousLocationIds = Array.isArray(previousPayload?.location_ids)
+          ? (previousPayload!.location_ids as unknown[]).map((v) => Number(v)).filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+        const locationsUnchanged = previousLocationIds.length === companyLocationIds.length
+          && [...previousLocationIds].sort().join(",") === [...companyLocationIds].sort().join(",");
         if (body.force !== true && companyState.satisfied && payloadUnchanged) {
-          return { sent: true, skipped: true as const, unchanged: true as const };
+          return {
+            sent: true,
+            skipped: true as const,
+            unchanged: true as const,
+            locations_unchanged: locationsUnchanged,
+            location_ids: companyLocationIds,
+            legal_rep_coverage: legalRepCoverage,
+          };
         }
+
 
         // Retry transient RU/network failures — Phase 1 must not be left half-done.
         let filled: any = null;
