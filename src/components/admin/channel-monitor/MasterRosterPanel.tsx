@@ -765,11 +765,6 @@ export function MasterRosterPanel() {
                         />
                       ) : null}
                       {label(u)}
-                      {u.archived ? (
-                        <Badge variant="outline" className="text-[10px]">
-                          Archived at channel
-                        </Badge>
-                      ) : null}
                       {retired ? (
                         <Badge variant="outline" className="text-[10px]">
                           Retired in ROLOS
@@ -781,6 +776,14 @@ export function MasterRosterPanel() {
                       <Badge variant={keyBadge.variant} className="text-[10px]">
                         {keyBadge.text}
                       </Badge>
+                      {keyOutcome ? (
+                        <Badge variant={KEYGEN_VARIANT[keyOutcome.state]} className="text-[10px]">
+                          {keyOutcome.state === "running" ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          {KEYGEN_LABEL[keyOutcome.state]}
+                        </Badge>
+                      ) : null}
                       {outcome ? (
                         <Badge variant={STATE_VARIANT[outcome.state]} className="text-[10px]">
                           {outcome.state === "running" ? (
@@ -790,14 +793,33 @@ export function MasterRosterPanel() {
                         </Badge>
                       ) : null}
                     </span>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      Sub-account: {ownerId || "—"}
+                    <span className="flex items-center gap-2">
+                      {needsKey && ownerId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 gap-1 text-[10px]"
+                          disabled={generating || closing || rematching}
+                          onClick={() => void generateKeys([ownerId])}
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          Generate key
+                        </Button>
+                      ) : null}
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        Sub-account: {ownerId || "—"}
+                      </span>
                     </span>
                   </div>
+                  {keyOutcome && keyOutcome.state !== "queued" ? (
+                    <p className="mt-1 text-[10px] text-muted-foreground">{keyOutcome.message}</p>
+                  ) : null}
                   {outcome && outcome.state !== "queued" ? (
                     <p className="mt-1 text-[10px] text-muted-foreground">{outcome.message}</p>
                   ) : null}
                 </div>
+
               );
             })
           )}
