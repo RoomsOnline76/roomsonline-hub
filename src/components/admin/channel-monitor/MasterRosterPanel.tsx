@@ -742,6 +742,7 @@ export function MasterRosterPanel() {
               const closable = closableIds.has(ownerId);
               const outcome = outcomes[ownerId];
               const storedKey = keyByOwner.get(ownerId);
+              const keyOutcome = keyOutcomes[ownerId];
               const keyBadge = !storedKey
                 ? { text: "No key", variant: "outline" as const }
                 : storedKey.key_scope === "child"
@@ -749,6 +750,9 @@ export function MasterRosterPanel() {
                   : storedKey.key_scope === "master_pair"
                     ? { text: "Master pair (unusable)", variant: "destructive" as const }
                     : { text: "Key held — unverified", variant: "outline" as const };
+              /** Anything but a verified child pair means the close verb has no usable identity. */
+              const needsKey = !storedKey || storedKey.key_scope !== "child";
+
               return (
                 <div
                   key={ownerId || label(u)}
