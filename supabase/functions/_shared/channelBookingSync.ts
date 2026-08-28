@@ -559,6 +559,8 @@ export async function syncBookingToChannel(
       reservation_method: result.reservation_method ?? null,
       ari: result.ari,
       ari_reason: result.ari_reason ?? null,
+      ari_scope: result.ari_scope ?? null,
+
       deferred: result.deferred,
       message: result.message ?? null,
       status,
