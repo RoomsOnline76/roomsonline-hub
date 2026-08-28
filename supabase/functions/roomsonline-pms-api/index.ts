@@ -2682,7 +2682,9 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     .select("id, property_id, check_in_date, check_out_date, adults, children, infants, total_price, deposit_amount, charges_breakdown, room_type_id, rolos_room_ids")
     .eq("id", booking_id).single();
   if (bErr || !booking) {
-    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, "Booking not found", "apply_service_charges")),
+    const msg = bErr?.message ? `Booking lookup failed: ${bErr.message}` : "Booking not found";
+    console.error(`[apply_service_charges] ${msg} (booking_id=${booking_id})`);
+    return new Response(JSON.stringify(createErrorResponse(ERROR_CODES.NOT_FOUND, msg, "apply_service_charges")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 });
   }
 
