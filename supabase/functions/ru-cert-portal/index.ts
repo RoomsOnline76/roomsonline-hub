@@ -1081,62 +1081,6 @@ Deno.serve(async (req) => {
 
 
 
-    /**
-     * Complete key verification and company provisioning as one server-owned workflow.
-     * Re-entering through the public function keeps company payload construction in its
-     * single canonical path while preserving this user's authorization and audit trail.
-     */
-    const provisionCompanyAfterKeyVerification = async (): Promise<{
-      pushed: boolean;
-      pushedAt: string | null;
-      warning: string | null;
-    }> => {
-      const propertyId = typeof body.property_id === "string" ? body.property_id : "";
-      if (!propertyId) {
-        return {
-          pushed: false,
-          pushedAt: null,
-          warning: "Keys were verified, but property_id was missing so company details could not be provisioned.",
-        };
-      }
-      const functionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/ru-cert-portal`;
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const authorization = req.headers.get("Authorization");
-      const apiKey = req.headers.get("apikey");
-      if (authorization) headers.Authorization = authorization;
-      if (apiKey) headers.apikey = apiKey;
-      try {
-        const response = await fetch(functionUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ action: "ensure_company_details", property_id: propertyId, force: true }),
-        });
-        const result = await response.json().catch(() => ({}));
-        const account = result?.account ?? null;
-        const pushed = response.ok
-          && result?.success === true
-          && result?.company_details_sent === true
-          && ["sent", "already_set"].includes(String(account?.company_details_status ?? "").toLowerCase())
-          && Boolean(account?.company_filled_at);
-        return {
-          pushed,
-          pushedAt: pushed ? account.company_filled_at : null,
-          warning: pushed
-            ? null
-            : String(result?.error?.message ?? result?.company_details_warning ?? "The Channel Manager did not confirm the company-details push."),
-        };
-      } catch (error) {
-        return {
-          pushed: false,
-          pushedAt: null,
-          warning: error instanceof Error ? error.message : "Company-details provisioning failed.",
-        };
-      }
-    };
-
-
-
-
     // Property-scoped users (ROLOS owners / staff) may read status/readiness
     // information for a property they can access — everything else is admin-only.
     const PROPERTY_SCOPED_READ_ACTIONS = [
@@ -4071,10 +4015,8 @@ Deno.serve(async (req) => {
 
     /**
      * ── save_api_keys: store a sub-user's own RU API key pair (encrypted) ──
-     * Since RU's Nov-2025 rollout, every sub-user must authenticate API calls with its own
-     * AccessKey/SecretKey. Step A creates the pair automatically when the channel XML API
-     * accepts the retained sub-account credential; this action is only a controlled repair
-     * path for already-issued pairs.
+     * Every sub-user authenticates API calls with its own AccessKey/SecretKey. A.2 receives
+     * the portal-issued pair here; A.3 verifies ownership before anything is stored.
      */
     if (action === "save_api_keys") {
       const accountId: string = body.account_id ?? "";
@@ -4102,13 +4044,43 @@ Deno.serve(async (req) => {
         account = data as Record<string, any>;
       }
 
-      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
+      let ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
       const loginEmail = suppliedEmail || account?.ru_login_email || account?.owner_email || null;
+      if (!ownerId && loginEmail) {
+        // Push_CreateUser_RS confirms A.1 but does not return OwnerID. Do not pull the
+        // roster immediately after create: Step A pauses at A.2. Resolve the identity
+        // once here, when the operator has supplied the pair needed for A.3.
+        const roster = await listRuSubUsers(admin, {
+          forceFresh: true,
+          source: "step-a-key-owner-resolution",
+        });
+        const normalizedLogin = String(loginEmail).trim().toLowerCase();
+        const matched = roster.users.find((candidate) => {
+          const candidateLogin = String(candidate.login_email ?? "").trim().toLowerCase();
+          const candidateEmail = String(candidate.email ?? "").trim().toLowerCase();
+          return candidateLogin === normalizedLogin || candidateEmail === normalizedLogin;
+        });
+        ownerId = String(matched?.owner_id ?? "").trim();
+        if (ownerId && account?.id) {
+          const userAccountId = String(matched?.user_account_id ?? "").trim();
+          await admin.from("ru_owner_accounts").update({
+            ru_owner_id: ownerId,
+            ru_user_id: userAccountId && userAccountId !== ownerId && userAccountId !== "0"
+              ? userAccountId
+              : null,
+            ru_login_email: String(matched?.login_email ?? loginEmail),
+          }).eq("id", account.id);
+          account.ru_owner_id = ownerId;
+        }
+      }
       if (!ownerId) {
         return json({
           success: false,
-          error: { code: "RU_IDENTITY_INCOMPLETE", message: "Pick an RU sub-user (OwnerID) before saving API keys." },
-        }, 422);
+          error: {
+            code: "RU_OWNER_NOT_LISTED",
+            message: `The new sub-account ${loginEmail ?? ""} is not visible in the master roster yet. Wait one minute, then save this key pair again; Step A will resume at verification without creating the account again.`,
+          },
+        }, 200);
       }
 
       /**
@@ -4282,28 +4254,21 @@ Deno.serve(async (req) => {
         change_summary: `Stored and verified Rentals United sub-user API keys for ${loginEmail ?? "unknown"} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      const company = await provisionCompanyAfterKeyVerification();
       // Live-notification subscription is deliberately NOT run here: Step A must stay a
       // linear create → keys → verify → company → listings sequence, and the LNM
       // push/read-back added failing calls and extra roster reads mid-onboarding. The
       // nightly `ru-rlnm-daily` cron owns subscriptions.
-      // Keys were stored AND verified here — that is the verdict for step 7. Only the
-      // company profile still needs re-confirming against the new credentials.
+      // Keys were stored AND verified here — that is the A.3 verdict. Company profile and
+      // listing adoption remain separate A.4/A.5 tasks and are never hidden in this call.
       await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
-      if (!company.pushed) {
-        await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
-      } else {
-        await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved_company");
-      }
+      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
       return json({
 
         success: true,
         verified: true,
         ru_owner_id: ownerId,
         login_email: loginEmail,
-        company_details_pushed: company.pushed,
-        company_details_pushed_at: company.pushedAt,
-        company_details_warning: company.warning,
+        company_details_pushed: false,
       });
     }
 
@@ -4448,7 +4413,6 @@ Deno.serve(async (req) => {
           ["keys"],
           "keys_verified",
         );
-        const companyCached = await provisionCompanyAfterKeyVerification();
         return json({
           success: true,
           verified: true,
@@ -4456,9 +4420,7 @@ Deno.serve(async (req) => {
           verified_at: storedVerifiedAt,
           login_email: loginEmail,
           ru_owner_id: ownerId,
-          company_details_pushed: companyCached.pushed,
-          company_details_pushed_at: companyCached.pushedAt,
-          company_details_warning: companyCached.warning,
+          company_details_pushed: false,
         });
       }
 
@@ -4514,15 +4476,12 @@ Deno.serve(async (req) => {
           },
         }, 200);
       }
-      const company = await provisionCompanyAfterKeyVerification();
       return json({
         success: true,
         verified: true,
         login_email: loginEmail,
         ru_owner_id: ownerId,
-        company_details_pushed: company.pushed,
-        company_details_pushed_at: company.pushedAt,
-        company_details_warning: company.warning,
+        company_details_pushed: false,
       });
     }
 
@@ -7322,6 +7281,7 @@ Deno.serve(async (req) => {
        * Step A account dialog.
        */
       const isCompanyPreview = action === "preview_company_details";
+      const isCompanyEnsure = action === "ensure_company_details";
       const readOnly = isPlan || isCompanyPreview;
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
@@ -8142,10 +8102,10 @@ Deno.serve(async (req) => {
 
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
-      // One roster per Step A run. Every helper below shares this read; only a deliberate
-      // read-back after creating a sub-user asks the channel again (`fresh: true`).
+      // One roster per Step A run. Every helper below shares this read. A successful create
+      // pauses immediately at A.2; OwnerID resolution waits for A.3 key verification.
       let rosterOnce: RuUser[] | null = null;
-      /** Step A asks the channel for a fresh roster at most ONCE per run (the create read-back). */
+      /** Step A asks the channel for a fresh roster at most once per run. */
       let freshRosterRead = false;
       const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
         if (fresh && freshRosterRead && rosterOnce) return rosterOnce;
@@ -8359,11 +8319,6 @@ Deno.serve(async (req) => {
          */
         const planAccountId = String((existing.account as any)?.id ?? "") || null;
         const planAccountOwnerId = adoptOwnerId || null;
-        // The address Step A automatically falls back to when the shown login is
-        // rejected as taken at creation time — no manual email change is required.
-        const planFallbackLogin = String(ownerEmail).toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)
-          ? null
-          : generateDistributionLogin((await generatedLoginBase()) ?? "");
         let planHasKeys = Boolean(String((existing.account as any)?.ru_api_access_key ?? "").trim());
         if (!planHasKeys && planAccountOwnerId) {
           const { data: credRow } = await admin
@@ -8387,7 +8342,6 @@ Deno.serve(async (req) => {
             outcome,
             login_email: ownerEmail,
             login_source: ownerEmailSource,
-            fallback_login: planFallbackLogin,
             contact_first_name: nameParts[0] || "Property",
             contact_last_name: nameParts.slice(1).join(" ") || "Owner",
             company_name: portfolioRow?.name ?? ownerName ?? null,
@@ -8492,7 +8446,9 @@ Deno.serve(async (req) => {
       // A login rename in the RU portal must NOT erase the OwnerID or the password.
       const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
       const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
-      const ruUsers = existing.account?.ru_owner_id ? await listRuUsers() : [];
+      // A.4 already has a verified child identity and must not re-run the A.0 master
+      // roster lookup. Identity reconciliation belongs to A.0/A.1 only.
+      const ruUsers = existing.account?.ru_owner_id && !isCompanyEnsure ? await listRuUsers() : [];
       const listOk = ruUsers.length > 0;
       const currentRuUser = listOk
         ? (ruUsers.find((u) => Boolean(storedOwnerId) && usableRuId(u.owner_id) === storedOwnerId)
@@ -8581,7 +8537,9 @@ Deno.serve(async (req) => {
 
         }
 
-        const companyResult = await submitCompanyDetails(existing.account as any);
+        const companyResult = isCompanyEnsure
+          ? await submitCompanyDetails(existing.account as any)
+          : { sent: Boolean((existing.account as any).company_details_sent), error: null };
         const needsPassword = Boolean(
           (companyResult as any).deferred
           || (companyResult as any).authFailed
@@ -8589,7 +8547,7 @@ Deno.serve(async (req) => {
           || (companyResult as any).needs_api_keys,
         );
 
-        if (!companyResult.sent && !needsPassword) {
+        if (isCompanyEnsure && !companyResult.sent && !needsPassword) {
           return json({
             success: false,
             error: {
@@ -8827,110 +8785,12 @@ Deno.serve(async (req) => {
           }, 502);
         }
 
-        if (!adopted) {
-          /**
-           * Push_CreateUser_RS returns ONLY Status and ResponseID — the channel never sends
-           * an account id back. The master roster (Pull_ListMyUsers_RQ) is therefore the
-           * single authoritative source for the new OwnerID, and it can lag a fresh create.
-           *
-           * The channel also refuses an identical roster read inside a sliding minute, so a
-           * 2s-paced retry burned every attempt on RU_RATE_DEFERRED and then discarded a
-           * live account. Honour the window the channel itself advertises ("retry in Ns")
-           * and keep reading until the budget runs out.
-           */
-          const parseRetrySeconds = (msg?: string): number | null => {
-            const m = /retry in (\d+)\s*s/i.exec(String(msg ?? ""));
-            return m ? Number(m[1]) : null;
-          };
-          const readbackDeadline = Date.now() + 80_000;
-          while (!ruOwnerId) {
-            invalidateRuRosterMemo();
-            rosterOnce = null;
-            freshRosterRead = false;
-            const listed = await listRuSubUsers(admin, {
-              forceFresh: true,
-              source: "step-a-create-readback",
-            });
-            if (listed.ok) rosterOnce = listed.users as RuUser[];
-            const matched = matchByEmail((rosterOnce ?? []) as RuUser[]);
-            if (matched?.owner_id) {
-              ruOwnerId = usableRuId(matched.owner_id) || null;
-              userAccountId = usableRuId(matched.user_account_id) || null;
-              break;
-            }
-            // A throttled read served from cache is not proof of absence — wait out the window.
-            const waitSec = parseRetrySeconds(listed.message) ??
-              (listed.cached || listed.deferred || !listed.ok ? 20 : 8);
-            const waitMs = Math.min(waitSec + 3, 65) * 1000;
-            if (Date.now() + waitMs > readbackDeadline) break;
-            await new Promise((r) => setTimeout(r, waitMs));
-          }
-
-          if (!ruOwnerId) {
-            /**
-             * The account EXISTS at the channel. Record the login (and its password) against
-             * this scope with a null OwnerID so the next run resolves the same login, adopts
-             * it, and never creates a second slug account.
-             */
-            let pendingSaved = false;
-            try {
-              const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
-              const pendingRow: Record<string, unknown> = {
-                owner_email: ownerEmail,
-                ru_login_email: ownerEmail,
-                ru_login_url: "https://new.rentalsunited.com",
-                portfolio_id: portfolioId,
-                property_id: portfolioId ? null : propertyId,
-                scope: portfolioId ? "portfolio" : "property",
-                company_details_sent: false,
-                company_filled_at: null,
-                company_details_status: "pending",
-              };
-              if (enc) pendingRow.ru_login_password_enc = enc;
-              if ((existing.account as any)?.id) {
-                const { error: upErr } = await admin
-                  .from("ru_owner_accounts")
-                  .update(pendingRow)
-                  .eq("id", (existing.account as any).id);
-                pendingSaved = !upErr;
-              } else {
-                const { error: insErr } = await admin.from("ru_owner_accounts").insert(pendingRow);
-                pendingSaved = !insErr;
-              }
-            } catch {
-              pendingSaved = false;
-            }
-            return json({
-              success: false,
-              error: {
-                code: "RU_CREATE_USER_NOT_LISTED",
-                message:
-                  `The sub-user ${ownerEmail} was created at the channel, but the master roster still does not list it, so its OwnerID could not be resolved yet. ` +
-                  (pendingSaved
-                    ? "The login has been kept on this account — re-run Step A in a minute and it will adopt the same account instead of creating another."
-                    : "Re-run Step A in a minute and it will adopt the account."),
-              },
-              created_at_channel: true,
-              login_email: ownerEmail,
-              pending_login_saved: pendingSaved,
-              preview: preview(created, 2000),
-            }, 202);
-          }
-
-
-          await mergeRuRosterUser(admin, {
-            owner_id: ruOwnerId,
-            // Only record a sub-user id the channel actually returned. Mirroring the
-            // OwnerID here made one account print as two ("Owner: X · Sub: X").
-            user_account_id: userAccountId && userAccountId !== ruOwnerId ? userAccountId : undefined,
-            email: ownerEmail,
-            login_email: ownerEmail,
-          }, { source: "step-a-create" });
-          rosterOnce = null;
-        }
+        // Push_CreateUser_RS returns Status/ResponseID, not OwnerID. Success is sufficient
+        // for A.1: persist the login now and pause at A.2. The one required roster
+        // resolution happens after the operator supplies the key pair for A.3.
       }
 
-      if (!ruOwnerId || !userAccountId) {
+      if (adopted && !ruOwnerId) {
         const refreshed = await listRuUsers(true);
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
@@ -9109,11 +8969,14 @@ Deno.serve(async (req) => {
         }
 
       } else {
-        keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
+        keyCode = "RU_MANUAL_KEYS_REQUIRED";
+        keyWarning = `Sub-account ${savedLoginEmail ?? ownerEmail} was created. Enter its AccessKey and SecretKey to resolve the OwnerID and continue Step A.`;
       }
 
-      // Step 2 of Phase 1: fill company details on RU — without this the sub-user is incomplete.
-      const companyResult = await submitCompanyDetails(saved as any, adopted ? null : password);
+      // A.1 ends after create/adopt. A.4 is the only action allowed to push company details.
+      const companyResult = isCompanyEnsure
+        ? await submitCompanyDetails(saved as any, adopted ? null : password)
+        : { sent: false, error: null };
 
 
       const needsPassword = Boolean(
@@ -9123,7 +8986,7 @@ Deno.serve(async (req) => {
         || (companyResult as any).needs_api_keys,
       );
 
-      if (!companyResult.sent && !needsPassword) {
+      if (isCompanyEnsure && !companyResult.sent && !needsPassword) {
         return json({
           success: false,
           error: {

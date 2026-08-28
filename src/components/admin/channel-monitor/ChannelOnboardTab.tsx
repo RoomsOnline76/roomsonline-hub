@@ -747,7 +747,7 @@ export function ChannelOnboardTab({
    * countdown and resumes itself from the deferred task once the channel's window reopens.
    */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
+    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean; keysVerifiedInRun?: boolean }) => {
       if (!propertyId) return;
       const attempt = options?.attempt ?? 0;
       const resumeFrom = options?.startAtTaskId ?? null;
@@ -775,6 +775,7 @@ export function ChannelOnboardTab({
             step === "a" && chosenLoginEmail
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
+          keysVerifiedInRun: options?.keysVerifiedInRun,
           onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
             setTaskStates((prev) => ({
               ...prev,
@@ -828,12 +829,12 @@ export function ChannelOnboardTab({
 
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
-          if (!plan) {
-            try {
-              setPlan(await planOwnerAccount(propertyId));
-            } catch {
-              // The blocker line and remedy still render without the plan.
-            }
+          try {
+            // A.1 may just have created the local pending row. Refresh the preview so A.2
+            // receives that exact account id/login instead of the pre-create plan.
+            setPlan(await planOwnerAccount(propertyId));
+          } catch {
+            // The blocker line and remedy still render without the refreshed plan.
           }
           setAccountDialogOpen(true);
         }
@@ -1503,6 +1504,11 @@ export function ChannelOnboardTab({
             // Accepting hands over to the Step A card: close here, then run.
             setAccountDialogOpen(false);
             void runStep("a");
+          }}
+          onKeysVerified={() => {
+            setAccountDialogOpen(false);
+            setStepARemedyCode(null);
+            void runStep("a", { startAtTaskId: "company_profile", keysVerifiedInRun: true });
           }}
 
 

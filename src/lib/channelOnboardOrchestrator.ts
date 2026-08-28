@@ -83,6 +83,8 @@ export interface StepRunResult {
   resumeFromTaskId?: ChannelOnboardTaskId;
   results: TaskResult[];
   summary: string;
+  /** Latest account identity established during this run, including pending OwnerID. */
+  accountContext?: { accountId: string | null; ownerId: string | null; loginEmail: string | null };
 }
 
 interface RunContext {
@@ -92,6 +94,8 @@ interface RunContext {
   confirmedOwnerName?: string | null;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
+  /** The manual A.2 submission already performed the A.3 ownership probe. */
+  keysVerifiedInRun?: boolean;
   onTask?: (
     id: ChannelOnboardTaskId,
     state: "running" | TaskOutcome,
@@ -472,9 +476,6 @@ export interface OwnerAccountPlan {
   account_id?: string | null;
   has_api_keys?: boolean;
   has_stored_password?: boolean;
-  /** Slug-generated login Step A falls back to automatically if the shown login is taken. */
-  fallback_login?: string | null;
-
   [key: string]: unknown;
 }
 
@@ -547,14 +548,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
     // Hand the account this task just created or adopted to every later task. Without this
     // they keep reading the pre-run snapshot, which for a new account still says "not bound".
-    if (ownerId) {
+    if (ownerId || account?.id || loginEmail) {
       ctx.binding = {
         ...(ctx.binding ?? ({} as OnboardGateSnapshot["binding"])),
         account_id: (account?.id as string | null) ?? ctx.binding?.account_id ?? null,
         account_scope: (scope === "portfolio" || scope === "property"
           ? scope
           : ctx.binding?.account_scope ?? null) as "portfolio" | "property" | null,
-        ru_owner_id: ownerId,
+        ru_owner_id: ownerId || ctx.binding?.ru_owner_id || null,
         login_email: loginEmail || ctx.binding?.login_email || null,
         owner_email: loginEmail || ctx.binding?.owner_email || null,
         keys_stored:
@@ -1073,7 +1074,15 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       .filter((r): r is TaskResult => Boolean(r && typeof r.id === "string"));
   const carriedResults: TaskResult[] = allTasks
     .slice(0, startIndex)
-    .map((t) => recordedTasks.find((r) => r.id === t.id))
+    .map((t) => {
+      if (step === "a" && ctx.keysVerifiedInRun && t.id === "api_keys") {
+        return { id: "api_keys", outcome: "passed", detail: "Key pair verified and stored" } as TaskResult;
+      }
+      if (step === "a" && ctx.keysVerifiedInRun && t.id === "verify_keys") {
+        return { id: "verify_keys", outcome: "passed", detail: "Sub-account credentials verified" } as TaskResult;
+      }
+      return recordedTasks.find((r) => r.id === t.id);
+    })
     .filter((r): r is TaskResult => Boolean(r));
   const results: TaskResult[] = [];
 
@@ -1134,5 +1143,21 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
     notifyRuAccountsChanged();
   }
 
-  return { step, passed, pending, retryAfterMs, resumeFromTaskId, results: ledgerTasks, summary };
+  const finalBinding = ctx.binding;
+  return {
+    step,
+    passed,
+    pending,
+    retryAfterMs,
+    resumeFromTaskId,
+    results: ledgerTasks,
+    summary,
+    accountContext: finalBinding
+      ? {
+          accountId: finalBinding.account_id ?? null,
+          ownerId: finalBinding.ru_owner_id ?? null,
+          loginEmail: finalBinding.login_email ?? finalBinding.owner_email ?? null,
+        }
+      : undefined,
+  };
 }
