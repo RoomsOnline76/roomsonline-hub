@@ -4626,10 +4626,26 @@ Deno.serve(async (req) => {
 
       const locs: Array<{ id: number; name: string; parent_id: number | null; currency_iso: string | null; type: number | null }> = [];
 
-      // Try <City ...> first (the Pull_ListCurrenciesWithCities_RQ / Pull_ListCitiesProps_RQ shape).
+      // Documented Pull_ListCurrenciesWithCities_RS shape:
+      //   <Currencies><Currency CurrencyCode="ZAR"><Locations><LocationID>1611</LocationID>…
+      const ccyRe = /<Currency\b[^>]*\bCurrencyCode="([A-Za-z]{3})"[^>]*>([\s\S]*?)<\/Currency>/gi;
+      let ccm: RegExpExecArray | null;
+      while ((ccm = ccyRe.exec(response)) !== null) {
+        const iso = ccm[1].toUpperCase();
+        const idRe = /<LocationID[^>]*>(\d+)<\/LocationID>/gi;
+        let im: RegExpExecArray | null;
+        while ((im = idRe.exec(ccm[2] || '')) !== null) {
+          const id = parseInt(im[1], 10);
+          if (!Number.isFinite(id)) continue;
+          locs.push({ id, name: `Location ${id}`, parent_id: null, currency_iso: iso, type: null });
+        }
+      }
+
+      // Fallback: the Pull_ListCitiesProps_RQ shape carries <City ... CurrencyCode="…">.
       const cityRe = /<City\b([^>]*)(?:\/>|>([\s\S]*?)<\/City>)/gi;
       let cm: RegExpExecArray | null;
-      while ((cm = cityRe.exec(response)) !== null) {
+      while (locs.length === 0 && (cm = cityRe.exec(response)) !== null) {
+
         const attrs = cm[1] || '';
         const inner = cm[2] || '';
         const idAttr = /\bLocationID="(\d+)"/i.exec(attrs) || /\bID="(\d+)"/i.exec(attrs);
