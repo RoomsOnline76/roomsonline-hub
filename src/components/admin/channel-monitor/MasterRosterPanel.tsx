@@ -540,16 +540,21 @@ export function MasterRosterPanel() {
             Master account roster
             {result ? (
               <Badge variant="secondary" className="text-[10px]">
-                {result.users.length} sub-account{result.users.length === 1 ? "" : "s"}
+                {result.users.length} live sub-account{result.users.length === 1 ? "" : "s"}
               </Badge>
             ) : null}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Live read of every sub-account the channel lists under our master account, retired
-            entries included, with the ROLOS binding state for each. Unbound accounts can be closed
-            at the channel — one at a time, with a pause between each.
+            Live read of every sub-account still open at the channel under our master account, with
+            the ROLOS binding state for each. Accounts already archived or closed at the channel are
+            excluded from this list and its counts. Unbound accounts can be closed at the channel —
+            one at a time, with a pause between each.
+            {result && result.archivedExcluded > 0
+              ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
+              : ""}
             {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
           </p>
+
         </div>
         <span className="flex flex-wrap items-center gap-2">
           {result ? (
