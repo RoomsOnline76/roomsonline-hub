@@ -237,6 +237,8 @@ export default function ReportsPropertySettings() {
         historicalBaseline: baseline,
         defaultSourceType: sourceType,
         specialReportSet: specialSet === "none" ? null : specialSet,
+        zeroRevenueKeepPatterns: splitPatterns(keepPatterns),
+        rowExcludePatterns: splitPatterns(excludePatterns),
       });
       toast.success("Report settings saved");
     } catch (error) {
