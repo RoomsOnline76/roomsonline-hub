@@ -4819,35 +4819,46 @@ Deno.serve(async (req) => {
       // idempotent, so if an identical flip already succeeded recently, answer from that instead
       // of spending a call.
       const locId = parseInt(String(locationId), 10);
+      const flipOwnerId = body.owner_id != null ? String(body.owner_id).trim() : '';
       try {
         // A 339 ("already on that currency") answer counts as a confirmation: rows logged before
         // 339 was recognised as an acceptance carry success=false, so match on either signal or the
         // shortcut never fires and every run repeats a write the channel has already answered.
-        const { data: recentRows } = await getLogClient()
-          .from('ru_api_log')
-          .select('created_at, status_id, response_id, success')
-          .eq('action', 'Push_ChangeCurrency_RQ')
-          .ilike('request_xml', `%<Location>${locId}</Location><Currency>${currencyIso}</Currency>%`)
-          .gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString())
-          .order('created_at', { ascending: false })
-          .limit(5);
-        const recent = ((recentRows ?? []) as Array<{ created_at: string; status_id: string | null; success: boolean | null }>)
-          .find((row) => row.success === true || String(row.status_id ?? '').trim() === '339');
-        if (recent) {
-          return jsonResponse({
-            success: true,
-            auth_mode: authMode,
-            already_set: true,
-            skipped: 'recent_identical_success',
-            location_id: locId,
-            currency_iso: currencyIso,
-            last_confirmed_at: recent.created_at,
-            note: `Location ${locId} was already confirmed on ${currencyIso} at ${recent.created_at} (RU status ${recent.status_id ?? 'ok'}); the identical call was skipped to respect the channel's one-call-per-minute window.`,
-          });
+        //
+        // The match MUST be scoped to the same OwnerID. RU applies the location currency to the
+        // authenticating account only, so another sub-account's recent flip is not an answer for
+        // this one — answering from it is exactly how a brand-new OwnerID stayed on USD with no
+        // Push_ChangeCurrency_RQ ever sent. With no OwnerID on the request we never shortcut.
+        if (flipOwnerId) {
+          const { data: recentRows } = await getLogClient()
+            .from('ru_api_log')
+            .select('created_at, status_id, response_id, success')
+            .eq('action', 'Push_ChangeCurrency_RQ')
+            .eq('ru_owner_id', flipOwnerId)
+            .ilike('request_xml', `%<Location>${locId}</Location><Currency>${currencyIso}</Currency>%`)
+            .gte('created_at', new Date(Date.now() - 10 * 60_000).toISOString())
+            .order('created_at', { ascending: false })
+            .limit(5);
+          const recent = ((recentRows ?? []) as Array<{ created_at: string; status_id: string | null; success: boolean | null }>)
+            .find((row) => row.success === true || String(row.status_id ?? '').trim() === '339');
+          if (recent) {
+            return jsonResponse({
+              success: true,
+              auth_mode: authMode,
+              already_set: true,
+              skipped: 'recent_identical_success',
+              location_id: locId,
+              owner_id: flipOwnerId,
+              currency_iso: currencyIso,
+              last_confirmed_at: recent.created_at,
+              note: `Location ${locId} was already confirmed on ${currencyIso} for account ${flipOwnerId} at ${recent.created_at} (RU status ${recent.status_id ?? 'ok'}); the identical call was skipped to respect the channel's one-call-per-minute window.`,
+            });
+          }
         }
       } catch (_e) {
         // Log lookup is an optimisation only — fall through to the live call.
       }
+
 
 
 

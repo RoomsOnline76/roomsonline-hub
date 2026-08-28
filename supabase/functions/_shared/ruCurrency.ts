@@ -134,6 +134,36 @@ export async function clearScopedLocationCurrency(
   }
 }
 
+/**
+ * Did the channel itself ever accept a currency write for THIS OwnerID + Location + ISO?
+ * The exchange log is the only durable proof (status 0 = flipped, 339 = already on it).
+ * Returns the timestamp of the proof, or null when there is none.
+ */
+export async function hasLoggedCurrencyFlip(
+  supabase: any,
+  locationId: number,
+  ownerScope: string,
+  iso: string,
+): Promise<string | null> {
+  if (!locationId || locationId <= 1 || !ownerScope || ownerScope === 'master') return null;
+  try {
+    const { data } = await supabase
+      .from('ru_api_log')
+      .select('created_at, status_id, success')
+      .eq('action', 'Push_ChangeCurrency_RQ')
+      .eq('ru_owner_id', String(ownerScope))
+      .ilike('request_xml', `%<Location>${locationId}</Location><Currency>${iso.toUpperCase()}</Currency>%`)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const hit = ((data ?? []) as Array<{ created_at: string; status_id: string | null; success: boolean | null }>)
+      .find((row) => row.success === true || String(row.status_id ?? '').trim() === '0' || String(row.status_id ?? '').trim() === '339');
+    return hit ? String(hit.created_at) : null;
+  } catch {
+    return null;
+  }
+}
+
+
 
 /**
  * Ask RU what currency it actually holds for a listing. This is the only trustworthy
@@ -419,24 +449,30 @@ export async function decideRuCurrency(
 
   /**
    * A previous successful write on THIS account (recorded as an assumption, source 'flip')
-   * is enough to skip a *repeat* write for the same OwnerID + LocationID + ISO. It does not
-   * count as verification, so the ZAR-vs-USD publication decision is unchanged: the value is
-   * the authored ISO either way, and the read-back path still owns the verified verdict.
+   * may skip a *repeat* write — but ONLY when the exchange log actually holds a successful
+   * Push_ChangeCurrency_RQ for this OwnerID + Location + ISO. A scoped row on its own is not
+   * evidence: rows written by since-removed cross-account shortcuts left brand-new sub-accounts
+   * publishing USD while the tracker echoed our own assumption back as ZAR.
    */
   if (!verifiedIso && scoped?.source === 'flip' && !scoped.stale && scoped.iso === authored) {
-    const d = decide({
-      location_iso: authored,
-      published_iso: authored,
-      conversion_in_force: false,
-      fx_rate: null,
-      effective_rate: null,
-      flip_outcome: 'already_set',
-      write_skipped: true,
-      skip_reason: 'currency_already_set',
-      reason: `Location ${opts.locationId} was already set to ${authored} on account ${ownerScope} by an earlier write — no currency write needed.`,
-    });
-    await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
-    return d;
+    const logged = await hasLoggedCurrencyFlip(supabase, opts.locationId, ownerScope, authored);
+    if (logged) {
+      const d = decide({
+        location_iso: authored,
+        published_iso: authored,
+        conversion_in_force: false,
+        fx_rate: null,
+        effective_rate: null,
+        flip_outcome: 'already_set',
+        write_skipped: true,
+        skip_reason: 'currency_already_set',
+        reason: `Location ${opts.locationId} was already set to ${authored} on account ${ownerScope} by an earlier confirmed write (${logged}) — no currency write needed.`,
+      });
+      await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
+      return d;
+    }
+    // Unproven scoped row: forget it so it can never suppress the write again.
+    await clearScopedLocationCurrency(supabase, opts.locationId, ownerScope);
   }
 
   /**
@@ -444,13 +480,16 @@ export async function decideRuCurrency(
    * verdict from the channel's own answer on the SAME account and location for the SAME ISO.
    * Firing Push_ChangeCurrency_RQ again in that state changes nothing at the channel and only
    * burns a write inside the sliding minute (it is what throttled the tail of an onboarding run).
+   *
+   * The scope must match EXACTLY: a legacy row with no owner_scope belongs to some other
+   * account's answer and is never evidence for this OwnerID.
    */
   if (!verifiedIso) {
     const durable = await loadCurrencyState(supabase, opts.propertyId);
     const durableIso = String(durable?.ru_reported_currency_iso ?? '').toUpperCase();
     const durableScope = String(durable?.owner_scope ?? '').trim();
-    const sameScope = !durableScope || durableScope === ownerScope;
-    const sameLocation = !durable?.ru_location_id || Number(durable.ru_location_id) === Number(opts.locationId);
+    const sameScope = durableScope !== '' && durableScope === ownerScope;
+    const sameLocation = Number(durable?.ru_location_id) === Number(opts.locationId);
     if (durable?.verified_at && durableIso === authored && sameScope && sameLocation) {
       const d = decide({
         location_iso: authored,
@@ -469,6 +508,8 @@ export async function decideRuCurrency(
       return d;
     }
   }
+
+
 
   /**
    * NOTE: cross-account location knowledge is deliberately NOT consulted here. Rentals United
@@ -490,7 +531,10 @@ export async function decideRuCurrency(
   if (!opts.dryRun) {
     try {
       const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-        body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...childAuth },
+        // owner_id scopes the API's identical-call shortcut to THIS account: without it, another
+        // sub-account's recent flip could answer for this one and no write would ever be sent.
+        body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, owner_id: ownerScope, ...childAuth },
+
       });
       if (error || !data?.success) {
         // Our own sliding-window rate gate answers an identical repeat call with 429 /
@@ -789,7 +833,7 @@ export async function correctCurrencyDrift(
   let message = '';
   try {
     const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-      body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...(opts.childAuth ?? {}) },
+      body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, owner_id: opts.ownerScope, ...(opts.childAuth ?? {}) },
     });
     if (error || !data?.success) {
       const body = error ? await readInvokeErrorBody(error) : null;

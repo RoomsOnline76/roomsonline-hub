@@ -109,7 +109,14 @@ export interface AriDeltaOptions {
   priorAvailabilityHash?: string | null;
   priorPricesHash?: string | null;
   forceAvailability?: boolean;
+  /**
+   * Force the PutPrices write even when the payload hash is unchanged. Used after a corrective
+   * currency flip: the amounts are identical, but the channel published them under the wrong
+   * ISO, so the same numbers must be re-sent to land as the authored currency.
+   */
+  forcePrices?: boolean;
 }
+
 
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import { loadPropertyDistances } from '../_shared/ruDistances.ts';
@@ -2969,7 +2976,7 @@ async function pushARI(
         prices: outboundPrices,
       });
       result.prices_hash = pricesHash;
-      if (ari.priorPricesHash && ari.priorPricesHash === pricesHash) {
+      if (!ari.forcePrices && ari.priorPricesHash && ari.priorPricesHash === pricesHash) {
         // Rates identical to the last accepted push — PutPrices would be a no-op write.
         result.prices_pushed = true;
         result.skipped_prices = true;
@@ -3316,6 +3323,10 @@ Deno.serve(async (req) => {
       windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
       availabilityReadback: reqBody.verify_availability_readback === true,
       forceAvailability: reqBody.force_availability === true,
+      // Re-send identical rates on request — needed after a corrective currency flip, where the
+      // amounts are unchanged but were published under the wrong ISO.
+      forcePrices: reqBody.force_prices === true,
+
     };
     /**
      * Building containers are OPT-IN only.
@@ -3409,8 +3420,11 @@ Deno.serve(async (req) => {
       unit?: UnitContext,
       childAuth: Record<string, unknown> = {},
       currency?: CurrencyDecision | null,
+      ariOverrides: AriDeltaOptions = {},
     ): Promise<Record<string, any>> =>
-      staticOnly ? {} : await pushARI(supabase, ruPropertyId, targetProperty, unitUnits, unit, childAuth, currency, readbackOptions);
+      staticOnly ? {} : await pushARI(supabase, ruPropertyId, targetProperty, unitUnits, unit, childAuth, currency, readbackOptions, { forcePrices: ariRequestOptions.forcePrices, ...ariOverrides });
+
+
     const pushDiscountsUnlessStatic = async (
       propertyId: string,
       ruPropertyIds: { ruId: number; roomTypeId?: string }[],
@@ -5680,7 +5694,35 @@ Deno.serve(async (req) => {
             expectedLocationId: locationId,
           });
           currencyVerification = { ...currencyVerification, corrective_flip: corrective };
+
+          /**
+           * Rates that went up while the listing was on the wrong ISO are published as that
+           * ISO — the channel does not restate them when the location flips. Re-send the same
+           * amounts (hash unchanged, so the write must be forced) so nights read as authored.
+           */
+          if (corrective?.matches === true && !dry_run) {
+            const repushed: Record<string, unknown>[] = [];
+            for (const done of unitResults.filter((u: any) => u.success && u.rentalsunited_property_id) as any[]) {
+              const uid = parseInt(String(done.rentalsunited_property_id), 10);
+              const u = (unitsToPush as any[]).find((x: any) => x.id === done.room_type_id);
+              if (!(uid > 0) || !u) continue;
+              const r = await pushARIUnlessStatic(
+                uid,
+                property as PropertyRow,
+                1,
+                { id: u.id, name: u.name, linked_rolos_id: u.linked_rolos_id, amenities: (u as any).amenities ?? null },
+                childAuthPayload,
+                currencyDecision,
+                { forcePrices: true },
+              );
+
+              repushed.push({ ru_property_id: uid, prices_pushed: r.prices_pushed === true, error: r.prices_error ?? null });
+              await new Promise((res) => setTimeout(res, 1000));
+            }
+            currencyVerification = { ...currencyVerification, prices_repushed_after_flip: repushed };
+          }
         }
+
 
       }
 
@@ -5846,7 +5888,30 @@ Deno.serve(async (req) => {
           expectedLocationId: locationId,
         });
         pushExtras.currency_verification = { ...pushExtras.currency_verification, corrective_flip: corrective };
+
+        /**
+         * Amounts already published under the wrong ISO are not restated by the channel when the
+         * location flips, so re-send the identical price payload with the write forced past the
+         * unchanged-hash skip. Nights then read as the authored currency, not converted USD.
+         */
+        if (corrective?.matches === true && !dry_run) {
+          const repush = await pushARIUnlessStatic(
+            finalRuId,
+            property as PropertyRow,
+            activeRoomTypes.length || 1,
+
+            undefined,
+            childAuthPayload,
+            currencyDecision,
+            { forcePrices: true },
+          );
+          pushExtras.currency_verification = {
+            ...pushExtras.currency_verification,
+            prices_repushed_after_flip: { prices_pushed: repush.prices_pushed === true, error: repush.prices_error ?? null },
+          };
+        }
       }
+
 
     }
 
