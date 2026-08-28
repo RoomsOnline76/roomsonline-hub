@@ -1844,11 +1844,12 @@ export default function PMSDashboard() {
       }
       toast.success("Reservation moved");
       refreshBookingQueries();
-      // A move has to reach the channel as a reservation modification (so a channel-sourced stay
-      // stops pointing at the unit it left) AND as an availability delta for both the vacated and
-      // the newly sold unit. The sync function does both and reports rate-limit deferrals.
-      if (roomsChanged || typeChanged || roomTypeChanged || datesChanged) {
-        void pushBookingToChannel(booking.id, datesChanged ? "dates" : "moved", {
+      // `modify-booking` already delivered a date-only change to the channel before its local
+      // write. Only invoke a second reservation push when the stay also moved units: that later
+      // write changes the channel listing and must close the unit it left as well as the one it
+      // entered. Re-sending a date-only change here produced the duplicate ModifyStay call.
+      if (roomsChanged || typeChanged || roomTypeChanged) {
+        void pushBookingToChannel(booking.id, "moved", {
           source: "dashboard_move",
           previous: {
             room_type_id: booking.room_type_id ?? null,
