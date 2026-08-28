@@ -1,48 +1,51 @@
-# Kill recurring channel price and availability pulls
+# Fix RU booking extensions being replayed as new bookings
 
 ## Confirmed diagnosis
 
-The 22:26 calls were a paired live ARI read-back:
+At 00:31–00:44, two queued payloads for the same local booking repeatedly sent `Push_PutConfirmedReservationMulti_RQ`:
 
-- `Pull_ListPropertyAvailabilityCalendar_RQ` at 22:26:04
-- `Pull_ListPropertyPrices_RQ` at 22:26:12
-- Both targeted Albatros listing `5966579` through the linked child account.
+- 29 Aug–1 Sep at 4,200
+- 29–31 Aug at 2,800
 
-This pairing is produced by the readiness/certification probing path. Its current protection is a six-hour snapshot TTL, so the system treats an expired snapshot as permission to query the channel again. Scheduled ARI and reconciliation jobs already disable price read-back, so they did not originate this pair.
+Each retry first sent `Push_PutAvbUnits_RQ` to open the dates, then sent the create request without a `ReservationID`. RU therefore evaluated each payload as a second booking overlapping the stay already held and returned Status 1. The queue exhausted five attempts for both stale creates.
+
+A separate `Push_ModifyStay_RQ` for RU reservation `147097867` succeeded at 00:31:06, but it concerned 7–9 Sep and was not the failing Rocko stay.
 
 ## Changes
 
-1. **Make onboarding verification permanent per listing**
-   - Record successful availability-and-price verification against the property and channel listing.
-   - Treat that record as a one-time latch, not an expiring cache.
-   - A replacement/new channel listing gets its own one-time verification.
+1. **Resolve the existing RU reservation before choosing a verb**
+   - For every edit, extension, shortening, room move, or drag/drop, resolve the existing RU ReservationID from the booking/channel reservation mapping and stored external ID.
+   - Treat booking identity as stable even while an earlier channel write is queued.
+   - Never infer “new booking” merely because `external_reservation_id` is temporarily null.
 
-2. **Enforce the rule at the channel gateway**
-   - Permit `get_availability` and `get_prices` only when the request carries the dedicated onboarding-verification purpose and the listing has not already passed it.
-   - Refuse calls from readiness dashboards, property saves, booking events, monitors, cron jobs, retries, diagnostics, and generic `force_probe` requests.
-   - Prevent deferred queueing/replay of refused reads.
+2. **Make create and modify mutually exclusive**
+   - Use `Push_PutConfirmedReservationMulti_RQ` only for the first creation of a genuinely new ROLOS booking.
+   - Use `Push_ModifyStay_RQ` for every subsequent stay change, with the existing RU ReservationID, RU’s current dates, and the requested new dates/price.
+   - If the RU ReservationID cannot yet be resolved, park one modification behind the pending create; do not enqueue another create.
+   - Coalesce later edits so only the newest requested stay survives.
 
-3. **Remove repeat callers**
-   - Make readiness scoring use stored verification evidence plus the ROL'OS calendar/rates only.
-   - Stop MCQ ordering, bulk readiness, recheck controls, and certification reruns from launching another live ARI pull after success.
-   - Ensure normal property and ARI pushes always set all read-back flags to false.
-   - Remove the recurring LNM availability pull; notifications may trigger outbound reconciliation but may not read availability back from the channel.
+3. **Stop ARI from competing with reservation writes**
+   - Do not send normal booking-event ARI before create/modify.
+   - For a Status 1 modify only, open the focused extension/departure dates with the existing internal changeover `3` → wire `C=1` mapping, then replay `modify_stay`, never `push_confirmed_reservation`.
+   - Prevent the queue drainer from running an ARI delta for the same property/unit/date span while a reservation create or modification is pending.
 
-4. **Keep onboarding singular**
-   - During first onboarding only, run exactly one availability pull and one price pull after the outbound ARI push.
-   - Persist success only when both responses are valid for the intended listing and owner scope.
-   - If one fails, retain the incomplete state and retry only the failed onboarding check through the explicit onboarding flow.
+4. **Repair current stuck state**
+   - Retire the two failed stale create queue rows and their operation claims for this booking so they cannot replay again.
+   - Resolve the correct RU ReservationID and RU-held current stay dates for Rocko’s booking.
+   - Submit one `Push_ModifyStay_RQ` for the latest intended dates and amount.
+   - Persist the successful external reservation identity and channel sync state.
 
-5. **Audit and verify**
-   - Add tests proving post-onboarding requests cannot reach either channel pull endpoint, including `force_probe`, saves, booking changes, queue replay, MCQ, readiness, and cron paths.
-   - Verify a fresh listing receives exactly one call of each type, while Albatros receives none because its successful 22:26 evidence already exists.
-   - Deploy the affected functions and inspect fresh channel API logs to confirm zero recurring price/availability reads.
+5. **Verify regressions**
+   - Test extension, shortening, drag/drop, price change, rapid consecutive edits, queued-first-create, and Status 1 retry.
+   - Assert no edit path emits `Push_PutConfirmedReservationMulti_RQ` once a booking has a pending or established RU identity.
+   - Confirm logs show one focused modify and no full-property ARI push or duplicate create.
 
 ## Technical scope
 
-- `supabase/functions/rentalsunited-api/index.ts`: central deny-by-default gateway guard for both read actions.
-- `supabase/functions/ru-cert-portal/index.ts`: one-time onboarding latch; stored-evidence readiness; no TTL or force-probe bypass.
-- `supabase/functions/push-property-to-ru/index.ts`: onboarding-only opt-in and no routine availability/price read-back.
-- `supabase/functions/cron-ru-lnm-repull/index.ts`: remove recurring availability reads.
-- Queue-drain and frontend readiness controls: prevent replay or generation of prohibited requests.
-- Database migration: durable listing-scoped verification evidence with authenticated/admin access only.
+- `supabase/functions/_shared/ruBookingSync.ts`: stable identity resolution and create/modify exclusivity.
+- `supabase/functions/_shared/channelBookingSync.ts`: pending-create detection and edit coalescing.
+- `supabase/functions/modify-booking/index.ts`: route edits through the same authoritative resolver.
+- `supabase/functions/cron-ru-call-queue-drain/index.ts`: stale-create suppression, latest-edit coalescing, and reservation-vs-ARI ordering.
+- Database migration only if the existing queue/claim metadata cannot represent a pending RU identity safely.
+
+The previously approved shutdown of recurring channel price/availability pulls remains unchanged and will be implemented alongside this repair.
