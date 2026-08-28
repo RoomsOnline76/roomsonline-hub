@@ -9,6 +9,7 @@ import {
 
 interface GuestHubspotPanelProps {
   email: string | null | undefined;
+  propertyId?: string | null;
 }
 
 /**
@@ -18,8 +19,8 @@ interface GuestHubspotPanelProps {
  * here is editable, and the whole block simply does not render when the add-on
  * is off, unhealthy, still loading, or has no matching contact.
  */
-export function GuestHubspotPanel({ email }: GuestHubspotPanelProps) {
-  const { healthy, status } = useHubspotCapability();
+export function GuestHubspotPanel({ email, propertyId }: GuestHubspotPanelProps) {
+  const { healthy, status } = useHubspotCapability(propertyId);
   const { data, isLoading, isError } = useHubspotContactSummary(email, healthy);
 
   if (!healthy || !email) return null;

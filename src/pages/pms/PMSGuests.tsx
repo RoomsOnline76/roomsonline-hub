@@ -554,7 +554,7 @@ export default function PMSGuests() {
                 <Separator />
 
                 {/* Optional CRM mirror — hidden unless the add-on is live and matched */}
-                <GuestHubspotPanel email={selectedGuest.email} />
+                <GuestHubspotPanel email={selectedGuest.email} propertyId={propertyId} />
 
                 {/* Booking History */}
                 <div className="space-y-2">

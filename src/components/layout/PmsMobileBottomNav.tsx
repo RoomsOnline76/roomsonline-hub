@@ -40,7 +40,7 @@ export function PmsMobileBottomNav() {
 
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = hasMinRole(userRole, "admin");
-  const { available: hubspotAvailable } = useHubspotCapability();
+  const { available: hubspotAvailable } = useHubspotCapability(propertyId);
 
   const groups = pmsNavGroups
     .map((group) => ({

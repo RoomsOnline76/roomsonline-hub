@@ -29,7 +29,7 @@ export default function PMSIntegrations() {
   const { propertyId, properties, portfolioProperties, portfolioIds, loading: propertyLoading, switchProperty, showPortfolioToggle } = usePmsPropertyId();
   const [viewMode, setViewMode] = useState<"single" | "portfolio">("single");
   const wl = useWhitelabel(propertyId);
-  const crm = useHubspotCapability();
+  const crm = useHubspotCapability(propertyId);
 
   const hasPortfolio = showPortfolioToggle;
 

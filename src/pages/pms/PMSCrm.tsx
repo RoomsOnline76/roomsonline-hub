@@ -44,11 +44,11 @@ import {
  */
 export default function PMSCrm() {
   const { propertyId, properties } = usePmsPropertyId();
-  const { data: status, isLoading } = useHubspotStatus();
+  const { data: status, isLoading } = useHubspotStatus(propertyId);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const live = Boolean(status?.enabled && status?.connected);
-  const { data: metrics, isFetching: metricsLoading } = useHubspotMetrics(live);
-  const { data: log } = useHubspotSyncLog(live);
+  const { data: metrics, isFetching: metricsLoading } = useHubspotMetrics(live, propertyId);
+  const { data: log } = useHubspotSyncLog(live, propertyId);
   const { forceSync, testConnection, setMessageLogging } = useHubspotActions();
 
   const propertyName = useMemo(
@@ -153,11 +153,13 @@ export default function PMSCrm() {
               )}
               Sync now
             </Button>
-            <Button size="sm" variant="ghost" asChild>
-              <a href={hubspotUrl(status?.portalId)} target="_blank" rel="noreferrer">
-                Open portal <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
-              </a>
-            </Button>
+            {live && status?.portalId && (
+              <Button size="sm" variant="ghost" asChild>
+                <a href={hubspotUrl(status.portalId)} target="_blank" rel="noreferrer">
+                  Open portal <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                </a>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -172,14 +174,16 @@ export default function PMSCrm() {
               <p className="mt-1 text-2xl font-semibold">
                 {metricsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : metric(metrics?.contacts_total)}
               </p>
-              <a
-                href={hubspotUrl(status?.portalId, "/objects/0-1/views/all/list")}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                View contacts <ExternalLink className="h-3 w-3" />
-              </a>
+              {status?.portalId && (
+                <a
+                  href={hubspotUrl(status.portalId, "/objects/0-1/views/all/list")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  View contacts <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </CardContent>
           </Card>
           <Card>
@@ -190,14 +194,16 @@ export default function PMSCrm() {
               <p className="mt-1 text-2xl font-semibold">
                 {metricsLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : metric(metrics?.open_deals)}
               </p>
-              <a
-                href={hubspotUrl(status?.portalId, "/objects/0-3/views/all/list")}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
-              >
-                View deals <ExternalLink className="h-3 w-3" />
-              </a>
+              {status?.portalId && (
+                <a
+                  href={hubspotUrl(status.portalId, "/objects/0-3/views/all/list")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  View deals <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
             </CardContent>
           </Card>
           <Card>

@@ -236,6 +236,76 @@ Deno.serve(async (req) => {
       ownerId = isStaff && body.owner_id ? body.owner_id : callerId;
     }
 
+    // Operator CRM screens are property-scoped. A platform user's own HubSpot
+    // connection must never make an unrelated selected property look connected.
+    // Resolve the selected property's owner (direct link, then authoritative
+    // property owner email, then portfolio owner) and use that identity for
+    // every read/control action on that screen.
+    if (body.property_id) {
+      const { data: directOwners, error: directOwnerError } = await admin
+        .from("property_owners")
+        .select("user_id")
+        .eq("property_id", body.property_id)
+        .limit(1);
+      if (directOwnerError) return fail(`Could not resolve property owner: ${directOwnerError.message}`, 500);
+
+      let propertyOwnerId = directOwners?.[0]?.user_id
+        ? String(directOwners[0].user_id)
+        : null;
+
+      if (!propertyOwnerId) {
+        const { data: property, error: propertyError } = await admin
+          .from("properties")
+          .select("owner_email")
+          .eq("id", body.property_id)
+          .maybeSingle();
+        if (propertyError) return fail(`Could not resolve property: ${propertyError.message}`, 500);
+
+        const ownerEmail = typeof property?.owner_email === "string"
+          ? property.owner_email.trim().toLowerCase()
+          : "";
+        if (ownerEmail) {
+          const { data: profile, error: profileError } = await admin
+            .from("profiles")
+            .select("id")
+            .ilike("email", ownerEmail)
+            .maybeSingle();
+          if (profileError) return fail(`Could not resolve property owner profile: ${profileError.message}`, 500);
+          propertyOwnerId = profile?.id ? String(profile.id) : null;
+        }
+      }
+
+      if (!propertyOwnerId) {
+        const { data: memberships, error: membershipError } = await admin
+          .from("property_portfolio_members")
+          .select("portfolio_id")
+          .eq("property_id", body.property_id)
+          .limit(1);
+        if (membershipError) return fail(`Could not resolve property portfolio: ${membershipError.message}`, 500);
+
+        const portfolioId = memberships?.[0]?.portfolio_id
+          ? String(memberships[0].portfolio_id)
+          : null;
+        if (portfolioId) {
+          const { data: portfolio, error: portfolioError } = await admin
+            .from("property_portfolios")
+            .select("owner_id")
+            .eq("id", portfolioId)
+            .maybeSingle();
+          if (portfolioError) return fail(`Could not resolve portfolio owner: ${portfolioError.message}`, 500);
+          propertyOwnerId = portfolio?.owner_id ? String(portfolio.owner_id) : null;
+        }
+      }
+
+      if (!propertyOwnerId) {
+        return fail("This property does not have an owner-linked CRM connection", 404);
+      }
+      if (!isStaff && propertyOwnerId !== ownerId) {
+        return fail("You do not have access to this property's CRM connection", 403);
+      }
+      ownerId = propertyOwnerId;
+    }
+
     if (!ownerId) return fail("owner_id is required", 400);
 
     // ---- Load the owner row -------------------------------------------------

@@ -99,13 +99,15 @@ interface RawStatus {
 }
 
 /** Connection status — the single cached entry every HubSpot surface reads. */
-export function useHubspotStatus() {
+export function useHubspotStatus(propertyId?: string | null) {
   return useQuery<HubspotStatus>({
-    queryKey: STATUS_KEY,
+    queryKey: [...STATUS_KEY, propertyId ?? "owner"],
     staleTime: 5 * 60 * 1000,
     retry: false,
     queryFn: async () => {
-      const raw = await callHubspot<RawStatus>("get_status");
+      const raw = await callHubspot<RawStatus>("get_status", {
+        ...(propertyId ? { property_id: propertyId } : {}),
+      });
       return {
         enabled: raw.enabled ?? false,
         connected: raw.connected ?? false,
@@ -132,8 +134,8 @@ export interface HubspotCapability {
  * Capability check used to gate the CRM menu item and the Guests panel.
  * Properties whose owner never connected HubSpot never see any of it.
  */
-export function useHubspotCapability(): HubspotCapability {
-  const { data, isLoading } = useHubspotStatus();
+export function useHubspotCapability(propertyId?: string | null): HubspotCapability {
+  const { data, isLoading } = useHubspotStatus(propertyId);
   const available = Boolean(data?.enabled && data?.connected);
   return {
     available,
@@ -143,24 +145,29 @@ export function useHubspotCapability(): HubspotCapability {
   };
 }
 
-export function useHubspotMetrics(enabled: boolean) {
+export function useHubspotMetrics(enabled: boolean, propertyId?: string | null) {
   return useQuery<HubspotMetrics>({
-    queryKey: ["hubspot", "metrics"],
+    queryKey: ["hubspot", "metrics", propertyId ?? "owner"],
     enabled,
     staleTime: 5 * 60 * 1000,
     retry: false,
-    queryFn: () => callHubspot<HubspotMetrics>("get_metrics"),
+    queryFn: () => callHubspot<HubspotMetrics>("get_metrics", {
+      ...(propertyId ? { property_id: propertyId } : {}),
+    }),
   });
 }
 
-export function useHubspotSyncLog(enabled: boolean) {
+export function useHubspotSyncLog(enabled: boolean, propertyId?: string | null) {
   return useQuery<HubspotSyncLogEntry[]>({
-    queryKey: ["hubspot", "sync-log"],
+    queryKey: ["hubspot", "sync-log", propertyId ?? "owner"],
     enabled,
     staleTime: 2 * 60 * 1000,
     retry: false,
     queryFn: async () => {
-      const res = await callHubspot<{ entries?: HubspotSyncLogEntry[] }>("get_sync_log", { limit: 25 });
+      const res = await callHubspot<{ entries?: HubspotSyncLogEntry[] }>("get_sync_log", {
+        limit: 25,
+        ...(propertyId ? { property_id: propertyId } : {}),
+      });
       return res.entries ?? [];
     },
   });
