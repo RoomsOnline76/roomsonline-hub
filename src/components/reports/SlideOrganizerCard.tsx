@@ -14,11 +14,13 @@ import { SlideOrganizer } from "./SlideOrganizer";
 export function SlideOrganizerCard({
   runId,
   sourceType,
+  propertyId,
 }: {
   runId: string;
   sourceType?: string | null;
+  propertyId?: string;
 }) {
-  const media = useReportMedia(runId, sourceType);
+  const media = useReportMedia(runId, sourceType, propertyId);
 
   const { mediaPages, legacyExpansions } = useMemo(() => {
     const sections: { section: string; images: number; titles: string[] }[] = [];
@@ -80,6 +82,11 @@ export function SlideOrganizerCard({
   }, [media.slots]);
 
   return (
-    <SlideOrganizer runId={runId} mediaPages={mediaPages} legacyExpansions={legacyExpansions} />
+    <SlideOrganizer
+      runId={runId}
+      mediaPages={mediaPages}
+      legacyExpansions={legacyExpansions}
+      propertyId={propertyId}
+    />
   );
 }
