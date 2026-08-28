@@ -63,10 +63,36 @@ export async function enqueueJob(
   const { error } = await supabase.from("background_jobs").insert(row);
   if (!error) return;
 
-  // Unique violation on the pending-dedupe index: identical work is already waiting, which is
-  // exactly what we want (one channel push per burst of edits).
+  // Unique violation on the pending-dedupe index: identical work is already waiting. Preserve one
+  // job, but merge the later caller's richer payload into it. This matters when the booking trigger
+  // inserts first and `modify-booking` follows with `skip_reservation: true`: silently discarding
+  // the latter would make the worker repeat a reservation verb that already landed synchronously.
   if ((error as { code?: string }).code === "23505") {
-    console.log(`[jobs] ${jobType} already queued (${options.dedupeKey})`);
+    if (options.dedupeKey) {
+      const { data: existing, error: readError } = await supabase
+        .from("background_jobs")
+        .select("id, payload")
+        .eq("job_type", jobType)
+        .eq("dedupe_key", options.dedupeKey)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (!readError && existing?.id) {
+        const existingPayload = existing.payload && typeof existing.payload === "object"
+          ? existing.payload as Record<string, unknown>
+          : {};
+        const { error: mergeError } = await supabase
+          .from("background_jobs")
+          .update({
+            payload: { ...existingPayload, ...payload },
+            run_after: runAfter,
+            max_attempts: options.maxAttempts ?? existing.max_attempts ?? 5,
+          })
+          .eq("id", existing.id)
+          .eq("status", "pending");
+        if (mergeError) console.error(`[jobs] failed to merge ${jobType}:`, mergeError.message);
+      }
+    }
+    console.log(`[jobs] ${jobType} merged with queued work (${options.dedupeKey})`);
     return;
   }
   console.error(`[jobs] failed to enqueue ${jobType}:`, error.message);
