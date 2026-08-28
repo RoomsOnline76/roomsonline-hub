@@ -4258,19 +4258,39 @@ Deno.serve(async (req) => {
       const rawLocations = Array.isArray(body.location_ids)
         ? body.location_ids
         : (body.location_id != null ? [body.location_id] : []);
-      const locationIds = rawLocations.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 1);
+      // The LocationId comes from the property setup and is used as given. Only blank,
+      // zero and non-numeric values are dropped — 1 is a valid channel LocationId and
+      // was previously discarded by a `> 1` filter.
+      const locationIds = rawLocations.map((v: unknown) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0);
       if (locationIds.length === 0) {
         return errorResponse('VALIDATION', 'At least one valid Rentals United LocationId is required to create a sub-user (location_id or location_ids)');
       }
 
-      const xml = buildCreateUserXml(creds, { first_name, last_name, email, password }, locationIds);
+      const pmsId = Number(body.pms_id ?? Deno.env.get('RU_PMS_ID') ?? 0);
+      const xml = buildCreateUserXml(
+        creds,
+        { first_name, last_name, email, password },
+        locationIds,
+        Number.isFinite(pmsId) && pmsId > 0 ? pmsId : null,
+      );
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
       if (!ok) return ruErrorResponse(status);
+      // Push_CreateUser_RS carries ONLY Status and ResponseID — no account id. Any id we
+      // used to "parse" here was always empty, so the caller must resolve the new OwnerID
+      // from Pull_ListMyUsers_RQ. `user_account_id` is echoed only when the channel ever
+      // sends one and must never be treated as authoritative.
       const userAccountId = extractUserAccountId(response);
-      return jsonResponse({ success: true, user_account_id: userAccountId, message: 'User created successfully', raw_xml: response });
+      return jsonResponse({
+        success: true,
+        user_account_id: userAccountId,
+        identity_authoritative: false,
+        message: 'User created successfully — resolve the OwnerID from the master roster',
+        raw_xml: response,
+      });
     }
+
 
 
     // ── list_users ──
