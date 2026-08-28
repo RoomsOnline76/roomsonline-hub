@@ -5041,7 +5041,7 @@ Deno.serve(async (req) => {
     if (action === "list_stored_api_keys") {
       const { data, error } = await admin
         .from("ru_api_credentials")
-        .select("ru_owner_id, login_email, access_key, key_label, verified_at")
+        .select("id, ru_owner_id, login_email, access_key, key_label, verified_at, key_scope, key_scope_verified_at")
         .order("updated_at", { ascending: false });
       if (error) return json({ success: false, error: { code: "READ_FAILED", message: error.message } }, 500);
       // Flag any AccessKey held against more than one OwnerID — that means one sub-user's keys
