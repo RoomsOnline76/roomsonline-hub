@@ -5893,7 +5893,8 @@ Deno.serve(async (req) => {
           const repush = await pushARIUnlessStatic(
             finalRuId,
             property as PropertyRow,
-            1,
+            activeRoomTypes.length || 1,
+
             undefined,
             childAuthPayload,
             currencyDecision,
