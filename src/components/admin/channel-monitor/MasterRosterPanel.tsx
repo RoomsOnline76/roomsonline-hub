@@ -27,10 +27,20 @@ interface RosterUser {
   archived?: boolean | null;
 }
 
+interface StoredKey {
+  id: string;
+  ru_owner_id: string | null;
+  login_email: string | null;
+  access_key: string | null;
+  key_label: string | null;
+  key_scope: string | null;
+}
+
 interface RosterResult {
   users: RosterUser[];
   retiredIds: Set<string>;
   boundIds: Set<string>;
+  storedKeys: StoredKey[];
   readAt: Date;
 }
 
@@ -40,6 +50,36 @@ interface CloseOutcome {
   state: CloseState;
   message: string;
 }
+
+type RematchOutcome = "queued" | "running" | "already_correct" | "rematched" | "master_pair" | "duplicate" | "orphan" | "failed";
+
+interface RematchResult {
+  outcome: RematchOutcome;
+  message: string;
+  ownerId: string | null;
+}
+
+const REMATCH_LABEL: Record<RematchOutcome, string> = {
+  queued: "Waiting",
+  running: "Probing…",
+  already_correct: "Already correct",
+  rematched: "Rematched",
+  master_pair: "Master pair (unusable)",
+  duplicate: "Duplicate — not moved",
+  orphan: "Orphan — no account accepts it",
+  failed: "Probe failed",
+};
+
+const REMATCH_VARIANT: Record<RematchOutcome, "secondary" | "outline" | "destructive"> = {
+  queued: "outline",
+  running: "outline",
+  already_correct: "secondary",
+  rematched: "secondary",
+  master_pair: "destructive",
+  duplicate: "destructive",
+  orphan: "destructive",
+  failed: "destructive",
+};
 
 /** The channel closes accounts one at a time; this is the gap we leave between them. */
 const DEFAULT_COOLDOWN_SECONDS = 60;
