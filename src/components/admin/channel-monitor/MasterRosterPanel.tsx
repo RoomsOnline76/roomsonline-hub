@@ -307,6 +307,110 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [closeOne, cooldownSeconds, selectedList]);
 
+  /** Which OwnerID currently holds which stored pair — drives the per-row key badge. */
+  const keyByOwner = useMemo(() => {
+    const map = new Map<string, StoredKey>();
+    for (const key of result?.storedKeys ?? []) {
+      const id = String(key.ru_owner_id ?? "").trim();
+      if (id) map.set(id, key);
+    }
+    return map;
+  }, [result]);
+
+  /**
+   * Rematch every stored pair against this roster read.
+   *
+   * One pair per call, paced, so the channel's read limits are respected and the operator
+   * can stop after the current pair. Candidates are the roster's unarchived accounts; the
+   * backend probes them in order and stops on the first account that accepts the pair.
+   */
+  const runRematch = useCallback(async () => {
+    const pairs = result?.storedKeys ?? [];
+    if (pairs.length === 0) {
+      toast.info("No stored key pairs to rematch");
+      return;
+    }
+    const candidates = (result?.users ?? [])
+      .filter((u) => !u.archived && String(u.owner_id ?? "").trim())
+      .map((u) => ({ owner_id: String(u.owner_id).trim(), login_email: label(u) }));
+
+    rematchCancelled.current = false;
+    setRematching(true);
+    setRematchResults(
+      Object.fromEntries(
+        pairs.map((p) => [p.id, { outcome: "queued" as RematchOutcome, message: "Waiting its turn", ownerId: p.ru_owner_id }]),
+      ),
+    );
+
+    let moved = 0;
+    for (const pair of pairs) {
+      if (rematchCancelled.current) break;
+      setRematchResults((prev) => ({
+        ...prev,
+        [pair.id]: { outcome: "running", message: "Probing the roster for its real owner", ownerId: pair.ru_owner_id },
+      }));
+      try {
+        const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "rematch_stored_keys", credential_id: pair.id, candidates },
+        });
+        if (data?.success === true) {
+          const outcome = String(data.outcome ?? "failed") as RematchOutcome;
+          if (outcome === "rematched") moved += 1;
+          setRematchResults((prev) => ({
+            ...prev,
+            [pair.id]: {
+              outcome: REMATCH_LABEL[outcome] ? outcome : "failed",
+              message: String(data.message ?? ""),
+              ownerId: String(data.ru_owner_id ?? pair.ru_owner_id ?? "") || null,
+            },
+          }));
+        } else {
+          setRematchResults((prev) => ({
+            ...prev,
+            [pair.id]: {
+              outcome: "failed",
+              message: data?.error?.message ?? error?.message ?? "The probe did not complete",
+              ownerId: pair.ru_owner_id,
+            },
+          }));
+        }
+      } catch (e) {
+        setRematchResults((prev) => ({
+          ...prev,
+          [pair.id]: { outcome: "failed", message: e instanceof Error ? e.message : String(e), ownerId: pair.ru_owner_id },
+        }));
+      }
+      if (!rematchCancelled.current) await new Promise((r) => setTimeout(r, 1200));
+    }
+
+    setRematching(false);
+    if (moved > 0) toast.success(`${moved} key pair${moved === 1 ? "" : "s"} refiled against the right sub-account`);
+    else toast.success("Rematch finished — no pair needed moving");
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const forgetKey = useCallback(async (credentialId: string) => {
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      body: { action: "forget_stored_key", credential_id: credentialId },
+    });
+    if (data?.success !== true) {
+      toast.error(data?.error?.message ?? error?.message ?? "Could not remove the local copy");
+      return;
+    }
+    toast.success("Local copy removed — any key still at the channel is untouched");
+    setRematchResults((prev) => {
+      const next = { ...prev };
+      delete next[credentialId];
+      return next;
+    });
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/20 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
