@@ -8165,10 +8165,10 @@ Deno.serve(async (req) => {
 
 
       type RuUser = { user_account_id?: string; email?: string; login_email?: string; owner_id?: string };
-      // One roster per Step A run. Every helper below shares this read; only a deliberate
-      // read-back after creating a sub-user asks the channel again (`fresh: true`).
+      // One roster per Step A run. Every helper below shares this read. A successful create
+      // pauses immediately at A.2; OwnerID resolution waits for A.3 key verification.
       let rosterOnce: RuUser[] | null = null;
-      /** Step A asks the channel for a fresh roster at most ONCE per run (the create read-back). */
+      /** Step A asks the channel for a fresh roster at most once per run. */
       let freshRosterRead = false;
       const listRuUsers = async (fresh = false): Promise<RuUser[]> => {
         if (fresh && freshRosterRead && rosterOnce) return rosterOnce;
@@ -8382,11 +8382,6 @@ Deno.serve(async (req) => {
          */
         const planAccountId = String((existing.account as any)?.id ?? "") || null;
         const planAccountOwnerId = adoptOwnerId || null;
-        // The address Step A automatically falls back to when the shown login is
-        // rejected as taken at creation time — no manual email change is required.
-        const planFallbackLogin = String(ownerEmail).toLowerCase().endsWith(`@${RU_GENERATED_LOGIN_DOMAIN}`)
-          ? null
-          : generateDistributionLogin((await generatedLoginBase()) ?? "");
         let planHasKeys = Boolean(String((existing.account as any)?.ru_api_access_key ?? "").trim());
         if (!planHasKeys && planAccountOwnerId) {
           const { data: credRow } = await admin
@@ -8410,7 +8405,6 @@ Deno.serve(async (req) => {
             outcome,
             login_email: ownerEmail,
             login_source: ownerEmailSource,
-            fallback_login: planFallbackLogin,
             contact_first_name: nameParts[0] || "Property",
             contact_last_name: nameParts.slice(1).join(" ") || "Owner",
             company_name: portfolioRow?.name ?? ownerName ?? null,
@@ -8850,110 +8844,12 @@ Deno.serve(async (req) => {
           }, 502);
         }
 
-        if (!adopted) {
-          /**
-           * Push_CreateUser_RS returns ONLY Status and ResponseID — the channel never sends
-           * an account id back. The master roster (Pull_ListMyUsers_RQ) is therefore the
-           * single authoritative source for the new OwnerID, and it can lag a fresh create.
-           *
-           * The channel also refuses an identical roster read inside a sliding minute, so a
-           * 2s-paced retry burned every attempt on RU_RATE_DEFERRED and then discarded a
-           * live account. Honour the window the channel itself advertises ("retry in Ns")
-           * and keep reading until the budget runs out.
-           */
-          const parseRetrySeconds = (msg?: string): number | null => {
-            const m = /retry in (\d+)\s*s/i.exec(String(msg ?? ""));
-            return m ? Number(m[1]) : null;
-          };
-          const readbackDeadline = Date.now() + 80_000;
-          while (!ruOwnerId) {
-            invalidateRuRosterMemo();
-            rosterOnce = null;
-            freshRosterRead = false;
-            const listed = await listRuSubUsers(admin, {
-              forceFresh: true,
-              source: "step-a-create-readback",
-            });
-            if (listed.ok) rosterOnce = listed.users as RuUser[];
-            const matched = matchByEmail((rosterOnce ?? []) as RuUser[]);
-            if (matched?.owner_id) {
-              ruOwnerId = usableRuId(matched.owner_id) || null;
-              userAccountId = usableRuId(matched.user_account_id) || null;
-              break;
-            }
-            // A throttled read served from cache is not proof of absence — wait out the window.
-            const waitSec = parseRetrySeconds(listed.message) ??
-              (listed.cached || listed.deferred || !listed.ok ? 20 : 8);
-            const waitMs = Math.min(waitSec + 3, 65) * 1000;
-            if (Date.now() + waitMs > readbackDeadline) break;
-            await new Promise((r) => setTimeout(r, waitMs));
-          }
-
-          if (!ruOwnerId) {
-            /**
-             * The account EXISTS at the channel. Record the login (and its password) against
-             * this scope with a null OwnerID so the next run resolves the same login, adopts
-             * it, and never creates a second slug account.
-             */
-            let pendingSaved = false;
-            try {
-              const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
-              const pendingRow: Record<string, unknown> = {
-                owner_email: ownerEmail,
-                ru_login_email: ownerEmail,
-                ru_login_url: "https://new.rentalsunited.com",
-                portfolio_id: portfolioId,
-                property_id: portfolioId ? null : propertyId,
-                scope: portfolioId ? "portfolio" : "property",
-                company_details_sent: false,
-                company_filled_at: null,
-                company_details_status: "pending",
-              };
-              if (enc) pendingRow.ru_login_password_enc = enc;
-              if ((existing.account as any)?.id) {
-                const { error: upErr } = await admin
-                  .from("ru_owner_accounts")
-                  .update(pendingRow)
-                  .eq("id", (existing.account as any).id);
-                pendingSaved = !upErr;
-              } else {
-                const { error: insErr } = await admin.from("ru_owner_accounts").insert(pendingRow);
-                pendingSaved = !insErr;
-              }
-            } catch {
-              pendingSaved = false;
-            }
-            return json({
-              success: false,
-              error: {
-                code: "RU_CREATE_USER_NOT_LISTED",
-                message:
-                  `The sub-user ${ownerEmail} was created at the channel, but the master roster still does not list it, so its OwnerID could not be resolved yet. ` +
-                  (pendingSaved
-                    ? "The login has been kept on this account — re-run Step A in a minute and it will adopt the same account instead of creating another."
-                    : "Re-run Step A in a minute and it will adopt the account."),
-              },
-              created_at_channel: true,
-              login_email: ownerEmail,
-              pending_login_saved: pendingSaved,
-              preview: preview(created, 2000),
-            }, 202);
-          }
-
-
-          await mergeRuRosterUser(admin, {
-            owner_id: ruOwnerId,
-            // Only record a sub-user id the channel actually returned. Mirroring the
-            // OwnerID here made one account print as two ("Owner: X · Sub: X").
-            user_account_id: userAccountId && userAccountId !== ruOwnerId ? userAccountId : undefined,
-            email: ownerEmail,
-            login_email: ownerEmail,
-          }, { source: "step-a-create" });
-          rosterOnce = null;
-        }
+        // Push_CreateUser_RS returns Status/ResponseID, not OwnerID. Success is sufficient
+        // for A.1: persist the login now and pause at A.2. The one required roster
+        // resolution happens after the operator supplies the key pair for A.3.
       }
 
-      if (!ruOwnerId || !userAccountId) {
+      if (adopted && (!ruOwnerId || !userAccountId)) {
         const refreshed = await listRuUsers(true);
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
