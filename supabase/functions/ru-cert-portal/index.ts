@@ -7283,6 +7283,7 @@ Deno.serve(async (req) => {
        * Step A account dialog.
        */
       const isCompanyPreview = action === "preview_company_details";
+      const isCompanyEnsure = action === "ensure_company_details";
       const readOnly = isPlan || isCompanyPreview;
       const propertyId: string | null = body.property_id ?? null;
       let portfolioId: string | null = body.portfolio_id ?? null;
@@ -8447,7 +8448,9 @@ Deno.serve(async (req) => {
       // A login rename in the RU portal must NOT erase the OwnerID or the password.
       const storedOwnerId = usableRuId(existing.account?.ru_owner_id);
       const storedUserId = usableRuId((existing.account as any)?.ru_user_id);
-      const ruUsers = existing.account?.ru_owner_id ? await listRuUsers() : [];
+      // A.4 already has a verified child identity and must not re-run the A.0 master
+      // roster lookup. Identity reconciliation belongs to A.0/A.1 only.
+      const ruUsers = existing.account?.ru_owner_id && !isCompanyEnsure ? await listRuUsers() : [];
       const listOk = ruUsers.length > 0;
       const currentRuUser = listOk
         ? (ruUsers.find((u) => Boolean(storedOwnerId) && usableRuId(u.owner_id) === storedOwnerId)
@@ -8546,7 +8549,7 @@ Deno.serve(async (req) => {
           || (companyResult as any).needs_api_keys,
         );
 
-        if (!companyResult.sent && !needsPassword) {
+        if (isCompanyEnsure && !companyResult.sent && !needsPassword) {
           return json({
             success: false,
             error: {
@@ -8789,7 +8792,7 @@ Deno.serve(async (req) => {
         // resolution happens after the operator supplies the key pair for A.3.
       }
 
-      if (adopted && (!ruOwnerId || !userAccountId)) {
+      if (adopted && !ruOwnerId) {
         const refreshed = await listRuUsers(true);
         const matched = matchByEmail(refreshed) ?? matchByStoredIdentity(refreshed, existing.account as any);
         userAccountId = userAccountId ?? matched?.user_account_id ?? null;
@@ -8968,7 +8971,8 @@ Deno.serve(async (req) => {
         }
 
       } else {
-        keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
+        keyCode = "RU_MANUAL_KEYS_REQUIRED";
+        keyWarning = `Sub-account ${savedLoginEmail ?? ownerEmail} was created. Enter its AccessKey and SecretKey to resolve the OwnerID and continue Step A.`;
       }
 
       // A.1 ends after create/adopt. A.4 is the only action allowed to push company details.
@@ -8984,7 +8988,7 @@ Deno.serve(async (req) => {
         || (companyResult as any).needs_api_keys,
       );
 
-      if (!companyResult.sent && !needsPassword) {
+      if (isCompanyEnsure && !companyResult.sent && !needsPassword) {
         return json({
           success: false,
           error: {
