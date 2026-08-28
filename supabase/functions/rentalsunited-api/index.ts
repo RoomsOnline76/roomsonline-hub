@@ -909,7 +909,6 @@ function buildPutConfirmedReservationXml(
           <ClientPrice>${money(stay.client_price)}</ClientPrice>
           <AlreadyPaid>${money(stay.already_paid)}</AlreadyPaid>
           <ChannelCommission>0.00</ChannelCommission>
-          
         </Costs>
       </StayInfo>
     </StayInfos>
@@ -917,7 +916,6 @@ function buildPutConfirmedReservationXml(
       <Name>${escapeXml(guest.first_name?.trim() || 'Guest')}</Name>
       <SurName>${escapeXml(guest.last_name?.trim() || 'Booking')}</SurName>
       <Email>${escapeXml(guest.email?.trim() || '')}</Email>
-
       <Phone>${escapeXml(guest.phone?.trim() || '')}</Phone>
     </CustomerInfo>${guest.comments ? `
     <Comments>${escapeXml(guest.comments)}</Comments>` : ''}
