@@ -109,7 +109,14 @@ export interface AriDeltaOptions {
   priorAvailabilityHash?: string | null;
   priorPricesHash?: string | null;
   forceAvailability?: boolean;
+  /**
+   * Force the PutPrices write even when the payload hash is unchanged. Used after a corrective
+   * currency flip: the amounts are identical, but the channel published them under the wrong
+   * ISO, so the same numbers must be re-sent to land as the authored currency.
+   */
+  forcePrices?: boolean;
 }
+
 
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import { loadPropertyDistances } from '../_shared/ruDistances.ts';
