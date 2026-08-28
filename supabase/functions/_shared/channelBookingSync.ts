@@ -323,6 +323,12 @@ export async function syncBookingToChannel(
             })
             .eq('id', String(row.id));
         }
+      } else if (push.queued === true) {
+        // Nights reopened and the registration parked for the next channel slot — in flight, not a fault.
+        result.reservation = 'queued';
+        result.deferred = true;
+        result.reservation_reason = 'channel_registration_pending';
+        result.message = push.message ?? null;
       } else if (
         push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE' ||
         push.code === 'RU_LISTING_MISSING'
