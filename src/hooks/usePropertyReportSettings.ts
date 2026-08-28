@@ -195,7 +195,7 @@ export function useReportAdditionalInputs(runId: string | undefined) {
           dinner_by_month: input.dinnerByMonth,
           room0_by_month: input.room0ByMonth,
           comp_rns_by_month: input.compRnsByMonth,
-          overrides: input.overrides,
+          overrides: input.overrides as never,
           min_stay_notes: input.minStayNotes,
           promotions_notes: input.promotionsNotes,
           rate_override_notes: input.rateOverrideNotes,
