@@ -9102,46 +9102,18 @@ Deno.serve(async (req) => {
             }
           }
 
-          const minted = await mintChildKeyPair({
-            ownerId: savedOwnerId,
-            loginEmail: savedLoginEmail,
-            accountId: String((saved as any)?.id ?? "") || null,
-            authUsername: savedLoginEmail,
-            authPassword: mintPassword,
-          });
-          keyAttempts.push(...(minted.attempts ?? []));
-          if (minted.ok) {
-            keySource = "minted";
-            mintedAccessKey = minted.accessKey ?? null;
-
-          } else if (minted.rateDeferred) {
-            keySource = "deferred";
-            keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
-            keyRetryAfterMs = minted.retryAfterMs ?? null;
-          } else if (minted.authRefused) {
-            /**
-             * The channel refused every mint envelope for this sub-account (its own
-             * login/password, a retry after propagation, and the owner-scoped master
-             * mint). Step A must NOT create a replacement sub-account here: a refused
-             * mint is a channel-side entitlement problem, not a bad account, and
-             * provisioning further logins left orphaned sub-accounts under our master
-             * account. Keep the account we just created and report the blocker.
-             */
-            keyCode = "RU_KEY_CREATION_NOT_ENABLED";
-            keyRuStatusId = minted.ruStatusId ?? null;
-            keyRuStatusMessage = minted.ruStatusMessage ?? null;
-            keyWarning =
-              `The channel refused automatic API key creation for this sub-account (${minted.message || "incorrect login or password"}). The account itself is created and bound — this is a channel-side entitlement, not a wrong password. Ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
-
-
-          } else {
-            keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
-            keyRuStatusId = minted.ruStatusId ?? null;
-            keyRuStatusMessage = minted.ruStatusMessage ?? null;
-            keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
-          }
-
+          /**
+           * Step A.2 pauses here on purpose. The channel issues a sub-account's first
+           * AccessKey/SecretKey pair in its own portal, so the run stops with the account
+           * created, bound and its password on record, and the operator enters the pair.
+           */
+          keySource = "manual";
+          keyCode = "RU_MANUAL_KEYS_REQUIRED";
+          keyAttempts.push("waiting for the AccessKey/SecretKey to be entered");
+          keyWarning =
+            `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created. Create its API key pair in the channel portal under that login, then enter the AccessKey and SecretKey to continue Step A.`;
         }
+
       } else {
         keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
       }
