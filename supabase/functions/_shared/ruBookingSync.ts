@@ -893,6 +893,36 @@ export async function modifyRuStay(
     reservationId: String(booking.external_reservation_id),
   });
 
+  // One modify per booking per resulting stay shape, whichever authority asks for it.
+  const modifyFingerprint = reservationFingerprint([
+    String(booking.external_reservation_id ?? ''),
+    ruPropertyId,
+    modify.date_from ?? booking.check_in_date,
+    modify.date_to ?? booking.check_out_date,
+    modify.number_of_guests ?? null,
+    modify.client_price ?? null,
+  ]);
+  const modifyClaim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'modify',
+    fingerprint: modifyFingerprint,
+    ruPropertyId,
+    reservationId: String(booking.external_reservation_id ?? ''),
+  });
+  if (!modifyClaim.granted) {
+    console.log(`[ruBookingSync] modify skipped for ${booking.id} — ${modifyClaim.reason}`);
+    return {
+      ok: modifyClaim.priorOutcome === 'delivered',
+      method: 'modify_stay',
+      code: modifyClaim.priorOutcome === 'terminal' ? 'RU_MODIFY_REFUSED' : 'RU_ALREADY_SENT',
+      message: modifyClaim.priorOutcome === 'delivered'
+        ? 'This stay change was already delivered to the channel — not sent again.'
+        : modifyClaim.priorDetail ?? 'An identical stay change is already on its way to the channel.',
+      confirmedLead,
+      traceId,
+    };
+  }
+
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
@@ -932,6 +962,15 @@ export async function modifyRuStay(
    * cannot fix that (it produced 43 identical refusals in one day), so the local record is put back
    * on the lead path — the next attempt accepts the request first — and this attempt ends terminally.
    */
+  await settleReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'modify',
+    fingerprint: modifyFingerprint,
+    outcome: claimOutcomeFor(result),
+    detail: result.message ?? null,
+    reservationId: String(booking.external_reservation_id ?? ''),
+  });
+
   if (!result.ok && /only modify stay in confirmed reservation/i.test(result.message ?? '')) {
     if (!isRuLead(booking)) {
       await supabase
