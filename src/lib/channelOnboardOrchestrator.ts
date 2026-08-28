@@ -156,7 +156,7 @@ function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGat
 }
 
 /** How the sub-account's key pair was resolved during account provisioning. */
-export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
+export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "manual" | "";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
