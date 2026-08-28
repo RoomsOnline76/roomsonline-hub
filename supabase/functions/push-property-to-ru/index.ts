@@ -116,6 +116,7 @@ import { loadPropertyDistances } from '../_shared/ruDistances.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
+  correctCurrencyDrift,
   verifyRuPropertyCurrency,
   convertPriceEntries,
   refreshRuLocationsCache,
