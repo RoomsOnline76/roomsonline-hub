@@ -952,9 +952,12 @@ function buildModifyStayXml(
   if (modify.arrival_time) {
     modifyNodes.push(`<ArrivalTime>${escapeXml(String(modify.arrival_time))}</ArrivalTime>`);
   }
-  if (modify.use_current_price != null) {
-    modifyNodes.push(`<UseCurrentPrice>${modify.use_current_price ? 'true' : 'false'}</UseCurrentPrice>`);
-  }
+
+  // AllowOverbooking / UseCurrentPrice are documented as siblings of <Modify>, at the
+  // request root — nesting them inside <Modify> means the channel never sees them.
+  const rootFlags = modify.use_current_price != null
+    ? `\n  <UseCurrentPrice>${modify.use_current_price ? 'true' : 'false'}</UseCurrentPrice>`
+    : '';
 
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_ModifyStay_RQ>
@@ -968,7 +971,7 @@ function buildModifyStayXml(
   </Current>
   <Modify>
     ${modifyNodes.join('\n    ')}
-  </Modify>
+  </Modify>${rootFlags}
 </Push_ModifyStay_RQ>`;
 }
 
