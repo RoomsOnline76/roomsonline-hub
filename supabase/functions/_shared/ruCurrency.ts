@@ -134,6 +134,36 @@ export async function clearScopedLocationCurrency(
   }
 }
 
+/**
+ * Did the channel itself ever accept a currency write for THIS OwnerID + Location + ISO?
+ * The exchange log is the only durable proof (status 0 = flipped, 339 = already on it).
+ * Returns the timestamp of the proof, or null when there is none.
+ */
+export async function hasLoggedCurrencyFlip(
+  supabase: any,
+  locationId: number,
+  ownerScope: string,
+  iso: string,
+): Promise<string | null> {
+  if (!locationId || locationId <= 1 || !ownerScope || ownerScope === 'master') return null;
+  try {
+    const { data } = await supabase
+      .from('ru_api_log')
+      .select('created_at, status_id, success')
+      .eq('action', 'Push_ChangeCurrency_RQ')
+      .eq('ru_owner_id', String(ownerScope))
+      .ilike('request_xml', `%<Location>${locationId}</Location><Currency>${iso.toUpperCase()}</Currency>%`)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    const hit = ((data ?? []) as Array<{ created_at: string; status_id: string | null; success: boolean | null }>)
+      .find((row) => row.success === true || String(row.status_id ?? '').trim() === '0' || String(row.status_id ?? '').trim() === '339');
+    return hit ? String(hit.created_at) : null;
+  } catch {
+    return null;
+  }
+}
+
+
 
 /**
  * Ask RU what currency it actually holds for a listing. This is the only trustworthy
