@@ -145,7 +145,7 @@ export function PMSSidebar() {
   const { staffRole } = usePmsStaffRole(propertyId);
   const visibleModules = getVisibleModules(staffRole);
   const isPlatformUser = isDev || isAdmin || isFearlessLeader;
-  const { available: hubspotAvailable } = useHubspotCapability();
+  const { available: hubspotAvailable } = useHubspotCapability(propertyId);
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem("pms-sidebar-collapsed");
     return saved ? JSON.parse(saved) : false;

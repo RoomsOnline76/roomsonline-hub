@@ -119,7 +119,7 @@ function PMSMessaging() {
   const [editForm, setEditForm] = useState<Partial<PmsMessageTemplate> & Record<string, unknown>>({});
   const [sendForm, setSendForm] = useState({ recipient_email: "", subject: "", body: "" });
   const [alsoLogToCrm, setAlsoLogToCrm] = useState(false);
-  const { healthy: hubspotHealthy, status: hubspotStatus } = useHubspotCapability();
+  const { healthy: hubspotHealthy, status: hubspotStatus } = useHubspotCapability(pid);
   const crmLoggingOnForProperty = Boolean(pid && hubspotStatus?.messageLogProperties.includes(pid));
 
   const editor = useEditor({
