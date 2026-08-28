@@ -3757,12 +3757,20 @@ Deno.serve(async (req) => {
         const expectedIso = state?.published_currency_iso ?? state?.authored_currency_iso ?? 'ZAR';
         const locId = Number(p.ru_location_id) || Number(state?.ru_location_id) || 0;
         const listings: any[] = [];
-        let primaryVerification: { ru_reported_iso: string | null; matches: boolean; persisted: boolean; error?: string } | null = null;
+        let primaryVerification: {
+          ru_reported_iso: string | null;
+          matches: boolean;
+          persisted: boolean;
+          error?: string;
+          ru_reported_location_id?: number | null;
+          location_matches?: boolean | null;
+        } | null = null;
 
         for (const ruId of ruIds) {
           const readback = await verifyRuPropertyCurrency(supabase, ruId, childAuth);
           let onMaster = false;
           let iso = readback.iso;
+          let reportedLocationId = readback.location_id ?? null;
           let err = readback.error ?? null;
           // "Property does not exist" on the sub-user means the listing was created on the
           // master account and never migrated — the account, not the currency, is the fault.
@@ -3771,12 +3779,17 @@ Deno.serve(async (req) => {
             if (masterRead.iso) {
               onMaster = true;
               iso = masterRead.iso;
+              reportedLocationId = masterRead.location_id ?? reportedLocationId;
               err = 'RU_LISTING_ON_MASTER_ACCOUNT';
             }
           }
           listings.push({
             ru_property_id: ruId,
             ru_reported_iso: iso ?? null,
+            // The same read-back already carries the published location, so the location
+            // verdict is a comparison — never a second call and never a re-write.
+            ru_reported_location_id: reportedLocationId,
+            location_matches: reportedLocationId == null || locId <= 0 ? null : reportedLocationId === locId,
             on_master_account: onMaster,
             deferred: !iso && readback.deferred === true,
             matches: !!iso && iso.toUpperCase() === expectedIso.toUpperCase(),
@@ -3785,6 +3798,7 @@ Deno.serve(async (req) => {
 
           await new Promise(r => setTimeout(r, 400));
         }
+
 
         // Persist only after considering the complete listing set. A property-level verdict
         // must not depend on listing order or account placement: if every successful read-back
