@@ -3881,6 +3881,17 @@ Deno.serve(async (req) => {
               : transport.length === listings.length && listings.length > 0
                 ? 'Could not reach Rentals United for this property — transport error, currency not checked. Retry.'
                 : (listings.find(l => l.error && !l.deferred)?.error ?? notes[0] ?? null);
+        // Location provenance: Step A already sent the account's region list and the property
+        // push carries the listing location, so Step B only compares what the channel reports.
+        const locationAnswered = listings.filter((l) => l.ru_reported_location_id != null);
+        const locationMismatches = locationAnswered.filter((l) => l.location_matches === false);
+        const locationVerdict = locId <= 0
+          ? 'no_local_location'
+          : locationAnswered.length === 0
+            ? 'unknown'
+            : locationMismatches.length > 0
+              ? 'mismatch'
+              : 'matched';
         results.push({
           property_id: p.id,
           name: p.name,
@@ -3893,7 +3904,15 @@ Deno.serve(async (req) => {
           unreachable: transport.length === listings.length && listings.length > 0,
           rate_deferred: allDeferred,
           retry_after_ms: allDeferred ? 60_000 : undefined,
+          expected_location_id: locId > 0 ? locId : null,
+          location_verdict: locationVerdict,
+          location_mismatches: locationMismatches.map((l: any) => ({
+            ru_property_id: l.ru_property_id,
+            ru_reported_location_id: l.ru_reported_location_id,
+          })),
+          currency_write_skipped: gatePassed && !usedExistingVerdict,
           ru_reported_iso: primaryVerification?.ru_reported_iso ?? listings.find(l => l.ru_reported_iso)?.ru_reported_iso ?? null,
+
           matches: gatePassed,
           state_persisted: primaryVerification?.persisted === true,
           gate_passed: gatePassed,
