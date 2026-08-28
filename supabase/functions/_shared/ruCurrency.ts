@@ -733,6 +733,97 @@ export async function verifyAndRecordCurrency(
   };
 }
 
+/**
+ * Corrective flip after a post-push read-back reported drift (RU says USD while we authored ZAR).
+ *
+ * Sends exactly ONE more child-scoped Push_ChangeCurrency_RQ for this OwnerID + Location and
+ * re-reads the listing once. Rates are never converted to USD here: if the re-read still
+ * disagrees, the verdict stays `failed` (red drift) and publication keeps the authored ISO.
+ * A rate-limited attempt (429 / RU_RATE_DEFERRED) is inconclusive, not a refusal.
+ */
+export async function correctCurrencyDrift(
+  supabase: any,
+  opts: {
+    propertyId: string;
+    locationId: number;
+    authoredIso: string;
+    ruPropertyId: number;
+    childAuth?: Record<string, unknown>;
+    ownerScope: string;
+    expectedLocationId?: number | null;
+  },
+): Promise<{
+  attempted: boolean;
+  reflip_outcome: 'flipped' | 'already_set' | 'deferred' | 'failed';
+  message?: string;
+  ru_reported_iso?: string | null;
+  matches?: boolean;
+}> {
+  const authored = (opts.authoredIso || 'ZAR').toUpperCase();
+  if (!opts.locationId || opts.locationId <= 1 || !opts.ruPropertyId) {
+    return { attempted: false, reflip_outcome: 'failed', message: 'No location or listing id for a corrective flip' };
+  }
+
+  // A stale scoped row must not make the next run skip the write.
+  await clearScopedLocationCurrency(supabase, opts.locationId, opts.ownerScope);
+
+  let outcome: 'flipped' | 'already_set' | 'deferred' | 'failed' = 'failed';
+  let message = '';
+  try {
+    const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+      body: { action: 'push_change_currency', location_id: opts.locationId, currency_iso: authored, ...(opts.childAuth ?? {}) },
+    });
+    if (error || !data?.success) {
+      const body = error ? await readInvokeErrorBody(error) : null;
+      const code = String((body as any)?.error?.code ?? (data as any)?.error?.code ?? '');
+      const text = String(error?.message ?? (data as any)?.error?.message ?? '');
+      if (code === 'RU_RATE_DEFERRED' || /RU_RATE_DEFERRED|rate limit/i.test(text)) {
+        outcome = 'deferred';
+        message = text || 'Channel rate limit — corrective flip deferred';
+      } else {
+        outcome = 'failed';
+        message = text || 'Push_ChangeCurrency was refused';
+      }
+    } else {
+      outcome = data.already_set ? 'already_set' : 'flipped';
+      await recordScopedLocationCurrency(
+        supabase,
+        opts.locationId,
+        opts.ownerScope,
+        authored,
+        data.already_set ? 'ru_readback' : 'flip',
+      );
+    }
+  } catch (e) {
+    outcome = 'failed';
+    message = e instanceof Error ? e.message : 'Push_ChangeCurrency threw';
+  }
+
+  if (outcome === 'deferred' || outcome === 'failed') {
+    return { attempted: true, reflip_outcome: outcome, message };
+  }
+
+  // Re-read once. The sliding-minute window can hold an identical read; that is inconclusive,
+  // so the existing drift verdict simply stands until the next run.
+  await new Promise((r) => setTimeout(r, 1200));
+  const v = await verifyAndRecordCurrency(supabase, {
+    propertyId: opts.propertyId,
+    locationId: opts.locationId,
+    authoredIso: authored,
+    ruPropertyId: opts.ruPropertyId,
+    childAuth: opts.childAuth,
+    ownerScope: opts.ownerScope,
+    decision: null,
+    expectedLocationId: opts.expectedLocationId ?? opts.locationId,
+  });
+  return {
+    attempted: true,
+    reflip_outcome: outcome,
+    message: message || undefined,
+    ru_reported_iso: v.ru_reported_iso,
+    matches: v.matches,
+  };
+}
 
 
 export async function loadCurrencyState(supabase: any, propertyId: string) {
