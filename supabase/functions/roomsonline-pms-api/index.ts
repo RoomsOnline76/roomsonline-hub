@@ -2703,7 +2703,7 @@ async function handleApplyServiceCharges(body: any, supabase: any): Promise<Resp
     baseOccupancy: context.baseOccupancy,
     roomTypeIds: context.roomTypeIds,
 
-    currency: booking.currency,
+    currency: undefined,
   });
 
   await supabase.from("bookings").update({
