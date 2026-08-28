@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { aggregateLedger, type LedgerRow } from "../_shared/nightsbridgeAggregate.ts";
+import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
   impliedRoomCount,
   operaDaysToLedger,
@@ -499,6 +500,7 @@ Deno.serve(async (req) => {
         non_sellable: aggregate.non_sellable,
         totals: aggregate.totals,
         room_count: roomCount,
+        booking_trends: buildBookingTrends(ledger, aggregate.months),
       },
       { onConflict: "run_id" },
     );

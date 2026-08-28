@@ -8,6 +8,8 @@ import {
   slotsForSource,
   type MediaSlotDefinition,
 } from "@/lib/reportMediaSlots";
+import { useReportLayoutTemplate } from "@/hooks/useReportLayoutTemplate";
+import type { ReportTemplateSlot } from "@/lib/reportLayoutTemplate";
 
 const BUCKET = "revenue-reports";
 
@@ -55,8 +57,14 @@ const extensionFor = (file: File): string => {
  * Manages the pasted screenshots for a report run: upload (file or clipboard),
  * caption, reorder and delete. Signed URLs are refreshed with the query.
  */
-export function useReportMedia(runId: string | undefined, sourceType?: string | null) {
+export function useReportMedia(
+  runId: string | undefined,
+  sourceType?: string | null,
+  /** Property the run belongs to — carries slide sections between runs. */
+  propertyId?: string,
+) {
   const queryClient = useQueryClient();
+  const { template, saveTemplate } = useReportLayoutTemplate(propertyId);
   const queryKey = useMemo(() => ["report-media", runId], [runId]);
 
   const query = useQuery({
@@ -88,20 +96,42 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
     },
   });
 
-  const slotsQueryKey = useMemo(() => ["report-media-slots", runId], [runId]);
+  const slotsQueryKey = useMemo(
+    () => ["report-media-slots", runId, template.slots.length],
+    [runId, template.slots.length],
+  );
 
   const customSlots = useQuery({
     queryKey: slotsQueryKey,
     enabled: Boolean(runId),
     staleTime: 60_000,
     queryFn: async (): Promise<ReportSlotDefinition[]> => {
-      const { data, error } = await supabase
-        .from("report_media_slots")
-        .select("id, slot_key, section, title, hint, layout, sort_order")
-        .eq("run_id", runId as string)
-        .order("sort_order", { ascending: true });
-      if (error) throw error;
-      return (data ?? []).map((row) => ({
+      const load = async () => {
+        const { data, error } = await supabase
+          .from("report_media_slots")
+          .select("id, slot_key, section, title, hint, layout, sort_order")
+          .eq("run_id", runId as string)
+          .order("sort_order", { ascending: true });
+        if (error) throw error;
+        return data ?? [];
+      };
+
+      let rows = await load();
+      // A fresh run inherits the property's saved slide sections and headings.
+      if (rows.length === 0 && template.slots.length > 0) {
+        const seed = template.slots.map((slot) => ({
+          run_id: runId as string,
+          slot_key: slot.slot_key,
+          section: slot.section,
+          title: slot.title,
+          layout: slot.layout,
+          sort_order: slot.sort_order,
+        }));
+        const { error: seedError } = await supabase.from("report_media_slots").insert(seed);
+        if (!seedError) rows = await load();
+      }
+
+      return rows.map((row) => ({
         id: row.id as string,
         key: row.slot_key as string,
         section: (row.section as string) ?? (row.title as string),
@@ -118,6 +148,30 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
     void queryClient.invalidateQueries({ queryKey });
     void queryClient.invalidateQueries({ queryKey: slotsQueryKey });
   }, [queryClient, queryKey, slotsQueryKey]);
+
+  /** Mirrors this run's slide sections onto the property so the next run inherits them. */
+  const syncTemplateSlots = useCallback(async () => {
+    if (!runId || !propertyId) return;
+    const { data, error } = await supabase
+      .from("report_media_slots")
+      .select("slot_key, section, title, layout, sort_order")
+      .eq("run_id", runId)
+      .order("sort_order", { ascending: true });
+    if (error || !data) return;
+    const slots: ReportTemplateSlot[] = data.map((row, index) => ({
+      slot_key: row.slot_key as string,
+      section: (row.section as string) ?? (row.title as string) ?? "Additional slides",
+      title: (row.title as string) ?? "Additional slides",
+      layout: row.layout === "half" ? "half" : "full",
+      sort_order: Number(row.sort_order ?? index) || 0,
+    }));
+    await saveTemplate({ slots });
+  }, [propertyId, runId, saveTemplate]);
+
+  const invalidateAndSyncSlots = useCallback(() => {
+    invalidate();
+    void syncTemplateSlots();
+  }, [invalidate, syncTemplateSlots]);
 
 
   const upload = useMutation({
@@ -235,7 +289,7 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
     },
     onSuccess: () => {
       toast.success("Slide section added");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not add the slide section"),
   });
@@ -261,7 +315,7 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
       const { error } = await supabase.from("report_media_slots").update(patch as never).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: invalidate,
+    onSuccess: invalidateAndSyncSlots,
     onError: (error: Error) => toast.error(error.message || "Could not update the slide section"),
   });
 
@@ -278,7 +332,7 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
     },
     onSuccess: () => {
       toast.success("Slide section removed");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not remove the slide section"),
   });
@@ -321,7 +375,7 @@ export function useReportMedia(runId: string | undefined, sourceType?: string | 
     },
     onSuccess: () => {
       toast.success("Section heading saved");
-      invalidate();
+      invalidateAndSyncSlots();
     },
     onError: (error: Error) => toast.error(error.message || "Could not save the heading"),
   });

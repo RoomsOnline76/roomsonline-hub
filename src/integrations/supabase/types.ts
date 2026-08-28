@@ -7759,6 +7759,7 @@ export type Database = {
           logo_invert: boolean
           nightsbridge_column_map: Json | null
           property_id: string
+          report_layout_template: Json
           report_logo_url: string | null
           room_count: number
           special_report_set: string | null
@@ -7775,6 +7776,7 @@ export type Database = {
           logo_invert?: boolean
           nightsbridge_column_map?: Json | null
           property_id: string
+          report_layout_template?: Json
           report_logo_url?: string | null
           room_count?: number
           special_report_set?: string | null
@@ -7791,6 +7793,7 @@ export type Database = {
           logo_invert?: boolean
           nightsbridge_column_map?: Json | null
           property_id?: string
+          report_layout_template?: Json
           report_logo_url?: string | null
           room_count?: number
           special_report_set?: string | null
@@ -8792,6 +8795,7 @@ export type Database = {
         Row: {
           additional_revenue: Json
           adr: Json
+          booking_trends: Json
           capacity_days: Json
           created_at: string
           last_year_actual: Json
@@ -8812,6 +8816,7 @@ export type Database = {
         Insert: {
           additional_revenue?: Json
           adr?: Json
+          booking_trends?: Json
           capacity_days?: Json
           created_at?: string
           last_year_actual?: Json
@@ -8832,6 +8837,7 @@ export type Database = {
         Update: {
           additional_revenue?: Json
           adr?: Json
+          booking_trends?: Json
           capacity_days?: Json
           created_at?: string
           last_year_actual?: Json

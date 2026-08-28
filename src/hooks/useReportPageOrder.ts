@@ -9,6 +9,8 @@ import {
   orderPageKeys,
   type ReportPageDefinition,
 } from "@/lib/reportPages";
+import { useReportLayoutTemplate } from "@/hooks/useReportLayoutTemplate";
+import { portableLayout } from "@/lib/reportLayoutTemplate";
 
 export interface PageOrderState {
   order: string[];
@@ -41,8 +43,11 @@ export function useReportPageOrder(
   mediaPages: ReportPageDefinition[],
   /** Legacy section key -> per-image slide keys, so old saved orders survive. */
   legacyExpansions: Record<string, string[]> = {},
+  /** Property the run belongs to — carries the layout over between runs. */
+  propertyId?: string,
 ) {
   const queryClient = useQueryClient();
+  const { template, saveTemplate } = useReportLayoutTemplate(propertyId);
   const queryKey = useMemo(() => ["report-page-order", runId], [runId]);
 
   const query = useQuery({
@@ -60,7 +65,12 @@ export function useReportPageOrder(
     },
   });
 
-  const state = query.data ?? { order: [], hidden: [] };
+  const saved = query.data ?? { order: [], hidden: [] };
+  // A run with no order of its own inherits the property's saved layout.
+  const state: PageOrderState =
+    saved.order.length === 0 && saved.hidden.length === 0 && template.order.length > 0
+      ? { order: template.order, hidden: template.hidden }
+      : saved;
 
   const available: ReportPageDefinition[] = useMemo(
     () => [...REPORT_DATA_PAGES, ...mediaPages, REPORT_NOTES_PAGE],
@@ -86,6 +96,8 @@ export function useReportPageOrder(
         .update({ page_order: { order: next.order, hidden: next.hidden } })
         .eq("id", runId);
       if (error) throw error;
+      const portable = portableLayout(next.order, next.hidden);
+      await saveTemplate({ order: portable.order, hidden: portable.hidden });
       return next;
     },
     onSuccess: (next) => {

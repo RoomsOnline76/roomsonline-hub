@@ -6,7 +6,11 @@ import type { RunBuilderContext } from "./types";
 export function StageMedia({ ctx }: { ctx: RunBuilderContext }) {
   return (
     <div className="space-y-4">
-      <ReportMediaSlots runId={ctx.runId} sourceType={ctx.run.sourceType} />
+      <ReportMediaSlots
+        runId={ctx.runId}
+        sourceType={ctx.run.sourceType}
+        propertyId={ctx.run.propertyId}
+      />
       {ctx.ownerSlidesOffered && (
         <SpecialReportsCard
           runId={ctx.runId}

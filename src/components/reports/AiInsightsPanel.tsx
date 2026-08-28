@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Copy, Loader2, Pencil, Sparkles, TriangleAlert } from "lucide-react";
+import { Check, Copy, Loader2, Pencil, RotateCcw, Sparkles, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,9 +22,12 @@ interface ReplyBlockProps {
   text: string;
   note: string | null;
   editable?: boolean;
+  /** True when the shown text is the reviewer's own wording. */
+  edited?: boolean;
   checked: boolean;
   onToggle: (next: boolean) => void;
   onEdit: (value: string) => void;
+  onRevert?: () => void;
   onCopy: (text: string) => void | Promise<void>;
 }
 
@@ -34,9 +37,11 @@ function ReplyBlock({
   text,
   note,
   editable = false,
+  edited = false,
   checked,
   onToggle,
   onEdit,
+  onRevert,
   onCopy,
 }: ReplyBlockProps) {
   const label = tone === "conservative" ? "Conservative" : "Experimental";
@@ -53,6 +58,23 @@ function ReplyBlock({
             {index}. {label}
           </span>
         </label>
+        <div className="flex items-center gap-1">
+        {edited && (
+          <Badge variant="outline" className="text-[10px] font-normal">
+            Edited
+          </Badge>
+        )}
+        {edited && onRevert && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs"
+            onClick={onRevert}
+            aria-label={`Revert ${label.toLowerCase()} reply to TOBI's wording`}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -62,6 +84,7 @@ function ReplyBlock({
         >
           <Copy className="h-3.5 w-3.5" />
         </Button>
+        </div>
       </div>
       {editable ? (
         <Textarea
@@ -128,7 +151,11 @@ export function AiInsightsPanel({ runId }: Props) {
     (key: string, fallbackText: string, include: boolean) => {
       const next: Record<string, InsightSelection> = {
         ...selections,
-        [key]: { include, text: selections[key]?.text ?? fallbackText },
+        [key]: {
+          include,
+          text: selections[key]?.text ?? fallbackText,
+          edited: selections[key]?.edited === true,
+        },
       };
       saveReview.mutate({ selections: next });
     },
@@ -139,8 +166,21 @@ export function AiInsightsPanel({ runId }: Props) {
     (key: string, text: string, include: boolean) => {
       const next: Record<string, InsightSelection> = {
         ...selections,
-        [key]: { include, text },
+        [key]: { include, text, edited: true },
       };
+      saveReview.mutate({ selections: next });
+      toast.success("Wording saved — it will be reused on the next generation");
+    },
+    [selections, saveReview],
+  );
+
+  /** Drops the reviewer's wording so TOBI's own text shows again. */
+  const revertSelection = useCallback(
+    (key: string) => {
+      const next = { ...selections } as Record<string, InsightSelection>;
+      const include = next[key]?.include === true;
+      delete next[key];
+      if (include) next[key] = { include: true, text: "" };
       saveReview.mutate({ selections: next });
     },
     [selections, saveReview],
@@ -382,8 +422,11 @@ export function AiInsightsPanel({ runId }: Props) {
                       <ReplyBlock
                         index={1}
                         tone="conservative"
-                        text={selections[flag.id]?.text ?? flag.factText}
+                        text={selections[flag.id]?.text?.trim() || flag.factText}
                         note={flag.note ?? null}
+                        editable
+                        edited={selections[flag.id]?.edited === true}
+                        onRevert={() => revertSelection(flag.id)}
                         checked={selections[flag.id]?.include === true}
                         onToggle={(next) => toggleSelection(flag.id, flag.factText, next)}
                         onEdit={(value) =>
@@ -397,10 +440,13 @@ export function AiInsightsPanel({ runId }: Props) {
                           index={2}
                           tone="experimental"
                           text={
-                            selections[experimentalKey(flag.id)]?.text ??
+                            selections[experimentalKey(flag.id)]?.text?.trim() ||
                             insights!.experimental.flagNotes[flag.id]
                           }
                           note={null}
+                          editable
+                          edited={selections[experimentalKey(flag.id)]?.edited === true}
+                          onRevert={() => revertSelection(experimentalKey(flag.id))}
                           checked={selections[experimentalKey(flag.id)]?.include === true}
                           onToggle={(next) =>
                             toggleSelection(
@@ -456,9 +502,11 @@ export function AiInsightsPanel({ runId }: Props) {
                     <ReplyBlock
                       index={1}
                       tone="conservative"
-                      text={selections[field]?.text ?? text}
+                      text={selections[field]?.text?.trim() || text}
                       note={null}
                       editable
+                      edited={selections[field]?.edited === true}
+                      onRevert={() => revertSelection(field)}
                       checked={selections[field]?.include === true}
                       onToggle={(next) => toggleSelection(field, text, next)}
                       onEdit={(value) =>
@@ -472,9 +520,11 @@ export function AiInsightsPanel({ runId }: Props) {
                     <ReplyBlock
                       index={2}
                       tone="experimental"
-                      text={selections[experimentalKey(field)]?.text ?? experimental}
+                      text={selections[experimentalKey(field)]?.text?.trim() || experimental}
                       note={null}
                       editable
+                      edited={selections[experimentalKey(field)]?.edited === true}
+                      onRevert={() => revertSelection(experimentalKey(field))}
                       checked={selections[experimentalKey(field)]?.include === true}
                       onToggle={(next) =>
                         toggleSelection(experimentalKey(field), experimental, next)

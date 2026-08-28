@@ -50,6 +50,82 @@ const clamp = (value: unknown, max: number): string | null => {
   return trimmed.length > max ? `${trimmed.slice(0, max - 1).trimEnd()}…` : trimmed;
 };
 
+/**
+ * Same calendar month in every earlier year the property holds figures for
+ * (imported prior workbooks, folded historical baseline, or the run's own
+ * comparative months). Read-only comparison material — never a month line.
+ */
+function priorYearComparatives(
+  periodMonths: string[],
+  snapshotRow: Record<string, unknown>,
+  historicalBaseline: unknown,
+): Record<string, Record<string, number>> {
+  const baseline = (historicalBaseline ?? {}) as { revenue?: Record<string, number> };
+  const pool: Record<string, number> = {
+    ...numberMap(baseline.revenue),
+    ...numberMap(snapshotRow.otb_revenue),
+    ...numberMap(snapshotRow.last_year_actual),
+  };
+  const out: Record<string, Record<string, number>> = {};
+  for (const key of periodMonths) {
+    const [year, month] = key.split("-").map(Number);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) continue;
+    const years: Record<string, number> = {};
+    for (let back = 1; back <= 8; back += 1) {
+      const priorKey = `${year - back}-${`${month}`.padStart(2, "0")}`;
+      const value = pool[priorKey];
+      if (Number.isFinite(value)) years[priorKey] = Math.round(value);
+    }
+    if (Object.keys(years).length > 0) out[key] = years;
+  }
+  return out;
+}
+
+/** Booking-trend block for the prompt; null when the source carried no trends. */
+function bookingTrendsForPrompt(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  const trends = value as Record<string, unknown>;
+  if (!Number(trends.bookings ?? 0)) return null;
+  const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const byLabel = (counts: unknown): Record<string, number> | null => {
+    if (!Array.isArray(counts) || counts.length !== 7) return null;
+    const total = counts.reduce((sum, entry) => sum + (Number(entry) || 0), 0);
+    if (total === 0) return null;
+    return Object.fromEntries(labels.map((label, i) => [label, Number(counts[i]) || 0]));
+  };
+  return {
+    average_length_of_stay_nights: Number(trends.alos ?? 0) || 0,
+    average_length_of_stay_by_month: numberMap(trends.alos_by_month),
+    bookings_counted: Number(trends.bookings ?? 0) || 0,
+    arrival_weekdays: byLabel(trends.arrival_weekdays),
+    booking_taken_weekdays: byLabel(trends.booked_weekdays),
+    lead_time_days: trends.has_booked_dates
+      ? {
+          average: trends.lead_time_avg ?? null,
+          median: trends.lead_time_median ?? null,
+          buckets: trends.lead_time_buckets ?? null,
+        }
+      : null,
+    note: trends.has_booked_dates
+      ? "Booking-taken weekdays and lead times come from the date each booking was made."
+      : "The export carried no booking-made date, so booking weekday and lead time are unknown.",
+  };
+}
+
+/** Keeps only reviewer-reworded selections when a fresh generation lands. */
+function keepEditedSelections(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object") return {};
+  const out: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (raw && typeof raw === "object" && (raw as { edited?: unknown }).edited === true) {
+      out[key] = raw;
+    }
+  }
+  return out;
+}
+
+
+
 interface SlideImage {
   /** Human label used in the report and in TOBI's references. */
   label: string;
@@ -152,6 +228,11 @@ Hard rules:
 - The reporting period is given in "period". Write about those months ONLY. Earlier months
   in the data are last-year and historical comparatives: you may reference them inside a
   period month's line ("against last year's R1,7m"), never as a line of their own.
+- "prior_years" holds the same calendar month in earlier years (e.g. 2018) and may be
+  quoted inside a period month's line or in the notes, never as its own line.
+- "booking_trends" holds average length of stay, the weekdays bookings arrive and are
+  taken on, and booking lead times. Use it in "suggestions" and "flag_notes" only, and
+  only where the block says the figures are known.
 - Currency is South African rand, written as R129 000 style. Keep it plain and calm.
 - No vendor names, no mention of AI, models or providers. No emojis. No markdown headings.
 - British/South African English. Avoid hype words ("skyrocket", "phenomenal").
@@ -227,6 +308,20 @@ Deno.serve(async (req) => {
     if (!snapshotRow) {
       return json({ error: "This run has no snapshot yet — process the files first." }, 409);
     }
+
+    // Reviewer edits survive a regeneration: anything the reviewer reworded is
+    // kept verbatim and only the untouched replies are replaced.
+    const { data: priorInsights } = await admin
+      .from("report_insights")
+      .select("narrative_final, selections")
+      .eq("run_id", runId)
+      .maybeSingle();
+
+    const { data: settingsRow } = await admin
+      .from("property_report_settings")
+      .select("historical_baseline")
+      .eq("property_id", run.property_id)
+      .maybeSingle();
 
     const { data: inputs } = await admin
       .from("report_additional_inputs")
@@ -317,6 +412,10 @@ Deno.serve(async (req) => {
       },
       facts: flags.map((flag) => ({ id: flag.id, severity: flag.severity, fact: flag.factText })),
       snapshot: summariseSnapshot(snapshot),
+      // Same calendar month in every earlier year we hold figures for, so the
+      // read can compare this year against last year and against older years.
+      prior_years: priorYearComparatives(periodMonths, snapshotRow, settingsRow?.historical_baseline),
+      booking_trends: bookingTrendsForPrompt(snapshotRow.booking_trends),
       existing_notes: {
         min_stay_notes: inputs?.min_stay_notes ?? "",
         promotions_notes: inputs?.promotions_notes ?? "",
@@ -451,9 +550,10 @@ Deno.serve(async (req) => {
     const record = {
       run_id: runId,
       narrative: clamp(ai.narrative, MAX_NARRATIVE_CHARS),
-      // A fresh generation supersedes the previous reviewer edits and ticks.
-      narrative_final: null,
-      selections: {},
+      // Reviewer-edited wording is deliberate: it survives a regeneration. The
+      // reviewer can drop back to TOBI's wording with "revert" in the panel.
+      narrative_final: (priorInsights?.narrative_final as string | null) ?? null,
+      selections: keepEditedSelections(priorInsights?.selections),
       flags: enrichedFlags,
       suggestions,
       chart_recommendation: clamp(ai.chart_recommendation, 240),

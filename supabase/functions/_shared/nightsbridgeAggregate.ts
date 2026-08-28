@@ -15,6 +15,8 @@ export interface LedgerRow {
   status: string;
   type: string;
   currency: string;
+  /** Date the booking was made, when the export carries one. */
+  booked_date?: string | null;
 }
 
 export interface AggregateResult {

@@ -22,7 +22,8 @@ export type LedgerField =
   | "source"
   | "status"
   | "type"
-  | "currency";
+  | "currency"
+  | "booked_date";
 
 export type MatchBasis =
   | "exact_header"
@@ -100,6 +101,11 @@ const ALIASES: Record<LedgerField, string[]> = {
   status: ["status", "booking status", "state"],
   type: ["type", "booking type", "rate type", "res type", "category"],
   currency: ["currency", "curr", "ccy"],
+  booked_date: [
+    "date booked", "booked date", "booked on", "date made", "made on",
+    "booking date", "date of booking", "reservation date", "created",
+    "created date", "created on", "date captured", "capture date", "date entered",
+  ],
 };
 
 /** Fields the ledger cannot be built without. */
@@ -123,6 +129,7 @@ export const FIELD_LABELS: Record<LedgerField, string> = {
   status: "Status",
   type: "Type",
   currency: "Currency",
+  booked_date: "Date booked",
 };
 
 /* ------------------------------------------------------------- value helpers */
@@ -537,6 +544,7 @@ function buildRows(
       status: text(at(row, "status")),
       type: text(at(row, "type")),
       currency: text(at(row, "currency")) || fallbackCurrency,
+      booked_date: toIsoDate(at(row, "booked_date")) || null,
     });
   }
 

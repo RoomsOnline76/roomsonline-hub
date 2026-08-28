@@ -11,6 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import * as XLSX from "npm:xlsx@0.18.5";
 import { aggregateLedger, type LedgerRow } from "../_shared/nightsbridgeAggregate.ts";
+import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
   isHouseStateGrid,
   parseHouseState,
@@ -615,6 +616,7 @@ Deno.serve(async (req) => {
         non_sellable: aggregate.non_sellable,
         totals: aggregate.totals,
         room_count: roomCount,
+        booking_trends: buildBookingTrends(finalLedger, aggregate.months),
       },
       { onConflict: "run_id" },
     );

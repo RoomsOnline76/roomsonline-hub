@@ -4,6 +4,19 @@ import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getAdapter, unsupportedSourceMessage } from "@/lib/report-adapters";
 
+/** Booking-behaviour figures derived from the uploaded ledger. */
+export interface BookingTrends {
+  alos: number;
+  alosByMonth: Record<string, number>;
+  bookings: number;
+  arrivalWeekdays: number[];
+  bookedWeekdays: number[];
+  leadTimeBuckets: Record<string, number>;
+  leadTimeAvg: number | null;
+  leadTimeMedian: number | null;
+  hasBookedDates: boolean;
+}
+
 export interface ReportSnapshot {
   runId: string;
   months: string[];
@@ -20,6 +33,7 @@ export interface ReportSnapshot {
   adr: Record<string, number>;
   occupancy: Record<string, number>;
   roomCount: number | null;
+  bookingTrends: BookingTrends | null;
   totals: {
     revenue?: number;
     nights?: number;
@@ -71,6 +85,30 @@ export interface ExcelResult {
   url?: string;
 }
 
+const weekdayArray = (value: unknown): number[] => {
+  if (!Array.isArray(value) || value.length !== 7) return [0, 0, 0, 0, 0, 0, 0];
+  return value.map((entry) => Number(entry) || 0);
+};
+
+/** Reads the parser's booking-trend block; null when the run has none. */
+const readBookingTrends = (value: unknown): BookingTrends | null => {
+  if (!value || typeof value !== "object") return null;
+  const raw = value as Record<string, unknown>;
+  const bookings = Number(raw.bookings ?? 0) || 0;
+  if (bookings === 0) return null;
+  return {
+    alos: Number(raw.alos ?? 0) || 0,
+    alosByMonth: asNumberMap(raw.alos_by_month),
+    bookings,
+    arrivalWeekdays: weekdayArray(raw.arrival_weekdays),
+    bookedWeekdays: weekdayArray(raw.booked_weekdays),
+    leadTimeBuckets: asNumberMap(raw.lead_time_buckets),
+    leadTimeAvg: raw.lead_time_avg === null ? null : Number(raw.lead_time_avg) || null,
+    leadTimeMedian: raw.lead_time_median === null ? null : Number(raw.lead_time_median) || null,
+    hasBookedDates: raw.has_booked_dates === true,
+  };
+};
+
 /** Computed snapshot for a run. */
 export function useReportSnapshot(runId: string | undefined) {
   const query = useQuery({
@@ -101,6 +139,7 @@ export function useReportSnapshot(runId: string | undefined) {
         adr: asNumberMap(data.adr),
         occupancy: asNumberMap(data.occupancy),
         roomCount: data.room_count ?? null,
+        bookingTrends: readBookingTrends(data.booking_trends),
         totals: (data.totals ?? {}) as ReportSnapshot["totals"],
       };
     },
