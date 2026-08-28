@@ -3882,7 +3882,10 @@ Deno.serve(async (req) => {
             : null,
         siblings,
         readiness: { ready, checks },
-        sub_user_password_hint: RU_SUB_USER_PASSWORD,
+        // Passwords are now per-account and stored encrypted: there is no shared literal to
+        // hint at. Use "Reveal password" (reveal_login_password) for the real value.
+        sub_user_password_hint: null,
+
       });
     }
 
