@@ -8861,36 +8861,92 @@ Deno.serve(async (req) => {
           /**
            * Push_CreateUser_RS returns ONLY Status and ResponseID — the channel never sends
            * an account id back. The master roster (Pull_ListMyUsers_RQ) is therefore the
-           * single authoritative source for the new OwnerID, and it can lag a fresh create
-           * by a few seconds: read it with a short paced retry rather than saving a row
-           * with a null OwnerID that leaves Step A.2/A.3 running against nothing.
+           * single authoritative source for the new OwnerID, and it can lag a fresh create.
+           *
+           * The channel also refuses an identical roster read inside a sliding minute, so a
+           * 2s-paced retry burned every attempt on RU_RATE_DEFERRED and then discarded a
+           * live account. Honour the window the channel itself advertises ("retry in Ns")
+           * and keep reading until the budget runs out.
            */
-          for (let attempt = 1; attempt <= 3 && !ruOwnerId; attempt++) {
-            if (attempt > 1) await new Promise((r) => setTimeout(r, 2000));
+          const parseRetrySeconds = (msg?: string): number | null => {
+            const m = /retry in (\d+)\s*s/i.exec(String(msg ?? ""));
+            return m ? Number(m[1]) : null;
+          };
+          const readbackDeadline = Date.now() + 80_000;
+          while (!ruOwnerId) {
+            invalidateRuRosterMemo();
             rosterOnce = null;
             freshRosterRead = false;
-            const refreshed = await listRuUsers(true);
-            const matched = matchByEmail(refreshed);
+            const listed = await listRuSubUsers(admin, {
+              forceFresh: true,
+              source: "step-a-create-readback",
+            });
+            if (listed.ok) rosterOnce = listed.users as RuUser[];
+            const matched = matchByEmail((rosterOnce ?? []) as RuUser[]);
             if (matched?.owner_id) {
               ruOwnerId = usableRuId(matched.owner_id) || null;
               userAccountId = usableRuId(matched.user_account_id) || null;
+              break;
             }
-
+            // A throttled read served from cache is not proof of absence — wait out the window.
+            const waitSec = parseRetrySeconds(listed.message) ??
+              (listed.cached || listed.deferred || !listed.ok ? 20 : 8);
+            const waitMs = Math.min(waitSec + 3, 65) * 1000;
+            if (Date.now() + waitMs > readbackDeadline) break;
+            await new Promise((r) => setTimeout(r, waitMs));
           }
 
           if (!ruOwnerId) {
+            /**
+             * The account EXISTS at the channel. Record the login (and its password) against
+             * this scope with a null OwnerID so the next run resolves the same login, adopts
+             * it, and never creates a second slug account.
+             */
+            let pendingSaved = false;
+            try {
+              const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+              const pendingRow: Record<string, unknown> = {
+                owner_email: ownerEmail,
+                ru_login_email: ownerEmail,
+                ru_login_url: "https://new.rentalsunited.com",
+                portfolio_id: portfolioId,
+                property_id: portfolioId ? null : propertyId,
+                scope: portfolioId ? "portfolio" : "property",
+                company_details_sent: false,
+                company_filled_at: null,
+                company_details_status: "pending",
+              };
+              if (enc) pendingRow.ru_login_password_enc = enc;
+              if ((existing.account as any)?.id) {
+                const { error: upErr } = await admin
+                  .from("ru_owner_accounts")
+                  .update(pendingRow)
+                  .eq("id", (existing.account as any).id);
+                pendingSaved = !upErr;
+              } else {
+                const { error: insErr } = await admin.from("ru_owner_accounts").insert(pendingRow);
+                pendingSaved = !insErr;
+              }
+            } catch {
+              pendingSaved = false;
+            }
             return json({
               success: false,
               error: {
                 code: "RU_CREATE_USER_NOT_LISTED",
                 message:
-                  `The sub-user ${ownerEmail} was created at the channel, but the master roster does not list it yet, so its OwnerID could not be resolved. Nothing was saved against a blank identity — re-run Step A in a moment and it will adopt the account.`,
+                  `The sub-user ${ownerEmail} was created at the channel, but the master roster still does not list it, so its OwnerID could not be resolved yet. ` +
+                  (pendingSaved
+                    ? "The login has been kept on this account — re-run Step A in a minute and it will adopt the same account instead of creating another."
+                    : "Re-run Step A in a minute and it will adopt the account."),
               },
               created_at_channel: true,
               login_email: ownerEmail,
+              pending_login_saved: pendingSaved,
               preview: preview(created, 2000),
             }, 202);
           }
+
 
           await mergeRuRosterUser(admin, {
             owner_id: ruOwnerId,
