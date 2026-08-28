@@ -61,6 +61,8 @@ export interface ChannelBookingSyncRequest {
   cancel_type_id?: number | null;
   /** Skip the availability/rates delta (the caller already queued it). */
   skip_ari?: boolean;
+  /** Extra units the change touches (multi-room stays, partial cancels). */
+  only_unit_ids?: string[] | null;
   /** Where the action was triggered — recorded on the diagnostics trail. */
   source?: string | null;
 }
@@ -73,8 +75,11 @@ export interface ChannelBookingSyncResult {
   message?: string | null;
   ari: 'queued' | 'skipped' | 'failed';
   ari_reason?: string | null;
+  /** What the availability/rates write was narrowed to — proof it was not a whole-property push. */
+  ari_scope?: { unit_ids: string[]; date_from: string | null; date_to: string | null } | null;
   deferred: boolean;
 }
+
 
 /**
  * The listing the channel believes the reservation sits on. Reservations ingested before we stored
