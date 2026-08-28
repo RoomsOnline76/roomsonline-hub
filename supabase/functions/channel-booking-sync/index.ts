@@ -50,6 +50,19 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
+    const source = typeof body?.source === 'string' ? body.source : null;
+    // A direct screen call runs after its booking/room write, whose trigger may already have
+    // parked the same work for 45 seconds. The direct call handles it now, so retire that pending
+    // safety-net job before it can replay the reservation and ARI delta later.
+    if (source !== 'background_job') {
+      await supabase
+        .from('background_jobs')
+        .update({ status: 'done', completed_at: new Date().toISOString(), last_error: null })
+        .eq('job_type', 'channel_booking_sync')
+        .eq('dedupe_key', `channel_booking_sync:${bookingId}:${change}`)
+        .eq('status', 'pending');
+    }
+
     const previous = body?.previous && typeof body.previous === 'object'
       ? {
         room_type_id: body.previous.room_type_id ?? null,
@@ -65,11 +78,12 @@ Deno.serve(async (req) => {
       reason: typeof body?.reason === 'string' ? body.reason : null,
       cancel_type_id: Number.isFinite(Number(body?.cancel_type_id)) ? Number(body.cancel_type_id) : null,
       skip_ari: body?.skip_ari === true,
+      skip_reservation: body?.skip_reservation === true,
       only_unit_ids: Array.isArray(body?.only_unit_ids)
         ? body.only_unit_ids.map((u: unknown) => String(u)).filter((u: string) => u.length > 0)
         : null,
 
-      source: typeof body?.source === 'string' ? body.source : null,
+      source,
     });
 
     return json({ success: result.reservation !== 'failed', ...result });

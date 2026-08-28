@@ -965,6 +965,10 @@ Deno.serve(async (req) => {
             check_in_date: booking.check_in_date ?? null,
             check_out_date: booking.check_out_date ?? null,
           },
+           // RU has already accepted Push_ModifyStay_RQ above, before the local write. This
+           // follow-up exists only to close/reopen the affected unit's old/new nights. Without
+           // this marker the worker repeats the identical reservation payload seconds later.
+           skip_reservation: ruModified,
           only_unit_ids: Array.isArray(modifications.rooms)
             ? modifications.rooms
                 .map((r: any) => (r && typeof r.room_type_id === "string" ? r.room_type_id : null))

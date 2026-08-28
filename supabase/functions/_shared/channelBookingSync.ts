@@ -61,6 +61,8 @@ export interface ChannelBookingSyncRequest {
   cancel_type_id?: number | null;
   /** Skip the availability/rates delta (the caller already queued it). */
   skip_ari?: boolean;
+  /** Skip the reservation verb (the caller already delivered it synchronously). */
+  skip_reservation?: boolean;
   /** Extra units the change touches (multi-room stays, partial cancels). */
   only_unit_ids?: string[] | null;
   /** Where the action was triggered — recorded on the diagnostics trail. */
@@ -277,7 +279,10 @@ export async function syncBookingToChannel(
   // A stay created in ROL'OS has no reservation at the channel yet. Leaving it that way is what let
   // the channel keep selling nights we had already sold, so an active local stay on a listed unit is
   // handed over as a confirmed reservation and then follows the normal modify/cancel path.
-  if (!isRuBooking(row)) {
+  if (request.skip_reservation) {
+    result.reservation = 'skipped';
+    result.reservation_reason = 'caller_handled';
+  } else if (!isRuBooking(row)) {
     if (cancelled) {
       result.reservation = 'skipped';
       result.reservation_reason = 'no_channel_reservation_to_cancel';
