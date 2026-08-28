@@ -9051,8 +9051,9 @@ Deno.serve(async (req) => {
 
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
-      /** Step A creates and stores the first pair before continuing to company details. */
-      let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+      /** Step A pauses for the operator to enter the sub-account's first key pair. */
+      let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
       let keyCode: string | null = null;
