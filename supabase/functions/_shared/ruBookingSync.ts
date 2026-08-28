@@ -506,6 +506,64 @@ export async function cancelRuReservation(
 
 
 /**
+ * The channel refuses any reservation write whose target nights read as closed on ITS calendar —
+ * "Property is not available for a given dates / Can't check in or check out on selected dates".
+ *
+ * In practice that block is OURS: the availability delta that follows every booking event publishes
+ * the sold nights as 0 units, and when it lands before the reservation write (a queued delta, a
+ * drag-and-drop move, a re-priced edit) the channel then rejects the very reservation that justified
+ * the closure. The cure is always the same: reopen exactly those nights (plus the departure day,
+ * which the channel validates for changeover), then replay the write.
+ */
+export function isRuBlockedDatesRefusal(message?: string | null): boolean {
+  return /not available for a given dates|check ?in or check ?out/i.test(String(message ?? ''));
+}
+
+/**
+ * Reopen a stay's own nights at the channel so a reservation write can land. Idempotent: the
+ * availability delta that follows re-publishes the true unit counts.
+ */
+async function reopenStayNightsAtChannel(
+  supabase: Db,
+  booking: RuBookingRef,
+  args: {
+    auth: Record<string, unknown>;
+    ruPropertyId: string;
+    dateFrom: string;
+    dateTo: string;
+    traceId: string;
+    parentAction: string;
+    details?: Record<string, unknown>;
+  },
+): Promise<boolean> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(args.dateTo)) return false;
+  // RU's Date From/To covers nights, so the departure day is not part of the stay — but it is still
+  // validated for arrival/departure, so it is reopened as its own single-day span.
+  const lastNight = new Date(`${args.dateTo}T00:00:00Z`);
+  lastNight.setUTCDate(lastNight.getUTCDate() - 1);
+  const lastNightStr = lastNight.toISOString().slice(0, 10);
+  const spans: Array<Record<string, unknown>> = [];
+  if (lastNightStr >= args.dateFrom) {
+    spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 1 });
+  }
+  spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 1 });
+
+  const reopened = await invokeRu(supabase, 'push_availability', {
+    ru_property_id: Number(args.ruPropertyId),
+    availability: spans,
+    ...args.auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId: args.ruPropertyId,
+    traceId: args.traceId,
+    parentAction: args.parentAction,
+    details: { booking_id: booking.id, ...(args.details ?? {}) },
+  });
+  return reopened.ok === true;
+}
+
+
+/**
  * Accept an unconfirmed channel request so the reservation becomes modifiable.
  *
  * The channel holds a request (StatusID 4) as a lead: it refuses every stay modification while
@@ -573,49 +631,22 @@ export async function confirmRuRequest(
   });
 
   // The channel refuses to accept a held request whose own nights read as closed on its calendar.
-  const isBlockedDatesMsg = (msg?: string | null) =>
-    /not available for a given dates|check in or check out/i.test(msg ?? '');
+  const isBlockedDatesMsg = isRuBlockedDatesRefusal;
 
   // Reopen exactly the request's own nights so the channel can accept it. Idempotent.
   const reopenOwnNights = async (): Promise<boolean> => {
     const ruPropertyId = await resolveRuPropertyId(supabase, booking);
     if (!ruPropertyId) return false;
-    // RU's Date From/To covers nights, so the departure day is excluded.
-    const lastNight = new Date(`${booking.check_out_date}T00:00:00Z`);
-    lastNight.setUTCDate(lastNight.getUTCDate() - 1);
-    /**
-     * The channel validates the departure day too: "Can't check in or check out on selected date"
-     * is raised when the check-out date itself carries a changeover restriction that bars a
-     * departure, even though that night is not part of the stay. So the reopen covers the stay's
-     * nights AND the departure day, both with wire changeover 1 ("arrival and departure allowed").
-     * The following ARI delta re-publishes the true units for the departure day.
-     */
-    const reopened = await invokeRu(supabase, 'push_availability', {
-      ru_property_id: Number(ruPropertyId),
-      availability: [
-        {
-          date_from: booking.check_in_date,
-          date_to: lastNight.toISOString().slice(0, 10),
-          units: 1,
-          changeover: 1,
-        },
-        {
-          date_from: booking.check_out_date,
-          date_to: booking.check_out_date,
-          units: 1,
-          changeover: 1,
-        },
-      ],
-      ...auth,
-    }, {
-
-      propertyId: booking.property_id,
+    return await reopenStayNightsAtChannel(supabase, booking, {
+      auth,
       ruPropertyId,
+      dateFrom: booking.check_in_date,
+      dateTo: booking.check_out_date,
       traceId,
       parentAction: 'ruBookingSync:confirm:reopen',
-      details: { booking_id: booking.id, reservation_id: reservationId },
+      details: { reservation_id: reservationId },
     });
-    return reopened.ok === true;
+
   };
 
   // A confirm parked behind the rate limit retries from the call queue, where the self-heal below
@@ -923,7 +954,7 @@ export async function modifyRuStay(
     };
   }
 
-  const result = await invokeRu(supabase, 'modify_stay', {
+  const modifyPayload = {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
       ru_property_id: currentRuPropertyId || ruPropertyId,
@@ -940,7 +971,9 @@ export async function modifyRuStay(
       arrival_time: modify.arrival_time ?? null,
     },
     ...auth,
-  }, {
+  };
+
+  const result = await invokeRu(supabase, 'modify_stay', modifyPayload, {
     propertyId: booking.property_id,
     ruPropertyId,
     traceId,
@@ -955,6 +988,55 @@ export async function modifyRuStay(
     },
   });
 
+  /**
+   * A move or a date change is refused when the NEW nights read as closed at the channel — which is
+   * our own availability delta having published them as sold before the reservation itself moved.
+   * Reopen the target nights on the target listing and replay the modification past the channel's
+   * sliding minute instead of failing the edit.
+   */
+  if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
+    const reopened = await reopenStayNightsAtChannel(supabase, booking, {
+      auth,
+      ruPropertyId,
+      dateFrom: modifyPayload.modify_stay.date_from,
+      dateTo: modifyPayload.modify_stay.date_to,
+      traceId,
+      parentAction: 'ruBookingSync:modify:reopen',
+      details: { reservation_id: String(booking.external_reservation_id ?? '') },
+    });
+    if (reopened) {
+      const queuedId = await enqueueRuCall(supabase, {
+        methodKey: `modify_stay:${booking.external_reservation_id}`,
+        action: 'modify_stay',
+        payload: { action: 'modify_stay', ...modifyPayload },
+        propertyId: booking.property_id,
+        priority: 1,
+        delayMs: 65_000,
+      });
+      if (queuedId) {
+        await settleReservationOp(supabase, {
+          bookingId: booking.id,
+          op: 'modify',
+          fingerprint: modifyFingerprint,
+          outcome: 'deferred',
+          detail: 'Target nights reopened at the channel — stay change queued for the next channel slot.',
+          reservationId: String(booking.external_reservation_id ?? ''),
+        });
+        return {
+          ok: false,
+          queued: true,
+          deferred: true,
+          method: 'modify_stay',
+          code: 'RU_MODIFY_QUEUED',
+          message:
+            'The channel had the new nights closed (our own sold-out push). They were reopened and the stay ' +
+            'change is queued for the next channel slot, about a minute away.',
+          confirmedLead,
+          traceId,
+        };
+      }
+    }
+  }
 
   /**
    * Status 106 "You can only modify stay in confirmed reservation" means the channel still holds
@@ -970,6 +1052,7 @@ export async function modifyRuStay(
     detail: result.message ?? null,
     reservationId: String(booking.external_reservation_id ?? ''),
   });
+
 
   if (!result.ok && /only modify stay in confirmed reservation/i.test(result.message ?? '')) {
     if (!isRuLead(booking)) {
@@ -1099,7 +1182,7 @@ export async function pushRuConfirmedReservation(
     };
   }
 
-  const result = await invokeRu(supabase, 'push_confirmed_reservation', {
+  const payload = {
     stay: {
       ru_property_id: ruPropertyId,
       date_from: booking.check_in_date,
@@ -1116,7 +1199,9 @@ export async function pushRuConfirmedReservation(
       comments: booking.special_requests ?? null,
     },
     ...auth,
-  }, {
+  };
+
+  const result = await invokeRu(supabase, 'push_confirmed_reservation', payload, {
     propertyId: booking.property_id,
     ruPropertyId,
     traceId,
@@ -1125,6 +1210,56 @@ export async function pushRuConfirmedReservation(
   });
 
   const reservationId = typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null;
+
+  /**
+   * Blocked-dates refusal on a stay WE are handing over: the nights are closed at the channel
+   * because our own availability delta already published them as sold. Reopen exactly those nights
+   * and replay the registration just past the channel's sliding minute (the refused attempt already
+   * spent this minute's slot, so an immediate retry is always rejected). The claim stays open so the
+   * replay is not skipped as a duplicate.
+   */
+  if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
+    const reopened = await reopenStayNightsAtChannel(supabase, booking, {
+      auth,
+      ruPropertyId,
+      dateFrom: booking.check_in_date,
+      dateTo: booking.check_out_date,
+      traceId,
+      parentAction: 'ruBookingSync:create:reopen',
+    });
+    if (reopened) {
+      const queuedId = await enqueueRuCall(supabase, {
+        methodKey: `push_confirmed_reservation:${booking.id}`,
+        action: 'push_confirmed_reservation',
+        payload: { action: 'push_confirmed_reservation', ...payload },
+        propertyId: booking.property_id,
+        priority: 1,
+        delayMs: 65_000,
+      });
+      if (queuedId) {
+        await settleReservationOp(supabase, {
+          bookingId: booking.id,
+          op: 'create',
+          fingerprint,
+          outcome: 'deferred',
+          detail: 'Nights reopened at the channel — registration queued for the next channel slot.',
+        });
+        return {
+          ok: false,
+          queued: true,
+          deferred: true,
+          method: 'push_confirmed_reservation',
+          code: 'RU_STAY_QUEUED',
+          message:
+            'The channel had those nights closed (our own sold-out push). They were reopened and the stay is ' +
+            'queued to register at the channel within about a minute.',
+          traceId,
+          ruPropertyId,
+        };
+      }
+    }
+  }
+
   await settleReservationOp(supabase, {
     bookingId: booking.id,
     op: 'create',
@@ -1144,6 +1279,7 @@ export async function pushRuConfirmedReservation(
       ruPropertyId,
     };
   }
+
 
   return {
     ok: true,

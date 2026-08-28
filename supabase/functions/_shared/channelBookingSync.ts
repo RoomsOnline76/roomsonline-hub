@@ -323,6 +323,12 @@ export async function syncBookingToChannel(
             })
             .eq('id', String(row.id));
         }
+      } else if (push.queued === true) {
+        // Nights reopened and the registration parked for the next channel slot — in flight, not a fault.
+        result.reservation = 'queued';
+        result.deferred = true;
+        result.reservation_reason = 'channel_registration_pending';
+        result.message = push.message ?? null;
       } else if (
         push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE' ||
         push.code === 'RU_LISTING_MISSING'
@@ -500,7 +506,17 @@ export async function syncBookingToChannel(
     // availability and prices for them was pure noise against the owner's rate window.
     result.ari = 'skipped';
     result.ari_reason = 'change_does_not_move_inventory';
+  } else if (result.reservation === 'queued' || result.deferred) {
+    /**
+     * A reservation write is still owed to the channel. Publishing the sold nights as 0 units now is
+     * exactly what makes the channel refuse that write ("Property is not available for a given
+     * dates"), so the calendar is left alone: the channel closes the nights itself the moment the
+     * reservation registers, and the next delta re-states the truth.
+     */
+    result.ari = 'skipped';
+    result.ari_reason = 'reservation_pending_at_channel';
   } else {
+
     try {
       // Scope the write to the nights the stay touches (old span included, so a moved booking
       // reopens what it left) and to the booked unit(s), instead of re-sending the whole year.

@@ -240,6 +240,38 @@ Deno.serve(async (req) => {
       // A queued acceptance bypasses `confirmRuRequest`'s inline success branch, so promote the
       // held request here as part of the same durable completion. Without this, the channel has
       // accepted it while the drawer remains permanently labelled “Not yet confirmed”.
+      /**
+       * A stay registered from the queue never passes through `pushRuConfirmedReservation`'s success
+       * branch, so the channel's own reservation id would be lost and the next edit would try to
+       * register the stay a second time. Store it here, keyed off the method key that carries the
+       * booking id.
+       */
+      if (row.action === 'push_confirmed_reservation') {
+        const bookingId = row.method_key.split(':')[1] ?? '';
+        const reservationId =
+          typeof (result as { data?: { reservation_id?: unknown } })?.data?.reservation_id === 'string'
+            ? String((result as { data: { reservation_id: string } }).data.reservation_id)
+            : null;
+        if (bookingId) {
+          await supabase
+            .from('bookings')
+            .update({
+              ...(reservationId ? { external_reservation_id: reservationId } : {}),
+              integration_type: 'rentalsunited',
+            })
+            .eq('id', bookingId);
+          await supabase.from('booking_sync_status').upsert({
+            booking_id: bookingId,
+            external_system: 'rentalsunited',
+            sync_status: 'synced',
+            last_action: 'create',
+            last_action_at: nowIso,
+            error_message: null,
+            last_error_message: null,
+          }, { onConflict: 'booking_id,external_system' });
+        }
+      }
+
       if (row.action === 'confirm_request') {
         const reservationId = String((row.payload as { reservation_id?: unknown })?.reservation_id ?? '').trim();
         if (reservationId) {
@@ -262,6 +294,7 @@ Deno.serve(async (req) => {
           }
         }
       }
+
     } else {
       const deferred = isDeferral(failure);
       const noOp = !deferred && isNoOp(failure);
