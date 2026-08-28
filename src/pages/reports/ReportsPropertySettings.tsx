@@ -614,6 +614,36 @@ export default function ReportsPropertySettings() {
             />
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="keep-patterns">Keep these zero-revenue rows</Label>
+              <Input
+                id="keep-patterns"
+                value={keepPatterns}
+                onChange={(e) => setKeepPatterns(e.target.value)}
+                placeholder="TOURVEST"
+              />
+              <p className="text-xs text-muted-foreground">
+                Rows exported at 0.00 are treated as blocks, maintenance or owner stays and
+                left out of room nights. Comma-separated labels listed here are kept as real
+                nights — matched against guest, company, source and room.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exclude-patterns">Always exclude these rows</Label>
+              <Input
+                id="exclude-patterns"
+                value={excludePatterns}
+                onChange={(e) => setExcludePatterns(e.target.value)}
+                placeholder="Staff, Maintenance"
+              />
+              <p className="text-xs text-muted-foreground">
+                Comma-separated labels that are never sold nights, whatever the revenue.
+              </p>
+            </div>
+          </div>
+
+
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>
               {save.isPending ? (
