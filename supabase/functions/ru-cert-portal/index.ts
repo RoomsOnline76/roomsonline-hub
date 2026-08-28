@@ -6273,29 +6273,48 @@ Deno.serve(async (req) => {
       const archivedListings: string[] = [];
       const failedListings: { listing_id: string; label: string; message: string }[] = [];
       for (const l of listings) {
-        try {
-          const { data: res, error: invErr } = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "set_property_status",
-              ru_property_id: Number(l.listing_id),
-              owner_id: Number(ownerId),
-              metadata: { is_active: false, is_archived: true },
-              ...(archiveIntent ? { archive_retired: true } : {}),
-              parent_action: "ru-cert-portal:retire_owner_account",
-            },
-          });
-          if (invErr || res?.success !== true) {
-            failedListings.push({
-              ...l,
-              message: invErr?.message ?? res?.error?.message ?? res?.error ?? "The channel did not accept the archive request",
+        // The channel rate-limits an identical status push inside a 60s window and answers
+        // 429/RU_RATE_DEFERRED. `functions.invoke` hides that body behind "non-2xx status
+        // code", so read the real body and wait out the window instead of reporting a refusal.
+        let lastMessage = "The channel did not accept the archive request";
+        let done = false;
+        for (let attempt = 0; attempt < 3 && !done; attempt++) {
+          try {
+            const { data: res, error: invErr } = await admin.functions.invoke("rentalsunited-api", {
+              body: {
+                action: "set_property_status",
+                ru_property_id: Number(l.listing_id),
+                owner_id: Number(ownerId),
+                metadata: { is_active: false, is_archived: true },
+                ...(archiveIntent ? { archive_retired: true } : {}),
+                parent_action: "ru-cert-portal:retire_owner_account",
+              },
             });
-          } else {
-            archivedListings.push(l.listing_id);
+            const body = invErr ? await readInvokeErrorBody(invErr) : res;
+            if (!invErr && res?.success === true) {
+              archivedListings.push(l.listing_id);
+              done = true;
+              break;
+            }
+            const code = String(body?.error?.code ?? "");
+            lastMessage = body?.error?.message ?? (typeof body?.error === "string" ? body.error : null)
+              ?? invErr?.message ?? lastMessage;
+            const deferred = code === "RU_RATE_DEFERRED" ||
+              /rate limit|less than a minute/i.test(lastMessage);
+            if (deferred && attempt < 2) {
+              const waitMs = Number(body?.error?.retry_after_ms ?? body?.retry_after_ms ?? 0);
+              await new Promise((r) => setTimeout(r, Math.min(Math.max(waitMs || 32_000, 5_000), 60_000)));
+              continue;
+            }
+            break;
+          } catch (e) {
+            lastMessage = e instanceof Error ? e.message : String(e);
+            break;
           }
-        } catch (e) {
-          failedListings.push({ ...l, message: e instanceof Error ? e.message : String(e) });
         }
+        if (!done) failedListings.push({ ...l, message: lastMessage });
       }
+
 
 
       // A refusal stops the run before the account is retired, unless the operator
