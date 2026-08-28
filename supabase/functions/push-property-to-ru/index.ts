@@ -3820,7 +3820,10 @@ Deno.serve(async (req) => {
               ownerScope: String(ownerId),
               decision: null,
               knownIso: evidence.ru_reported_iso,
+              knownLocationId: evidence.ru_reported_location_id ?? null,
+              expectedLocationId: locId > 0 ? locId : null,
             });
+
             const durableState = await loadCurrencyState(supabase, p.id);
             const durableMatch = !!durableState?.verified_at
               && String(durableState.ru_reported_currency_iso ?? '').toUpperCase() === expectedIso.toUpperCase()
