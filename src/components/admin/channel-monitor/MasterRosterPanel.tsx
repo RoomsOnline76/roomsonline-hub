@@ -433,6 +433,84 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
+  /**
+   * Generate a child key pair for accounts that hold none (or hold an unusable master pair).
+   *
+   * The backend authenticates AS the sub-account (its own login + the operator password),
+   * verifies the issued pair really belongs to that OwnerID, tests it and stores it — which
+   * is exactly the prerequisite the close verb was missing. Paced, one account at a time.
+   */
+  const generateKeys = useCallback(
+    async (ownerIds: string[]) => {
+      const queue = ownerIds.filter(Boolean);
+      if (queue.length === 0) return;
+      keyGenCancelled.current = false;
+      setGenerating(true);
+      setKeyOutcomes((prev) => {
+        const next = { ...prev };
+        for (const id of queue) next[id] = { state: "queued", message: "Waiting its turn" };
+        return next;
+      });
+
+      let minted = 0;
+      for (const ownerId of queue) {
+        if (keyGenCancelled.current) break;
+        const match = (result?.users ?? []).find((u) => String(u.owner_id ?? "").trim() === ownerId);
+        setKeyOutcomes((prev) => ({
+          ...prev,
+          [ownerId]: { state: "running", message: "Asking the channel to issue this sub-account's key pair" },
+        }));
+        try {
+          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+            body: {
+              action: "generate_child_key",
+              ru_owner_id: ownerId,
+              login_email: match ? label(match) : undefined,
+            },
+          });
+          const status = String(data?.status ?? "") as KeyGenState;
+          if (data?.success === true && (status === "minted" || status === "already_held")) {
+            if (status === "minted") minted += 1;
+            setKeyOutcomes((prev) => ({
+              ...prev,
+              [ownerId]: {
+                state: status,
+                message: String(data.message ?? "Key pair stored for this sub-account"),
+              },
+            }));
+          } else {
+            setKeyOutcomes((prev) => ({
+              ...prev,
+              [ownerId]: {
+                state: KEYGEN_LABEL[status] ? status : "refused",
+                message: data?.error?.message ?? error?.message ?? "The channel did not issue a key pair",
+              },
+            }));
+          }
+        } catch (e) {
+          setKeyOutcomes((prev) => ({
+            ...prev,
+            [ownerId]: { state: "refused", message: e instanceof Error ? e.message : String(e) },
+          }));
+        }
+        if (!keyGenCancelled.current && queue.length > 1) await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      setGenerating(false);
+      setKeySelected(new Set());
+      if (minted > 0) {
+        toast.success(`${minted} sub-account key pair${minted === 1 ? "" : "s"} minted, verified and stored`);
+        read.mutate();
+      } else {
+        toast.error("No key pair was issued — see the per-account reason");
+      }
+      // read.mutate is stable for a mutation instance.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [result],
+  );
+
+
   const forgetKey = useCallback(async (credentialId: string) => {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
       body: { action: "forget_stored_key", credential_id: credentialId },
