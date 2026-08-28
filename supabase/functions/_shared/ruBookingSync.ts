@@ -881,6 +881,32 @@ export async function modifyRuStay(
   });
 
 
+  /**
+   * Status 106 "You can only modify stay in confirmed reservation" means the channel still holds
+   * this reservation as an unaccepted request while our local record says it is confirmed. Retrying
+   * cannot fix that (it produced 43 identical refusals in one day), so the local record is put back
+   * on the lead path — the next attempt accepts the request first — and this attempt ends terminally.
+   */
+  if (!result.ok && /only modify stay in confirmed reservation/i.test(result.message ?? '')) {
+    if (!isRuLead(booking)) {
+      await supabase
+        .from('bookings')
+        .update({ integration_type: 'rentalsunited_lead' })
+        .eq('id', booking.id);
+      booking.integration_type = 'rentalsunited_lead';
+    }
+    return {
+      ok: false,
+      method: 'modify_stay',
+      code: 'RU_MODIFY_REQUIRES_CONFIRMED',
+      message:
+        'The channel still holds this reservation as an unaccepted request, so it refused the stay change. ' +
+        'Accept the request (here or in the channel portal), then resend the change — the stay was left unchanged.',
+      confirmedLead,
+      traceId,
+    };
+  }
+
   return result.ok
     ? {
         ok: true,
@@ -892,6 +918,7 @@ export async function modifyRuStay(
         traceId,
       }
     : { ok: false, method: 'modify_stay', code: result.code, message: result.message, confirmedLead, traceId };
+
 }
 
 
