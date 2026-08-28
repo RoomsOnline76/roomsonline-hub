@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
       reason: typeof body?.reason === 'string' ? body.reason : null,
       cancel_type_id: Number.isFinite(Number(body?.cancel_type_id)) ? Number(body.cancel_type_id) : null,
       skip_ari: body?.skip_ari === true,
+      skip_reservation: body?.skip_reservation === true,
       only_unit_ids: Array.isArray(body?.only_unit_ids)
         ? body.only_unit_ids.map((u: unknown) => String(u)).filter((u: string) => u.length > 0)
         : null,

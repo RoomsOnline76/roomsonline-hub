@@ -204,6 +204,7 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         change: (payload.change as ChannelBookingChange | undefined) ?? "unknown",
         previous: (payload.previous as Record<string, string | null> | null) ?? null,
         reason: (payload.reason as string | null) ?? null,
+        skip_reservation: payload.skip_reservation === true,
         only_unit_ids: onlyUnitIds && onlyUnitIds.length > 0 ? onlyUnitIds : null,
         source: "background_job",
       });
