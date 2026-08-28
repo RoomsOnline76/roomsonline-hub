@@ -947,35 +947,39 @@ Deno.serve(async (req) => {
           }]
         : []),
       /* Shifted dates change both the old and the new nights, so the channel window must be
-       * refreshed either way. A reservation the channel owns was already modified above, so it only
-       * needs the availability delta. A ROL'OS-native stay on a distributed unit has no reservation
-       * at the channel yet — that is why edits to it never reached the channel at all — so it goes
-       * through the full booking sync, which registers it as a confirmed reservation, pushes the
-       * change and queues the same delta. One job per booking / property collapses a burst of
-       * edits into a single push. */
-      ...(isRuBooking(booking)
-        ? [{
-            type: "channel_ari_delta" as const,
-            payload: { property_id: booking.property_id, trigger: "booking_modified", force: true },
-            options: { dedupeKey: `ari:${booking.property_id}` },
-          }]
-        : [{
-            type: "channel_booking_sync" as const,
-            payload: {
-              booking_id,
-              change: (modifications.check_in_date || modifications.check_out_date)
-                ? "dates"
-                : paxOrDatesChanged
-                  ? "pax"
-                  : "price",
-              previous: {
-                room_type_id: booking.room_type_id ?? null,
-                check_in_date: booking.check_in_date ?? null,
-                check_out_date: booking.check_out_date ?? null,
-              },
-            },
-            options: { dedupeKey: `channel_booking:${booking_id}` },
-          }]),
+       * refreshed either way. Every edit — channel-owned reservation or ROL'OS-native stay — goes
+       * through the one booking sync, which modifies the reservation where there is one and queues
+       * a delta scoped to the affected unit(s) and the touched nights. One job per booking and
+       * change kind collapses a burst of edits into a single focused push. */
+      {
+        type: "channel_booking_sync" as const,
+        payload: {
+          booking_id,
+          change: (modifications.check_in_date || modifications.check_out_date)
+            ? "dates"
+            : paxOrDatesChanged
+              ? "pax"
+              : "price",
+          previous: {
+            room_type_id: booking.room_type_id ?? null,
+            check_in_date: booking.check_in_date ?? null,
+            check_out_date: booking.check_out_date ?? null,
+          },
+          only_unit_ids: modifications.room_type_id
+            ? [String(modifications.room_type_id)]
+            : null,
+        },
+        options: {
+          dedupeKey: `channel_booking_sync:${booking_id}:${
+            (modifications.check_in_date || modifications.check_out_date)
+              ? "dates"
+              : paxOrDatesChanged
+                ? "pax"
+                : "price"
+          }`,
+        },
+      },
+
       {
         type: "booking_email" as const,
         payload: {
