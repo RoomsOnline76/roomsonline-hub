@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnapshotTable } from "@/components/reports/SnapshotTable";
+import { BookingTrendsCard } from "@/components/reports/BookingTrendsCard";
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { monthLabel } from "@/lib/historicalBaseline";
 import { reportMonthAnchor, windowMonths } from "@/lib/reportWindow";
@@ -112,6 +113,10 @@ export function StageReview({ ctx }: { ctx: RunBuilderContext }) {
             <SnapshotTable snapshot={snapshot} missingMonths={missingMonths} />
           </CardContent>
         </Card>
+      )}
+
+      {snapshot?.bookingTrends && (
+        <BookingTrendsCard trends={snapshot.bookingTrends} months={snapshot.months} />
       )}
 
       {snapshot && (
