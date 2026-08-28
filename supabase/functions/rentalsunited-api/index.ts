@@ -2773,16 +2773,13 @@ Deno.serve(async (req) => {
     // RU only returns the SecretKey once, at creation time, so the caller must persist it.
     if (action === 'create_child_api_key') {
       /**
-       * White-label first-key mint: authenticate with the WL master pair and carry the
-       * target child <OwnerID>. This capability is limited to this key-creation action;
-       * every company, property, content and ARI write remains child-authenticated.
+       * The documented Push_CreateApiKey_RQ carries no OwnerID: the pair belongs to the
+       * authenticating account. A child mint must therefore authenticate AS the child —
+       * either its own login/password (the one sent in Push_CreateUser_RQ) or an existing
+       * child pair for rotation. Master-authenticated mints are refused here.
        */
-      const ownerScopedId = body.owner_scoped_mint === true && body.owner_id != null
-        ? String(body.owner_id).trim()
-        : '';
-      const childAuth: ChildAuthForKeyMint | null = ownerScopedId
-        ? { mode: 'owner_scoped', access_key: creds.api_key, secret_key: creds.api_secret, owner_id: ownerScopedId }
-        : await resolveChildAuth(body);
+      const childAuth: ChildAuthForKeyMint | null = await resolveChildAuth(body);
+
       if (!childAuth) {
         return jsonResponse({
           success: false,
