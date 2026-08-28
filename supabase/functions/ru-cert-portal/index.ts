@@ -4102,13 +4102,43 @@ Deno.serve(async (req) => {
         account = data as Record<string, any>;
       }
 
-      const ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
+      let ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
       const loginEmail = suppliedEmail || account?.ru_login_email || account?.owner_email || null;
+      if (!ownerId && loginEmail) {
+        // Push_CreateUser_RS confirms A.1 but does not return OwnerID. Do not pull the
+        // roster immediately after create: Step A pauses at A.2. Resolve the identity
+        // once here, when the operator has supplied the pair needed for A.3.
+        const roster = await listRuSubUsers(admin, {
+          forceFresh: true,
+          source: "step-a-key-owner-resolution",
+        });
+        const normalizedLogin = String(loginEmail).trim().toLowerCase();
+        const matched = roster.users.find((candidate) => {
+          const candidateLogin = String(candidate.login_email ?? "").trim().toLowerCase();
+          const candidateEmail = String(candidate.email ?? "").trim().toLowerCase();
+          return candidateLogin === normalizedLogin || candidateEmail === normalizedLogin;
+        });
+        ownerId = String(matched?.owner_id ?? "").trim();
+        if (ownerId && account?.id) {
+          const userAccountId = String(matched?.user_account_id ?? "").trim();
+          await admin.from("ru_owner_accounts").update({
+            ru_owner_id: ownerId,
+            ru_user_id: userAccountId && userAccountId !== ownerId && userAccountId !== "0"
+              ? userAccountId
+              : null,
+            ru_login_email: String(matched?.login_email ?? loginEmail),
+          }).eq("id", account.id);
+          account.ru_owner_id = ownerId;
+        }
+      }
       if (!ownerId) {
         return json({
           success: false,
-          error: { code: "RU_IDENTITY_INCOMPLETE", message: "Pick an RU sub-user (OwnerID) before saving API keys." },
-        }, 422);
+          error: {
+            code: "RU_OWNER_NOT_LISTED",
+            message: `The new sub-account ${loginEmail ?? ""} is not visible in the master roster yet. Wait one minute, then save this key pair again; Step A will resume at verification without creating the account again.`,
+          },
+        }, 200);
       }
 
       /**
@@ -4282,28 +4312,21 @@ Deno.serve(async (req) => {
         change_summary: `Stored and verified Rentals United sub-user API keys for ${loginEmail ?? "unknown"} (OwnerID ${ownerId})`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      const company = await provisionCompanyAfterKeyVerification();
       // Live-notification subscription is deliberately NOT run here: Step A must stay a
       // linear create → keys → verify → company → listings sequence, and the LNM
       // push/read-back added failing calls and extra roster reads mid-onboarding. The
       // nightly `ru-rlnm-daily` cron owns subscriptions.
-      // Keys were stored AND verified here — that is the verdict for step 7. Only the
-      // company profile still needs re-confirming against the new credentials.
+      // Keys were stored AND verified here — that is the A.3 verdict. Company profile and
+      // listing adoption remain separate A.4/A.5 tasks and are never hidden in this call.
       await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
-      if (!company.pushed) {
-        await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
-      } else {
-        await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved_company");
-      }
+      await markLedgerStaleForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["company_profile"], "keys_saved");
       return json({
 
         success: true,
         verified: true,
         ru_owner_id: ownerId,
         login_email: loginEmail,
-        company_details_pushed: company.pushed,
-        company_details_pushed_at: company.pushedAt,
-        company_details_warning: company.warning,
+        company_details_pushed: false,
       });
     }
 
