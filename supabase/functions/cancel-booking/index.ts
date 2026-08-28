@@ -467,6 +467,14 @@ Deno.serve(async (req) => {
           // Delete the booking side-effect rows only. An operator's manual block on the
           // same night is a deliberate closure and must survive a cancellation, and a
           // leftover booking row would keep painting "Blocked by the property".
+          // This stay's own holds, whatever source tag they carry.
+          await supabase
+            .from("property_availability")
+            .delete()
+            .eq("property_id", booking.property_id)
+            .in("date", dates)
+            .eq("blocked_reason", `booking:${booking.id}`);
+          // Legacy unstamped booking rows.
           await supabase
             .from("property_availability")
             .delete()

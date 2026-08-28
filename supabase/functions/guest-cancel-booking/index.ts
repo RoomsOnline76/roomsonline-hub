@@ -260,6 +260,12 @@ Deno.serve(async (req) => {
           .delete()
           .eq("property_id", booking.property_id)
           .in("date", dates)
+          .eq("blocked_reason", `booking:${booking.id}`);
+        await supabase
+          .from("property_availability")
+          .delete()
+          .eq("property_id", booking.property_id)
+          .in("date", dates)
           .eq("external_system", "rolos")
           .is("blocked_by", null)
           .is("blocked_reason", null);
