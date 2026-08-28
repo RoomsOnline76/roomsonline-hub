@@ -1,37 +1,48 @@
-# Fix booking changes rejected by the channel
+# Kill recurring channel price and availability pulls
 
 ## Confirmed diagnosis
 
-The failed edit is not reaching the channel as a modification because booking `ROL-700-0001` has no channel reservation ID. Each edit therefore falls back to `Push_PutConfirmedReservationMulti_RQ` (create).
+The 22:26 calls were a paired live ARI read-back:
 
-The create recovery then reopens the stay with internal changeover value `1`. The shared mapping correctly converts that to channel wire value `2`, which means **arrival only**, not “arrival and departure allowed.” The channel read-back confirms `Changeover=2` for 29 August, so departure remains prohibited and the channel rejects the reservation.
+- `Pull_ListPropertyAvailabilityCalendar_RQ` at 22:26:04
+- `Pull_ListPropertyPrices_RQ` at 22:26:12
+- Both targeted Albatros listing `5966579` through the linked child account.
 
-A second defect masks the failure: the outer recovery queue can receive a successful `queued:true` response when its replay is deferred into a nested queue. It currently marks the outer row done and the booking `synced` even though no channel reservation ID was returned.
+This pairing is produced by the readiness/certification probing path. Its current protection is a six-hour snapshot TTL, so the system treats an expired snapshot as permission to query the channel again. Scheduled ARI and reconciliation jobs already disable price read-back, so they did not originate this pair.
 
-## Implementation
+## Changes
 
-1. **Correct the focused availability repair**
-   - Reopen only the affected stay/listing as today, but use the canonical internal value for **both arrival and departure allowed** (`3`), which serializes to channel `<C>1</C>`.
-   - Keep the existing focused date range and one-unit availability; do not trigger a property-wide ARI push.
+1. **Make onboarding verification permanent per listing**
+   - Record successful availability-and-price verification against the property and channel listing.
+   - Treat that record as a one-time latch, not an expiring cache.
+   - A replacement/new channel listing gets its own one-time verification.
 
-2. **Make queue completion truthful**
-   - Treat `success:true, queued:true` from a queue replay as a hand-off, not channel delivery.
-   - Do not mark the booking synced or write `integration_type='rentalsunited'` until the terminal queue replay returns an actual channel reservation ID.
-   - Preserve/propagate the booking identity into nested rate-limit queue rows so the final successful replay can store the returned reservation ID against the correct booking.
-   - Settle the reservation-operation claim only on terminal delivery or terminal refusal, not on an intermediate queue hand-off.
+2. **Enforce the rule at the channel gateway**
+   - Permit `get_availability` and `get_prices` only when the request carries the dedicated onboarding-verification purpose and the listing has not already passed it.
+   - Refuse calls from readiness dashboards, property saves, booking events, monitors, cron jobs, retries, diagnostics, and generic `force_probe` requests.
+   - Prevent deferred queueing/replay of refused reads.
 
-3. **Stop repeated impossible creates**
-   - On a genuine terminal channel refusal, mark the booking sync status failed with the exact channel response rather than leaving a misleading synced state.
-   - Once creation succeeds and the channel ID is stored, subsequent date/price/guest changes route through `Push_ModifyStay_RQ`.
+3. **Remove repeat callers**
+   - Make readiness scoring use stored verification evidence plus the ROL'OS calendar/rates only.
+   - Stop MCQ ordering, bulk readiness, recheck controls, and certification reruns from launching another live ARI pull after success.
+   - Ensure normal property and ARI pushes always set all read-back flags to false.
+   - Remove the recurring LNM availability pull; notifications may trigger outbound reconciliation but may not read availability back from the channel.
 
-4. **Repair this booking and verify**
-   - Clear only the stale failed/in-flight create state for `ROL-700-0001`, then replay its current stay once through the corrected flow.
-   - Verify raw exchange logs show focused availability with `<C>1</C>`, successful confirmed-reservation creation with a returned reservation ID, and no repeated create loop.
-   - Perform one follow-up edit and confirm it emits `Push_ModifyStay_RQ`, not another create.
+4. **Keep onboarding singular**
+   - During first onboarding only, run exactly one availability pull and one price pull after the outbound ARI push.
+   - Persist success only when both responses are valid for the intended listing and owner scope.
+   - If one fails, retain the incomplete state and retry only the failed onboarding check through the explicit onboarding flow.
+
+5. **Audit and verify**
+   - Add tests proving post-onboarding requests cannot reach either channel pull endpoint, including `force_probe`, saves, booking changes, queue replay, MCQ, readiness, and cron paths.
+   - Verify a fresh listing receives exactly one call of each type, while Albatros receives none because its successful 22:26 evidence already exists.
+   - Deploy the affected functions and inspect fresh channel API logs to confirm zero recurring price/availability reads.
 
 ## Technical scope
 
-- Shared channel booking sync helper: changeover repair and operation-claim settlement.
-- Channel call queue drainer: nested queue hand-off and final booking status/ID persistence.
-- Targeted backend data cleanup for the affected booking only.
-- No broad availability or price push, no adapter-contract changes, and no UI changes.
+- `supabase/functions/rentalsunited-api/index.ts`: central deny-by-default gateway guard for both read actions.
+- `supabase/functions/ru-cert-portal/index.ts`: one-time onboarding latch; stored-evidence readiness; no TTL or force-probe bypass.
+- `supabase/functions/push-property-to-ru/index.ts`: onboarding-only opt-in and no routine availability/price read-back.
+- `supabase/functions/cron-ru-lnm-repull/index.ts`: remove recurring availability reads.
+- Queue-drain and frontend readiness controls: prevent replay or generation of prohibited requests.
+- Database migration: durable listing-scoped verification evidence with authenticated/admin access only.

@@ -523,7 +523,7 @@ export function isRuBlockedDatesRefusal(message?: string | null): boolean {
  * Reopen a stay's own nights at the channel so a reservation write can land. Idempotent: the
  * availability delta that follows re-publishes the true unit counts.
  */
-async function reopenStayNightsAtChannel(
+export async function reopenStayNightsAtChannel(
   supabase: Db,
   booking: RuBookingRef,
   args: {
@@ -544,9 +544,12 @@ async function reopenStayNightsAtChannel(
   const lastNightStr = lastNight.toISOString().slice(0, 10);
   const spans: Array<Record<string, unknown>> = [];
   if (lastNightStr >= args.dateFrom) {
-    spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 1 });
+    // Internal 3 means both arrival and departure are allowed; the shared serializer maps it to
+    // channel wire value 1. Internal 1 would serialize to wire 2 (arrival only) and still make the
+    // departure validation reject the reservation.
+    spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 3 });
   }
-  spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 1 });
+  spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 3 });
 
   const reopened = await invokeRu(supabase, 'push_availability', {
     ru_property_id: Number(args.ruPropertyId),
@@ -1231,7 +1234,14 @@ export async function pushRuConfirmedReservation(
       const queuedId = await enqueueRuCall(supabase, {
         methodKey: `push_confirmed_reservation:${booking.id}`,
         action: 'push_confirmed_reservation',
-        payload: { action: 'push_confirmed_reservation', ...payload },
+        payload: {
+          action: 'push_confirmed_reservation',
+          ...payload,
+          // Internal queue metadata survives a second rate-window hand-off. The terminal drainer
+          // uses it to persist the channel ReservationID and settle this exact claim.
+          booking_id: booking.id,
+          reservation_fingerprint: fingerprint,
+        },
         propertyId: booking.property_id,
         priority: 1,
         delayMs: 65_000,
