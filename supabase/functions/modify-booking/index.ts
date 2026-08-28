@@ -965,9 +965,12 @@ Deno.serve(async (req) => {
             check_in_date: booking.check_in_date ?? null,
             check_out_date: booking.check_out_date ?? null,
           },
-          only_unit_ids: modifications.room_type_id
-            ? [String(modifications.room_type_id)]
+          only_unit_ids: Array.isArray(modifications.rooms)
+            ? modifications.rooms
+                .map((r: any) => (r && typeof r.room_type_id === "string" ? r.room_type_id : null))
+                .filter((id: string | null): id is string => !!id)
             : null,
+
         },
         options: {
           dedupeKey: `channel_booking_sync:${booking_id}:${
