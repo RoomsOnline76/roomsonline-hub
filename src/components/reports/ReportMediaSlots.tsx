@@ -16,6 +16,8 @@ interface ReportMediaSlotsProps {
   runId: string;
   /** Report source (`nightsbridge` | `opera` | `protel`) — drives the headings. */
   sourceType?: string | null;
+  /** Property the run belongs to — carries slide sections between runs. */
+  propertyId?: string;
 }
 
 function SlotEditor({
