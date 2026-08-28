@@ -326,6 +326,8 @@ export function ChannelOnboardTab({
    * the console was first opened.
    */
   const statusReadSeq = useRef(0);
+  /** Synchronous guard: React state updates cannot stop a timer tick and click in one frame. */
+  const stepRunInFlight = useRef(false);
   const refreshOnboardStatuses = useCallback(async (options: OnboardOption[]) => {
     if (options.length === 0) return;
     const seq = ++statusReadSeq.current;
@@ -748,7 +750,8 @@ export function ChannelOnboardTab({
    */
   const runStep = useCallback(
     async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean; keysVerifiedInRun?: boolean }) => {
-      if (!propertyId) return;
+      if (!propertyId || stepRunInFlight.current) return;
+      stepRunInFlight.current = true;
       const attempt = options?.attempt ?? 0;
       const resumeFrom = options?.startAtTaskId ?? null;
       setRunningStep(step);
@@ -889,6 +892,7 @@ export function ChannelOnboardTab({
         }
       } finally {
         setRunningStep(null);
+        stepRunInFlight.current = false;
         await gate.refresh();
       }
     },

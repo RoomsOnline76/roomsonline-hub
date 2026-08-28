@@ -58,7 +58,6 @@ import {
 import { parseRuReservation } from "../_shared/ruReservationParsing.ts";
 import { fetchRuReservationById, ingestRuReservation, resolveRuChannelCreator } from "../_shared/ruReservationIngest.ts";
 import { runBookingReadbackTest } from "../_shared/ruBookingReadback.ts";
-import { enqueueJob } from "../_shared/jobQueue.ts";
 
 
 
@@ -4218,6 +4217,12 @@ Deno.serve(async (req) => {
         secret_enc: enc,
         key_label: keyLabel,
         verified_at: verifiedAt,
+        key_scope: "child",
+        key_scope_verified_at: verifiedAt,
+        key_scope_detail: {
+          probe: "verify_child_key_owner",
+          matched_owner_id: ownerId,
+        },
       }, { onConflict: "ru_owner_id" });
       if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
 
@@ -5396,34 +5401,17 @@ Deno.serve(async (req) => {
       }
 
       const subAccountLabel = `${account?.ru_login_email ?? account?.owner_email ?? "sub-account"} (OwnerID ${ownerId})`;
-      let { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
+      const { data: listed, error: listErr } = await admin.functions.invoke("rentalsunited-api", {
         body: { action: "list_properties", owner_id: Number(ownerId) },
       });
       // A non-2xx (e.g. 429 RU_RATE_DEFERRED) leaves `data` null, so recover the real body.
-      let listedBody = listed ?? (await readInvokeErrorBody(listErr));
+      const listedBody = listed ?? (await readInvokeErrorBody(listErr));
       /**
        * A rate-limited read answers 202 { success: true, queued: true } with no property
        * list. Treating that as "the account is empty" is what wiped listing verification
        * and reported an empty sub-account, so an unresolved read is a deferral.
        */
-      let queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
-
-      /**
-       * Second chance through the rate gate: asking non-deferrably makes the gate wait out the
-       * remainder of the sliding window instead of parking the read, so most reviews pass here.
-       */
-      if (queuedRead && (listedBody?.success === true || listedBody?.error?.code === "RU_RATE_DEFERRED")) {
-        const retry = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "list_properties", owner_id: Number(ownerId), deferrable: false },
-        });
-        const retryBody = retry.data ?? (await readInvokeErrorBody(retry.error));
-        if (retryBody?.success === true && Array.isArray(retryBody?.properties)) {
-          listed = retryBody;
-          listErr = null;
-          listedBody = retryBody;
-          queuedRead = false;
-        }
-      }
+      const queuedRead = listedBody?.queued === true || !Array.isArray(listedBody?.properties);
 
       if (listErr || listedBody?.success !== true || queuedRead) {
         // Pass the channel's own reason through verbatim — a missing sub-account key pair must
@@ -5438,24 +5426,16 @@ Deno.serve(async (req) => {
           ?? listErr?.message ?? "Rentals United did not return a property list";
         const retryMs = Number(listedBody?.error?.retry_after_ms ?? 0);
 
-        /**
-         * A rate deferral is not a failure of the review — it only means the read must happen a
-         * little later. Park the review as background work and answer 202 pending so the wizard
-         * keeps its step "in progress" and the operator is told when it lands.
-         */
+        // The interactive wizard is the sole retry owner. Do not also enqueue background work:
+        // doing both launched identical reads together when the rate window reopened.
         if (code === "RU_RATE_DEFERRED") {
-          await enqueueJob(admin, "channel_listing_review", { property_id: targetPropertyId }, {
-            dedupeKey: `channel_listing_review:${targetPropertyId}`,
-            delaySeconds: Math.max(30, Math.ceil((retryMs || 60000) / 1000)),
-            maxAttempts: 8,
-          });
           return json({
             success: true,
             pending: true,
             ru_owner_id: ownerId,
             ru_owner_label: subAccountLabel,
             retry_after_ms: retryMs > 0 ? retryMs : 60000,
-            message: `The channel is rate limited right now — the listing review for ${subAccountLabel} will finish in the background.`,
+            message: `The channel is rate limited right now — the listing review for ${subAccountLabel} will resume when the read window reopens.`,
           }, 202);
         }
 
@@ -8861,9 +8841,15 @@ Deno.serve(async (req) => {
           }, 502);
         }
 
-        // Push_CreateUser_RS returns Status/ResponseID, not OwnerID. Success is sufficient
-        // for A.1: persist the login now and pause at A.2. The one required roster
-        // resolution happens after the operator supplies the key pair for A.3.
+        // A positive UserAccountId in Push_CreateUser_RS is the newly-created child OwnerID.
+        // Trust and persist it immediately; never spend a second roster read after creation.
+        if (!adopted && created?.success) {
+          const createdOwnerId = usableRuId(created?.owner_id ?? created?.user_account_id);
+          if (createdOwnerId) {
+            ruOwnerId = createdOwnerId;
+            userAccountId = createdOwnerId;
+          }
+        }
       }
 
       if (adopted && !ruOwnerId) {

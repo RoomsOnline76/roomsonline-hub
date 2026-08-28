@@ -2719,6 +2719,19 @@ Deno.serve(async (req) => {
       const ownerResponse = await callRentalsUnited(creds, ownerXml);
       const ownerStatus = handleRUStatus(ownerResponse);
 
+      // This is the same authoritative listing payload A.5 needs moments later. Cache even an
+      // empty <Properties /> response: a new child with zero listings is a valid snapshot, not a
+      // cache miss. This prevents A.5 from immediately repeating Pull_ListOwnerProp_RQ.
+      const ownerProperties = ownerStatus.ok ? extractPropertyIds(ownerResponse) : [];
+      if (ownerStatus.ok) {
+        await writeRuOwnerListingCache(
+          getLogClient(),
+          targetOwnerId,
+          ownerProperties,
+          'rentalsunited-api:verify_child_key_owner',
+        );
+      }
+
       // 2) Best effort: which account do these keys actually authenticate as? A master pair can
       //    read any OwnerID, so a positive read alone must not be treated as ownership.
       let identifiedOwnerIds: string[] = [];
@@ -2755,6 +2768,8 @@ Deno.serve(async (req) => {
         ru_status_message: ownerStatus.status.message ?? null,
         identified_owner_ids: identifiedOwnerIds,
         identified_emails: identifiedEmails,
+        properties: ownerProperties,
+        listing_count: ownerProperties.length,
         reason: owns
           ? null
           : seesOtherAccountsOnly
