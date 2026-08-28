@@ -14,6 +14,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { isBookingOccupancyRow } from "@/lib/blockAttribution";
 
 const DEAD_BOOKING_STATUSES = new Set([
   "cancelled",
@@ -124,7 +125,7 @@ export async function fetchUnitAvailability(
       .gt("check_out_date", from),
     supabase
       .from("property_availability")
-      .select("room_type, date, is_stop_sell, available_units, blocked_reason, blocked_by_label")
+      .select("room_type, date, is_stop_sell, available_units, blocked_reason, blocked_by, blocked_by_label, external_system")
       .eq("property_id", propertyId)
       .gte("date", from)
       .lte("date", to),
@@ -199,6 +200,9 @@ export async function fetchUnitAvailability(
     if (!typeId) continue;
     const stopped = row.is_stop_sell === true || Number(row.available_units ?? 1) === 0;
     if (!stopped) continue;
+    // Booking side-effect rows are not property blocks — occupancy comes from the
+    // bookings themselves, so these would double-count (and outlive cancellations).
+    if (isBookingOccupancyRow(row.external_system, row.blocked_reason, row.blocked_by)) continue;
     // The stay being edited holds its own nights via a channel block — those
     // must stay selectable, otherwise extending it looks like an overbooking.
     const reason = String(row.blocked_reason ?? "");

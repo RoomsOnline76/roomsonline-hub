@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
+import { formatBlockedTooltip, isBookingOccupancyRow, type BlockDetail } from "@/lib/blockAttribution";
 import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
@@ -223,6 +223,7 @@ interface AvailabilityOverride {
   lead_days_advance: number | null;
   lead_days_post: number | null;
   available_units: number | null;
+  blocked_by?: string | null;
   blocked_by_label?: string | null;
   blocked_reason?: string | null;
   blocked_at?: string | null;
@@ -242,7 +243,10 @@ const isChannelBookingBlock = (o: AvailabilityOverride | undefined | null): bool
 /** Single source of truth for "this night is blocked" — stop-sell flag OR zero units.
  * Room plan, week and month grids all read this so they cannot drift apart. */
 const isBlockedOverride = (o: AvailabilityOverride | undefined | null): boolean =>
-  !!o && (o.is_stop_sell === true || o.available_units === 0) && !isChannelBookingBlock(o);
+  !!o &&
+  (o.is_stop_sell === true || o.available_units === 0) &&
+  !isChannelBookingBlock(o) &&
+  !isBookingOccupancyRow(o.external_system, o.blocked_reason, o.blocked_by);
 
 const blockDetailOf = (o: AvailabilityOverride | undefined | null): BlockDetail => ({
   label: o?.blocked_by_label ?? null,
@@ -1011,7 +1015,7 @@ export default function PMSDashboard() {
       if (!propertyId) return [];
       const { data } = await supabase
         .from("property_availability")
-        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, blocked_by_label, blocked_reason, blocked_at, external_system")
+        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, blocked_by, blocked_by_label, blocked_reason, blocked_at, external_system")
         .eq("property_id", propertyId)
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));
@@ -1126,7 +1130,7 @@ export default function PMSDashboard() {
       if (!portfolioPropertyIds.length) return [];
       const { data } = await supabase
         .from("property_availability")
-        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, property_id, blocked_by_label, blocked_reason, blocked_at, external_system")
+        .select("room_type, date, is_stop_sell, minimum_stay, maximum_stay, lead_days_advance, lead_days_post, available_units, property_id, blocked_by, blocked_by_label, blocked_reason, blocked_at, external_system")
         .in("property_id", portfolioPropertyIds)
         .gte("date", format(dateRange.start, "yyyy-MM-dd"))
         .lte("date", format(dateRange.end, "yyyy-MM-dd"));
