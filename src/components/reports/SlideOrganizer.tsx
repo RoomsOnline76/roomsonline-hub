@@ -24,17 +24,25 @@ interface SlideOrganizerProps {
   mediaPages: ReportPageDefinition[];
   /** Legacy section key -> per-image slide keys for orders saved earlier. */
   legacyExpansions?: Record<string, string[]>;
+  /** Property the run belongs to, so the layout carries over between runs. */
+  propertyId?: string;
 }
 
 /**
  * Manual page sequencing for the draft report: drag (or nudge) pages into the
  * order the revenue team wants, and hide the ones they don't need this round.
  */
-export function SlideOrganizer({ runId, mediaPages, legacyExpansions }: SlideOrganizerProps) {
+export function SlideOrganizer({
+  runId,
+  mediaPages,
+  legacyExpansions,
+  propertyId,
+}: SlideOrganizerProps) {
   const { pages, movePage, reorderTo, toggleHidden, reset, isSaving } = useReportPageOrder(
     runId,
     mediaPages,
     legacyExpansions,
+    propertyId,
   );
   const [open, setOpen] = useState(false);
   const [dragKey, setDragKey] = useState<string | null>(null);
