@@ -745,17 +745,31 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
-    const { ok, pending, retryAfterMs, detail, code } = await portal(
+    const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       { action: "ensure_company_details", property_id: ctx.propertyId },
       "The company profile was not accepted",
     );
+    const locationIds = (data?.company_location_ids ?? null) as number[] | null;
+    const locationsUnchanged = data?.company_locations_unchanged === true;
+    const rep = (data?.legal_rep_coverage ?? null) as { missing?: string[] } | null;
+    const extras = [
+      locationIds?.length
+        ? `region list ${locationIds.join(", ")}${locationsUnchanged ? " unchanged — not re-sent" : " sent"}`
+        : null,
+      rep
+        ? rep.missing?.length
+          ? `legal representative sent without ${rep.missing.join(", ")}`
+          : "legal representative complete"
+        : null,
+    ].filter(Boolean).join("; ");
     return {
       id: "company_profile",
       outcome: ok ? "passed" : pending ? "pending" : isRecoverableStepACode(code) ? "blocked" : "failed",
       retryAfterMs,
-      detail: ok ? `Company profile accepted${companyLabel}` : detail,
+      detail: ok ? `Company profile accepted${companyLabel}${extras ? ` — ${extras}` : ""}` : detail,
       code,
     };
+
   },
 
   adopt_listings: async (ctx) => {
