@@ -8872,9 +8872,10 @@ Deno.serve(async (req) => {
             const refreshed = await listRuUsers(true);
             const matched = matchByEmail(refreshed);
             if (matched?.owner_id) {
-              ruOwnerId = usableRuId(matched.owner_id) ?? null;
-              userAccountId = usableRuId(matched.user_account_id) ?? null;
+              ruOwnerId = usableRuId(matched.owner_id) || null;
+              userAccountId = usableRuId(matched.user_account_id) || null;
             }
+
           }
 
           if (!ruOwnerId) {
