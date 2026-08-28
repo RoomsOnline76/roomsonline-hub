@@ -4715,30 +4715,40 @@ Deno.serve(async (req) => {
 
 
       /**
-       * RU white-label key provisioning is owner-scoped: authenticate the key-creation
-       * request with the WL master pair and identify the child with <OwnerID>. Live request
-       * history confirms this succeeds while a new child's UserName/Password envelope is
-       * rejected with status -4. This authority is restricted to key creation; it is never
-       * passed to company, property, content or ARI writes.
-       *
-       * Use one deterministic request. Repeating Push_CreateApiKey_RQ inside the one-minute
-       * method window only creates misleading local/channel throttles.
+       * Push_CreateApiKey_RQ carries no OwnerID in the documented schema: the pair belongs
+       * to whichever account authenticates. A master-authenticated envelope therefore only
+       * ever yields a MASTER pair (that is how master-footprint listings happened), so the
+       * only valid child mint is a CHILD-credentialled one:
+       *   1) an existing verified child key pair (rotation), then
+       *   2) the sub-account's own login + the password sent in Push_CreateUser_RQ.
+       * One request per envelope: repeating inside RU's one-minute method window only
+       * manufactures throttles.
        */
-      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string }> = opts.ownerId
-        ? [{
-            label: "master_owner_scoped",
-            body: { owner_scoped_mint: true, owner_id: opts.ownerId },
-            keyLabel: `${keyLabel}-m`,
-          }]
-        : [];
+      const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string }> = [];
+      if (opts.authAccessKey && opts.authSecretKey) {
+        variants.push({
+          label: "child_api_keys",
+          body: { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey },
+          keyLabel,
+        });
+      }
+      if (opts.loginEmail && opts.authPassword) {
+        variants.push({
+          label: "child_login",
+          body: { auth_username: opts.authUsername ?? opts.loginEmail, auth_password: opts.authPassword },
+          keyLabel,
+        });
+      }
 
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "RU_OWNER_ID_REQUIRED",
-          message: "A child OwnerID is required for white-label API-key creation.",
+          code: "RU_CHILD_AUTH_REQUIRED",
+          message:
+            "The sub-account's own login and password (or an existing child key pair) are required: the channel issues API keys only to the authenticating account.",
         };
       }
+
 
 
 
