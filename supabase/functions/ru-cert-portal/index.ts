@@ -4705,14 +4705,14 @@ Deno.serve(async (req) => {
 
 
       /**
-       * Ordered mint variants:
-       *   1. an EXISTING stored key pair (rotation on an account that already has one), and one
-       *      short-delayed repeat of it, because a transport blip there is a real possibility
-       *   2. a master-authenticated mint scoped to the sub-account's OwnerID
+       * Ordered mint variants — CHILD IDENTITY ONLY:
+       *   1. the sub-account's OWN login/password envelope (the account mints its own pair)
+       *   2. an EXISTING stored child key pair (rotation on an account that already holds one)
+       *   3. one short-delayed repeat of whichever envelope was available, for transport blips
        *
-       * The sub-account's own login/password envelope is deliberately NOT tried: the channel
-       * answers it with "Incorrect login or password" (-4) for every freshly created child, so it
-       * only ever produced two guaranteed refusals before the owner-scoped mint succeeded.
+       * The master account is NEVER used to mint a key for a sub-account: the channel returns a
+       * pair that belongs to the MASTER even when <OwnerID> names the child, which is exactly how
+       * unusable "master pairs" (and master-footprint listings) were created.
        */
       /**
        * Each variant carries its OWN key label. The channel (and our sliding-window
@@ -4721,41 +4721,41 @@ Deno.serve(async (req) => {
        * ever reached the channel, which masked the real refusal as a rate deferral.
        */
       const variants: Array<{ label: string; body: Record<string, unknown>; keyLabel: string; delayMs?: number }> = [];
+      const passwordBody: Record<string, unknown> | null =
+        opts.authUsername && opts.authPassword
+          ? { auth_username: opts.authUsername, auth_password: opts.authPassword }
+          : null;
       const credentialBody: Record<string, unknown> | null =
         opts.authAccessKey && opts.authSecretKey
           ? { auth_access_key: opts.authAccessKey, auth_secret_key: opts.authSecretKey }
           : null;
+      if (passwordBody) {
+        variants.push({ label: "child_password", body: passwordBody, keyLabel: `${keyLabel}-p` });
+      }
       if (credentialBody) {
         variants.push({ label: "child_credential", body: credentialBody, keyLabel });
-        variants.push({ label: "child_credential_retry", body: credentialBody, keyLabel: `${keyLabel}-r2`, delayMs: 6_000 });
       }
-      if (opts.ownerId) {
+      const retryBody = passwordBody ?? credentialBody;
+      if (retryBody) {
         variants.push({
-          label: "master_owner_scoped",
-          body: { owner_scoped_mint: true, owner_id: opts.ownerId },
-          keyLabel: `${keyLabel}-m`,
+          label: passwordBody ? "child_password_retry" : "child_credential_retry",
+          body: retryBody,
+          keyLabel: `${keyLabel}-r2`,
+          delayMs: 6_000,
         });
       }
-      // Last resort, and ONLY when an operator supplied the portal password for this
-      // run (decommissioning an account whose keys we no longer hold): the sub-account's
-      // own login envelope. It is refused for freshly created children, which is why it
-      // is never tried first, but on an older account it is the only envelope left.
-      if (opts.authUsername && opts.authPassword) {
-        variants.push({
-          label: "child_password",
-          body: { auth_username: opts.authUsername, auth_password: opts.authPassword },
-          keyLabel: `${keyLabel}-p`,
-        });
-      }
+
 
 
       if (variants.length === 0) {
         return {
           ok: false,
-          code: "NO_OWNER_ID",
-          message: "No OwnerID is bound for this sub-account, so no key pair can be created. Complete Step A's account creation first.",
+          code: "RU_CHILD_AUTH_REQUIRED",
+          message:
+            "No sub-account credential is available to mint with. The sub-account's own login and password (or an existing child key pair) are required — the master account is never used to mint a child key.",
         };
       }
+
 
 
       let created: any = null;
@@ -5038,7 +5038,110 @@ Deno.serve(async (req) => {
      * ── list_stored_api_keys: which RU OwnerIDs we hold key pairs for (no secrets returned).
      * Drives the per-sub-user key state in the RU accounts UI.
      */
+    /**
+     * ── generate_child_key: mint + verify + store a child key pair for one roster account ──
+     * Used from Channel Monitor → Advanced → Master account roster for accounts that hold no
+     * usable child pair (so the close verb, which authenticates AS the sub-account, is blocked).
+     *
+     * Authenticates as the SUB-ACCOUNT (its own login + password). The master account is never
+     * used to mint a child key — mintChildKeyPair already discards any pair that turns out to
+     * authenticate as the master account.
+     */
+    if (action === "generate_child_key") {
+      const ownerId = String(body.ru_owner_id ?? "").trim();
+      if (!ownerId) {
+        return json({ success: false, error: { code: "MISSING_PARAM", message: "ru_owner_id is required" } }, 400);
+      }
+      const suppliedEmail = typeof body.login_email === "string" ? body.login_email.trim() : "";
+      const suppliedPassword = typeof body.password === "string" && body.password.trim()
+        ? body.password.trim()
+        : RU_SUB_USER_PASSWORD;
+      const keyLabel = typeof body.key_label === "string" && body.key_label.trim()
+        ? body.key_label.trim()
+        : "ROLOS";
+
+      const [{ data: credRow }, { data: acctRow }] = await Promise.all([
+        admin
+          .from("ru_api_credentials")
+          .select("id, login_email, access_key, key_scope")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle(),
+        admin
+          .from("ru_owner_accounts")
+          .select("id, ru_login_email, owner_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle(),
+      ]);
+
+      // A verified child pair is already usable — nothing to do unless the caller forces a rotation.
+      if (credRow?.key_scope === "child" && body.force !== true) {
+        return json({
+          success: true,
+          status: "already_held",
+          owner_id: ownerId,
+          access_key_last4: String(credRow.access_key ?? "").slice(-4),
+          message: "A verified sub-account key pair is already stored for this account.",
+        });
+      }
+
+      const loginEmail = suppliedEmail
+        || String(credRow?.login_email ?? "").trim()
+        || String(acctRow?.ru_login_email ?? "").trim()
+        || String(acctRow?.owner_email ?? "").trim()
+        || "";
+      if (!loginEmail) {
+        return json({
+          success: false,
+          status: "refused",
+          error: {
+            code: "NO_LOGIN_EMAIL",
+            message: "No sub-account login email is on record for this OwnerID, so the channel cannot be asked to mint its key.",
+          },
+        }, 422);
+      }
+
+      const minted = await mintChildKeyPair({
+        ownerId,
+        loginEmail,
+        accountId: acctRow?.id ? String(acctRow.id) : null,
+        keyLabel,
+        authUsername: loginEmail,
+        authPassword: suppliedPassword,
+      });
+
+      if (minted.ok) {
+        return json({
+          success: true,
+          status: "minted",
+          owner_id: ownerId,
+          login_email: loginEmail,
+          access_key_last4: String(minted.accessKey ?? "").slice(-4),
+          attempts: minted.attempts ?? [],
+          message: `Key pair minted, verified as sub-account ${ownerId} and stored.`,
+        });
+      }
+
+      const status = minted.rateDeferred
+        ? "rate_limited"
+        : minted.code === "RU_KEY_CREATION_NOT_ENABLED"
+          ? "master_pair"
+          : "refused";
+      return json({
+        success: false,
+        status,
+        owner_id: ownerId,
+        login_email: loginEmail,
+        attempts: minted.attempts ?? [],
+        ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
+        error: {
+          code: minted.code ?? "RU_CREATE_KEY_FAILED",
+          message: minted.message ?? "The channel did not issue a key pair for this sub-account.",
+        },
+      }, minted.rateDeferred ? 429 : 422);
+    }
+
     if (action === "list_stored_api_keys") {
+
       const { data, error } = await admin
         .from("ru_api_credentials")
         .select("id, ru_owner_id, login_email, access_key, key_label, verified_at, key_scope, key_scope_verified_at")

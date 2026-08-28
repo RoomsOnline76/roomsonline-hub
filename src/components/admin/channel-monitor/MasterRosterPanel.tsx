@@ -41,6 +41,8 @@ interface RosterResult {
   retiredIds: Set<string>;
   boundIds: Set<string>;
   storedKeys: StoredKey[];
+  /** Accounts the channel reports as archived/closed — excluded from the list and the counts. */
+  archivedExcluded: number;
   readAt: Date;
 }
 
@@ -51,6 +53,33 @@ interface CloseOutcome {
   message: string;
 }
 
+type KeyGenState = "queued" | "running" | "minted" | "already_held" | "master_pair" | "rate_limited" | "refused";
+
+interface KeyGenOutcome {
+  state: KeyGenState;
+  message: string;
+}
+
+const KEYGEN_LABEL: Record<KeyGenState, string> = {
+  queued: "Waiting",
+  running: "Minting…",
+  minted: "Key minted & stored",
+  already_held: "Key already held",
+  master_pair: "Channel issued a master pair — discarded",
+  rate_limited: "Rate limited — retry shortly",
+  refused: "Channel refused the mint",
+};
+
+const KEYGEN_VARIANT: Record<KeyGenState, "secondary" | "outline" | "destructive"> = {
+  queued: "outline",
+  running: "outline",
+  minted: "secondary",
+  already_held: "secondary",
+  master_pair: "destructive",
+  rate_limited: "outline",
+  refused: "destructive",
+};
+
 type RematchOutcome = "queued" | "running" | "already_correct" | "rematched" | "master_pair" | "duplicate" | "orphan" | "failed";
 
 interface RematchResult {
@@ -58,6 +87,7 @@ interface RematchResult {
   message: string;
   ownerId: string | null;
 }
+
 
 const REMATCH_LABEL: Record<RematchOutcome, string> = {
   queued: "Waiting",
@@ -131,8 +161,12 @@ export function MasterRosterPanel() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [rematching, setRematching] = useState(false);
   const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
+  
+  const [keyOutcomes, setKeyOutcomes] = useState<Record<string, KeyGenOutcome>>({});
+  const [generating, setGenerating] = useState(false);
   const cancelled = useRef(false);
   const rematchCancelled = useRef(false);
+  const keyGenCancelled = useRef(false);
 
   const read = useMutation({
     mutationFn: async (): Promise<RosterResult> => {
@@ -149,9 +183,16 @@ export function MasterRosterPanel() {
       if (data?.success === false) {
         throw new Error(data?.error?.message || "The channel refused the roster read");
       }
-      const users = Array.isArray(data?.users) ? (data.users as RosterUser[]) : [];
+      const all = Array.isArray(data?.users) ? (data.users as RosterUser[]) : [];
+      /**
+       * Accounts already archived/closed at the channel are dead weight here: they cannot be
+       * closed again, they hold no usable keys, and they inflate every count. Drop them from
+       * the list entirely and only report how many were excluded.
+       */
+      const users = all.filter((u) => !u.archived);
       return {
         users,
+        archivedExcluded: all.length - users.length,
         boundIds: new Set(
           (accounts ?? []).map((a) => String(a.ru_owner_id ?? "").trim()).filter(Boolean),
         ),
@@ -166,8 +207,9 @@ export function MasterRosterPanel() {
     },
     onSuccess: (r) => {
       setResult(r);
-      toast.success(`Master account holds ${r.users.length} sub-account(s)`);
+      toast.success(`Master account holds ${r.users.length} live sub-account(s)`);
     },
+
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Could not read the master account roster");
     },
@@ -317,6 +359,16 @@ export function MasterRosterPanel() {
     return map;
   }, [result]);
 
+  /** Live accounts with no verified child key pair — the close verb cannot authenticate for these. */
+  const missingKeyIds = useMemo(
+    () =>
+      (result?.users ?? [])
+        .map((u) => String(u.owner_id ?? "").trim())
+        .filter((id) => id && keyByOwner.get(id)?.key_scope !== "child"),
+    [keyByOwner, result],
+  );
+
+
   /**
    * Rematch every stored pair against this roster read.
    *
@@ -391,6 +443,84 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result]);
 
+  /**
+   * Generate a child key pair for accounts that hold none (or hold an unusable master pair).
+   *
+   * The backend authenticates AS the sub-account (its own login + the operator password),
+   * verifies the issued pair really belongs to that OwnerID, tests it and stores it — which
+   * is exactly the prerequisite the close verb was missing. Paced, one account at a time.
+   */
+  const generateKeys = useCallback(
+    async (ownerIds: string[]) => {
+      const queue = ownerIds.filter(Boolean);
+      if (queue.length === 0) return;
+      keyGenCancelled.current = false;
+      setGenerating(true);
+      setKeyOutcomes((prev) => {
+        const next = { ...prev };
+        for (const id of queue) next[id] = { state: "queued", message: "Waiting its turn" };
+        return next;
+      });
+
+      let minted = 0;
+      for (const ownerId of queue) {
+        if (keyGenCancelled.current) break;
+        const match = (result?.users ?? []).find((u) => String(u.owner_id ?? "").trim() === ownerId);
+        setKeyOutcomes((prev) => ({
+          ...prev,
+          [ownerId]: { state: "running", message: "Asking the channel to issue this sub-account's key pair" },
+        }));
+        try {
+          const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+            body: {
+              action: "generate_child_key",
+              ru_owner_id: ownerId,
+              login_email: match ? label(match) : undefined,
+            },
+          });
+          const status = String(data?.status ?? "") as KeyGenState;
+          if (data?.success === true && (status === "minted" || status === "already_held")) {
+            if (status === "minted") minted += 1;
+            setKeyOutcomes((prev) => ({
+              ...prev,
+              [ownerId]: {
+                state: status,
+                message: String(data.message ?? "Key pair stored for this sub-account"),
+              },
+            }));
+          } else {
+            setKeyOutcomes((prev) => ({
+              ...prev,
+              [ownerId]: {
+                state: KEYGEN_LABEL[status] ? status : "refused",
+                message: data?.error?.message ?? error?.message ?? "The channel did not issue a key pair",
+              },
+            }));
+          }
+        } catch (e) {
+          setKeyOutcomes((prev) => ({
+            ...prev,
+            [ownerId]: { state: "refused", message: e instanceof Error ? e.message : String(e) },
+          }));
+        }
+        if (!keyGenCancelled.current && queue.length > 1) await new Promise((r) => setTimeout(r, 1500));
+      }
+
+      setGenerating(false);
+      
+      if (minted > 0) {
+        toast.success(`${minted} sub-account key pair${minted === 1 ? "" : "s"} minted, verified and stored`);
+        read.mutate();
+      } else {
+        toast.error("No key pair was issued — see the per-account reason");
+      }
+      // read.mutate is stable for a mutation instance.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [result],
+  );
+
+
   const forgetKey = useCallback(async (credentialId: string) => {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
       body: { action: "forget_stored_key", credential_id: credentialId },
@@ -420,16 +550,21 @@ export function MasterRosterPanel() {
             Master account roster
             {result ? (
               <Badge variant="secondary" className="text-[10px]">
-                {result.users.length} sub-account{result.users.length === 1 ? "" : "s"}
+                {result.users.length} live sub-account{result.users.length === 1 ? "" : "s"}
               </Badge>
             ) : null}
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Live read of every sub-account the channel lists under our master account, retired
-            entries included, with the ROLOS binding state for each. Unbound accounts can be closed
-            at the channel — one at a time, with a pause between each.
+            Live read of every sub-account still open at the channel under our master account, with
+            the ROLOS binding state for each. Accounts already archived or closed at the channel are
+            excluded from this list and its counts. Unbound accounts can be closed at the channel —
+            one at a time, with a pause between each.
+            {result && result.archivedExcluded > 0
+              ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
+              : ""}
             {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
           </p>
+
         </div>
         <span className="flex flex-wrap items-center gap-2">
           {result ? (
@@ -461,6 +596,36 @@ export function MasterRosterPanel() {
               </Button>
             )
           ) : null}
+          {result && missingKeyIds.length > 0 ? (
+            generating ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                onClick={() => {
+                  keyGenCancelled.current = true;
+                  toast.info("Stopping after the current account");
+                }}
+              >
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Stop after this account
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-[11px]"
+                disabled={closing || rematching || read.isPending}
+                onClick={() => void generateKeys(missingKeyIds)}
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Generate missing keys ({missingKeyIds.length})
+              </Button>
+            )
+          ) : null}
+
           <Button
             type="button"
             size="sm"
@@ -617,6 +782,7 @@ export function MasterRosterPanel() {
               const closable = closableIds.has(ownerId);
               const outcome = outcomes[ownerId];
               const storedKey = keyByOwner.get(ownerId);
+              const keyOutcome = keyOutcomes[ownerId];
               const keyBadge = !storedKey
                 ? { text: "No key", variant: "outline" as const }
                 : storedKey.key_scope === "child"
@@ -624,6 +790,9 @@ export function MasterRosterPanel() {
                   : storedKey.key_scope === "master_pair"
                     ? { text: "Master pair (unusable)", variant: "destructive" as const }
                     : { text: "Key held — unverified", variant: "outline" as const };
+              /** Anything but a verified child pair means the close verb has no usable identity. */
+              const needsKey = !storedKey || storedKey.key_scope !== "child";
+
               return (
                 <div
                   key={ownerId || label(u)}
@@ -640,11 +809,6 @@ export function MasterRosterPanel() {
                         />
                       ) : null}
                       {label(u)}
-                      {u.archived ? (
-                        <Badge variant="outline" className="text-[10px]">
-                          Archived at channel
-                        </Badge>
-                      ) : null}
                       {retired ? (
                         <Badge variant="outline" className="text-[10px]">
                           Retired in ROLOS
@@ -656,6 +820,14 @@ export function MasterRosterPanel() {
                       <Badge variant={keyBadge.variant} className="text-[10px]">
                         {keyBadge.text}
                       </Badge>
+                      {keyOutcome ? (
+                        <Badge variant={KEYGEN_VARIANT[keyOutcome.state]} className="text-[10px]">
+                          {keyOutcome.state === "running" ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          {KEYGEN_LABEL[keyOutcome.state]}
+                        </Badge>
+                      ) : null}
                       {outcome ? (
                         <Badge variant={STATE_VARIANT[outcome.state]} className="text-[10px]">
                           {outcome.state === "running" ? (
@@ -665,14 +837,33 @@ export function MasterRosterPanel() {
                         </Badge>
                       ) : null}
                     </span>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      Sub-account: {ownerId || "—"}
+                    <span className="flex items-center gap-2">
+                      {needsKey && ownerId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 gap-1 text-[10px]"
+                          disabled={generating || closing || rematching}
+                          onClick={() => void generateKeys([ownerId])}
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          Generate key
+                        </Button>
+                      ) : null}
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        Sub-account: {ownerId || "—"}
+                      </span>
                     </span>
                   </div>
+                  {keyOutcome && keyOutcome.state !== "queued" ? (
+                    <p className="mt-1 text-[10px] text-muted-foreground">{keyOutcome.message}</p>
+                  ) : null}
                   {outcome && outcome.state !== "queued" ? (
                     <p className="mt-1 text-[10px] text-muted-foreground">{outcome.message}</p>
                   ) : null}
                 </div>
+
               );
             })
           )}
