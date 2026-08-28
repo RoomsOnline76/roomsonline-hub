@@ -490,6 +490,57 @@ export function MasterRosterPanel() {
             />
           )}
 
+          {Object.keys(rematchResults).length > 0 && (
+            <div className="space-y-1 rounded-md border border-border bg-background p-2">
+              <p className="text-[11px] font-medium">
+                Stored key pairs {rematching ? "— probing…" : "— last rematch"}
+              </p>
+              {(result.storedKeys.length > 0 ? result.storedKeys : []).map((pair) => {
+                const res = rematchResults[pair.id];
+                if (!res) return null;
+                return (
+                  <div key={pair.id} className="rounded-md border border-border/60 px-2 py-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className="font-mono">····{String(pair.access_key ?? "").slice(-4)}</span>
+                        <span className="text-muted-foreground">
+                          {pair.login_email || "no login recorded"}
+                        </span>
+                        <Badge variant={REMATCH_VARIANT[res.outcome]} className="text-[10px]">
+                          {res.outcome === "running" ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          {REMATCH_LABEL[res.outcome]}
+                        </Badge>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          OwnerID {res.ownerId || pair.ru_owner_id || "—"}
+                        </span>
+                        {res.outcome === "orphan" && !rematching ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 gap-1 text-[10px]"
+                            onClick={() => void forgetKey(pair.id)}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Remove locally
+                          </Button>
+                        ) : null}
+                      </span>
+                    </div>
+                    {res.message ? (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{res.message}</p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+
           {closableIds.size > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2">
               <span className="text-[11px] text-muted-foreground">
