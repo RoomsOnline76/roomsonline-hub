@@ -2055,6 +2055,8 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
   get_leads: 'Pull_GetLeads_RQ',
   fill_company_details: 'Push_FillCompanyDetails_RQ',
   create_user: 'Push_CreateUser_RQ',
+  archive_user: 'Push_ArchiveUser_RQ',
+
 };
 
 
@@ -2863,6 +2865,136 @@ Deno.serve(async (req) => {
       }
       return jsonResponse({ success: true, deleted_access_key: target });
     }
+
+    /**
+     * ── archive_user: Push_ArchiveUser_RQ (authenticated AS the sub-account) ──
+     * The channel's "close user account" verb. It carries NO account selector: whoever the
+     * <Authentication> block resolves to is the account that gets closed. That makes a
+     * MASTER pair catastrophic here, so this action refuses anything that is not a proven
+     * child pair (or the sub-account's own portal login), and refuses outright when the
+     * OwnerID still has a live ROLOS binding.
+     *
+     * The channel warns the call is resource-heavy, can take minutes, and that a timeout
+     * should be retried with the same request — so transport failures are retried here, and
+     * the rate-limit statuses (-5 concurrency, -6 sliding window) are surfaced as a distinct
+     * RATE_LIMITED outcome instead of a hard failure.
+     */
+    if (action === 'archive_user') {
+      const targetOwnerId = String(body.owner_id ?? '').trim();
+      if (!/^\d+$/.test(targetOwnerId)) {
+        return errorResponse('MISSING_PARAM', 'owner_id (RU OwnerID) is required to close a sub-account');
+      }
+      if (isMasterOwnerId(targetOwnerId)) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_MASTER_ACCOUNT_REFUSED',
+            message: 'That OwnerID is our own master channel account. Closing it is refused.',
+          },
+        }, 422);
+      }
+
+      // A bound account is live inventory: the retire flow must disconnect it first.
+      try {
+        const { data: bound } = await getLogClient()
+          .from('ru_owner_accounts')
+          .select('id')
+          .eq('ru_owner_id', targetOwnerId)
+          .limit(1);
+        if ((bound ?? []).length > 0) {
+          return jsonResponse({
+            success: false,
+            error: {
+              code: 'RU_ACCOUNT_STILL_BOUND',
+              message: `OwnerID ${targetOwnerId} is still bound to a property or portfolio. Retire the binding before closing the account.`,
+            },
+          }, 409);
+        }
+      } catch (e) {
+        console.warn('[rentalsunited-api] archive_user binding check failed', e);
+      }
+
+      const childAuth = await resolveChildAuth(body);
+      if (!childAuth) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'RU_CHILD_AUTH_REQUIRED',
+            message: `${CHILD_AUTH_REQUIRED_MESSAGE} The close verb has no account selector, so it can only run as the sub-account itself.`,
+          },
+        }, 422);
+      }
+      const scopeCheck = await assertChildKeysAreNotMaster(creds, childAuth, targetOwnerId);
+      if (!scopeCheck.ok) {
+        return jsonResponse({
+          success: false,
+          auth_mode: childAuthMode(childAuth),
+          error: {
+            code: 'RU_KEYS_ARE_MASTER_PAIR',
+            message: `${scopeCheck.message} Closing an account with a master pair would close OUR master account, so it is refused.`,
+          },
+        }, 422);
+      }
+
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
+<Push_ArchiveUser_RQ>${buildChildAuthXml(childAuth)}</Push_ArchiveUser_RQ>`;
+
+      // The channel explicitly says a timeout does not mean the close failed: retry the
+      // very same request. Transport errors get the same treatment, with a widening pause.
+      const maxAttempts = 3;
+      let response: string | null = null;
+      let transportError: unknown = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          response = await callRentalsUnited(creds, xml);
+          transportError = null;
+          break;
+        } catch (e) {
+          transportError = e;
+          if (e instanceof RuRateDeferredError) throw e;
+          console.warn(`[rentalsunited-api] archive_user attempt ${attempt}/${maxAttempts} failed`, e);
+          if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, attempt * 5000));
+        }
+      }
+      if (response == null) {
+        return jsonResponse({
+          success: false,
+          auth_mode: childAuthMode(childAuth),
+          error: {
+            code: 'RU_TRANSPORT_FAILED',
+            message: `The close request could not be completed after ${maxAttempts} attempts: ${transportError instanceof Error ? transportError.message : String(transportError)}. The channel may still be processing it — re-read the roster before retrying.`,
+          },
+        }, 502);
+      }
+
+      const { ok, status } = handleRUStatus(response);
+      if (!ok) {
+        const rateLimited = status.id === '-5' || status.id === '-6';
+        return jsonResponse({
+          success: false,
+          auth_mode: childAuthMode(childAuth),
+          ru_status_id: status.id ?? null,
+          ru_status_message: status.message ?? null,
+          error: {
+            code: rateLimited ? 'RU_RATE_LIMITED' : 'RU_ERROR',
+            ru_status_id: status.id ?? null,
+            message: rateLimited
+              ? `The channel rate limited the close request: ${status.message} Wait out the window and run it again.`
+              : status.message,
+          },
+          diagnostics: buildDiagnostics(sanitizeXmlForLogs(compactXml(xml)), status, 'archive_user', response),
+        }, rateLimited ? 429 : 200);
+      }
+
+      return jsonResponse({
+        success: true,
+        auth_mode: childAuthMode(childAuth),
+        owner_id: targetOwnerId,
+        response_id: response.match(/<ResponseID>([\s\S]*?)<\/ResponseID>/i)?.[1]?.trim() ?? null,
+        message: `The channel accepted the close request for OwnerID ${targetOwnerId}.`,
+      });
+    }
+
 
 
 
