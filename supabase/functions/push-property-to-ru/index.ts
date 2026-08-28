@@ -2976,7 +2976,7 @@ async function pushARI(
         prices: outboundPrices,
       });
       result.prices_hash = pricesHash;
-      if (ari.priorPricesHash && ari.priorPricesHash === pricesHash) {
+      if (!ari.forcePrices && ari.priorPricesHash && ari.priorPricesHash === pricesHash) {
         // Rates identical to the last accepted push — PutPrices would be a no-op write.
         result.prices_pushed = true;
         result.skipped_prices = true;
