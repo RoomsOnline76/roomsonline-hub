@@ -170,10 +170,15 @@ export function aggregateLedger(
     const key = monthKey(row.arrival);
     monthSet.add(key);
     extrasTotal += row.extras || 0;
-    // Dinner is every row's extras, Events and Room 0 included.
-    dinner[key] = (dinner[key] ?? 0) + (row.extras || 0);
 
     const { klass, matched } = classifyRow(row, rules);
+
+    // Dinner is the extras billed against guest rooms. Function-room (Events),
+    // Room 0 and holding-in-credit extras are other revenue streams.
+    if (klass !== "room_zero" && klass !== "event" && klass !== "holding_credit") {
+      dinner[key] = (dinner[key] ?? 0) + (row.extras || 0);
+    }
+
 
     if (klass !== "sellable") {
       nonSellableRows += 1;
