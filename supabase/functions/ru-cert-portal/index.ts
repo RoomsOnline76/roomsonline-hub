@@ -8712,10 +8712,11 @@ Deno.serve(async (req) => {
       const firstName = parts[0] || "Property";
       const lastName = parts.slice(1).join(" ") || "Owner";
 
-       // Every ROLOS-created RU sub-account uses one shared operator password; atomic
-       // Step A uses it immediately to mint and securely store the first API key pair.
-       // RU policy: 12+ chars incl. upper, lower, digit and special.
-      const password = RU_SUB_USER_PASSWORD;
+      // Per-account password, generated once here, sent in Push_CreateUser_RQ and persisted
+      // verbatim (encrypted) in this same run. It is the ONLY credential that can mint this
+      // sub-account's first API key pair, so it is never re-derived later.
+      const password = generateSubUserPassword(ownerEmail);
+
 
 
 
