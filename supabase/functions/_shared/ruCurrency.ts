@@ -471,31 +471,13 @@ export async function decideRuCurrency(
   }
 
   /**
-   * Brand-new sub-account, first list: nothing is known for THIS OwnerID, but another account
-   * has already been told by RU that this LocationID holds the authored ISO. RU's own answer is
-   * location-scoped, so a write here is a guaranteed 339. Skip it; the existing
-   * Pull_ListSpecProp_RQ evidence step confirms the published currency afterwards.
+   * NOTE: cross-account location knowledge is deliberately NOT consulted here. Rentals United
+   * applies a location's currency per authenticating account, so another OwnerID's answer is not
+   * evidence for this one — skipping the write on it left brand-new sub-accounts publishing USD
+   * while the tracker echoed our own assumption back as ZAR. A first list on a new OwnerID always
+   * sends exactly one child-scoped Push_ChangeCurrency_RQ.
    */
-  if (!verifiedIso) {
-    const anyScope = await getLocationCurrencyAnyScope(supabase, opts.locationId);
-    if (anyScope && anyScope.iso === authored) {
-      const d = decide({
-        location_iso: authored,
-        published_iso: authored,
-        conversion_in_force: false,
-        fx_rate: null,
-        effective_rate: null,
-        flip_outcome: 'already_set',
-        write_skipped: true,
-        skip_reason: 'currency_already_set_location',
-        reason: `Rentals United reported location ${opts.locationId} as ${authored} (seen on account ${anyScope.owner_scope}, ${anyScope.source}) — no currency write needed for account ${ownerScope}.`,
-      });
-      // Assumption for this account, pending the listing read-back.
-      await recordScopedLocationCurrency(supabase, opts.locationId, ownerScope, authored, 'flip');
-      await persistDecision(supabase, opts.propertyId, d, opts.persist !== false && !opts.dryRun);
-      return d;
-    }
-  }
+
 
 
 
