@@ -25,6 +25,7 @@ import {
   pushRuConfirmedReservation,
   resolveRuPropertyId,
 } from './ruBookingSync.ts';
+import { isTerminalChannelRefusal } from './ruReservationOpClaim.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -125,6 +126,22 @@ async function resolveCurrentListing(
   } catch (_err) {
     return { listing: null, absent: false };
   }
+}
+
+/**
+ * Endings that must not be recorded as a failure, because a retry cannot change them:
+ *  - the write was already delivered (or is in flight) under the claim ledger;
+ *  - the channel refuses this content permanently (dates it will not sell, listing it does not have).
+ * Recording these as failures is what kept the background job re-sending the same message every
+ * minute and filling the traffic monitor with identical red rows.
+ */
+function nonRetryableSkip(push: { code?: string | null; message?: string | null }):
+  | { reason: string }
+  | null {
+  const code = String(push.code ?? '');
+  if (code === 'RU_ALREADY_SENT') return { reason: 'identical_channel_write_already_sent' };
+  if (isTerminalChannelRefusal(push.message, code)) return { reason: 'channel_refused_permanently' };
+  return null;
 }
 
 /** The channel has no such reservation — retrying can never make it appear. */
@@ -319,7 +336,9 @@ export async function syncBookingToChannel(
             : 'unit_not_listed_on_channel';
         result.message = push.message ?? null;
       } else {
-        result.reservation = 'failed';
+        const skip = nonRetryableSkip(push);
+        result.reservation = skip ? 'skipped' : 'failed';
+        if (skip) result.reservation_reason = skip.reason;
         result.code = push.code ?? null;
         result.message = push.message ?? null;
       }
@@ -342,7 +361,9 @@ export async function syncBookingToChannel(
       result.reservation_reason = 'reservation_absent_at_channel';
       result.message = push.message ?? null;
     } else {
-      result.reservation = 'failed';
+      const skip = nonRetryableSkip(push);
+      result.reservation = skip ? 'skipped' : 'failed';
+      if (skip) result.reservation_reason = skip.reason;
       result.code = push.code ?? null;
       result.message = push.message ?? null;
     }
@@ -396,7 +417,9 @@ export async function syncBookingToChannel(
         result.message = push.message ?? null;
 
       } else {
-        result.reservation = 'failed';
+        const skip = nonRetryableSkip(push);
+        result.reservation = skip ? 'skipped' : 'failed';
+        if (skip) result.reservation_reason = skip.reason;
         result.code = push.code ?? null;
         result.message = push.message ?? null;
       }
@@ -447,7 +470,9 @@ export async function syncBookingToChannel(
         result.reservation_reason = 'reservation_absent_at_channel';
         result.message = push.message ?? null;
       } else {
-        result.reservation = 'failed';
+        const skip = nonRetryableSkip(push);
+        result.reservation = skip ? 'skipped' : 'failed';
+        if (skip) result.reservation_reason = skip.reason;
         result.code = push.code ?? null;
         result.message = push.message ?? null;
       }

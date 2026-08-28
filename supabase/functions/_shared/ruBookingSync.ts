@@ -13,6 +13,12 @@
 import { findOwnerAccount } from './ruPhaseGate.ts';
 import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
 import { enqueueRuCall, supersedeQueuedRuCalls } from './ruRateGate.ts';
+import {
+  claimOutcomeFor,
+  claimReservationOp,
+  reservationFingerprint,
+  settleReservationOp,
+} from './ruReservationOpClaim.ts';
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -422,6 +428,40 @@ export async function cancelRuReservation(
 
   const cancelTypeId = opts.cancelTypeId === 2 ? 2 : 1;
 
+  // The mutation handler and the background sync job both reach here for the same cancel. Only
+  // one of them may talk to the channel: a second Push_CancelReservation_RQ can only be answered
+  // "Reservation does not exist." and burns the owner's rate window.
+  const fingerprint = reservationFingerprint([reservationId, cancelTypeId]);
+  const claim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'cancel',
+    fingerprint,
+    reservationId,
+  });
+  if (!claim.granted) {
+    console.log(`[ruBookingSync] cancel skipped for ${booking.id} — ${claim.reason}`);
+    return {
+      ok: claim.priorOutcome === 'delivered' || claim.priorOutcome === 'absent',
+      method: 'cancel_reservation',
+      code: claim.priorOutcome === 'terminal' ? 'RU_CANCEL_REFUSED' : 'RU_ALREADY_SENT',
+      message: claim.priorOutcome === 'delivered'
+        ? 'The cancellation was already delivered to the channel — not sent again.'
+        : claim.priorOutcome === 'absent'
+          ? 'The channel no longer holds this reservation — nothing to cancel.'
+          : claim.priorDetail ?? 'An identical cancellation is already on its way to the channel.',
+      traceId,
+    };
+  }
+  const settle = (r: { ok: boolean; deferred?: boolean; code?: string; message?: string }) =>
+    settleReservationOp(supabase, {
+      bookingId: booking.id,
+      op: 'cancel',
+      fingerprint,
+      outcome: claimOutcomeFor(r),
+      detail: r.message ?? null,
+      reservationId,
+    });
+
   const logCtx = {
     propertyId: booking.property_id,
     traceId,
@@ -435,7 +475,10 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
-    if (rejected.ok) return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
+    if (rejected.ok) {
+      await settle(rejected);
+      return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
+    }
     // Backwards compatibility: some integrations do not have reject enabled.
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
@@ -443,6 +486,7 @@ export async function cancelRuReservation(
       reject_reason: opts.reason,
       ...auth,
     }, logCtx);
+    await settle(cancelled);
     return cancelled.ok
       ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation', traceId }
       : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message, traceId };
@@ -454,6 +498,7 @@ export async function cancelRuReservation(
     reject_reason: opts.reason,
     ...auth,
   }, logCtx);
+  await settle(result);
   return result.ok
     ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation', traceId }
     : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message, traceId };
@@ -848,6 +893,36 @@ export async function modifyRuStay(
     reservationId: String(booking.external_reservation_id),
   });
 
+  // One modify per booking per resulting stay shape, whichever authority asks for it.
+  const modifyFingerprint = reservationFingerprint([
+    String(booking.external_reservation_id ?? ''),
+    ruPropertyId,
+    modify.date_from ?? booking.check_in_date,
+    modify.date_to ?? booking.check_out_date,
+    modify.number_of_guests ?? null,
+    modify.client_price ?? null,
+  ]);
+  const modifyClaim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'modify',
+    fingerprint: modifyFingerprint,
+    ruPropertyId,
+    reservationId: String(booking.external_reservation_id ?? ''),
+  });
+  if (!modifyClaim.granted) {
+    console.log(`[ruBookingSync] modify skipped for ${booking.id} — ${modifyClaim.reason}`);
+    return {
+      ok: modifyClaim.priorOutcome === 'delivered',
+      method: 'modify_stay',
+      code: modifyClaim.priorOutcome === 'terminal' ? 'RU_MODIFY_REFUSED' : 'RU_ALREADY_SENT',
+      message: modifyClaim.priorOutcome === 'delivered'
+        ? 'This stay change was already delivered to the channel — not sent again.'
+        : modifyClaim.priorDetail ?? 'An identical stay change is already on its way to the channel.',
+      confirmedLead,
+      traceId,
+    };
+  }
+
   const result = await invokeRu(supabase, 'modify_stay', {
     reservation_id: String(booking.external_reservation_id),
     current_stay: {
@@ -887,6 +962,15 @@ export async function modifyRuStay(
    * cannot fix that (it produced 43 identical refusals in one day), so the local record is put back
    * on the lead path — the next attempt accepts the request first — and this attempt ends terminally.
    */
+  await settleReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'modify',
+    fingerprint: modifyFingerprint,
+    outcome: claimOutcomeFor(result),
+    detail: result.message ?? null,
+    reservationId: String(booking.external_reservation_id ?? ''),
+  });
+
   if (!result.ok && /only modify stay in confirmed reservation/i.test(result.message ?? '')) {
     if (!isRuLead(booking)) {
       await supabase
@@ -982,6 +1066,39 @@ export async function pushRuConfirmedReservation(
   const guests = (Number(booking.adults ?? 0) || 0) + (Number(booking.children ?? 0) || 0) +
     (Number(booking.teens ?? 0) || 0);
 
+  // Same content, same booking → one channel write. A refusal the channel repeats for the same
+  // stay (dates it will not sell) is terminal: it was being re-sent every minute forever.
+  const fingerprint = reservationFingerprint([
+    ruPropertyId,
+    booking.check_in_date,
+    booking.check_out_date,
+    guests,
+    booking.total_price ?? 0,
+  ]);
+  const claim = await claimReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'create',
+    fingerprint,
+    ruPropertyId,
+  });
+  if (!claim.granted) {
+    console.log(`[ruBookingSync] create skipped for ${booking.id} — ${claim.reason}`);
+    return {
+      ok: claim.priorOutcome === 'delivered',
+      method: 'push_confirmed_reservation',
+      code: claim.priorOutcome === 'terminal' ? 'RU_STAY_REFUSED' : 'RU_ALREADY_SENT',
+      message: claim.priorOutcome === 'delivered'
+        ? 'This stay was already handed to the channel — not sent again.'
+        : claim.priorOutcome === 'terminal'
+          ? claim.priorDetail ??
+            'The channel refused these dates for this listing and will keep refusing them — resolve it in the channel portal, then resend.'
+          : 'An identical stay push is already on its way to the channel.',
+      traceId,
+      ruPropertyId,
+      reservationId: claim.priorReservationId ?? null,
+    };
+  }
+
   const result = await invokeRu(supabase, 'push_confirmed_reservation', {
     stay: {
       ru_property_id: ruPropertyId,
@@ -1007,6 +1124,16 @@ export async function pushRuConfirmedReservation(
     details: { booking_id: booking.id },
   });
 
+  const reservationId = typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null;
+  await settleReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'create',
+    fingerprint,
+    outcome: claimOutcomeFor(result),
+    detail: result.message ?? null,
+    reservationId,
+  });
+
   if (!result.ok) {
     return {
       ok: false,
@@ -1024,6 +1151,6 @@ export async function pushRuConfirmedReservation(
     method: 'push_confirmed_reservation',
     traceId,
     ruPropertyId,
-    reservationId: typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null,
+    reservationId,
   };
 }
