@@ -4271,12 +4271,18 @@ Deno.serve(async (req) => {
       }
 
       const pmsId = Number(body.pms_id ?? Deno.env.get('RU_PMS_ID') ?? 0);
+      // Optional per spec (String(150)), supplied by RU support for PMS/white-label partners.
+      const configurationString = String(
+        body.configuration_string ?? Deno.env.get('RU_CONFIGURATION_STRING') ?? '',
+      ).trim().slice(0, 150) || null;
       const xml = buildCreateUserXml(
         creds,
         { first_name, last_name, email, password },
         locationIds,
         Number.isFinite(pmsId) && pmsId > 0 ? pmsId : null,
+        configurationString,
       );
+
       const response = await callRentalsUnited(creds, xml);
       console.log(`[rentalsunited-api] CreateUser response: ${response.substring(0, 500)}`);
       const { ok, status } = handleRUStatus(response);
