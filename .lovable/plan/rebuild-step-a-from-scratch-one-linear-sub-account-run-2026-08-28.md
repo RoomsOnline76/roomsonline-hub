@@ -27,43 +27,44 @@ Step A.5  listings     → pull the sub-account's listings and adopt them
 ## Rules the rebuild enforces
 
 - **One roster read per run.** The read happens when the property is picked. Every later leg
-  reads that cached list. The only exception is the single read-back that resolves the new
-  OwnerID after create; a throttled read-back parks the run for its cooldown instead of
-  looping.
+reads that cached list. The only exception is the single read-back that resolves the new
+OwnerID after create; a throttled read-back parks the run for its cooldown instead of
+looping.
 - **The submitted email is authoritative.** A generated slug login is a fallback used only
-  when no email was supplied, or after the channel itself rejects the submitted one
-  (already in use / archived / not under our master). No silent substitution.
-- **"Email already exists" is an adopt, not a retry.** The roster already in memory tells us
-  which OwnerID owns that login: bind it and go to A.2. No further create attempt, no
-  further roster call.
+when no email was supplied, or after the channel itself rejects the submitted one
+(already in use / archived / not under our master). No silent substitution.
+- if the user already exists fomr the list users pull: do not push it again. it will fail. it is adopted and proceed to manual keys.
+- **user already exists in subowner pull when proptertyy weas selected is an adopt, not a try.** The roster already in memory tells us  
+which OwnerID owns that login: bind it and go to A.2. No further create attempt, no  
+further roster call.
 - **Keys are manual.** A.2 always stops and asks. No mint attempt, no `-4` refusals, no
-  master-authenticated fallback.
+master-authenticated fallback.
 - **A.3 proves ownership before storing.** The pair must identify the exact login used in
-  A.1/A.0. A pair that enumerates the roster is a master pair and is rejected outright.
+A.1/A.0. A pair that enumerates the roster is a master pair and is rejected outright.
 - **No live-notification work in Step A.** RLNM / LNM subscribe and read-back move out of
-  this run entirely (they belong to Step B / the notifications panel), so a failed LNM push
-  can never fail or noise up Step A.
+this run entirely (they belong to Step B / the notifications panel), so a failed LNM push
+can never fail or noise up Step A.
 - **Outcome is honest and terminal per leg.** A run that created the account and stored a
-  verified pair reports success even if a later leg parks; the screen shows the leg reached,
-  never a red "failed" over a completed account.
+verified pair reports success even if a later leg parks; the screen shows the leg reached,
+never a red "failed" over a completed account.
 
 ## Technical notes
 
 - `supabase/functions/ru-cert-portal/index.ts`: replace the `ensure_owner_account` /
-  `plan_owner_account` body with a staged runner (`resolve → create → adopt-or-park`) whose
-  only roster source is one run-scoped read; delete the in-run auto-subscribe hook and the
-  duplicate roster look-ups in the create/adopt branches. Keep `save_api_keys` and
-  `verify_child_key_owner` as the A.2/A.3 surface, and keep the existing per-account row
-  writes (`ru_owner_accounts`, `ru_api_credentials`) unchanged.
+`plan_owner_account` body with a staged runner (`resolve → create → adopt-or-park`) whose
+only roster source is one run-scoped read; delete the in-run auto-subscribe hook and the
+duplicate roster look-ups in the create/adopt branches. Keep `save_api_keys` and
+`verify_child_key_owner` as the A.2/A.3 surface, and keep the existing per-account row
+writes (`ru_owner_accounts`, `ru_api_credentials`) unchanged.
 - `src/lib/channelOnboardOrchestrator.ts`: Step A becomes the five tasks above
-  (`owner_account`, `api_keys`, `verify_keys`, `company_profile`, `adopt_listings`); the
-  `RU_MANUAL_KEYS_REQUIRED` pause stays the normal path rather than a recoverable error.
+(`owner_account`, `api_keys`, `verify_keys`, `company_profile`, `adopt_listings`); the
+`RU_MANUAL_KEYS_REQUIRED` pause stays the normal path rather than a recoverable error.
 - `src/components/admin/channel-monitor/ChannelOnboardTab.tsx` +
-  `StepAccountDialog.tsx`: the optional email input is offered before the run starts (A.0),
-  the key/secret card is the A.2 pause, and a completed account never renders the failure
-  screen — it renders the stage reached plus the account details.
+`StepAccountDialog.tsx`: the optional email input is offered before the run starts (A.0),
+the key/secret card is the A.2 pause, and a completed account never renders the failure
+screen — it renders the stage reached plus the account details.
 - Channel-call budget per Step A run: 1 roster read, 1 create, 1 verify, 1 company push,
-  1 listings pull. Anything beyond that is a bug.
+1 listings pull. Anything beyond that is a bug.
 
 ## Verification
 

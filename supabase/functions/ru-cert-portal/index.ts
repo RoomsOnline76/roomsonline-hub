@@ -1134,24 +1134,6 @@ Deno.serve(async (req) => {
       }
     };
 
-    /**
-     * Register live notifications for a sub-account the moment its keys verify.
-     *
-     * Runs in the background: a portfolio must never be left unmonitored until the
-     * nightly cron, but a subscription failure must never fail key verification.
-     */
-    const autoSubscribeLiveNotifications = (ruOwnerId: string | null | undefined, label: string) => {
-      const ownerId = String(ruOwnerId ?? "").trim();
-      if (!/^\d+$/.test(ownerId)) return;
-      const task = ensureLiveNotificationsForOwner(admin, ownerId, label)
-        .then((outcome) => {
-          if (outcome.warning) console.warn(`[ru-cert-portal] auto-subscribe ${label}: ${outcome.warning}`);
-          else console.log(`[ru-cert-portal] live notifications subscribed + verified for ${label}`);
-        })
-        .catch((e) => console.warn("[ru-cert-portal] auto-subscribe threw", e instanceof Error ? e.message : e));
-      const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
-      if (runtime?.waitUntil) runtime.waitUntil(task);
-    };
 
 
 
@@ -4301,8 +4283,10 @@ Deno.serve(async (req) => {
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       const company = await provisionCompanyAfterKeyVerification();
-      // Verified keys mean this account can be monitored — subscribe it now.
-      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
+      // Live-notification subscription is deliberately NOT run here: Step A must stay a
+      // linear create → keys → verify → company → listings sequence, and the LNM
+      // push/read-back added failing calls and extra roster reads mid-onboarding. The
+      // nightly `ru-rlnm-daily` cron owns subscriptions.
       // Keys were stored AND verified here — that is the verdict for step 7. Only the
       // company profile still needs re-confirming against the new credentials.
       await recordLedgerPassForOwnerAccount(admin, { accountId: account?.id ?? null, ownerId }, ["keys"], "keys_saved");
@@ -4531,7 +4515,6 @@ Deno.serve(async (req) => {
         }, 200);
       }
       const company = await provisionCompanyAfterKeyVerification();
-      autoSubscribeLiveNotifications(ownerId, `${loginEmail ?? "sub-user"} (OwnerID ${ownerId})`);
       return json({
         success: true,
         verified: true,
@@ -8721,19 +8704,23 @@ Deno.serve(async (req) => {
          * candidate is exhausted.
          */
         const resolvedOwnerEmail = String(ownerEmail);
-        const generatedBase = await generatedLoginBase();
-        // The channel refuses logins over 50 characters outright (status 378), so an
-        // over-long resolved email is never offered as a candidate.
+        // Step A.0 authority: an operator-submitted login is the ONLY candidate. Slug
+        // fallbacks exist purely for the "no email given" path — silently provisioning a
+        // different address than the one submitted is never acceptable.
         const emailCandidates: string[] =
           resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
-        // The generated domain is our own company domain, so an address merely sitting on it
-        // is not proof of a generated login — the de-dupe below is what prevents repeats.
-        if (generatedBase) {
-          for (let attempt = 1; attempt <= 4; attempt++) {
-            const generated = generateDistributionLogin(generatedBase, attempt);
-            if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
+        if (!confirmedEmail) {
+          const generatedBase = await generatedLoginBase();
+          // The generated domain is our own company domain, so an address merely sitting on it
+          // is not proof of a generated login — the de-dupe below is what prevents repeats.
+          if (generatedBase) {
+            for (let attempt = 1; attempt <= 4; attempt++) {
+              const generated = generateDistributionLogin(generatedBase, attempt);
+              if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
+            }
           }
         }
+
 
         // An address already live as the distribution login for a DIFFERENT property
         // or portfolio can never be re-used — drop those fallbacks up front.
@@ -8779,11 +8766,13 @@ Deno.serve(async (req) => {
           // A hard failure (not an email conflict) gets no fallback — report it below.
           if (!emailTaken) break;
 
-          // RU says the address is taken — first try adopting the existing sub-user
-          // (a prior attempt may have committed on the channel under this exact login).
-          const refreshed = await listRuUsers(true);
-          const recovered = matchByEmail(refreshed)
-            ?? matchByStoredIdentity(refreshed, existing.account as any)
+          // RU says the address is taken — try adopting the sub-user we may already know.
+          // This uses the roster this run ALREADY read (Step A.0) plus our local rows: a
+          // second Pull_ListMyUsers_RQ here is what produced the roster storm and the
+          // throttle loop, and a throttled read is not evidence either way.
+          const known = await listRuUsers();
+          const recovered = matchByEmail(known)
+            ?? matchByStoredIdentity(known, existing.account as any)
             ?? await adoptLocalByEmail();
           if (recovered) {
             userAccountId = recovered.user_account_id ?? null;
@@ -8792,7 +8781,11 @@ Deno.serve(async (req) => {
             adopted = true;
             break;
           }
+          // A login the operator submitted explicitly is never swapped for another —
+          // report the conflict and let them choose.
+          if (confirmedEmail) break;
           // …otherwise continue with the next generated login.
+
         }
 
         if (!adopted && (createErr || !created?.success)) {
