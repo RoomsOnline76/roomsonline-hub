@@ -74,6 +74,9 @@ export default function ReportsPropertySettings() {
   const [roomCountTouched, setRoomCountTouched] = useState(false);
   const [sourceType, setSourceType] = useState<ReportSourceKey>(DEFAULT_REPORT_SOURCE);
   const [specialSet, setSpecialSet] = useState<string>("none");
+  // Comma-separated while editing; stored as arrays.
+  const [keepPatterns, setKeepPatterns] = useState("");
+  const [excludePatterns, setExcludePatterns] = useState("");
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
