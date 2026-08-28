@@ -178,12 +178,52 @@ async function confirmAlreadyAttempted(
 /** Changes that carry no information the channel's reservation record holds. */
 const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
 
+/**
+ * Changes that cannot move a single night or price at the channel. Check-in, check-out, a note or
+ * a payment leaves the sold nights exactly as they were, so pushing availability and prices for
+ * them only burns the owner's rate window — and it was doing so several times per stay.
+ */
+const ARI_IRRELEVANT = new Set<ChannelBookingChange>(['notes', 'deposit', 'payment', 'status']);
+
+/**
+ * Every unit the stay occupies — the booking's own unit, the unit it came from (a move must reopen
+ * what it left) and every room line, so a multi-room stay scopes to all of its units instead of
+ * only the header one. An empty result means "unknown", and the caller falls back to the property.
+ */
+async function resolveAffectedUnitIds(
+  supabase: Db,
+  request: ChannelBookingSyncRequest,
+  row: Record<string, unknown>,
+): Promise<string[]> {
+  const ids = new Set<string>();
+  const add = (value: unknown) => {
+    const id = typeof value === 'string' ? value.trim() : '';
+    if (id) ids.add(id);
+  };
+
+  add(row.room_type_id);
+  add(request.previous?.room_type_id ?? null);
+  for (const id of request.only_unit_ids ?? []) add(id);
+
+  try {
+    const { data } = await supabase
+      .from('rolos_booking_rooms')
+      .select('room_type_id')
+      .eq('booking_id', String(row.id));
+    for (const line of (data ?? []) as { room_type_id?: string | null }[]) add(line.room_type_id);
+  } catch (_err) {
+    // Line lookup is an enrichment: the header unit is still a valid scope on its own.
+  }
+
+  return [...ids];
+}
 
 function guestCount(row: Record<string, unknown>): number | null {
   const total = (Number(row.adults ?? 0) || 0) + (Number(row.children ?? 0) || 0) +
     (Number(row.teens ?? 0) || 0);
   return total > 0 ? total : null;
 }
+
 
 export async function syncBookingToChannel(
   supabase: Db,
