@@ -4471,7 +4471,6 @@ Deno.serve(async (req) => {
           ["keys"],
           "keys_verified",
         );
-        const companyCached = await provisionCompanyAfterKeyVerification();
         return json({
           success: true,
           verified: true,
@@ -4479,9 +4478,7 @@ Deno.serve(async (req) => {
           verified_at: storedVerifiedAt,
           login_email: loginEmail,
           ru_owner_id: ownerId,
-          company_details_pushed: companyCached.pushed,
-          company_details_pushed_at: companyCached.pushedAt,
-          company_details_warning: companyCached.warning,
+          company_details_pushed: false,
         });
       }
 
@@ -4537,15 +4534,12 @@ Deno.serve(async (req) => {
           },
         }, 200);
       }
-      const company = await provisionCompanyAfterKeyVerification();
       return json({
         success: true,
         verified: true,
         login_email: loginEmail,
         ru_owner_id: ownerId,
-        company_details_pushed: company.pushed,
-        company_details_pushed_at: company.pushedAt,
-        company_details_warning: company.warning,
+        company_details_pushed: false,
       });
     }
 

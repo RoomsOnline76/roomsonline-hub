@@ -12,9 +12,8 @@
  * when the profile is missing or not yet accepted.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  AlertCircle,
   AlertTriangle,
   ArrowRight,
   Building2,
@@ -30,7 +29,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Dialog,
@@ -46,7 +44,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { extractFunctionError } from "@/lib/functionError";
-import { resolveStepARemedy } from "@/config/channelStepARemedies";
 import { toast } from "sonner";
 
 
@@ -121,6 +118,8 @@ export interface StepAccountDialogProps {
   runningStepA: boolean;
   stepADisabled: boolean;
   onRunStepA: () => void;
+  /** Called after A.2 has saved and A.3 has verified the pair. */
+  onKeysVerified: () => void;
   /**
    * Set when the last Step A run reported the owner email is registered at the channel
    * outside our master account. The modal then asks for a usable login instead.
@@ -164,6 +163,7 @@ export function StepAccountDialog({
   runningStepA,
   stepADisabled,
   onRunStepA,
+  onKeysVerified,
   emailConflict = null,
   chosenLoginEmail = null,
   onChosenLoginEmailChange,
@@ -180,21 +180,13 @@ export function StepAccountDialog({
   /** The account email stays read-only until the operator asks to change it. */
   const [changingEmail, setChangingEmail] = useState(false);
 
-  const [credEmail, setCredEmail] = useState("");
-  const [credPassword, setCredPassword] = useState("");
-  const [savingCred, setSavingCred] = useState(false);
-  const [credNote, setCredNote] = useState<string | null>(null);
-  const [credCode, setCredCode] = useState<string | null>(null);
   const [credsStored, setCredsStored] = useState(false);
-  const [passwordStored, setPasswordStored] = useState(false);
   /** Step A.2 pause: the AccessKey/SecretKey pair issued for this sub-account is typed here. */
   const [keyAccess, setKeyAccess] = useState("");
   const [keySecret, setKeySecret] = useState("");
   const [savingKeys, setSavingKeys] = useState(false);
   const [keyNote, setKeyNote] = useState<string | null>(null);
   // A credential remedy must land the operator on the field it needs, not just open the modal.
-  const credCardRef = useRef<HTMLDivElement | null>(null);
-  const credPasswordRef = useRef<HTMLInputElement | null>(null);
   const keyCardRef = useRef<HTMLDivElement | null>(null);
   const keyAccessRef = useRef<HTMLInputElement | null>(null);
 
@@ -273,54 +265,26 @@ export function StepAccountDialog({
   // Credential state of the bound sub-account, from the read-only plan.
   const planAccountId = (plan?.account_id as string | null) ?? null;
   const planHasKeys = Boolean(plan?.has_api_keys) || credsStored;
-  const planHasPassword = Boolean(plan?.has_stored_password) || passwordStored;
   const planLogin = String(plan?.existing_login_email ?? plan?.login_email ?? "");
-  const activeRemedy = useMemo(
-    () => resolveStepARemedy(credCode ?? remedyCode, credNote),
-    [credCode, credNote, remedyCode],
-  );
-  // Both codes mean the channel refused key creation itself — never ask for a password.
-  const xmlApiRejectedWithStoredPassword = planHasPassword && (
-    activeRemedy?.code === "RU_CREATE_KEY_API_REJECTED"
-    || activeRemedy?.code === "RU_KEY_CREATION_NOT_ENABLED"
-  );
 
 
   useEffect(() => {
-    setCredEmail(planLogin);
-    setCredPassword("");
-    setCredNote(null);
-    setCredCode(null);
     setCredsStored(false);
-    setPasswordStored(Boolean(plan?.has_stored_password));
     setKeyAccess("");
     setKeySecret("");
     setKeyNote(null);
-  }, [plan?.has_stored_password, planAccountId, planLogin]);
-
-  // A credential/key remedy scrolls the card into view and focuses the password field, so the
-  // operator is asked for exactly the value the channel refused instead of hunting for it.
-  useEffect(() => {
-    if (!open) return;
-    const needsInput = activeRemedy?.remedy === "password";
-    if (!needsInput || !remedyCode) return;
-    const timer = window.setTimeout(() => {
-      credCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      credPasswordRef.current?.focus();
-    }, 150);
-    return () => window.clearTimeout(timer);
-  }, [activeRemedy?.remedy, open, remedyCode]);
+  }, [planAccountId, planLogin]);
 
   // Step A.2 waits for the key pair: put the operator straight on the AccessKey field.
   useEffect(() => {
     if (!open) return;
-    if (activeRemedy?.remedy !== "api_keys") return;
+    if (remedyCode !== "RU_MANUAL_KEYS_REQUIRED") return;
     const timer = window.setTimeout(() => {
       keyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       keyAccessRef.current?.focus();
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [activeRemedy?.remedy, open]);
+  }, [open, remedyCode]);
 
   /** Store the pair issued in the channel portal, then let Step A continue. */
   const saveKeyPair = useCallback(async () => {
@@ -332,7 +296,7 @@ export function StepAccountDialog({
         action: "save_api_keys",
         ...(planAccountId ? { account_id: planAccountId } : {}),
         ...(plan?.ru_owner_id ? { ru_owner_id: String(plan.ru_owner_id) } : {}),
-        ...(credEmail.trim() ? { login_email: credEmail.trim() } : {}),
+        ...(planLogin.trim() ? { login_email: planLogin.trim() } : {}),
         access_key: keyAccess.trim(),
         secret_key: keySecret.trim(),
       }, "The key pair could not be stored");
@@ -345,59 +309,15 @@ export function StepAccountDialog({
       }
       setCredsStored(true);
       setKeySecret("");
-      setKeyNote("Key pair verified and stored. Continue Step A to finish the account.");
+      setKeyNote("Key pair verified and stored. Continuing with the company profile and listings.");
       toast.success("API key pair stored", {
-        description: "Step A can now complete this sub-account.",
+        description: "Continuing Step A from the company profile.",
       });
+      onKeysVerified();
     } finally {
       setSavingKeys(false);
     }
-  }, [credEmail, keyAccess, keySecret, plan?.ru_owner_id, planAccountId]);
-
-
-
-  // Saving the password immediately retries automatic key creation and secure storage.
-  const saveCredentials = useCallback(async () => {
-    if (!planAccountId) return;
-    setSavingCred(true);
-    setCredNote(null);
-    setCredCode(null);
-    try {
-      const data = await invokeCertPortal({
-        action: "save_login_password",
-        account_id: planAccountId,
-        login_email: credEmail.trim(),
-        password: credPassword.trim(),
-      }, "The password could not be stored");
-
-      if (data.success !== true || (data.password_stored && data.key_minted === false)) {
-        const code = data.error?.code ?? (data.key_minted === false ? "RU_CREATE_KEY_API_REJECTED" : "RU_CHILD_LOGIN_REJECTED");
-        const message = data.error?.message ?? "The password could not be stored";
-        if (data.password_stored) {
-          setPasswordStored(true);
-          setCredPassword("");
-        }
-        setCredCode(code);
-        setCredNote(message);
-        toast.error(data.password_stored ? "Key creation refused by channel" : "Password was not stored", { description: message, duration: 12000 });
-        return;
-      }
-
-      setPasswordStored(true);
-      setCredPassword("");
-      setCredsStored(data.key_minted === true);
-      setCredCode(null);
-      const note = data.key_minted === true
-        ? "Password saved. Step A created, verified and stored the API key pair."
-        : "Password saved. Run Step A to complete automatic key creation.";
-      setCredNote(note);
-      toast.success(data.key_minted === true ? "Account credentials completed" : "Sub-account password stored", {
-        description: note,
-      });
-    } finally {
-      setSavingCred(false);
-    }
-  }, [credEmail, credPassword, planAccountId]);
+  }, [keyAccess, keySecret, onKeysVerified, plan?.ru_owner_id, planAccountId, planLogin]);
 
 
 
