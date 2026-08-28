@@ -161,8 +161,12 @@ export function MasterRosterPanel() {
   const [waitSeconds, setWaitSeconds] = useState(0);
   const [rematching, setRematching] = useState(false);
   const [rematchResults, setRematchResults] = useState<Record<string, RematchResult>>({});
+  const [keySelected, setKeySelected] = useState<Set<string>>(new Set());
+  const [keyOutcomes, setKeyOutcomes] = useState<Record<string, KeyGenOutcome>>({});
+  const [generating, setGenerating] = useState(false);
   const cancelled = useRef(false);
   const rematchCancelled = useRef(false);
+  const keyGenCancelled = useRef(false);
 
   const read = useMutation({
     mutationFn: async (): Promise<RosterResult> => {
@@ -179,9 +183,16 @@ export function MasterRosterPanel() {
       if (data?.success === false) {
         throw new Error(data?.error?.message || "The channel refused the roster read");
       }
-      const users = Array.isArray(data?.users) ? (data.users as RosterUser[]) : [];
+      const all = Array.isArray(data?.users) ? (data.users as RosterUser[]) : [];
+      /**
+       * Accounts already archived/closed at the channel are dead weight here: they cannot be
+       * closed again, they hold no usable keys, and they inflate every count. Drop them from
+       * the list entirely and only report how many were excluded.
+       */
+      const users = all.filter((u) => !u.archived);
       return {
         users,
+        archivedExcluded: all.length - users.length,
         boundIds: new Set(
           (accounts ?? []).map((a) => String(a.ru_owner_id ?? "").trim()).filter(Boolean),
         ),
@@ -196,8 +207,9 @@ export function MasterRosterPanel() {
     },
     onSuccess: (r) => {
       setResult(r);
-      toast.success(`Master account holds ${r.users.length} sub-account(s)`);
+      toast.success(`Master account holds ${r.users.length} live sub-account(s)`);
     },
+
     onError: (e: unknown) => {
       toast.error(e instanceof Error ? e.message : "Could not read the master account roster");
     },
