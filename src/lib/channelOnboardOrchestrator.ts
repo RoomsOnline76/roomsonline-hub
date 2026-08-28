@@ -156,7 +156,7 @@ function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGat
 }
 
 /** How the sub-account's key pair was resolved during account provisioning. */
-export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "";
+export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "manual" | "";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
@@ -193,8 +193,10 @@ async function recentChannelWriteCooldownMs(propertyId: string): Promise<number>
 
 
 const STEP_A_RECOVERABLE_CODES = new Set([
+  "RU_MANUAL_KEYS_REQUIRED",
   "RU_CREATE_KEY_API_REJECTED",
   "RU_KEY_CREATION_NOT_ENABLED",
+
 
   "RU_CREATE_KEY_FAILED",
   "RU_CREATE_KEY_BAD_LOGIN",
@@ -623,15 +625,25 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           ?? "The channel rate-limited the key request — waiting for the window to reopen.") + trailText,
       };
     }
+    // Step A.2 is a deliberate manual pause: the sub-account exists, and the operator now
+    // pastes the AccessKey/SecretKey pair issued in the channel portal for that login.
+    if (provisioning?.source === "manual" || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED") {
+      return {
+        id: "api_keys",
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: (provisioning?.warning
+          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
+      };
+    }
     return {
       id: "api_keys",
       outcome: "blocked",
-      // Key creation is master-authenticated and scoped to the OwnerID, so a missing
-      // sub-account password is no longer a reason for this step to be blocked.
-      code: provisioning?.code ?? "RU_CREATE_KEY_API_REJECTED",
+      code: provisioning?.code ?? "RU_MANUAL_KEYS_REQUIRED",
       detail: (provisioning?.warning
-        ?? `${accountLabel ? `${accountLabel}: ` : ""}The channel XML API has not accepted automatic key creation for this sub-account yet. Retry Step A once XML API access is enabled for this OwnerID.`) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText,
     };
+
 
 
   },

@@ -840,7 +840,7 @@ export function ChannelOnboardTab({
         if (result.passed) {
           toast.success(
             step === "a"
-              ? "Distribution account provisioned — keys minted and company details sent, ready for Step B"
+              ? "Distribution account provisioned — key pair stored and company details sent, ready for Step B"
               : "Property published — channels can now connect",
           );
         } else if (conflict) {

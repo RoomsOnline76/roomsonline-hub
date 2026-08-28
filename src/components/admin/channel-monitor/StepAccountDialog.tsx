@@ -187,9 +187,17 @@ export function StepAccountDialog({
   const [credCode, setCredCode] = useState<string | null>(null);
   const [credsStored, setCredsStored] = useState(false);
   const [passwordStored, setPasswordStored] = useState(false);
+  /** Step A.2 pause: the AccessKey/SecretKey pair issued for this sub-account is typed here. */
+  const [keyAccess, setKeyAccess] = useState("");
+  const [keySecret, setKeySecret] = useState("");
+  const [savingKeys, setSavingKeys] = useState(false);
+  const [keyNote, setKeyNote] = useState<string | null>(null);
   // A credential remedy must land the operator on the field it needs, not just open the modal.
   const credCardRef = useRef<HTMLDivElement | null>(null);
   const credPasswordRef = useRef<HTMLInputElement | null>(null);
+  const keyCardRef = useRef<HTMLDivElement | null>(null);
+  const keyAccessRef = useRef<HTMLInputElement | null>(null);
+
 
 
 
@@ -285,6 +293,9 @@ export function StepAccountDialog({
     setCredCode(null);
     setCredsStored(false);
     setPasswordStored(Boolean(plan?.has_stored_password));
+    setKeyAccess("");
+    setKeySecret("");
+    setKeyNote(null);
   }, [plan?.has_stored_password, planAccountId, planLogin]);
 
   // A credential/key remedy scrolls the card into view and focuses the password field, so the
@@ -299,6 +310,50 @@ export function StepAccountDialog({
     }, 150);
     return () => window.clearTimeout(timer);
   }, [activeRemedy?.remedy, open, remedyCode]);
+
+  // Step A.2 waits for the key pair: put the operator straight on the AccessKey field.
+  useEffect(() => {
+    if (!open) return;
+    if (activeRemedy?.remedy !== "api_keys") return;
+    const timer = window.setTimeout(() => {
+      keyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      keyAccessRef.current?.focus();
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [activeRemedy?.remedy, open]);
+
+  /** Store the pair issued in the channel portal, then let Step A continue. */
+  const saveKeyPair = useCallback(async () => {
+    if (!planAccountId && !plan?.ru_owner_id) return;
+    setSavingKeys(true);
+    setKeyNote(null);
+    try {
+      const data = await invokeCertPortal({
+        action: "save_api_keys",
+        ...(planAccountId ? { account_id: planAccountId } : {}),
+        ...(plan?.ru_owner_id ? { ru_owner_id: String(plan.ru_owner_id) } : {}),
+        ...(credEmail.trim() ? { login_email: credEmail.trim() } : {}),
+        access_key: keyAccess.trim(),
+        secret_key: keySecret.trim(),
+      }, "The key pair could not be stored");
+
+      if (data.success !== true) {
+        const message = data.error?.message ?? "The key pair could not be stored";
+        setKeyNote(message);
+        toast.error("Key pair was not accepted", { description: message, duration: 12000 });
+        return;
+      }
+      setCredsStored(true);
+      setKeySecret("");
+      setKeyNote("Key pair verified and stored. Continue Step A to finish the account.");
+      toast.success("API key pair stored", {
+        description: "Step A can now complete this sub-account.",
+      });
+    } finally {
+      setSavingKeys(false);
+    }
+  }, [credEmail, keyAccess, keySecret, plan?.ru_owner_id, planAccountId]);
+
 
 
   // Saving the password immediately retries automatic key creation and secure storage.
@@ -589,8 +644,63 @@ export function StepAccountDialog({
             </CardContent>
           </Card>
 
+          {/* 2a — Step A.2 pause: enter the AccessKey/SecretKey issued for this sub-account */}
+          {(planAccountId || plan?.ru_owner_id) && !planHasKeys && (
+            <Card className="border-amber-500/50" ref={keyCardRef}>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <KeyRound className="h-4 w-4" />
+                  Step A.2 — API key pair
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  The sub-account is created. Sign in to the channel portal as{" "}
+                  <span className="font-mono">{planLogin || "this sub-account"}</span>, create its API key
+                  pair, then enter both values here. Step A verifies and stores them, then continues.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">AccessKey</Label>
+                    <Input
+                      ref={keyAccessRef}
+                      className="mt-1 font-mono"
+                      value={keyAccess}
+                      onChange={(event) => setKeyAccess(event.target.value)}
+                      placeholder="AccessKey from the channel portal"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">SecretKey</Label>
+                    <Input
+                      className="mt-1 font-mono"
+                      value={keySecret}
+                      onChange={(event) => setKeySecret(event.target.value)}
+                      placeholder="SecretKey (shown once)"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={savingKeys || keyAccess.trim().length < 6 || keySecret.trim().length < 6}
+                    onClick={saveKeyPair}
+                  >
+                    {savingKeys ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+                    Save key pair & verify
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={runningStepA || stepADisabled} onClick={onRunStepA}>
+                    Continue Step A
+                  </Button>
+                </div>
+                {keyNote ? <p className="text-xs text-muted-foreground">{keyNote}</p> : null}
+              </CardContent>
+            </Card>
+          )}
 
-          {/* 2b — sub-account credentials: set the portal password and mint the key pair here */}
+
+          {/* 2b — sub-account credentials: portal password for signing in to create the pair */}
+
           {planAccountId && !planHasKeys && (
             <Card className="border-amber-500/50" ref={credCardRef}>
               <CardHeader className="pb-3">
@@ -599,12 +709,11 @@ export function StepAccountDialog({
                   Sub-account credentials
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  {xmlApiRejectedWithStoredPassword
-                    ? "The sub-account password is stored. Key creation is waiting for the channel XML API to accept this OwnerID."
-                    : planHasPassword
-                      ? "A sub-account password is stored. Step A creates and stores the API key pair automatically when the channel XML API accepts this sub-account."
-                      : "Enter the sub-account password and Step A will create, verify and store its API key pair automatically."}
+                  {planHasPassword
+                    ? "The sub-account portal password is on record — use it to sign in to the channel portal and create the key pair above."
+                    : "Store the sub-account portal password here so it can be used to sign in and create the key pair above."}
                 </CardDescription>
+
               </CardHeader>
               <CardContent className="space-y-3">
                 {activeRemedy ? (

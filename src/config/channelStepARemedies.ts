@@ -1,6 +1,6 @@
 import type { ChannelOnboardTaskId } from "@/config/channelOnboard";
 
-export type StepARemedyKind = "password" | "login_choice" | "binding" | "fresh_login" | "retry";
+export type StepARemedyKind = "password" | "login_choice" | "binding" | "fresh_login" | "retry" | "api_keys";
 
 export interface StepARemedy {
   code: string;
@@ -12,6 +12,17 @@ export interface StepARemedy {
 }
 
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
+  RU_MANUAL_KEYS_REQUIRED: {
+    code: "RU_MANUAL_KEYS_REQUIRED",
+    title: "Enter this sub-account's API key pair",
+    explain:
+      "The sub-account is created and bound. Step A.2 now waits for its AccessKey and SecretKey, which are issued once in the channel portal under that login.",
+    guidance:
+      "Sign in to the channel portal as this sub-account, create its API key pair, then paste the AccessKey and SecretKey below. Step A verifies, stores and continues automatically.",
+    remedy: "api_keys",
+    taskHint: "api_keys",
+  },
+
   RU_KEY_CREATION_NOT_ENABLED: {
     code: "RU_KEY_CREATION_NOT_ENABLED",
     title: "The channel is not letting us create API keys",

@@ -8562,7 +8562,8 @@ Deno.serve(async (req) => {
         /** Existing binding: if Step A created this account earlier but the key mint was
          * interrupted by roster lag, complete the automatic mint before company details.
          */
-        let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+        let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+
         let mintedAccessKey: string | null = null;
         let keyWarning: string | null = null;
         let keyCode: string | null = null;
@@ -8583,55 +8584,18 @@ Deno.serve(async (req) => {
             keySource = "existing";
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
           } else {
-            let mintPassword: string | null = null;
-            if ((existing.account as any).ru_login_password_enc) {
-              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
-                encrypted_data: (existing.account as any).ru_login_password_enc,
-              });
-              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-                mintPassword = decrypted;
-              }
-            }
-            // A login we generated was created with the platform password — use it when the
-            // stored copy is missing, so an adopted generated account can still mint its pair.
-            if (!mintPassword && isGeneratedDistributionLogin(existingLoginEmail)) {
-              mintPassword = RU_SUB_USER_PASSWORD;
-            }
-            // Keep the working password on record so later runs never re-derive it.
-            if (mintPassword && !(existing.account as any).ru_login_password_enc && (existing.account as any).id) {
-              const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: mintPassword });
-              if (enc) {
-                await admin
-                  .from("ru_owner_accounts")
-                  .update({ ru_login_password_enc: enc })
-                  .eq("id", (existing.account as any).id);
-                (existing.account as any).ru_login_password_enc = enc;
-              }
-            }
-
-
-
-            const minted = await mintChildKeyPair({
-              ownerId: existingOwnerId,
-              loginEmail: existingLoginEmail,
-              accountId: String((existing.account as any).id ?? "") || null,
-              authUsername: existingLoginEmail,
-              authPassword: mintPassword,
-            });
-            if (minted.ok) {
-              keySource = "minted";
-              mintedAccessKey = minted.accessKey ?? null;
-            } else if (minted.rateDeferred) {
-              keySource = "deferred";
-              keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
-              keyRetryAfterMs = minted.retryAfterMs ?? null;
-            } else {
-              keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
-              keyRuStatusId = minted.ruStatusId ?? null;
-              keyRuStatusMessage = minted.ruStatusMessage ?? null;
-              keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
-            }
+            /**
+             * Step A.2 is a manual pause by design: the channel issues a sub-account's
+             * first AccessKey/SecretKey pair in its portal, so we never mint one here.
+             * The account is created and bound — the operator pastes the pair and Step A
+             * continues from there.
+             */
+            keySource = "manual";
+            keyCode = "RU_MANUAL_KEYS_REQUIRED";
+            keyWarning =
+              `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} has no API key pair stored. Create its key pair in the channel portal under that login, then enter the AccessKey and SecretKey to continue Step A.`;
           }
+
         }
 
         const companyResult = await submitCompanyDetails(existing.account as any);
@@ -9087,8 +9051,9 @@ Deno.serve(async (req) => {
 
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
-      /** Step A creates and stores the first pair before continuing to company details. */
-      let keySource: "minted" | "existing" | "blocked" | "deferred" = "blocked";
+      /** Step A pauses for the operator to enter the sub-account's first key pair. */
+      let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
       let keyCode: string | null = null;
@@ -9138,46 +9103,18 @@ Deno.serve(async (req) => {
             }
           }
 
-          const minted = await mintChildKeyPair({
-            ownerId: savedOwnerId,
-            loginEmail: savedLoginEmail,
-            accountId: String((saved as any)?.id ?? "") || null,
-            authUsername: savedLoginEmail,
-            authPassword: mintPassword,
-          });
-          keyAttempts.push(...(minted.attempts ?? []));
-          if (minted.ok) {
-            keySource = "minted";
-            mintedAccessKey = minted.accessKey ?? null;
-
-          } else if (minted.rateDeferred) {
-            keySource = "deferred";
-            keyWarning = minted.message ?? "The channel rate-limited automatic key creation.";
-            keyRetryAfterMs = minted.retryAfterMs ?? null;
-          } else if (minted.authRefused) {
-            /**
-             * The channel refused every mint envelope for this sub-account (its own
-             * login/password, a retry after propagation, and the owner-scoped master
-             * mint). Step A must NOT create a replacement sub-account here: a refused
-             * mint is a channel-side entitlement problem, not a bad account, and
-             * provisioning further logins left orphaned sub-accounts under our master
-             * account. Keep the account we just created and report the blocker.
-             */
-            keyCode = "RU_KEY_CREATION_NOT_ENABLED";
-            keyRuStatusId = minted.ruStatusId ?? null;
-            keyRuStatusMessage = minted.ruStatusMessage ?? null;
-            keyWarning =
-              `The channel refused automatic API key creation for this sub-account (${minted.message || "incorrect login or password"}). The account itself is created and bound — this is a channel-side entitlement, not a wrong password. Ask the channel to enable XML API key creation for our master account, then re-run Step A.`;
-
-
-          } else {
-            keyCode = minted.code ?? "RU_CREATE_KEY_FAILED";
-            keyRuStatusId = minted.ruStatusId ?? null;
-            keyRuStatusMessage = minted.ruStatusMessage ?? null;
-            keyWarning = minted.message ?? "Step A could not create the API key pair automatically.";
-          }
-
+          /**
+           * Step A.2 pauses here on purpose. The channel issues a sub-account's first
+           * AccessKey/SecretKey pair in its own portal, so the run stops with the account
+           * created, bound and its password on record, and the operator enters the pair.
+           */
+          keySource = "manual";
+          keyCode = "RU_MANUAL_KEYS_REQUIRED";
+          keyAttempts.push("waiting for the AccessKey/SecretKey to be entered");
+          keyWarning =
+            `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created. Create its API key pair in the channel portal under that login, then enter the AccessKey and SecretKey to continue Step A.`;
         }
+
       } else {
         keyWarning = "The sub-account was created, but the OwnerID handoff is not complete yet. Retry Step A shortly; it will keep the generated password and finish automatic key creation.";
       }
