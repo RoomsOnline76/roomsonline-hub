@@ -892,8 +892,8 @@ export function ChannelOnboardTab({
         }
       } finally {
         setRunningStep(null);
-        await gate.refresh();
         stepRunInFlight.current = false;
+        await gate.refresh();
       }
     },
     [chosenLoginEmail, gate, plan, propertyId],
