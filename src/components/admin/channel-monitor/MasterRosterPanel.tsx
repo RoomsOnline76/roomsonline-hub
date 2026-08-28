@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, RefreshCw, Users, XCircle } from "lucide-react";
+import { AlertTriangle, KeyRound, Loader2, RefreshCw, Trash2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
