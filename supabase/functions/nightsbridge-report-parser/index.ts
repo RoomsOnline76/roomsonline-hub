@@ -328,7 +328,8 @@ Deno.serve(async (req) => {
       }
       const ok = parsed.status === "parsed" && parsed.rows.length > 0;
       if (ok) {
-        for (const row of parsed.rows) ledger.push(row);
+        // The sheet a row came from is what a sheet-per-property workbook routes on.
+        for (const row of parsed.rows) ledger.push({ ...row, source_sheet: parsed.sheet });
       }
       fileResults.push({
         id: file.id,
