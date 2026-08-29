@@ -136,8 +136,8 @@ interface Block {
 }
 
 const blockLabel = (text: string): BlockKind | null => {
-  const clean = text.trim().toLowerCase().replace(/[^a-z ]/g, "");
-  if (clean === "occupancy" || clean === "occupancy ") return "occupancy";
+  const clean = text.trim().toLowerCase().replace(/[^a-z ]/g, "").trim();
+  if (clean === "occupancy") return "occupancy";
   if (clean === "adr" || clean === "average daily rate" || clean === "average room rate") return "adr";
   if (clean === "revpar") return "revpar";
   if (clean === "revenue") return "revenue";
@@ -189,14 +189,15 @@ function parseBlock(
   const dataRows: RawRow[] = [];
   for (const row of rows) {
     const monthCell = row.cells[0] ? monthKey(row.cells[0].text) : null;
-    if (!monthCell) {
+    const numerics = joinCells(row.cells.slice(1)).filter((cell) => isNumeric(cell.text));
+    // A month label with no numbers beside it is part of the header stack — the
+    // second heading line reads `Aug 2026 | July 2026 | Actual`.
+    if (!monthCell || numerics.length < 2) {
       if (isHeaderRow(row) || /variance|last\s*year|actual|^\s*\d{4}\s*$/i.test(rowText(row))) {
         headerCells.push(...row.cells);
       }
       continue;
     }
-    const numerics = joinCells(row.cells.slice(1)).filter((cell) => isNumeric(cell.text));
-    if (numerics.length < 2) continue;
     dataRows.push({ key: monthCell, cells: numerics });
   }
   if (!dataRows.length) return null;
@@ -361,7 +362,12 @@ export async function parsePriorComparisonPdf(
       current = null;
     };
     for (const row of rows) {
-      const label = blockLabel(rowText(row));
+      // Block labels sit in the grid's own left column; the sheet title and
+      // chart captions print further right on the same visual line.
+      const label = row.cells
+        .filter((cell) => cell.x < 320)
+        .map((cell) => blockLabel(cell.text))
+        .find((kind): kind is BlockKind => kind !== null) ?? null;
       if (label) {
         flush();
         pending = label;
@@ -410,9 +416,17 @@ export async function parsePriorComparisonPdf(
     extract.warnings.push("No ADR block was found, so room nights could not be derived.");
   }
 
-  const currentLabel = revenue.labels.current ?? null;
+  // Column headings print over two lines, and the chart legends repeat them in
+  // full: whichever reads as a date wins.
+  const legend = [...pages.flat().map(rowText).join(" \n").matchAll(/OTB\s*@\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})/g)]
+    .map((match) => match[0]);
+  const currentLabel = labelDate(revenue.labels.current ?? "")
+    ? (revenue.labels.current as string)
+    : legend[0] ?? revenue.labels.current ?? null;
   extract.asOfDate = labelDate(currentLabel ?? "");
-  extract.otbColumnLabel = revenue.labels.previous ?? null;
+  extract.otbColumnLabel = labelDate(revenue.labels.previous ?? "")
+    ? revenue.labels.previous ?? null
+    : legend[1] ?? revenue.labels.previous ?? null;
   extract.baselineSheet = `page ${revenue.page} — printed comparison grid`;
 
   const found = new Set(Object.keys(extract.currentOtbRevenue));
