@@ -90,6 +90,13 @@ export default function ReportsRunReview() {
 
   const adapter = getAdapter(run?.sourceType);
   const { settings: propertySettings } = usePropertyReportSettings(run?.propertyId);
+  /**
+   * Clients whose comparison column is "what the books looked like when we sent
+   * the report a year ago" cannot skip the previous-report upload — there is
+   * nowhere else for that column to come from on a first run.
+   */
+  const stlyNeedsWorkbook =
+    parseReportProfile(propertySettings?.reportProfile ?? null).stly_from_prior_workbook;
   const specialSet = run
     ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
     : null;
