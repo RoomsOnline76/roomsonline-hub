@@ -178,7 +178,19 @@ Deno.serve(async (req) => {
     <SecretKey>${escapeXml(storedSecret)}</SecretKey>`;
         authMode = "child_api_keys";
       } else {
-        const password = suppliedPassword || (await decrypt(account?.ru_login_password_enc)) || "";
+        // §2/close: stored child_password row (Push_CreateUser_RQ or a later reset) is the
+        // fallback before API_KEYS_REQUIRED — never mint a key just to close.
+        let credPassword: string | null = null;
+        const { data: pwRow } = await admin
+          .from("ru_api_credentials")
+          .select("password_enc, auth_mode, login_email")
+          .eq("ru_owner_id", ownerId)
+          .eq("auth_mode", "child_password")
+          .maybeSingle();
+        if (pwRow?.password_enc) {
+          credPassword = await decrypt(pwRow.password_enc);
+        }
+        const password = suppliedPassword || credPassword || (await decrypt(account?.ru_login_password_enc)) || "";
         if (!loginEmail || !password) {
           return json({
             success: false,

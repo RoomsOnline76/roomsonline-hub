@@ -28,6 +28,9 @@ export interface LnmSubscribeOutcome {
   in_sync: boolean;
   steps: LnmSubscribeStep[];
   warning: string | null;
+  /** True when this owner was already subscribed and no RU write was issued. */
+  skipped?: boolean;
+  skip_reason?: string;
 }
 
 export async function ensureLiveNotificationsForOwner(
@@ -89,6 +92,36 @@ export async function ensureLiveNotificationsForOwner(
     return { ok: true, err: null as string | null, data };
   };
 
+  // ── 0. Already subscribed? LNM is account-scoped, so listing #2 of the same owner must not
+  // repeat handler + change types + read-back. One local read replaces three RU writes.
+  try {
+    const { data: priorRuns } = await admin
+      .from('ru_sync_runs')
+      .select('action, success, details')
+      .in('action', ['PutHandlerUrl', 'PutLnmSubscriptions'])
+      .eq('success', true)
+      .contains('details', { ru_owner_id: ownerId })
+      .limit(2);
+    const priorActions = new Set((priorRuns ?? []).map((r) => String((r as { action?: string }).action ?? '')));
+    if (priorActions.has('PutHandlerUrl') && priorActions.has('PutLnmSubscriptions')) {
+      return {
+        ru_owner_id: ownerId,
+        subscribed: true,
+        in_sync: true,
+        steps: [
+          { step: 'PutHandlerUrl', success: true, error: null },
+          { step: 'PutLnmSubscriptions', success: true, error: null },
+        ],
+        warning: null,
+        skipped: true,
+        skip_reason: 'lnm_already_subscribed',
+      };
+    }
+  } catch (e) {
+    // A cache miss must never block subscribing — fall through and write.
+    console.warn('[ruLnmSubscribe] prior-subscription read failed', e instanceof Error ? e.message : e);
+  }
+
   // ── 1. RLNM handler ──
   let t0 = Date.now();
   const rlnm = await call({ action: 'subscribe_notifications', handler_url: handlerUrl, owner_id: ownerId });
@@ -111,25 +144,28 @@ export async function ensureLiveNotificationsForOwner(
     observed_owners: [ownerId],
   });
 
-  // ── 3. Read-back: silent drift is the real failure mode ──
-  t0 = Date.now();
-  let inSync = false;
-  const read = await call({ action: 'list_lnm_subscriptions', owner_id: ownerId });
-  let readErr = read.err;
-  if (read.ok) {
-    const actual = read.data?.subscriptions ?? parseLnmSubscriptions(String(read.data?.raw_xml ?? ''));
-    const drift = diffLnmSubscriptions(actual, {
-      change_types: DEFAULT_LNM_CHANGE_TYPES,
-      observed_owners: [ownerId],
-      url_base: lnmUrlBase,
-    });
-    inSync = drift.in_sync;
-    if (!inSync) readErr = 'Rentals United stored different subscription settings than requested (drift).';
-    await log('ListLnmSubscriptions', inSync, readErr, Date.now() - t0, { actual, drift });
-  } else {
-    await log('ListLnmSubscriptions', false, readErr, Date.now() - t0, {});
+  // ── 3. Read-back only when a put did NOT succeed. Two accepted writes are the evidence;
+  // pulling the subscription list after a clean put was a third call that proved nothing.
+  let inSync = rlnm.ok && lnm.ok;
+  if (!inSync) {
+    t0 = Date.now();
+    const read = await call({ action: 'list_lnm_subscriptions', owner_id: ownerId });
+    let readErr = read.err;
+    if (read.ok) {
+      const actual = read.data?.subscriptions ?? parseLnmSubscriptions(String(read.data?.raw_xml ?? ''));
+      const drift = diffLnmSubscriptions(actual, {
+        change_types: DEFAULT_LNM_CHANGE_TYPES,
+        observed_owners: [ownerId],
+        url_base: lnmUrlBase,
+      });
+      inSync = drift.in_sync;
+      if (!inSync) readErr = 'Rentals United stored different subscription settings than requested (drift).';
+      await log('ListLnmSubscriptions', inSync, readErr, Date.now() - t0, { actual, drift });
+    } else {
+      await log('ListLnmSubscriptions', false, readErr, Date.now() - t0, {});
+    }
+    steps.push({ step: 'ListLnmSubscriptions', success: read.ok && inSync, error: readErr });
   }
-  steps.push({ step: 'ListLnmSubscriptions', success: read.ok && inSync, error: readErr });
 
   const failed = steps.filter((s) => !s.success);
   return {

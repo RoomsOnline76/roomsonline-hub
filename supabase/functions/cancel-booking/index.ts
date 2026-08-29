@@ -531,6 +531,10 @@ Deno.serve(async (req) => {
             check_in_date: booking.check_in_date ?? null,
             check_out_date: booking.check_out_date ?? null,
           },
+          // Cut 1: the reservation verb (reject/cancel) was already delivered synchronously
+          // above via cancelRuReservation — the job only owes the scoped ARI reopen.
+          skip_reservation: ruMethod !== null,
+          source: "cancel_booking",
         },
         options: { dedupeKey: `channel_booking_sync:${booking_id}:cancelled` },
       },

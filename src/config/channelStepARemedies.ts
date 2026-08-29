@@ -12,6 +12,17 @@ export interface StepARemedy {
 }
 
 export const CHANNEL_STEP_A_REMEDIES: Record<string, StepARemedy> = {
+  NEEDS_UI_KEY: {
+    code: "NEEDS_UI_KEY",
+    title: "This sub-account needs a portal-issued API key pair",
+    explain:
+      "The sub-account exists, but the channel refused its own login for API calls. Since November 2025 the very first key pair for a new account can only be issued in the channel portal — it cannot be created for them from here.",
+    guidance:
+      "Sign in to the channel portal as this sub-account, create its XmlApi key pair, then paste the AccessKey and SecretKey below. Step A verifies, stores and continues automatically.",
+    remedy: "api_keys",
+    taskHint: "api_keys",
+  },
+
   RU_MANUAL_KEYS_REQUIRED: {
     code: "RU_MANUAL_KEYS_REQUIRED",
     title: "Enter this sub-account's API key pair",

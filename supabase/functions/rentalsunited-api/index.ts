@@ -2164,6 +2164,30 @@ async function resolveChildAuthDetailed(
         if (plain) return { auth: { mode: 'keys', access_key: String(data.ru_api_access_key), secret_key: plain }, reason: null };
         decryptFailed = true;
       }
+
+      // §2: keys win over password. Only when no usable key pair was found does a
+      // stored child_password row (from Push_CreateUser_RQ, or a later reset) apply —
+      // this is what lets first-list continue immediately after CreateUser instead of
+      // waiting for a UI-minted key pair.
+      if (!keyFound) {
+        let pwQuery = admin
+          .from('ru_api_credentials')
+          .select('login_email, password_enc, auth_mode')
+          .eq('auth_mode', 'child_password')
+          .not('password_enc', 'is', null)
+          .limit(1);
+        pwQuery = ownerId ? pwQuery.eq('ru_owner_id', ownerId) : pwQuery.eq('login_email', username);
+        const { data: pwRow } = await pwQuery.maybeSingle();
+        if (pwRow?.password_enc) {
+          const plainPw = await decrypt(pwRow.password_enc);
+          if (plainPw) {
+            return {
+              auth: { mode: 'password', username: username || String(pwRow.login_email ?? ''), password: plainPw },
+              reason: null,
+            };
+          }
+        }
+      }
     } catch (e) {
       console.warn('[rentalsunited-api] child key lookup failed', e);
       return {
@@ -2711,8 +2735,8 @@ Deno.serve(async (req) => {
     // "sub-account scoped" call silently reads/writes the wrong RU account.
     if (action === 'verify_child_key_owner') {
       const childAuth = await resolveChildAuth(body);
-      if (!childAuth || childAuth.mode !== 'keys') {
-        return errorResponse('MISSING_PARAM', 'auth_access_key + auth_secret_key are required');
+      if (!childAuth) {
+        return errorResponse('MISSING_PARAM', 'auth_access_key + auth_secret_key, or auth_username + auth_password, are required');
       }
       const targetOwnerId = parseInt(String(body.owner_id ?? '').trim(), 10);
       if (!Number.isFinite(targetOwnerId) || targetOwnerId <= 0) {
@@ -2738,52 +2762,25 @@ Deno.serve(async (req) => {
         );
       }
 
-      // 2) Best effort: which account do these keys actually authenticate as? A master pair can
-      //    read any OwnerID, so a positive read alone must not be treated as ownership.
-      let identifiedOwnerIds: string[] = [];
-      let identifiedEmails: string[] = [];
-      try {
-        const usersResponse = await callRentalsUnited(creds, buildListUsersXml(keyCreds));
-        if (handleRUStatus(usersResponse).ok) {
-          const users = extractUsers(usersResponse);
-          identifiedOwnerIds = users.map((u) => String(u.owner_id)).filter(Boolean);
-          identifiedEmails = users.map((u) => u.email).filter(Boolean);
-        }
-      } catch (_e) {
-        // identification is advisory only
-      }
-
-      // Only a parent/master pair can enumerate the roster, so ANY other OwnerID in the
-      // listing proves these keys are not the sub-account's own pair — a positive
-      // Pull_ListOwnerProp read is exactly what a master pair would also produce.
-      const seesOtherAccounts =
-        identifiedOwnerIds.some((id) => id !== String(targetOwnerId));
-      const seesOtherAccountsOnly =
-        identifiedOwnerIds.length > 0 && !identifiedOwnerIds.includes(String(targetOwnerId));
-      const owns = ownerStatus.ok && !seesOtherAccounts;
+      // §2 Fix A: this verdict is the single Pull_ListOwnerProp_RQ above — Pull_ListMyUsers_RQ
+      // is deleted from this path. It proved nothing (a child key/password always returns
+      // an empty roster on that call) and doubled the wire cost of every verify.
+      // Status 0 (even an empty <Properties />) is ownership; anything else is not.
+      const owns = ownerStatus.ok;
 
       return jsonResponse({
         success: true,
         owns,
         verified: ownerStatus.ok,
-        key_scope: seesOtherAccounts ? 'master_pair' : ownerStatus.ok ? 'child' : 'unverified',
+        key_scope: ownerStatus.ok ? 'child' : 'unverified',
         method: 'Pull_ListOwnerProp_RQ',
         auth_mode: childAuthMode(childAuth),
         owner_id: targetOwnerId,
         ru_status_id: ownerStatus.status.id ?? null,
         ru_status_message: ownerStatus.status.message ?? null,
-        identified_owner_ids: identifiedOwnerIds,
-        identified_emails: identifiedEmails,
         properties: ownerProperties,
         listing_count: ownerProperties.length,
-        reason: owns
-          ? null
-          : seesOtherAccountsOnly
-            ? 'KEYS_BELONG_TO_ANOTHER_ACCOUNT'
-            : seesOtherAccounts
-              ? 'KEYS_ARE_MASTER_PAIR'
-              : 'OWNER_READ_REJECTED',
-
+        reason: owns ? null : 'OWNER_READ_REJECTED',
       });
     }
 

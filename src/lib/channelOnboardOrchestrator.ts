@@ -159,8 +159,20 @@ function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGat
   return ctx.binding ?? snapshot.binding;
 }
 
-/** How the sub-account's key pair was resolved during account provisioning. */
-export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "manual" | "";
+/**
+ * How the sub-account's credential was resolved during account provisioning.
+ * `password_verified` is the normal path for a freshly created sub-account: the channel no longer
+ * lets us mint its first key pair, so the login/password created in the same run IS the credential,
+ * proven by a single listings probe. A pasted key pair still wins whenever one exists.
+ */
+export type KeySource =
+  | "minted"
+  | "existing"
+  | "password_verified"
+  | "deferred"
+  | "blocked"
+  | "manual"
+  | "";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
@@ -198,6 +210,9 @@ async function recentChannelWriteCooldownMs(propertyId: string): Promise<number>
 
 const STEP_A_RECOVERABLE_CODES = new Set([
   "RU_MANUAL_KEYS_REQUIRED",
+  // The sub-account exists but its own login was refused, so only a portal-issued key pair
+  // can unblock it. Recoverable: the operator pastes the pair and the run resumes.
+  "NEEDS_UI_KEY",
   "RU_CREATE_KEY_API_REJECTED",
   "RU_KEY_CREATION_NOT_ENABLED",
 
@@ -561,6 +576,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         keys_stored:
           ctx.keyProvisioning?.source === "minted"
           || ctx.keyProvisioning?.source === "existing"
+          || ctx.keyProvisioning?.source === "password_verified"
           || ctx.binding?.keys_stored === true,
         company_details_sent:
           data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
@@ -610,6 +626,18 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
+    // The channel no longer mints a brand-new sub-account's first key pair. Its login and
+    // password, proven by a single listings probe, are the credential — the run continues
+    // immediately instead of pausing for a pair that will never arrive automatically.
+    if (provisioning?.source === "password_verified") {
+      ctx.keysProvenInRun = true;
+      return {
+        id: "api_keys",
+        outcome: "passed",
+        detail: `Sub-account credentials verified${accountLabel ? ` for ${accountLabel}` : ""} — its own login authenticates channel calls until a key pair is pasted${trailText}`,
+      };
+    }
+
     if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
         id: "api_keys",
@@ -626,13 +654,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           ?? "The channel rate-limited the key request — waiting for the window to reopen.") + trailText,
       };
     }
-    // Step A.2 is a deliberate manual pause: the sub-account exists, and the operator now
-    // pastes the AccessKey/SecretKey pair issued in the channel portal for that login.
-    if (provisioning?.source === "manual" || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED") {
+    // The sub-account exists but neither a stored pair nor its own login authenticates it, so
+    // the operator pastes the AccessKey/SecretKey pair issued once in the channel portal.
+    if (
+      provisioning?.source === "manual"
+      || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED"
+      || provisioning?.code === "NEEDS_UI_KEY"
+    ) {
       return {
         id: "api_keys",
         outcome: "blocked",
-        code: "RU_MANUAL_KEYS_REQUIRED",
+        code: provisioning?.code === "NEEDS_UI_KEY" ? "NEEDS_UI_KEY" : "RU_MANUAL_KEYS_REQUIRED",
         detail: (provisioning?.warning
           ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
       };
@@ -657,8 +689,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
     // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
-    // rather than authenticating as a child we hold no credential for.
-    if (!binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+    // rather than authenticating as a child we hold no credential for. A password-verified
+    // account already proved itself in this run, so it never lands here.
+    if (
+      !binding.keys_stored
+      && ctx.keyProvisioning?.source !== "minted"
+      && ctx.keyProvisioning?.source !== "password_verified"
+      && !ctx.keysProvenInRun
+    ) {
       return {
         id: "verify_keys",
         outcome: "blocked",
@@ -876,9 +914,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
-        // Onboarding is the one flow that must prove the channel holds our rates, so it asks for
-        // the price read-back explicitly. Routine saves never do.
-        verifyReadback: true,
+        // First list must not read the channel's copy back (Fix C): ROL'OS authored the rates
+        // and PutPrices already confirmed the write. ListSpecProp remains the single evidence
+        // pull; a routine or onboarding push never adds Pull_ListPropertyPrices_RQ on top of it.
+        verifyReadback: false,
         ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });
