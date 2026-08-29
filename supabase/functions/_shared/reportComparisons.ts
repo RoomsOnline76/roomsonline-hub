@@ -14,6 +14,8 @@
  * client's column set can never drift between the two.
  */
 import { parseReportProfile, type ReportProfile } from "./reportProfile.ts";
+import { formatAsOf } from "./reportStly.ts";
+
 
 export interface ReportComparison {
   /** Stable id, e.g. `year-2024`, `stly`, `budget`. */
