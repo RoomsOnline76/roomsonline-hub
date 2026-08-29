@@ -19,6 +19,10 @@ export interface PriorImportFound {
   comp_months: number;
   historical_revenue_months: number;
   historical_nights_months: number;
+  /** Profile-driven comparison columns read from the pack. */
+  year_actual_columns?: number;
+  stly_months?: number;
+  budget_months?: number;
   /** Owner's-report PDF packs only. */
   current_otb_months?: number;
   provisional_months?: number;
