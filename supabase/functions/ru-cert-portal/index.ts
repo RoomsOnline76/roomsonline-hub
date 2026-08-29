@@ -9402,18 +9402,17 @@ Deno.serve(async (req) => {
 
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
-      /** Step A pauses for the operator to enter the sub-account's first key pair. */
-      let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+      /** §2: after Push_CreateUser_RQ, persist password + one ListOwnerProp probe — no mint, no wait. */
+      let keySource: "existing" | "password_verified" | "blocked" = "blocked";
 
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
       let keyCode: string | null = null;
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
-      let keyRetryAfterMs: number | null = null;
+      const keyRetryAfterMs: number | null = null;
       // Step A never provisions a replacement sub-account: one run, one account.
 
-      // Ordered trail of every mint envelope tried, surfaced on the Step A task line.
       const keyAttempts: string[] = [];
 
 
@@ -9429,23 +9428,23 @@ Deno.serve(async (req) => {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
         } else {
-          let mintPassword: string | null = adopted ? null : password;
-          if (!mintPassword && (saved as any)?.ru_login_password_enc) {
+          let childPassword: string | null = adopted ? null : password;
+          if (!childPassword && (saved as any)?.ru_login_password_enc) {
             const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
               encrypted_data: (saved as any).ru_login_password_enc,
             });
             if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-              mintPassword = decrypted;
+              childPassword = decrypted;
             }
           }
           // A generated `<slug>@roomsonline.co.za` login was created by us with the platform
-          // password: an adopted account with no stored copy can still mint its own pair.
-          if (!mintPassword && isGeneratedDistributionLogin(savedLoginEmail)) {
-            mintPassword = RU_SUB_USER_PASSWORD;
+          // password: an adopted account with no stored copy can still probe its own pair.
+          if (!childPassword && isGeneratedDistributionLogin(savedLoginEmail)) {
+            childPassword = RU_SUB_USER_PASSWORD;
           }
           // Keep the working password on record so later steps never re-derive it.
-          if (mintPassword && !(saved as any)?.ru_login_password_enc && (saved as any)?.id) {
-            const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: mintPassword });
+          if (childPassword && !(saved as any)?.ru_login_password_enc && (saved as any)?.id) {
+            const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: childPassword });
             if (enc) {
               await admin
                 .from("ru_owner_accounts")
@@ -9454,21 +9453,59 @@ Deno.serve(async (req) => {
             }
           }
 
-          /**
-           * Step A.2 pauses here on purpose. The channel issues a sub-account's first
-           * AccessKey/SecretKey pair in its own portal, so the run stops with the account
-           * created, bound and its password on record, and the operator enters the pair.
-           */
-          keySource = "manual";
-          keyCode = "RU_MANUAL_KEYS_REQUIRED";
-          keyAttempts.push("waiting for the AccessKey/SecretKey to be entered");
-          keyWarning =
-            `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created. Create its API key pair in the channel portal under that login, then enter the AccessKey and SecretKey to continue Step A.`;
+          if (childPassword && savedLoginEmail) {
+            const probed = await persistChildPasswordAndProbe({
+              ownerId: savedOwnerId,
+              loginEmail: savedLoginEmail,
+              password: childPassword,
+            });
+            if (probed.ok) {
+              keySource = "password_verified";
+              keyAttempts.push("child_password: verified via Pull_ListOwnerProp_RQ");
+            } else {
+              keySource = "blocked";
+              keyCode = probed.code ?? "NEEDS_UI_KEY";
+              keyRuStatusId = probed.ruStatusId ?? null;
+              keyRuStatusMessage = probed.ruStatusMessage ?? null;
+              keyAttempts.push(`child_password: rejected — ${probed.code ?? "NEEDS_UI_KEY"}`);
+              keyWarning = probed.message
+                ?? `Rentals United rejected the sub-account password for OwnerID ${savedOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
+              return json({
+                success: false,
+                created: !adopted,
+                adopted,
+                error: {
+                  code: keyCode,
+                  ru_status_id: keyRuStatusId,
+                  message: keyWarning,
+                  owner_id: savedOwnerId,
+                  email: savedLoginEmail,
+                },
+                account: saved,
+              }, 422);
+            }
+          } else {
+            keyCode = "NEEDS_UI_KEY";
+            keyAttempts.push("no sub-account password available to probe");
+            keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created but has no usable password to probe. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
+            return json({
+              success: false,
+              created: !adopted,
+              adopted,
+              error: {
+                code: keyCode,
+                message: keyWarning,
+                owner_id: savedOwnerId,
+                email: savedLoginEmail,
+              },
+              account: saved,
+            }, 422);
+          }
         }
 
       } else {
-        keyCode = "RU_MANUAL_KEYS_REQUIRED";
-        keyWarning = `Sub-account ${savedLoginEmail ?? ownerEmail} was created. Enter its AccessKey and SecretKey to resolve the OwnerID and continue Step A.`;
+        keyCode = "NEEDS_UI_KEY";
+        keyWarning = `Sub-account ${savedLoginEmail ?? ownerEmail} was created. Its RU OwnerID could not be resolved; verify manually.`;
       }
 
       // A.1 ends after create/adopt. A.4 is the only action allowed to push company details.
