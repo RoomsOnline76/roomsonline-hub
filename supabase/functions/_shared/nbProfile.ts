@@ -15,6 +15,8 @@ export interface NbProfile {
   route_tokens: NbRouteToken[];
   sheet_map: Record<string, string>;
   group_property_ids: string[];
+  /** Siblings whose own export already claims rows this export duplicates. */
+  dedupe_sibling_property_ids: string[];
   group_label: string | null;
   stly_from_prior_workbook: boolean;
   historical_from_current_ledger: boolean;
