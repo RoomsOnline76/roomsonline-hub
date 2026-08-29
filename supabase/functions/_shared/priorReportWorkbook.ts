@@ -839,6 +839,11 @@ export function parsePriorReportWorkbook(
     historicalRoomNights: {},
     historicalOccupancy: {},
     historicalAdr: {},
+    actualsByYear: {},
+    stlyRevenue: {},
+    stlyRoomNights: {},
+    budgetRevenue: {},
+    budgetRoomNights: {},
 
     carryForward: {},
     sheetsRead: [],
