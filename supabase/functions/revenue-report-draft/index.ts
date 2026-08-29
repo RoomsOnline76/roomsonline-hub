@@ -3,6 +3,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
+import { resolveComparisons } from "../_shared/reportComparisons.ts";
 import {
   buildDraftReport,
   type DraftSnapshot,
@@ -80,7 +81,9 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, report_logo_url, cover_artwork_url, brand_primary, brand_secondary, logo_invert")
+      .select(
+        "room_count, report_logo_url, cover_artwork_url, brand_primary, brand_secondary, logo_invert, historical_baseline, report_profile",
+      )
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -273,6 +276,18 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
+      comparisons: resolveComparisons(
+        (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+        {
+          months: draftSnapshot.months,
+          actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
+          stly: (snapshot as { stly?: unknown }).stly,
+          historicalBaseline:
+            (settings as { historical_baseline?: unknown } | null)?.historical_baseline ?? null,
+          capacityDays: draftSnapshot.capacity_days,
+          roomCount: draftSnapshot.room_count,
+        },
+      ),
       pageOrder: savedPageOrder,
       hiddenPages: hiddenPages,
     });
