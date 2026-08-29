@@ -181,6 +181,28 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
 const BY_ID = new Map(RU_ENDPOINT_LIBRARY.map((entry) => [entry.id, entry]));
 
 /**
+ * Documentation spellings the channel's certification registry uses for verbs ROL'OS implements
+ * under a different published name. Mapping them keeps the compliance registry readable without
+ * inventing extra rows in the traffic monitor.
+ */
+const ALIAS_TO_ID: Record<string, string> = {
+  Pull_GetProperty_RQ: "Pull_ListSpecProp_RQ",
+  Pull_ListCities_RQ: "Pull_ListCitiesAndCurrencies_RQ",
+  Pull_ListCurrencies_RQ: "Pull_ListCurrenciesWithCities_RQ",
+  Pull_ListLocationsBySearchString_RQ: "Pull_GetLocationsListByName_RQ",
+  Pull_ListOwnerBuildings_RQ: "Pull_ListBuildings_RQ",
+  Pull_ListPropertyLastMinuteDiscounts_RQ: "Pull_ListPropertyDiscounts_RQ",
+  Pull_ListPropertyLongStayDiscounts_RQ: "Pull_ListPropertyDiscounts_RQ",
+  Push_PutCompanyDetails_RQ: "Push_FillCompanyDetails_RQ",
+  Push_PutOwnerDetails_RQ: "Push_PutOwner_RQ",
+  Push_PutPropertyStatus_RQ: "Push_SetPropertiesStatus_RQ",
+  // No hard delete exists at the channel: removal is an archive through the bulk status verb.
+  Push_DeleteProperty_RQ: "Push_SetPropertiesStatus_RQ",
+  Push_RemoveProperty_RQ: "Push_SetPropertiesStatus_RQ",
+};
+
+
+/**
  * Resolves a logged action to its spec. Some rows log an internal orchestration action
  * (`rentalsunited-api:get_reservation_by_id`); those fall back to the wire verb they wrap so the
  * counters stay on one row per endpoint.
