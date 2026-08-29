@@ -406,11 +406,14 @@ Deno.serve(async (req) => {
       sheets_skipped: extract.sheetsSkipped,
       warnings: extract.warnings,
       // Owner's-report PDF extras — absent for spreadsheet packs.
-      source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+      source_kind: isComparisonPdf ? "comparison_pdf" : isOwnerPdf ? "owner_report_pdf" : "workbook",
       fiscal_year_label: owner?.currentYear?.label ?? null,
       provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
       combined_revenue: owner?.currentYear?.combined ?? {},
-      current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+      current_otb_occupancy: extract.currentOtbOccupancy ?? owner?.currentYear?.occupancyBob ?? {},
+      current_otb_adr: extract.currentOtbAdr ?? {},
+      current_room_nights: extract.currentRoomNights ?? {},
+
       forward_year: owner?.forwardYear
         ? {
             label: owner.forwardYear.label,
