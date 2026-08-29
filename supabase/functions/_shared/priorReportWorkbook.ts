@@ -1038,6 +1038,9 @@ export function parsePriorReportWorkbook(
       fill(extract.previousOtbRevenue, otb.revenue);
       fill(extract.previousRoomNights, otb.nights);
       fill(extract.currentOtbRevenue, otb.currentOtbRevenue);
+      fill((extract.currentOtbOccupancy ??= {}), otb.currentOtbOccupancy);
+      fill((extract.currentOtbAdr ??= {}), otb.currentOtbAdr);
+      fill((extract.currentRoomNights ??= {}), otb.currentNights);
       fill(extract.lastYearActual, otb.lastYearRevenue);
       fill(extract.lastYearRoomNights, otb.lastYearNights);
       fill(extract.previousOccupancy, otb.occupancy);
