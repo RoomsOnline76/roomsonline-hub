@@ -1332,7 +1332,41 @@ export async function pushRuConfirmedReservation(
     guests,
     booking.total_price ?? 0,
   ]);
+  /**
+   * Circuit breaker. Twelve identical creates for one stay on 2026-08-29 each drew the same
+   * blocked-dates refusal and each burned the owner's one-call-per-minute slot. After three such
+   * refusals in an hour the write stops and the operator is told to open the days in the portal.
+   */
+  const priorRefusals = await blockedDatesRefusalsThisHour(supabase, booking.id, ['push_confirmed_reservation']);
+  if (priorRefusals >= RU_BLOCKED_DATES_BREAKER_LIMIT) {
+    await supersedeQueuedRuCalls(supabase, `push_confirmed_reservation:${booking.id}`).catch(() => {});
+    await recordChannelBookingEvent(supabase, {
+      booking_id: booking.id,
+      property_id: booking.property_id,
+      direction: 'outbound',
+      action: 'created',
+      source: 'ru_booking_sync',
+      outcome: 'failed',
+      reason: 'blocked_dates_breaker',
+      channel_listing_id: ruPropertyId,
+      trace_id: traceId,
+      summary: 'Channel keeps refusing these dates — registration stopped after repeated refusals.',
+      details: { refusals_this_hour: priorRefusals },
+    });
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: 'RU_STAY_BLOCKED',
+      message:
+        'The channel refused these dates for this listing three times in the last hour. Open the arrival and ' +
+        'departure days for this listing in the channel portal, then resend the stay.',
+      traceId,
+      ruPropertyId,
+    };
+  }
+
   const claim = await claimReservationOp(supabase, {
+
     bookingId: booking.id,
     op: 'create',
     fingerprint,
