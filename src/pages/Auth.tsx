@@ -763,14 +763,28 @@ function AuthContent() {
 export default function Auth() {
   const { data: siteKey, isLoading } = useRecaptchaSiteKey();
 
+  // Never let a slow flag lookup hold the sign-in screen behind a spinner:
+  // after a short grace period we commit to the un-protected form and latch
+  // that choice, so a late-arriving site key cannot swap the form mid-typing.
+  const [graceElapsed, setGraceElapsed] = useState(false);
+  const decidedRef = useRef<"recaptcha" | "plain" | null>(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setGraceElapsed(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   // Public guest booking hosts never show the staff sign-in screen.
   if (isGuestBookingHost()) {
     return <GuestHostLanding />;
   }
 
+  if (!decidedRef.current) {
+    if (siteKey) decidedRef.current = "recaptcha";
+    else if (!isLoading || graceElapsed) decidedRef.current = "plain";
+  }
 
-
-  if (isLoading) {
+  if (!decidedRef.current) {
     return (
       <PublicLayout>
         <div className="min-h-screen flex items-center justify-center px-4 py-12">
@@ -783,14 +797,14 @@ export default function Auth() {
       </PublicLayout>
     );
   }
-  
-  // If no site key configured, render without reCAPTCHA protection
-  if (!siteKey) {
+
+  if (decidedRef.current === "plain") {
     return <AuthContentFallback />;
   }
-  
+
   return <AuthContent />;
 }
+
 
 // Fallback component without reCAPTCHA (for when site key is not configured)
 function AuthContentFallback() {
