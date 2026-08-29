@@ -31,12 +31,23 @@ const corsHeaders = {
 
 /** RU rate limit: one call per method per sliding minute (+1s safety). */
 const METHOD_WINDOW_MS = 61_000;
+/**
+ * Per-owner floors. Every account-scoped method costs a sliding-minute slot, so an owner
+ * that was already covered a moment ago (by the previous run, a notification-driven pull
+ * or an operator's manual reconcile) is skipped instead of pulled a second time.
+ */
+const RESERVATION_FLOOR_MS = 25 * 60_000;
+/** Leads are a safety net behind RLNM lead notifications — hours, not minutes. */
+const LEADS_FLOOR_MS = 6 * 60 * 60_000;
+/** When an unconfirmed lead is actually holding dates, tighten the leads floor. */
+const LEADS_FLOOR_ACTIVE_MS = 60 * 60_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
 /** Leads are listed by stay date — cover the forward booking window as well. */
 const PULL_FORWARD_DAYS = 365;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
+
 
 function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
