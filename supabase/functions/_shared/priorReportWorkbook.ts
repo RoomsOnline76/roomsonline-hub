@@ -648,9 +648,12 @@ function parseOtbSheet(
         }
       }
 
+      const currentValue = currentCol === null ? null : toNum(row[currentCol]);
+
       if (kind === "adr") {
         if (otb !== null && otb > 0) result.adr[key] = otb;
         if (ly !== null && ly > 0) result.lastYearAdr[key] = ly;
+        if (currentValue !== null && currentValue > 0) result.currentOtbAdr[key] = currentValue;
         continue;
       }
 
@@ -659,6 +662,8 @@ function parseOtbSheet(
         const lastYear = occupancyOf(ly);
         if (current !== null) result.occupancy[key] = current;
         if (lastYear !== null) result.lastYearOccupancy[key] = lastYear;
+        const currentOcc = occupancyOf(currentValue);
+        if (currentOcc !== null) result.currentOtbOccupancy[key] = currentOcc;
         const lyNights = occLyNightsCol === null ? null : toNum(row[occLyNightsCol]);
         if (
           lyNights !== null &&
@@ -673,6 +678,9 @@ function parseOtbSheet(
       if (isNights) {
         if (otb !== null && plausibleNights(otb)) result.nights[key] = otb;
         if (ly !== null && plausibleNights(ly)) result.lastYearNights[key] = ly;
+        if (currentValue !== null && plausibleNights(currentValue)) {
+          result.currentNights[key] = currentValue;
+        }
 
       } else {
         if (otb !== null) result.revenue[key] = otb;
