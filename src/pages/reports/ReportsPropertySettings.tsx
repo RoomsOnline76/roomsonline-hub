@@ -22,6 +22,8 @@ import {
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import { EMPTY_NB_PROFILE, type NbProfile } from "@/lib/nbProfile";
+import { NbProfileCard } from "@/components/reports/NbProfileCard";
 import {
   ROOM_COUNT_SOURCE_LABEL,
   useReportPropertyBrand,
