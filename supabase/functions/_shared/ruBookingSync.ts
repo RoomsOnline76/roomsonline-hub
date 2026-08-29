@@ -1339,7 +1339,10 @@ export async function pushRuConfirmedReservation(
    */
   const priorRefusals = await blockedDatesRefusalsThisHour(supabase, booking.id, ['push_confirmed_reservation']);
   if (priorRefusals >= RU_BLOCKED_DATES_BREAKER_LIMIT) {
-    await supersedeQueuedRuCalls(supabase, `push_confirmed_reservation:${booking.id}`).catch(() => {});
+    await supersedeQueuedRuCalls(supabase, {
+      action: 'push_confirmed_reservation',
+      reservationId: booking.id,
+    }).catch(() => {});
     await recordChannelBookingEvent(supabase, {
       booking_id: booking.id,
       property_id: booking.property_id,
