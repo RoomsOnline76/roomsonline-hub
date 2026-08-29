@@ -84,6 +84,7 @@ export default function ReportsPropertySettings() {
   // Comma-separated while editing; stored as arrays.
   const [keepPatterns, setKeepPatterns] = useState("");
   const [excludePatterns, setExcludePatterns] = useState("");
+  const [nbProfile, setNbProfile] = useState<NbProfile>(EMPTY_NB_PROFILE);
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
