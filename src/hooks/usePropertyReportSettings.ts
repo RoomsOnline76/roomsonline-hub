@@ -73,6 +73,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
         rowExcludePatterns: asPatternList(
           (data as { row_exclude_patterns?: unknown }).row_exclude_patterns,
         ),
+        nbProfile: parseNbProfile((data as { nb_profile?: unknown }).nb_profile ?? null),
       };
     },
   });
@@ -100,6 +101,7 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           ...(input.rowExcludePatterns
             ? { row_exclude_patterns: asPatternList(input.rowExcludePatterns) as never }
             : {}),
+          ...(input.nbProfile ? { nb_profile: input.nbProfile as never } : {}),
         },
         { onConflict: "property_id" },
       );
