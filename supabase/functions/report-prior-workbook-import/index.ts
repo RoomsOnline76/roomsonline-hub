@@ -229,16 +229,27 @@ Deno.serve(async (req) => {
 
       let candidateOwner: OwnerReportExtract | null = null;
       let candidateExtract: PriorReportExtract;
+      let candidateIsComparisonPdf = false;
       try {
         if (candidateIsPdf) {
-          // Designed owner's-report pack: position-aware PDF reader.
-          candidateOwner = await parsePriorOwnerReport(buffer, {
-            runAsOfDate: runAsOf,
-            windowMonths: runAsOf
-              ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
-              : [],
-          });
-          candidateExtract = ownerToExtract(candidateOwner);
+          const runWindow = runAsOf
+            ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
+            : [];
+          // Two PDF shapes exist. A printed comparison grid (Devonvale) is tried
+          // first because it is cheap to recognise — no revenue grid means it is
+          // not one, and the designed owner's-report reader takes over.
+          const grid = await parsePriorComparisonPdf(buffer, { windowMonths: runWindow });
+          if (grid.months.length) {
+            candidateExtract = grid;
+            candidateIsComparisonPdf = true;
+          } else {
+            // Designed owner's-report pack: position-aware PDF reader.
+            candidateOwner = await parsePriorOwnerReport(buffer, {
+              runAsOfDate: runAsOf,
+              windowMonths: runWindow,
+            });
+            candidateExtract = ownerToExtract(candidateOwner);
+          }
         } else {
           // The run's own as-of date decides which OTB column is the comparison
           // baseline — the newest one strictly older than this run.
@@ -246,6 +257,7 @@ Deno.serve(async (req) => {
           const priorRepair = await repairWorkbookBuffer(buffer);
           candidateExtract = parsePriorReportWorkbook(priorRepair.buffer, { runAsOfDate: runAsOf });
         }
+
       } catch (e) {
         attempts.push({
           filename: candidate.original_filename,
