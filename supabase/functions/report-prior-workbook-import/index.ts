@@ -458,6 +458,11 @@ Deno.serve(async (req) => {
         target_uplift: extract.targetUplift,
         historical_occupancy: extract.historicalOccupancy,
         historical_adr: extract.historicalAdr,
+        // Profile-driven comparison columns (older years, STLY, budget) read
+        // straight out of the client's own pack.
+        historical_by_year: yearBuckets,
+        stly: { revenue: extract.stlyRevenue, room_nights: extract.stlyRoomNights },
+        budget: { revenue: extract.budgetRevenue, room_nights: extract.budgetRoomNights },
         carry_forward: extract.carryForward,
         // Owner's-report packs also print budget, provisional and forward-year
         // figures; they ride along so the workbook builder can reproduce them.
