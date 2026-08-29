@@ -120,19 +120,30 @@ Deno.serve(async (req) => {
       .eq("run_id", runId)
       .maybeSingle();
 
-    const tobiCommentary: string[] = [];
+    const tobiCommentary: { text: string; placement?: string }[] = [];
     if (insightRow) {
       const narrative = String(insightRow.narrative_final ?? insightRow.narrative ?? "").trim();
-      if (insightRow.include_narrative !== false && narrative) tobiCommentary.push(narrative);
+      if (insightRow.include_narrative !== false && narrative) {
+        tobiCommentary.push({ text: narrative });
+      }
       const selections = (insightRow.selections ?? {}) as Record<
         string,
-        { include?: boolean; text?: string } | undefined
+        { include?: boolean; text?: string; placement?: string } | undefined
       >;
       for (const entry of Object.values(selections)) {
         const text = String(entry?.text ?? "").trim();
-        if (entry?.include && text) tobiCommentary.push(text);
+        if (entry?.include && text) {
+          tobiCommentary.push({
+            text,
+            placement:
+              typeof entry.placement === "string" && entry.placement !== "auto"
+                ? entry.placement
+                : undefined,
+          });
+        }
       }
     }
+
 
     // Slide organizer state: { order: string[], hidden: string[] } (a bare array
     // is accepted too, for runs saved before hiding existed).

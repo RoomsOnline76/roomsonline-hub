@@ -113,8 +113,13 @@ export interface DraftOptions {
   inputs: DraftInputs;
   /** Screenshots pasted in by the revenue team, already signed for rendering. */
   media?: DraftMediaSlot[];
-  /** TOBI lines the reviewer ticked for inclusion, in final (possibly edited) wording. */
-  tobiCommentary?: string[];
+  /**
+   * TOBI lines the reviewer ticked for inclusion, in final (possibly edited)
+   * wording. An entry may name where it prints; plain strings keep the legacy
+   * "route from the wording" behaviour.
+   */
+  tobiCommentary?: (string | { text: string; placement?: string })[];
+
   /** Saved page order (page keys) from the slide organizer. */
   pageOrder?: string[] | null;
   /** Page keys the reviewer hid in the slide organizer. */
@@ -1046,10 +1051,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   };
 
   // ── TOBI commentary the reviewer ticked for inclusion ─────────────────
-  const tobiLines = (options.tobiCommentary ?? [])
-    .flatMap((entry) => String(entry ?? "").split(/\n+/))
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  // Each entry may carry an explicit placement the reviewer chose in the
+  // analysis tab; when it does, that wins over the month-token sniffing below.
+  const tobiEntries = (options.tobiCommentary ?? []).flatMap((entry) => {
+    const raw = typeof entry === "string" ? { text: entry } : entry ?? { text: "" };
+    const placement =
+      typeof raw.placement === "string" && raw.placement !== "auto" ? raw.placement : "";
+    return String(raw.text ?? "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => ({ line, placement }));
+  });
+
 
   // Commentary is split into calendar-style month blocks so long text never runs
   // off the page: a line that opens with one of the window's months belongs to
@@ -1090,8 +1104,27 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   const monthCommentary = new Map<string, string[]>();
   const overallCommentary: string[] = [];
-  for (const raw of tobiLines) {
-    const line = raw.replace(/^[•\-\u2022\*]\s*/, "").trim();
+  const NOTE_FIELD_PLACEMENTS = new Set([
+    "min_stay_notes",
+    "promotions_notes",
+    "rate_override_notes",
+    "free_commentary",
+  ]);
+  for (const entry of tobiEntries) {
+    const line = entry.line.replace(/^[•\-\u2022\*]\s*/, "").trim();
+    // Comments the reviewer routed to a note field print inside that field,
+    // which the reviewer's own inputs already carry — never twice here.
+    if (NOTE_FIELD_PLACEMENTS.has(entry.placement)) continue;
+    if (entry.placement.startsWith("month:")) {
+      const key = entry.placement.slice(6);
+      const text = line.replace(/^([A-Za-z]{3,9}\s*'?\s*\d{0,4}|\d{4}-\d{2})\s*[:\u2013\u2014-]\s*/, "");
+      monthCommentary.set(key, [...(monthCommentary.get(key) ?? []), text.trim() || line]);
+      continue;
+    }
+    if (entry.placement === "overall") {
+      overallCommentary.push(line);
+      continue;
+    }
     const match = line.match(/^([A-Za-z]{3,9}\s*'?\s*\d{0,4}|\d{4}-\d{2})\s*[:\u2013\u2014-]\s*(.+)$/);
     const token = match ? match[1].replace(/\s+/g, " ").trim().toLowerCase() : "";
     const key = token ? monthByToken.get(token) : undefined;
@@ -1101,6 +1134,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       overallCommentary.push(line);
     }
   }
+
 
   // A line already printed verbatim in the reviewer's own notes is not repeated.
   const notesText = [

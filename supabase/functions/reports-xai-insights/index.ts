@@ -112,17 +112,22 @@ function bookingTrendsForPrompt(value: unknown): Record<string, unknown> | null 
   };
 }
 
-/** Keeps only reviewer-reworded selections when a fresh generation lands. */
+/**
+ * Keeps reviewer intent across a fresh generation: reworded text and any
+ * explicit placement the reviewer chose for a comment.
+ */
 function keepEditedSelections(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object") return {};
   const out: Record<string, unknown> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
-    if (raw && typeof raw === "object" && (raw as { edited?: unknown }).edited === true) {
-      out[key] = raw;
-    }
+    if (!raw || typeof raw !== "object") continue;
+    const entry = raw as { edited?: unknown; placement?: unknown };
+    const hasPlacement = typeof entry.placement === "string" && entry.placement !== "auto";
+    if (entry.edited === true || hasPlacement) out[key] = raw;
   }
   return out;
 }
+
 
 
 
