@@ -47,6 +47,17 @@ export interface PriorReportExtract {
   historicalRoomNights: Record<string, number>;
   historicalOccupancy: Record<string, number>;
   historicalAdr: Record<string, number>;
+  /**
+   * Named prior-year columns printed beside the OTB block ("2025 ACTUAL",
+   * "2024 ACTUAL"), keyed by year then `YYYY-MM` of that same year.
+   */
+  actualsByYear: Record<string, { revenue: Record<string, number>; roomNights: Record<string, number> }>;
+  /** Same-time-last-year column, keyed by the report's own months. */
+  stlyRevenue: Record<string, number>;
+  stlyRoomNights: Record<string, number>;
+  /** Budget column, keyed by the report's own months. */
+  budgetRevenue: Record<string, number>;
+  budgetRoomNights: Record<string, number>;
 
   /** Sheets kept verbatim for the next workbook (Online Res, Web Comparison). */
   carryForward: Record<string, Array<Array<string | number | null>>>;
