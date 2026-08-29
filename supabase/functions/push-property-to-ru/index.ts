@@ -52,6 +52,8 @@ import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
 import { collapseAvbRanges, changeoverIsUniform } from '../_shared/ruAvbCollapse.ts';
 import { parseRuAvailabilityDays } from '../_shared/ruAvailabilityParsing.ts';
+import { loadReservationWriteHolds } from '../_shared/ruReservationHold.ts';
+
 import { invokeRuWithRetry } from '../_shared/ruInvokeRetry.ts';
 
 /**
@@ -2296,7 +2298,7 @@ async function loadBookingBlocks(
     }
   }
 
-  for (const b of sold) {
+  for (const b of publishable) {
     const stays: { from: string; to: string }[] = [];
     const rooms = Array.isArray(b.rooms) ? b.rooms : [];
 
