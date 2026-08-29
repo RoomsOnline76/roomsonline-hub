@@ -324,6 +324,12 @@ interface OtbResult {
   dinner: Record<string, number>;
   room0: Record<string, number>;
   compRns: Record<string, number>;
+  /** `{ "2024": { revenue, roomNights } }` from "<year> ACTUAL" columns. */
+  actualsByYear: Record<string, { revenue: Record<string, number>; roomNights: Record<string, number> }>;
+  stlyRevenue: Record<string, number>;
+  stlyNights: Record<string, number>;
+  budgetRevenue: Record<string, number>;
+  budgetNights: Record<string, number>;
   warnings: string[];
 }
 
