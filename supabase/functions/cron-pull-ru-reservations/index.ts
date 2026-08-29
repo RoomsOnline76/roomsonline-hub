@@ -443,18 +443,24 @@ Deno.serve(async (req) => {
         if (leadBlocks.length === 0) leadBlocks = extractAllBlocks(leadsXml, 'Reservation');
         summary.leads_found += leadBlocks.length;
         console.log(`[cron-pull-ru] ${scope.label}: found ${leadBlocks.length} lead(s)`);
+        // Cadence evidence so the next run can honour the per-account leads floor.
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          action: 'pull_leads',
+          success: true,
+          elapsed_ms: Date.now() - cronStartedAt,
+          details: {
+            scope: 'lead_poll',
+            ru_owner_id: scope.ownerId,
+            account: scope.label,
+            leads_found: leadBlocks.length,
+          },
+        }).then(() => {}, () => {});
         if (leadBlocks.length === 0) {
-          // Keep the raw answer so an empty result can be told apart from a parse miss.
+          // Console only — an empty answer every run used to file a ru_notifications row per account.
           console.log(`[cron-pull-ru] ${scope.label} leads raw answer: ${leadsXml.slice(0, 800)}`);
-          await supabase.from('ru_notifications').insert({
-            event_type: 'poll_leads_empty',
-            ru_reservation_id: null,
-            ru_property_id: null,
-            property_id: null,
-            raw_xml: leadsXml.slice(0, 20000),
-            processed: true,
-          }).then(() => {}, () => {});
         }
+
 
         for (const leadBlock of leadBlocks) {
           try {
