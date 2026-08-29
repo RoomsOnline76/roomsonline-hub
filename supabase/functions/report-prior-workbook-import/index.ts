@@ -488,10 +488,15 @@ Deno.serve(async (req) => {
         carry_forward: extract.carryForward,
         // Owner's-report packs also print budget, provisional and forward-year
         // figures; they ride along so the workbook builder can reproduce them.
-        source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+        source_kind: isComparisonPdf ? "comparison_pdf" : isOwnerPdf ? "owner_report_pdf" : "workbook",
         fiscal_year_label: owner?.currentYear?.label ?? null,
         current_otb_revenue: extract.currentOtbRevenue,
-        current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+        current_otb_occupancy: extract.currentOtbOccupancy ?? owner?.currentYear?.occupancyBob ?? {},
+        // Printed comparison grids also state ADR, so nights need not be read
+        // back from occupancy — they are revenue ÷ ADR.
+        current_otb_adr: extract.currentOtbAdr ?? {},
+        current_room_nights: extract.currentRoomNights ?? {},
+
         provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
         combined_revenue: owner?.currentYear?.combined ?? {},
         forward_year: owner?.forwardYear
