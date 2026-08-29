@@ -270,6 +270,8 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     comparisons.forEach((comparison, j) => {
       bodyCell(sheet, row, 8 + j, number(comparison.adr, key) ?? 0, MONEY_DEC);
     });
+  });
+
 
   const avrFin = avrFirst + months.length;
   finRow("Fin Year", avrFin, [
