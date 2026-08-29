@@ -212,7 +212,9 @@ const RESERVATION_IRRELEVANT: ChannelBookingChange[] = ['notes', 'deposit'];
  * a payment leaves the sold nights exactly as they were, so pushing availability and prices for
  * them only burns the owner's rate window — and it was doing so several times per stay.
  */
-const ARI_IRRELEVANT = new Set<ChannelBookingChange>(['notes', 'deposit', 'payment', 'status']);
+// `pax` and `price` are reservation fields — they never change units-to-sell, so they owe a
+// reservation verb but zero ARI.
+const ARI_IRRELEVANT = new Set<ChannelBookingChange>(['notes', 'deposit', 'payment', 'status', 'pax', 'price']);
 
 /**
  * Every unit the stay occupies — the booking's own unit, the unit it came from (a move must reopen
