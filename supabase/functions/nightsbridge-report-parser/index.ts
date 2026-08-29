@@ -17,6 +17,13 @@ import {
   splitByRouting,
   type RoutableRow,
 } from "../_shared/nbProfile.ts";
+import {
+  fingerprintMonth,
+  fingerprintRow,
+  recordSiblingDroppedRows,
+  splitBySiblingClaims,
+  type SiblingDedupeOutcome,
+} from "../_shared/nbSiblingDedupe.ts";
 import { resolveAdditionalInputs } from "../_shared/reportAdditionalInputs.ts";
 import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
