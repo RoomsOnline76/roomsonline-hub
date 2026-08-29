@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DownloadBar } from "@/components/reports/DownloadBar";
 import { DraftReportPreview } from "@/components/reports/DraftReportPreview";
 import { RunEventTimeline } from "@/components/reports/RunEventTimeline";
+import { useReportPage2 } from "@/hooks/useReportPage2";
 import { reportsPath } from "@/lib/config";
 import type { RunBuilderContext } from "./types";
 
