@@ -246,6 +246,7 @@ export default function ReportsPropertySettings() {
         specialReportSet: specialSet === "none" ? null : specialSet,
         zeroRevenueKeepPatterns: splitPatterns(keepPatterns),
         rowExcludePatterns: splitPatterns(excludePatterns),
+        nbProfile,
       });
       toast.success("Report settings saved");
     } catch (error) {
