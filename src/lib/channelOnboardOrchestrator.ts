@@ -689,8 +689,14 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
     // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
-    // rather than authenticating as a child we hold no credential for.
-    if (!binding.keys_stored && ctx.keyProvisioning?.source !== "minted" && !ctx.keysProvenInRun) {
+    // rather than authenticating as a child we hold no credential for. A password-verified
+    // account already proved itself in this run, so it never lands here.
+    if (
+      !binding.keys_stored
+      && ctx.keyProvisioning?.source !== "minted"
+      && ctx.keyProvisioning?.source !== "password_verified"
+      && !ctx.keysProvenInRun
+    ) {
       return {
         id: "verify_keys",
         outcome: "blocked",
