@@ -28,6 +28,7 @@ import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
 import { monthsInWindow, windowMonths } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
+import { parseReportProfile } from "@/lib/reportProfile";
 import {
   deriveStageCompletion,
   nextStage,
