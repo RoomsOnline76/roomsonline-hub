@@ -200,7 +200,11 @@ Deno.serve(async (req) => {
       ascending: true,
     });
     if (filesError) return json({ error: filesError.message }, 500);
-    if (!files?.length) {
+    // Clients whose PMS export is unavailable (Devonvale, Hotel Krige, Les
+    // Chambres) build the grid from the imported prior report instead, so an
+    // empty period-export list is legitimate for those runs.
+    const baselineOnly = !onlyFileId && !files?.length && Boolean(run.imported_baseline);
+    if (!files?.length && !baselineOnly) {
       return json(
         {
           error: onlyFileId
