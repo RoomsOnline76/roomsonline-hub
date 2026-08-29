@@ -159,8 +159,20 @@ function liveBinding(ctx: RunContext, snapshot: OnboardGateSnapshot): OnboardGat
   return ctx.binding ?? snapshot.binding;
 }
 
-/** How the sub-account's key pair was resolved during account provisioning. */
-export type KeySource = "minted" | "existing" | "deferred" | "blocked" | "manual" | "";
+/**
+ * How the sub-account's credential was resolved during account provisioning.
+ * `password_verified` is the normal path for a freshly created sub-account: the channel no longer
+ * lets us mint its first key pair, so the login/password created in the same run IS the credential,
+ * proven by a single listings probe. A pasted key pair still wins whenever one exists.
+ */
+export type KeySource =
+  | "minted"
+  | "existing"
+  | "password_verified"
+  | "deferred"
+  | "blocked"
+  | "manual"
+  | "";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
