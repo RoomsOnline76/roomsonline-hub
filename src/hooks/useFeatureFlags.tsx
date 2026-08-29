@@ -57,17 +57,36 @@ function readCachedFlags(): FeatureFlags | undefined {
 }
 
 
+// A cold edge function can take several seconds; never let it hold the UI
+// (notably the sign-in screen) hostage. After this budget we resolve with the
+// cached/default flags and let a later refetch pick up the real values.
+const FLAGS_FETCH_TIMEOUT_MS = 3500;
+
 export function useFeatureFlags() {
   return useQuery({
     queryKey: ["feature-flags"],
     queryFn: async (): Promise<FeatureFlags> => {
       try {
-        const { data, error } = await supabase.functions.invoke('get-feature-flags');
-        
+        const timeout = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), FLAGS_FETCH_TIMEOUT_MS),
+        );
+        const result = await Promise.race([
+          supabase.functions.invoke('get-feature-flags'),
+          timeout,
+        ]);
+
+        if (!result) {
+          console.warn('Feature flags slow to respond; using cached defaults');
+          return readCachedFlags() ?? DEFAULT_FLAGS;
+        }
+
+        const { data, error } = result;
+
         if (error || !data?.success) {
           console.warn('Feature flags unavailable; using cached defaults');
           return readCachedFlags() ?? DEFAULT_FLAGS;
         }
+
         
         const flags = { ...DEFAULT_FLAGS, ...data.data };
         try {
