@@ -81,12 +81,14 @@ export function resolveAdditionalInputs(
     const calculated = asMap(derived?.[field]);
     const reviewer = asMap(inputs?.[field]);
     const flags = asFlags(inputs?.overrides?.[field]);
+    // Legacy runs carry reviewer values with no flag map at all. Until the card
+    // round-trips and records flags, every stored reviewer value counts as an
+    // override — otherwise a re-process would replace it with the calculated 0.
+    const legacy = Object.keys(flags).length === 0;
     const merged: MonthlyMap = { ...calculated };
 
     for (const [month, value] of Object.entries(reviewer)) {
-      // Legacy runs carry reviewer values with no flags and no calculated block:
-      // keep honouring them so existing reports do not change.
-      if (flags[month] || !(month in calculated)) merged[month] = value;
+      if (flags[month] || legacy) merged[month] = value;
     }
     resolved[field] = merged;
   }
