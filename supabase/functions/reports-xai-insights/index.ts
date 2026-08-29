@@ -13,6 +13,12 @@ import { aiChat, modelForTask, AI_TEMPERATURE } from "../_shared/aiModels.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { reportMonthAnchor, windowMonths } from "../_shared/reportWindow.ts";
 import { runConsultantPass } from "../_shared/reportConsultant.ts";
+import {
+  generatePage2,
+  page2FromModel,
+  parsePage2,
+  serialisePage2,
+} from "../_shared/reportPage2.ts";
 
 
 const MAX_SUGGESTION_CHARS = 480;
@@ -30,7 +36,9 @@ const json = (body: unknown, status = 200) =>
 
 const BodySchema = z.object({
   run_id: z.string().uuid(),
-  action: z.enum(["generate"]).default("generate"),
+  action: z.enum(["generate", "generate_page2"]).default("generate"),
+  /** Rewrite the assessment even where the reviewer has edited it. */
+  force: z.boolean().optional().default(false),
 });
 
 const numberMap = (value: unknown): Record<string, number> => {
@@ -318,7 +326,7 @@ Deno.serve(async (req) => {
     // kept verbatim and only the untouched replies are replaced.
     const { data: priorInsights } = await admin
       .from("report_insights")
-      .select("narrative_final, selections")
+      .select("narrative_final, selections, page2")
       .eq("run_id", runId)
       .maybeSingle();
 
@@ -428,6 +436,37 @@ Deno.serve(async (req) => {
         free_commentary: inputs?.free_commentary ?? "",
       },
     };
+
+    /* ── Page 2: TOBI Assessment ─────────────────────────────────
+       An opt-in owner-facing read printed after the cover. It shares the same
+       verified payload, so no figure can drift from the grids. Reviewer-edited
+       wording is deliberate and is never overwritten by a regeneration. */
+    if (parsed.data.action === "generate_page2") {
+      const existing = parsePage2((priorInsights as { page2?: unknown } | null)?.page2 ?? null);
+      if (existing.edited && !parsed.data.force) {
+        return json({ success: true, page2: serialisePage2(existing), kept_edits: true });
+      }
+      const pass = await generatePage2(userPayload, { label: "revenue-report-page2" });
+      if (!pass.ok || !pass.data) {
+        return json({ error: pass.error ?? "TOBI could not write the assessment." }, pass.status);
+      }
+      const doc = page2FromModel(pass.data);
+      const { error: page2Error } = await admin
+        .from("report_insights")
+        .upsert({ run_id: runId, page2: serialisePage2(doc) }, { onConflict: "run_id" });
+      if (page2Error) return json({ error: page2Error.message }, 500);
+      await logRunEvent(
+        admin as never,
+        runId,
+        "page2_generated",
+        `TOBI Assessment written (${pass.provider === "xai" ? "consultant brain" : "standby brain"}).`,
+        { provider: pass.provider },
+        userData.user.id,
+      );
+      return json({ success: true, page2: serialisePage2(doc), provider: pass.provider });
+    }
+
+
 
 
     const slides = await loadSlideImages(admin, runId, run.page_order);

@@ -16,6 +16,12 @@ import {
 } from "./revenueReportCharts.ts";
 import { monthsInWindow, windowMonths } from "./reportWindow.ts";
 import {
+  PAGE2_CSS,
+  PAGE2_PAGE_TITLE,
+  renderPage2Body,
+  type Page2Document,
+} from "./reportPage2.ts";
+import {
   expandLegacyMediaKeys,
   mediaImagePageKey,
   mediaPageKey,
@@ -132,6 +138,11 @@ export interface DraftOptions {
   sourceType?: string | null;
   /** Printed window shape from the property's report profile (length / start). */
   windowOptions?: { months?: number | null; startOffset?: number | null };
+  /**
+   * Opt-in "TOBI Assessment" page. When supplied with content it always prints
+   * as page 2, straight after the cover, and cannot be reordered.
+   */
+  assessment?: Page2Document | null;
 }
 
 
@@ -1438,15 +1449,33 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     .map((key) => byKey.get(key)!)
     .filter(Boolean);
 
-  const pagesHtml = pageDefs
-    .map((def, index) => {
-      const page = chrome(def.title, index + 2);
-      return `<section class="page">
+  // The assessment is locked to page 2 when it carries content: it prepares the
+  // owner for every page after it, so it never joins the reorderable set.
+  const assessmentBody = options.assessment ? renderPage2Body(options.assessment) : "";
+  const assessmentPage = assessmentBody
+    ? (() => {
+        const page = chrome(PAGE2_PAGE_TITLE, 2);
+        return `<section class="page" data-page="tobi_assessment">
+  ${page.header}
+  <div class="body">${assessmentBody}</div>
+  ${page.footer}
+</section>`;
+      })()
+    : "";
+  const pageOffset = assessmentBody ? 3 : 2;
+
+  const pagesHtml = [
+    assessmentPage,
+    ...pageDefs.map((def, index) => {
+      const page = chrome(def.title, index + pageOffset);
+      return `<section class="page" data-page="${esc(def.key)}">
   ${page.header}
   <div class="body">${def.body}</div>
   ${page.footer}
 </section>`;
-    })
+    }),
+  ]
+    .filter(Boolean)
     .join("\n\n");
 
 
@@ -1752,6 +1781,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     }
   }
 
+  ${PAGE2_CSS}
 </style>
 </head>
 <body>

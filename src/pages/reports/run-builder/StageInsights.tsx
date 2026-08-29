@@ -1,5 +1,6 @@
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
+import { Page2Card } from "@/components/reports/page2/Page2Card";
 import { Card, CardContent } from "@/components/ui/card";
 import type { RunBuilderContext } from "./types";
 
@@ -23,6 +24,8 @@ export function StageInsights({ ctx }: { ctx: RunBuilderContext }) {
   return (
     <div className="space-y-4">
       <AiInsightsPanel runId={ctx.runId} months={snapshot.months} />
+      <Page2Card runId={ctx.runId} propertyId={ctx.run.propertyId} />
+
       <ManualInputsCard
         runId={ctx.runId}
         sourceType={ctx.run.sourceType}

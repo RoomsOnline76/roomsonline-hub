@@ -5,6 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
 import { resolveComparisons } from "../_shared/reportComparisons.ts";
 import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfile.ts";
+import { parsePage2 } from "../_shared/reportPage2.ts";
 import { windowMonths } from "../_shared/reportWindow.ts";
 import { loadStlySeries } from "../_shared/reportStly.ts";
 import {
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, report_month, previous_run_id, imported_baseline, title, cadence, source_type, page_order, properties(name)",
+        "id, property_id, as_of_date, report_month, previous_run_id, imported_baseline, title, cadence, source_type, page_order, page2_enabled, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
@@ -116,7 +117,7 @@ Deno.serve(async (req) => {
     // TOBI commentary the reviewer ticked for inclusion (edited wording wins).
     const { data: insightRow } = await admin
       .from("report_insights")
-      .select("narrative, narrative_final, include_narrative, selections")
+      .select("narrative, narrative_final, include_narrative, selections, page2")
       .eq("run_id", runId)
       .maybeSingle();
 
@@ -312,6 +313,11 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
+      // Page 2 only prints when the reviewer opted in for this run.
+      assessment:
+        (run as { page2_enabled?: boolean }).page2_enabled === true
+          ? parsePage2((insightRow as { page2?: unknown } | null)?.page2 ?? null)
+          : null,
       windowOptions,
       comparisons: resolveComparisons(
         (settings as { report_profile?: unknown } | null)?.report_profile ?? null,

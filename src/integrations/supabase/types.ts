@@ -8495,6 +8495,7 @@ export type Database = {
           include_narrative: boolean
           narrative: string | null
           narrative_final: string | null
+          page2: Json
           provider: string | null
           run_id: string
           selections: Json
@@ -8515,6 +8516,7 @@ export type Database = {
           include_narrative?: boolean
           narrative?: string | null
           narrative_final?: string | null
+          page2?: Json
           provider?: string | null
           run_id: string
           selections?: Json
@@ -8535,6 +8537,7 @@ export type Database = {
           include_narrative?: boolean
           narrative?: string | null
           narrative_final?: string | null
+          page2?: Json
           provider?: string | null
           run_id?: string
           selections?: Json
@@ -8754,6 +8757,7 @@ export type Database = {
           id: string
           imported_baseline: Json | null
           page_order: Json | null
+          page2_enabled: boolean
           previous_run_id: string | null
           prior_report_declined: boolean
           processing_note: string | null
@@ -8781,6 +8785,7 @@ export type Database = {
           id?: string
           imported_baseline?: Json | null
           page_order?: Json | null
+          page2_enabled?: boolean
           previous_run_id?: string | null
           prior_report_declined?: boolean
           processing_note?: string | null
@@ -8808,6 +8813,7 @@ export type Database = {
           id?: string
           imported_baseline?: Json | null
           page_order?: Json | null
+          page2_enabled?: boolean
           previous_run_id?: string | null
           prior_report_declined?: boolean
           processing_note?: string | null

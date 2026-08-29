@@ -26,6 +26,8 @@ interface SlideOrganizerProps {
   legacyExpansions?: Record<string, string[]>;
   /** Property the run belongs to, so the layout carries over between runs. */
   propertyId?: string;
+  /** Page 2 (TOBI's Assessment) is opted in — it prints locked after the cover. */
+  assessmentEnabled?: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export function SlideOrganizer({
   mediaPages,
   legacyExpansions,
   propertyId,
+  assessmentEnabled = false,
 }: SlideOrganizerProps) {
   const { pages, movePage, reorderTo, toggleHidden, reset, isSaving } = useReportPageOrder(
     runId,
@@ -63,7 +66,7 @@ export function SlideOrganizer({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">{visible + 1} pages</Badge>
+                <Badge variant="secondary">{visible + 1 + (assessmentEnabled ? 1 : 0)} pages</Badge>
                 <ChevronDown
                   className={`h-4 w-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
                 />
@@ -83,6 +86,21 @@ export function SlideOrganizer({
                 locked
               </Badge>
             </div>
+
+            {assessmentEnabled ? (
+              <div className="flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="w-6 text-center text-xs font-medium text-muted-foreground">2</span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">TOBI's Assessment</p>
+                  <p className="text-xs text-muted-foreground">
+                    Headline, primer, highlights, warnings, red flags
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px]">
+                  locked
+                </Badge>
+              </div>
+            ) : null}
 
             <div className="space-y-2">
               {pages.map((page, index) => (
@@ -112,7 +130,11 @@ export function SlideOrganizer({
                 >
                   <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
                   <span className="w-5 text-center text-xs font-medium text-muted-foreground">
-                    {page.hidden ? "—" : pages.filter((p, i) => !p.hidden && i <= index).length + 1}
+                    {page.hidden
+                      ? "—"
+                      : pages.filter((p, i) => !p.hidden && i <= index).length +
+                        1 +
+                        (assessmentEnabled ? 1 : 0)}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{page.title}</p>

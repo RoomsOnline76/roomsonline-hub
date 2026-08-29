@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useReportMedia } from "@/hooks/useReportMedia";
+import { useReportPage2 } from "@/hooks/useReportPage2";
 import { mediaImagePageKey, mediaPageKey, type ReportPageDefinition } from "@/lib/reportPages";
 import { SlideOrganizer } from "./SlideOrganizer";
 
@@ -81,12 +82,16 @@ export function SlideOrganizerCard({
     return { mediaPages: [...sectionPages, ...perImage], legacyExpansions: expansions };
   }, [media.slots]);
 
+  // Page 2 shows as a locked row when the reviewer opted in.
+  const { enabled: page2Enabled } = useReportPage2(runId, propertyId);
+
   return (
     <SlideOrganizer
       runId={runId}
       mediaPages={mediaPages}
       legacyExpansions={legacyExpansions}
       propertyId={propertyId}
+      assessmentEnabled={page2Enabled}
     />
   );
 }
