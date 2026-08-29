@@ -3,6 +3,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
+import { resolveComparisons } from "../_shared/reportComparisons.ts";
 import {
   buildDraftReport,
   type DraftSnapshot,
@@ -13,7 +14,6 @@ import {
   isBuiltInSlotKey,
   slotsForSource,
 } from "../_shared/reportMediaSlots.ts";
-import { resolveComparisons } from "../_shared/reportComparisons.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 
 const BUCKET = "revenue-reports";
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, report_month, previous_run_id, imported_baseline, title, cadence, source_type, page_order, properties(name)",
+        "id, property_id, as_of_date, report_month, previous_run_id, title, cadence, source_type, page_order, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
@@ -250,23 +250,7 @@ Deno.serve(async (req) => {
       booking_trends: (snapshot.booking_trends ?? null) as DraftSnapshot["booking_trends"],
     };
 
-    // Profile-driven extra comparison columns — identical to the workbook's.
-    const importedBaseline = (run as unknown as { imported_baseline?: unknown }).imported_baseline ?? null;
-    const { comparisons } = resolveComparisons({
-      months: draftSnapshot.months,
-      asOfDate: String(run.as_of_date).slice(0, 10),
-      roomCount: draftSnapshot.room_count,
-      capacityDays: draftSnapshot.capacity_days,
-      lastYearActual: draftSnapshot.last_year_actual,
-      lastYearRoomNights: draftSnapshot.last_year_room_nights,
-      lastYearOccupancy: {},
-      reportProfile: (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
-      historicalBaseline: (settings as { historical_baseline?: unknown } | null)?.historical_baseline ?? null,
-      importedBaseline,
-    });
-
     const draft = buildDraftReport({
-      comparisons,
       propertyName,
       asOfDate: String(run.as_of_date).slice(0, 10),
       reportMonth: run.report_month ? String(run.report_month).slice(0, 7) : null,
@@ -292,6 +276,18 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
+      comparisons: resolveComparisons(
+        (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+        {
+          months: draftSnapshot.months,
+          actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
+          stly: (snapshot as { stly?: unknown }).stly,
+          historicalBaseline:
+            (settings as { historical_baseline?: unknown } | null)?.historical_baseline ?? null,
+          capacityDays: draftSnapshot.capacity_days,
+          roomCount: draftSnapshot.room_count,
+        },
+      ),
       pageOrder: savedPageOrder,
       hiddenPages: hiddenPages,
     });

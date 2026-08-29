@@ -40,8 +40,23 @@ export type CarryForwardSheets = Record<string, Array<Array<string | number | nu
  * derive itself — targets (and the uplift basis they were built on), last-year
  * and prior-review occupancy, and the extra sheets the team fills in by hand.
  */
+/**
+ * One extra comparison column set resolved from the property's report profile
+ * (an older calendar year, same-time-last-year, or the client's budget).
+ */
+export interface WorkbookComparison {
+  key: string;
+  label: string;
+  revenue: Record<string, number>;
+  room_nights: Record<string, number>;
+  occupancy: Record<string, number>;
+  adr: Record<string, number>;
+}
+
 export interface WorkbookExtras {
   sourceType: string;
+  /** Profile-driven extra columns, printed after the standard block. */
+  comparisons: WorkbookComparison[];
   /** Uplift recovered from the seed workbook's Target formula, e.g. 0.1. */
   targetUplift: number | null;
   targets: Record<string, number>;
@@ -50,22 +65,6 @@ export interface WorkbookExtras {
   historicalOccupancy: Record<string, number>;
   carryForward: CarryForwardSheets;
   cadence?: string | null;
-  /**
-   * Extra month-aligned comparison column sets driven by the property's report
-   * profile (calendar-year actuals, same-time-last-year). Empty for properties
-   * that print the standard column order.
-   */
-  comparisons: WorkbookComparison[];
-}
-
-/** One printable comparison column set, keyed on the run's own month keys. */
-export interface WorkbookComparison {
-  key: string;
-  label: string;
-  revenue: Record<string, number>;
-  room_nights: Record<string, number>;
-  occupancy: Record<string, number>;
-  adr: Record<string, number>;
 }
 
 export interface WorkbookOptions {
@@ -131,7 +130,7 @@ export const normaliseExtras = (extras?: Partial<WorkbookExtras>): WorkbookExtra
   historicalOccupancy: extras?.historicalOccupancy ?? {},
   carryForward: extras?.carryForward ?? {},
   cadence: extras?.cadence ?? null,
-  comparisons: Array.isArray(extras?.comparisons) ? extras.comparisons : [],
+  comparisons: extras?.comparisons ?? [],
 });
 
 export type Sheet = ExcelJS.Worksheet;

@@ -8,7 +8,7 @@
  * engine, snapshot model, Excel builder, AI insights — is source agnostic.
  */
 
-export type ReportSourceKey = "nightsbridge" | "opera" | "protel";
+export type ReportSourceKey = "nightsbridge" | "opera" | "protel" | "roomraccoon";
 
 /** Readiness of the adapter. `planned` adapters are visible but cannot process. */
 export type ReportSourceStatus = "ready" | "planned";

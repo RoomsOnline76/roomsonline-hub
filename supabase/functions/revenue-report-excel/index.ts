@@ -7,8 +7,8 @@ import {
   type CarryForwardSheets,
   type HistoricalBaseline,
 } from "../_shared/revenueReportWorkbook.ts";
-import { resolveComparisons } from "../_shared/reportComparisons.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { resolveComparisons } from "../_shared/reportComparisons.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -122,30 +122,29 @@ Deno.serve(async (req) => {
       return out;
     })();
 
-    const months = monthsInWindow(
+    const propertyName =
+      (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
+      "Property";
+
+    const windowMonths = monthsInWindow(
       Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
       String(run.as_of_date).slice(0, 10),
       run.report_month ? String(run.report_month).slice(0, 7) : null,
     );
-    const roomCount = Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1;
-    // Comparison years / STLY come from the property's report profile, so the
-    // workbook and the draft pack print the same extra columns.
-    const { comparisons } = resolveComparisons({
-      months,
-      asOfDate: String(run.as_of_date).slice(0, 10),
-      roomCount,
-      capacityDays: numberMap(snapshot.capacity_days),
-      lastYearActual: numberMap(snapshot.last_year_actual),
-      lastYearRoomNights: numberMap(snapshot.last_year_room_nights),
-      lastYearOccupancy: numberMap(imported?.last_year_occupancy),
-      reportProfile: (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
-      historicalBaseline: settings?.historical_baseline ?? null,
-      importedBaseline: run.imported_baseline ?? null,
-    });
 
-    const propertyName =
-      (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
-      "Property";
+    // Extra comparison columns this client's profile asks for.
+    const comparisons = resolveComparisons(
+      (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+      {
+        months: windowMonths,
+        actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
+        stly: (snapshot as { stly?: unknown }).stly,
+        importedBaseline: imported,
+        historicalBaseline: settings?.historical_baseline ?? null,
+        capacityDays: numberMap(snapshot.capacity_days),
+        roomCount: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
+      },
+    );
 
     const bytes = await buildRevenueWorkbook({
       propertyName,
@@ -154,7 +153,7 @@ Deno.serve(async (req) => {
       brandPrimary: settings?.brand_primary ?? null,
       historicalBaseline: (settings?.historical_baseline ?? {}) as HistoricalBaseline,
       snapshot: {
-        months,
+        months: windowMonths,
         otb_revenue: numberMap(snapshot.otb_revenue),
         previous_otb_revenue: numberMap(snapshot.previous_otb_revenue),
         last_year_actual: numberMap(snapshot.last_year_actual),
@@ -162,7 +161,7 @@ Deno.serve(async (req) => {
         previous_room_nights: numberMap(snapshot.previous_room_nights),
         last_year_room_nights: numberMap(snapshot.last_year_room_nights),
         capacity_days: numberMap(snapshot.capacity_days),
-        room_count: roomCount,
+        room_count: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
       },
       inputs: {
         dinner_by_month: numberMap(inputs?.dinner_by_month),

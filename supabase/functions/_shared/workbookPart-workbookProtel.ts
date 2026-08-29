@@ -40,12 +40,6 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
   const extras = normaliseExtras(options.extras);
   const uplift = extras.targetUplift ?? DEFAULT_UPLIFT;
   const upliftFactor = 1 + uplift;
-  // Profile-driven extra column sets (e.g. 2025 / 2024 actuals, STLY). Each one
-  // takes a value column plus a "%" variance column against current OTB, so the
-  // legend and commentary blocks move right out of their way.
-  const comparisons = extras.comparisons ?? [];
-  const compWidth = comparisons.length * 2;
-  const sideCol = compWidth > 0 ? 14 + compWidth : 12;
 
   const workbook = newWorkbook();
   const asAtCurrent = `as @ ${formatDate(options.asOfDate)}`;
@@ -90,10 +84,17 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     "Actual vrs LY",
     "%",
   ].forEach((text, i) => headerCell(sheet, revHeader, i + 2, text, accent));
+
+  // Profile-driven extra columns (older years, STLY, budget) sit after the
+  // standard block so the client's familiar layout is untouched.
+  const comparisons = extras.comparisons ?? [];
   comparisons.forEach((comparison, j) => {
     headerCell(sheet, revHeader, 13 + j * 2, comparison.label, accent);
-    headerCell(sheet, revHeader, 14 + j * 2, "%", accent);
+    headerCell(sheet, revHeader, 14 + j * 2, `OTB vrs ${comparison.label}`, accent);
   });
+  /** First free column to the right of the widest block. */
+  const sideCol = 13 + comparisons.length * 2;
+
 
   months.forEach((key, i) => {
     const row = revFirst + i;
@@ -126,8 +127,8 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
         sheet,
         row,
         valueCol + 1,
-        { formula: `IF(N(${letter}${row})=0,"",(B${row}-${letter}${row})/${letter}${row})` },
-        PERCENT,
+        { formula: `IF(N(${letter}${row})=0,"",B${row}-${letter}${row})` },
+        MONEY,
       );
     });
   });
@@ -146,18 +147,6 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     [10, `SUM(J${revFirst}:J${revLast})`, MONEY],
     [11, `B${revFin}-D${revFin}`, MONEY],
     [12, `IF(B${revFin}=0,"",(B${revFin}-D${revFin})/B${revFin})`, PERCENT],
-    ...comparisons.flatMap((_, j): Array<[number, string, string]> => {
-      const valueCol = 13 + j * 2;
-      const letter = colLetter(valueCol);
-      return [
-        [valueCol, `SUM(${letter}${revFirst}:${letter}${revLast})`, MONEY],
-        [
-          valueCol + 1,
-          `IF(N(${letter}${revFin})=0,"",(B${revFin}-${letter}${revFin})/${letter}${revFin})`,
-          PERCENT,
-        ],
-      ];
-    }),
   ]);
 
   /* ── Room Nights (nights beside Occ %) ───────────────────── */
@@ -177,7 +166,7 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     "Prev Occ %",
   ].forEach((text, i) => headerCell(sheet, rnHeader, i + 2, text, accent));
   comparisons.forEach((comparison, j) => {
-    headerCell(sheet, rnHeader, 11 + j * 2, comparison.label, accent);
+    headerCell(sheet, rnHeader, 11 + j * 2, `${comparison.label} RNs`, accent);
     headerCell(sheet, rnHeader, 12 + j * 2, `${comparison.label} Occ %`, accent);
   });
 
@@ -232,10 +221,6 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     [7, `IF(B${rnFin}=0,"",(B${rnFin}-D${rnFin})/B${rnFin})`, PERCENT],
     [8, `SUM(H${rnFirst}:H${rnLast})`, INTEGER],
     [9, `SUM(I${rnFirst}:I${rnLast})`, INTEGER],
-    ...comparisons.map((_, j): [number, string, string] => {
-      const letter = colLetter(11 + j * 2);
-      return [11 + j * 2, `SUM(${letter}${rnFirst}:${letter}${rnLast})`, INTEGER];
-    }),
   ]);
   capacityLegend(sheet, rnFirst, sideCol, rooms);
 
@@ -253,7 +238,7 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     asAtPrevious,
   ].forEach((text, i) => headerCell(sheet, avrHeader, i + 2, text, accent));
   comparisons.forEach((comparison, j) => {
-    headerCell(sheet, avrHeader, 8 + j, comparison.label, accent);
+    headerCell(sheet, avrHeader, 8 + j, `${comparison.label} AVR`, accent);
   });
 
   months.forEach((key, i) => {
@@ -271,7 +256,6 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
       bodyCell(sheet, row, 8 + j, number(comparison.adr, key) ?? 0, MONEY_DEC);
     });
   });
-
 
   const avrFin = avrFirst + months.length;
   finRow("Fin Year", avrFin, [

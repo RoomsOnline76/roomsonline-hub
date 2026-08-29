@@ -24,8 +24,6 @@ import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
 import { EMPTY_NB_PROFILE, type NbProfile } from "@/lib/nbProfile";
 import { NbProfileCard } from "@/components/reports/NbProfileCard";
-import { EMPTY_REPORT_PROFILE, type ReportProfile } from "@/lib/reportProfile";
-import { ReportProfileCard } from "@/components/reports/ReportProfileCard";
 import {
   ROOM_COUNT_SOURCE_LABEL,
   useReportPropertyBrand,
@@ -89,7 +87,6 @@ export default function ReportsPropertySettings() {
   const [keepPatterns, setKeepPatterns] = useState("");
   const [excludePatterns, setExcludePatterns] = useState("");
   const [nbProfile, setNbProfile] = useState<NbProfile>(EMPTY_NB_PROFILE);
-  const [reportProfile, setReportProfile] = useState<ReportProfile>(EMPTY_REPORT_PROFILE);
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -116,7 +113,6 @@ export default function ReportsPropertySettings() {
     setKeepPatterns((settings.zeroRevenueKeepPatterns ?? []).join(", "));
     setExcludePatterns((settings.rowExcludePatterns ?? []).join(", "));
     setNbProfile(settings.nbProfile ?? EMPTY_NB_PROFILE);
-    setReportProfile(settings.reportProfile ?? EMPTY_REPORT_PROFILE);
 
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
@@ -256,7 +252,6 @@ export default function ReportsPropertySettings() {
         zeroRevenueKeepPatterns: splitPatterns(keepPatterns),
         rowExcludePatterns: splitPatterns(excludePatterns),
         nbProfile,
-        reportProfile,
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -660,8 +655,6 @@ export default function ReportsPropertySettings() {
               </p>
             </div>
           </div>
-
-          <ReportProfileCard profile={reportProfile} onChange={setReportProfile} />
 
           {sourceType === "nightsbridge" && (
             <NbProfileCard

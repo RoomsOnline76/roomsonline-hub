@@ -176,12 +176,11 @@ export function AiInsightsPanel({ runId }: Props) {
 
   /** Drops the reviewer's wording so TOBI's own text shows again. */
   const revertSelection = useCallback(
-    (key: string, originalText: string) => {
+    (key: string) => {
       const next = { ...selections } as Record<string, InsightSelection>;
       const include = next[key]?.include === true;
       delete next[key];
-      // A ticked comment must keep TOBI's own wording, otherwise the report drops it.
-      if (include) next[key] = { include: true, text: originalText };
+      if (include) next[key] = { include: true, text: "" };
       saveReview.mutate({ selections: next });
     },
     [selections, saveReview],
@@ -427,7 +426,7 @@ export function AiInsightsPanel({ runId }: Props) {
                         note={flag.note ?? null}
                         editable
                         edited={selections[flag.id]?.edited === true}
-                        onRevert={() => revertSelection(flag.id, flag.factText)}
+                        onRevert={() => revertSelection(flag.id)}
                         checked={selections[flag.id]?.include === true}
                         onToggle={(next) => toggleSelection(flag.id, flag.factText, next)}
                         onEdit={(value) =>
@@ -447,12 +446,7 @@ export function AiInsightsPanel({ runId }: Props) {
                           note={null}
                           editable
                           edited={selections[experimentalKey(flag.id)]?.edited === true}
-                          onRevert={() =>
-                            revertSelection(
-                              experimentalKey(flag.id),
-                              insights!.experimental.flagNotes[flag.id],
-                            )
-                          }
+                          onRevert={() => revertSelection(experimentalKey(flag.id))}
                           checked={selections[experimentalKey(flag.id)]?.include === true}
                           onToggle={(next) =>
                             toggleSelection(
@@ -512,7 +506,7 @@ export function AiInsightsPanel({ runId }: Props) {
                       note={null}
                       editable
                       edited={selections[field]?.edited === true}
-                      onRevert={() => revertSelection(field, text)}
+                      onRevert={() => revertSelection(field)}
                       checked={selections[field]?.include === true}
                       onToggle={(next) => toggleSelection(field, text, next)}
                       onEdit={(value) =>
@@ -530,7 +524,7 @@ export function AiInsightsPanel({ runId }: Props) {
                       note={null}
                       editable
                       edited={selections[experimentalKey(field)]?.edited === true}
-                      onRevert={() => revertSelection(experimentalKey(field), experimental)}
+                      onRevert={() => revertSelection(experimentalKey(field))}
                       checked={selections[experimentalKey(field)]?.include === true}
                       onToggle={(next) =>
                         toggleSelection(experimentalKey(field), experimental, next)

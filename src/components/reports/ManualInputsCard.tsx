@@ -121,21 +121,16 @@ export function ManualInputsCard({
       room0: inputs?.room0ByMonth ?? {},
       comp: inputs?.compRnsByMonth ?? {},
     };
-    // Legacy runs kept reviewer values without any flags: honour every stored
-    // value for such a field and mark it so a re-process cannot wipe it.
-    const legacyField: Record<DraftField, boolean> = {
-      dinner: Object.keys(nextOverrides.dinner).length === 0,
-      room0: Object.keys(nextOverrides.room0).length === 0,
-      comp: Object.keys(nextOverrides.comp).length === 0,
-    };
     const next: Draft = {};
     for (const key of months) {
       const row = {} as Record<DraftField, string>;
       for (const field of ["dinner", "room0", "comp"] as DraftField[]) {
         const derived = calculated(field, key);
         const typed = stored[field]?.[key];
+        // Legacy runs kept reviewer values without a flag: honour them, and mark
+        // them as overrides so a re-process does not wipe them.
         const hasTyped = typeof typed === "number" && Number.isFinite(typed);
-        if (hasTyped && (nextOverrides[field][key] || legacyField[field])) {
+        if (hasTyped && (nextOverrides[field][key] || !derived)) {
           nextOverrides[field][key] = true;
           row[field] = String(typed);
         } else {

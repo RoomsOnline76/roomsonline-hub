@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import type { HistoricalBaseline } from "@/lib/historicalBaseline";
 import type { ReportBrandSource } from "@/lib/reportBranding";
 import { parseNbProfile, type NbProfile } from "@/lib/nbProfile";
-import { parseReportProfile, type ReportProfile } from "@/lib/reportProfile";
 
 export interface PropertyReportSettings {
   propertyId: string;
@@ -24,8 +23,6 @@ export interface PropertyReportSettings {
   rowExcludePatterns: string[];
   /** NightsBridge quirks: exclusion, routing, grouping, STLY baseline. */
   nbProfile: NbProfile;
-  /** Source-agnostic presentation profile: comparison years, STLY, no-extract. */
-  reportProfile: ReportProfile;
 }
 
 const KEY = ["reports", "property-settings"] as const;
@@ -77,9 +74,6 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
           (data as { row_exclude_patterns?: unknown }).row_exclude_patterns,
         ),
         nbProfile: parseNbProfile((data as { nb_profile?: unknown }).nb_profile ?? null),
-        reportProfile: parseReportProfile(
-          (data as { report_profile?: unknown }).report_profile ?? null,
-        ),
       };
     },
   });
@@ -108,7 +102,6 @@ export function usePropertyReportSettings(propertyId: string | undefined) {
             ? { row_exclude_patterns: asPatternList(input.rowExcludePatterns) as never }
             : {}),
           ...(input.nbProfile ? { nb_profile: input.nbProfile as never } : {}),
-          ...(input.reportProfile ? { report_profile: input.reportProfile as never } : {}),
         },
         { onConflict: "property_id" },
       );
