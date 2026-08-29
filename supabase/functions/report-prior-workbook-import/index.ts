@@ -213,6 +213,8 @@ Deno.serve(async (req) => {
     let extract: PriorReportExtract | null = null;
     let owner: OwnerReportExtract | null = null;
     let isOwnerPdf = false;
+    let isComparisonPdf = false;
+
 
     for (const candidate of ordered) {
       const download = await admin.storage.from(BUCKET).download(candidate.storage_path);
