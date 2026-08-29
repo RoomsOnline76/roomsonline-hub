@@ -12,7 +12,9 @@ A bookingsummary is pulled one month at a time and repeats stays that started ea
 ## Holds vs guests
 - Status (`Unavailable`, etc.) **never** decides on its own: operators host real guests free of charge on unavailable rooms and those nights are sold.
 - A row is a hold when its occupant label says so (block, close/closed, not available, maintenance, owner use, out of order, repair, hold/held, placeholder `x`/`-`/`n/a`, or empty) **or** when the guest field holds one of the export's own room names ("Kunjani Suite" booked against Presidential Villa).
-- Money on a hold, excluded or unavailable line is still accommodation revenue; only its nights leave room nights. Room 0, Events and holding-in-credit stay separate revenue streams.
+- Money on a hold (`blocked`, `blocked_zero_revenue`, `unavailable`) line is still accommodation revenue; only its nights leave room nights. Room 0, Events and holding-in-credit stay separate revenue streams.
+- A **property exclude-list match** (`excluded_by_rule`) is different: the line belongs to a sibling property or another ledger, so **both** its nights and its revenue leave the property's figures. Jembisa's export carries Magari/Palala rooms (Samia Cabin, Magari Safari Villa, Kingfisher Cottage, River Cottage) — excluding them reproduces the golden total to the cent.
+
 - Zero revenue alone is not exclusion: comp/tour-operator nights count as room nights and are reported as complimentary nights.
 
 ## Property rules
