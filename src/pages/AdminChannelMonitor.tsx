@@ -228,7 +228,7 @@ export default function AdminChannelMonitor() {
 
 
   const runPropertyToggle = useCallback(
-    async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string) => {
+    async (row: ChannelPropertyRow, mode: "archive" | "reactivate", reason?: string): Promise<boolean> => {
       setBusyId(row.id);
       try {
         const { data: res, error } = await invokeWithSession("channel-manager-entitlement", {
@@ -254,7 +254,7 @@ export default function AdminChannelMonitor() {
               "Push cannot be enabled until the Channel wizard gates pass (owner bound, key & secret, company details).",
           );
           await data.refresh();
-          return;
+          return false;
         }
         const failed = (res as { failed?: number } | null)?.failed ?? 0;
         const noticeError = (res as { notification_error?: string | null } | null)?.notification_error;
@@ -295,8 +295,10 @@ export default function AdminChannelMonitor() {
 
         setTarget(null);
         await data.refresh();
+        return true;
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Action failed");
+        return false;
       } finally {
         setBusyId(null);
       }
@@ -304,14 +306,75 @@ export default function AdminChannelMonitor() {
     [data],
   );
 
+  /**
+   * Close the distribution sub-account itself (channel close-account API, child auth) and,
+   * when ticked, sterilise the property so it can be onboarded again from scratch.
+   * Both are opt-in extras on the archive dialog and run only after the archive succeeds.
+   */
+  const runArchiveExtras = useCallback(
+    async (row: ChannelPropertyRow, extras: ArchiveExtras) => {
+      if (!extras.closeAccount && !extras.sterilize) return;
+      setBusyId(row.id);
+      try {
+        if (extras.closeAccount && row.ownerId) {
+          const { data: res, error } = await invokeWithSession("ru-close-user", {
+            body: { ru_owner_id: String(row.ownerId) },
+          });
+          const payload = res as
+            | { success?: boolean; message?: string; error?: { message?: string } }
+            | null;
+          if (error || !payload?.success) {
+            toast.error(
+              payload?.error?.message ||
+                error?.message ||
+                "Could not close the distribution account at the channel manager.",
+            );
+          } else {
+            toast.success(payload.message || `Distribution account ${row.ownerId} closed`);
+          }
+        }
+
+        if (extras.sterilize) {
+          const { data: res, error } = await invokeWithSession("ru-cert-portal", {
+            body: {
+              action: "sterilize_property",
+              property_id: row.id,
+              keep_ru_property_ids: [],
+              dry_run: false,
+            },
+          });
+          const payload = res as
+            | { success?: boolean; gates_reset?: number; error?: { message?: string } | string }
+            | null;
+          const errText =
+            typeof payload?.error === "string" ? payload.error : payload?.error?.message;
+          if (error || !payload?.success) {
+            toast.error(errText || error?.message || "Sterilisation did not complete.");
+          } else {
+            toast.success(`${row.name} sterilised — ${payload.gates_reset ?? 0} gate(s) reset`);
+          }
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Teardown failed");
+      } finally {
+        setBusyId(null);
+        await data.refresh();
+      }
+    },
+    [data],
+  );
+
   // Archiving asks for a reason (it stops selling); activation is a single click.
   const handleConfirm = useCallback(
-    async (reason: string) => {
+    async (reason: string, extras: ArchiveExtras) => {
       if (!target) return;
-      await runPropertyToggle(target.row, target.mode, reason);
+      const row = target.row;
+      const ok = await runPropertyToggle(row, target.mode, reason);
+      if (ok && target.mode === "archive") await runArchiveExtras(row, extras);
     },
-    [target, runPropertyToggle],
+    [target, runPropertyToggle, runArchiveExtras],
   );
+
 
 
   const currentMonth = useMemo(() => data.forecast.month, [data.forecast.month]);
