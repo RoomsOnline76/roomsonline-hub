@@ -698,7 +698,7 @@ Deno.serve(async (req) => {
         },
         totals: aggregate.totals,
         room_count: roomCount,
-        booking_trends: buildBookingTrends(ledger, aggregate.months),
+        booking_trends: buildBookingTrends(routing.kept, aggregate.months),
       },
       { onConflict: "run_id" },
     );
