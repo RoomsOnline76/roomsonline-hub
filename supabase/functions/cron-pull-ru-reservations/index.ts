@@ -125,10 +125,12 @@ Deno.serve(async (req) => {
       .from('bookings')
       .select('id')
       .eq('integration_type', 'rentalsunited_lead')
-      .gte('lead_hold_expires_at', new Date().toISOString())
+      .eq('status', 'pending')
+      .gte('hold_expires_at', new Date().toISOString())
       .limit(1);
     return !!(data && data.length);
   };
+
 
 
 
