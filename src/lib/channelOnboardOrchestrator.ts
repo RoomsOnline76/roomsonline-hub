@@ -623,6 +623,18 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
+    // The channel no longer mints a brand-new sub-account's first key pair. Its login and
+    // password, proven by a single listings probe, are the credential — the run continues
+    // immediately instead of pausing for a pair that will never arrive automatically.
+    if (provisioning?.source === "password_verified") {
+      ctx.keysProvenInRun = true;
+      return {
+        id: "api_keys",
+        outcome: "passed",
+        detail: `Sub-account credentials verified${accountLabel ? ` for ${accountLabel}` : ""} — its own login authenticates channel calls until a key pair is pasted${trailText}`,
+      };
+    }
+
     if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
         id: "api_keys",
