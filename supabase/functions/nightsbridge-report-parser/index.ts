@@ -638,8 +638,14 @@ Deno.serve(async (req) => {
     for (const key of aggregate.months) {
       const [year, month] = key.split("-").map(Number);
       const lyKey = `${year - 1}-${`${month}`.padStart(2, "0")}`;
-      const lyRevenue = baseline.revenue?.[lyKey] ?? pastRevenue[lyKey];
-      const lyNights = baseline.room_nights?.[lyKey] ?? pastNights[lyKey];
+      // When NightsBridge never split the history off this BBID, the prior-year
+      // arrivals in this same ledger are the authoritative last-year actuals.
+      const lyRevenue = nbProfile.historical_from_current_ledger
+        ? pastRevenue[lyKey] ?? baseline.revenue?.[lyKey]
+        : baseline.revenue?.[lyKey] ?? pastRevenue[lyKey];
+      const lyNights = nbProfile.historical_from_current_ledger
+        ? pastNights[lyKey] ?? baseline.room_nights?.[lyKey]
+        : baseline.room_nights?.[lyKey] ?? pastNights[lyKey];
       if (lyRevenue !== undefined) lastYearRevenue[key] = lyRevenue;
       if (lyNights !== undefined) lastYearNights[key] = lyNights;
     }
