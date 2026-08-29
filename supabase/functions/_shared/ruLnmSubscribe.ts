@@ -28,6 +28,9 @@ export interface LnmSubscribeOutcome {
   in_sync: boolean;
   steps: LnmSubscribeStep[];
   warning: string | null;
+  /** True when this owner was already subscribed and no RU write was issued. */
+  skipped?: boolean;
+  skip_reason?: string;
 }
 
 export async function ensureLiveNotificationsForOwner(
