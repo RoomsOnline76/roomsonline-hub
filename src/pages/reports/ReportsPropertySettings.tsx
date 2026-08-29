@@ -654,6 +654,17 @@ export default function ReportsPropertySettings() {
             </div>
           </div>
 
+          {sourceType === "nightsbridge" && (
+            <NbProfileCard
+              propertyId={propertyId}
+              profile={nbProfile}
+              onChange={setNbProfile}
+              properties={properties.map((option) => ({ id: option.id, name: option.name }))}
+            />
+          )}
+
+
+
 
           <div className="flex justify-end">
             <Button onClick={() => void handleSave()} disabled={save.isPending || isLoading}>
