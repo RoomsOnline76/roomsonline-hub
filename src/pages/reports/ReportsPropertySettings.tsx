@@ -110,6 +110,8 @@ export default function ReportsPropertySettings() {
     setSpecialSet(settings.specialReportSet ?? "none");
     setKeepPatterns((settings.zeroRevenueKeepPatterns ?? []).join(", "));
     setExcludePatterns((settings.rowExcludePatterns ?? []).join(", "));
+    setNbProfile(settings.nbProfile ?? EMPTY_NB_PROFILE);
+
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
         ? settings.defaultSourceType
