@@ -957,8 +957,16 @@ export function parsePriorReportWorkbook(
     return relA - relB || groupA - groupB || orderA - orderB;
   });
 
+  // The winning sheet owns the reporting window. Older vintages may fill gaps
+  // inside that window, but their own months (a 2011 grid rolled forward, or a
+  // legacy sheet running past Jan 2027) must never extend it.
+  let windowFrom: string | null = null;
+  let windowTo: string | null = null;
+  const inWindow = (month: string): boolean =>
+    !windowFrom || !windowTo || (month >= windowFrom && month <= windowTo);
   const fill = (target: Record<string, number>, source: Record<string, number>) => {
     for (const [month, value] of Object.entries(source)) {
+      if (!inWindow(month)) continue;
       if (target[month] === undefined) target[month] = value;
     }
   };
@@ -971,6 +979,10 @@ export function parsePriorReportWorkbook(
       extract.months = otb.months;
       extract.warnings.push(...otb.warnings);
       extract.baselineSheet = name;
+      if (otb.months.length) {
+        windowFrom = otb.months[0];
+        windowTo = otb.months[otb.months.length - 1];
+      }
     }
     fill(extract.previousOtbRevenue, otb.revenue);
     fill(extract.previousRoomNights, otb.nights);
