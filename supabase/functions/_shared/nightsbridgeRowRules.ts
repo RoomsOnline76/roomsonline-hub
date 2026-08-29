@@ -218,11 +218,15 @@ export function classifyRow(
  * Classes whose money is still accommodation revenue on the ledger even though
  * their nights are not sellable room nights. Room 0, events and holding-in-
  * credit are separate revenue streams and are reported on their own lines.
+ *
+ * A property exclude-list match (`excluded_by_rule`) is NOT in this list: an
+ * explicit exclude pattern means the line belongs to a sibling property or
+ * another ledger, so neither its nights nor its money are this property's.
  */
 export const REVENUE_BEARING_NON_SELLABLE: RowClass[] = [
   "blocked_marker",
   "blocked_zero_revenue",
   "unavailable",
-  "excluded_by_rule",
 ];
+
 
