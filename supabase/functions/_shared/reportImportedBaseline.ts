@@ -26,6 +26,12 @@ export interface ImportedBaseline {
   /** Owner's-report packs: the printed on-the-books grid for the run's own year. */
   current_otb_revenue?: Record<string, number>;
   current_otb_occupancy?: Record<string, number>;
+  /**
+   * Printed comparison grids (Devonvale) also state ADR and therefore imply
+   * room nights, so nights need not be read back from occupancy.
+   */
+  current_otb_adr?: Record<string, number>;
+  current_room_nights?: Record<string, number>;
   provisional_revenue?: Record<string, number>;
   source_kind?: string;
   fiscal_year_label?: string | null;
@@ -246,6 +252,8 @@ export function aggregateFromImportedBaseline(
   if (!baseline) return null;
   const revenueMap = baseline.current_otb_revenue ?? {};
   const occupancyMap = baseline.current_otb_occupancy ?? {};
+  const adrMap = baseline.current_otb_adr ?? {};
+  const nightsMap = baseline.current_room_nights ?? {};
   const rooms = roomCount > 0 ? Math.floor(roomCount) : 1;
 
   const keys = months.length
@@ -274,11 +282,23 @@ export function aggregateFromImportedBaseline(
     const monthOccupancy = Number.isFinite(occupancy) ? occupancy : 0;
     // The report prints occupancy, not nights: nights are that occupancy read
     // back against capacity so the totals row reconciles with the months.
-    const monthNights = Math.round(monthOccupancy * capacityDays);
+    const printedNights = Number(nightsMap[key]);
+    const printedAdr = Number(adrMap[key]);
+    const monthNights = isPlausibleNights(printedNights)
+      ? Math.round(printedNights)
+      : Number.isFinite(printedAdr) && printedAdr > 0 && value > 0
+        ? Math.round(value / printedAdr)
+        : Math.round(monthOccupancy * capacityDays);
     aggregate.otb_revenue[key] = value;
     aggregate.room_nights[key] = monthNights;
     aggregate.capacity_days[key] = capacityDays;
-    aggregate.adr[key] = 0;
+    // ADR is printed by comparison grids; otherwise it stays 0 rather than being
+    // invented from an occupancy read-back.
+    aggregate.adr[key] = Number.isFinite(printedAdr) && printedAdr > 0
+      ? printedAdr
+      : monthNights > 0 && value > 0 && isPlausibleNights(printedNights)
+        ? Math.round((value / monthNights) * 100) / 100
+        : 0;
     aggregate.occupancy[key] = monthOccupancy;
     revenue += value;
     capacity += capacityDays;
