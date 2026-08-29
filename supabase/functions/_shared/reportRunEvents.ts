@@ -24,6 +24,7 @@ export type ReportRunEventType =
   | "excel_generated"
   | "draft_generated"
   | "insights_generated"
+  | "page2_generated"
   | "segment_split_applied"
   | "special_report_generated"
   | "prior_report_imported";

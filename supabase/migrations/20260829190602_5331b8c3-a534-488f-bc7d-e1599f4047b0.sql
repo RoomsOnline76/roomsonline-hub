@@ -1,0 +1,2 @@
+ALTER TABLE public.report_insights ADD COLUMN IF NOT EXISTS page2 jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.report_runs ADD COLUMN IF NOT EXISTS page2_enabled boolean NOT NULL DEFAULT false;
