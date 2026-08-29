@@ -118,6 +118,18 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     bodyCell(sheet, row, 10, snapshot.previous_otb_revenue[key] ?? 0, MONEY);
     bodyCell(sheet, row, 11, { formula: `B${row}-D${row}` }, MONEY);
     bodyCell(sheet, row, 12, { formula: `IF(B${row}=0,"",(B${row}-D${row})/B${row})` }, PERCENT);
+    comparisons.forEach((comparison, j) => {
+      const valueCol = 13 + j * 2;
+      const letter = colLetter(valueCol);
+      bodyCell(sheet, row, valueCol, number(comparison.revenue, key) ?? 0, MONEY);
+      bodyCell(
+        sheet,
+        row,
+        valueCol + 1,
+        { formula: `IF(N(${letter}${row})=0,"",B${row}-${letter}${row})` },
+        MONEY,
+      );
+    });
   });
 
   const revLast = revFirst + Math.max(months.length - 1, 0);
