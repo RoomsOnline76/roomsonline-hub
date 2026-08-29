@@ -493,12 +493,25 @@ function parseOtbSheet(
     let room0Col: number | null = null;
     let compCol: number | null = null;
     let nightsCol: number | null = null;
+    // Named prior-year columns ("2025 ACTUAL"), same-time-last-year and budget:
+    // the columns Hotel Krige-style fiscal packs print beside the OTB block.
+    const yearActualCols: { year: number; col: number }[] = [];
+    let stlyCol: number | null = null;
+    let budgetCol: number | null = null;
     headerRow.forEach((cell, col) => {
       const heading = lower(cell);
       if (!heading) return;
+      const comparative = /\b(vs|vrs|variance|var\b|%)/.test(heading);
       if (/last year/.test(heading) && !/vs|vrs/.test(heading)) lyCandidates.push(col);
       if (/^rn last year|last year.*(rn|room night)/.test(heading)) lyCandidates.push(col);
       if (/target/.test(heading) && !/vs|vrs/.test(heading)) targetCol = col;
+      if (/budget/.test(heading) && !comparative) budgetCol = col;
+      if (/\bstly\b|same time last year/.test(heading) && !comparative) stlyCol = col;
+      const yearActual = /(?:^|\D)(19|20)(\d{2})\s*(actual|act)\b/.exec(heading);
+      if (yearActual && !comparative) {
+        const year = Number(`${yearActual[1]}${yearActual[2]}`);
+        if (plausibleYear(year)) yearActualCols.push({ year, col });
+      }
       if (/^dinner/.test(heading)) dinnerCol = col;
       if (/room\s*0/.test(heading)) room0Col = col;
       if (/comp\.?\s*(rns?|room nights?)/.test(heading)) compCol = col;
