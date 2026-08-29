@@ -9,10 +9,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { formatEur } from "@/lib/channelBillingForecast";
 import type { ChannelPropertyRow } from "@/hooks/useChannelCostMonitor";
+
+/** Extra teardown steps the operator may tick on top of a plain archive. */
+export interface ArchiveExtras {
+  /** Close the distribution sub-account itself (channel close-account API). */
+  closeAccount: boolean;
+  /** Wipe local channel state and reset the onboarding gates so it can start over. */
+  sterilize: boolean;
+}
 
 interface Props {
   open: boolean;
@@ -20,18 +29,26 @@ interface Props {
   property: ChannelPropertyRow | null;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, extras: ArchiveExtras) => void;
 }
 
 export function ArchivePropertyDialog({ open, mode, property, busy, onCancel, onConfirm }: Props) {
   const [reason, setReason] = useState("");
+  const [closeAccount, setCloseAccount] = useState(false);
+  const [sterilize, setSterilize] = useState(false);
 
   useEffect(() => {
-    if (open) setReason("");
+    if (open) {
+      setReason("");
+      setCloseAccount(false);
+      setSterilize(false);
+    }
   }, [open, property?.id]);
 
   const archiving = mode === "archive";
   const unitCount = property?.units.length ?? 0;
+  const hasAccount = !!property?.ownerId;
+
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onCancel()}>
@@ -81,6 +98,56 @@ export function ArchivePropertyDialog({ open, mode, property, busy, onCancel, on
             </div>
           )}
 
+          {archiving && (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="archive-close-account"
+                  checked={closeAccount}
+                  disabled={!hasAccount || busy}
+                  onCheckedChange={(v) => setCloseAccount(v === true)}
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="archive-close-account" className="text-xs font-medium">
+                    Also close the distribution account
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {hasAccount
+                      ? `Closes sub-account ${property?.ownerId} at the channel manager. Dashboard access and channel connections are removed and every listing under it is archived. This cannot be undone.`
+                      : "No distribution sub-account is linked to this property."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <Checkbox
+                  id="archive-sterilize"
+                  checked={sterilize}
+                  disabled={busy}
+                  onCheckedChange={(v) => setSterilize(v === true)}
+                />
+                <div className="space-y-0.5">
+                  <Label htmlFor="archive-sterilize" className="text-xs font-medium">
+                    Sterilise the property (optional)
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Clears local channel state, cancels the parked call backlog and resets every onboarding
+                    gate so the property can be connected again as brand new.
+                  </p>
+                </div>
+              </div>
+
+              {(closeAccount || sterilize) && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                  <p className="text-[11px]">
+                    Destructive: this goes beyond pausing distribution and cannot be reversed by re-activating.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="archive-reason" className="text-xs">
               Reason {archiving ? "(recommended)" : "(recommended)"}
@@ -99,10 +166,21 @@ export function ArchivePropertyDialog({ open, mode, property, busy, onCancel, on
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => onConfirm(reason.trim())} disabled={busy}>
-            {busy ? "Working…" : archiving ? "Confirm archive" : "Confirm re-activation"}
+          <Button
+            variant={archiving && (closeAccount || sterilize) ? "destructive" : "default"}
+            onClick={() => onConfirm(reason.trim(), { closeAccount: closeAccount && hasAccount, sterilize })}
+            disabled={busy}
+          >
+            {busy
+              ? "Working…"
+              : archiving
+                ? closeAccount
+                  ? "Archive & close account"
+                  : "Confirm archive"
+                : "Confirm re-activation"}
           </Button>
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );
