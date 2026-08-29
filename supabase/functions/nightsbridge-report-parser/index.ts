@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ledger: LedgerRow[] = [];
+    const ledger: RoutableRow[] = [];
     const fileResults: Array<{
       id: string;
       filename: string;
