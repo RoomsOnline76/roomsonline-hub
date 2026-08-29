@@ -46,6 +46,7 @@ import {
   trimToReportWindow,
   type PastMonthActual,
 } from "../_shared/reportWindow.ts";
+import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfile.ts";
 
 
 
@@ -459,7 +460,7 @@ Deno.serve(async (req) => {
     const { data: settings } = await admin
       .from("property_report_settings")
       .select(
-        "room_count, historical_baseline, zero_revenue_keep_patterns, row_exclude_patterns, nb_profile",
+        "room_count, historical_baseline, zero_revenue_keep_patterns, row_exclude_patterns, nb_profile, report_profile",
       )
       .eq("property_id", run.property_id)
       .maybeSingle();
@@ -621,7 +622,14 @@ Deno.serve(async (req) => {
 
     // months: lift them out and keep them as last-year figures.
 
-    const pastMonths: PastMonthActual[] = trimToReportWindow(aggregate, String(run.as_of_date), (run as { report_month?: string | null }).report_month ?? null);
+    const pastMonths: PastMonthActual[] = trimToReportWindow(
+      aggregate,
+      String(run.as_of_date),
+      (run as { report_month?: string | null }).report_month ?? null,
+      reportWindowOptions(
+        parseReportProfile((settings as { report_profile?: unknown } | null)?.report_profile ?? null),
+      ),
+    );
 
     const pastRevenue: Record<string, number> = {};
 

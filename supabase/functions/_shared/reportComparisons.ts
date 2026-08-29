@@ -26,6 +26,18 @@ export interface ReportComparison {
   room_nights: Record<string, number>;
   occupancy: Record<string, number>;
   adr: Record<string, number>;
+  /**
+   * Variance columns the printed grid must show next to this column. Cathedral
+   * Peak's pack prints "OTB vs Target" and "Target vs Last Year" beside Target.
+   */
+  deltas?: ComparisonDelta[];
+}
+
+/** A variance column derived from this comparison and one of the base series. */
+export interface ComparisonDelta {
+  /** `otb` prints OTB − column; `last_year` prints column − last year actual. */
+  against: "otb" | "last_year";
+  label: string;
 }
 
 export interface ComparisonSources {
@@ -40,6 +52,8 @@ export interface ComparisonSources {
   historicalBaseline?: unknown;
   capacityDays?: Record<string, number>;
   roomCount?: number;
+  /** Last year's actuals for the window months, used to derive a Target column. */
+  lastYear?: { revenue?: Record<string, number>; room_nights?: Record<string, number> };
 
 }
 
@@ -166,14 +180,44 @@ export function resolveComparisons(
     out.push(comparison);
   }
 
-  for (const column of profile.year_columns) {
+  // A growth target the client never uploads: last year's actuals plus a fixed
+  // percentage (Cathedral Peak targets last year + 10%).
+  const growth = profile.target_growth_pct;
+  const growthFactor = growth === null ? null : 1 + growth / 100;
+  const lastYearRevenue = numberMap(sources.lastYear?.revenue);
+  const lastYearNights = numberMap(sources.lastYear?.room_nights);
+  const columns = growthFactor !== null && !profile.year_columns.includes("target")
+    ? [...profile.year_columns, "target" as const]
+    : profile.year_columns;
+
+  for (const column of columns) {
     const source = column === "budget" ? pick(imported, "budget") ?? pick(imported, "targets") : pick(imported, "targets");
-    const revenue = numberMap(pick(source, "revenue") ?? source);
-    const nights = numberMap(pick(source, "room_nights"));
+    let revenue = numberMap(pick(source, "revenue") ?? source);
+    let nights = numberMap(pick(source, "room_nights"));
+    let deltas: ComparisonDelta[] | undefined;
+
+    // Derived target: only when the client supplied no target of their own, so an
+    // uploaded budget always wins over the growth rule.
+    if (column === "target" && growthFactor !== null && months.every((k) => revenue[k] === undefined)) {
+      revenue = {};
+      nights = {};
+      for (const key of months) {
+        const rev = lastYearRevenue[key];
+        const rn = lastYearNights[key];
+        if (Number.isFinite(rev)) revenue[key] = Number(rev) * growthFactor;
+        if (Number.isFinite(rn)) nights[key] = Number(rn) * growthFactor;
+      }
+      deltas = [
+        { against: "otb", label: "OTB vs Target" },
+        { against: "last_year", label: "Target vs Last Year" },
+      ];
+    }
+
     const comparison: ReportComparison = {
       key: column,
       label: column === "budget" ? "Budget" : "Target",
       ...derive(months, revenue, nights, {}, capacityDays, roomCount),
+      ...(deltas ? { deltas } : {}),
     };
     out.push(comparison);
   }

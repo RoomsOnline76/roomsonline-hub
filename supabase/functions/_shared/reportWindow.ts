@@ -44,8 +44,14 @@ export function reportMonthAnchor(
 }
 
 /** `YYYY-MM` of the earliest month a run's window may contain. */
-export function windowStartMonth(asOfDate: string, reportMonth?: string | null): string {
-  return reportMonthAnchor(asOfDate, reportMonth);
+export function windowStartMonth(
+  asOfDate: string,
+  reportMonth?: string | null,
+  options?: ReportWindowOptions,
+): string {
+  const anchor = reportMonthAnchor(asOfDate, reportMonth);
+  const offset = startOffsetOf(options);
+  return offset === 0 ? anchor : addMonths(anchor, offset);
 }
 
 /**
@@ -56,8 +62,9 @@ export function trimToReportWindow(
   aggregate: WindowAggregate,
   asOfDate: string,
   reportMonth?: string | null,
+  options?: ReportWindowOptions,
 ): PastMonthActual[] {
-  const start = windowStartMonth(asOfDate, reportMonth);
+  const start = windowStartMonth(asOfDate, reportMonth, options);
   const past: PastMonthActual[] = [];
   const kept: string[] = [];
 
@@ -108,6 +115,29 @@ export function pastMonthsNote(past: PastMonthActual[]): string {
 /** How many months the printed report shows: the review month plus five ahead. */
 export const REPORT_WINDOW_MONTHS = 6;
 
+/**
+ * Per-property window shape from `report_profile`. Most packs use the standard
+ * six months opening on the review month; a client may print more months and/or
+ * open on the month just closed.
+ */
+export interface ReportWindowOptions {
+  /** Number of months printed. Defaults to `REPORT_WINDOW_MONTHS`. */
+  months?: number | null;
+  /** Months to shift the start relative to the review month. Defaults to 0. */
+  startOffset?: number | null;
+}
+
+const windowLength = (options?: ReportWindowOptions): number => {
+  const n = Number(options?.months);
+  return Number.isFinite(n) && n >= 1 && n <= 24 ? Math.round(n) : REPORT_WINDOW_MONTHS;
+};
+
+const startOffsetOf = (options?: ReportWindowOptions): number => {
+  const n = Number(options?.startOffset);
+  return Number.isFinite(n) && n >= -6 && n <= 6 ? Math.round(n) : 0;
+};
+
+
 const addMonths = (key: string, delta: number): string => {
   const year = Number(key.slice(0, 4));
   const month = Number(key.slice(5, 7));
@@ -117,8 +147,15 @@ const addMonths = (key: string, delta: number): string => {
 };
 
 /** `YYYY-MM` of the last month the printed report may show. */
-export function windowEndMonth(asOfDate: string, reportMonth?: string | null): string {
-  return addMonths(windowStartMonth(asOfDate, reportMonth), REPORT_WINDOW_MONTHS - 1);
+export function windowEndMonth(
+  asOfDate: string,
+  reportMonth?: string | null,
+  options?: ReportWindowOptions,
+): string {
+  return addMonths(
+    windowStartMonth(asOfDate, reportMonth, options),
+    windowLength(options) - 1,
+  );
 }
 
 /**
@@ -126,9 +163,13 @@ export function windowEndMonth(asOfDate: string, reportMonth?: string | null): s
  * or not data was uploaded for them. Months with no figures print as dashes so
  * a gap in the uploads is visible rather than silently dropped.
  */
-export function windowMonths(asOfDate: string, reportMonth?: string | null): string[] {
-  const start = windowStartMonth(asOfDate, reportMonth);
-  return Array.from({ length: REPORT_WINDOW_MONTHS }, (_, i) => addMonths(start, i));
+export function windowMonths(
+  asOfDate: string,
+  reportMonth?: string | null,
+  options?: ReportWindowOptions,
+): string[] {
+  const start = windowStartMonth(asOfDate, reportMonth, options);
+  return Array.from({ length: windowLength(options) }, (_, i) => addMonths(start, i));
 }
 
 /** The months a report is allowed to display: review month + the next five. */
@@ -136,8 +177,9 @@ export function monthsInWindow(
   months: string[],
   asOfDate: string,
   reportMonth?: string | null,
+  options?: ReportWindowOptions,
 ): string[] {
-  const start = windowStartMonth(asOfDate, reportMonth);
-  const end = windowEndMonth(asOfDate, reportMonth);
+  const start = windowStartMonth(asOfDate, reportMonth, options);
+  const end = windowEndMonth(asOfDate, reportMonth, options);
   return (months ?? []).filter((key) => Boolean(key) && key >= start && key <= end);
 }

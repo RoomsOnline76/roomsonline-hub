@@ -14,6 +14,8 @@ export interface RunBuilderContext {
   snapshot: ReportSnapshot | null;
   /** Window months the uploads did not cover. */
   missingMonths: string[];
+  /** Printed window shape from the property's report profile (length / start). */
+  windowOptions: { months?: number | null; startOffset?: number | null };
   /** `YYYY-MM` the review covers, editable in the review stage. */
   onSetReportMonth: (month: string) => Promise<void>;
   /** `YYYY-MM-DD` the run is taken as-of, editable in stage A. */

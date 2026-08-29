@@ -28,7 +28,7 @@ import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
 import { monthsInWindow, windowMonths } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
-import { parseReportProfile } from "@/lib/reportProfile";
+import { parseReportProfile, reportWindowOptions } from "@/lib/reportProfile";
 import {
   deriveStageCompletion,
   nextStage,
@@ -96,8 +96,13 @@ export default function ReportsRunReview() {
    * the report a year ago" cannot skip the previous-report upload — there is
    * nowhere else for that column to come from on a first run.
    */
-  const stlyNeedsWorkbook =
-    parseReportProfile(propertySettings?.reportProfile ?? null).stly_from_prior_workbook;
+  const reportProfile = parseReportProfile(propertySettings?.reportProfile ?? null);
+  const stlyNeedsWorkbook = reportProfile.stly_from_prior_workbook;
+  /** Window length / start month for this property (Cathedral Peak prints eight). */
+  const windowOptions = useMemo(
+    () => reportWindowOptions(reportProfile),
+    [reportProfile.window_months, reportProfile.window_start_offset],
+  );
   const specialSet = run
     ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
     : null;
@@ -142,15 +147,19 @@ export default function ReportsRunReview() {
    */
   const windowedSnapshot = useMemo(() => {
     if (!snapshot || !run) return snapshot ?? null;
-    return { ...snapshot, months: windowMonths(run.asOfDate, run.reportMonth) };
-  }, [snapshot, run]);
+    return { ...snapshot, months: windowMonths(run.asOfDate, run.reportMonth, windowOptions) };
+  }, [snapshot, run, windowOptions]);
 
   /** Window months the parsed sources did not cover. */
   const missingMonths = useMemo(() => {
     if (!snapshot || !run) return [] as string[];
-    const present = new Set(monthsInWindow(snapshot.months, run.asOfDate, run.reportMonth));
-    return windowMonths(run.asOfDate, run.reportMonth).filter((key) => !present.has(key));
-  }, [snapshot, run]);
+    const present = new Set(
+      monthsInWindow(snapshot.months, run.asOfDate, run.reportMonth, windowOptions),
+    );
+    return windowMonths(run.asOfDate, run.reportMonth, windowOptions).filter(
+      (key) => !present.has(key),
+    );
+  }, [snapshot, run, windowOptions]);
 
   /** The month the review covers — the anchor for the six-month window. */
   const handleSetReportMonth = useCallback(
@@ -426,6 +435,7 @@ export default function ReportsRunReview() {
     adapter,
     snapshot: windowedSnapshot ?? null,
     missingMonths,
+    windowOptions,
     onSetReportMonth: handleSetReportMonth,
     onSetAsOfDate: handleSetAsOfDate,
     // A finished ("ready") run stays editable: reviewers routinely swap a file
