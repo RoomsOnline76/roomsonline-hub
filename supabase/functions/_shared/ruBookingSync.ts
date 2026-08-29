@@ -19,6 +19,8 @@ import {
   reservationFingerprint,
   settleReservationOp,
 } from './ruReservationOpClaim.ts';
+import { hasPendingRuCreate, resolveRuReservationIdentity } from './ruReservationIdentity.ts';
+
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -838,7 +840,54 @@ export async function modifyRuStay(
 ): Promise<RuPushResult> {
   const traceId = newRuTraceId();
   let confirmedLead = false;
+
+  /**
+   * A stay change is only ever a modification of an existing channel reservation. Resolve that
+   * identity (and the state the channel actually holds) BEFORE anything else: without it this used
+   * to fall through to a second registration, and the channel then read the extension as a new
+   * booking competing with the nights the original already owns.
+   */
+  const identity = await resolveRuReservationIdentity(supabase, booking as never);
+  if (identity.absent) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:modify',
+      property_id: booking.property_id,
+      action: 'Push_ModifyStay_RQ',
+      error_reason: 'reservation_absent: the channel has no such reservation',
+    });
+    return {
+      ok: false,
+      code: 'RU_RESERVATION_ABSENT',
+      message: 'The channel has no record of this reservation — there is nothing to modify there.',
+      traceId,
+    };
+  }
+  if (!identity.reservationId) {
+    await logRuNotAttempted(supabase, {
+      trace_id: traceId,
+      parent_action: 'ruBookingSync:modify',
+      property_id: booking.property_id,
+      action: 'Push_ModifyStay_RQ',
+      error_reason: identity.pendingCreate
+        ? 'registration_pending: the stay is still being registered at the channel'
+        : 'unresolved_reservation: no unique channel reservation could be resolved for this stay',
+    });
+    return {
+      ok: false,
+      queued: identity.pendingCreate,
+      code: identity.pendingCreate ? 'RU_REGISTRATION_PENDING' : 'RU_RESERVATION_UNRESOLVED',
+      message: identity.pendingCreate
+        ? 'This stay is still being registered at the channel — resend the change in about a minute.'
+        : 'No unique channel reservation could be matched to this stay, so the change was not sent. ' +
+          'Reconcile the booking with the channel portal first — a new reservation was deliberately NOT created.',
+      traceId,
+    };
+  }
+  booking.external_reservation_id = identity.reservationId;
+
   if (isRuLead(booking)) {
+
     if (opts.confirmLead === false) {
       await logRuNotAttempted(supabase, {
         trace_id: traceId,
@@ -959,11 +1008,15 @@ export async function modifyRuStay(
 
   const modifyPayload = {
     reservation_id: String(booking.external_reservation_id),
+    // `<Current>` must describe what the CHANNEL holds, never the already-edited local record:
+    // the channel's own answer wins, then the caller's captured previous state, and only as a last
+    // resort the local dates.
     current_stay: {
-      ru_property_id: currentRuPropertyId || ruPropertyId,
-      date_from: current?.date_from || booking.check_in_date,
-      date_to: current?.date_to || booking.check_out_date,
+      ru_property_id: identity.listing || currentRuPropertyId || ruPropertyId,
+      date_from: identity.currentDateFrom || current?.date_from || booking.check_in_date,
+      date_to: identity.currentDateTo || current?.date_to || booking.check_out_date,
     },
+
     modify_stay: {
       ru_property_id: ruPropertyId,
       date_from: modify.date_from ?? booking.check_in_date,
@@ -992,21 +1045,27 @@ export async function modifyRuStay(
   });
 
   /**
-   * A move or a date change is refused when the NEW nights read as closed at the channel — which is
-   * our own availability delta having published them as sold before the reservation itself moved.
-   * Reopen the target nights on the target listing and replay the modification past the channel's
-   * sliding minute instead of failing the edit.
+   * A refused date change is almost always the changeover validation on the NEW departure day —
+   * our own availability delta published it as closed. The reservation legitimately owns every
+   * night it already holds, so those are left alone: only the new arrival/departure boundary is
+   * reopened (internal changeover 3 → wire C=1), then the SAME modification is replayed once past
+   * the channel's sliding minute. It is never turned into a registration.
    */
   if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
+    const boundaryFrom = modifyPayload.modify_stay.date_to;
     const reopened = await reopenStayNightsAtChannel(supabase, booking, {
       auth,
       ruPropertyId,
-      dateFrom: modifyPayload.modify_stay.date_from,
-      dateTo: modifyPayload.modify_stay.date_to,
+      dateFrom: boundaryFrom,
+      dateTo: boundaryFrom,
       traceId,
       parentAction: 'ruBookingSync:modify:reopen',
-      details: { reservation_id: String(booking.external_reservation_id ?? '') },
+      details: {
+        reservation_id: String(booking.external_reservation_id ?? ''),
+        scope: 'changeover_boundary_only',
+      },
     });
+
     if (reopened) {
       const queuedId = await enqueueRuCall(supabase, {
         methodKey: `modify_stay:${booking.external_reservation_id}`,
@@ -1115,8 +1174,36 @@ export async function pushRuConfirmedReservation(
   },
 ): Promise<RuPushResult & { reservationId?: string | null; ruPropertyId?: string | null }> {
   const traceId = newRuTraceId();
+
+  /**
+   * Registration is for a genuinely NEW stay only. If this booking already carries a channel
+   * identity, or a first registration is still parked in the rate-limit queue, a second
+   * `Push_PutConfirmedReservationMulti_RQ` would create a duplicate reservation competing with the
+   * nights the first one holds — the exact defect behind extensions being refused.
+   */
+  if (String(booking.external_reservation_id ?? '').trim()) {
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: 'RU_ALREADY_REGISTERED',
+      message: 'This stay already exists at the channel — changes must go through a stay modification.',
+      traceId,
+    };
+  }
+  if (await hasPendingRuCreate(supabase, booking.id)) {
+    return {
+      ok: false,
+      queued: true,
+      method: 'push_confirmed_reservation',
+      code: 'RU_REGISTRATION_PENDING',
+      message: 'This stay is already queued to register at the channel — it was not sent a second time.',
+      traceId,
+    };
+  }
+
   const auth = await resolveRuChildAuth(supabase, booking.property_id);
   if (!auth) {
+
     await logRuNotAttempted(supabase, {
       trace_id: traceId,
       parent_action: 'ruBookingSync:create',

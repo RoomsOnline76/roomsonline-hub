@@ -95,7 +95,9 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   // `Push_RemoveProperty_RQ` are not implemented (Status -1). Removal = archive via
   // Push_SetPropertiesStatus_RQ with IsArchived=1, already listed above.
   spec("Pull_ListBuildings_RQ", "List buildings", "content", "on_demand", false),
+  spec("Pull_GetBuilding_RQ", "Read building", "content", "on_demand", false, "Composition read-back for multi-unit buildings"),
   spec("Push_PutBuilding_RQ", "Put building", "content", "on_demand", true),
+
 
   // ---- Availability, rates, restrictions ---------------------------------------------------
   spec("Push_PutAvbUnits_RQ", "Push availability", "ari", "on_change", true, "Blocks, stock and restrictions"),
@@ -130,6 +132,8 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Push_CancelReservation_RQ", "Cancel reservation", "bookings", "on_change", true),
   spec("Push_ConfirmReservation_RQ", "Confirm reservation", "bookings", "on_change", true),
   spec("Push_RejectRequest_RQ", "Reject / withdraw request", "bookings", "on_change", true),
+  spec("Push_ConfirmRequest_RQ", "Confirm request", "bookings", "on_change", true, "Accepts a channel request lead"),
+
   spec("Pull_ListReservations_RQ", "Reservation poll", "bookings", "scheduled", false, "Every 30 minutes"),
   spec("Pull_GetReservationByID_RQ", "Read reservation", "bookings", "on_demand", false),
   spec("Pull_GetLeads_RQ", "Lead poll", "bookings", "scheduled", false),
@@ -177,6 +181,28 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
 const BY_ID = new Map(RU_ENDPOINT_LIBRARY.map((entry) => [entry.id, entry]));
 
 /**
+ * Documentation spellings the channel's certification registry uses for verbs ROL'OS implements
+ * under a different published name. Mapping them keeps the compliance registry readable without
+ * inventing extra rows in the traffic monitor.
+ */
+const ALIAS_TO_ID: Record<string, string> = {
+  Pull_GetProperty_RQ: "Pull_ListSpecProp_RQ",
+  Pull_ListCities_RQ: "Pull_ListCitiesAndCurrencies_RQ",
+  Pull_ListCurrencies_RQ: "Pull_ListCurrenciesWithCities_RQ",
+  Pull_ListLocationsBySearchString_RQ: "Pull_GetLocationsListByName_RQ",
+  Pull_ListOwnerBuildings_RQ: "Pull_ListBuildings_RQ",
+  Pull_ListPropertyLastMinuteDiscounts_RQ: "Pull_ListPropertyDiscounts_RQ",
+  Pull_ListPropertyLongStayDiscounts_RQ: "Pull_ListPropertyDiscounts_RQ",
+  Push_PutCompanyDetails_RQ: "Push_FillCompanyDetails_RQ",
+  Push_PutOwnerDetails_RQ: "Push_PutOwner_RQ",
+  Push_PutPropertyStatus_RQ: "Push_SetPropertiesStatus_RQ",
+  // No hard delete exists at the channel: removal is an archive through the bulk status verb.
+  Push_DeleteProperty_RQ: "Push_SetPropertiesStatus_RQ",
+  Push_RemoveProperty_RQ: "Push_SetPropertiesStatus_RQ",
+};
+
+
+/**
  * Resolves a logged action to its spec. Some rows log an internal orchestration action
  * (`rentalsunited-api:get_reservation_by_id`); those fall back to the wire verb they wrap so the
  * counters stay on one row per endpoint.
@@ -185,6 +211,9 @@ export function resolveRuEndpoint(action: string | null | undefined): RuEndpoint
   if (!action) return null;
   const direct = BY_ID.get(action);
   if (direct) return direct;
+  const aliased = ALIAS_TO_ID[action] ? BY_ID.get(ALIAS_TO_ID[action]) : undefined;
+  if (aliased) return aliased;
+
   const suffix = action.includes(":") ? action.slice(action.indexOf(":") + 1) : null;
   if (!suffix) return null;
   const normalised = suffix.replace(/[_-]/g, "").toLowerCase();

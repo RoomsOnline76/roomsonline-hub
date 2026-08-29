@@ -3251,6 +3251,31 @@ Deno.serve(async (req) => {
     }
 
 
+    /**
+     * ROL'OS is the source of truth for availability and pricing, so reading ARI back off the
+     * channel is never routine traffic: every legitimate read belongs to onboarding verification,
+     * a certification probe, the price-coverage audit or a repair of a refused availability batch.
+     * The gateway therefore demands a declared purpose — an undeclared read is refused, which is
+     * what stops an unattributed job from quietly re-establishing a polling cadence.
+     */
+    const READBACK_PURPOSES = new Set([
+      'onboarding_verification',
+      'cert_probe',
+      'coverage_audit',
+      'availability_repair',
+      'operator_request',
+    ]);
+    if (action === 'get_availability' || action === 'get_prices') {
+      const purpose = String(body.readback_purpose ?? '').trim();
+      if (!READBACK_PURPOSES.has(purpose)) {
+        console.warn(`[rentalsunited-api] blocked undeclared ${action} read-back (purpose="${purpose}")`);
+        return errorResponse(
+          'READBACK_BLOCKED',
+          `${action} is a channel read-back and ROL'OS owns availability and pricing. Pass readback_purpose (${[...READBACK_PURPOSES].join(', ')}) to run it deliberately.`,
+        );
+      }
+    }
+
     // ── get_availability ──
     if (action === 'get_availability') {
       if (!ru_property_id || !date_from || !date_to) return errorResponse('MISSING_PARAM', 'ru_property_id, date_from, date_to are required');
@@ -3270,6 +3295,7 @@ Deno.serve(async (req) => {
       if (!ok) return ruErrorResponse(status);
       return jsonResponse({ success: true, auth_mode: authMode, raw_xml: response });
     }
+
 
 
     // ── list_reservations ──

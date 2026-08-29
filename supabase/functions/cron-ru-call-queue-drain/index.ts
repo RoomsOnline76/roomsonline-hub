@@ -13,7 +13,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { readInvokeErrorBody } from '../_shared/ruInvokeBody.ts';
 import { RU_RATE_DEFERRED_CODE } from '../_shared/ruRateGate.ts';
 import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
-import { confirmRuRequest, reopenStayNightsAtChannel } from '../_shared/ruBookingSync.ts';
+import { confirmRuRequest } from '../_shared/ruBookingSync.ts';
 import { RU_ARI_DELTA_QUEUE_ACTION } from '../_shared/ruAriDelta.ts';
 import { settleReservationOp } from '../_shared/ruReservationOpClaim.ts';
 
@@ -184,11 +184,14 @@ Deno.serve(async (req) => {
       }
     } else if (terminalNoOp === null) {
       try {
-        // A locally-created stay may have been reopened when it was first queued, but an unrelated
-        // ARI refresh can legitimately publish its now-sold nights as closed during the channel's
-        // sliding-minute wait. Reopen the exact stay immediately before the terminal create replay,
-        // making reopen + registration one drainer operation rather than relying on stale calendar
-        // state from the enqueue attempt.
+        /**
+         * A parked registration must still be the RIGHT thing to send. Two things can have changed
+         * while it waited for a channel slot: the stay may already have been registered (so this
+         * payload would create a duplicate), or the local booking may have been edited (so this
+         * payload describes a stay that no longer exists). Both are closed off here instead of
+         * being replayed — and availability is NOT reopened as a routine precursor, because the
+         * reservation itself legitimately owns those nights.
+         */
         if (row.action === 'push_confirmed_reservation') {
           const bookingId = queuedBookingId(row);
           const stay = (row.payload?.stay ?? {}) as Record<string, unknown>;
@@ -200,39 +203,44 @@ Deno.serve(async (req) => {
           }
           const { data: booking } = await supabase
             .from('bookings')
-            .select('id, property_id, room_type_id, external_reservation_id, booking_channel, integration_type, check_in_date, check_out_date')
+            .select('id, status, external_reservation_id, check_in_date, check_out_date')
             .eq('id', bookingId)
             .maybeSingle();
           if (!booking) throw new Error('Queued reservation booking no longer exists.');
-          const auth = { ...(row.payload ?? {}) };
-          delete auth.action;
-          delete auth.stay;
-          delete auth.guest;
-          delete auth.booking_id;
-          delete auth.reservation_fingerprint;
-          const reopened = await reopenStayNightsAtChannel(supabase, booking as never, {
-            auth,
-            ruPropertyId,
-            dateFrom,
-            dateTo,
-            traceId: crypto.randomUUID(),
-            parentAction: 'ruQueueDrain:create:reopen',
-            details: { queue_id: row.id, attempt: row.attempts },
-          });
-          if (!reopened) throw new Error('Could not reopen the stay dates immediately before registration.');
+          const bookingRow = booking as {
+            status?: string | null;
+            external_reservation_id?: string | null;
+            check_in_date?: string | null;
+            check_out_date?: string | null;
+          };
+          if (String(bookingRow.external_reservation_id ?? '').trim()) {
+            terminalNoOp =
+              'The stay is already registered at the channel — this queued registration was dropped instead of duplicating it.';
+          } else if (TERMINAL_BOOKING_STATUSES.has(String(bookingRow.status ?? '').toLowerCase())) {
+            terminalNoOp = `Stay is ${bookingRow.status} in ROL\u2019OS — registration at the channel is no longer wanted.`;
+          } else if (
+            String(bookingRow.check_in_date ?? '').slice(0, 10) !== dateFrom ||
+            String(bookingRow.check_out_date ?? '').slice(0, 10) !== dateTo
+          ) {
+            terminalNoOp =
+              'The stay was edited after this registration was queued — the stale payload was dropped; the current stay is registered by its own run.';
+          }
         }
 
-        // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
-        // `action` is taken from the row so legacy payloads queued without it still replay.
-        const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: row.action, ...(row.payload ?? {}), deferrable: false, queued_replay: true },
-        });
-        if (error) throw new Error(await invokeErrorMessage(error));
-        if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
-        result = data ?? null;
-        // A replay can itself hit the sliding window and hand the work to a new queue row. That is
-        // not delivery: the nested row carries our booking metadata and owns terminal completion.
-        if (data?.queued === true) terminalNoOp = 'Handed off to the next channel rate-window slot.';
+        if (terminalNoOp === null) {
+          // Replay the original request; `deferrable: false` so the gate waits rather than re-queues.
+          // `action` is taken from the row so legacy payloads queued without it still replay.
+          const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
+            body: { action: row.action, ...(row.payload ?? {}), deferrable: false, queued_replay: true },
+          });
+          if (error) throw new Error(await invokeErrorMessage(error));
+          if (data?.success === false) throw new Error(data?.error?.message ?? `${row.action} failed`);
+          result = data ?? null;
+          // A replay can itself hit the sliding window and hand the work to a new queue row. That is
+          // not delivery: the nested row carries our booking metadata and owns terminal completion.
+          if (data?.queued === true) terminalNoOp = 'Handed off to the next channel rate-window slot.';
+        }
+
       } catch (err) {
         failure = err instanceof Error ? err.message : String(err);
       }
@@ -280,7 +288,23 @@ Deno.serve(async (req) => {
         .from('ru_call_queue')
         .update({ status: 'no_op', last_error: terminalNoOp, completed_at: nowIso, claimed_at: null })
         .eq('id', row.id);
+      // A dropped registration must release its operation claim, otherwise the next edit for this
+      // booking is skipped as "already on its way to the channel" and the stay never syncs.
+      if (row.action === 'push_confirmed_reservation') {
+        const bookingId = queuedBookingId(row);
+        const fingerprint = String(row.payload?.reservation_fingerprint ?? '').trim();
+        if (bookingId && fingerprint) {
+          await settleReservationOp(supabase, {
+            bookingId,
+            op: 'create',
+            fingerprint,
+            outcome: 'absent',
+            detail: terminalNoOp,
+          });
+        }
+      }
       console.log(`[cron-ru-call-queue-drain] ${row.action} skipped → ${terminalNoOp}`);
+
       if (Date.now() < deadline) await new Promise((r) => setTimeout(r, SPACING_MS));
       continue;
     }
