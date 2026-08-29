@@ -304,6 +304,9 @@ Deno.serve(async (req) => {
       target_months: count(extract.targets),
       historical_occupancy_months: count(extract.historicalOccupancy),
       historical_adr_months: count(extract.historicalAdr),
+      year_actual_columns: Object.keys(yearBuckets).length,
+      stly_months: count(extract.stlyRevenue) + count(extract.stlyRoomNights),
+      budget_months: count(extract.budgetRevenue),
       carry_forward_sheets: Object.keys(extract.carryForward).length,
       // Owner's-report PDFs only.
       current_otb_months: count(extract.currentOtbRevenue),
