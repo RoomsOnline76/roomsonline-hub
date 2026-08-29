@@ -68,10 +68,12 @@ export function ChannelPropertyTable({
   const groups = useMemo(() => {
     const map = new Map<string, ChannelPropertyRow[]>();
     for (const r of filtered) {
-      const key = r.portfolioName || UNASSIGNED;
-      const list = map.get(key);
+      // Unassigned properties (no portfolio) stand alone — the listing is for
+      // that single property only, so they get no group header at all.
+      if (!r.portfolioName) continue;
+      const list = map.get(r.portfolioName);
       if (list) list.push(r);
-      else map.set(key, [r]);
+      else map.set(r.portfolioName, [r]);
     }
     return Array.from(map.entries())
       .map(([name, groupRows]) => ({
@@ -81,12 +83,13 @@ export function ChannelPropertyTable({
         duplicates: groupRows.reduce((sum, r) => sum + r.duplicateListings, 0),
         monthlyCostEur: groupRows.reduce((sum, r) => sum + r.monthlyCostEur, 0),
       }))
-      .sort((a, b) => {
-        if (a.name === UNASSIGNED) return 1;
-        if (b.name === UNASSIGNED) return -1;
-        return a.name.localeCompare(b.name);
-      });
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [filtered]);
+
+  const unassignedRows = useMemo(
+    () => filtered.filter((r) => !r.portfolioName).sort((a, b) => a.name.localeCompare(b.name)),
+    [filtered],
+  );
 
   // Portfolios collapse by default: seed the collapsed set with every group
   // name once, the first time groups are computed, so the table renders compact.
