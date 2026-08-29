@@ -159,6 +159,7 @@ Deno.serve(async (req) => {
     });
     const covered: string[] = [];
     const deferred: string[] = [];
+    const skippedFresh: string[] = [];
 
     if (scopes.length === 0) {
       const msg = 'No Rentals United sub-accounts with API keys — nothing to poll.';
@@ -168,6 +169,24 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Distil to the essential calls: one Pull_ListReservations_RQ per account per cadence.
+    // An account already covered inside the floor (previous run, RLNM-driven pull, manual
+    // reconcile) is not asked again — that was the duplicate traffic in the RU logs.
+    const resSeen = await lastSuccessByOwner('pull_reservations');
+    const resScopes = scopes.filter((s) => {
+      const last = s.ownerId ? resSeen.get(String(s.ownerId)) : undefined;
+      if (last && Date.now() - last < RESERVATION_FLOOR_MS) {
+        skippedFresh.push(s.label);
+        return false;
+      }
+      return true;
+    });
+    if (skippedFresh.length) {
+      console.log(`[cron-pull-ru] ${skippedFresh.length} account(s) already fresh — no repeat reservations pull: ${skippedFresh.join(', ')}`);
+    }
+
+
 
 
     for (let i = 0; i < scopes.length; i++) {
