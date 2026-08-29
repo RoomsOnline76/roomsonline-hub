@@ -577,6 +577,82 @@ export async function reopenStayNightsAtChannel(
 
 
 /**
+ * Prove the channel really can sell this stay before spending a reservation write on it.
+ *
+ * `Push_PutAvbUnits_RQ` answering Status 0 is NOT proof: on 2026-08-29 a reopen returned Status 0
+ * and the create fired 0.4 s later was still refused, because the channel had not applied the
+ * calendar write yet (and a competing full-window delta closed the nights again straight after).
+ * This is a reservation-write precondition, not recurring polling — hence its own declared
+ * read-back purpose.
+ */
+async function stayIsSellableAtChannel(
+  supabase: Db,
+  booking: RuBookingRef,
+  args: {
+    auth: Record<string, unknown>;
+    ruPropertyId: string;
+    dateFrom: string;
+    dateTo: string;
+    traceId: string;
+    parentAction: string;
+  },
+): Promise<{ checked: boolean; sellable: boolean; closedDays: string[]; detail: string | null }> {
+  const nights = stayNights(args.dateFrom, args.dateTo);
+  if (nights.length === 0) return { checked: false, sellable: true, closedDays: [], detail: null };
+
+  const read = await invokeRu(supabase, 'get_availability', {
+    ru_property_id: Number(args.ruPropertyId),
+    date_from: args.dateFrom,
+    date_to: args.dateTo,
+    readback_purpose: 'reservation_write_precheck',
+    ...args.auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId: args.ruPropertyId,
+    traceId: args.traceId,
+    parentAction: args.parentAction,
+    details: { booking_id: booking.id, stay: { from: args.dateFrom, to: args.dateTo } },
+  });
+
+  const xml = typeof read.data?.raw_xml === 'string' ? read.data.raw_xml : '';
+  if (!read.ok || !xml) {
+    // A read we could not perform must never block the write — the channel is the final judge.
+    return { checked: false, sellable: true, closedDays: [], detail: read.message ?? null };
+  }
+
+  const days = parseRuAvailabilityDays(xml);
+  const closedDays: string[] = [];
+  for (const night of nights) {
+    const day = days.get(night);
+    if (!day) continue; // outside the returned window — nothing to assert
+    if (day.blocked || (day.units ?? 0) < 1) closedDays.push(night);
+  }
+
+  // Arrival and departure days must also permit check-in / check-out.
+  const arrival = days.get(args.dateFrom);
+  const departure = days.get(args.dateTo);
+  const changeoverProblems: string[] = [];
+  if (arrival && arrival.changeover != null && arrival.changeover !== 1 && arrival.changeover !== 3) {
+    changeoverProblems.push(`${args.dateFrom} does not allow check-in`);
+  }
+  if (departure && departure.changeover != null && departure.changeover !== 2 && departure.changeover !== 3) {
+    changeoverProblems.push(`${args.dateTo} does not allow check-out`);
+  }
+
+  const sellable = closedDays.length === 0 && changeoverProblems.length === 0;
+  const detail = sellable ? null : [
+    closedDays.length > 0 ? `closed night(s): ${closedDays.join(', ')}` : null,
+    ...changeoverProblems,
+  ].filter(Boolean).join('; ');
+  return { checked: true, sellable, closedDays, detail };
+}
+
+export { stayIsSellableAtChannel };
+
+
+
+
+/**
  * Accept an unconfirmed channel request so the reservation becomes modifiable.
  *
  * The channel holds a request (StatusID 4) as a lead: it refuses every stay modification while
