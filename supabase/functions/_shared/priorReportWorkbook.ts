@@ -580,6 +580,46 @@ function parseOtbSheet(
         if (uplift !== null && result.targetUplift === null) result.targetUplift = uplift;
       }
 
+      // Named prior-year, STLY and budget columns. Revenue and room-night
+      // blocks each contribute their own figure; occupancy and ADR blocks are
+      // derived later so a percentage can never land in a money map.
+      if (kind === "revenue" || isNights) {
+        for (const { year: actualYear, col } of yearActualCols) {
+          const value = toNum(row[col]);
+          if (value === null) continue;
+          const bucket = (result.actualsByYear[String(actualYear)] ??= {
+            revenue: {},
+            roomNights: {},
+          });
+          const shifted = `${actualYear}-${pad(month)}`;
+          if (isNights) {
+            if (plausibleNights(value)) bucket.roomNights[shifted] = value;
+          } else {
+            bucket.revenue[shifted] = value;
+          }
+        }
+        if (stlyCol !== null) {
+          const value = toNum(row[stlyCol]);
+          if (value !== null) {
+            if (isNights) {
+              if (plausibleNights(value)) result.stlyNights[key] = value;
+            } else {
+              result.stlyRevenue[key] = value;
+            }
+          }
+        }
+        if (budgetCol !== null) {
+          const value = toNum(row[budgetCol]);
+          if (value !== null) {
+            if (isNights) {
+              if (plausibleNights(value)) result.budgetNights[key] = value;
+            } else {
+              result.budgetRevenue[key] = value;
+            }
+          }
+        }
+      }
+
       // Room nights ride along with whichever block prints them.
       if (occNightsCol !== null) {
         const nights = toNum(row[occNightsCol]);
