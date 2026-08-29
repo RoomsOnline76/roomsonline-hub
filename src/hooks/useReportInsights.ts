@@ -29,7 +29,13 @@ export interface InsightSelection {
   text: string;
   /** True once the reviewer reworded it — such text survives a regeneration. */
   edited?: boolean;
+  /**
+   * Where the comment prints: `auto` (from the wording), `overall`,
+   * `month:YYYY-MM`, or one of the reviewer note fields.
+   */
+  placement?: string;
 }
+
 
 /** TOBI's freer "consultant" second opinion, produced by the experimental pass. */
 export interface ExperimentalInsights {
