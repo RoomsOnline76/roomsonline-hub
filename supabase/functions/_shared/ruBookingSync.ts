@@ -1409,6 +1409,56 @@ export async function pushRuConfirmedReservation(
     ...auth,
   };
 
+  /**
+   * After a first refusal, prove the calendar is actually open before spending another write. A
+   * Status 0 on the reopen is not proof the stay became sellable, and the refused write costs a
+   * full rate-limit slot.
+   */
+  if (priorRefusals > 0) {
+    const precheck = await stayIsSellableAtChannel(supabase, booking, {
+      auth,
+      ruPropertyId,
+      dateFrom: booking.check_in_date,
+      dateTo: booking.check_out_date,
+      traceId,
+      parentAction: 'ruBookingSync:create:precheck',
+    });
+    if (precheck.checked && !precheck.sellable) {
+      await settleReservationOp(supabase, {
+        bookingId: booking.id,
+        op: 'create',
+        fingerprint,
+        outcome: 'deferred',
+        detail: `Channel calendar still closed for this stay (${precheck.detail}).`,
+      });
+      await recordChannelBookingEvent(supabase, {
+        booking_id: booking.id,
+        property_id: booking.property_id,
+        direction: 'outbound',
+        action: 'created',
+        source: 'ru_booking_sync',
+        outcome: 'skipped',
+        reason: 'channel_calendar_closed',
+        channel_listing_id: ruPropertyId,
+        trace_id: traceId,
+        summary: `Channel calendar is closed for this stay: ${precheck.detail}`,
+        details: { closed_days: precheck.closedDays, refusals_this_hour: priorRefusals },
+      });
+      return {
+        ok: false,
+        method: 'push_confirmed_reservation',
+        code: 'RU_STAY_CLOSED_AT_CHANNEL',
+        message:
+          `The channel calendar still shows this stay as unsellable (${precheck.detail}). ` +
+          'Open those days for this listing in the channel portal, then resend the stay.',
+        traceId,
+        ruPropertyId,
+      };
+    }
+  }
+
+
+
   const result = await invokeRu(supabase, 'push_confirmed_reservation', payload, {
     propertyId: booking.property_id,
     ruPropertyId,
