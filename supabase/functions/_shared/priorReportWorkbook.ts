@@ -973,6 +973,15 @@ export function parsePriorReportWorkbook(
     fill(extract.dinnerByMonth, otb.dinner);
     fill(extract.room0ByMonth, otb.room0);
     fill(extract.compRnsByMonth, otb.compRns);
+    fill(extract.stlyRevenue, otb.stlyRevenue);
+    fill(extract.stlyRoomNights, otb.stlyNights);
+    fill(extract.budgetRevenue, otb.budgetRevenue);
+    fill(extract.budgetRoomNights, otb.budgetNights);
+    for (const [year, bucket] of Object.entries(otb.actualsByYear)) {
+      const target = (extract.actualsByYear[year] ??= { revenue: {}, roomNights: {} });
+      fill(target.revenue, bucket.revenue);
+      fill(target.roomNights, bucket.roomNights);
+    }
     if (extract.targetUplift === null) extract.targetUplift = otb.targetUplift;
   });
 
