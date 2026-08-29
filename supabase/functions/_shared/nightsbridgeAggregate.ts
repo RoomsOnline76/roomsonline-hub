@@ -3,6 +3,8 @@
 import {
   classifyRow,
   EMPTY_ROW_RULES,
+  REVENUE_BEARING_NON_SELLABLE,
+  roomNameKeys,
   type RowClass,
   type RowRules,
 } from "./nightsbridgeRowRules.ts";
@@ -26,6 +28,13 @@ export interface LedgerRow {
   /** Guest / company labels, used by the zero-revenue keep and exclude rules. */
   guest_name?: string | null;
   company?: string | null;
+  /**
+   * Month (YYYY-MM) the export this row came from reports on. A NightsBridge
+   * bookingsummary is pulled per month and repeats a stay that started earlier
+   * but occupies nights in the reported month, so the file's own period — not
+   * the arrival date — decides which month the row belongs to.
+   */
+  report_month?: string | null;
 }
 
 export interface ExcludedRow {
@@ -163,15 +172,21 @@ export function aggregateLedger(
   let keptRows = 0;
   let keptNights = 0;
 
+  // Room labels are needed up front: an occupant field holding a unit's own
+  // name is a hold, not a guest.
+  const roomNames = roomNameKeys(rows);
+
   for (const row of rows) {
     if (!row.arrival) continue;
     if (!Number.isFinite(row.revenue) || !Number.isFinite(row.nights)) continue;
 
-    const key = monthKey(row.arrival);
+    // The export's own reporting period wins over the arrival date.
+    const stamped = String(row.report_month ?? "").slice(0, 7);
+    const key = /^\d{4}-\d{2}$/.test(stamped) ? stamped : monthKey(row.arrival);
     monthSet.add(key);
     extrasTotal += row.extras || 0;
 
-    const { klass, matched } = classifyRow(row, rules);
+    const { klass, matched } = classifyRow(row, rules, roomNames);
 
     // Dinner is the extras billed against guest rooms. Function-room (Events),
     // Room 0 and holding-in-credit extras are other revenue streams.
@@ -200,8 +215,10 @@ export function aggregateLedger(
       if (klass === "room_zero") {
         roomZero[key] = (roomZero[key] ?? 0) + row.revenue;
       }
-      if (klass === "blocked_zero_revenue") {
-        compNights[key] = (compNights[key] ?? 0) + row.nights;
+      // Money on a blocked / excluded line is still accommodation revenue —
+      // only its nights are not sellable room nights.
+      if (REVENUE_BEARING_NON_SELLABLE.includes(klass) && row.revenue) {
+        revenue[key] = (revenue[key] ?? 0) + row.revenue;
       }
 
       const list = excludedRows[key] ?? [];
@@ -229,6 +246,10 @@ export function aggregateLedger(
       keptNights += row.nights;
       keptPatterns[matched] = (keptPatterns[matched] ?? 0) + 1;
     }
+
+    // Occupied at no charge: counted as room nights (the room was not sellable)
+    // and reported so the reviewer can see what is dragging ADR down.
+    if (!row.revenue) compNights[key] = (compNights[key] ?? 0) + row.nights;
 
     bookings += 1;
     revenue[key] = (revenue[key] ?? 0) + row.revenue;

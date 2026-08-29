@@ -11,11 +11,13 @@ import type { LedgerRow } from "./nightsbridgeAggregate.ts";
 export type RowClass =
   | "sellable"
   | "blocked_zero_revenue"
+  | "blocked_marker"
   | "unavailable"
   | "room_zero"
   | "event"
   | "holding_credit"
   | "excluded_by_rule";
+
 
 
 export interface RowRules {
@@ -46,6 +48,7 @@ export const EMPTY_ROW_RULES: RowRules = {
 export const ROW_CLASS_LABELS: Record<RowClass, string> = {
   sellable: "Sold nights",
   blocked_zero_revenue: "Zero revenue (block / maintenance / owner)",
+  blocked_marker: "Block / closed (no occupant named)",
   unavailable: "Unavailable (room out of order)",
   room_zero: "Room 0",
   event: "Events",
@@ -72,7 +75,28 @@ export function normaliseRules(
   };
 }
 
-/** Every text field a keep/exclude pattern may match against. */
+/** Fields a pattern can be scoped to, e.g. `guest:MOI` or `room:Room 0`. */
+const SCOPES = ["guest", "company", "room", "source", "status", "type"] as const;
+type Scope = (typeof SCOPES)[number];
+
+const fieldText = (row: LedgerRow, scope: Scope): string => {
+  switch (scope) {
+    case "guest":
+      return String(row.guest_name ?? "");
+    case "company":
+      return String(row.company ?? "");
+    case "room":
+      return String(row.room_name ?? "");
+    case "source":
+      return String(row.source ?? "");
+    case "status":
+      return String(row.status ?? "");
+    case "type":
+      return String(row.type ?? "");
+  }
+};
+
+/** Every text field an unscoped keep/exclude pattern may match against. */
 const haystack = (row: LedgerRow): string =>
   [row.guest_name, row.company, row.source, row.room_name, row.type, row.status]
     .map((value) => String(value ?? ""))
@@ -81,15 +105,71 @@ const haystack = (row: LedgerRow): string =>
 
 const firstMatch = (row: LedgerRow, patterns: string[]): string | null => {
   if (!patterns.length) return null;
-  const text = haystack(row);
+  const all = haystack(row);
   for (const pattern of patterns) {
-    const needle = pattern.trim().toLowerCase();
-    if (needle && text.includes(needle)) return pattern;
+    const raw = pattern.trim();
+    if (!raw) continue;
+    // Scoped pattern: only that one field decides.
+    const colon = raw.indexOf(":");
+    if (colon > 0) {
+      const scope = raw.slice(0, colon).trim().toLowerCase() as Scope;
+      const needle = raw.slice(colon + 1).trim().toLowerCase();
+      if (SCOPES.includes(scope) && needle) {
+        if (fieldText(row, scope).toLowerCase().includes(needle)) return pattern;
+        continue;
+      }
+    }
+    if (all.includes(raw.toLowerCase())) return pattern;
   }
   return null;
 };
 
-export function classifyRow(row: LedgerRow, rules: RowRules = EMPTY_ROW_RULES): RowClassification {
+/**
+ * Labels NightsBridge operators type into a booking that is really a closed or
+ * held room rather than an occupant: blocks, maintenance, owner use, "not
+ * available", repairs, or the room's own name typed into the guest field.
+ */
+const MARKER_LABEL =
+  /(\bblock|\bclose[ds]?\b|not available|unavailable|maintenance|owner use|owners use|out of order|do not book|repair|reno(vation)?|do not sell|\bheld\b|\bhold\b)/i;
+
+/** The person or account the night is occupied by, if any. */
+const occupant = (row: LedgerRow): string =>
+  String(row.guest_name ?? "").trim() || String(row.company ?? "").trim();
+
+/**
+ * True when nobody is really in the room: no occupant named, a placeholder
+ * (x, xx, n/a, -) or a block/closed marker.
+ */
+export function looksLikeBlockMarker(row: LedgerRow): boolean {
+  const label = occupant(row);
+  if (!label) return true;
+  if (/^[-–—.]+$/.test(label)) return true;
+  if (/^x+$/i.test(label)) return true;
+  if (/^n\/?a$/i.test(label)) return true;
+  return MARKER_LABEL.test(label);
+}
+
+/** Room labels reduced to comparable keys ("Kunjani Suite - 2 Bedroom" -> "kunjanisuite2bedroom"). */
+export const roomKey = (value: unknown): string =>
+  String(value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+
+/** Every distinct room label the export uses, for occupant-marker detection. */
+export function roomNameKeys(rows: LedgerRow[]): Set<string> {
+  const out = new Set<string>();
+  for (const row of rows) {
+    const key = roomKey(row.room_name);
+    if (key.length >= 4) out.add(key);
+  }
+  return out;
+}
+
+export function classifyRow(
+  row: LedgerRow,
+  rules: RowRules = EMPTY_ROW_RULES,
+  roomNames?: Set<string>,
+): RowClassification {
   const excluded = firstMatch(row, rules.excludePatterns);
   if (excluded) return { klass: "excluded_by_rule", matched: excluded };
 
@@ -100,22 +180,49 @@ export function classifyRow(row: LedgerRow, rules: RowRules = EMPTY_ROW_RULES): 
     return { klass: "holding_credit", matched: null };
   }
 
-  // Rooms flagged Unavailable are out of order, never sold nights and never
-  // complimentary — whatever revenue the export prints against them.
-  const status = String(row.status ?? "").trim().toLowerCase();
-  if (rules.dropZeroRevenue && status.includes("unavailable")) {
-    const kept = firstMatch(row, rules.keepPatterns);
-    if (kept) return { klass: "sellable", matched: kept };
-    return { klass: "unavailable", matched: null };
+  // A property's keep-list always wins: those labels are real occupancy even
+  // when the export shows 0.00 or flags the room Unavailable.
+  const kept = firstMatch(row, rules.keepPatterns);
+  if (kept) return { klass: "sellable", matched: kept };
+
+  // Status alone never decides. Operators host real guests free of charge on
+  // rooms flagged "Unavailable" and those nights are sold, so only the label on
+  // the booking can tell a hold apart from a guest. A property that closes
+  // rooms under a name the label rules cannot recognise adds it to its own
+  // exclude list (field-scoped, e.g. `guest:courtney`).
+  // An operator holding a unit often types the unit's own name into the guest
+  // field ("Kunjani Suite" against Presidential Villa). Nobody is staying, so
+  // the nights are not sellable even though a token amount may be captured.
+  if (roomNames && roomNames.size > 0) {
+    const label = roomKey(occupant(row));
+    if (label.length >= 5 && label !== roomKey(row.room_name)) {
+      for (const name of roomNames) {
+        if (name === label || name.startsWith(label)) {
+          return { klass: "blocked_marker", matched: null };
+        }
+      }
+    }
   }
 
-  const revenue = Number(row.revenue);
-
-  if (rules.dropZeroRevenue && Number.isFinite(revenue) && revenue === 0) {
-    const kept = firstMatch(row, rules.keepPatterns);
-    if (kept) return { klass: "sellable", matched: kept };
-    return { klass: "blocked_zero_revenue", matched: null };
+  // NightsBridge exports carry blocks, maintenance and owner holds as bookings.
+  // They are recognised by the label typed into the booking, not by revenue:
+  // real guests are sometimes hosted at 0.00 (comps, packages, tour operators).
+  if (rules.dropZeroRevenue && looksLikeBlockMarker(row)) {
+    return { klass: "blocked_marker", matched: null };
   }
 
   return { klass: "sellable", matched: null };
 }
+
+/**
+ * Classes whose money is still accommodation revenue on the ledger even though
+ * their nights are not sellable room nights. Room 0, events and holding-in-
+ * credit are separate revenue streams and are reported on their own lines.
+ */
+export const REVENUE_BEARING_NON_SELLABLE: RowClass[] = [
+  "blocked_marker",
+  "blocked_zero_revenue",
+  "unavailable",
+  "excluded_by_rule",
+];
+

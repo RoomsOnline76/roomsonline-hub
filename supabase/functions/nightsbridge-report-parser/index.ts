@@ -114,6 +114,8 @@ async function parseSourceFile(
           mapping: {},
           unresolved: [],
           fingerprint: null,
+          period: null,
+          declaredRevenue: null,
         };
       }
       return parseLedgerSheets([{ name: "PDF", grid: gridFromPdfItems(items) }], {
@@ -148,6 +150,8 @@ async function parseSourceFile(
       mapping: {},
       unresolved: [],
       fingerprint: null,
+      period: null,
+      declaredRevenue: null,
     };
   }
 }

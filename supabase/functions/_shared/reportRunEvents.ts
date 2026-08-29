@@ -19,6 +19,7 @@ export type ReportRunEventType =
   | "past_months_reclassified"
   | "prior_report_gap_filled"
   | "rows_routed_away"
+  | "sibling_rows_deduped"
   | "file_reparsed"
   | "excel_generated"
   | "draft_generated"
