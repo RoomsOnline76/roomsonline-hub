@@ -150,6 +150,11 @@ const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
 
   historicalRevenue: numberMap(raw.historical_revenue),
   historicalRoomNights: numberMap(raw.historical_room_nights),
+  comparisonYears: Object.keys(
+    (raw.historical_by_year ?? {}) as Record<string, unknown>,
+  ).sort(),
+  stlyRevenue: numberMap((raw.stly as { revenue?: unknown } | undefined)?.revenue),
+  budgetRevenue: numberMap((raw.budget as { revenue?: unknown } | undefined)?.revenue),
   provisionalRevenue: numberMap(raw.provisional_revenue),
   forwardYearLabel:
     typeof (raw.forward_year as { label?: unknown } | null)?.label === "string"
