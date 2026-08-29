@@ -115,6 +115,7 @@ export const normaliseExtras = (extras?: Partial<WorkbookExtras>): WorkbookExtra
   historicalOccupancy: extras?.historicalOccupancy ?? {},
   carryForward: extras?.carryForward ?? {},
   cadence: extras?.cadence ?? null,
+  comparisons: extras?.comparisons ?? [],
 });
 
 export type Sheet = ExcelJS.Worksheet;
