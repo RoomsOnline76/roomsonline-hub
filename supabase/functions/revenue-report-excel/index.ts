@@ -8,6 +8,7 @@ import {
   type HistoricalBaseline,
 } from "../_shared/revenueReportWorkbook.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
+import { resolveComparisons } from "../_shared/reportComparisons.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -72,7 +73,7 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, brand_primary, historical_baseline")
+      .select("room_count, brand_primary, historical_baseline, report_profile")
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -125,6 +126,26 @@ Deno.serve(async (req) => {
       (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
       "Property";
 
+    const windowMonths = monthsInWindow(
+      Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
+      String(run.as_of_date).slice(0, 10),
+      run.report_month ? String(run.report_month).slice(0, 7) : null,
+    );
+
+    // Extra comparison columns this client's profile asks for.
+    const comparisons = resolveComparisons(
+      (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+      {
+        months: windowMonths,
+        actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
+        stly: (snapshot as { stly?: unknown }).stly,
+        importedBaseline: imported,
+        historicalBaseline: settings?.historical_baseline ?? null,
+        capacityDays: numberMap(snapshot.capacity_days),
+        roomCount: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
+      },
+    );
+
     const bytes = await buildRevenueWorkbook({
       propertyName,
       asOfDate: String(run.as_of_date).slice(0, 10),
@@ -132,11 +153,7 @@ Deno.serve(async (req) => {
       brandPrimary: settings?.brand_primary ?? null,
       historicalBaseline: (settings?.historical_baseline ?? {}) as HistoricalBaseline,
       snapshot: {
-        months: monthsInWindow(
-          Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
-          String(run.as_of_date).slice(0, 10),
-          run.report_month ? String(run.report_month).slice(0, 7) : null,
-        ),
+        months: windowMonths,
         otb_revenue: numberMap(snapshot.otb_revenue),
         previous_otb_revenue: numberMap(snapshot.previous_otb_revenue),
         last_year_actual: numberMap(snapshot.last_year_actual),
@@ -166,6 +183,7 @@ Deno.serve(async (req) => {
         lastYearOccupancy: numberMap(imported?.last_year_occupancy),
         historicalOccupancy: numberMap(imported?.historical_occupancy),
         carryForward,
+        comparisons,
       },
     });
 
