@@ -1879,7 +1879,7 @@ ${pagesHtml}
       promotions: inputs.promotions_notes,
       rate_overrides: inputs.rate_override_notes,
       free_commentary: inputs.free_commentary,
-      tobi: tobiLines,
+      tobi: tobiEntries.map((entry) => entry.line),
     },
     media: mediaSlots.map((slot) => ({
       slot: slot.key,
