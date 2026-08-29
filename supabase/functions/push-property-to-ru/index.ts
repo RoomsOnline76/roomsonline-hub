@@ -2210,7 +2210,7 @@ async function loadBookingBlocks(
 
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, status, payment_status, integration_type, booking_channel, hold_expires_at, hold_released_at, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date')
+    .select('id, status, payment_status, integration_type, booking_channel, hold_expires_at, hold_released_at, room_type_id, rolos_room_ids, rooms, check_in_date, check_out_date, external_reservation_id')
     .eq('property_id', propertyId)
     .lt('check_in_date', windowTo)
     .gt('check_out_date', windowFrom)
@@ -2236,6 +2236,28 @@ async function loadBookingBlocks(
     // Operator-created or channel-sourced pending stays hold the night.
     return true;
   });
+
+  /**
+   * A stay whose reservation write is still owed to the channel must NOT be published as sold.
+   * Publishing it as 0 units is exactly what makes the channel refuse the reservation ("Property
+   * is not available for a given dates"), and that refusal loop is what stranded the Albatros stay
+   * on 2026-08-29. The channel closes these nights itself once the reservation registers.
+   */
+  const holds = await loadReservationWriteHolds(
+    supabase,
+    (sold as any[]).map((b) => ({
+      id: String(b.id),
+      check_in_date: b.check_in_date ?? null,
+      check_out_date: b.check_out_date ?? null,
+      external_reservation_id: b.external_reservation_id ?? null,
+    })),
+  );
+  const publishable = holds.bookingIds.size === 0
+    ? sold
+    : (sold as any[]).filter((b) => !holds.bookingIds.has(String(b.id)));
+  (stats as any).held_for_reservation_write = holds.bookingIds.size;
+
+
 
 
   /* A channel unit and the ROL'OS room that sells it can be linked by id, by the
