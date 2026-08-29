@@ -4901,6 +4901,89 @@ Deno.serve(async (req) => {
     };
 
     /**
+     * ── persistChildPasswordAndProbe ─────────────────────────────────────────────
+     * §2 replacement for mintChildKeyPair on the onboard/save-password paths. RU no
+     * longer issues a sub-account's first key pair via the API (post 26 Nov 2025), so
+     * onboarding stores the CreateUser email/password as auth_mode='child_password'
+     * and proves it with exactly ONE Pull_ListOwnerProp_RQ probe — no mint, no wait.
+     */
+    const persistChildPasswordAndProbe = async (opts: {
+      ownerId: string;
+      loginEmail: string;
+      password: string;
+    }): Promise<{
+      ok: boolean;
+      code?: string;
+      message?: string;
+      ruStatusId?: string | null;
+      ruStatusMessage?: string | null;
+    }> => {
+      const { ownerId, loginEmail, password } = opts;
+      if (!ownerId || !loginEmail || !password) {
+        return { ok: false, code: "RU_CHILD_AUTH_REQUIRED", message: "OwnerID, login email and password are required to persist child auth." };
+      }
+
+      const { data: enc, error: encErr } = await admin.rpc("encrypt_sensitive_text", { plaintext: password });
+      if (encErr || !enc) {
+        return { ok: false, code: "ENCRYPT_FAILED", message: encErr?.message || "Could not encrypt the sub-account password" };
+      }
+
+      // Keys win over password (§2): never downgrade a row that already holds a verified
+      // child key pair by upserting a password on top of it.
+      const { data: existingCred } = await admin
+        .from("ru_api_credentials")
+        .select("access_key, key_scope")
+        .eq("ru_owner_id", ownerId)
+        .maybeSingle();
+      if (!existingCred?.access_key) {
+        const { error: credErr } = await admin.from("ru_api_credentials").upsert({
+          ru_owner_id: ownerId,
+          login_email: loginEmail,
+          auth_mode: "child_password",
+          password_enc: enc,
+        }, { onConflict: "ru_owner_id" });
+        if (credErr) return { ok: false, code: "SAVE_FAILED", message: credErr.message };
+      }
+
+      // One probe, no ListMyUsers, no busy-poll: Status 0 (even empty <Properties/>) proves
+      // the password authenticates as this child.
+      const { data: probeData, error: probeError } = await admin.functions.invoke("rentalsunited-api", {
+        body: {
+          action: "verify_child_key_owner",
+          owner_id: ownerId,
+          auth_username: loginEmail,
+          auth_password: password,
+        },
+      });
+      if (probeError) {
+        const errBody = await readInvokeErrorBody(probeError);
+        return {
+          ok: false,
+          code: String(errBody?.error?.code ?? "RU_CHILD_AUTH_PROBE_FAILED"),
+          message: errBody?.error?.message ?? probeError.message ?? "The channel did not answer the sub-account password probe.",
+          ruStatusId: errBody?.error?.ru_status_id ?? null,
+          ruStatusMessage: errBody?.ru_status_message ?? null,
+        };
+      }
+      if (probeData?.success === true && probeData?.owns === true) {
+        await admin
+          .from("ru_api_credentials")
+          .update({ verified_at: new Date().toISOString() })
+          .eq("ru_owner_id", ownerId)
+          .eq("auth_mode", "child_password");
+        return { ok: true, ruStatusId: probeData?.ru_status_id ?? null, ruStatusMessage: probeData?.ru_status_message ?? null };
+      }
+      return {
+        ok: false,
+        code: "NEEDS_UI_KEY",
+        message: `Rentals United rejected the sub-account password for OwnerID ${ownerId} (${loginEmail}). Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`,
+        ruStatusId: probeData?.ru_status_id ?? null,
+        ruStatusMessage: probeData?.ru_status_message ?? null,
+      };
+    };
+
+
+    /**
      * ── create_api_key: mint an additional key pair for the sub-user via the RU API ──
      * Requires an already-working key pair for that sub-user. The new secret is stored immediately because
      * RU only returns it once.
@@ -5737,31 +5820,30 @@ Deno.serve(async (req) => {
         change_summary: `Stored Rentals United portal password for ${canonicalEmail} (OwnerID ${ownerId}); API access is verified separately`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
-      const minted = await mintChildKeyPair({
+      const probed = await persistChildPasswordAndProbe({
         ownerId,
         loginEmail: canonicalEmail,
-        accountId,
-        authUsername: canonicalEmail,
-        authPassword: newPassword,
+        password: newPassword,
       });
-      if (!minted.ok) {
+      if (!probed.ok) {
         return json({
           success: true,
           password_stored: true,
-          key_minted: false,
+          api_access_verified: false,
           error: {
-            code: minted.code ?? "RU_CREATE_KEY_FAILED",
-            message: minted.message ?? "The password was stored, but Step A could not create the API key pair.",
+            code: probed.code ?? "NEEDS_UI_KEY",
+            ru_status_id: probed.ruStatusId ?? null,
+            message: probed.message ?? "The password was stored, but Rentals United rejected it on the one-shot probe.",
+            owner_id: ownerId,
+            email: canonicalEmail,
           },
-          ...(minted.rateDeferred ? { rate_deferred: true, retry_after_ms: minted.retryAfterMs } : {}),
         }, 200);
       }
       return json({
         success: true,
         password_stored: true,
         api_access_verified: true,
-        key_minted: true,
-        access_key: minted.accessKey,
+        auth_mode: "child_password",
         login_email: canonicalEmail,
       });
 
@@ -8859,7 +8941,7 @@ Deno.serve(async (req) => {
         /** Existing binding: if Step A created this account earlier but the key mint was
          * interrupted by roster lag, complete the automatic mint before company details.
          */
-        let keySource: "minted" | "existing" | "blocked" | "deferred" | "manual" = "manual";
+        let keySource: "existing" | "password_verified" | "blocked" = "blocked";
 
         let mintedAccessKey: string | null = null;
         let keyWarning: string | null = null;
@@ -8882,15 +8964,62 @@ Deno.serve(async (req) => {
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
           } else {
             /**
-             * Step A.2 is a manual pause by design: the channel issues a sub-account's
-             * first AccessKey/SecretKey pair in its portal, so we never mint one here.
-             * The account is created and bound — the operator pastes the pair and Step A
-             * continues from there.
+             * §2: no mint. Re-probe the retained CreateUser password with the single
+             * ListOwnerProp pull — Status 0 continues immediately, a rejection is a
+             * typed NEEDS_UI_KEY stop, never a busy-poll or a second mint attempt.
              */
-            keySource = "manual";
-            keyCode = "RU_MANUAL_KEYS_REQUIRED";
-            keyWarning =
-              `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} has no API key pair stored. Create its key pair in the channel portal under that login, then enter the AccessKey and SecretKey to continue Step A.`;
+            let retainedPassword: string | null = null;
+            if ((existing.account as any)?.ru_login_password_enc) {
+              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
+                encrypted_data: (existing.account as any).ru_login_password_enc,
+              });
+              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
+                retainedPassword = decrypted;
+              }
+            }
+            if (retainedPassword && existingLoginEmail) {
+              const probed = await persistChildPasswordAndProbe({
+                ownerId: existingOwnerId,
+                loginEmail: existingLoginEmail,
+                password: retainedPassword,
+              });
+              if (probed.ok) {
+                keySource = "password_verified";
+              } else {
+                keySource = "blocked";
+                keyCode = probed.code ?? "NEEDS_UI_KEY";
+                keyRuStatusId = probed.ruStatusId ?? null;
+                keyRuStatusMessage = probed.ruStatusMessage ?? null;
+                keyWarning = probed.message
+                  ?? `Rentals United rejected the stored password for OwnerID ${existingOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
+                return json({
+                  success: false,
+                  error: {
+                    code: keyCode,
+                    ru_status_id: keyRuStatusId,
+                    message: keyWarning,
+                    owner_id: existingOwnerId,
+                    email: existingLoginEmail,
+                  },
+                  account: existing.account,
+                }, 422);
+              }
+            } else {
+              keySource = "blocked";
+              keyCode = "NEEDS_UI_KEY";
+              keyWarning =
+                `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} has no stored password or API key pair. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
+              return json({
+                success: false,
+                error: {
+                  code: keyCode,
+                  message: keyWarning,
+                  owner_id: existingOwnerId,
+                  email: existingLoginEmail,
+                },
+                account: existing.account,
+              }, 422);
+            }
           }
 
         }
@@ -8934,7 +9063,8 @@ Deno.serve(async (req) => {
           account: refreshed ?? existing.account,
           scope: existing.scope,
           key_source: keySource,
-          keys_minted: keySource === "minted",
+          keys_minted: keySource === "existing",
+          auth_mode: keySource === "password_verified" ? "child_password" : keySource === "existing" ? "child_keys" : null,
           access_key: mintedAccessKey,
           key_warning: keyWarning,
           key_code: keyCode,

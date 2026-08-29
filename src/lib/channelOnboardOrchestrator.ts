@@ -876,9 +876,10 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
-        // Onboarding is the one flow that must prove the channel holds our rates, so it asks for
-        // the price read-back explicitly. Routine saves never do.
-        verifyReadback: true,
+        // First list must not read the channel's copy back (Fix C): ROL'OS authored the rates
+        // and PutPrices already confirmed the write. ListSpecProp remains the single evidence
+        // pull; a routine or onboarding push never adds Pull_ListPropertyPrices_RQ on top of it.
+        verifyReadback: false,
         ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });

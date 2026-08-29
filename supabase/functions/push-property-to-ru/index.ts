@@ -4974,23 +4974,56 @@ Deno.serve(async (req) => {
 
     // Optional account-level RLNM subscription. Never run this before the push gate: a blocked
     // or not-yet-enabled property must not burn the channel's handler-registration rate window.
+    // Fix D: LNM/RLNM handler registration is per OWNER, not per property/listing. A second
+    // listing for an owner already carrying a successful PutHandlerUrl must skip the write
+    // entirely (and never issue the list-after-put read-back that used to follow it).
     if (subscribe_rlnm && dry_run !== true) {
       if ((property as { ru_push_enabled?: boolean }).ru_push_enabled !== true || !hasChildKeys || !phaseGate.ready_for_push) {
         console.warn(`[push-property-to-ru] Skipping RLNM subscription for ${property_id}: channel gate is not operational`);
       } else {
-        const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
-        console.log(`[push-property-to-ru] Subscribing RLNM handler for owner ${ruOwnerId}: ${handlerUrl}`);
+        let alreadySubscribed = false;
         try {
-          const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
-            body: { action: 'subscribe_notifications', handler_url: handlerUrl, ...childAuthPayload },
-          });
-          if (rlnmErr || !rlnmResult?.success) {
-            console.warn(`[push-property-to-ru] RLNM subscription failed:`, rlnmErr?.message || rlnmResult?.error?.message);
-          } else {
-            console.log(`[push-property-to-ru] RLNM subscription OK`);
-          }
+          const { data: priorRuns } = await supabase
+            .from('ru_sync_runs')
+            .select('id')
+            .eq('action', 'PutHandlerUrl')
+            .eq('success', true)
+            .contains('details', { ru_owner_id: String(ruOwnerId) })
+            .limit(1);
+          alreadySubscribed = Boolean(priorRuns && priorRuns.length > 0);
         } catch (e) {
-          console.warn(`[push-property-to-ru] RLNM error:`, e instanceof Error ? e.message : e);
+          console.warn(`[push-property-to-ru] RLNM owner-scope lookup failed (proceeding with subscribe):`, e instanceof Error ? e.message : e);
+        }
+
+        if (alreadySubscribed) {
+          console.log(`[push-property-to-ru] Skipping RLNM subscription for owner ${ruOwnerId}: skipped:true reason:lnm_already_subscribed`);
+        } else {
+          const handlerUrl = `${supabaseUrl}/functions/v1/ru-reservation-handler`;
+          console.log(`[push-property-to-ru] Subscribing RLNM handler for owner ${ruOwnerId}: ${handlerUrl}`);
+          try {
+            const { data: rlnmResult, error: rlnmErr } = await supabase.functions.invoke('rentalsunited-api', {
+              body: { action: 'subscribe_notifications', handler_url: handlerUrl, ...childAuthPayload },
+            });
+            const rlnmOk = !rlnmErr && rlnmResult?.success === true;
+            if (!rlnmOk) {
+              console.warn(`[push-property-to-ru] RLNM subscription failed:`, rlnmErr?.message || rlnmResult?.error?.message);
+            } else {
+              console.log(`[push-property-to-ru] RLNM subscription OK`);
+            }
+            try {
+              await supabase.from('ru_sync_runs').insert({
+                property_id,
+                action: 'PutHandlerUrl',
+                success: rlnmOk,
+                error_message: rlnmOk ? null : (rlnmErr?.message || rlnmResult?.error?.message || 'RLNM subscription failed'),
+                details: { ru_owner_id: String(ruOwnerId), handler_url: handlerUrl, scope: 'first_list' },
+              });
+            } catch (_e) { /* evidence only */ }
+            // On success, no list-after-put here: this handler already skips
+            // Pull_ListLiveNotificationMechanismSubscriptions_RQ on the first-list path.
+          } catch (e) {
+            console.warn(`[push-property-to-ru] RLNM error:`, e instanceof Error ? e.message : e);
+          }
         }
       }
     }
