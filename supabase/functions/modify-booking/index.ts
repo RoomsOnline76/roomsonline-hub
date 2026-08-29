@@ -1,6 +1,8 @@
 import { canonicalPricingModel, stayTotalForModel } from "../_shared/ratePricing.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isRuBooking, modifyRuStay } from "../_shared/ruBookingSync.ts";
+import { resolveRuReservationIdentity } from "../_shared/ruReservationIdentity.ts";
+
 import { enqueueJobs, kickWorker } from "../_shared/jobQueue.ts";
 import { applyBookingSettlement } from "../_shared/bookingSettlement.ts";
 import {
@@ -668,11 +670,31 @@ Deno.serve(async (req) => {
       currency: booking.currency,
     };
 
+    /**
+     * A channel-originated booking whose local row lost the channel ReservationID must still be
+     * modified at the channel — resolving the identity here is what keeps an extension on the
+     * `Push_ModifyStay_RQ` path instead of leaking into a second registration later.
+     */
+    const looksChannelOwned = String(booking.booking_channel ?? '').toLowerCase() === 'rentals_united' ||
+      String(booking.integration_type ?? '').toLowerCase().startsWith('rentalsunited') ||
+      !!booking.channel_listing_id;
+    if (!isRuBooking(booking) && looksChannelOwned) {
+      const identity = await resolveRuReservationIdentity(supabase, booking);
+      if (identity.reservationId) {
+        booking.external_reservation_id = identity.reservationId;
+        if (identity.listing) booking.channel_listing_id = identity.listing;
+        if (!String(booking.integration_type ?? '').toLowerCase().startsWith('rentalsunited')) {
+          booking.integration_type = 'rentalsunited';
+        }
+      }
+    }
+
     // The channel is quoted the guest total (accommodation + mandatory extras), so the extras have
     // to be priced before the channel write goes out — but only for reservations the channel owns.
     const preQuote = isRuBooking(booking)
       ? await quoteBookingCharges(supabase, quoteInput)
       : null;
+
 
     // S6b: Rentals United bookings must be accepted by RU before we touch the local record.
     // RU only allows Push_ModifyStay_RQ on confirmed reservations.

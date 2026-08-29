@@ -26,6 +26,11 @@ import {
   resolveRuPropertyId,
 } from './ruBookingSync.ts';
 import { isTerminalChannelRefusal } from './ruReservationOpClaim.ts';
+import {
+  resolveRuReservationIdentity,
+  type RuReservationIdentity,
+} from './ruReservationIdentity.ts';
+
 
 // deno-lint-ignore no-explicit-any
 type Db = any;
@@ -292,6 +297,22 @@ export async function syncBookingToChannel(
     CANCELLED_STATUSES.has(status);
   let traceId: string | null = null;
 
+  /**
+   * Does this stay already exist at the channel? A booking row can have lost the channel's
+   * ReservationID (ingested before we stored it, or a registration that only settled inside the
+   * rate-limit queue). Answering "no" from the local column alone is what turned extensions into
+   * second registrations, so identity is resolved from evidence before a verb is chosen.
+   */
+  let identity: RuReservationIdentity | null = null;
+  if (!request.skip_reservation && !cancelled && !RESERVATION_IRRELEVANT.includes(change) && !isRuBooking(row)) {
+    identity = await resolveRuReservationIdentity(supabase, row as never);
+    if (identity.reservationId) {
+      row.external_reservation_id = identity.reservationId;
+      if (identity.listing) row.channel_listing_id = identity.listing;
+    }
+  }
+  const hasChannelIdentity = isRuBooking(row) || !!identity?.reservationId;
+
   // ── 1. Reservation-level push ──
   // A stay created in ROL'OS has no reservation at the channel yet. Leaving it that way is what let
   // the channel keep selling nights we had already sold, so an active local stay on a listed unit is
@@ -299,17 +320,29 @@ export async function syncBookingToChannel(
   if (request.skip_reservation) {
     result.reservation = 'skipped';
     result.reservation_reason = 'caller_handled';
-  } else if (!isRuBooking(row)) {
+  } else if (!hasChannelIdentity) {
     if (cancelled) {
       result.reservation = 'skipped';
       result.reservation_reason = 'no_channel_reservation_to_cancel';
     } else if (RESERVATION_IRRELEVANT.includes(change)) {
       result.reservation = 'skipped';
       result.reservation_reason = 'change_not_carried_by_channel';
+    } else if (identity?.pendingCreate) {
+      // A first registration is still parked for the next channel slot. Sending another one would
+      // duplicate the reservation, so this change waits for that identity instead.
+      result.reservation = 'queued';
+      result.deferred = true;
+      result.reservation_reason = 'channel_registration_pending';
+      result.message =
+        'The stay is still being registered at the channel — this change follows once that lands.';
+    } else if (identity?.absent && change !== 'created') {
+      result.reservation = 'skipped';
+      result.reservation_reason = 'reservation_absent_at_channel';
     } else {
       const push = await pushRuConfirmedReservation(supabase, row as never);
       result.reservation_method = push.method ?? null;
       traceId = push.traceId ?? null;
+
       if (push.ok) {
         result.reservation = push.deferred ? 'queued' : 'pushed';
         result.deferred = result.deferred || push.deferred === true;
@@ -329,10 +362,16 @@ export async function syncBookingToChannel(
         result.deferred = true;
         result.reservation_reason = 'channel_registration_pending';
         result.message = push.message ?? null;
+      } else if (push.code === 'RU_ALREADY_REGISTERED') {
+        // The registration guard caught a stay the channel already holds — nothing to report.
+        result.reservation = 'skipped';
+        result.reservation_reason = 'reservation_already_at_channel';
+        result.message = push.message ?? null;
       } else if (
         push.code === 'RU_PROPERTY_UNMAPPED' || push.code === 'RU_AUTH_UNAVAILABLE' ||
         push.code === 'RU_LISTING_MISSING'
       ) {
+
         // Not a fault: this unit simply is not distributed through the channel.
         result.reservation = 'skipped';
         result.reservation_reason = push.code === 'RU_AUTH_UNAVAILABLE'
@@ -471,10 +510,17 @@ export async function syncBookingToChannel(
         result.deferred = true;
         result.reservation_reason = 'channel_acceptance_pending';
         result.message = push.message ?? null;
-      } else if (isAbsentAtChannel(push.message)) {
+      } else if (push.code === 'RU_RESERVATION_ABSENT' || isAbsentAtChannel(push.message)) {
         result.reservation = 'skipped';
         result.reservation_reason = 'reservation_absent_at_channel';
         result.message = push.message ?? null;
+      } else if (push.code === 'RU_RESERVATION_UNRESOLVED') {
+        // Deliberately not a create: the stay needs reconciling with the channel portal first.
+        result.reservation = 'skipped';
+        result.reservation_reason = 'channel_identity_unresolved';
+        result.code = push.code;
+        result.message = push.message ?? null;
+
       } else {
         const skip = nonRetryableSkip(push);
         result.reservation = skip ? 'skipped' : 'failed';
