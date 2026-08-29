@@ -20,6 +20,14 @@ import {
   settleReservationOp,
 } from './ruReservationOpClaim.ts';
 import { hasPendingRuCreate, resolveRuReservationIdentity } from './ruReservationIdentity.ts';
+import {
+  blockedDatesRefusalsThisHour,
+  RU_BLOCKED_DATES_BREAKER_LIMIT,
+  stayNights,
+} from './ruReservationHold.ts';
+import { parseRuAvailabilityDays } from './ruAvailabilityParsing.ts';
+import { recordChannelBookingEvent } from './channelBookingEvents.ts';
+
 
 
 // deno-lint-ignore no-explicit-any
@@ -566,6 +574,82 @@ export async function reopenStayNightsAtChannel(
   });
   return reopened.ok === true;
 }
+
+
+/**
+ * Prove the channel really can sell this stay before spending a reservation write on it.
+ *
+ * `Push_PutAvbUnits_RQ` answering Status 0 is NOT proof: on 2026-08-29 a reopen returned Status 0
+ * and the create fired 0.4 s later was still refused, because the channel had not applied the
+ * calendar write yet (and a competing full-window delta closed the nights again straight after).
+ * This is a reservation-write precondition, not recurring polling — hence its own declared
+ * read-back purpose.
+ */
+async function stayIsSellableAtChannel(
+  supabase: Db,
+  booking: RuBookingRef,
+  args: {
+    auth: Record<string, unknown>;
+    ruPropertyId: string;
+    dateFrom: string;
+    dateTo: string;
+    traceId: string;
+    parentAction: string;
+  },
+): Promise<{ checked: boolean; sellable: boolean; closedDays: string[]; detail: string | null }> {
+  const nights = stayNights(args.dateFrom, args.dateTo);
+  if (nights.length === 0) return { checked: false, sellable: true, closedDays: [], detail: null };
+
+  const read = await invokeRu(supabase, 'get_availability', {
+    ru_property_id: Number(args.ruPropertyId),
+    date_from: args.dateFrom,
+    date_to: args.dateTo,
+    readback_purpose: 'reservation_write_precheck',
+    ...args.auth,
+  }, {
+    propertyId: booking.property_id,
+    ruPropertyId: args.ruPropertyId,
+    traceId: args.traceId,
+    parentAction: args.parentAction,
+    details: { booking_id: booking.id, stay: { from: args.dateFrom, to: args.dateTo } },
+  });
+
+  const xml = typeof read.data?.raw_xml === 'string' ? read.data.raw_xml : '';
+  if (!read.ok || !xml) {
+    // A read we could not perform must never block the write — the channel is the final judge.
+    return { checked: false, sellable: true, closedDays: [], detail: read.message ?? null };
+  }
+
+  const days = parseRuAvailabilityDays(xml);
+  const closedDays: string[] = [];
+  for (const night of nights) {
+    const day = days.get(night);
+    if (!day) continue; // outside the returned window — nothing to assert
+    if (day.blocked || (day.units ?? 0) < 1) closedDays.push(night);
+  }
+
+  // Arrival and departure days must also permit check-in / check-out.
+  const arrival = days.get(args.dateFrom);
+  const departure = days.get(args.dateTo);
+  const changeoverProblems: string[] = [];
+  if (arrival && arrival.changeover != null && arrival.changeover !== 1 && arrival.changeover !== 3) {
+    changeoverProblems.push(`${args.dateFrom} does not allow check-in`);
+  }
+  if (departure && departure.changeover != null && departure.changeover !== 2 && departure.changeover !== 3) {
+    changeoverProblems.push(`${args.dateTo} does not allow check-out`);
+  }
+
+  const sellable = closedDays.length === 0 && changeoverProblems.length === 0;
+  const detail = sellable ? null : [
+    closedDays.length > 0 ? `closed night(s): ${closedDays.join(', ')}` : null,
+    ...changeoverProblems,
+  ].filter(Boolean).join('; ');
+  return { checked: true, sellable, closedDays, detail };
+}
+
+export { stayIsSellableAtChannel };
+
+
 
 
 /**
@@ -1248,7 +1332,44 @@ export async function pushRuConfirmedReservation(
     guests,
     booking.total_price ?? 0,
   ]);
+  /**
+   * Circuit breaker. Twelve identical creates for one stay on 2026-08-29 each drew the same
+   * blocked-dates refusal and each burned the owner's one-call-per-minute slot. After three such
+   * refusals in an hour the write stops and the operator is told to open the days in the portal.
+   */
+  const priorRefusals = await blockedDatesRefusalsThisHour(supabase, booking.id, ['push_confirmed_reservation']);
+  if (priorRefusals >= RU_BLOCKED_DATES_BREAKER_LIMIT) {
+    await supersedeQueuedRuCalls(supabase, {
+      action: 'push_confirmed_reservation',
+      reservationId: booking.id,
+    }).catch(() => {});
+    await recordChannelBookingEvent(supabase, {
+      booking_id: booking.id,
+      property_id: booking.property_id,
+      direction: 'outbound',
+      action: 'created',
+      source: 'ru_booking_sync',
+      outcome: 'failed',
+      reason: 'blocked_dates_breaker',
+      channel_listing_id: ruPropertyId,
+      trace_id: traceId,
+      summary: 'Channel keeps refusing these dates — registration stopped after repeated refusals.',
+      details: { refusals_this_hour: priorRefusals },
+    });
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: 'RU_STAY_BLOCKED',
+      message:
+        'The channel refused these dates for this listing three times in the last hour. Open the arrival and ' +
+        'departure days for this listing in the channel portal, then resend the stay.',
+      traceId,
+      ruPropertyId,
+    };
+  }
+
   const claim = await claimReservationOp(supabase, {
+
     bookingId: booking.id,
     op: 'create',
     fingerprint,
@@ -1290,6 +1411,56 @@ export async function pushRuConfirmedReservation(
     },
     ...auth,
   };
+
+  /**
+   * After a first refusal, prove the calendar is actually open before spending another write. A
+   * Status 0 on the reopen is not proof the stay became sellable, and the refused write costs a
+   * full rate-limit slot.
+   */
+  if (priorRefusals > 0) {
+    const precheck = await stayIsSellableAtChannel(supabase, booking, {
+      auth,
+      ruPropertyId,
+      dateFrom: booking.check_in_date,
+      dateTo: booking.check_out_date,
+      traceId,
+      parentAction: 'ruBookingSync:create:precheck',
+    });
+    if (precheck.checked && !precheck.sellable) {
+      await settleReservationOp(supabase, {
+        bookingId: booking.id,
+        op: 'create',
+        fingerprint,
+        outcome: 'deferred',
+        detail: `Channel calendar still closed for this stay (${precheck.detail}).`,
+      });
+      await recordChannelBookingEvent(supabase, {
+        booking_id: booking.id,
+        property_id: booking.property_id,
+        direction: 'outbound',
+        action: 'created',
+        source: 'ru_booking_sync',
+        outcome: 'skipped',
+        reason: 'channel_calendar_closed',
+        channel_listing_id: ruPropertyId,
+        trace_id: traceId,
+        summary: `Channel calendar is closed for this stay: ${precheck.detail}`,
+        details: { closed_days: precheck.closedDays, refusals_this_hour: priorRefusals },
+      });
+      return {
+        ok: false,
+        method: 'push_confirmed_reservation',
+        code: 'RU_STAY_CLOSED_AT_CHANNEL',
+        message:
+          `The channel calendar still shows this stay as unsellable (${precheck.detail}). ` +
+          'Open those days for this listing in the channel portal, then resend the stay.',
+        traceId,
+        ruPropertyId,
+      };
+    }
+  }
+
+
 
   const result = await invokeRu(supabase, 'push_confirmed_reservation', payload, {
     propertyId: booking.property_id,
