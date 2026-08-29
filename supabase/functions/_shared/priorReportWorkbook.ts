@@ -37,6 +37,15 @@ export interface PriorReportExtract {
   lastYearAdr: Record<string, number>;
   /** The workbook's newest OTB column, kept beside the comparison baseline. */
   currentOtbRevenue: Record<string, number>;
+  /**
+   * Printed occupancy, ADR and derived nights for that newest OTB column.
+   * Only packs that *are* the revenue source (no PMS export — Devonvale) print
+   * these; spreadsheet packs leave them empty.
+   */
+  currentOtbOccupancy?: Record<string, number>;
+  currentOtbAdr?: Record<string, number>;
+  currentRoomNights?: Record<string, number>;
+
   /** Sheet the baseline figures were taken from. */
   baselineSheet: string | null;
   /** Target column values, and the uplift its formula was built on (0.1 = +10%). */

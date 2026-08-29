@@ -21,6 +21,8 @@ import {
   parsePriorOwnerReport,
   type OwnerReportExtract,
 } from "../_shared/priorOwnerReport.ts";
+import { parsePriorComparisonPdf } from "../_shared/priorComparisonPdf.ts";
+
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { windowMonths } from "../_shared/reportWindow.ts";
@@ -211,6 +213,8 @@ Deno.serve(async (req) => {
     let extract: PriorReportExtract | null = null;
     let owner: OwnerReportExtract | null = null;
     let isOwnerPdf = false;
+    let isComparisonPdf = false;
+
 
     for (const candidate of ordered) {
       const download = await admin.storage.from(BUCKET).download(candidate.storage_path);
@@ -227,16 +231,27 @@ Deno.serve(async (req) => {
 
       let candidateOwner: OwnerReportExtract | null = null;
       let candidateExtract: PriorReportExtract;
+      let candidateIsComparisonPdf = false;
       try {
         if (candidateIsPdf) {
-          // Designed owner's-report pack: position-aware PDF reader.
-          candidateOwner = await parsePriorOwnerReport(buffer, {
-            runAsOfDate: runAsOf,
-            windowMonths: runAsOf
-              ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
-              : [],
-          });
-          candidateExtract = ownerToExtract(candidateOwner);
+          const runWindow = runAsOf
+            ? windowMonths(runAsOf, run.report_month ? String(run.report_month).slice(0, 7) : null)
+            : [];
+          // Two PDF shapes exist. A printed comparison grid (Devonvale) is tried
+          // first because it is cheap to recognise — no revenue grid means it is
+          // not one, and the designed owner's-report reader takes over.
+          const grid = await parsePriorComparisonPdf(buffer, { windowMonths: runWindow });
+          if (grid.months.length) {
+            candidateExtract = grid;
+            candidateIsComparisonPdf = true;
+          } else {
+            // Designed owner's-report pack: position-aware PDF reader.
+            candidateOwner = await parsePriorOwnerReport(buffer, {
+              runAsOfDate: runAsOf,
+              windowMonths: runWindow,
+            });
+            candidateExtract = ownerToExtract(candidateOwner);
+          }
         } else {
           // The run's own as-of date decides which OTB column is the comparison
           // baseline — the newest one strictly older than this run.
@@ -244,6 +259,7 @@ Deno.serve(async (req) => {
           const priorRepair = await repairWorkbookBuffer(buffer);
           candidateExtract = parsePriorReportWorkbook(priorRepair.buffer, { runAsOfDate: runAsOf });
         }
+
       } catch (e) {
         attempts.push({
           filename: candidate.original_filename,
@@ -266,15 +282,18 @@ Deno.serve(async (req) => {
         file = candidate;
         extract = candidateExtract;
         owner = candidateOwner;
-        isOwnerPdf = candidateIsPdf;
+        isOwnerPdf = candidateIsPdf && !candidateIsComparisonPdf;
+        isComparisonPdf = candidateIsComparisonPdf;
       }
       if (monthCount > 0) {
         file = candidate;
         extract = candidateExtract;
         owner = candidateOwner;
-        isOwnerPdf = candidateIsPdf;
+        isOwnerPdf = candidateIsPdf && !candidateIsComparisonPdf;
+        isComparisonPdf = candidateIsComparisonPdf;
         break;
       }
+
     }
 
     if (!file || !extract) {
@@ -387,11 +406,14 @@ Deno.serve(async (req) => {
       sheets_skipped: extract.sheetsSkipped,
       warnings: extract.warnings,
       // Owner's-report PDF extras — absent for spreadsheet packs.
-      source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+      source_kind: isComparisonPdf ? "comparison_pdf" : isOwnerPdf ? "owner_report_pdf" : "workbook",
       fiscal_year_label: owner?.currentYear?.label ?? null,
       provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
       combined_revenue: owner?.currentYear?.combined ?? {},
-      current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+      current_otb_occupancy: extract.currentOtbOccupancy ?? owner?.currentYear?.occupancyBob ?? {},
+      current_otb_adr: extract.currentOtbAdr ?? {},
+      current_room_nights: extract.currentRoomNights ?? {},
+
       forward_year: owner?.forwardYear
         ? {
             label: owner.forwardYear.label,
@@ -466,10 +488,15 @@ Deno.serve(async (req) => {
         carry_forward: extract.carryForward,
         // Owner's-report packs also print budget, provisional and forward-year
         // figures; they ride along so the workbook builder can reproduce them.
-        source_kind: isOwnerPdf ? "owner_report_pdf" : "workbook",
+        source_kind: isComparisonPdf ? "comparison_pdf" : isOwnerPdf ? "owner_report_pdf" : "workbook",
         fiscal_year_label: owner?.currentYear?.label ?? null,
         current_otb_revenue: extract.currentOtbRevenue,
-        current_otb_occupancy: owner?.currentYear?.occupancyBob ?? {},
+        current_otb_occupancy: extract.currentOtbOccupancy ?? owner?.currentYear?.occupancyBob ?? {},
+        // Printed comparison grids also state ADR, so nights need not be read
+        // back from occupancy — they are revenue ÷ ADR.
+        current_otb_adr: extract.currentOtbAdr ?? {},
+        current_room_nights: extract.currentRoomNights ?? {},
+
         provisional_revenue: owner?.currentYear?.activeEnquiries ?? {},
         combined_revenue: owner?.currentYear?.combined ?? {},
         forward_year: owner?.forwardYear
