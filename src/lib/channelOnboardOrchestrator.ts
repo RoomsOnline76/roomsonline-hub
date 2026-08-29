@@ -573,6 +573,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         keys_stored:
           ctx.keyProvisioning?.source === "minted"
           || ctx.keyProvisioning?.source === "existing"
+          || ctx.keyProvisioning?.source === "password_verified"
           || ctx.binding?.keys_stored === true,
         company_details_sent:
           data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
