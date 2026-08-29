@@ -578,9 +578,10 @@ export async function syncBookingToChannel(
         dateFrom: spanDates[0] ?? null,
         dateTo: spanDates[spanDates.length - 1] ?? null,
         onlyUnitIds: bookedUnitIds.length > 0 ? bookedUnitIds : null,
-        // A booking is the one case where the channel calendar must be read back: the sold
-        // nights have to be proven closed. Restriction/rate/cron writes skip the pull.
-        verifyAvailabilityReadback: true,
+        // Cut 3: ROL'OS is ARI SoT for a booking event — we publish our nights, we do not pull
+        // the channel calendar back to "prove" it. A calendar pull here was the 61 kB read that
+        // padded every cancel/create/move round-trip for no reason.
+        verifyAvailabilityReadback: false,
       });
       result.ari_scope = {
         unit_ids: bookedUnitIds,

@@ -489,7 +489,21 @@ export async function cancelRuReservation(
       await settle(rejected);
       return { ok: true, deferred: rejected.deferred === true, method: 'reject_request', traceId };
     }
-    // Backwards compatibility: some integrations do not have reject enabled.
+    // Cut 2: reject and cancel must never both fire for the same attempt. The channel answering
+    // "not implemented" for reject_request is the ONLY reason to fall through to cancel — any
+    // other refusal (rate limit, auth, a real business refusal) is reject's own answer, settled
+    // once, not silently retried as a second verb.
+    const rejectNotImplemented = /not implemented/i.test(String(rejected.message ?? ''));
+    if (!rejectNotImplemented) {
+      await settle(rejected);
+      return {
+        ok: false,
+        method: 'reject_request',
+        code: rejected.code,
+        message: rejected.message,
+        traceId,
+      };
+    }
     const cancelled = await invokeRu(supabase, 'cancel_reservation', {
       reservation_id: reservationId,
       cancel_type_id: cancelTypeId,

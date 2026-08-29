@@ -117,6 +117,12 @@ export interface AriDeltaOptions {
    * ISO, so the same numbers must be re-sent to land as the authored currency.
    */
   forcePrices?: boolean;
+  /**
+   * Cut 3: a booking event (cancel/create/move/dates/pax/price-on-reservation) never carries
+   * price information — it must PutAvb the affected nights and nothing else. Set by every
+   * `booking_*` trigger regardless of prices_hash state.
+   */
+  skipPrices?: boolean;
 }
 
 
@@ -2863,7 +2869,10 @@ async function pushARI(
     } catch (e) { result.availability_error = e instanceof Error ? e.message : 'Unknown error'; }
   }
 
-  {
+  if (ari.skipPrices) {
+    result.skipped_prices = true;
+    console.log(`[pushARI] RU ${ruPropertyId}: booking trigger — prices skipped by design`);
+  } else {
     try {
       // Calendar first, rack rate as the fallback for any date the calendar does not price.
       // The resolver is shared with the ROL booking engine and the channel push so all three
@@ -3342,14 +3351,19 @@ Deno.serve(async (req) => {
      * ARI delta scope + read-back opt-in for this request. `verify_availability_readback` defaults
      * to false: only booking confirm/cancel/modify pulls the channel calendar back.
      */
+    // Cut 3: a booking_* trigger (cancel/create/move/dates/pax/price-on-reservation) is
+    // inventory-only — it must never attach Push_PutPrices_RQ, even when prices_hash is stale.
+    const isBookingTrigger = typeof reqBody.trigger === 'string' && reqBody.trigger.startsWith('booking_');
     const ariRequestOptions: AriDeltaOptions = {
       windowFrom: typeof reqBody.ari_date_from === 'string' ? reqBody.ari_date_from : undefined,
       windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
       availabilityReadback: reqBody.verify_availability_readback === true,
       forceAvailability: reqBody.force_availability === true,
       // Re-send identical rates on request — needed after a corrective currency flip, where the
-      // amounts are unchanged but were published under the wrong ISO.
-      forcePrices: reqBody.force_prices === true,
+      // amounts are unchanged but were published under the wrong ISO. Never true on a booking
+      // trigger: skipPrices below wins regardless.
+      forcePrices: reqBody.force_prices === true && !isBookingTrigger,
+      skipPrices: isBookingTrigger,
 
     };
     /**
