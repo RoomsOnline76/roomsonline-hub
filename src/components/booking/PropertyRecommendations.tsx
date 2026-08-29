@@ -138,7 +138,7 @@ export function PropertyRecommendations({
       // The select string is typed as plain `string` so supabase-js does not
       // re-parse it on every conditional reassignment of the builder.
       const sel = (s: string): string => s;
-      let query = supabase
+      const query = supabase
         .from('public_properties')
         .select(sel('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude'))
         .eq('is_active', true)
