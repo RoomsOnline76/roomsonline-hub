@@ -9,6 +9,7 @@ import type { RunBuilderContext } from "./types";
 
 /** Stage J — final process, then take the downloads. */
 export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
+  const { enabled: page2Enabled } = useReportPage2(ctx.runId, ctx.run.propertyId);
   const { snapshot } = ctx;
 
   return (
@@ -65,7 +66,10 @@ export function StageBuild({ ctx }: { ctx: RunBuilderContext }) {
           viewerHref={reportsPath(`/runs/${ctx.runId}/draft`)}
           isGenerating={ctx.isDraftBusy}
           onGenerate={ctx.onDraft}
-          pageCount={Object.keys(snapshot.sourceBreakdown ?? {}).length > 0 ? 5 : 4}
+          pageCount={
+            (Object.keys(snapshot.sourceBreakdown ?? {}).length > 0 ? 5 : 4) +
+            (page2Enabled ? 1 : 0)
+          }
         />
       )}
 

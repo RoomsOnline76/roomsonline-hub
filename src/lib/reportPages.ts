@@ -22,6 +22,16 @@ export const REPORT_DATA_PAGES: readonly ReportPageDefinition[] = [
   { key: "traveller_trends", title: "Traveller Trends", summary: "Source mix, source table, occupancy strip" },
 ] as const;
 
+/**
+ * Page 2 — TOBI's Assessment. Opt-in per run and locked immediately after the
+ * cover, so it is never part of the reorderable set.
+ */
+export const REPORT_ASSESSMENT_PAGE: ReportPageDefinition = {
+  key: "tobi_assessment",
+  title: "TOBI's Assessment",
+  summary: "Headline, primer, highlights, warnings, red flags",
+};
+
 /** Notes page always sits at the end unless the organizer moves it. */
 export const REPORT_NOTES_PAGE: ReportPageDefinition = {
   key: "process_notes",
