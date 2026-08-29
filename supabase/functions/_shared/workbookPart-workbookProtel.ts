@@ -84,6 +84,17 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     "%",
   ].forEach((text, i) => headerCell(sheet, revHeader, i + 2, text, accent));
 
+  // Profile-driven extra columns (older years, STLY, budget) sit after the
+  // standard block so the client's familiar layout is untouched.
+  const comparisons = extras.comparisons ?? [];
+  comparisons.forEach((comparison, j) => {
+    headerCell(sheet, revHeader, 13 + j * 2, comparison.label, accent);
+    headerCell(sheet, revHeader, 14 + j * 2, `OTB vrs ${comparison.label}`, accent);
+  });
+  /** First free column to the right of the widest block. */
+  const sideCol = 13 + comparisons.length * 2;
+
+
   months.forEach((key, i) => {
     const row = revFirst + i;
     labelCell(sheet, row, 1, monthLabel(key));
