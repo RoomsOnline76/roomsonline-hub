@@ -1003,8 +1003,9 @@ export function parsePriorReportWorkbook(
     fill(extract.budgetRoomNights, otb.budgetNights);
     for (const [year, bucket] of Object.entries(otb.actualsByYear)) {
       const target = (extract.actualsByYear[year] ??= { revenue: {}, roomNights: {} });
-      fill(target.revenue, bucket.revenue);
-      fill(target.roomNights, bucket.roomNights);
+      // Prior-year buckets sit outside the reporting window by definition.
+      fillAnyMonth(target.revenue, bucket.revenue);
+      fillAnyMonth(target.roomNights, bucket.roomNights);
     }
     if (extract.targetUplift === null) extract.targetUplift = otb.targetUplift;
   });
