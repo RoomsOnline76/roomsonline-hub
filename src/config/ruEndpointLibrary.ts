@@ -95,7 +95,9 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   // `Push_RemoveProperty_RQ` are not implemented (Status -1). Removal = archive via
   // Push_SetPropertiesStatus_RQ with IsArchived=1, already listed above.
   spec("Pull_ListBuildings_RQ", "List buildings", "content", "on_demand", false),
+  spec("Pull_GetBuilding_RQ", "Read building", "content", "on_demand", false, "Composition read-back for multi-unit buildings"),
   spec("Push_PutBuilding_RQ", "Put building", "content", "on_demand", true),
+
 
   // ---- Availability, rates, restrictions ---------------------------------------------------
   spec("Push_PutAvbUnits_RQ", "Push availability", "ari", "on_change", true, "Blocks, stock and restrictions"),
