@@ -24,6 +24,8 @@ export function StageInsights({ ctx }: { ctx: RunBuilderContext }) {
   return (
     <div className="space-y-4">
       <AiInsightsPanel runId={ctx.runId} months={snapshot.months} />
+      <Page2Card runId={ctx.runId} propertyId={ctx.run.propertyId} />
+
       <ManualInputsCard
         runId={ctx.runId}
         sourceType={ctx.run.sourceType}
