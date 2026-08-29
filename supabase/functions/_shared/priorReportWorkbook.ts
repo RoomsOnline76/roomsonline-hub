@@ -715,6 +715,7 @@ function parseOtbSheet(
   };
   deriveNights(result.nights, result.revenue, result.adr);
   deriveNights(result.lastYearNights, result.lastYearRevenue, result.lastYearAdr);
+  deriveNights(result.currentNights, result.currentOtbRevenue, result.currentOtbAdr);
 
   result.months.sort();
   return result;
