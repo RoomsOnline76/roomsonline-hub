@@ -188,6 +188,94 @@ export function resolveStlySeries(input: StlyInput): StlySeries {
   return { ...EMPTY };
 }
 
+/** Minimal shape of the Supabase client this loader needs. */
+interface StlyDb {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: unknown): {
+        gte(column: string, value: string): {
+          lte(column: string, value: string): Promise<{ data: unknown; error: unknown }>;
+        };
+      };
+      in(column: string, values: string[]): Promise<{ data: unknown; error: unknown }>;
+    };
+  };
+}
+
+const shiftDate = (asOfDate: string, days: number): string => {
+  const base = Date.parse(`${asOfDate.slice(0, 10)}T00:00:00Z`);
+  const moved = new Date(base - 365.2425 * 24 * 3600 * 1000 + days * 24 * 3600 * 1000);
+  return moved.toISOString().slice(0, 10);
+};
+
+/**
+ * Resolves the STLY series, falling back to one of our own runs from a year ago
+ * when nothing was uploaded. Used by both the Excel and draft builders so the
+ * column can never differ between them.
+ */
+export async function loadStlySeries(
+  db: StlyDb,
+  args: {
+    propertyId: string;
+    runId: string;
+    asOfDate: string;
+    months: string[];
+    snapshotStly?: unknown;
+    importedBaseline?: unknown;
+  },
+): Promise<StlySeries> {
+  const withoutStoredRun = resolveStlySeries({
+    months: args.months,
+    asOfDate: args.asOfDate,
+    snapshotStly: args.snapshotStly,
+    importedBaseline: args.importedBaseline,
+  });
+  if (withoutStoredRun.source !== "none") return withoutStoredRun;
+
+  const { data: runRows } = await db
+    .from("report_runs")
+    .select("id, as_of_date")
+    .eq("property_id", args.propertyId)
+    .gte("as_of_date", shiftDate(args.asOfDate, -45))
+    .lte("as_of_date", shiftDate(args.asOfDate, 45));
+  const runs = (Array.isArray(runRows) ? runRows : []).filter(
+    (row): row is { id: string; as_of_date: string } =>
+      Boolean(row && typeof row === "object") &&
+      typeof (row as { id?: unknown }).id === "string" &&
+      (row as { id?: string }).id !== args.runId &&
+      typeof (row as { as_of_date?: unknown }).as_of_date === "string",
+  );
+  if (runs.length === 0) return withoutStoredRun;
+
+  const { data: snapRows } = await db
+    .from("report_snapshots")
+    .select("run_id, otb_revenue, room_nights, occupancy")
+    .in(
+      "run_id",
+      runs.map((row) => row.id),
+    );
+  const snapshots = new Map<string, Record<string, unknown>>();
+  for (const row of Array.isArray(snapRows) ? snapRows : []) {
+    const record = row as Record<string, unknown>;
+    if (typeof record.run_id === "string") snapshots.set(record.run_id, record);
+  }
+
+  return resolveStlySeries({
+    months: args.months,
+    asOfDate: args.asOfDate,
+    snapshotStly: args.snapshotStly,
+    importedBaseline: args.importedBaseline,
+    storedRuns: runs.map((row) => ({
+      id: row.id,
+      as_of_date: row.as_of_date,
+      otb_revenue: snapshots.get(row.id)?.otb_revenue,
+      room_nights: snapshots.get(row.id)?.room_nights,
+      occupancy: snapshots.get(row.id)?.occupancy,
+    })),
+  });
+}
+
+
 /** `2025-08-14` → `14 Aug 2025`, for the STLY column heading. */
 export const formatAsOf = (value: string | null | undefined): string | null => {
   if (!value) return null;
