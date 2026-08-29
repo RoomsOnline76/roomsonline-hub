@@ -1,5 +1,6 @@
 import { ManualInputsCard } from "@/components/reports/ManualInputsCard";
 import { AiInsightsPanel } from "@/components/reports/AiInsightsPanel";
+import { Page2Card } from "@/components/reports/page2/Page2Card";
 import { Card, CardContent } from "@/components/ui/card";
 import type { RunBuilderContext } from "./types";
 
