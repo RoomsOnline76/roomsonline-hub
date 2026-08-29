@@ -189,12 +189,12 @@ Deno.serve(async (req) => {
 
 
 
-    for (let i = 0; i < scopes.length; i++) {
-      const scope = scopes[i];
+    for (let i = 0; i < resScopes.length; i++) {
+      const scope = resScopes[i];
       if (i > 0) {
         // Same RU method as the previous account → respect the sliding-minute window.
         if (Date.now() + METHOD_WINDOW_MS > deadline) {
-          deferred.push(...scopes.slice(i).map((s) => s.label));
+          deferred.push(...resScopes.slice(i).map((s) => s.label));
           console.log(`[cron-pull-ru] Budget spent — deferring ${deferred.length} account(s) to the next run`);
           break;
         }
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
     const strandedReleased = await sweepStrandedChannelBlocks(supabase, '[cron-pull-ru][blocks]');
 
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
-    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, stranded_blocks_released: strandedReleased }), {
+    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, accounts_fresh_skipped: skippedFresh, stranded_blocks_released: strandedReleased }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
