@@ -21,6 +21,8 @@ import {
   parsePriorOwnerReport,
   type OwnerReportExtract,
 } from "../_shared/priorOwnerReport.ts";
+import { parsePriorComparisonPdf } from "../_shared/priorComparisonPdf.ts";
+
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { windowMonths } from "../_shared/reportWindow.ts";
