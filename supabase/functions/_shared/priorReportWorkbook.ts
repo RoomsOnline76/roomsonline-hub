@@ -371,6 +371,11 @@ function parseOtbSheet(
     dinner: {},
     room0: {},
     compRns: {},
+    actualsByYear: {},
+    stlyRevenue: {},
+    stlyNights: {},
+    budgetRevenue: {},
+    budgetNights: {},
     warnings: [],
   };
 
