@@ -211,6 +211,9 @@ export function resolveRuEndpoint(action: string | null | undefined): RuEndpoint
   if (!action) return null;
   const direct = BY_ID.get(action);
   if (direct) return direct;
+  const aliased = ALIAS_TO_ID[action] ? BY_ID.get(ALIAS_TO_ID[action]) : undefined;
+  if (aliased) return aliased;
+
   const suffix = action.includes(":") ? action.slice(action.indexOf(":") + 1) : null;
   if (!suffix) return null;
   const normalised = suffix.replace(/[_-]/g, "").toLowerCase();
