@@ -22,6 +22,8 @@ import {
 import { usePageSEO } from "@/hooks/usePageSEO";
 import { useReportProperties } from "@/hooks/useReportProperties";
 import { usePropertyReportSettings } from "@/hooks/usePropertyReportSettings";
+import { EMPTY_NB_PROFILE, type NbProfile } from "@/lib/nbProfile";
+import { NbProfileCard } from "@/components/reports/NbProfileCard";
 import {
   ROOM_COUNT_SOURCE_LABEL,
   useReportPropertyBrand,
@@ -84,6 +86,7 @@ export default function ReportsPropertySettings() {
   // Comma-separated while editing; stored as arrays.
   const [keepPatterns, setKeepPatterns] = useState("");
   const [excludePatterns, setExcludePatterns] = useState("");
+  const [nbProfile, setNbProfile] = useState<NbProfile>(EMPTY_NB_PROFILE);
 
   usePageSEO({
     title: "Property report settings | Rooms Online",
@@ -109,6 +112,8 @@ export default function ReportsPropertySettings() {
     setSpecialSet(settings.specialReportSet ?? "none");
     setKeepPatterns((settings.zeroRevenueKeepPatterns ?? []).join(", "));
     setExcludePatterns((settings.rowExcludePatterns ?? []).join(", "));
+    setNbProfile(settings.nbProfile ?? EMPTY_NB_PROFILE);
+
     setSourceType(
       isReportSourceKey(settings.defaultSourceType)
         ? settings.defaultSourceType
@@ -246,6 +251,7 @@ export default function ReportsPropertySettings() {
         specialReportSet: specialSet === "none" ? null : specialSet,
         zeroRevenueKeepPatterns: splitPatterns(keepPatterns),
         rowExcludePatterns: splitPatterns(excludePatterns),
+        nbProfile,
       });
       toast.success("Report settings saved");
     } catch (error) {
@@ -649,6 +655,17 @@ export default function ReportsPropertySettings() {
               </p>
             </div>
           </div>
+
+          {sourceType === "nightsbridge" && (
+            <NbProfileCard
+              propertyId={propertyId}
+              profile={nbProfile}
+              onChange={setNbProfile}
+              properties={properties.map((option) => ({ id: option.id, name: option.name }))}
+            />
+          )}
+
+
 
 
           <div className="flex justify-end">

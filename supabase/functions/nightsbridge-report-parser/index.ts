@@ -11,6 +11,12 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { normaliseRules } from "../_shared/nightsbridgeRowRules.ts";
+import {
+  parseNbProfile,
+  recordRoutedRows,
+  splitByRouting,
+  type RoutableRow,
+} from "../_shared/nbProfile.ts";
 import { resolveAdditionalInputs } from "../_shared/reportAdditionalInputs.ts";
 import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
@@ -239,7 +245,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const ledger: LedgerRow[] = [];
+    const ledger: RoutableRow[] = [];
     const fileResults: Array<{
       id: string;
       filename: string;
@@ -322,7 +328,8 @@ Deno.serve(async (req) => {
       }
       const ok = parsed.status === "parsed" && parsed.rows.length > 0;
       if (ok) {
-        for (const row of parsed.rows) ledger.push(row);
+        // The sheet a row came from is what a sheet-per-property workbook routes on.
+        for (const row of parsed.rows) ledger.push({ ...row, source_sheet: parsed.sheet });
       }
       fileResults.push({
         id: file.id,
@@ -437,10 +444,12 @@ Deno.serve(async (req) => {
     await admin.from("report_snapshots").delete().eq("run_id", runId);
 
 
-    // Property capacity configuration + zero-revenue row rules.
+    // Property capacity configuration + zero-revenue row rules + NB quirk profile.
     const { data: settings } = await admin
       .from("property_report_settings")
-      .select("room_count, historical_baseline, zero_revenue_keep_patterns, row_exclude_patterns")
+      .select(
+        "room_count, historical_baseline, zero_revenue_keep_patterns, row_exclude_patterns, nb_profile",
+      )
       .eq("property_id", run.property_id)
       .maybeSingle();
 
@@ -468,11 +477,57 @@ Deno.serve(async (req) => {
       );
     }
 
-    const rowRules = normaliseRules(
-      (settings as { zero_revenue_keep_patterns?: unknown } | null)?.zero_revenue_keep_patterns,
-      (settings as { row_exclude_patterns?: unknown } | null)?.row_exclude_patterns,
+    const nbProfile = parseNbProfile(
+      (settings as { nb_profile?: unknown } | null)?.nb_profile ?? null,
     );
-    const aggregate = aggregateLedger(ledger, roomCount, rowRules);
+
+    const rowRules = normaliseRules(
+      [
+        ...((((settings as { zero_revenue_keep_patterns?: unknown } | null)
+          ?.zero_revenue_keep_patterns ?? []) as unknown[]) ?? []),
+        ...nbProfile.keep_patterns,
+      ],
+      [
+        ...((((settings as { row_exclude_patterns?: unknown } | null)?.row_exclude_patterns ??
+          []) as unknown[]) ?? []),
+        ...nbProfile.exclude_patterns,
+      ],
+    );
+
+    // One NightsBridge export can carry several properties (history that never
+    // moved when a BBID split, or a sheet per property). Rows claimed by a
+    // sibling leave this property's figures but stay visible to the reviewer.
+    const routing = splitByRouting(ledger, nbProfile, run.property_id);
+    const aggregate = aggregateLedger(routing.kept, roomCount, rowRules);
+
+    if (routing.routedAway.length > 0) {
+      const destinationIds = Object.keys(routing.routedCounts);
+      const { data: siblingRows } = await admin
+        .from("properties")
+        .select("id, name")
+        .in("id", destinationIds);
+      const propertyNames: Record<string, string> = {};
+      for (const sibling of siblingRows ?? []) {
+        propertyNames[sibling.id as string] = (sibling.name as string) ?? sibling.id;
+      }
+      recordRoutedRows(aggregate, routing.routedAway, propertyNames);
+
+      await logRunEvent(
+        admin,
+        runId,
+        "rows_routed_away",
+        `${routing.routedAway.length} row(s) belong to ${destinationIds.length} other property(ies) and were left out`,
+        {
+          kept: routing.kept.length,
+          routed: routing.routedAway.length,
+          routed_counts: Object.fromEntries(
+            destinationIds.map((id) => [propertyNames[id] ?? id, routing.routedCounts[id]]),
+          ),
+        },
+        actorId,
+      );
+    }
+
 
 
     // Uploaded extracts for months before this review window (last year's
@@ -583,8 +638,14 @@ Deno.serve(async (req) => {
     for (const key of aggregate.months) {
       const [year, month] = key.split("-").map(Number);
       const lyKey = `${year - 1}-${`${month}`.padStart(2, "0")}`;
-      const lyRevenue = baseline.revenue?.[lyKey] ?? pastRevenue[lyKey];
-      const lyNights = baseline.room_nights?.[lyKey] ?? pastNights[lyKey];
+      // When NightsBridge never split the history off this BBID, the prior-year
+      // arrivals in this same ledger are the authoritative last-year actuals.
+      const lyRevenue = nbProfile.historical_from_current_ledger
+        ? pastRevenue[lyKey] ?? baseline.revenue?.[lyKey]
+        : baseline.revenue?.[lyKey] ?? pastRevenue[lyKey];
+      const lyNights = nbProfile.historical_from_current_ledger
+        ? pastNights[lyKey] ?? baseline.room_nights?.[lyKey]
+        : baseline.room_nights?.[lyKey] ?? pastNights[lyKey];
       if (lyRevenue !== undefined) lastYearRevenue[key] = lyRevenue;
       if (lyNights !== undefined) lastYearNights[key] = lyNights;
     }
@@ -637,7 +698,7 @@ Deno.serve(async (req) => {
         },
         totals: aggregate.totals,
         room_count: roomCount,
-        booking_trends: buildBookingTrends(ledger, aggregate.months),
+        booking_trends: buildBookingTrends(routing.kept, aggregate.months),
       },
       { onConflict: "run_id" },
     );
@@ -727,9 +788,18 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "processing_succeeded",
-      `${ledger.length} booking row(s) aggregated across ${aggregate.months.length} month(s)`,
+      `${routing.kept.length} booking row(s) aggregated across ${aggregate.months.length} month(s)` +
+        (routing.routedAway.length
+          ? ` — ${routing.routedAway.length} routed to another property`
+          : "") +
+        (aggregate.totals.non_sellable_rows
+          ? `, ${aggregate.totals.non_sellable_rows} set aside`
+          : ""),
       {
         rows_parsed: ledger.length,
+        rows_kept: routing.kept.length,
+        rows_routed_away: routing.routedAway.length,
+        rows_set_aside: aggregate.totals.non_sellable_rows,
         months: aggregate.months.length,
         files: fileResults.length,
         room_count: roomCount,
@@ -742,6 +812,8 @@ Deno.serve(async (req) => {
       run_id: runId,
       room_count: roomCount,
       rows_parsed: ledger.length,
+      rows_kept: routing.kept.length,
+      rows_routed_away: routing.routedAway.length,
       files: fileResults,
       months: aggregate.months,
       totals: aggregate.totals,
