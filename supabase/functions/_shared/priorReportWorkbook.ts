@@ -429,16 +429,20 @@ function parseOtbSheet(
     ),
   ].sort();
 
-  // The workbook usually carries several OTB columns. What this run needs is a
-  // *comparison* baseline: the newest column dated no later than the run's own
-  // as-of date; only fall back to the newest of all when none qualifies.
+  // The workbook usually carries several OTB columns. The newest of all is the
+  // pack's *current* OTB; the comparison baseline is the newest column that is
+  // strictly older than it and no later than the run's own as-of date. Grande
+  // Roche prints `OTB 14.08.26` beside `OTB 29.07.26` on a 14 Aug run — taking
+  // "newest ≤ run date" would collapse both onto the same column.
   const runDate = runAsOfDate ? runAsOfDate.slice(0, 10) : null;
-  const older = runDate ? dates.filter((d) => d <= runDate) : [];
+  const currentDate = dates.length ? dates[dates.length - 1] : null;
+  const priorDates = dates.filter((d) => !currentDate || d < currentDate);
+  const older = runDate ? priorDates.filter((d) => d <= runDate) : priorDates;
   result.asOfDate = older.length
     ? older[older.length - 1]
-    : dates.length
-      ? dates[dates.length - 1]
-      : null;
+    : priorDates.length
+      ? priorDates[priorDates.length - 1]
+      : currentDate;
   result.label = result.asOfDate
     ? (headers
         .flatMap((h) => h.columns)
@@ -446,12 +450,11 @@ function parseOtbSheet(
     : headers[0].columns[0].heading;
   if (!result.asOfDate) {
     result.warnings.push("Could not read the as-of date from the OTB column heading.");
-  } else if (runDate && !older.length) {
+  } else if (!priorDates.length) {
     result.warnings.push(
-      `The workbook's only OTB column (${result.asOfDate}) is not older than this run — variances will read as zero.`,
+      `The workbook carries a single OTB column (${result.asOfDate}) — variances will read as zero.`,
     );
   }
-  const currentDate = dates.length ? dates[dates.length - 1] : null;
 
 
 
