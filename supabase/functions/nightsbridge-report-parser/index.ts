@@ -788,9 +788,18 @@ Deno.serve(async (req) => {
       admin,
       runId,
       "processing_succeeded",
-      `${ledger.length} booking row(s) aggregated across ${aggregate.months.length} month(s)`,
+      `${routing.kept.length} booking row(s) aggregated across ${aggregate.months.length} month(s)` +
+        (routing.routedAway.length
+          ? ` — ${routing.routedAway.length} routed to another property`
+          : "") +
+        (aggregate.totals.non_sellable_rows
+          ? `, ${aggregate.totals.non_sellable_rows} set aside`
+          : ""),
       {
         rows_parsed: ledger.length,
+        rows_kept: routing.kept.length,
+        rows_routed_away: routing.routedAway.length,
+        rows_set_aside: aggregate.totals.non_sellable_rows,
         months: aggregate.months.length,
         files: fileResults.length,
         room_count: roomCount,
@@ -803,6 +812,8 @@ Deno.serve(async (req) => {
       run_id: runId,
       room_count: roomCount,
       rows_parsed: ledger.length,
+      rows_kept: routing.kept.length,
+      rows_routed_away: routing.routedAway.length,
       files: fileResults,
       months: aggregate.months,
       totals: aggregate.totals,
