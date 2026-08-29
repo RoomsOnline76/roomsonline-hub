@@ -379,6 +379,9 @@ function parseOtbSheet(
     adr: {},
     lastYearAdr: {},
     currentOtbRevenue: {},
+    currentOtbOccupancy: {},
+    currentOtbAdr: {},
+    currentNights: {},
 
     targets: {},
     targetUplift: null,
