@@ -384,13 +384,25 @@ Deno.serve(async (req) => {
 
 
   /**
-   * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way.
-   * Leads are informational, so this stays best-effort inside the remaining budget.
+   * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way — but it is only a
+   * safety net behind the RLNM lead notifications, so it runs on an hours-long floor per
+   * account (tightened while a lead is actually holding dates) instead of every cron tick.
    */
-  async function pollLeads(scopes: RuOwnerScope[], dateFrom: string, dateTo: string) {
+  async function pollLeads(allScopes: RuOwnerScope[], dateFrom: string, dateTo: string) {
+    const leadSeen = await lastSuccessByOwner('pull_leads');
+    const floor = (await hasOpenLeadHold()) ? LEADS_FLOOR_ACTIVE_MS : LEADS_FLOOR_MS;
+    const scopes = allScopes.filter((s) => {
+      const last = s.ownerId ? leadSeen.get(String(s.ownerId)) : undefined;
+      return !(last && Date.now() - last < floor);
+    });
+    if (scopes.length === 0) {
+      console.log(`[cron-pull-ru] Leads: every account is inside the ${Math.round(floor / 60_000)}min floor — no pull needed`);
+      return;
+    }
     for (let i = 0; i < scopes.length; i++) {
       const scope = scopes[i];
       try {
+
         if (i > 0) {
           if (Date.now() + METHOD_WINDOW_MS > deadline) {
             console.log(`[cron-pull-ru] Lead polling budget spent after ${i} account(s)`);
