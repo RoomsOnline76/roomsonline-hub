@@ -809,6 +809,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     adrLy,
     { now: blendedAdr, prev: totalAdrPrev, ly: totalAdrLy },
     zar,
+    comparisons.map((c) => ({ label: c.label, values: comparisonSeries(c, "adr") })),
   );
 
   /** Revenue Comparison Review — OTB vs last year on revenue and ADR. */
