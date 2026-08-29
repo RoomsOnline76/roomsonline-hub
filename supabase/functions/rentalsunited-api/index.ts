@@ -3263,6 +3263,9 @@ Deno.serve(async (req) => {
       'cert_probe',
       'coverage_audit',
       'availability_repair',
+      // Precondition for a reservation write: prove the stay's nights are actually sellable before
+      // spending a rate-limited create/modify on a calendar that may still be closed.
+      'reservation_write_precheck',
       'operator_request',
     ]);
     if (action === 'get_availability' || action === 'get_prices') {
