@@ -282,15 +282,18 @@ Deno.serve(async (req) => {
         file = candidate;
         extract = candidateExtract;
         owner = candidateOwner;
-        isOwnerPdf = candidateIsPdf;
+        isOwnerPdf = candidateIsPdf && !candidateIsComparisonPdf;
+        isComparisonPdf = candidateIsComparisonPdf;
       }
       if (monthCount > 0) {
         file = candidate;
         extract = candidateExtract;
         owner = candidateOwner;
-        isOwnerPdf = candidateIsPdf;
+        isOwnerPdf = candidateIsPdf && !candidateIsComparisonPdf;
+        isComparisonPdf = candidateIsComparisonPdf;
         break;
       }
+
     }
 
     if (!file || !extract) {
