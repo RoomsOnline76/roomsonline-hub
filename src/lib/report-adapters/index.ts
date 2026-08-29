@@ -1,6 +1,7 @@
 import { nightsbridgeAdapter } from "./nightsbridge";
 import { operaAdapter } from "./opera";
 import { protelAdapter } from "./protel";
+import { roomraccoonAdapter } from "./roomraccoon";
 import type { ReportSourceAdapter, ReportSourceKey } from "./types";
 
 export type {
@@ -18,6 +19,7 @@ export const REPORT_ADAPTERS: Record<ReportSourceKey, ReportSourceAdapter> = {
   nightsbridge: nightsbridgeAdapter,
   opera: operaAdapter,
   protel: protelAdapter,
+  roomraccoon: roomraccoonAdapter,
 };
 
 /** All adapters, ready ones first, for pickers. */

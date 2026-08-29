@@ -8,7 +8,7 @@
  * Keep this file and the frontend registry in step.
  */
 
-export type ReportSourceKey = "nightsbridge" | "opera" | "protel";
+export type ReportSourceKey = "nightsbridge" | "opera" | "protel" | "roomraccoon";
 export type ReportTemplate = "standard" | "protel";
 
 export interface ReportSourceDescriptor {
@@ -40,10 +40,18 @@ export const REPORT_SOURCES: Record<ReportSourceKey, ReportSourceDescriptor> = {
   protel: {
     key: "protel",
     label: "PROTEL",
-    status: "planned",
+    status: "ready",
     parserFunction: "protel-report-parser",
     reportTemplate: "protel",
-    notes: "PROTEL parsing is not available yet.",
+  },
+  roomraccoon: {
+    key: "roomraccoon",
+    label: "RoomRaccoon",
+    status: "planned",
+    parserFunction: "roomraccoon-report-parser",
+    reportTemplate: "standard",
+    notes:
+      "RoomRaccoon parsing is not available yet — build these runs from the imported prior workbook.",
   },
 };
 
