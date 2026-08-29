@@ -2457,7 +2457,7 @@ async function verifyPrices(
   try {
     const attempt = await invokeRuWithRetry(
       supabase,
-      { action: 'get_prices', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
+      { action: 'get_prices', readback_purpose: 'onboarding_verification', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
       { label: `get_prices ${ruPropertyId}` },
     );
     const data = attempt.data;
@@ -2542,7 +2542,7 @@ async function verifyAvailability(
   try {
     const attempt = await invokeRuWithRetry(
       supabase,
-      { action: 'get_availability', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
+      { action: 'get_availability', readback_purpose: 'onboarding_verification', ru_property_id: ruPropertyId, date_from: windowFrom, date_to: windowTo, ...childAuth },
       { label: `get_availability ${ruPropertyId}` },
     );
     const data = attempt.data;
@@ -2759,7 +2759,7 @@ async function pushARI(
       // re-opened. Drop exactly those days (they are correctly booked out) and push the rest.
       if (!availOk && /confirmed reservation/i.test(availErrorMessage)) {
         const { data: calData } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'get_availability', ru_property_id: ruPropertyId, date_from: todayStr, date_to: oneYearStr, ...childAuth },
+          body: { action: 'get_availability', readback_purpose: 'availability_repair', ru_property_id: ruPropertyId, date_from: todayStr, date_to: oneYearStr, ...childAuth },
         });
         const reservedDates = new Set<string>();
         for (const [date, day] of parseRuAvailabilityDays(String(calData?.raw_xml ?? ''))) {
@@ -4502,7 +4502,7 @@ Deno.serve(async (req) => {
       for (const u of scoped) {
         const sold = await loadBookingBlocks(supabase, property.id, from, to, u.unit_id ? { id: u.unit_id, name: u.label ?? null, linked_rolos_id: null } : null);
         const { data: calData, error: calErr } = await supabase.functions.invoke('rentalsunited-api', {
-          body: { action: 'get_availability', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
+          body: { action: 'get_availability', readback_purpose: 'operator_request', ru_property_id: u.ru_id, date_from: from, date_to: to, ...childAuthPayload },
         });
         if (calErr || !calData?.success || !calData?.raw_xml) {
           report.push({

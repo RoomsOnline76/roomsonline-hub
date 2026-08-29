@@ -143,7 +143,7 @@ export async function auditChannelPriceCoverage(
 
     const attempt = await invokeRuWithRetry(
       admin,
-      { action: 'get_prices', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
+      { action: 'get_prices', readback_purpose: 'coverage_audit', ru_property_id: Number(listingId), date_from: from, date_to: to, property_id: opts.propertyId, ...childAuth },
       { label: `price_coverage ${listingId}` },
     );
 

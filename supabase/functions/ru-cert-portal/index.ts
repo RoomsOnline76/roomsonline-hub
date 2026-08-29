@@ -1893,10 +1893,10 @@ Deno.serve(async (req) => {
           // only amplified the traffic.
           const [avbRes, priceRes] = await Promise.all([
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_availability", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
+              body: { action: "get_availability", readback_purpose: "cert_probe", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
             withProbeTimeout(admin.functions.invoke("rentalsunited-api", {
-              body: { action: "get_prices", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
+              body: { action: "get_prices", readback_purpose: "cert_probe", ru_property_id: ruId, date_from: from, date_to: to, deferrable: false, ...scope },
             })),
           ]);
 
@@ -3407,7 +3407,7 @@ Deno.serve(async (req) => {
 
       const readbacks = await Promise.all(ruIds.map(async ({ label, ru_id }) => {
         const { data: calData, error: calErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "get_availability", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
+          body: { action: "get_availability", readback_purpose: "operator_request", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
         });
         const xml = String(calData?.raw_xml ?? "");
         const days = parseRuAvailabilityDays(xml);
@@ -3539,7 +3539,7 @@ Deno.serve(async (req) => {
 
       const readbacks = await Promise.all(ruIds.map(async ({ label, ru_id }) => {
         const { data: priceData, error: priceErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "get_prices", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
+          body: { action: "get_prices", readback_purpose: "operator_request", ru_property_id: ru_id, date_from: from, date_to: to, ...scope },
         });
         const xml = String(priceData?.raw_xml ?? "");
         const seasons = parseRuPriceSeasons(xml);
