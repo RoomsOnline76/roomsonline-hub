@@ -1099,8 +1099,27 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   }
   const monthCommentary = new Map<string, string[]>();
   const overallCommentary: string[] = [];
-  for (const raw of tobiLines) {
-    const line = raw.replace(/^[•\-\u2022\*]\s*/, "").trim();
+  const NOTE_FIELD_PLACEMENTS = new Set([
+    "min_stay_notes",
+    "promotions_notes",
+    "rate_override_notes",
+    "free_commentary",
+  ]);
+  for (const entry of tobiEntries) {
+    const line = entry.line.replace(/^[•\-\u2022\*]\s*/, "").trim();
+    // Comments the reviewer routed to a note field print inside that field,
+    // which the reviewer's own inputs already carry — never twice here.
+    if (NOTE_FIELD_PLACEMENTS.has(entry.placement)) continue;
+    if (entry.placement.startsWith("month:")) {
+      const key = entry.placement.slice(6);
+      const text = line.replace(/^([A-Za-z]{3,9}\s*'?\s*\d{0,4}|\d{4}-\d{2})\s*[:\u2013\u2014-]\s*/, "");
+      monthCommentary.set(key, [...(monthCommentary.get(key) ?? []), text.trim() || line]);
+      continue;
+    }
+    if (entry.placement === "overall") {
+      overallCommentary.push(line);
+      continue;
+    }
     const match = line.match(/^([A-Za-z]{3,9}\s*'?\s*\d{0,4}|\d{4}-\d{2})\s*[:\u2013\u2014-]\s*(.+)$/);
     const token = match ? match[1].replace(/\s+/g, " ").trim().toLowerCase() : "";
     const key = token ? monthByToken.get(token) : undefined;
@@ -1110,6 +1129,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
       overallCommentary.push(line);
     }
   }
+
 
   // A line already printed verbatim in the reviewer's own notes is not repeated.
   const notesText = [
