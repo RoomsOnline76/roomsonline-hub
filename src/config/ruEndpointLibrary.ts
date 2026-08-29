@@ -132,6 +132,8 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
   spec("Push_CancelReservation_RQ", "Cancel reservation", "bookings", "on_change", true),
   spec("Push_ConfirmReservation_RQ", "Confirm reservation", "bookings", "on_change", true),
   spec("Push_RejectRequest_RQ", "Reject / withdraw request", "bookings", "on_change", true),
+  spec("Push_ConfirmRequest_RQ", "Confirm request", "bookings", "on_change", true, "Accepts a channel request lead"),
+
   spec("Pull_ListReservations_RQ", "Reservation poll", "bookings", "scheduled", false, "Every 30 minutes"),
   spec("Pull_GetReservationByID_RQ", "Read reservation", "bookings", "on_demand", false),
   spec("Pull_GetLeads_RQ", "Lead poll", "bookings", "scheduled", false),
