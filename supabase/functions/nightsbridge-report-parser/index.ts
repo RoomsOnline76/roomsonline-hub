@@ -11,6 +11,12 @@ import {
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
 import { normaliseRules } from "../_shared/nightsbridgeRowRules.ts";
+import {
+  parseNbProfile,
+  recordRoutedRows,
+  splitByRouting,
+  type RoutableRow,
+} from "../_shared/nbProfile.ts";
 import { resolveAdditionalInputs } from "../_shared/reportAdditionalInputs.ts";
 import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
