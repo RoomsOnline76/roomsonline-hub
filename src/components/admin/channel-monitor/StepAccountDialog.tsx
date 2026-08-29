@@ -274,10 +274,10 @@ export function StepAccountDialog({
     setKeyNote(null);
   }, [planAccountId, planLogin]);
 
-  // Step A.2 waits for the key pair: put the operator straight on the AccessKey field.
+  // A key pair is the only way past this block: put the operator straight on the AccessKey field.
   useEffect(() => {
     if (!open) return;
-    if (remedyCode !== "RU_MANUAL_KEYS_REQUIRED") return;
+    if (remedyCode !== "RU_MANUAL_KEYS_REQUIRED" && remedyCode !== "NEEDS_UI_KEY") return;
     const timer = window.setTimeout(() => {
       keyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
       keyAccessRef.current?.focus();
