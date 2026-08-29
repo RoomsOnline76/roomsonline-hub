@@ -7,6 +7,7 @@ import {
   bodyCell,
   capacityLegend,
   chartOrDataBlock,
+  colLetter,
   commentaryBlock,
   dayGap,
   DEFAULT_UPLIFT,
@@ -39,6 +40,12 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
   const extras = normaliseExtras(options.extras);
   const uplift = extras.targetUplift ?? DEFAULT_UPLIFT;
   const upliftFactor = 1 + uplift;
+  // Profile-driven extra column sets (e.g. 2025 / 2024 actuals, STLY). Each one
+  // takes a value column plus a "%" variance column against current OTB, so the
+  // legend and commentary blocks move right out of their way.
+  const comparisons = extras.comparisons ?? [];
+  const compWidth = comparisons.length * 2;
+  const sideCol = compWidth > 0 ? 14 + compWidth : 12;
 
   const workbook = newWorkbook();
   const asAtCurrent = `as @ ${formatDate(options.asOfDate)}`;
@@ -83,6 +90,10 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     "Actual vrs LY",
     "%",
   ].forEach((text, i) => headerCell(sheet, revHeader, i + 2, text, accent));
+  comparisons.forEach((comparison, j) => {
+    headerCell(sheet, revHeader, 13 + j * 2, comparison.label, accent);
+    headerCell(sheet, revHeader, 14 + j * 2, "%", accent);
+  });
 
   months.forEach((key, i) => {
     const row = revFirst + i;
@@ -107,6 +118,18 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     bodyCell(sheet, row, 10, snapshot.previous_otb_revenue[key] ?? 0, MONEY);
     bodyCell(sheet, row, 11, { formula: `B${row}-D${row}` }, MONEY);
     bodyCell(sheet, row, 12, { formula: `IF(B${row}=0,"",(B${row}-D${row})/B${row})` }, PERCENT);
+    comparisons.forEach((comparison, j) => {
+      const valueCol = 13 + j * 2;
+      const letter = colLetter(valueCol);
+      bodyCell(sheet, row, valueCol, number(comparison.revenue, key) ?? 0, MONEY);
+      bodyCell(
+        sheet,
+        row,
+        valueCol + 1,
+        { formula: `IF(N(${letter}${row})=0,"",(B${row}-${letter}${row})/${letter}${row})` },
+        PERCENT,
+      );
+    });
   });
 
   const revLast = revFirst + Math.max(months.length - 1, 0);
@@ -123,6 +146,18 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     [10, `SUM(J${revFirst}:J${revLast})`, MONEY],
     [11, `B${revFin}-D${revFin}`, MONEY],
     [12, `IF(B${revFin}=0,"",(B${revFin}-D${revFin})/B${revFin})`, PERCENT],
+    ...comparisons.flatMap((_, j): Array<[number, string, string]> => {
+      const valueCol = 13 + j * 2;
+      const letter = colLetter(valueCol);
+      return [
+        [valueCol, `SUM(${letter}${revFirst}:${letter}${revLast})`, MONEY],
+        [
+          valueCol + 1,
+          `IF(N(${letter}${revFin})=0,"",(B${revFin}-${letter}${revFin})/${letter}${revFin})`,
+          PERCENT,
+        ],
+      ];
+    }),
   ]);
 
   /* ── Room Nights (nights beside Occ %) ───────────────────── */
@@ -141,6 +176,10 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     asAtPrevious,
     "Prev Occ %",
   ].forEach((text, i) => headerCell(sheet, rnHeader, i + 2, text, accent));
+  comparisons.forEach((comparison, j) => {
+    headerCell(sheet, rnHeader, 11 + j * 2, comparison.label, accent);
+    headerCell(sheet, rnHeader, 12 + j * 2, `${comparison.label} Occ %`, accent);
+  });
 
   months.forEach((key, i) => {
     const row = rnFirst + i;
@@ -169,6 +208,19 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
       prevOcc !== null ? prevOcc : { formula: `IF(I${row}=0,"",I${row}/${capacity})` },
       PERCENT,
     );
+    comparisons.forEach((comparison, j) => {
+      const valueCol = 11 + j * 2;
+      const letter = colLetter(valueCol);
+      bodyCell(sheet, row, valueCol, number(comparison.room_nights, key) ?? 0, INTEGER);
+      const occ = number(comparison.occupancy, key);
+      bodyCell(
+        sheet,
+        row,
+        valueCol + 1,
+        occ !== null ? occ : { formula: `IF(${letter}${row}=0,"",${letter}${row}/${capacity})` },
+        PERCENT,
+      );
+    });
   });
 
   const rnLast = rnFirst + Math.max(months.length - 1, 0);
@@ -180,8 +232,12 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     [7, `IF(B${rnFin}=0,"",(B${rnFin}-D${rnFin})/B${rnFin})`, PERCENT],
     [8, `SUM(H${rnFirst}:H${rnLast})`, INTEGER],
     [9, `SUM(I${rnFirst}:I${rnLast})`, INTEGER],
+    ...comparisons.map((_, j): [number, string, string] => {
+      const letter = colLetter(11 + j * 2);
+      return [11 + j * 2, `SUM(${letter}${rnFirst}:${letter}${rnLast})`, INTEGER];
+    }),
   ]);
-  capacityLegend(sheet, rnFirst, 12, rooms);
+  capacityLegend(sheet, rnFirst, sideCol, rooms);
 
   /* ── AVR ─────────────────────────────────────────────────── */
   const avrHeading = rnFin + 2;
@@ -196,6 +252,9 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     pickupLabel,
     asAtPrevious,
   ].forEach((text, i) => headerCell(sheet, avrHeader, i + 2, text, accent));
+  comparisons.forEach((comparison, j) => {
+    headerCell(sheet, avrHeader, 8 + j, comparison.label, accent);
+  });
 
   months.forEach((key, i) => {
     const row = avrFirst + i;
@@ -208,7 +267,9 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
     bodyCell(sheet, row, 5, { formula: `IF(N(B${row})=0,"",(B${row}-C${row})/B${row})` }, PERCENT);
     bodyCell(sheet, row, 6, { formula: `IF(N(G${row})=0,"",B${row}-G${row})` }, MONEY_DEC);
     bodyCell(sheet, row, 7, { formula: `IF(N(I${rnRow})=0,"",J${revRow}/I${rnRow})` }, MONEY_DEC);
-  });
+    comparisons.forEach((comparison, j) => {
+      bodyCell(sheet, row, 8 + j, number(comparison.adr, key) ?? 0, MONEY_DEC);
+    });
 
   const avrFin = avrFirst + months.length;
   finRow("Fin Year", avrFin, [
@@ -230,10 +291,10 @@ export async function buildProtelWorkbook(options: WorkbookOptions): Promise<Uin
   notes.forEach((text, i) => {
     if (text) noteCell(sheet, avrFin + 2 + i, 1, text);
   });
-  commentaryBlock(sheet, avrFirst, 12, inputs);
+  commentaryBlock(sheet, avrFirst, sideCol, inputs);
 
   sheet.getColumn(1).width = 12;
-  for (let col = 2; col <= 12; col += 1) sheet.getColumn(col).width = 16;
+  for (let col = 2; col <= sideCol; col += 1) sheet.getColumn(col).width = 16;
 
   const categories = months.map(monthLabel);
   const chartRow = avrFin + 8;

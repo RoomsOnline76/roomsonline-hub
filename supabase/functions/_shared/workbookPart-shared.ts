@@ -50,6 +50,22 @@ export interface WorkbookExtras {
   historicalOccupancy: Record<string, number>;
   carryForward: CarryForwardSheets;
   cadence?: string | null;
+  /**
+   * Extra month-aligned comparison column sets driven by the property's report
+   * profile (calendar-year actuals, same-time-last-year). Empty for properties
+   * that print the standard column order.
+   */
+  comparisons: WorkbookComparison[];
+}
+
+/** One printable comparison column set, keyed on the run's own month keys. */
+export interface WorkbookComparison {
+  key: string;
+  label: string;
+  revenue: Record<string, number>;
+  room_nights: Record<string, number>;
+  occupancy: Record<string, number>;
+  adr: Record<string, number>;
 }
 
 export interface WorkbookOptions {
@@ -115,6 +131,7 @@ export const normaliseExtras = (extras?: Partial<WorkbookExtras>): WorkbookExtra
   historicalOccupancy: extras?.historicalOccupancy ?? {},
   carryForward: extras?.carryForward ?? {},
   cadence: extras?.cadence ?? null,
+  comparisons: Array.isArray(extras?.comparisons) ? extras.comparisons : [],
 });
 
 export type Sheet = ExcelJS.Worksheet;

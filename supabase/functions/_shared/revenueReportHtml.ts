@@ -111,6 +111,22 @@ export interface DraftOptions {
   cadence?: "monthly" | "bimonthly" | null;
   /** Run source — OPERA carries rooms revenue only (no Dinner / Room 0 / Additional). */
   sourceType?: string | null;
+  /**
+   * Profile-driven comparison column sets (calendar-year actuals,
+   * same-time-last-year), month-aligned to the run's window. Empty for
+   * properties that print the standard columns.
+   */
+  comparisons?: DraftComparison[];
+}
+
+/** One extra comparison column set printed beside the standard columns. */
+export interface DraftComparison {
+  key: string;
+  label: string;
+  revenue: Record<string, number>;
+  room_nights: Record<string, number>;
+  occupancy: Record<string, number>;
+  adr: Record<string, number>;
 }
 
 
@@ -604,6 +620,57 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const nightsFmt = (value: number) => Math.round(value).toLocaleString("en-ZA");
   const pctFmt = (value: number) => `${value.toFixed(1)}%`;
 
+  // Extra comparison columns (e.g. "2024 ACTUAL", "STLY (as-of 14 Aug 2025)").
+  // Occupancy is stored as a fraction and printed as a percentage.
+  const comparisons = options.comparisons ?? [];
+  const compSeries = (
+    pick: (comparison: DraftComparison) => Record<string, number>,
+    scale = 1,
+  ): Array<{ label: string; values: number[] }> =>
+    comparisons.map((comparison) => ({
+      label: comparison.label,
+      values: months.map((key) => {
+        const value = Number(pick(comparison)[key]);
+        return Number.isFinite(value) ? value * scale : 0;
+      }),
+    }));
+  const compRevenue = compSeries((c) => c.revenue);
+  const compNights = compSeries((c) => c.room_nights);
+  const compOccupancy = compSeries((c) => c.occupancy, 100);
+  const compAdr = compSeries((c) => c.adr);
+  const compHeaders = (series: Array<{ label: string }>): string =>
+    series.map((entry) => `<th>${esc(entry.label)}</th><th>%</th>`).join("");
+  const compCells = (
+    series: Array<{ values: number[] }>,
+    index: number,
+    current: number,
+    format: (value: number) => string,
+  ): string =>
+    series
+      .map((entry) => {
+        const value = entry.values[index] ?? 0;
+        return `<td class="muted">${esc(format(value))}</td><td>${
+          value ? deltaCell(current, value, format) : `<span class="muted">—</span>`
+        }</td>`;
+      })
+      .join("");
+  const compTotals = (
+    series: Array<{ values: number[] }>,
+    currentTotal: number,
+    format: (value: number) => string,
+    blended = false,
+  ): string =>
+    series
+      .map((entry) => {
+        const values = entry.values.filter((value) => Number.isFinite(value));
+        const sum = values.reduce((acc, value) => acc + value, 0);
+        const total = blended ? (values.length ? sum / values.length : 0) : sum;
+        return `<td>${esc(format(total))}</td><td>${
+          total ? deltaCell(currentTotal, total, format) : `<span class="muted">—</span>`
+        }</td>`;
+      })
+      .join("");
+
   const revenueTableHtml = `
     <table class="grid tight">
       <thead>
@@ -614,6 +681,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <th>Variance</th>
           <th>Last year actual</th>
           <th>OTB vs LY</th>
+          ${compHeaders(compRevenue)}
           ${
             showAdditionalColumns
               ? `<th>Dinner</th>
@@ -636,6 +704,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
           <td class="muted">${esc(zar(otbLy[i]))}</td>
           <td>${deltaCell(otbNow[i], otbLy[i], compactMoney)}</td>
+          ${compCells(compRevenue, i, otbNow[i], compactMoney)}
           ${
             showAdditionalColumns
               ? `<td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
@@ -657,6 +726,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${deltaCell(totalOtb, totalPrevious, compactMoney)}</td>
           <td>${esc(zar(totalLastYear))}</td>
           <td>${deltaCell(totalOtb, totalLastYear, compactMoney)}</td>
+          ${compTotals(compRevenue, totalOtb, compactMoney)}
           ${
             showAdditionalColumns
               ? `<td>${totalDinner ? esc(zar(totalDinner)) : "—"}</td>
@@ -678,6 +748,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     ly: number[],
     totals: { now: number; prev: number; ly: number },
     format: (value: number) => string,
+    extraSeries: Array<{ label: string; values: number[] }> = [],
+    blendedExtras = false,
   ): string => `
     <div class="block">
       <h3 class="block-title">${esc(caption)}</h3>
@@ -690,6 +762,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
             <th>Variance</th>
             <th>Last year</th>
             <th>OTB vs LY</th>
+            ${compHeaders(extraSeries)}
           </tr>
         </thead>
         <tbody>
@@ -703,6 +776,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
             <td>${deltaCell(now[i], prev[i], format)}</td>
             <td class="muted">${esc(format(ly[i]))}</td>
             <td>${deltaCell(now[i], ly[i], format)}</td>
+            ${compCells(extraSeries, i, now[i], format)}
           </tr>`,
             )
             .join("")}
@@ -715,6 +789,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
             <td>${deltaCell(totals.now, totals.prev, format)}</td>
             <td>${esc(format(totals.ly))}</td>
             <td>${deltaCell(totals.now, totals.ly, format)}</td>
+            ${compTotals(extraSeries, totals.now, format, blendedExtras)}
           </tr>
         </tfoot>
       </table>
@@ -727,6 +802,7 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     nightsLy,
     { now: totalNights, prev: totalNightsPrev, ly: totalNightsLy },
     nightsFmt,
+    compNights,
   );
   const occupancyTableHtml = metricGrid(
     "Occupancy",
@@ -735,6 +811,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     occLy,
     { now: blendedOccupancy * 100, prev: totalOccPrev, ly: totalOccLy },
     pctFmt,
+    compOccupancy,
+    true,
   );
   const adrTableHtml = metricGrid(
     "Average daily rate",
@@ -743,6 +821,8 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
     adrLy,
     { now: blendedAdr, prev: totalAdrPrev, ly: totalAdrLy },
     zar,
+    compAdr,
+    true,
   );
 
   /** Revenue Comparison Review — OTB vs last year on revenue and ADR. */

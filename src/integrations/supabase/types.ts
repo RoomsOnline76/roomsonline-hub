@@ -7762,6 +7762,7 @@ export type Database = {
           property_id: string
           report_layout_template: Json
           report_logo_url: string | null
+          report_profile: Json
           room_count: number
           row_exclude_patterns: string[]
           special_report_set: string | null
@@ -7782,6 +7783,7 @@ export type Database = {
           property_id: string
           report_layout_template?: Json
           report_logo_url?: string | null
+          report_profile?: Json
           room_count?: number
           row_exclude_patterns?: string[]
           special_report_set?: string | null
@@ -7802,6 +7804,7 @@ export type Database = {
           property_id?: string
           report_layout_template?: Json
           report_logo_url?: string | null
+          report_profile?: Json
           room_count?: number
           row_exclude_patterns?: string[]
           special_report_set?: string | null
@@ -8849,6 +8852,7 @@ export type Database = {
       }
       report_snapshots: {
         Row: {
+          actuals_by_year: Json
           additional_revenue: Json
           adr: Json
           booking_trends: Json
@@ -8868,10 +8872,12 @@ export type Database = {
           room_nights: Json
           run_id: string
           source_breakdown: Json
+          stly: Json
           totals: Json
           updated_at: string
         }
         Insert: {
+          actuals_by_year?: Json
           additional_revenue?: Json
           adr?: Json
           booking_trends?: Json
@@ -8891,10 +8897,12 @@ export type Database = {
           room_nights?: Json
           run_id: string
           source_breakdown?: Json
+          stly?: Json
           totals?: Json
           updated_at?: string
         }
         Update: {
+          actuals_by_year?: Json
           additional_revenue?: Json
           adr?: Json
           booking_trends?: Json
@@ -8914,6 +8922,7 @@ export type Database = {
           room_nights?: Json
           run_id?: string
           source_breakdown?: Json
+          stly?: Json
           totals?: Json
           updated_at?: string
         }
