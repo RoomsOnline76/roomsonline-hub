@@ -62,6 +62,20 @@ export interface LedgerParseResult {
   unresolved: LedgerField[];
   /** Header fingerprint, used to reuse a confirmed mapping on later files. */
   fingerprint: string | null;
+  /** The period this export reports on, and how it was established. */
+  period: LedgerPeriod | null;
+  /** Revenue total printed by the export itself, when it carries one. */
+  declaredRevenue: number | null;
+}
+
+export interface LedgerPeriod {
+  /** First day of the reported period (YYYY-MM-DD), when known. */
+  from: string | null;
+  /** Last day of the reported period (YYYY-MM-DD), when known. */
+  to: string | null;
+  /** Month (YYYY-MM) every row in the file is reported under. */
+  month: string;
+  basis: "export_title" | "filename" | "arrivals";
 }
 
 export interface SheetGrid {
@@ -477,6 +491,65 @@ interface BuildOutcome {
   rows: LedgerRow[];
   skipped: number;
   notes: string[];
+  /** Revenue printed on the export's own totals line, when it carries one. */
+  declaredRevenue: number | null;
+}
+
+/* ---------------------------------------------------------- report period */
+
+/**
+ * A NightsBridge bookingsummary is pulled one month at a time and prints its
+ * period in a title line ("Bookings Report from 01/11/2026 to 30/11/2026"). A
+ * stay that started in the previous month but occupies nights in the reported
+ * month is repeated in the file, so the export's period — not the arrival date
+ * — decides which month the rows belong to.
+ */
+export function detectPeriod(
+  grid: unknown[][],
+  headerIndex: number,
+  filename: string,
+  rows: LedgerRow[],
+): LedgerPeriod | null {
+  for (let i = 0; i < Math.min(headerIndex + 1, grid.length); i += 1) {
+    const line = (grid[i] ?? []).map((cell) => text(cell)).filter(Boolean).join(" ");
+    if (!line) continue;
+    const range = line.match(
+      /from\s+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\s+(?:to|until|-|–)\s+(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})/i,
+    );
+    if (range) {
+      const from = toIsoDate(range[1]);
+      const to = toIsoDate(range[2]);
+      if (from) return { from, to: to ?? null, month: from.slice(0, 7), basis: "export_title" };
+    }
+  }
+
+  // "55 on Main_Nov 26.xlsx", "Kunjani Villa_Jan 27.xlsx", "Sept 26"
+  const name = filename.replace(/\.[a-z0-9]+$/i, "");
+  const fromName = name.match(
+    /(jan|feb|mar|apr|may|jun|jul|aug|sept|sep|oct|nov|dec)[a-z]*[\s._'-]*((?:19|20)?\d{2})\b/i,
+  );
+  if (fromName) {
+    const month = MONTHS[fromName[1].toLowerCase()];
+    let year = Number(fromName[2]);
+    if (year < 100) year += year < 70 ? 2000 : 1900;
+    if (month && year >= 1990 && year <= 2100) {
+      return {
+        from: iso(year, month, 1),
+        to: null,
+        month: `${year}-${`${month}`.padStart(2, "0")}`,
+        basis: "filename",
+      };
+    }
+  }
+
+  // Last resort: the month most of the arrivals fall in.
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = row.arrival.slice(0, 7);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const modal = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+  return modal ? { from: null, to: null, month: modal[0], basis: "arrivals" } : null;
 }
 
 function buildRows(
@@ -489,6 +562,7 @@ function buildRows(
   const rows: LedgerRow[] = [];
   const notes = new Set<string>();
   let skipped = 0;
+  let declaredRevenue: number | null = null;
 
   const at = (row: unknown[], field: LedgerField): unknown => {
     const column = mapping[field]?.column;
@@ -535,10 +609,16 @@ function buildRows(
       }
     }
 
-    // A summary/total line has no arrival date; ignore it silently.
+    // A summary/total line has no arrival date. It is the export's own claim
+    // about the period's revenue, so keep it for a cross-check.
     const looksTotal = /total|subtotal|grand/i.test(text(row[0]));
     if (!arrival || !Number.isFinite(nights) || !Number.isFinite(revenue)) {
-      if (!looksTotal) skipped += 1;
+      const noDates = !arrival && !lastNight;
+      if (noDates && Number.isFinite(revenue) && revenue !== 0) {
+        declaredRevenue = (declaredRevenue ?? 0) + revenue;
+      } else if (!looksTotal) {
+        skipped += 1;
+      }
       continue;
     }
 
@@ -563,7 +643,7 @@ function buildRows(
     });
   }
 
-  return { rows, skipped, notes: [...notes] };
+  return { rows, skipped, notes: [...notes], declaredRevenue };
 }
 
 /* -------------------------------------------------------------- entry point */
@@ -576,6 +656,8 @@ export interface LedgerParseOptions {
   overrideSheet?: string | null;
   fallbackRoom?: string;
   fallbackCurrency?: string;
+  /** Reviewer-set reporting month (YYYY-MM) for this file. */
+  reportMonth?: string | null;
 }
 
 export const headerFingerprint = (headers: string[]): string =>
@@ -594,6 +676,8 @@ const emptyResult = (errors: string[]): LedgerParseResult => ({
   mapping: {},
   unresolved: [...REQUIRED_FIELDS],
   fingerprint: null,
+  period: null,
+  declaredRevenue: null,
 });
 
 export function parseLedgerSheets(
@@ -656,6 +740,8 @@ export function parseLedgerSheets(
       mapping: {},
       unresolved: [...REQUIRED_FIELDS],
       fingerprint: headerFingerprint(headers),
+      period: null,
+      declaredRevenue: null,
     };
   }
 
@@ -715,6 +801,8 @@ export function parseLedgerSheets(
       mapping,
       unresolved,
       fingerprint,
+      period: null,
+      declaredRevenue: null,
     };
   }
 
@@ -726,8 +814,48 @@ export function parseLedgerSheets(
     options.fallbackCurrency ?? "ZAR",
   );
 
+  // The export's own reporting period owns every row in the file.
+  const period =
+    options.reportMonth && /^\d{4}-\d{2}/.test(options.reportMonth)
+      ? ({
+          from: null,
+          to: null,
+          month: options.reportMonth.slice(0, 7),
+          basis: "filename",
+        } as LedgerPeriod)
+      : detectPeriod(candidate.grid, candidate.headerIndex, filename, built.rows);
+  if (period) {
+    for (const row of built.rows) row.report_month = period.month;
+  }
+
   const notes: string[] = [
     `Sheet "${candidate.sheet}", header row ${candidate.headerIndex + 1}.`,
+    ...(period
+      ? [
+          `Reports on ${period.month}${
+            period.from && period.to ? ` (${period.from} to ${period.to})` : ""
+          } — every row counts towards that month, ${
+            period.basis === "export_title"
+              ? "read from the export's own period line"
+              : period.basis === "filename"
+              ? "taken from the file name"
+              : "inferred from the arrival dates"
+          }.`,
+        ]
+      : []),
+    ...(built.declaredRevenue
+      ? [
+          (() => {
+            const parsed = built.rows.reduce((sum, row) => sum + (row.revenue ?? 0), 0);
+            const gap = built.declaredRevenue! - parsed;
+            return Math.abs(gap) < 1
+              ? `Cross-check: matches the export's own total (${built.declaredRevenue!.toFixed(2)}).`
+              : `Cross-check: the export's own total is ${built.declaredRevenue!.toFixed(
+                  2,
+                )}, the parsed rows come to ${parsed.toFixed(2)} (difference ${gap.toFixed(2)}).`;
+          })(),
+        ]
+      : []),
     ...(Object.entries(mapping) as Array<[LedgerField, FieldMatch]>)
       .filter(([, match]) => match.basis === "data_shape" || match.basis === "reviewer")
       .map(([field, match]) =>
@@ -758,6 +886,8 @@ export function parseLedgerSheets(
       mapping,
       unresolved: [],
       fingerprint,
+      period: null,
+      declaredRevenue: built.declaredRevenue,
     };
   }
 
@@ -774,6 +904,8 @@ export function parseLedgerSheets(
     mapping,
     unresolved: [],
     fingerprint,
+    period,
+    declaredRevenue: built.declaredRevenue,
   };
 }
 

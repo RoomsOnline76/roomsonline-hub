@@ -74,11 +74,13 @@ export function NbProfileCard({ propertyId, profile, onChange, properties }: Pro
               id="nb-exclude"
               value={profile.exclude_patterns.join(", ")}
               onChange={(e) => patch({ exclude_patterns: split(e.target.value) })}
-              placeholder="Magari, Palala"
+              placeholder="Magari, Palala, guest:Kunjani Suite"
             />
             <p className="text-xs text-muted-foreground">
-              Matched against room, guest, company and source. Every match is listed on the
-              run's Excluded rows card.
+              Matched against room, guest, company and source — or scope it to one field with{" "}
+              <code>guest:</code>, <code>company:</code>, <code>room:</code>,{" "}
+              <code>source:</code>, <code>status:</code> or <code>type:</code>. Every match is
+              listed on the run's Excluded rows card, and its revenue still counts.
             </p>
           </div>
           <div className="space-y-2">
@@ -87,11 +89,11 @@ export function NbProfileCard({ propertyId, profile, onChange, properties }: Pro
               id="nb-keep"
               value={profile.keep_patterns.join(", ")}
               onChange={(e) => patch({ keep_patterns: split(e.target.value) })}
-              placeholder="TOURVEST"
+              placeholder="TOURVEST, company:Tourvest"
             />
             <p className="text-xs text-muted-foreground">
-              Added to this property's keep-list: rows exported at 0.00 that are still real
-              occupied nights.
+              Rows that are real occupied nights even when the export shows 0.00 or flags the
+              room unavailable. Field scoping works here too.
             </p>
           </div>
         </div>
