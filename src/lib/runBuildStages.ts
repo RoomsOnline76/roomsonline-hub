@@ -111,6 +111,12 @@ export interface StageStateInput {
   priorFiles: unknown[];
   /** Reviewer confirmed there is no previous workbook to import. */
   priorDeclined: boolean;
+  /**
+   * This client compares against the pack we sent a year ago, so a previous
+   * workbook must be attached — declining is only allowed when one of our own
+   * runs from that time can supply the column instead.
+   */
+  stlyRequired?: boolean;
   /** A previous run is pinned or auto-selected as the comparison. */
   hasBaseline: boolean;
   /** Aggregated snapshot exists. */
@@ -127,14 +133,15 @@ export type StageCompletion = Record<RunBuildStage, boolean>;
 export function deriveStageCompletion(input: StageStateInput): StageCompletion {
   const parsedAll =
     input.sourceFiles.length > 0 && input.sourceFiles.every((file) => file.parsedOk === true);
-  const priorSettled = input.priorFiles.length > 0 || input.priorDeclined;
+  const priorSettled =
+    input.priorFiles.length > 0 || (input.priorDeclined && !input.stlyRequired);
 
   return {
     parse: parsedAll,
     more_files: parsedAll,
     prior_upload: priorSettled,
     prior_ingest: priorSettled,
-    baseline: input.hasBaseline || input.priorDeclined || input.hasSnapshot,
+    baseline: input.hasBaseline || priorSettled || input.hasSnapshot,
     review: input.hasSnapshot,
     media: input.hasMedia,
     organize: input.hasMedia,

@@ -112,12 +112,13 @@ export default function ReportsRunReview() {
           .map((file) => ({ parsedOk: file.parsedOk })),
         priorFiles: (run?.files ?? []).filter((file) => file.fileRole === "prior_report"),
         priorDeclined: Boolean(run?.priorReportDeclined),
+        stlyRequired: stlyNeedsWorkbook,
         hasBaseline: Boolean(run?.previousRunId),
         hasSnapshot: Boolean(snapshot),
         hasMedia: mediaTotal > 0,
         insightsReviewed: Boolean(insights?.generatedAt),
       }),
-    [run, snapshot, mediaTotal, insights],
+    [run, snapshot, mediaTotal, insights, stlyNeedsWorkbook],
   );
 
   /** Land on the remembered stage the first time the run loads. */
