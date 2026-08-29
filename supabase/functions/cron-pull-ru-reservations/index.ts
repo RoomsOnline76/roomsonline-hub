@@ -97,6 +97,41 @@ Deno.serve(async (req) => {
     }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
   };
 
+  /**
+   * Last successful pull per RU account for one cadence action.
+   * Both Pull_ListReservations_RQ and Pull_GetLeads_RQ are account-scoped and rate-limited
+   * per method, so re-asking an owner that was covered minutes ago is pure duplicate traffic.
+   */
+  const lastSuccessByOwner = async (action: string): Promise<Map<string, number>> => {
+    const { data } = await supabase
+      .from('ru_sync_runs')
+      .select('created_at, details')
+      .eq('action', action)
+      .eq('success', true)
+      .order('created_at', { ascending: false })
+      .limit(300);
+    const map = new Map<string, number>();
+    for (const row of (data ?? []) as { created_at: string; details: Record<string, unknown> | null }[]) {
+      const owner = row.details?.ru_owner_id ? String(row.details.ru_owner_id) : null;
+      if (!owner || map.has(owner)) continue;
+      map.set(owner, new Date(row.created_at).getTime());
+    }
+    return map;
+  };
+
+  /** True while an unconfirmed channel lead is still holding dates locally. */
+  const hasOpenLeadHold = async (): Promise<boolean> => {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('integration_type', 'rentalsunited_lead')
+      .gte('lead_hold_expires_at', new Date().toISOString())
+      .limit(1);
+    return !!(data && data.length);
+  };
+
+
+
 
   try {
     // Date range: last PULL_WINDOW_DAYS days → today (RU filters on creation date)
