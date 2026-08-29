@@ -145,9 +145,13 @@ export function resolveComparisons(
     const revenue = numberMap(pick(stly, "revenue"));
     const nights = numberMap(pick(stly, "room_nights"));
     const occupancy = numberMap(pick(stly, "occupancy"));
+    // The heading names the vintage the column came from, so the client can see
+    // it is "what the books looked like then", not last year's actuals.
+    const asOf = formatAsOf(sources.stlyAsOfDate ?? (pick(imported, "as_of_date") as string));
     const comparison: ReportComparison = {
       key: "stly",
-      label: "STLY",
+      label: asOf ? `STLY (as at ${asOf})` : "STLY",
+
       ...derive(
         months,
         Object.fromEntries(months.filter((k) => revenue[k] !== undefined).map((k) => [k, revenue[k]])),
