@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { HistoricalBaseline } from "@/lib/historicalBaseline";
 import type { ReportBrandSource } from "@/lib/reportBranding";
-import { EMPTY_NB_PROFILE, parseNbProfile, type NbProfile } from "@/lib/nbProfile";
+import { parseNbProfile, type NbProfile } from "@/lib/nbProfile";
 
 export interface PropertyReportSettings {
   propertyId: string;
