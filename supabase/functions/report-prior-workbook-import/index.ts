@@ -376,6 +376,11 @@ Deno.serve(async (req) => {
       target_uplift: extract.targetUplift,
       historical_occupancy: extract.historicalOccupancy,
       historical_adr: extract.historicalAdr,
+      historical_by_year: yearBuckets,
+      stly: { revenue: extract.stlyRevenue, room_nights: extract.stlyRoomNights },
+      budget: { revenue: extract.budgetRevenue, room_nights: extract.budgetRoomNights },
+
+
 
       carry_forward_sheets: Object.keys(extract.carryForward),
       sheets_read: extract.sheetsRead,
