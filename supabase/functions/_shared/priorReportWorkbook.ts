@@ -327,6 +327,11 @@ interface OtbResult {
   lastYearAdr: Record<string, number>;
   /** Current (newest) OTB column, kept for reference alongside the baseline. */
   currentOtbRevenue: Record<string, number>;
+  /** The same column's printed occupancy, ADR and nights. */
+  currentOtbOccupancy: Record<string, number>;
+  currentOtbAdr: Record<string, number>;
+  currentNights: Record<string, number>;
+
 
   targets: Record<string, number>;
   targetUplift: number | null;
@@ -374,6 +379,9 @@ function parseOtbSheet(
     adr: {},
     lastYearAdr: {},
     currentOtbRevenue: {},
+    currentOtbOccupancy: {},
+    currentOtbAdr: {},
+    currentNights: {},
 
     targets: {},
     targetUplift: null,
@@ -429,16 +437,20 @@ function parseOtbSheet(
     ),
   ].sort();
 
-  // The workbook usually carries several OTB columns. What this run needs is a
-  // *comparison* baseline: the newest column dated no later than the run's own
-  // as-of date; only fall back to the newest of all when none qualifies.
+  // The workbook usually carries several OTB columns. The newest of all is the
+  // pack's *current* OTB; the comparison baseline is the newest column that is
+  // strictly older than it and no later than the run's own as-of date. Grande
+  // Roche prints `OTB 14.08.26` beside `OTB 29.07.26` on a 14 Aug run — taking
+  // "newest ≤ run date" would collapse both onto the same column.
   const runDate = runAsOfDate ? runAsOfDate.slice(0, 10) : null;
-  const older = runDate ? dates.filter((d) => d <= runDate) : [];
+  const currentDate = dates.length ? dates[dates.length - 1] : null;
+  const priorDates = dates.filter((d) => !currentDate || d < currentDate);
+  const older = runDate ? priorDates.filter((d) => d <= runDate) : priorDates;
   result.asOfDate = older.length
     ? older[older.length - 1]
-    : dates.length
-      ? dates[dates.length - 1]
-      : null;
+    : priorDates.length
+      ? priorDates[priorDates.length - 1]
+      : currentDate;
   result.label = result.asOfDate
     ? (headers
         .flatMap((h) => h.columns)
@@ -446,12 +458,11 @@ function parseOtbSheet(
     : headers[0].columns[0].heading;
   if (!result.asOfDate) {
     result.warnings.push("Could not read the as-of date from the OTB column heading.");
-  } else if (runDate && !older.length) {
+  } else if (!priorDates.length) {
     result.warnings.push(
-      `The workbook's only OTB column (${result.asOfDate}) is not older than this run — variances will read as zero.`,
+      `The workbook carries a single OTB column (${result.asOfDate}) — variances will read as zero.`,
     );
   }
-  const currentDate = dates.length ? dates[dates.length - 1] : null;
 
 
 
@@ -637,9 +648,12 @@ function parseOtbSheet(
         }
       }
 
+      const currentValue = currentCol === null ? null : toNum(row[currentCol]);
+
       if (kind === "adr") {
         if (otb !== null && otb > 0) result.adr[key] = otb;
         if (ly !== null && ly > 0) result.lastYearAdr[key] = ly;
+        if (currentValue !== null && currentValue > 0) result.currentOtbAdr[key] = currentValue;
         continue;
       }
 
@@ -648,6 +662,8 @@ function parseOtbSheet(
         const lastYear = occupancyOf(ly);
         if (current !== null) result.occupancy[key] = current;
         if (lastYear !== null) result.lastYearOccupancy[key] = lastYear;
+        const currentOcc = occupancyOf(currentValue);
+        if (currentOcc !== null) result.currentOtbOccupancy[key] = currentOcc;
         const lyNights = occLyNightsCol === null ? null : toNum(row[occLyNightsCol]);
         if (
           lyNights !== null &&
@@ -662,6 +678,9 @@ function parseOtbSheet(
       if (isNights) {
         if (otb !== null && plausibleNights(otb)) result.nights[key] = otb;
         if (ly !== null && plausibleNights(ly)) result.lastYearNights[key] = ly;
+        if (currentValue !== null && plausibleNights(currentValue)) {
+          result.currentNights[key] = currentValue;
+        }
 
       } else {
         if (otb !== null) result.revenue[key] = otb;
@@ -696,6 +715,7 @@ function parseOtbSheet(
   };
   deriveNights(result.nights, result.revenue, result.adr);
   deriveNights(result.lastYearNights, result.lastYearRevenue, result.lastYearAdr);
+  deriveNights(result.currentNights, result.currentOtbRevenue, result.currentOtbAdr);
 
   result.months.sort();
   return result;
@@ -841,6 +861,9 @@ export function parsePriorReportWorkbook(
     previousAdr: {},
     lastYearAdr: {},
     currentOtbRevenue: {},
+    currentOtbOccupancy: {},
+    currentOtbAdr: {},
+    currentRoomNights: {},
     baselineSheet: null,
     targets: {},
     targetUplift: null,
@@ -954,8 +977,26 @@ export function parsePriorReportWorkbook(
     return relA - relB || groupA - groupB || orderA - orderB;
   });
 
+  // The winning sheet owns its own reporting months: a legacy vintage may only
+  // fill months the winner never printed, and may never extend the window past
+  // the winner's last month (a 2011 grid rolled forward otherwise invents
+  // Feb–Apr 2027 figures for a Jul 2026 – Jan 2027 pack).
+  let windowFrom: string | null = null;
+  let windowTo: string | null = null;
+  let ownedMonths: Set<string> = new Set();
+  const fillable = (month: string): boolean => {
+    if (ownedMonths.has(month)) return false;
+    if (!windowFrom || !windowTo) return true;
+    return month >= windowFrom && month <= windowTo;
+  };
+  const fillAnyMonth = (target: Record<string, number>, source: Record<string, number>) => {
+    for (const [month, value] of Object.entries(source)) {
+      if (target[month] === undefined) target[month] = value;
+    }
+  };
   const fill = (target: Record<string, number>, source: Record<string, number>) => {
     for (const [month, value] of Object.entries(source)) {
+      if (!fillable(month)) continue;
       if (target[month] === undefined) target[month] = value;
     }
   };
@@ -968,28 +1009,58 @@ export function parsePriorReportWorkbook(
       extract.months = otb.months;
       extract.warnings.push(...otb.warnings);
       extract.baselineSheet = name;
+      fillAnyMonth(extract.previousOtbRevenue, otb.revenue);
+      fillAnyMonth(extract.previousRoomNights, otb.nights);
+      fillAnyMonth(extract.currentOtbRevenue, otb.currentOtbRevenue);
+      fillAnyMonth((extract.currentOtbOccupancy ??= {}), otb.currentOtbOccupancy);
+      fillAnyMonth((extract.currentOtbAdr ??= {}), otb.currentOtbAdr);
+      fillAnyMonth((extract.currentRoomNights ??= {}), otb.currentNights);
+      fillAnyMonth(extract.lastYearActual, otb.lastYearRevenue);
+      fillAnyMonth(extract.lastYearRoomNights, otb.lastYearNights);
+      fillAnyMonth(extract.previousOccupancy, otb.occupancy);
+      fillAnyMonth(extract.lastYearOccupancy, otb.lastYearOccupancy);
+      fillAnyMonth(extract.previousAdr, otb.adr);
+      fillAnyMonth(extract.lastYearAdr, otb.lastYearAdr);
+      fillAnyMonth(extract.targets, otb.targets);
+      fillAnyMonth(extract.dinnerByMonth, otb.dinner);
+      fillAnyMonth(extract.room0ByMonth, otb.room0);
+      fillAnyMonth(extract.compRnsByMonth, otb.compRns);
+      fillAnyMonth(extract.stlyRevenue, otb.stlyRevenue);
+      fillAnyMonth(extract.stlyRoomNights, otb.stlyNights);
+      fillAnyMonth(extract.budgetRevenue, otb.budgetRevenue);
+      fillAnyMonth(extract.budgetRoomNights, otb.budgetNights);
+      if (otb.months.length) {
+        windowFrom = otb.months[0];
+        windowTo = otb.months[otb.months.length - 1];
+        ownedMonths = new Set(otb.months);
+      }
+    } else {
+      fill(extract.previousOtbRevenue, otb.revenue);
+      fill(extract.previousRoomNights, otb.nights);
+      fill(extract.currentOtbRevenue, otb.currentOtbRevenue);
+      fill((extract.currentOtbOccupancy ??= {}), otb.currentOtbOccupancy);
+      fill((extract.currentOtbAdr ??= {}), otb.currentOtbAdr);
+      fill((extract.currentRoomNights ??= {}), otb.currentNights);
+      fill(extract.lastYearActual, otb.lastYearRevenue);
+      fill(extract.lastYearRoomNights, otb.lastYearNights);
+      fill(extract.previousOccupancy, otb.occupancy);
+      fill(extract.lastYearOccupancy, otb.lastYearOccupancy);
+      fill(extract.previousAdr, otb.adr);
+      fill(extract.lastYearAdr, otb.lastYearAdr);
+      fill(extract.targets, otb.targets);
+      fill(extract.dinnerByMonth, otb.dinner);
+      fill(extract.room0ByMonth, otb.room0);
+      fill(extract.compRnsByMonth, otb.compRns);
+      fill(extract.stlyRevenue, otb.stlyRevenue);
+      fill(extract.stlyRoomNights, otb.stlyNights);
+      fill(extract.budgetRevenue, otb.budgetRevenue);
+      fill(extract.budgetRoomNights, otb.budgetNights);
     }
-    fill(extract.previousOtbRevenue, otb.revenue);
-    fill(extract.previousRoomNights, otb.nights);
-    fill(extract.currentOtbRevenue, otb.currentOtbRevenue);
-    fill(extract.lastYearActual, otb.lastYearRevenue);
-    fill(extract.lastYearRoomNights, otb.lastYearNights);
-    fill(extract.previousOccupancy, otb.occupancy);
-    fill(extract.lastYearOccupancy, otb.lastYearOccupancy);
-    fill(extract.previousAdr, otb.adr);
-    fill(extract.lastYearAdr, otb.lastYearAdr);
-    fill(extract.targets, otb.targets);
-    fill(extract.dinnerByMonth, otb.dinner);
-    fill(extract.room0ByMonth, otb.room0);
-    fill(extract.compRnsByMonth, otb.compRns);
-    fill(extract.stlyRevenue, otb.stlyRevenue);
-    fill(extract.stlyRoomNights, otb.stlyNights);
-    fill(extract.budgetRevenue, otb.budgetRevenue);
-    fill(extract.budgetRoomNights, otb.budgetNights);
     for (const [year, bucket] of Object.entries(otb.actualsByYear)) {
       const target = (extract.actualsByYear[year] ??= { revenue: {}, roomNights: {} });
-      fill(target.revenue, bucket.revenue);
-      fill(target.roomNights, bucket.roomNights);
+      // Prior-year buckets sit outside the reporting window by definition.
+      fillAnyMonth(target.revenue, bucket.revenue);
+      fillAnyMonth(target.roomNights, bucket.roomNights);
     }
     if (extract.targetUplift === null) extract.targetUplift = otb.targetUplift;
   });
