@@ -29,9 +29,6 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   pending: "Never pushed",
 };
 
-const UNASSIGNED = "Unassigned";
-
-
 export function ChannelPropertyTable({
   rows,
   fx,
