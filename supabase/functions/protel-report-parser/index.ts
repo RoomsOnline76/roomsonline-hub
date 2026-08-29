@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
     let truncated = false;
     let skipped = 0;
 
-    for (const file of files) {
+    for (const file of sourceFiles) {
       if (processedFiles > 0 && Date.now() - startedAt > TIME_BUDGET_MS) {
         truncated = true;
         break;
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
         await admin
           .from("report_runs")
           .update({
-            processing_note: `Reading ${file.original_filename} (${processedFiles + 1} of ${files.length})`,
+            processing_note: `Reading ${file.original_filename} (${processedFiles + 1} of ${sourceFiles.length})`,
           })
           .eq("id", runId);
       }
@@ -362,7 +362,7 @@ Deno.serve(async (req) => {
     }
 
     if (truncated) {
-      const message = `Processed ${processedFiles} of ${files.length} file(s) before the time limit — run again to continue`;
+      const message = `Processed ${processedFiles} of ${sourceFiles.length} file(s) before the time limit — run again to continue`;
       await admin
         .from("report_runs")
         .update({ status: "failed", error_message: message, processing_note: null })
@@ -372,11 +372,11 @@ Deno.serve(async (req) => {
         runId,
         "processing_partial",
         message,
-        { processed: processedFiles, total: files.length },
+        { processed: processedFiles, total: sourceFiles.length },
         actorId,
       );
       return json(
-        { error: message, partial: true, processed: processedFiles, total: files.length, files: fileResults },
+        { error: message, partial: true, processed: processedFiles, total: sourceFiles.length, files: fileResults },
         422,
       );
     }
