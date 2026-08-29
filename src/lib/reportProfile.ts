@@ -28,6 +28,21 @@ export interface ReportProfile {
   source_mode: ReportSourceMode;
   /** Extra named columns, e.g. the client's own budget. */
   year_columns: ReportYearColumn[];
+  /**
+   * How many months the printed window covers. `null` keeps the standard six.
+   * Cathedral Peak's pack prints eight.
+   */
+  window_months: number | null;
+  /**
+   * Months to shift the window start relative to the review month. `-1` opens the
+   * grid on the month just closed (Cathedral Peak), `0` is the standard start.
+   */
+  window_start_offset: number;
+  /**
+   * Growth percentage applied to last year's actuals to derive the Target column
+   * when the client does not supply their own targets. `10` = last year + 10%.
+   */
+  target_growth_pct: number | null;
 }
 
 export const EMPTY_REPORT_PROFILE: ReportProfile = {
@@ -36,6 +51,9 @@ export const EMPTY_REPORT_PROFILE: ReportProfile = {
   source_unavailable: false,
   source_mode: "pms_export",
   year_columns: [],
+  window_months: null,
+  window_start_offset: 0,
+  target_growth_pct: null,
 };
 
 const yearList = (value: unknown): number[] => {
@@ -58,6 +76,21 @@ const columnList = (value: unknown): ReportYearColumn[] => {
   return [...seen];
 };
 
+
+const boundedInt = (value: unknown, min: number, max: number): number | null => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < min || rounded > max) return null;
+  return rounded;
+};
+
+const boundedNumber = (value: unknown, min: number, max: number): number | null => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+};
+
 export const parseReportProfile = (value: unknown): ReportProfile => {
   if (!value || typeof value !== "object") return { ...EMPTY_REPORT_PROFILE };
   const raw = value as Record<string, unknown>;
@@ -68,8 +101,19 @@ export const parseReportProfile = (value: unknown): ReportProfile => {
     source_unavailable: Boolean(raw.source_unavailable),
     source_mode: mode === "prior_workbook_only" ? "prior_workbook_only" : "pms_export",
     year_columns: columnList(raw.year_columns),
+    window_months: boundedInt(raw.window_months, 1, 24),
+    window_start_offset: boundedInt(raw.window_start_offset, -6, 6) ?? 0,
+    target_growth_pct: boundedNumber(raw.target_growth_pct, -100, 500),
   };
 };
+
+/** Window shape for `reportWindow.ts`, so callers never re-read the raw JSON. */
+export const reportWindowOptions = (
+  profile: ReportProfile,
+): { months?: number | null; startOffset?: number | null } => ({
+  months: profile.window_months,
+  startOffset: profile.window_start_offset,
+});
 
 /** True when nothing in the profile deviates from the standard pack. */
 export const isDefaultReportProfile = (profile: ReportProfile): boolean =>
@@ -77,4 +121,8 @@ export const isDefaultReportProfile = (profile: ReportProfile): boolean =>
   !profile.stly_from_prior_workbook &&
   !profile.source_unavailable &&
   profile.source_mode === "pms_export" &&
-  profile.year_columns.length === 0;
+  profile.year_columns.length === 0 &&
+  profile.window_months === null &&
+  profile.window_start_offset === 0 &&
+  profile.target_growth_pct === null;
+

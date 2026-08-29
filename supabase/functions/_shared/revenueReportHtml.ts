@@ -98,6 +98,8 @@ export interface DraftComparison {
   room_nights: Record<string, number>;
   occupancy: Record<string, number>;
   adr: Record<string, number>;
+  /** Variance columns printed beside this one. */
+  deltas?: Array<{ against: "otb" | "last_year"; label: string }>;
 }
 
 export interface DraftOptions {
@@ -123,6 +125,8 @@ export interface DraftOptions {
   comparisons?: DraftComparison[];
   /** Run source — OPERA carries rooms revenue only (no Dinner / Room 0 / Additional). */
   sourceType?: string | null;
+  /** Printed window shape from the property's report profile (length / start). */
+  windowOptions?: { months?: number | null; startOffset?: number | null };
 }
 
 
@@ -257,8 +261,15 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const cadenceLabel = options.cadence === "monthly" ? "Monthly" : "Bi-monthly";
   // A review always prints the month it covers plus the next five — months with
   // no uploaded figures still get a row, printed as dashes, so a gap is visible.
-  const months = windowMonths(asOfIso, options.reportMonth ?? null);
-  const withData = new Set(monthsInWindow(snapshot.months.filter(Boolean), asOfIso, options.reportMonth ?? null));
+  const months = windowMonths(asOfIso, options.reportMonth ?? null, options.windowOptions);
+  const withData = new Set(
+    monthsInWindow(
+      snapshot.months.filter(Boolean),
+      asOfIso,
+      options.reportMonth ?? null,
+      options.windowOptions,
+    ),
+  );
   const dash = `<span class="muted">—</span>`;
   /** Value cell that prints a dash when the month carries no uploaded data. */
   const dataCell = (index: number, formatted: string): string =>
@@ -636,7 +647,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   const revenueComparisons = comparisons.map((comparison) => ({
     label: comparison.label,
     values: comparisonSeries(comparison, "revenue"),
+    deltas: comparison.deltas ?? [],
   }));
+  /** Variance cell for a declared delta column, e.g. OTB vs Target. */
+  const comparisonDeltaCell = (
+    against: "otb" | "last_year",
+    columnValue: number | null,
+    index: number,
+  ): string => {
+    if (columnValue === null) return `<td class="muted">—</td>`;
+    return against === "otb"
+      ? `<td>${deltaCell(otbNow[index], columnValue, compactMoney)}</td>`
+      : `<td>${deltaCell(columnValue, otbLy[index], compactMoney)}</td>`;
+  };
 
   const revenueTableHtml = `
     <table class="grid tight">
@@ -648,7 +671,14 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <th>Variance</th>
           <th>Last year actual</th>
           <th>OTB vs LY</th>
-          ${revenueComparisons.map((c) => `<th>${esc(c.label)}</th>`).join("")}
+          ${revenueComparisons
+            .map(
+              (c) =>
+                `<th>${esc(c.label)}</th>${c.deltas
+                  .map((d) => `<th>${esc(d.label)}</th>`)
+                  .join("")}`,
+            )
+            .join("")}
           ${
             showAdditionalColumns
               ? `<th>Dinner</th>
@@ -671,7 +701,13 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${deltaCell(otbNow[i], otbPrev[i], compactMoney)}</td>
           <td class="muted">${esc(zar(otbLy[i]))}</td>
           <td>${deltaCell(otbNow[i], otbLy[i], compactMoney)}</td>
-          ${revenueComparisons.map((c) => comparisonCell(c.values[i], zar)).join("")}
+          ${revenueComparisons
+            .map(
+              (c) =>
+                comparisonCell(c.values[i], zar) +
+                c.deltas.map((d) => comparisonDeltaCell(d.against, c.values[i], i)).join(""),
+            )
+            .join("")}
           ${
             showAdditionalColumns
               ? `<td class="muted">${dinner[i] ? esc(zar(dinner[i])) : "—"}</td>
@@ -694,7 +730,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
           <td>${esc(zar(totalLastYear))}</td>
           <td>${deltaCell(totalOtb, totalLastYear, compactMoney)}</td>
           ${revenueComparisons
-            .map((c) => comparisonCell(comparisonTotal(c.values), zar))
+            .map(
+              (c) =>
+                comparisonCell(comparisonTotal(c.values), zar) +
+                c.deltas
+                  .map((d) => {
+                    const total = comparisonTotal(c.values);
+                    if (total === null) return `<td class="muted">—</td>`;
+                    return d.against === "otb"
+                      ? `<td>${deltaCell(totalOtb, total, compactMoney)}</td>`
+                      : `<td>${deltaCell(total, totalLastYear, compactMoney)}</td>`;
+                  })
+                  .join(""),
+            )
             .join("")}
           ${
             showAdditionalColumns

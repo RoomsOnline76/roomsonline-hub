@@ -23,8 +23,8 @@ export function StageReview({ ctx }: { ctx: RunBuilderContext }) {
   const [savingMonth, setSavingMonth] = useState(false);
 
   const window = useMemo(
-    () => windowMonths(run.asOfDate, run.reportMonth),
-    [run.asOfDate, run.reportMonth],
+    () => windowMonths(run.asOfDate, run.reportMonth, ctx.windowOptions),
+    [run.asOfDate, run.reportMonth, ctx.windowOptions],
   );
 
   const saveMonth = async () => {

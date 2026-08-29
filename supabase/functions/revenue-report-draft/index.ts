@@ -4,6 +4,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
 import { resolveComparisons } from "../_shared/reportComparisons.ts";
+import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfile.ts";
+import { windowMonths } from "../_shared/reportWindow.ts";
 import { loadStlySeries } from "../_shared/reportStly.ts";
 import {
   buildDraftReport,
@@ -251,13 +253,24 @@ Deno.serve(async (req) => {
       booking_trends: (snapshot.booking_trends ?? null) as DraftSnapshot["booking_trends"],
     };
 
+    // The printed window (length and start month) can be widened per property.
+    const reportProfile = parseReportProfile(
+      (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+    );
+    const windowOptions = reportWindowOptions(reportProfile);
+    const windowKeys = windowMonths(
+      String(run.as_of_date).slice(0, 10),
+      run.report_month ? String(run.report_month).slice(0, 7) : null,
+      windowOptions,
+    );
+
     // Same-time-last-year for profiles that compare against the pack we sent a
     // year ago rather than last year's actuals.
     const stlySeries = await loadStlySeries(admin as never, {
       propertyId: String(run.property_id),
       runId: String(run.id),
       asOfDate: String(run.as_of_date).slice(0, 10),
-      months: draftSnapshot.months,
+      months: windowKeys,
       snapshotStly: (snapshot as { stly?: unknown }).stly,
       importedBaseline: (run as { imported_baseline?: unknown }).imported_baseline ?? null,
     });
@@ -288,10 +301,11 @@ Deno.serve(async (req) => {
       },
       media: mediaSlots,
       tobiCommentary,
+      windowOptions,
       comparisons: resolveComparisons(
         (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
         {
-          months: draftSnapshot.months,
+          months: windowKeys,
           actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
           stly: stlySeries.source === "none" ? undefined : stlySeries,
           stlyAsOfDate: stlySeries.asOfDate,
@@ -300,6 +314,10 @@ Deno.serve(async (req) => {
             (settings as { historical_baseline?: unknown } | null)?.historical_baseline ?? null,
           capacityDays: draftSnapshot.capacity_days,
           roomCount: draftSnapshot.room_count,
+          lastYear: {
+            revenue: draftSnapshot.last_year_actual,
+            room_nights: draftSnapshot.last_year_room_nights,
+          },
         },
       ),
       pageOrder: savedPageOrder,

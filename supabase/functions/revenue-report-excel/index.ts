@@ -1,6 +1,7 @@
 // Generates the consolidated three-sheet revenue report workbook for a run.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { monthsInWindow } from "../_shared/reportWindow.ts";
+import { parseReportProfile, reportWindowOptions } from "../_shared/reportProfile.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import {
   buildRevenueWorkbook,
@@ -127,10 +128,17 @@ Deno.serve(async (req) => {
       (run as unknown as { properties?: { name?: string | null } }).properties?.name ??
       "Property";
 
+    // Window length and start month can be widened per property (Cathedral Peak
+    // prints eight months, opening on the month just closed).
+    const reportProfile = parseReportProfile(
+      (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
+    );
+    const windowOptions = reportWindowOptions(reportProfile);
     const windowMonths = monthsInWindow(
       Array.isArray(snapshot.months) ? (snapshot.months as string[]) : [],
       String(run.as_of_date).slice(0, 10),
       run.report_month ? String(run.report_month).slice(0, 7) : null,
+      windowOptions,
     );
 
     // Same-time-last-year: the ledger's own block, the uploaded vintage pack, or
@@ -156,6 +164,10 @@ Deno.serve(async (req) => {
         historicalBaseline: settings?.historical_baseline ?? null,
         capacityDays: numberMap(snapshot.capacity_days),
         roomCount: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
+        lastYear: {
+          revenue: numberMap(snapshot.last_year_actual),
+          room_nights: numberMap(snapshot.last_year_room_nights),
+        },
       },
     );
 
@@ -190,9 +202,13 @@ Deno.serve(async (req) => {
         sourceType: run.source_type ?? null,
         cadence: run.cadence ?? null,
         targets: numberMap(imported?.targets),
+        // The client's own uploaded uplift wins; otherwise the profile's growth
+        // target (Cathedral Peak: last year + 10%).
         targetUplift: Number.isFinite(Number(imported?.target_uplift))
           ? Number(imported?.target_uplift)
-          : null,
+          : reportProfile.target_growth_pct !== null
+            ? reportProfile.target_growth_pct / 100
+            : null,
         previousOccupancy: numberMap(imported?.previous_occupancy),
         lastYearOccupancy: numberMap(imported?.last_year_occupancy),
         historicalOccupancy: numberMap(imported?.historical_occupancy),
