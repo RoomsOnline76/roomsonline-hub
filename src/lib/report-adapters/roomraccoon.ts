@@ -43,11 +43,13 @@ export const roomraccoonAdapter: ReportSourceAdapter = {
   description:
     "RoomRaccoon monthly revenue report (daily rooms sold, occupancy, room revenue and ADR).",
   status: "planned",
-  parserFunction: "roomraccoon-report-parser",
+  // There is no RoomRaccoon daily export reader yet: these runs are built from
+  // the imported previous report by the shared baseline builder.
+  parserFunction: "protel-report-parser",
   reportTemplate: "standard",
   acceptedFileTypes: [".pdf", ".xlsx"],
   getExpectedColumns: () => [...EXPECTED_COLUMNS],
   getDefaultAdditionalFields: () => ADDITIONAL_FIELDS,
   notes:
-    "RoomRaccoon parsing is not available yet — build these runs from the imported prior workbook.",
+    "RoomRaccoon exports are not read directly — import the previous report at the prior-report step and the grid is built from it.",
 };
