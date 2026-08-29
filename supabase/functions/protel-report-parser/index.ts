@@ -215,6 +215,8 @@ Deno.serve(async (req) => {
       );
     }
 
+    const sourceFiles = files ?? [];
+
     if (!onlyFileId) {
       if (run.status === "processing") {
         return json({ error: "This run is already being processed" }, 409);
@@ -224,15 +226,19 @@ Deno.serve(async (req) => {
         .update({
           status: "processing",
           error_message: null,
-          processing_note: `Starting — ${files.length} file(s) queued`,
+          processing_note: baselineOnly
+            ? "Starting — building from the imported previous report"
+            : `Starting — ${sourceFiles.length} file(s) queued`,
         })
         .eq("id", runId);
       await logRunEvent(
         admin,
         runId,
         "processing_started",
-        `Processing started for ${files.length} protel extract(s)`,
-        { file_count: files.length, source: "protel" },
+        baselineOnly
+          ? "Processing started from the imported previous report (no PMS export on this run)"
+          : `Processing started for ${sourceFiles.length} protel extract(s)`,
+        { file_count: sourceFiles.length, source: "protel", baseline_only: baselineOnly },
         actorId,
       );
     }
