@@ -310,6 +310,8 @@ export function aggregateFromImportedBaseline(
   aggregate.totals.capacity_days = capacity;
   aggregate.totals.nights = nights;
   aggregate.totals.occupancy = capacity > 0 ? nights / capacity : 0;
+  // Blended ADR for the whole window: revenue over the nights that carried it.
+  aggregate.totals.adr = nights > 0 ? Math.round((revenue / nights) * 100) / 100 : 0;
   return aggregate;
 }
 
