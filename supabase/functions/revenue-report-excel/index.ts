@@ -9,6 +9,7 @@ import {
 } from "../_shared/revenueReportWorkbook.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { resolveComparisons } from "../_shared/reportComparisons.ts";
+import { loadStlySeries } from "../_shared/reportStly.ts";
 
 const BUCKET = "revenue-reports";
 
