@@ -964,6 +964,11 @@ export function parsePriorReportWorkbook(
   let windowTo: string | null = null;
   const inWindow = (month: string): boolean =>
     !windowFrom || !windowTo || (month >= windowFrom && month <= windowTo);
+  const fillAnyMonth = (target: Record<string, number>, source: Record<string, number>) => {
+    for (const [month, value] of Object.entries(source)) {
+      if (target[month] === undefined) target[month] = value;
+    }
+  };
   const fill = (target: Record<string, number>, source: Record<string, number>) => {
     for (const [month, value] of Object.entries(source)) {
       if (!inWindow(month)) continue;
