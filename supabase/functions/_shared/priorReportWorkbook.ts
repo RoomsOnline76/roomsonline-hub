@@ -467,34 +467,58 @@ function parseOtbSheet(
 
 
 
-  // 2. Walk each block: header row, then month rows until the block ends.
+  // 2. Blocks. A header row carries one *or more* labelled blocks: hotel packs
+  //    routinely print "Room Nights" at column A and "Occupancy" halfway across
+  //    the same row (Les Chambres), and "ADR" beside "RevPar". Each label owns
+  //    the dated columns from its own column until the next label.
+  interface Block {
+    row: number;
+    end: number;
+    label: string;
+    columns: OtbColumn[];
+    from: number;
+    to: number;
+  }
+  const blocks: Block[] = [];
   for (let h = 0; h < headers.length; h += 1) {
     const header = headers[h];
     const end = h + 1 < headers.length ? headers[h + 1].row : rows.length;
 
     // Section label: this header row's own label, else the nearest label above.
+    let labelRow = header.row;
     let label = rowLabel(rows[header.row] ?? []);
     if (isOtbHeading(label) || !label) {
       for (let r = header.row - 1; r >= 0 && r >= header.row - 3; r -= 1) {
         const candidate = rowLabel(rows[r] ?? []);
         if (candidate && !isOtbHeading(candidate)) {
-
           label = candidate;
+          labelRow = r;
           break;
         }
       }
     }
-    const kind = blockKind(label);
+    for (const segment of labelSegments(rows[labelRow] ?? [], label)) {
+      const columns = header.columns.filter(
+        (c) => c.col >= segment.from && c.col <= segment.to,
+      );
+      if (!columns.length) continue;
+      blocks.push({ row: header.row, end, label: segment.label, columns, ...segment });
+    }
+  }
+
+  for (const block of blocks) {
+    const end = block.end;
+    const kind = blockKind(block.label);
     if (kind === "skip") continue;
 
-    const dataFrom = header.row + 1;
+    const dataFrom = block.row + 1;
     const isNights = kind === "nights";
 
     // OTB column for this block — the baseline date, count-shaped when nights.
-    const candidates = header.columns.filter(
+    const candidates = block.columns.filter(
       (c) => !result.asOfDate || c.date === result.asOfDate,
     );
-    let otbCol = candidates[0]?.col ?? header.columns[0].col;
+    let otbCol = candidates[0]?.col ?? block.columns[0].col;
     if (isNights && candidates.length > 1) {
       const counted = candidates.find((c) => looksLikeCounts(rows, dataFrom, end, c.col));
       if (counted) otbCol = counted.col;
@@ -502,11 +526,11 @@ function parseOtbSheet(
     // The newest dated column is the workbook's *current* OTB — kept apart from
     // the comparison baseline so both can be shown.
     const currentCol = currentDate
-      ? (header.columns.find((c) => c.date === currentDate)?.col ?? null)
+      ? (block.columns.find((c) => c.date === currentDate)?.col ?? null)
       : null;
 
     // Last-year and manual-input columns on this header row.
-    const headerRow = rows[header.row] ?? [];
+    const headerRow = rows[block.row] ?? [];
     const lyCandidates: number[] = [];
     let dinnerCol: number | null = null;
     let targetCol: number | null = null;
@@ -519,8 +543,10 @@ function parseOtbSheet(
     let stlyCol: number | null = null;
     let budgetCol: number | null = null;
     headerRow.forEach((cell, col) => {
+      if (col < block.from || col > block.to) return;
       const heading = lower(cell);
       if (!heading) return;
+
       const comparative = /\b(vs|vrs|variance|var\b|%)/.test(heading);
       if (/last year/.test(heading) && !/vs|vrs/.test(heading)) lyCandidates.push(col);
       if (/^rn last year|last year.*(rn|room night)/.test(heading)) lyCandidates.push(col);
