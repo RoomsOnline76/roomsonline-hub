@@ -14,6 +14,8 @@
  * client's column set can never drift between the two.
  */
 import { parseReportProfile, type ReportProfile } from "./reportProfile.ts";
+import { formatAsOf } from "./reportStly.ts";
+
 
 export interface ReportComparison {
   /** Stable id, e.g. `year-2024`, `stly`, `budget`. */
@@ -32,10 +34,13 @@ export interface ComparisonSources {
   actualsByYear?: unknown;
   /** `{ revenue: {...}, room_nights: {...} }` from the same-time-last-year pack. */
   stly?: unknown;
+  /** As-of date behind the STLY series, printed in its column heading. */
+  stlyAsOfDate?: string | null;
   importedBaseline?: unknown;
   historicalBaseline?: unknown;
   capacityDays?: Record<string, number>;
   roomCount?: number;
+
 }
 
 const numberMap = (value: unknown): Record<string, number> => {
@@ -142,9 +147,13 @@ export function resolveComparisons(
     const revenue = numberMap(pick(stly, "revenue"));
     const nights = numberMap(pick(stly, "room_nights"));
     const occupancy = numberMap(pick(stly, "occupancy"));
+    // The heading names the vintage the column came from, so the client can see
+    // it is "what the books looked like then", not last year's actuals.
+    const asOf = formatAsOf(sources.stlyAsOfDate ?? (pick(imported, "as_of_date") as string));
     const comparison: ReportComparison = {
       key: "stly",
-      label: "STLY",
+      label: asOf ? `STLY (as at ${asOf})` : "STLY",
+
       ...derive(
         months,
         Object.fromEntries(months.filter((k) => revenue[k] !== undefined).map((k) => [k, revenue[k]])),

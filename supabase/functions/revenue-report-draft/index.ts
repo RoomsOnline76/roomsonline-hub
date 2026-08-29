@@ -4,6 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { zipSync, strToU8 } from "npm:fflate@0.8.2";
 import { resolveComparisons } from "../_shared/reportComparisons.ts";
+import { loadStlySeries } from "../_shared/reportStly.ts";
 import {
   buildDraftReport,
   type DraftSnapshot,
@@ -61,7 +62,7 @@ Deno.serve(async (req) => {
     const { data: run, error: runError } = await admin
       .from("report_runs")
       .select(
-        "id, property_id, as_of_date, report_month, previous_run_id, title, cadence, source_type, page_order, properties(name)",
+        "id, property_id, as_of_date, report_month, previous_run_id, imported_baseline, title, cadence, source_type, page_order, properties(name)",
       )
       .eq("id", runId)
       .maybeSingle();
@@ -250,6 +251,17 @@ Deno.serve(async (req) => {
       booking_trends: (snapshot.booking_trends ?? null) as DraftSnapshot["booking_trends"],
     };
 
+    // Same-time-last-year for profiles that compare against the pack we sent a
+    // year ago rather than last year's actuals.
+    const stlySeries = await loadStlySeries(admin as never, {
+      propertyId: String(run.property_id),
+      runId: String(run.id),
+      asOfDate: String(run.as_of_date).slice(0, 10),
+      months: draftSnapshot.months,
+      snapshotStly: (snapshot as { stly?: unknown }).stly,
+      importedBaseline: (run as { imported_baseline?: unknown }).imported_baseline ?? null,
+    });
+
     const draft = buildDraftReport({
       propertyName,
       asOfDate: String(run.as_of_date).slice(0, 10),
@@ -281,7 +293,9 @@ Deno.serve(async (req) => {
         {
           months: draftSnapshot.months,
           actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
-          stly: (snapshot as { stly?: unknown }).stly,
+          stly: stlySeries.source === "none" ? undefined : stlySeries,
+          stlyAsOfDate: stlySeries.asOfDate,
+          importedBaseline: (run as { imported_baseline?: unknown }).imported_baseline ?? null,
           historicalBaseline:
             (settings as { historical_baseline?: unknown } | null)?.historical_baseline ?? null,
           capacityDays: draftSnapshot.capacity_days,

@@ -9,6 +9,7 @@ import {
 } from "../_shared/revenueReportWorkbook.ts";
 import { logRunEvent } from "../_shared/reportRunEvents.ts";
 import { resolveComparisons } from "../_shared/reportComparisons.ts";
+import { loadStlySeries } from "../_shared/reportStly.ts";
 
 const BUCKET = "revenue-reports";
 
@@ -132,19 +133,32 @@ Deno.serve(async (req) => {
       run.report_month ? String(run.report_month).slice(0, 7) : null,
     );
 
+    // Same-time-last-year: the ledger's own block, the uploaded vintage pack, or
+    // one of our own runs from a year ago.
+    const stlySeries = await loadStlySeries(admin as never, {
+      propertyId: String(run.property_id),
+      runId: String(run.id),
+      asOfDate: String(run.as_of_date).slice(0, 10),
+      months: windowMonths,
+      snapshotStly: (snapshot as { stly?: unknown }).stly,
+      importedBaseline: imported,
+    });
+
     // Extra comparison columns this client's profile asks for.
     const comparisons = resolveComparisons(
       (settings as { report_profile?: unknown } | null)?.report_profile ?? null,
       {
         months: windowMonths,
         actualsByYear: (snapshot as { actuals_by_year?: unknown }).actuals_by_year,
-        stly: (snapshot as { stly?: unknown }).stly,
+        stly: stlySeries.source === "none" ? undefined : stlySeries,
+        stlyAsOfDate: stlySeries.asOfDate,
         importedBaseline: imported,
         historicalBaseline: settings?.historical_baseline ?? null,
         capacityDays: numberMap(snapshot.capacity_days),
         roomCount: Number(snapshot.room_count ?? settings?.room_count ?? 1) || 1,
       },
     );
+
 
     const bytes = await buildRevenueWorkbook({
       propertyName,

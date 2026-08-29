@@ -28,6 +28,7 @@ import { getAdapter } from "@/lib/report-adapters";
 import { reportsPath } from "@/lib/config";
 import { monthsInWindow, windowMonths } from "@/lib/reportWindow";
 import { defaultRunTitle, isGeneratedRunTitle } from "@/lib/reportTitle";
+import { parseReportProfile } from "@/lib/reportProfile";
 import {
   deriveStageCompletion,
   nextStage,
@@ -90,6 +91,13 @@ export default function ReportsRunReview() {
 
   const adapter = getAdapter(run?.sourceType);
   const { settings: propertySettings } = usePropertyReportSettings(run?.propertyId);
+  /**
+   * Clients whose comparison column is "what the books looked like when we sent
+   * the report a year ago" cannot skip the previous-report upload — there is
+   * nowhere else for that column to come from on a first run.
+   */
+  const stlyNeedsWorkbook =
+    parseReportProfile(propertySettings?.reportProfile ?? null).stly_from_prior_workbook;
   const specialSet = run
     ? (run.specialReportSet ?? propertySettings?.specialReportSet ?? null)
     : null;
@@ -112,12 +120,13 @@ export default function ReportsRunReview() {
           .map((file) => ({ parsedOk: file.parsedOk })),
         priorFiles: (run?.files ?? []).filter((file) => file.fileRole === "prior_report"),
         priorDeclined: Boolean(run?.priorReportDeclined),
+        stlyRequired: stlyNeedsWorkbook,
         hasBaseline: Boolean(run?.previousRunId),
         hasSnapshot: Boolean(snapshot),
         hasMedia: mediaTotal > 0,
         insightsReviewed: Boolean(insights?.generatedAt),
       }),
-    [run, snapshot, mediaTotal, insights],
+    [run, snapshot, mediaTotal, insights, stlyNeedsWorkbook],
   );
 
   /** Land on the remembered stage the first time the run loads. */

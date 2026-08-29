@@ -138,7 +138,7 @@ export function PropertyRecommendations({
       // The select string is typed as plain `string` so supabase-js does not
       // re-parse it on every conditional reassignment of the builder.
       const sel = (s: string): string => s;
-      let query = supabase
+      const query = supabase
         .from('public_properties')
         .select(sel('id, name, slug, city, country, price_per_night, images, amenities, latitude, longitude'))
         .eq('is_active', true)
@@ -146,13 +146,16 @@ export function PropertyRecommendations({
         .not('longitude', 'is', null)
         .limit(50); // Fetch more for distance filtering
 
-      // Exclude current and already viewed properties
+      // Exclude current and already viewed properties. The builder is widened to
+      // a thenable of the row shape so the conditional `.not()` reassignment does
+      // not make supabase-js re-derive its (very deep) generic type.
       const excludeIds = [currentPropertyId, ...viewedPropertyIds].filter(Boolean);
-      if (excludeIds.length > 0) {
-        query = query.not('id', 'in', `(${excludeIds.join(',')})`);
-      }
+      const filtered = (
+        excludeIds.length > 0 ? query.not('id', 'in', `(${excludeIds.join(',')})`) : query
+      ) as unknown as PromiseLike<{ data: RecommendationRow[] | null; error: { message: string } | null }>;
 
-      const { data: properties, error } = await query.returns<RecommendationRow[]>();
+      const { data: properties, error } = await filtered;
+
 
 
       if (error) {
