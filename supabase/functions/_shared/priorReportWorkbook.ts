@@ -202,6 +202,43 @@ const rowLabel = (row: Row): string => {
   return "";
 };
 
+/** Words that mark the start of a stacked metric block. */
+const BLOCK_LABEL =
+  /revpar|rev\s*par|room night|rm nite|occupancy|occ\s*%|\badr\b|\bavr\b|average (daily )?(room )?rate|revenue/i;
+
+/**
+ * Column spans owned by each label on a block's label row. Packs print two
+ * blocks side by side ("Room Nights" … "Occupancy"), so a single header row can
+ * describe two different metrics.
+ */
+const labelSegments = (
+  labelCells: Row,
+  primary: string,
+): { label: string; from: number; to: number }[] => {
+  const cells = labelCells ?? [];
+  let primaryCol = 0;
+  for (let col = 0; col < 3; col += 1) {
+    if (text(cells[col])) {
+      primaryCol = col;
+      break;
+    }
+  }
+  const starts: { label: string; col: number }[] = [{ label: primary, col: 0 }];
+  cells.forEach((cell, col) => {
+    if (col <= primaryCol) return;
+    const value = text(cell);
+    if (!value || isOtbHeading(value)) return;
+    if (!BLOCK_LABEL.test(value)) return;
+    starts.push({ label: value, col });
+  });
+  return starts.map((start, index) => ({
+    label: start.label,
+    from: start.col,
+    to: index + 1 < starts.length ? starts[index + 1].col - 1 : Number.MAX_SAFE_INTEGER,
+  }));
+};
+
+
 
 /**
  * "OTB @ 20 Aug 2026" (NightsBridge/OPERA) and "as @ 15 July 2014" /
