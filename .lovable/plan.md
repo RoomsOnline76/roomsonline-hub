@@ -1,61 +1,48 @@
-# Fix RU booking extensions sent as new reservations
+# Fix "can't check in or check out" on Albatros reservation sends
 
-## Confirmed diagnosis
+## What the logs actually show (verified)
 
-- The failed extension was sent through `push_confirmed_reservation` as `Push_PutConfirmedReservationMulti_RQ`. That builder has no ReservationID, so the channel necessarily evaluates the 29–31 August stay as a second booking rather than an extension.
-- The local booking currently has no `external_reservation_id`; verb selection therefore falls through the `isRuBooking()` gate and treats later edits as creates. The existing `modifyRuStay` path already builds `Push_ModifyStay_RQ`, but it cannot run until the real channel ReservationID and channel-held current stay are resolved.
-- Deferred creates lose their local booking identity: the ordinary rate-limit queue payload omits `booking_id` and `reservation_fingerprint`. A successful replay therefore cannot persist RU’s returned ReservationID or settle the operation claim.
-- Edits made while a create is pending generate a different create fingerprint, allowing multiple stale create payloads for the same booking. The queue then reopens availability and retries each payload independently.
-- The queue drainer currently reopens dates with `PutAvbUnits` immediately before replaying `Push_PutConfirmedReservationMulti_RQ`. That does not turn the create into a modification and can conflict with the stay already held by the same reservation.
-- Channel availability/price reads are still reachable from certification scoring, optional post-push verification, LNM repulls, and coverage audits. Certification currently treats its stored result as a six-hour cache rather than a permanent one-time latch.
+Booking: Jenny Deep, 2026-09-01 → 2026-09-04, listing 5966579, confirmed locally at 11:42, no channel reservation id.
 
-## Implementation
+- Every attempt is `Push_PutConfirmedReservationMulti_RQ` refused with Status 1 "Property is not available for a given dates - Can't check in or check out on selected date": 11:42:19, 11:44, 11:45, 11:47, 11:50, 11:56 — plus the same storm last night from 22:35 to 22:44. That is 12+ identical creates, so there is no circuit breaker.
+- The reopen write is correct: `Push_PutAvbUnits_RQ` (386 B) sends `2026-09-01..09-03 U=1 MS=1 MX=30 C=1` plus `09-04..09-04 U=1 C=1`, Status 0 — and the create fires 0.4 s later and is still refused. Reopen Status 0 is not proof the stay is bookable.
+- Changeover is not the cause. The channel calendar read at 12:20 shows `Changeover 1` (arrival and departure allowed) and `MinStay 1` on every day of the stay, and 09-04 is `Units 1, IsBlocked false`.
+- The cause is units. The same calendar read shows 2026-09-01, 09-02, 09-03 as `Units="0" IsBlocked=true, Reservations="0"` — our own sold-out publish, with no reservation behind it.
+- The closer is a second, unrelated availability writer: at 12:01:29 a full-window `Push_PutAvbUnits_RQ` (980 B, parent `rentalsunited-api:push_availability`, whole 12-month window) republished `09-01..09-03 U=0` right after the failed create. The booking-level `reservation_pending_at_channel` guard in `channelBookingSync` does not apply to that path, so it recomputes availability from local bookings and shuts the stay again.
+- Dates are safe: `bookings.check_in_date`/`check_out_date` are `date`, not `timestamptz`, so there is no UTC slice bug.
 
-### 1. Resolve reservation identity before choosing the verb
+Net: the nights are closed before the reservation exists, one writer reopens them, another closes them, and the create is retried into a wall.
 
-- For every extension, shortening, move, guest edit, or price edit, resolve the real channel ReservationID from the booking mapping, successful operation evidence, or an authoritative child-account reservation match before dispatch.
-- Resolve the channel-held current listing, `DateFrom`, and `DateTo`; do not substitute the already-edited local dates for `<Current>`.
-- If no unique existing reservation can be resolved, park/refuse the edit for reconciliation. Never guess an ID and never fall back to `push_confirmed_reservation` merely because `external_reservation_id` is null.
-- Persist a uniquely resolved ReservationID on the booking before dispatching the modification so every later edit follows the same identity.
+## Implementation (adapter only — no calendar or booking UI changes)
 
-### 2. Send extensions only through `modify_stay`
+### 1. A stay owed to the channel is never published as sold
 
-- Build `Push_ModifyStay_RQ` with the real ReservationID, `<Current>` containing the dates/listing the channel already holds, and `<Modify>` containing the requested dates/listing plus price or guest changes when applicable.
-- For Rocko’s extension, preserve the original arrival and channel-held departure in `<Current>`, and set `<Modify><DateTo>2026-08-31</DateTo>`; do not emit `Push_PutConfirmedReservationMulti_RQ`.
-- Reserve `Push_PutConfirmedReservationMulti_RQ` exclusively for the first registration of a genuinely new local booking that has no existing or pending channel identity.
-- Treat an unconfirmed channel lead separately. Because the currently integrated account has no proven working accept verb, refuse stay/pax modification with a clear instruction to confirm it at the channel first; never degrade to calendar-only edits or a second create.
+- Add a short-lived "reservation write owed" claim per listing + night span, written when a create/modify is dispatched or queued and cleared only when the channel returns a ReservationID (or the write is abandoned).
+- Every availability writer must consult it: booking deltas, property save deltas, rate/restriction deltas, the full-window `push_availability` path, the queue drainer and the cron refreshes. Nights under an open claim are excluded from the write (send the surrounding spans, skip the claimed nights) and the skip is recorded with `ari_reason: reservation_pending_at_channel`.
+- Sold-out publication for a stay only happens after the reservation is registered; the channel closes the nights itself, and the next delta restates the truth.
 
-### 3. Remove ARI/reservation ordering conflicts
+### 2. Prove the nights are open before the reservation write
 
-- Do not push `PutAvbUnits` as a normal precursor to booking creation or modification.
-- On a Status 1 response from `modify_stay`, inspect the affected departure day through the allowed diagnostic/onboarding verification evidence. If the new checkout day is not both arrival and departure allowed, push only that day with internal changeover `3` (wire `C=1`), then replay the same `modify_stay` once—not a create.
-- Do not reopen all occupied nights for an extension; the existing reservation legitimately owns them.
-- Serialize booking writes per local booking/listing so a queued create, modify, cancellation, or focused ARI repair cannot overtake another operation for the same stay.
+- After a reopen, do not fire the create in the same second. Confirm the days with the allowed availability read-back (declared purpose `reservation_write_precheck`, which is a reservation-write precondition, not recurring polling) or wait out the channel's apply latency, then send once.
+- The precheck asserts, for every stay night, `Units >= 1` and, on arrival and departure days, that changeover permits check-in / check-out. If the precheck still shows the days closed, do not send: park the write and raise it to the operator.
 
-### 4. Repair Rocko’s stuck booking safely
+### 3. Circuit-break the create storm
 
-- Retire the duplicate stale create queue rows and stale in-flight claims for this local booking.
-- Resolve Rocko’s actual ReservationID and the original channel-held `DateTo` from authoritative child-account reservation data or successful reservation evidence.
-- Submit exactly one `modify_stay` using that identity and current state. If no unique existing reservation is found, stop for reconciliation rather than issuing another create.
-- Persist/verify the identity and confirm the channel now holds 29–31 August on listing `5966579` with the intended amount and guest count.
+- Mirror the existing confirm-path breaker: three blocked-date refusals per listing per hour stops further create attempts for that stay; further clicks report the open breaker instead of burning the one-call-per-minute slot.
+- Deduplicate identical queued creates for the same booking so the drainer cannot replay the same payload every two minutes.
 
-### 5. Permanently stop recurring availability and price pulls
+### 4. Tell the operator
 
-- Replace the six-hour certification snapshot with a permanent per-listing onboarding-verification latch. Each listing may perform one availability read and one price read during onboarding verification; passed results are reused indefinitely.
-- Enforce the rule centrally in the RU API gateway so saves, booking events, LNM repulls, readiness rechecks, coverage audits, cron jobs, and manual refreshes cannot call `get_availability` or `get_prices` after the latch is set.
-- Remove those reads from LNM and recurring coverage paths; ROLOS remains the ARI source of truth. Keep only an explicit onboarding verification context, not a general `force_probe` bypass.
-- Ensure property and ARI pushes default every read-back flag to false.
+- Surface Status 1 / blocked-dates outcomes as a visible warning toast plus a `channel_booking_events` row with the refusal text, the nights involved and the calendar state observed, instead of a silent queue.
 
-### 6. Verification and cleanup
+### 5. Repair this stay
 
-- Test: existing booking with a missing local ID, extension, shortening, move, price-only edit, lead refusal, rapid consecutive edits, and Status 1 changeover repair.
-- Assert that no edit path emits `Push_PutConfirmedReservationMulti_RQ`; confirm Rocko’s traffic contains one `Push_ModifyStay_RQ` with ReservationID, authoritative `<Current>`, and the requested `<Modify>`.
-- Confirm no `Pull_ListPropertyAvailabilityCalendar_RQ` or price pull occurs after onboarding verification.
-- Register the 14 implemented-but-missing RU endpoint names so the endpoint coverage test and preview build pass; this is monitoring metadata only and does not enable new calls.
+- Clear the stale queued creates and in-flight claims for booking `1fcfb436-…` (Jenny Deep).
+- Reopen 09-01..09-04 on 5966579, verify the read-back shows the nights open, send exactly one create, store the returned ReservationID, and only then let the availability delta close the nights.
+- Confirm the calendar then shows the stay nights with a reservation behind them.
 
-## Technical boundaries
+## Technical notes
 
-- Keep reservation XML construction isolated to `rentalsunited-api` / `ruBookingSync`; Calendar UI must not construct or dispatch a second create.
-- Do not modify locked adapter wire formats. Internal queue metadata is stripped from the RU XML.
-- Targeted implementation scope: `ruBookingSync` identity/verb selection, `modify-booking` dispatch guard, queue stale-create suppression and ordering, and narrowly scoped repair of Rocko’s queue/claim/booking state.
-- No database schema change is expected; use the existing JSON queue payload, operation claims, booking external ID, and onboarding ledger unless implementation proves they cannot represent the state safely.
+- Touch points: `_shared/ruBookingSync.ts` (reopen → precheck → send, breaker), `_shared/channelBookingSync.ts` (claim write/clear), `_shared/ruPendingDeltas.ts` and the availability-building path used by `push_availability` (honour the claim), `cron-ru-call-queue-drain` (dedupe, breaker, no blind reopen-then-replay), `rentalsunited-api` (allow the new read-back purpose).
+- The claim can live on the existing `ru_reservation_op_claims` surface if its shape can express listing + night span; otherwise a small table is added.
+- No adapter wire-format change; locked availability/inventory authority rules stay as they are.
