@@ -69,6 +69,10 @@ export interface PriorImportPreview {
   compRnsByMonth: Record<string, number>;
   historicalRevenue: Record<string, number>;
   historicalRoomNights: Record<string, number>;
+  /** Years the pack printed as their own actual columns, e.g. `["2024","2025"]`. */
+  comparisonYears: string[];
+  stlyRevenue: Record<string, number>;
+  budgetRevenue: Record<string, number>;
   provisionalRevenue: Record<string, number>;
   forwardYearLabel: string | null;
   sheetsRead: string[];
