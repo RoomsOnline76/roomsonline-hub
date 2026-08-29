@@ -32,10 +32,13 @@ export interface ComparisonSources {
   actualsByYear?: unknown;
   /** `{ revenue: {...}, room_nights: {...} }` from the same-time-last-year pack. */
   stly?: unknown;
+  /** As-of date behind the STLY series, printed in its column heading. */
+  stlyAsOfDate?: string | null;
   importedBaseline?: unknown;
   historicalBaseline?: unknown;
   capacityDays?: Record<string, number>;
   roomCount?: number;
+
 }
 
 const numberMap = (value: unknown): Record<string, number> => {
