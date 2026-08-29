@@ -654,13 +654,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
           ?? "The channel rate-limited the key request — waiting for the window to reopen.") + trailText,
       };
     }
-    // Step A.2 is a deliberate manual pause: the sub-account exists, and the operator now
-    // pastes the AccessKey/SecretKey pair issued in the channel portal for that login.
-    if (provisioning?.source === "manual" || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED") {
+    // The sub-account exists but neither a stored pair nor its own login authenticates it, so
+    // the operator pastes the AccessKey/SecretKey pair issued once in the channel portal.
+    if (
+      provisioning?.source === "manual"
+      || provisioning?.code === "RU_MANUAL_KEYS_REQUIRED"
+      || provisioning?.code === "NEEDS_UI_KEY"
+    ) {
       return {
         id: "api_keys",
         outcome: "blocked",
-        code: "RU_MANUAL_KEYS_REQUIRED",
+        code: provisioning?.code === "NEEDS_UI_KEY" ? "NEEDS_UI_KEY" : "RU_MANUAL_KEYS_REQUIRED",
         detail: (provisioning?.warning
           ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
       };
