@@ -15,6 +15,8 @@ export interface NbProfile {
   route_tokens: NbRouteToken[];
   sheet_map: Record<string, string>;
   group_property_ids: string[];
+  /** Siblings whose own export already claims rows this export duplicates. */
+  dedupe_sibling_property_ids: string[];
   group_label: string | null;
   stly_from_prior_workbook: boolean;
   historical_from_current_ledger: boolean;
@@ -26,6 +28,7 @@ export const EMPTY_NB_PROFILE: NbProfile = {
   route_tokens: [],
   sheet_map: {},
   group_property_ids: [],
+  dedupe_sibling_property_ids: [],
   group_label: null,
   stly_from_prior_workbook: false,
   historical_from_current_ledger: false,
@@ -74,6 +77,7 @@ export function parseNbProfile(value: unknown): NbProfile {
     route_tokens: tokenList(raw.route_tokens),
     sheet_map: stringMap(raw.sheet_map),
     group_property_ids: stringList(raw.group_property_ids),
+    dedupe_sibling_property_ids: stringList(raw.dedupe_sibling_property_ids),
     group_label: label || null,
     stly_from_prior_workbook: Boolean(raw.stly_from_prior_workbook),
     historical_from_current_ledger: Boolean(raw.historical_from_current_ledger),

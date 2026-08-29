@@ -258,6 +258,40 @@ export function NbProfileCard({ propertyId, profile, onChange, properties }: Pro
           </div>
         </div>
 
+        {/* Sibling de-duplication */}
+        <div className="space-y-2">
+          <Label>Drop rows a sibling already reported</Label>
+          <p className="text-xs text-muted-foreground">
+            For a flagship export that repeats the siblings' bookings word for word. Parse the
+            siblings first: any line with the same guest, arrival, nights and amount then leaves
+            this property's figures and appears on the Excluded rows card.
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {siblings.map((option) => {
+              const on = profile.dedupe_sibling_property_ids.includes(option.id);
+              return (
+                <Button
+                  key={option.id}
+                  type="button"
+                  size="sm"
+                  variant={on ? "default" : "outline"}
+                  onClick={() =>
+                    patch({
+                      dedupe_sibling_property_ids: on
+                        ? profile.dedupe_sibling_property_ids.filter((id) => id !== option.id)
+                        : [...profile.dedupe_sibling_property_ids, option.id],
+                    })
+                  }
+                >
+                  {option.name}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+
+
+
         {/* Group / combined report */}
         <div className="space-y-2">
           <Label htmlFor="nb-group-label">Combined report label</Label>

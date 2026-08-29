@@ -28,6 +28,12 @@ export interface NbProfile {
   sheet_map: Record<string, string>;
   /** Siblings that share a combination / group report. */
   group_property_ids: string[];
+  /**
+   * Siblings whose own export already claims rows this export duplicates.
+   * A row is dropped when an identical line (guest, arrival, nights, revenue)
+   * was parsed for one of these properties within the same review window.
+   */
+  dedupe_sibling_property_ids: string[];
   group_label: string | null;
   /** Use the imported prior owner workbook as same-time-last-year OTB. */
   stly_from_prior_workbook: boolean;
@@ -41,6 +47,7 @@ export const EMPTY_NB_PROFILE: NbProfile = {
   route_tokens: [],
   sheet_map: {},
   group_property_ids: [],
+  dedupe_sibling_property_ids: [],
   group_label: null,
   stly_from_prior_workbook: false,
   historical_from_current_ledger: false,
@@ -90,6 +97,7 @@ export function parseNbProfile(value: unknown): NbProfile {
     route_tokens: tokenList(raw.route_tokens),
     sheet_map: stringMap(raw.sheet_map),
     group_property_ids: stringList(raw.group_property_ids),
+    dedupe_sibling_property_ids: stringList(raw.dedupe_sibling_property_ids),
     group_label: label || null,
     stly_from_prior_workbook: Boolean(raw.stly_from_prior_workbook),
     historical_from_current_ledger: Boolean(raw.historical_from_current_ledger),
@@ -104,6 +112,7 @@ export function isEmptyNbProfile(profile: NbProfile): boolean {
     profile.route_tokens.length === 0 &&
     Object.keys(profile.sheet_map).length === 0 &&
     profile.group_property_ids.length === 0 &&
+    profile.dedupe_sibling_property_ids.length === 0 &&
     !profile.stly_from_prior_workbook &&
     !profile.historical_from_current_ledger
   );

@@ -8549,6 +8549,50 @@ export type Database = {
           },
         ]
       }
+      report_ledger_fingerprints: {
+        Row: {
+          as_of_date: string
+          created_at: string
+          fingerprint: string
+          id: string
+          month: string
+          nights: number
+          property_id: string
+          revenue: number
+          run_id: string
+        }
+        Insert: {
+          as_of_date: string
+          created_at?: string
+          fingerprint: string
+          id?: string
+          month: string
+          nights?: number
+          property_id: string
+          revenue?: number
+          run_id: string
+        }
+        Update: {
+          as_of_date?: string
+          created_at?: string
+          fingerprint?: string
+          id?: string
+          month?: string
+          nights?: number
+          property_id?: string
+          revenue?: number
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_ledger_fingerprints_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "report_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_media: {
         Row: {
           byte_size: number | null

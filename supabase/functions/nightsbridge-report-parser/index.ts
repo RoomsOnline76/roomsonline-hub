@@ -17,6 +17,13 @@ import {
   splitByRouting,
   type RoutableRow,
 } from "../_shared/nbProfile.ts";
+import {
+  fingerprintMonth,
+  fingerprintRow,
+  recordSiblingDroppedRows,
+  splitBySiblingClaims,
+  type SiblingDedupeOutcome,
+} from "../_shared/nbSiblingDedupe.ts";
 import { resolveAdditionalInputs } from "../_shared/reportAdditionalInputs.ts";
 import { buildBookingTrends } from "../_shared/reportBookingTrends.ts";
 import {
@@ -498,7 +505,81 @@ Deno.serve(async (req) => {
     // moved when a BBID split, or a sheet per property). Rows claimed by a
     // sibling leave this property's figures but stay visible to the reviewer.
     const routing = splitByRouting(ledger, nbProfile, run.property_id);
-    const aggregate = aggregateLedger(routing.kept, roomCount, rowRules);
+
+    // A flagship BBID can export its siblings' bookings verbatim (no token can
+    // tell them apart). Drop rows a sibling's own parse already claimed.
+    let workingRows = routing.kept;
+    const siblingDedupe = { dropped: [] as SiblingDedupeOutcome["dropped"], counts: {} as Record<string, number> };
+    if (nbProfile.dedupe_sibling_property_ids.length > 0) {
+      const asOf = new Date(String(run.as_of_date));
+      const from = new Date(asOf.getTime() - 45 * 86400000).toISOString().slice(0, 10);
+      const to = new Date(asOf.getTime() + 45 * 86400000).toISOString().slice(0, 10);
+      const { data: claimRows } = await admin
+        .from("report_ledger_fingerprints")
+        .select("property_id, fingerprint")
+        .in("property_id", nbProfile.dedupe_sibling_property_ids)
+        .gte("as_of_date", from)
+        .lte("as_of_date", to);
+      const claims = new Map<string, string>();
+      for (const claim of claimRows ?? []) {
+        const key = String((claim as { fingerprint?: string }).fingerprint ?? "");
+        if (key && !claims.has(key)) claims.set(key, String((claim as { property_id?: string }).property_id ?? ""));
+      }
+      const split = splitBySiblingClaims(workingRows, claims);
+      workingRows = split.kept;
+      siblingDedupe.dropped = split.dropped;
+      siblingDedupe.counts = split.droppedCounts;
+    }
+
+    const aggregate = aggregateLedger(workingRows, roomCount, rowRules);
+
+    if (siblingDedupe.dropped.length > 0) {
+      const ids = Object.keys(siblingDedupe.counts);
+      const { data: claimedBy } = await admin.from("properties").select("id, name").in("id", ids);
+      const names: Record<string, string> = {};
+      for (const row of claimedBy ?? []) {
+        names[row.id as string] = (row.name as string) ?? (row.id as string);
+      }
+      recordSiblingDroppedRows(aggregate, siblingDedupe.dropped, names);
+      await logRunEvent(
+        admin,
+        runId,
+        "sibling_rows_deduped",
+        `${siblingDedupe.dropped.length} row(s) were already reported by ${ids.length} sibling property(ies) and were left out`,
+        {
+          dropped: siblingDedupe.dropped.length,
+          dropped_counts: Object.fromEntries(ids.map((id) => [names[id] ?? id, siblingDedupe.counts[id]])),
+        },
+        actorId,
+      );
+    }
+
+    // Fingerprints for this parse, so a sibling group export can drop the rows
+    // this property has now claimed.
+    await admin.from("report_ledger_fingerprints").delete().eq("run_id", runId);
+    if (workingRows.length > 0) {
+      const seen = new Set<string>();
+      const fingerprints = workingRows
+        .map((row) => ({
+          run_id: runId,
+          property_id: run.property_id,
+          as_of_date: String(run.as_of_date),
+          month: fingerprintMonth(row),
+          fingerprint: fingerprintRow(row),
+          revenue: Math.round((Number(row.revenue) || 0) * 100) / 100,
+          nights: Number(row.nights) || 0,
+        }))
+        .filter((entry) => {
+          if (!entry.month) return false;
+          const key = `${entry.fingerprint}#${seen.has(entry.fingerprint) ? "dup" : "first"}`;
+          seen.add(entry.fingerprint);
+          return key.endsWith("first");
+        });
+      for (let i = 0; i < fingerprints.length; i += 500) {
+        await admin.from("report_ledger_fingerprints").insert(fingerprints.slice(i, i + 500));
+      }
+    }
+
 
     if (routing.routedAway.length > 0) {
       const destinationIds = Object.keys(routing.routedCounts);
