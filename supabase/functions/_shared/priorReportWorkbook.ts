@@ -539,7 +539,7 @@ function parseOtbSheet(
         (c) => c.col >= segment.from && c.col <= segment.to,
       );
       if (!columns.length) continue;
-      blocks.push({ row: header.row, end, label: segment.label, columns, ...segment });
+      blocks.push({ row: header.row, end, columns, ...segment });
     }
   }
 
