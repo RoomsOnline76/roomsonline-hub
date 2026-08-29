@@ -47,6 +47,17 @@ export interface PriorReportExtract {
   historicalRoomNights: Record<string, number>;
   historicalOccupancy: Record<string, number>;
   historicalAdr: Record<string, number>;
+  /**
+   * Named prior-year columns printed beside the OTB block ("2025 ACTUAL",
+   * "2024 ACTUAL"), keyed by year then `YYYY-MM` of that same year.
+   */
+  actualsByYear: Record<string, { revenue: Record<string, number>; roomNights: Record<string, number> }>;
+  /** Same-time-last-year column, keyed by the report's own months. */
+  stlyRevenue: Record<string, number>;
+  stlyRoomNights: Record<string, number>;
+  /** Budget column, keyed by the report's own months. */
+  budgetRevenue: Record<string, number>;
+  budgetRoomNights: Record<string, number>;
 
   /** Sheets kept verbatim for the next workbook (Online Res, Web Comparison). */
   carryForward: Record<string, Array<Array<string | number | null>>>;
@@ -313,6 +324,12 @@ interface OtbResult {
   dinner: Record<string, number>;
   room0: Record<string, number>;
   compRns: Record<string, number>;
+  /** `{ "2024": { revenue, roomNights } }` from "<year> ACTUAL" columns. */
+  actualsByYear: Record<string, { revenue: Record<string, number>; roomNights: Record<string, number> }>;
+  stlyRevenue: Record<string, number>;
+  stlyNights: Record<string, number>;
+  budgetRevenue: Record<string, number>;
+  budgetNights: Record<string, number>;
   warnings: string[];
 }
 
@@ -354,6 +371,11 @@ function parseOtbSheet(
     dinner: {},
     room0: {},
     compRns: {},
+    actualsByYear: {},
+    stlyRevenue: {},
+    stlyNights: {},
+    budgetRevenue: {},
+    budgetNights: {},
     warnings: [],
   };
 
@@ -471,12 +493,25 @@ function parseOtbSheet(
     let room0Col: number | null = null;
     let compCol: number | null = null;
     let nightsCol: number | null = null;
+    // Named prior-year columns ("2025 ACTUAL"), same-time-last-year and budget:
+    // the columns Hotel Krige-style fiscal packs print beside the OTB block.
+    const yearActualCols: { year: number; col: number }[] = [];
+    let stlyCol: number | null = null;
+    let budgetCol: number | null = null;
     headerRow.forEach((cell, col) => {
       const heading = lower(cell);
       if (!heading) return;
+      const comparative = /\b(vs|vrs|variance|var\b|%)/.test(heading);
       if (/last year/.test(heading) && !/vs|vrs/.test(heading)) lyCandidates.push(col);
       if (/^rn last year|last year.*(rn|room night)/.test(heading)) lyCandidates.push(col);
       if (/target/.test(heading) && !/vs|vrs/.test(heading)) targetCol = col;
+      if (/budget/.test(heading) && !comparative) budgetCol = col;
+      if (/\bstly\b|same time last year/.test(heading) && !comparative) stlyCol = col;
+      const yearActual = /(?:^|\D)(19|20)(\d{2})\s*(actual|act)\b/.exec(heading);
+      if (yearActual && !comparative) {
+        const year = Number(`${yearActual[1]}${yearActual[2]}`);
+        if (plausibleYear(year)) yearActualCols.push({ year, col });
+      }
       if (/^dinner/.test(heading)) dinnerCol = col;
       if (/room\s*0/.test(heading)) room0Col = col;
       if (/comp\.?\s*(rns?|room nights?)/.test(heading)) compCol = col;
@@ -543,6 +578,46 @@ function parseOtbSheet(
         if (target !== null && kind === "revenue") result.targets[key] = target;
         const uplift = upliftOfFormula(formulaAt(r, targetCol));
         if (uplift !== null && result.targetUplift === null) result.targetUplift = uplift;
+      }
+
+      // Named prior-year, STLY and budget columns. Revenue and room-night
+      // blocks each contribute their own figure; occupancy and ADR blocks are
+      // derived later so a percentage can never land in a money map.
+      if (kind === "revenue" || isNights) {
+        for (const { year: actualYear, col } of yearActualCols) {
+          const value = toNum(row[col]);
+          if (value === null) continue;
+          const bucket = (result.actualsByYear[String(actualYear)] ??= {
+            revenue: {},
+            roomNights: {},
+          });
+          const shifted = `${actualYear}-${pad(month)}`;
+          if (isNights) {
+            if (plausibleNights(value)) bucket.roomNights[shifted] = value;
+          } else {
+            bucket.revenue[shifted] = value;
+          }
+        }
+        if (stlyCol !== null) {
+          const value = toNum(row[stlyCol]);
+          if (value !== null) {
+            if (isNights) {
+              if (plausibleNights(value)) result.stlyNights[key] = value;
+            } else {
+              result.stlyRevenue[key] = value;
+            }
+          }
+        }
+        if (budgetCol !== null) {
+          const value = toNum(row[budgetCol]);
+          if (value !== null) {
+            if (isNights) {
+              if (plausibleNights(value)) result.budgetNights[key] = value;
+            } else {
+              result.budgetRevenue[key] = value;
+            }
+          }
+        }
       }
 
       // Room nights ride along with whichever block prints them.
@@ -764,6 +839,11 @@ export function parsePriorReportWorkbook(
     historicalRoomNights: {},
     historicalOccupancy: {},
     historicalAdr: {},
+    actualsByYear: {},
+    stlyRevenue: {},
+    stlyRoomNights: {},
+    budgetRevenue: {},
+    budgetRoomNights: {},
 
     carryForward: {},
     sheetsRead: [],
@@ -893,6 +973,15 @@ export function parsePriorReportWorkbook(
     fill(extract.dinnerByMonth, otb.dinner);
     fill(extract.room0ByMonth, otb.room0);
     fill(extract.compRnsByMonth, otb.compRns);
+    fill(extract.stlyRevenue, otb.stlyRevenue);
+    fill(extract.stlyRoomNights, otb.stlyNights);
+    fill(extract.budgetRevenue, otb.budgetRevenue);
+    fill(extract.budgetRoomNights, otb.budgetNights);
+    for (const [year, bucket] of Object.entries(otb.actualsByYear)) {
+      const target = (extract.actualsByYear[year] ??= { revenue: {}, roomNights: {} });
+      fill(target.revenue, bucket.revenue);
+      fill(target.roomNights, bucket.roomNights);
+    }
     if (extract.targetUplift === null) extract.targetUplift = otb.targetUplift;
   });
 

@@ -19,6 +19,10 @@ export interface PriorImportFound {
   comp_months: number;
   historical_revenue_months: number;
   historical_nights_months: number;
+  /** Profile-driven comparison columns read from the pack. */
+  year_actual_columns?: number;
+  stly_months?: number;
+  budget_months?: number;
   /** Owner's-report PDF packs only. */
   current_otb_months?: number;
   provisional_months?: number;
@@ -65,6 +69,10 @@ export interface PriorImportPreview {
   compRnsByMonth: Record<string, number>;
   historicalRevenue: Record<string, number>;
   historicalRoomNights: Record<string, number>;
+  /** Years the pack printed as their own actual columns, e.g. `["2024","2025"]`. */
+  comparisonYears: string[];
+  stlyRevenue: Record<string, number>;
+  budgetRevenue: Record<string, number>;
   provisionalRevenue: Record<string, number>;
   forwardYearLabel: string | null;
   sheetsRead: string[];
@@ -142,6 +150,11 @@ const mapPreview = (raw: Record<string, unknown>): PriorImportPreview => ({
 
   historicalRevenue: numberMap(raw.historical_revenue),
   historicalRoomNights: numberMap(raw.historical_room_nights),
+  comparisonYears: Object.keys(
+    (raw.historical_by_year ?? {}) as Record<string, unknown>,
+  ).sort(),
+  stlyRevenue: numberMap((raw.stly as { revenue?: unknown } | undefined)?.revenue),
+  budgetRevenue: numberMap((raw.budget as { revenue?: unknown } | undefined)?.revenue),
   provisionalRevenue: numberMap(raw.provisional_revenue),
   forwardYearLabel:
     typeof (raw.forward_year as { label?: unknown } | null)?.label === "string"

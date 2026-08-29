@@ -103,6 +103,11 @@ const ownerToExtract = (owner: OwnerReportExtract): PriorReportExtract => {
     historicalRoomNights: {},
     historicalOccupancy: {},
     historicalAdr: {},
+    actualsByYear: {},
+    stlyRevenue: current?.bobStly ?? {},
+    stlyRoomNights: {},
+    budgetRevenue: current?.budget ?? {},
+    budgetRoomNights: {},
     carryForward: {},
     sheetsRead: owner.pagesRead,
     sheetsSkipped: owner.pagesSkipped,
@@ -283,6 +288,33 @@ Deno.serve(async (req) => {
       );
     }
 
+    /**
+     * Prior-year comparison columns, keyed by year then `YYYY-MM` of that year.
+     *
+     * Two sources feed it: the pack's named "<year> ACTUAL" columns, and its
+     * "Last Year Actual" column shifted back exactly one year (a fiscal pack
+     * prints last year beside the current month, so Jan 2027's last-year figure
+     * belongs to Jan 2026). Named columns win where both exist.
+     */
+    const yearBuckets: Record<string, { revenue: NumberMap; room_nights: NumberMap }> = {};
+    const bucketFor = (year: string) =>
+      (yearBuckets[year] ??= { revenue: {}, room_nights: {} });
+    const shiftBack = (map: NumberMap, field: "revenue" | "room_nights") => {
+      for (const [key, value] of Object.entries(map)) {
+        const year = Number(key.slice(0, 4));
+        if (!Number.isFinite(year) || !Number.isFinite(value)) continue;
+        const shifted = `${year - 1}-${key.slice(5, 7)}`;
+        bucketFor(String(year - 1))[field][shifted] = value;
+      }
+    };
+    shiftBack(extract.lastYearActual, "revenue");
+    shiftBack(extract.lastYearRoomNights, "room_nights");
+    for (const [year, bucket] of Object.entries(extract.actualsByYear)) {
+      const target = bucketFor(year);
+      Object.assign(target.revenue, bucket.revenue);
+      Object.assign(target.room_nights, bucket.roomNights);
+    }
+
 
     const found = {
       previous_otb_months: count(extract.previousOtbRevenue),
@@ -299,6 +331,9 @@ Deno.serve(async (req) => {
       target_months: count(extract.targets),
       historical_occupancy_months: count(extract.historicalOccupancy),
       historical_adr_months: count(extract.historicalAdr),
+      year_actual_columns: Object.keys(yearBuckets).length,
+      stly_months: count(extract.stlyRevenue) + count(extract.stlyRoomNights),
+      budget_months: count(extract.budgetRevenue),
       carry_forward_sheets: Object.keys(extract.carryForward).length,
       // Owner's-report PDFs only.
       current_otb_months: count(extract.currentOtbRevenue),
@@ -341,6 +376,11 @@ Deno.serve(async (req) => {
       target_uplift: extract.targetUplift,
       historical_occupancy: extract.historicalOccupancy,
       historical_adr: extract.historicalAdr,
+      historical_by_year: yearBuckets,
+      stly: { revenue: extract.stlyRevenue, room_nights: extract.stlyRoomNights },
+      budget: { revenue: extract.budgetRevenue, room_nights: extract.budgetRoomNights },
+
+
 
       carry_forward_sheets: Object.keys(extract.carryForward),
       sheets_read: extract.sheetsRead,
@@ -418,6 +458,11 @@ Deno.serve(async (req) => {
         target_uplift: extract.targetUplift,
         historical_occupancy: extract.historicalOccupancy,
         historical_adr: extract.historicalAdr,
+        // Profile-driven comparison columns (older years, STLY, budget) read
+        // straight out of the client's own pack.
+        historical_by_year: yearBuckets,
+        stly: { revenue: extract.stlyRevenue, room_nights: extract.stlyRoomNights },
+        budget: { revenue: extract.budgetRevenue, room_nights: extract.budgetRoomNights },
         carry_forward: extract.carryForward,
         // Owner's-report packs also print budget, provisional and forward-year
         // figures; they ride along so the workbook builder can reproduce them.
