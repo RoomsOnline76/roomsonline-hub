@@ -113,8 +113,13 @@ export interface DraftOptions {
   inputs: DraftInputs;
   /** Screenshots pasted in by the revenue team, already signed for rendering. */
   media?: DraftMediaSlot[];
-  /** TOBI lines the reviewer ticked for inclusion, in final (possibly edited) wording. */
-  tobiCommentary?: string[];
+  /**
+   * TOBI lines the reviewer ticked for inclusion, in final (possibly edited)
+   * wording. An entry may name where it prints; plain strings keep the legacy
+   * "route from the wording" behaviour.
+   */
+  tobiCommentary?: (string | { text: string; placement?: string })[];
+
   /** Saved page order (page keys) from the slide organizer. */
   pageOrder?: string[] | null;
   /** Page keys the reviewer hid in the slide organizer. */
