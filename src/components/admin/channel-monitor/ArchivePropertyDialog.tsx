@@ -9,10 +9,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { formatEur } from "@/lib/channelBillingForecast";
 import type { ChannelPropertyRow } from "@/hooks/useChannelCostMonitor";
+
+/** Extra teardown steps the operator may tick on top of a plain archive. */
+export interface ArchiveExtras {
+  /** Close the distribution sub-account itself (channel close-account API). */
+  closeAccount: boolean;
+  /** Wipe local channel state and reset the onboarding gates so it can start over. */
+  sterilize: boolean;
+}
 
 interface Props {
   open: boolean;
@@ -20,18 +29,26 @@ interface Props {
   property: ChannelPropertyRow | null;
   busy: boolean;
   onCancel: () => void;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string, extras: ArchiveExtras) => void;
 }
 
 export function ArchivePropertyDialog({ open, mode, property, busy, onCancel, onConfirm }: Props) {
   const [reason, setReason] = useState("");
+  const [closeAccount, setCloseAccount] = useState(false);
+  const [sterilize, setSterilize] = useState(false);
 
   useEffect(() => {
-    if (open) setReason("");
+    if (open) {
+      setReason("");
+      setCloseAccount(false);
+      setSterilize(false);
+    }
   }, [open, property?.id]);
 
   const archiving = mode === "archive";
   const unitCount = property?.units.length ?? 0;
+  const hasAccount = !!property?.ownerId;
+
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && !busy && onCancel()}>
