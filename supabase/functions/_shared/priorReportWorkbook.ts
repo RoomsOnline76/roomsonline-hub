@@ -327,6 +327,11 @@ interface OtbResult {
   lastYearAdr: Record<string, number>;
   /** Current (newest) OTB column, kept for reference alongside the baseline. */
   currentOtbRevenue: Record<string, number>;
+  /** The same column's printed occupancy, ADR and nights. */
+  currentOtbOccupancy: Record<string, number>;
+  currentOtbAdr: Record<string, number>;
+  currentNights: Record<string, number>;
+
 
   targets: Record<string, number>;
   targetUplift: number | null;
