@@ -1046,10 +1046,19 @@ export function buildDraftReport(options: DraftOptions): DraftResult {
   };
 
   // ── TOBI commentary the reviewer ticked for inclusion ─────────────────
-  const tobiLines = (options.tobiCommentary ?? [])
-    .flatMap((entry) => String(entry ?? "").split(/\n+/))
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
+  // Each entry may carry an explicit placement the reviewer chose in the
+  // analysis tab; when it does, that wins over the month-token sniffing below.
+  const tobiEntries = (options.tobiCommentary ?? []).flatMap((entry) => {
+    const raw = typeof entry === "string" ? { text: entry } : entry ?? { text: "" };
+    const placement =
+      typeof raw.placement === "string" && raw.placement !== "auto" ? raw.placement : "";
+    return String(raw.text ?? "")
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => ({ line, placement }));
+  });
+
 
   // Commentary is split into calendar-style month blocks so long text never runs
   // off the page: a line that opens with one of the window's months belongs to
