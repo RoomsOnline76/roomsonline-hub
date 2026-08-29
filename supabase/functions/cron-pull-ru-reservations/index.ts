@@ -31,12 +31,23 @@ const corsHeaders = {
 
 /** RU rate limit: one call per method per sliding minute (+1s safety). */
 const METHOD_WINDOW_MS = 61_000;
+/**
+ * Per-owner floors. Every account-scoped method costs a sliding-minute slot, so an owner
+ * that was already covered a moment ago (by the previous run, a notification-driven pull
+ * or an operator's manual reconcile) is skipped instead of pulled a second time.
+ */
+const RESERVATION_FLOOR_MS = 25 * 60_000;
+/** Leads are a safety net behind RLNM lead notifications — hours, not minutes. */
+const LEADS_FLOOR_MS = 6 * 60 * 60_000;
+/** When an unconfirmed lead is actually holding dates, tighten the leads floor. */
+const LEADS_FLOOR_ACTIVE_MS = 60 * 60_000;
 /** How far back to ask RU for reservations (RU filters on the reservation creation date). */
 const PULL_WINDOW_DAYS = 90;
 /** Leads are listed by stay date — cover the forward booking window as well. */
 const PULL_FORWARD_DAYS = 365;
 /** Wall-clock budget for the whole run; remaining accounts roll into the next run. */
 const RUN_BUDGET_MS = 6 * 60_000;
+
 
 function formatDate(d: Date): string {
   return d.toISOString().split('T')[0];
@@ -86,6 +97,43 @@ Deno.serve(async (req) => {
     }).then(() => {}, (e) => console.warn('[cron-pull-ru] log insert failed', e));
   };
 
+  /**
+   * Last successful pull per RU account for one cadence action.
+   * Both Pull_ListReservations_RQ and Pull_GetLeads_RQ are account-scoped and rate-limited
+   * per method, so re-asking an owner that was covered minutes ago is pure duplicate traffic.
+   */
+  const lastSuccessByOwner = async (action: string): Promise<Map<string, number>> => {
+    const { data } = await supabase
+      .from('ru_sync_runs')
+      .select('created_at, details')
+      .eq('action', action)
+      .eq('success', true)
+      .order('created_at', { ascending: false })
+      .limit(300);
+    const map = new Map<string, number>();
+    for (const row of (data ?? []) as { created_at: string; details: Record<string, unknown> | null }[]) {
+      const owner = row.details?.ru_owner_id ? String(row.details.ru_owner_id) : null;
+      if (!owner || map.has(owner)) continue;
+      map.set(owner, new Date(row.created_at).getTime());
+    }
+    return map;
+  };
+
+  /** True while an unconfirmed channel lead is still holding dates locally. */
+  const hasOpenLeadHold = async (): Promise<boolean> => {
+    const { data } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('integration_type', 'rentalsunited_lead')
+      .eq('status', 'pending')
+      .gte('hold_expires_at', new Date().toISOString())
+      .limit(1);
+    return !!(data && data.length);
+  };
+
+
+
+
 
   try {
     // Date range: last PULL_WINDOW_DAYS days → today (RU filters on creation date)
@@ -111,6 +159,7 @@ Deno.serve(async (req) => {
     });
     const covered: string[] = [];
     const deferred: string[] = [];
+    const skippedFresh: string[] = [];
 
     if (scopes.length === 0) {
       const msg = 'No Rentals United sub-accounts with API keys — nothing to poll.';
@@ -121,13 +170,31 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Distil to the essential calls: one Pull_ListReservations_RQ per account per cadence.
+    // An account already covered inside the floor (previous run, RLNM-driven pull, manual
+    // reconcile) is not asked again — that was the duplicate traffic in the RU logs.
+    const resSeen = await lastSuccessByOwner('pull_reservations');
+    const resScopes = scopes.filter((s) => {
+      const last = s.ownerId ? resSeen.get(String(s.ownerId)) : undefined;
+      if (last && Date.now() - last < RESERVATION_FLOOR_MS) {
+        skippedFresh.push(s.label);
+        return false;
+      }
+      return true;
+    });
+    if (skippedFresh.length) {
+      console.log(`[cron-pull-ru] ${skippedFresh.length} account(s) already fresh — no repeat reservations pull: ${skippedFresh.join(', ')}`);
+    }
 
-    for (let i = 0; i < scopes.length; i++) {
-      const scope = scopes[i];
+
+
+
+    for (let i = 0; i < resScopes.length; i++) {
+      const scope = resScopes[i];
       if (i > 0) {
         // Same RU method as the previous account → respect the sliding-minute window.
         if (Date.now() + METHOD_WINDOW_MS > deadline) {
-          deferred.push(...scopes.slice(i).map((s) => s.label));
+          deferred.push(...resScopes.slice(i).map((s) => s.label));
           console.log(`[cron-pull-ru] Budget spent — deferring ${deferred.length} account(s) to the next run`);
           break;
         }
@@ -200,7 +267,7 @@ Deno.serve(async (req) => {
     const strandedReleased = await sweepStrandedChannelBlocks(supabase, '[cron-pull-ru][blocks]');
 
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
-    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, stranded_blocks_released: strandedReleased }), {
+    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, accounts_fresh_skipped: skippedFresh, stranded_blocks_released: strandedReleased }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -317,13 +384,25 @@ Deno.serve(async (req) => {
 
 
   /**
-   * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way.
-   * Leads are informational, so this stays best-effort inside the remaining budget.
+   * Pull_GetLeads_RQ is also account-scoped, so it fans out the same way — but it is only a
+   * safety net behind the RLNM lead notifications, so it runs on an hours-long floor per
+   * account (tightened while a lead is actually holding dates) instead of every cron tick.
    */
-  async function pollLeads(scopes: RuOwnerScope[], dateFrom: string, dateTo: string) {
+  async function pollLeads(allScopes: RuOwnerScope[], dateFrom: string, dateTo: string) {
+    const leadSeen = await lastSuccessByOwner('pull_leads');
+    const floor = (await hasOpenLeadHold()) ? LEADS_FLOOR_ACTIVE_MS : LEADS_FLOOR_MS;
+    const scopes = allScopes.filter((s) => {
+      const last = s.ownerId ? leadSeen.get(String(s.ownerId)) : undefined;
+      return !(last && Date.now() - last < floor);
+    });
+    if (scopes.length === 0) {
+      console.log(`[cron-pull-ru] Leads: every account is inside the ${Math.round(floor / 60_000)}min floor — no pull needed`);
+      return;
+    }
     for (let i = 0; i < scopes.length; i++) {
       const scope = scopes[i];
       try {
+
         if (i > 0) {
           if (Date.now() + METHOD_WINDOW_MS > deadline) {
             console.log(`[cron-pull-ru] Lead polling budget spent after ${i} account(s)`);
@@ -364,18 +443,24 @@ Deno.serve(async (req) => {
         if (leadBlocks.length === 0) leadBlocks = extractAllBlocks(leadsXml, 'Reservation');
         summary.leads_found += leadBlocks.length;
         console.log(`[cron-pull-ru] ${scope.label}: found ${leadBlocks.length} lead(s)`);
+        // Cadence evidence so the next run can honour the per-account leads floor.
+        await supabase.from('ru_sync_runs').insert({
+          batch_id: crypto.randomUUID(),
+          action: 'pull_leads',
+          success: true,
+          elapsed_ms: Date.now() - cronStartedAt,
+          details: {
+            scope: 'lead_poll',
+            ru_owner_id: scope.ownerId,
+            account: scope.label,
+            leads_found: leadBlocks.length,
+          },
+        }).then(() => {}, () => {});
         if (leadBlocks.length === 0) {
-          // Keep the raw answer so an empty result can be told apart from a parse miss.
+          // Console only — an empty answer every run used to file a ru_notifications row per account.
           console.log(`[cron-pull-ru] ${scope.label} leads raw answer: ${leadsXml.slice(0, 800)}`);
-          await supabase.from('ru_notifications').insert({
-            event_type: 'poll_leads_empty',
-            ru_reservation_id: null,
-            ru_property_id: null,
-            property_id: null,
-            raw_xml: leadsXml.slice(0, 20000),
-            processed: true,
-          }).then(() => {}, () => {});
         }
+
 
         for (const leadBlock of leadBlocks) {
           try {
