@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { invokeWithSession } from "@/lib/ensureFreshSession";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { isItTestAdminEmail } from "@/lib/adminScope";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -137,7 +138,9 @@ export default function AdminChannelMonitor() {
   const exchangeLogRef = useRef<HTMLElement | null>(null);
 
 
-  const { isDev, isFearlessLeader } = useAuth();
+  const { isDev, isFearlessLeader, user, profile } = useAuth();
+  const canSeeAdvanced =
+    isDev || isFearlessLeader || isItTestAdminEmail(user?.email ?? profile?.email);
 
   const rawTab = params.get("tab");
   const mapped = rawTab ? (LEGACY_TAB_MAP[rawTab] ?? (rawTab as TabKey)) : null;
@@ -389,8 +392,8 @@ export default function AdminChannelMonitor() {
   );
 
   const visibleRail = useMemo(
-    () => RAIL.filter((item) => !item.devOnly || isDev || isFearlessLeader),
-    [isDev, isFearlessLeader],
+    () => RAIL.filter((item) => !item.devOnly || canSeeAdvanced),
+    [canSeeAdvanced],
   );
 
   // Every chip below reads state the page already has in memory — no extra queries.
