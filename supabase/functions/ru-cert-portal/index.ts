@@ -5237,7 +5237,7 @@ Deno.serve(async (req) => {
           await admin.from("ru_call_queue")
             .update({ status: "cancelled", completed_at: new Date().toISOString(), last_error: `Sub-account ${ownerId} was closed at the channel` })
             .eq("ru_owner_id", ownerId)
-            .in("status", ["queued", "deferred", "parked", "running"])
+            .in("status", ["pending", "deferred", "claimed", "queued", "retry", "running", "parked"])
             .then(() => {}, (e) => console.warn("[ru-cert-portal] close queue purge failed", e));
           await dropRuOwnerListingCache(admin, ownerId);
           await forgetRuRosterUser(admin, ownerId);
