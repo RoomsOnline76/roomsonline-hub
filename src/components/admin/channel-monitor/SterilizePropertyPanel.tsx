@@ -4,6 +4,7 @@ import { AlertTriangle, Eraser, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { invokeWithSession } from "@/lib/ensureFreshSession";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
