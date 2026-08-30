@@ -336,9 +336,10 @@ export function SterilizePropertyPanel() {
           <DialogHeader>
             <DialogTitle>Sterilize {selected?.name}?</DialogTitle>
             <DialogDescription>
-              Every earlier listing is archived at the channel, the parked call backlog is cancelled
-              and all onboarding gates go back to pending. Bookings, rates and history in ROL'OS are
-              untouched. Type the property name to confirm.
+              Every earlier listing is archived at the channel, the distribution sub-account is
+              closed at the channel (its portal login stops working), the parked call backlog is
+              cancelled and all onboarding gates go back to pending. Bookings, rates and history in
+              ROL'OS are untouched. Type the property name to confirm.
             </DialogDescription>
           </DialogHeader>
           <Input
