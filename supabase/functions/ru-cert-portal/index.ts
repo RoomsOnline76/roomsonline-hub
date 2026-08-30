@@ -7328,12 +7328,37 @@ Deno.serve(async (req) => {
         const cur = String(prop.rentalsunited_property_id);
         if (!listingOwners.has(cur)) listingOwners.set(cur, null);
       }
-      const targets = [...listingOwners.keys()].filter((id) => !keepListings.has(id)).sort();
+      const historical = [...listingOwners.keys()].filter((id) => !keepListings.has(id)).sort();
+      /**
+       * A listing already archived at the channel — or one whose sub-account was closed there —
+       * is disconnected from us. Re-pushing the identical status only burns the sliding-minute
+       * window (`RU_RATE_DEFERRED`), so those listings are reported as settled, not re-archived.
+       */
+      const settled = await alreadySettledListings(admin, historical);
+      const skippedSettled: { ru_property_id: string; ru_owner_id: string | null; reason: string }[] = [];
+      const targets = historical.filter((id) => {
+        const owner = listingOwners.get(id) ?? null;
+        if (settled.archivedListings.has(id)) {
+          skippedSettled.push({ ru_property_id: id, ru_owner_id: owner, reason: "Already archived at the channel" });
+          return false;
+        }
+        if (owner && settled.closedOwners.has(owner)) {
+          skippedSettled.push({
+            ru_property_id: id,
+            ru_owner_id: owner,
+            reason: `Its distribution account (${owner}) is already closed at the channel`,
+          });
+          return false;
+        }
+        return true;
+      });
       steps.push({
         step: "collect_listings",
         ok: true,
-        message: `${listingOwners.size} listing(s) seen in this property's history — ${targets.length} to archive, ${keepListings.size} kept`,
+        message: `${listingOwners.size} listing(s) seen in this property's history — ${targets.length} to archive, ` +
+          `${skippedSettled.length} already disconnected, ${keepListings.size} kept`,
       });
+
 
       if (dryRun) {
         return json({
