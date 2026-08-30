@@ -29,7 +29,12 @@ import {
   gradeReadyToSell,
   type OnboardStepKey,
 } from "../_shared/channelOnboardGate.ts";
-import { ledgerFingerprint } from "../_shared/channelStepLedger.ts";
+import {
+  ledgerFingerprint,
+  mapReadinessToLedgerRows,
+  writeLedgerRows,
+  READY_TO_SELL_LEDGER_STEPS,
+} from "../_shared/channelStepLedger.ts";
 import { planStaticPushScope } from "../_shared/ruStaticDelta.ts";
 
 
@@ -372,7 +377,10 @@ Deno.serve(async (req) => {
         );
       }
 
-      const graded = gradeReadyToSell(readiness.property ?? null);
+      const report = (readiness.property as { checks?: unknown } | null)?.checks
+        ? readiness.property
+        : readiness;
+      const graded = gradeReadyToSell(report ?? null);
       if (!graded.answered) {
         return json(
           {
@@ -381,6 +389,20 @@ Deno.serve(async (req) => {
           },
           502,
         );
+      }
+
+      // Persist the five content steps from this live score so a Re-check actually
+      // clears identity / location / rooms / media / commercial when they pass.
+      const contentKeys = new Set<string>(READY_TO_SELL_LEDGER_STEPS);
+      const contentRows = mapReadinessToLedgerRows(report)
+        .filter((row) => contentKeys.has(row.step_key))
+        .map((row) => ({ ...row, source: "local" as const }));
+      if (contentRows.length) {
+        try {
+          await writeLedgerRows(admin, propertyId, contentRows);
+        } catch (err) {
+          console.warn("[ru-onboard-property] content-step write failed", err);
+        }
       }
 
       await writeStep(admin, propertyId, {
@@ -393,6 +415,11 @@ Deno.serve(async (req) => {
           checks_total: graded.total,
           checks_failed: graded.failing.length,
           failing: graded.failing.slice(0, 40),
+          steps: contentRows.map((row) => ({
+            key: row.step_key,
+            status: row.status,
+            blocker_summary: row.blocker_summary,
+          })),
         },
       });
 

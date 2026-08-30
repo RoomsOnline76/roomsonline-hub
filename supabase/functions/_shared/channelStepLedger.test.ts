@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   CHANNEL_LEDGER_STEP_KEYS,
+  READY_TO_SELL_LEDGER_STEPS,
   isChannelStepLedgerEnabled,
   logLedgerEvent,
   sanitizeLedgerDetail,
@@ -64,6 +65,16 @@ describe("ledger logging", () => {
 
   it("documents all fourteen canonical step keys", () => {
     expect(CHANNEL_LEDGER_STEP_KEYS).toHaveLength(14);
+  });
+
+  it("Ready-to-sell is the five local content steps", () => {
+    expect([...READY_TO_SELL_LEDGER_STEPS]).toEqual([
+      "identity",
+      "location",
+      "rooms",
+      "media",
+      "commercial",
+    ]);
   });
 });
 

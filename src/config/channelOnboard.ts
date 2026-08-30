@@ -121,3 +121,12 @@ export const READY_TO_SELL_GROUP_LABELS = [
   "Availability 365d",
   "Pricing 365d",
 ];
+
+/** The five Ready-to-sell macros, mapped to the scorer groups they own. */
+export const READY_TO_SELL_STEPS = [
+  { key: "identity", label: "Content", groups: ["Content"] },
+  { key: "location", label: "Address & geo", groups: ["Address & geo"] },
+  { key: "rooms", label: "Rooms & beds", groups: ["Rooms & beds"] },
+  { key: "media", label: "Photos", groups: ["Photos"] },
+  { key: "commercial", label: "Policies, rates & availability", groups: ["Policies & payments", "Availability 365d", "Pricing 365d"] },
+] as const;

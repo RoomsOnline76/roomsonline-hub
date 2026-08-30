@@ -49,6 +49,15 @@ export const LOCAL_CLASS_LEDGER_STEPS: ChannelLedgerStepKey[] = CHANNEL_LEDGER_S
   (key) => !CHANNEL_CLASS_LEDGER_STEPS.includes(key),
 );
 
+/** The five Ready-to-sell content steps — graded locally, no channel call. */
+export const READY_TO_SELL_LEDGER_STEPS: ChannelLedgerStepKey[] = [
+  "identity",
+  "location",
+  "rooms",
+  "media",
+  "commercial",
+];
+
 /**
  * Is the ledger enabled? Any failure resolves to `false` so the production path is
  * unchanged when the settings row is absent or unreadable.

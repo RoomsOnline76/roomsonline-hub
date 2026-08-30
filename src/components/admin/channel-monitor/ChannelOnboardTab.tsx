@@ -81,6 +81,7 @@ import {
   CHANNEL_ONBOARD_STEP_META,
   CHANNEL_ONBOARD_TASKS,
   READY_TO_SELL_GROUP_LABELS,
+  READY_TO_SELL_STEPS,
   type ChannelOnboardStep,
   type ChannelOnboardTaskId,
 } from "@/config/channelOnboard";
@@ -279,6 +280,18 @@ export function ChannelOnboardTab({
 
 
   const gate = useChannelOnboardGate(propertyId || null);
+
+  const recheckReadyToSell = useCallback(async () => {
+    const ok = await gate.regrade();
+    if (ok) toast.success("Steps 1–5 passed — onboarding is unlocked");
+  }, [gate]);
+
+  const readyToSellFailingGroups = useMemo(() => {
+    const details = gate.snapshot?.steps?.ready_to_sell?.details as
+      | { failing?: Array<{ group?: string }> }
+      | undefined;
+    return new Set((details?.failing ?? []).map((f) => String(f.group ?? "")));
+  }, [gate.snapshot]);
 
   /** The white-label connector frame — the landing target for "Configure channels". */
   const connectFrameRef = useRef<HTMLDivElement | null>(null);
@@ -1606,7 +1619,7 @@ export function ChannelOnboardTab({
                         <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
                       </Link>
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => void gate.regrade()} disabled={gate.grading}>
+                    <Button size="sm" variant="outline" onClick={() => void recheckReadyToSell()} disabled={gate.grading}>
                       {gate.grading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                       Re-check
                     </Button>
@@ -1618,11 +1631,32 @@ export function ChannelOnboardTab({
                 <div className="flex items-start gap-2 text-xs text-muted-foreground">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                   <span>
-                    Onboarding stays locked until the mandatory content, rooms, photos, policies, pricing and
-                    availability checks pass. Fix them in the property editor, then re-check here.
+                    Re-check scores steps 1–5 from the live property and clears any step that now passes.
+                    Onboarding stays locked until all five are clean.
                   </span>
                 </div>
-                {gate.readyToSellBlockers.length > 0 && (
+                <ul className="space-y-1">
+                  {READY_TO_SELL_STEPS.map((step) => {
+                    const pending =
+                      gate.grading ||
+                      gate.readyToSellStatus === "pending" ||
+                      gate.readyToSellStatus === "unknown";
+                    const failed = step.groups.some((group) => readyToSellFailingGroups.has(group));
+                    return (
+                      <li key={step.key} className="flex items-start gap-2 text-xs">
+                        {pending ? (
+                          <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                        ) : failed ? (
+                          <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                        ) : (
+                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                        )}
+                        <span className={failed && !pending ? "text-destructive" : undefined}>{step.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {gate.readyToSellBlockers.length > 0 && !gate.grading && (
                   <ul className="space-y-1 text-xs">
                     {gate.readyToSellBlockers.slice(0, 12).map((blocker, index) => (
                       <li key={index} className="rounded border border-destructive/30 bg-destructive/5 px-2 py-1">
