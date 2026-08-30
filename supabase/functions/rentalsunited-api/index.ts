@@ -3730,9 +3730,12 @@ Deno.serve(async (req) => {
       return jsonResponse({
 
         success: true,
-        message: distancesSkipped > 0
-          ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
-          : 'Property pushed successfully',
+        message: locationChangeRefused
+          ? `Property pushed successfully — the channel refused the location change (${locationChangeRefused.reason}); the listing keeps its published location`
+          : distancesSkipped > 0
+            ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
+            : 'Property pushed successfully',
+        location_change_refused: locationChangeRefused,
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
