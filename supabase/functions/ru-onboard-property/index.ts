@@ -418,7 +418,8 @@ Deno.serve(async (req) => {
     // ── record_step ─────────────────────────────────────────────────────────
     if (action === "record_step") {
       const stepKey = String(body.step_key ?? "") as OnboardStepKey;
-      if (!["monitor_step_a", "monitor_step_b", "ready_to_connect"].includes(stepKey)) {
+      const derivedKey = (STEP_B_DERIVED_KEYS as readonly string[]).includes(stepKey);
+      if (!derivedKey && !["monitor_step_a", "monitor_step_b", "ready_to_connect"].includes(stepKey)) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "Unsupported step_key" } }, 400);
       }
       const status = String(body.status ?? "") as Status;
@@ -445,13 +446,14 @@ Deno.serve(async (req) => {
             409,
           );
         }
-        if (stepKey === "ready_to_connect" && steps.monitor_step_b?.status !== "passed") {
+        if ((stepKey === "ready_to_connect" || derivedKey) && steps.monitor_step_b?.status !== "passed") {
           return json(
             { success: false, error: { code: "STEP_B_INCOMPLETE", message: "Push the property and ARI first." } },
             409,
           );
         }
       }
+
 
       const details = (body.details ?? null) as Record<string, unknown> | null;
       await writeStep(admin, propertyId, {
