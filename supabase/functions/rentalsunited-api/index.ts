@@ -3571,8 +3571,33 @@ Deno.serve(async (req) => {
       }
 
 
+      /**
+       * Location lock — RU answers status 310 ("Cannot update property location because there are
+       * existing reservations") for the *life of the listing*: it counts every reservation ever
+       * attached, cancelled and past included, so the refusal never clears. Retrying it on every
+       * save burned a failed push + a Pull_ListSpecProp read + a second push per content delta —
+       * which is also why the ledger looked like it confirmed while the wire was still retrying.
+       * Once refused, we remember the location RU actually holds and send that from the first
+       * attempt, so a content delta is a single accepted call again.
+       */
+      let locationLockApplied: { published_location_id: number; requested_location_id: number } | null = null;
+      if (effectiveRuPropertyId > 0 && Number(p.detailed_location_id) > 0) {
+        const lock = await readListingLocationLock(effectiveRuPropertyId);
+        if (lock?.published_location_id && lock.published_location_id !== Number(p.detailed_location_id)) {
+          locationLockApplied = {
+            published_location_id: lock.published_location_id,
+            requested_location_id: Number(p.detailed_location_id),
+          };
+          console.warn(
+            `[rentalsunited-api] Listing ${effectiveRuPropertyId} has a channel location lock — sending published LocationID ${lock.published_location_id} instead of ${p.detailed_location_id} (status 310 is permanent for this listing)`,
+          );
+          p = { ...p, detailed_location_id: lock.published_location_id };
+        }
+      }
+
       let xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, p);
       let compactRequestXml = compactXml(xml);
+
 
       console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${effectiveRuPropertyId}, dry_run: ${body.dry_run === true}`);
 
