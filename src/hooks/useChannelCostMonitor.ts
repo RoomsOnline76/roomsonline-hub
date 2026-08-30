@@ -356,6 +356,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         const creds = accountByProperty.get(p.id) ?? {
           ownerId: null,
           subUserId: null,
+          ownerEmail: null,
           keysCaptured: false,
           companyDetailsSent: false,
         };
