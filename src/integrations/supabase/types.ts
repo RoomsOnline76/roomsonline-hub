@@ -15741,6 +15741,61 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_listing_location_locks: {
+        Row: {
+          first_refused_at: string
+          property_id: string | null
+          published_location_id: number | null
+          reason: string | null
+          refusal_count: number
+          refused_location_id: number | null
+          ru_property_id: number
+          updated_at: string
+        }
+        Insert: {
+          first_refused_at?: string
+          property_id?: string | null
+          published_location_id?: number | null
+          reason?: string | null
+          refusal_count?: number
+          refused_location_id?: number | null
+          ru_property_id: number
+          updated_at?: string
+        }
+        Update: {
+          first_refused_at?: string
+          property_id?: string | null
+          published_location_id?: number | null
+          reason?: string | null
+          refusal_count?: number
+          refused_location_id?: number | null
+          ru_property_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_listing_location_locks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_listing_location_locks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_listing_location_locks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ru_lnm_repull_queue: {
         Row: {
           attempts: number
