@@ -7451,7 +7451,33 @@ Deno.serve(async (req) => {
       if (!keepBinding) {
         await admin.from("ru_owner_accounts").delete().eq("property_id", propertyId);
         wipes.push("distribution account binding removed");
+        /**
+         * The portfolio-scoped row is what a sterilized property actually inherits, so it has
+         * to go too — otherwise the property still reads as bound to the dead login (the row
+         * survives with its OwnerID cleared) and a fresh connection cannot be made. Only
+         * removed when it no longer names a live account: a row still carrying an OwnerID that
+         * is not being retired here serves the portfolio's other properties and stays.
+         */
+        const { data: pfMember } = await admin
+          .from("property_portfolio_members")
+          .select("portfolio_id")
+          .eq("property_id", propertyId)
+          .maybeSingle();
+        const pfId = String(pfMember?.portfolio_id ?? "").trim();
+        if (pfId) {
+          const { data: pfAccount } = await admin
+            .from("ru_owner_accounts")
+            .select("id, ru_owner_id")
+            .eq("portfolio_id", pfId)
+            .maybeSingle();
+          const pfOwner = String(pfAccount?.ru_owner_id ?? "").trim();
+          if (pfAccount?.id && (!pfOwner || staleOwners.includes(pfOwner))) {
+            await admin.from("ru_owner_accounts").delete().eq("id", pfAccount.id);
+            wipes.push("portfolio distribution account row removed");
+          }
+        }
       }
+
 
       // ── 5. Every gate earned again from zero ──
       const { data: gateRows } = await admin
