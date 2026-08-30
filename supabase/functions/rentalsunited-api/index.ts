@@ -2099,6 +2099,44 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
 
 
 
+/**
+ * Sub-user OwnerID that owns a property — its own binding first, then its portfolio's account.
+ * Used to scope reads that only name a property (reservation detail pulls in particular): a
+ * reservation is invisible outside the account that holds the listing.
+ */
+async function resolveOwnerIdForPropertyScope(propertyId: string): Promise<string | null> {
+  try {
+    const admin = getLogClient();
+    const { data: direct } = await admin
+      .from('ru_owner_accounts')
+      .select('ru_owner_id')
+      .eq('property_id', propertyId)
+      .not('ru_owner_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    if (direct?.ru_owner_id) return String(direct.ru_owner_id);
+
+    const { data: members } = await admin
+      .from('property_portfolio_members')
+      .select('portfolio_id')
+      .eq('property_id', propertyId);
+    const portfolioIds = (members || []).map((m: { portfolio_id: string }) => m.portfolio_id);
+    if (portfolioIds.length === 0) return null;
+
+    const { data: viaPortfolio } = await admin
+      .from('ru_owner_accounts')
+      .select('ru_owner_id')
+      .in('portfolio_id', portfolioIds)
+      .not('ru_owner_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
+  } catch (e) {
+    console.warn('[rentalsunited-api] owner scope lookup by property failed', e);
+    return null;
+  }
+}
+
 
 /**
  * Resolve the credentials to use for a child-scoped RU call.
