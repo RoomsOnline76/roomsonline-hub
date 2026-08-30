@@ -6883,6 +6883,38 @@ Deno.serve(async (req) => {
         }, 500);
       }
 
+      // ── Step 4: close the account AT THE CHANNEL ──
+      // Retiring locally only ever hid the account from our own reads: the portal login
+      // stayed alive. The close runs as the sub-account itself, after the binding is
+      // gone, and only a confirmed roster re-read stamps channel_archived_at.
+      const retireClose = await closeAccountAtChannel({
+        ownerId,
+        loginEmail: label,
+        password: typeof body.password === "string" && body.password ? body.password : null,
+        note,
+        allowBound: true,
+      });
+      await admin.from("ru_retired_accounts").update({
+        ...(retireClose.confirmed ? { channel_archived_at: new Date().toISOString() } : {}),
+        channel_archive_result: {
+          ran_at: new Date().toISOString(),
+          ran_by: user.email ?? user.id,
+          source: "retire_owner_account",
+          archived_listings: archivedListings,
+          refused_listings: failedListings,
+          keys_revoked_at_channel: retireKeysCleanAtChannel,
+          key_revoke: retireKeyResult,
+          account_close: {
+            status: retireClose.status,
+            code: retireClose.code,
+            message: retireClose.message,
+            verified_via_roster: retireClose.verifiedViaRoster,
+            steps: retireClose.steps,
+          },
+        },
+      }).eq("ru_owner_id", ownerId)
+        .then(() => {}, (e) => console.warn("[ru-cert-portal] retire close stamp failed", e));
+
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
@@ -6893,7 +6925,7 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Retired distribution account ${label} (OwnerID ${ownerId}): archived ${archivedListings.length} listing(s)${failedListings.length ? `, ${failedListings.length} refused` : ""}, disconnected ${disconnected.length} property(ies)`,
+        change_summary: `Retired distribution account ${label} (OwnerID ${ownerId}): archived ${archivedListings.length} listing(s)${failedListings.length ? `, ${failedListings.length} refused` : ""}, disconnected ${disconnected.length} property(ies), account close: ${retireClose.status}`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       return json({
@@ -6907,9 +6939,12 @@ Deno.serve(async (req) => {
         keys_revoked_at_channel: retireKeysCleanAtChannel,
         key_revoke: retireKeyResult,
         total_listings: listings.length,
-
+        account_closed_at_channel: retireClose.confirmed,
+        account_close: retireClose,
+        listings_fully_archived: fullyArchivedAtChannel,
       });
     }
+
 
     /**
      * ── close_unbound_account: the channel's "close user account" for ONE sub-account ──
