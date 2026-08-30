@@ -1058,6 +1058,18 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     return normalized ? `<${tag}>${escapeXml(normalized)}</${tag}>` : `<${tag} />`;
   };
 
+  // Free-text arrival prose. The channel stored an EMPTY <HowToArrive /> for every listing while
+  // we sent it as escaped text with raw newlines (verified by read-back on listing 5973280), the
+  // same way it does for Descriptions unless the text is CDATA-wrapped. Send it as CDATA with
+  // CRLF line breaks so multi-line arrival instructions survive.
+  const buildProseNode = (tag: string, value?: string | null) => {
+    const normalized = value?.replace(/\r\n?/g, '\n').trim();
+    if (!normalized) return `<${tag} />`;
+    const safe = normalized.replace(/\]\]>/g, ']]&gt;').replace(/\n/g, '\r\n');
+    return `<${tag}><![CDATA[${safe}]]></${tag}>`;
+  };
+
+
   // Build CompositionRoomsAmenities. Per RU spec the attribute name is `CompositionRoomID`
   // (NOT `RoomID`). Wrong attribute name → RU silently parses 0 → "Wrong composition room id:0".
   const roomsXml = prop.rooms && prop.rooms.length > 0
