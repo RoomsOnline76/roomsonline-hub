@@ -5238,7 +5238,7 @@ Deno.serve(async (req) => {
             .update({ status: "cancelled", completed_at: new Date().toISOString(), last_error: `Sub-account ${ownerId} was closed at the channel` })
             .eq("ru_owner_id", ownerId)
             .in("status", ["pending", "deferred", "claimed", "queued", "retry", "running", "parked"])
-            .then(() => {}, (e) => console.warn("[ru-cert-portal] close queue purge failed", e));
+            .neq("action", "ru_close_account")
           await dropRuOwnerListingCache(admin, ownerId);
           await forgetRuRosterUser(admin, ownerId);
           steps.push({ step: "purge_library", ok: true, message: "Removed from the local account library, cached roster, cached listings and the call queue" });
