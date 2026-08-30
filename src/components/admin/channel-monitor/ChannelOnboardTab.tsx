@@ -1312,19 +1312,35 @@ export function ChannelOnboardTab({
               </div>
             )}
             {propertyId && !accountProvisioned && !boundLogin && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setManualEmail(chosenLoginEmail);
-                  setManualEmailError(null);
-                  setManualEmailOpen(true);
-                }}
-                disabled={runningStep === "a"}
-              >
-                <Mail className="mr-1.5 h-3.5 w-3.5" />
-                Specify Account Email
-              </Button>
+              chosenLoginEmail ? (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => void runStep("a")}
+                  disabled={runningStep === "a"}
+                >
+                  {runningStep === "a" ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Create Account
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setManualEmail(chosenLoginEmail);
+                    setManualEmailError(null);
+                    setManualEmailOpen(true);
+                  }}
+                  disabled={runningStep === "a"}
+                >
+                  <Mail className="mr-1.5 h-3.5 w-3.5" />
+                  Specify Account Email
+                </Button>
+              )
             )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", gate.loading && "animate-spin")} />
