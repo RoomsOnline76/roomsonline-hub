@@ -293,6 +293,18 @@ Deno.serve(async (req) => {
       // which one owns the reservation.
       if (!propertyId || !r.dateFrom || !r.dateTo) {
 
+        // A sibling callback for the same reservation is already resolving: a second detail
+        // pull would only spend the channel's per-method minute and stall both of them.
+        const sibling = await findInFlightSibling(supabase, r.ruReservationId, notificationId);
+        if (sibling) {
+          console.log(
+            `[ru-reservation-handler] Duplicate callback for reservation ${r.ruReservationId} — detail pull already in flight (${sibling})`,
+          );
+          await markResolved('resolved', null);
+          await trail('skipped', 'duplicate_callback', 'Duplicate channel callback — detail pull already in flight');
+          continue;
+        }
+
         if (r.ruReservationId) {
           const refreshed = await refreshRuReservationById(supabase, r.ruReservationId, {
             propertyId,
