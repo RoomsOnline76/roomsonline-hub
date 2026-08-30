@@ -73,7 +73,42 @@ const EVENT_BY_KIND: Record<RuNotificationKind, NotificationEvent> = {
  */
 const FAST_RETRY_DELAYS_MS = [5_000, 15_000, 40_000];
 
+/**
+ * The channel's sliding minute is keyed on method + parameters. After a -6 refusal the only
+ * useful move is to come back once that minute has closed — done here, in the background, so
+ * the stay paints ~a minute after the callback instead of waiting for the minute-scale cron
+ * sweep to pick the parked row up (which added up to another 60s).
+ */
+const RATE_DEFERRED_RETRY_MS = 65_000;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * RU frequently posts the same RLNM callback twice within a second. Both copies used to fire
+ * their own `Pull_GetReservationByID_RQ`, and the second one spent the per-method minute — so
+ * the duplicate was the direct cause of the -6 that parked the booking for over a minute.
+ * The later copy is recorded and dropped: the first is already resolving it.
+ */
+async function findInFlightSibling(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  reservationId: string | null,
+  notificationId: string | undefined,
+): Promise<string | null> {
+  if (!reservationId) return null;
+  const since = new Date(Date.now() - 120_000).toISOString();
+  const { data } = await supabase
+    .from('ru_notifications')
+    .select('id, created_at, resolution_state')
+    .eq('ru_reservation_id', reservationId)
+    .gte('created_at', since)
+    .in('resolution_state', ['pending', 'retrying'])
+    .order('created_at', { ascending: true })
+    .limit(5);
+  const rows = (data || []) as { id: string; resolution_state: string }[];
+  const leader = rows.find((row) => row.id !== notificationId);
+  return leader?.id ?? null;
+}
 
 
 Deno.serve(async (req) => {
