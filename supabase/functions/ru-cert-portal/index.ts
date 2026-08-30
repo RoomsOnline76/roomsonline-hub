@@ -5223,11 +5223,27 @@ Deno.serve(async (req) => {
         }
         steps.push({ step: "verify", ok: confirmed, message: verifyMessage });
 
-        // The close kills every key the account held, so our stored copy is dead weight.
+        /**
+         * A confirmed close must also erase the account from OUR library, or every cache-backed
+         * surface keeps asking the channel about an account that no longer exists: the cached
+         * roster kept it for the whole TTL, the cached listing answer kept its listings, and any
+         * parked call stayed queued to be replayed against a dead login.
+         */
         if (confirmed) {
           await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
             .then(() => {}, (e) => console.warn("[ru-cert-portal] close key row delete failed", e));
+          await admin.from("ru_owner_accounts").delete().eq("ru_owner_id", ownerId)
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close binding row delete failed", e));
+          await admin.from("ru_call_queue")
+            .update({ status: "cancelled", finished_at: new Date().toISOString(), last_error: `Sub-account ${ownerId} was closed at the channel` })
+            .eq("ru_owner_id", ownerId)
+            .in("status", ["queued", "deferred", "parked", "running"])
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close queue purge failed", e));
+          await dropRuOwnerListingCache(admin, ownerId);
+          await forgetRuRosterUser(admin, ownerId);
+          steps.push({ step: "purge_library", ok: true, message: "Removed from the local account library, cached roster, cached listings and the call queue" });
         }
+
 
         await releaseLock(true, confirmed ? "closed and confirmed" : "closed, roster confirmation pending");
         return {
