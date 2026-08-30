@@ -7476,13 +7476,17 @@ Deno.serve(async (req) => {
           orphaned.push({ ru_property_id: listing, ru_owner_id: owner, message: e instanceof Error ? e.message : String(e) });
         }
       }
+      const settledNote = skippedSettled.length > 0
+        ? `, ${skippedSettled.length} skipped (already disconnected from the channel)`
+        : "";
       steps.push({
         step: "archive_listings",
         ok: true,
-        message: orphaned.length === 0
+        message: (orphaned.length === 0
           ? `${archived.length} old listing(s) archived at the channel`
-          : `${archived.length} archived, ${orphaned.length} left as orphans (recorded, not blocking)`,
+          : `${archived.length} archived, ${orphaned.length} left as orphans (recorded, not blocking)`) + settledNote,
       });
+
 
       // ── 4. Wipe local channel state ──
       const wipes: string[] = [];
