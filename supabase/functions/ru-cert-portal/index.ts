@@ -6391,7 +6391,18 @@ Deno.serve(async (req) => {
 
       const archivedListings: string[] = [];
       const failedListings: { listing_id: string; label: string; message: string }[] = [];
+      /**
+       * Listings already archived at the channel are disconnected from us — re-pushing the same
+       * status only spends the sliding-minute window and comes back throttled.
+       */
+      const retireSettled = await alreadySettledListings(admin, listings.map((l) => l.listing_id));
+      const skippedListings: { listing_id: string; label: string; message: string }[] = [];
       for (const l of listings) {
+        if (retireSettled.archivedListings.has(l.listing_id)) {
+          skippedListings.push({ ...l, message: "Already archived at the channel — nothing re-sent" });
+          continue;
+        }
+
         // The channel rate-limits an identical status push inside a 60s window and answers
         // 429/RU_RATE_DEFERRED. `functions.invoke` hides that body behind "non-2xx status
         // code", so read the real body and wait out the window instead of reporting a refusal.
