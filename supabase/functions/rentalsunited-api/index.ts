@@ -1,5 +1,6 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
 import { toWireChangeover } from '../_shared/ruChangeover.ts';
+import { buildPushPropertyFeesXml, type RuFeeEntry } from '../_shared/ruFees.ts';
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -186,6 +187,13 @@ interface RUPropertyPayload {
    * an empty <Distances/> wrapper is rejected by the channel parser.
    */
   distances?: RuDistanceEntry[];
+  /**
+   * Full fee set for the listing (Charges tab). When present (even empty), a chained
+   * Push_PutPropertyFees_RQ replaces the channel collection right after the content push
+   * succeeds — an empty array retracts all fees. Cleaning rides here, so the legacy
+   * <CleaningPrice> element (Notif 258 "obsolete") is suppressed whenever fees are supplied.
+   */
+  fees?: RuFeeEntry[] | null;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
