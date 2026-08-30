@@ -3417,7 +3417,7 @@ Deno.serve(async (req) => {
     if (action === 'push_property') {
       if (ru_property_id == null || ru_property_id === undefined) return errorResponse('MISSING_PARAM', 'ru_property_id is required (use 0 for new properties)');
       if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
-      const p = body.property;
+      let p = body.property;
       if (!Number.isFinite(Number(p.owner_id)) || Number(p.owner_id) <= 0) {
         return errorResponse('RU_OWNER_ID_REQUIRED', 'A positive linked sub-user owner_id is required; master-account fallback is prohibited');
       }
