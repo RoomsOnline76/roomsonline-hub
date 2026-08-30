@@ -59,7 +59,7 @@ export async function scheduleRuNotificationRetry(
       attempt_count: attemptCount,
       // A rate-limited read must come back AFTER the channel's sliding minute, otherwise the
       // sweep re-asks inside the same window and collects another -6.
-      next_attempt_at: state === 'retrying' ? nextAttemptAt(attemptCount, opts.freeAttempt ? 75_000 : 0) : null,
+      next_attempt_at: state === 'retrying' ? nextAttemptAt(attemptCount, opts.freeAttempt ? 65_000 : 0) : null,
       last_attempt_at: new Date().toISOString(),
       ...(opts.ownerId ? { resolved_owner_id: opts.ownerId } : {}),
     })
