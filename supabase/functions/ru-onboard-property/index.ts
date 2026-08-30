@@ -138,6 +138,16 @@ async function readBinding(admin: any, propertyId: string) {
     account = (pfScoped as Record<string, unknown> | null) ?? null;
   }
 
+  /**
+   * A row without an OwnerID is a leftover shell (closed account, sterilized property),
+   * not a binding. Reporting it as bound made a disconnected property keep showing the
+   * dead distribution login and blocked a fresh connection.
+   */
+  if (account && !String(account.ru_owner_id ?? "").trim() && !account.ru_api_access_key) {
+    account = null;
+  }
+
+
   const ownerId = String(account?.ru_owner_id ?? "").trim();
   let keysStored = Boolean(account?.ru_api_access_key);
   let keysVerified = Boolean(account?.ru_api_keys_verified_at);

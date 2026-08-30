@@ -87,14 +87,27 @@ export async function resolvePortfolioId(
 /**
  * Find the RU sub-account that should own this property:
  * portfolio record → standalone property record → legacy owner-email record.
+ *
+ * A row that carries no `ru_owner_id` is a SHELL, not a binding: it is what survives
+ * when an account is closed/retired or a property is sterilized, and treating it as a
+ * binding makes a freshly disconnected property still read as bound to the dead login.
+ * Shells are skipped here and returned separately so provisioning can adopt the row
+ * instead of inserting a duplicate.
  */
 export async function findOwnerAccount(
   admin: any,
   propertyId: string,
   ownerEmail?: string | null,
   portfolioId?: string | null,
-): Promise<{ account: RuOwnerAccount | null; portfolio_id: string | null; scope: "portfolio" | "property" | "master" }> {
+): Promise<{
+  account: RuOwnerAccount | null;
+  shell: RuOwnerAccount | null;
+  portfolio_id: string | null;
+  scope: "portfolio" | "property" | "master";
+}> {
   const pid = portfolioId ?? (await resolvePortfolioId(admin, propertyId));
+  const bound = (row: any): boolean => !!String(row?.ru_owner_id ?? "").trim();
+  let shell: RuOwnerAccount | null = null;
 
   if (pid) {
     const { data } = await admin
@@ -102,7 +115,10 @@ export async function findOwnerAccount(
       .select("*")
       .eq("portfolio_id", pid)
       .maybeSingle();
-    if (data) return { account: data as RuOwnerAccount, portfolio_id: pid, scope: "portfolio" };
+    if (data) {
+      if (bound(data)) return { account: data as RuOwnerAccount, shell: null, portfolio_id: pid, scope: "portfolio" };
+      shell = shell ?? (data as RuOwnerAccount);
+    }
   }
 
   const { data: byProperty } = await admin
@@ -110,7 +126,10 @@ export async function findOwnerAccount(
     .select("*")
     .eq("property_id", propertyId)
     .maybeSingle();
-  if (byProperty) return { account: byProperty as RuOwnerAccount, portfolio_id: pid, scope: "property" };
+  if (byProperty) {
+    if (bound(byProperty)) return { account: byProperty as RuOwnerAccount, shell: null, portfolio_id: pid, scope: "property" };
+    shell = shell ?? (byProperty as RuOwnerAccount);
+  }
 
   if (ownerEmail) {
     const { data: byEmail } = await admin
@@ -120,11 +139,15 @@ export async function findOwnerAccount(
       .is("portfolio_id", null)
       .is("property_id", null)
       .maybeSingle();
-    if (byEmail) return { account: byEmail as RuOwnerAccount, portfolio_id: pid, scope: "property" };
+    if (byEmail) {
+      if (bound(byEmail)) return { account: byEmail as RuOwnerAccount, shell: null, portfolio_id: pid, scope: "property" };
+      shell = shell ?? (byEmail as RuOwnerAccount);
+    }
   }
 
-  return { account: null, portfolio_id: pid, scope: "master" };
+  return { account: null, shell, portfolio_id: pid, scope: "master" };
 }
+
 
 async function userManagementEnabled(admin: any): Promise<boolean> {
   const { data } = await admin
