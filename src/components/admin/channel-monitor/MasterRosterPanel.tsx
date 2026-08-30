@@ -44,10 +44,11 @@ interface RosterResult {
   /** Accounts the channel reports as archived/closed — excluded from the list and the counts. */
   archivedExcluded: number;
   /**
-   * Accounts with no ROLOS binding, no stored key pair and a retired registry entry —
-   * already dead on our side, so they are excluded from the list and the counts too.
+   * Unbound accounts already retired in ROLOS that the channel still lists as open — the
+   * catch-up cases whose portal login still works until they are closed here.
    */
-  retiredUnboundExcluded: number;
+  retiredStillOpen: number;
+
   readAt: Date;
 }
 
@@ -165,6 +166,8 @@ export function MasterRosterPanel() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [reason, setReason] = useState("");
+  /** Held for the run only — the close authenticates as the sub-account itself. */
+  const [portalPassword, setPortalPassword] = useState("");
   const [cooldownSeconds, setCooldownSeconds] = useState(DEFAULT_COOLDOWN_SECONDS);
   const [closing, setClosing] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
@@ -213,27 +216,27 @@ export function MasterRosterPanel() {
       const storedKeys = Array.isArray(keyData?.credentials)
         ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
         : [];
-      const keyedIds = new Set(
-        storedKeys.map((k) => String(k.ru_owner_id ?? "").trim()).filter(Boolean),
-      );
       /**
-       * An account that is unbound, holds no stored key pair and is already retired in ROLOS
-       * is fully dealt with — nothing here can act on it, so it is neither counted nor shown.
+       * Nothing is hidden for being retired in ROLOS. `live` already drops everything the
+       * channel reports as archived, so a retired account still standing here is precisely
+       * the catch-up case: retired locally, never closed at the channel, portal login still
+       * works. Hiding those rows is what let `ru-c@polka.co.za` keep signing in.
        */
-      const users = live.filter((u) => {
+      const users = live;
+      const retiredStillOpen = users.filter((u) => {
         const id = String(u.owner_id ?? "").trim();
-        if (!id) return true;
-        return !(retiredIds.has(id) && !boundIds.has(id) && !keyedIds.has(id));
-      });
+        return id && retiredIds.has(id) && !boundIds.has(id);
+      }).length;
       return {
         users,
         archivedExcluded: all.length - live.length,
-        retiredUnboundExcluded: live.length - users.length,
+        retiredStillOpen,
         boundIds,
         retiredIds,
         storedKeys,
         readAt: new Date(),
       };
+
     },
     onSuccess: (r) => {
       setResult(r);
@@ -303,6 +306,8 @@ export function MasterRosterPanel() {
         body: {
           action: "close_unbound_account",
           ru_owner_id: ownerId,
+          login_email: accountLabel(ownerId),
+          password: portalPassword.trim() || null,
           reason: reason.trim() || null,
           cooldown_seconds: cooldownSeconds,
         },
@@ -323,8 +328,9 @@ export function MasterRosterPanel() {
       }
       return { state: "failed", message };
     },
-    [cooldownSeconds, reason],
+    [accountLabel, cooldownSeconds, portalPassword, reason],
   );
+
 
   const runCloses = useCallback(async () => {
     const queue = [...selectedList];
@@ -629,18 +635,19 @@ export function MasterRosterPanel() {
           {open ? (
             <p className="text-[11px] text-muted-foreground">
               Live read of every sub-account still open at the channel under our master account, with
-              the ROLOS binding state for each. Accounts already archived or closed at the channel are
-              excluded from this list and its counts, as are accounts already retired in ROLOS with
-              no binding and no stored key pair. Unbound accounts can be closed at the channel —
-              one at a time, with a pause between each.
+              the ROLOS binding state for each. Only accounts the channel itself reports as archived
+              or closed are excluded — an account retired in ROLOS that still appears here is still
+              open at the channel, and its portal login still works until it is closed. Unbound
+              accounts can be closed at the channel — one at a time, with a pause between each.
               {result && result.archivedExcluded > 0
                 ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
                 : ""}
-              {result && result.retiredUnboundExcluded > 0
-                ? ` ${result.retiredUnboundExcluded} retired unbound account${result.retiredUnboundExcluded === 1 ? "" : "s"} excluded.`
+              {result && result.retiredStillOpen > 0
+                ? ` ${result.retiredStillOpen} account${result.retiredStillOpen === 1 ? "" : "s"} retired in ROLOS but still open at the channel — close ${result.retiredStillOpen === 1 ? "it" : "them"} here.`
                 : ""}
               {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
             </p>
+
           ) : null}
         </div>
         <span className="flex flex-wrap items-center gap-2">
@@ -1012,6 +1019,22 @@ export function MasterRosterPanel() {
               placeholder="Reason (optional) — stored with the retirement record"
               className="min-h-[60px] text-xs"
             />
+
+            <div className="space-y-1">
+              <Input
+                value={portalPassword}
+                onChange={(e) => setPortalPassword(e.target.value)}
+                placeholder="Sub-account portal password (only needed when no key pair is stored)"
+                type="password"
+                className="h-8 text-xs"
+                autoComplete="off"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                The close runs as the sub-account itself, so it needs that account's own
+                credentials. Used for this run only and never stored.
+              </p>
+            </div>
+
 
             <div className="space-y-1">
               <p className="text-[11px] text-muted-foreground">

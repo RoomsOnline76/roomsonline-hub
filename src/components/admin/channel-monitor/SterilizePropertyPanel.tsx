@@ -34,6 +34,7 @@ interface SterilizeResult {
   archived_listings?: string[];
   orphaned_listings?: { ru_property_id: string; ru_owner_id: string | null; message: string }[];
   listings_kept?: string[];
+  account_closes?: { ru_owner_id: string; status: string; code: string; confirmed: boolean; message: string }[];
   cancelled_queued_calls?: number;
   gates_reset?: number;
   cleared?: string[];
@@ -61,6 +62,8 @@ export function SterilizePropertyPanel() {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<SterilizeResult | null>(null);
   const [preview, setPreview] = useState<SterilizeResult | null>(null);
+  /** Held for the run only: the account close authenticates as the sub-account itself. */
+  const [portalPassword, setPortalPassword] = useState("");
 
   const { data: properties, isLoading } = useQuery({
     queryKey: ["sterilize-property-candidates"],
@@ -103,6 +106,7 @@ export function SterilizePropertyPanel() {
           action: "sterilize_property",
           property_id: selected.id,
           keep_ru_property_ids: keepIds,
+          password: portalPassword.trim() || null,
           dry_run: dryRun,
         },
       });
@@ -220,6 +224,26 @@ export function SterilizePropertyPanel() {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="sterilize-password" className="text-xs">
+              Sub-account portal password (optional)
+            </Label>
+            <Input
+              id="sterilize-password"
+              type="password"
+              autoComplete="off"
+              placeholder="Only needed when the account holds no stored key pair"
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Sterilizing now also closes the distribution account at the channel, so its portal
+              login stops working. That close runs as the sub-account itself — supply its password
+              when no key pair is on file. Used for this run only and never stored.
+            </p>
+          </div>
+
+
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -289,7 +313,21 @@ export function SterilizePropertyPanel() {
               ))}
             </div>
           )}
+          {(result.account_closes ?? []).length > 0 && (
+            <div className="pt-1 space-y-1">
+              <p className="font-medium">Distribution account closed at the channel</p>
+              {(result.account_closes ?? []).map((c) => (
+                <p
+                  key={c.ru_owner_id}
+                  className={c.confirmed ? "text-muted-foreground" : "text-amber-600"}
+                >
+                  Account {c.ru_owner_id}: {c.confirmed ? "closed and confirmed" : c.message}
+                </p>
+              ))}
+            </div>
+          )}
           {errorText(result) && <p className="text-destructive">{errorText(result)}</p>}
+
         </div>
       )}
 
@@ -298,9 +336,10 @@ export function SterilizePropertyPanel() {
           <DialogHeader>
             <DialogTitle>Sterilize {selected?.name}?</DialogTitle>
             <DialogDescription>
-              Every earlier listing is archived at the channel, the parked call backlog is cancelled
-              and all onboarding gates go back to pending. Bookings, rates and history in ROL'OS are
-              untouched. Type the property name to confirm.
+              Every earlier listing is archived at the channel, the distribution sub-account is
+              closed at the channel (its portal login stops working), the parked call backlog is
+              cancelled and all onboarding gates go back to pending. Bookings, rates and history in
+              ROL'OS are untouched. Type the property name to confirm.
             </DialogDescription>
           </DialogHeader>
           <Input

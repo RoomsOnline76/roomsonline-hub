@@ -4935,6 +4935,321 @@ Deno.serve(async (req) => {
     };
 
     /**
+     * ── closeAccountAtChannel ────────────────────────────────────────────────────
+     * The one and only place that closes a distribution sub-account AT THE CHANNEL.
+     * Push_ArchiveUser_RQ carries no account selector, so it runs as the sub-account
+     * itself: a proven CHILD key pair (minted here when none is on file) is the only
+     * envelope and the master pair is never used — closing with it would close OUR
+     * master account.
+     *
+     * Strictly serialised on ru_call_queue (one close in flight platform-wide plus a
+     * cooldown), then verified against the channel's own roster. Callers stamp
+     * channel_archived_at from `confirmed` — never from a listing loop.
+     */
+    const CLOSE_QUEUE_ACTION = "ru_close_account";
+    type CloseAccountOutcome = {
+      /** closed_at_channel | close_not_possible */
+      status: "closed_at_channel" | "close_not_possible";
+      confirmed: boolean;
+      code: string;
+      message: string;
+      steps: { step: string; ok: boolean; message: string }[];
+      attempts: number;
+      retryAfterMs?: number;
+      verifiedViaRoster: boolean;
+    };
+    const closeAccountAtChannel = async (opts: {
+      ownerId: string;
+      loginEmail?: string | null;
+      password?: string | null;
+      note?: string | null;
+      cooldownSeconds?: number;
+      /** Set when the binding was already removed in the same run. */
+      allowBound?: boolean;
+    }): Promise<CloseAccountOutcome> => {
+      const ownerId = String(opts.ownerId ?? "").trim();
+      const steps: { step: string; ok: boolean; message: string }[] = [];
+      const cooldownSeconds = Math.min(
+        300,
+        Math.max(30, Number.isFinite(Number(opts.cooldownSeconds)) ? Number(opts.cooldownSeconds) : 60),
+      );
+      const STALE_LOCK_MS = 15 * 60 * 1000; // the channel says a close can take several minutes
+      const fail = (code: string, message: string, extra?: Partial<CloseAccountOutcome>): CloseAccountOutcome => ({
+        status: "close_not_possible",
+        confirmed: false,
+        code,
+        message,
+        steps,
+        attempts: 1,
+        verifiedViaRoster: false,
+        ...extra,
+      });
+
+      if (!/^\d+$/.test(ownerId)) {
+        return fail("BAD_REQUEST", "A numeric ru_owner_id is required to close an account");
+      }
+
+      if (opts.allowBound !== true) {
+        const { data: stillBound } = await admin
+          .from("ru_owner_accounts")
+          .select("id")
+          .eq("ru_owner_id", ownerId)
+          .limit(1);
+        if ((stillBound ?? []).length > 0) {
+          return fail(
+            "STILL_BOUND",
+            `OwnerID ${ownerId} is still bound to a property or portfolio. Retire the binding first, then close the account.`,
+          );
+        }
+      }
+
+      // ── Serialisation: one close in flight, then a cooldown ──
+      const { data: inFlight } = await admin
+        .from("ru_call_queue")
+        .select("id, ru_owner_id, claimed_at, created_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .eq("status", "running")
+        .order("created_at", { ascending: true });
+      for (const row of inFlight ?? []) {
+        const started = new Date(row.claimed_at ?? row.created_at).getTime();
+        if (Date.now() - started > STALE_LOCK_MS) {
+          await admin
+            .from("ru_call_queue")
+            .update({ status: "failed", last_error: "Abandoned close lock released", completed_at: new Date().toISOString() })
+            .eq("id", row.id)
+            .then(() => {}, () => {});
+          continue;
+        }
+        return fail(
+          "CLOSE_IN_PROGRESS",
+          `A close is already running for OwnerID ${row.ru_owner_id ?? "another sub-account"}. Accounts are closed one at a time — wait for it to finish.`,
+        );
+      }
+
+      const { data: lastClose } = await admin
+        .from("ru_call_queue")
+        .select("completed_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastClose?.completed_at) {
+        const waited = Date.now() - new Date(lastClose.completed_at).getTime();
+        const remaining = cooldownSeconds * 1000 - waited;
+        if (remaining > 0) {
+          return fail(
+            "CLOSE_COOLDOWN",
+            `The previous account close finished ${Math.round(waited / 1000)}s ago. Waiting out the ${cooldownSeconds}s gap before the next one.`,
+            { retryAfterMs: remaining },
+          );
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const { data: lockRow, error: lockErr } = await admin
+        .from("ru_call_queue")
+        .insert({
+          method_key: "Push_ArchiveUser_RQ",
+          action: CLOSE_QUEUE_ACTION,
+          ru_owner_id: ownerId,
+          priority: 5,
+          status: "running",
+          claimed_at: nowIso,
+          not_before: nowIso,
+          max_attempts: 1,
+          payload: { ru_owner_id: ownerId, reason: opts.note ?? null, requested_by: user.email ?? user.id },
+        })
+        .select("id, created_at")
+        .single();
+      if (lockErr || !lockRow) {
+        return fail("LOCK_FAILED", lockErr?.message ?? "The close lock could not be claimed");
+      }
+
+      // Two simultaneous requests could both have passed the check above: the oldest lock wins.
+      const { data: contenders } = await admin
+        .from("ru_call_queue")
+        .select("id, created_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .eq("status", "running")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (contenders?.[0] && contenders[0].id !== lockRow.id) {
+        await admin.from("ru_call_queue").delete().eq("id", lockRow.id).then(() => {}, () => {});
+        return fail("CLOSE_IN_PROGRESS", "Another close claimed the slot first. Accounts are closed one at a time.");
+      }
+
+      const releaseLock = async (ok: boolean, message: string) => {
+        await admin
+          .from("ru_call_queue")
+          .update({
+            status: ok ? "completed" : "failed",
+            completed_at: new Date().toISOString(),
+            last_error: ok ? null : message,
+            result: { steps, message },
+          })
+          .eq("id", lockRow.id)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] close lock release failed", e));
+      };
+
+      try {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, secret_enc, login_email, key_scope, password_enc, auth_mode")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        const { data: registryRow } = await admin
+          .from("ru_retired_accounts")
+          .select("portal_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        const loginEmail = (opts.loginEmail ?? "").trim()
+          ? String(opts.loginEmail).trim()
+          : (credRow?.login_email ?? registryRow?.portal_email ?? null);
+
+        // ── Step 1: the account's OWN keys (the close has no account selector) ──
+        let childAccessKey: string | null = null;
+        let childSecretKey: string | null = null;
+        if (credRow?.access_key && credRow.key_scope !== "master_pair") {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
+          if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
+            childAccessKey = String(credRow.access_key);
+            childSecretKey = plain;
+          }
+        }
+        // A stored portal password is a valid mint envelope when no pair is on file.
+        let storedPassword: string | null = null;
+        if (!childAccessKey && credRow?.password_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.password_enc });
+          if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") storedPassword = plain;
+        }
+        // The sub-account's own portal login is an equally valid envelope for the close,
+        // so a mint refusal is not the end of the road — it just falls back to password auth.
+        const passwordEnvelope = (opts.password ?? "").trim() || storedPassword || RU_SUB_USER_PASSWORD;
+        let authMode: "keys" | "password" = "keys";
+        if (childAccessKey && childSecretKey) {
+          steps.push({ step: "auth", ok: true, message: "Used the stored sub-account API key pair" });
+        } else {
+          const minted = await mintChildKeyPair({
+            ownerId,
+            loginEmail,
+            keyLabel: "ROLOS-close",
+            authUsername: loginEmail,
+            authPassword: passwordEnvelope,
+          });
+          if (minted.ok) {
+            const { data: freshCred } = await admin
+              .from("ru_api_credentials")
+              .select("access_key, secret_enc")
+              .eq("ru_owner_id", ownerId)
+              .maybeSingle();
+            if (freshCred?.access_key) {
+              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: freshCred.secret_enc });
+              if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
+                childAccessKey = String(freshCred.access_key);
+                childSecretKey = plain;
+              }
+            }
+          }
+          if (childAccessKey && childSecretKey) {
+            steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
+          } else if (loginEmail && passwordEnvelope) {
+            authMode = "password";
+            steps.push({
+              step: "auth",
+              ok: true,
+              message: `No key pair could be minted (${minted.message ?? "channel refused"}) — closing with the sub-account's portal login instead`,
+            });
+          } else {
+            const why = minted.message ?? "the channel refused to mint a key pair for this sub-account";
+            steps.push({ step: "auth", ok: false, message: why });
+            await releaseLock(false, why);
+            return fail(
+              "NEEDS_KEYS",
+              `This account cannot be closed over the API: the close verb runs as the sub-account itself and ${why}. Supply the sub-account portal password to close it. Master credentials are never used for a close.`,
+            );
+          }
+        }
+
+        // ── Step 2: close it at the channel ──
+        const { data: closeRes, error: closeErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "archive_user",
+            owner_id: Number(ownerId),
+            ...(authMode === "keys"
+              ? { auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
+              : { auth_username: loginEmail, auth_password: passwordEnvelope }),
+            parent_action: "ru-cert-portal:close_account",
+          },
+        });
+
+        const closeCode = String(closeRes?.error?.code ?? "");
+        const rateLimited = closeCode === "RU_RATE_LIMITED" || closeCode === "RU_RATE_DEFERRED";
+        if (closeErr || closeRes?.success !== true) {
+          const message = closeRes?.error?.message ?? closeErr?.message ?? "The channel did not accept the close request";
+          steps.push({ step: "close_account", ok: false, message });
+          await releaseLock(false, message);
+          return fail(rateLimited ? "RATE_LIMITED" : "CLOSE_REFUSED", rateLimited
+            ? `${message} This account stays open and can be retried after the window.`
+            : message, { retryAfterMs: rateLimited ? cooldownSeconds * 1000 : undefined });
+        }
+        steps.push({ step: "close_account", ok: true, message: "The channel accepted Push_ArchiveUser_RQ (close user account)" });
+
+        // ── Step 3: verify against the channel's own roster ──
+        let confirmed = false;
+        let verifiedViaRoster = false;
+        let verifyMessage = "The roster could not be re-read, so the close is unverified";
+        try {
+          const { data: roster, error: rosterErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "list_users",
+              include_retired: true,
+              force_fresh: true,
+              parent_action: "ru-cert-portal:close_account",
+            },
+          });
+          if (!rosterErr && roster?.success !== false) {
+            verifiedViaRoster = true;
+            const users: { owner_id?: string | null; archived?: boolean | null }[] = Array.isArray(roster?.users) ? roster.users : [];
+            const match = users.find((u) => String(u.owner_id ?? "").trim() === ownerId);
+            confirmed = !match || match.archived === true;
+            verifyMessage = confirmed
+              ? (match ? "The channel now lists the account as archived" : "The account no longer appears on the master roster")
+              : "The channel still lists the account as active — it may still be processing (closes can take several minutes)";
+          }
+        } catch (e) {
+          verifyMessage = e instanceof Error ? e.message : String(e);
+        }
+        steps.push({ step: "verify", ok: confirmed, message: verifyMessage });
+
+        // The close kills every key the account held, so our stored copy is dead weight.
+        if (confirmed) {
+          await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close key row delete failed", e));
+        }
+
+        await releaseLock(true, confirmed ? "closed and confirmed" : "closed, roster confirmation pending");
+        return {
+          status: confirmed ? "closed_at_channel" : "close_not_possible",
+          confirmed,
+          code: confirmed ? "CLOSED" : "CLOSE_UNVERIFIED",
+          message: confirmed
+            ? `The channel closed the account${loginEmail ? ` ${loginEmail}` : ""} (OwnerID ${ownerId})`
+            : `The channel accepted the close but has not confirmed it yet: ${verifyMessage}`,
+          steps,
+          attempts: 1,
+          verifiedViaRoster,
+        };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        await releaseLock(false, message);
+        return fail("CLOSE_FAILED", message);
+      }
+    };
+
+
+
+    /**
      * ── persistChildPasswordAndProbe ─────────────────────────────────────────────
      * §2 replacement for mintChildKeyPair on the onboard/save-password paths. RU no
      * longer issues a sub-account's first key pair via the API (post 26 Nov 2025), so
@@ -6442,9 +6757,10 @@ Deno.serve(async (req) => {
         }, 409);
       }
 
-      // ── Step 2: archive the sub-account ──
-      // channel_archived_at is stamped only when the channel confirmed EVERY listing —
-      // a forced retire with refusals stays visibly unfinished at the channel.
+      // ── Step 2: record the retirement ──
+      // channel_archived_at is NOT stamped here: the account itself is only archived at
+      // the channel once the close in step 4 is confirmed on the roster. "No listing
+      // refused" is not evidence of anything (an account with zero listings would pass).
       const fullyArchivedAtChannel = failedListings.length === 0;
       const { error: retErr } = await admin.from("ru_retired_accounts").upsert(
         {
@@ -6453,10 +6769,11 @@ Deno.serve(async (req) => {
           reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
           retired_by: user.id,
           listings_archived: archivedListings.length,
-          channel_archived_at: fullyArchivedAtChannel ? new Date().toISOString() : null,
+          channel_archived_at: null,
         },
         { onConflict: "ru_owner_id" },
       );
+
 
       if (retErr) {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
@@ -6578,6 +6895,38 @@ Deno.serve(async (req) => {
         }, 500);
       }
 
+      // ── Step 4: close the account AT THE CHANNEL ──
+      // Retiring locally only ever hid the account from our own reads: the portal login
+      // stayed alive. The close runs as the sub-account itself, after the binding is
+      // gone, and only a confirmed roster re-read stamps channel_archived_at.
+      const retireClose = await closeAccountAtChannel({
+        ownerId,
+        loginEmail: label,
+        password: typeof body.password === "string" && body.password ? body.password : null,
+        note,
+        allowBound: true,
+      });
+      await admin.from("ru_retired_accounts").update({
+        ...(retireClose.confirmed ? { channel_archived_at: new Date().toISOString() } : {}),
+        channel_archive_result: {
+          ran_at: new Date().toISOString(),
+          ran_by: user.email ?? user.id,
+          source: "retire_owner_account",
+          archived_listings: archivedListings,
+          refused_listings: failedListings,
+          keys_revoked_at_channel: retireKeysCleanAtChannel,
+          key_revoke: retireKeyResult,
+          account_close: {
+            status: retireClose.status,
+            code: retireClose.code,
+            message: retireClose.message,
+            verified_via_roster: retireClose.verifiedViaRoster,
+            steps: retireClose.steps,
+          },
+        },
+      }).eq("ru_owner_id", ownerId)
+        .then(() => {}, (e) => console.warn("[ru-cert-portal] retire close stamp failed", e));
+
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
@@ -6588,7 +6937,7 @@ Deno.serve(async (req) => {
         request_origin: "edge_function",
         edge_function_name: "ru-cert-portal",
         is_sensitive: true,
-        change_summary: `Retired distribution account ${label} (OwnerID ${ownerId}): archived ${archivedListings.length} listing(s)${failedListings.length ? `, ${failedListings.length} refused` : ""}, disconnected ${disconnected.length} property(ies)`,
+        change_summary: `Retired distribution account ${label} (OwnerID ${ownerId}): archived ${archivedListings.length} listing(s)${failedListings.length ? `, ${failedListings.length} refused` : ""}, disconnected ${disconnected.length} property(ies), account close: ${retireClose.status}`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       return json({
@@ -6602,9 +6951,12 @@ Deno.serve(async (req) => {
         keys_revoked_at_channel: retireKeysCleanAtChannel,
         key_revoke: retireKeyResult,
         total_listings: listings.length,
-
+        account_closed_at_channel: retireClose.confirmed,
+        account_close: retireClose,
+        listings_fully_archived: fullyArchivedAtChannel,
       });
     }
+
 
     /**
      * ── close_unbound_account: the channel's "close user account" for ONE sub-account ──
@@ -6617,331 +6969,94 @@ Deno.serve(async (req) => {
      * The lock and the cooldown live on ru_call_queue, so a second operator or a second tab
      * is refused rather than overlapping.
      */
-    if (action === "close_unbound_account") {
+    if (action === "close_unbound_account" || action === "close_retired_account") {
       const ownerId = String(body.ru_owner_id ?? "").trim();
       const note = typeof body.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
-      const cooldownSeconds = Math.min(
-        300,
-        Math.max(30, Number.isFinite(Number(body.cooldown_seconds)) ? Number(body.cooldown_seconds) : 60),
-      );
-      const CLOSE_QUEUE_ACTION = "ru_close_account";
-      const STALE_LOCK_MS = 15 * 60 * 1000; // the channel says a close can take several minutes
-
       if (!/^\d+$/.test(ownerId)) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "A numeric ru_owner_id is required" } }, 400);
       }
 
-      // A bound account is live inventory: the retire flow disconnects it first.
-      const { data: stillBound } = await admin
-        .from("ru_owner_accounts")
-        .select("id, ru_login_email, owner_email")
+      const outcome = await closeAccountAtChannel({
+        ownerId,
+        loginEmail: typeof body.login_email === "string" ? body.login_email : null,
+        password: typeof body.password === "string" ? body.password : null,
+        note,
+        cooldownSeconds: Number(body.cooldown_seconds),
+      });
+
+      const { data: registryRow } = await admin
+        .from("ru_retired_accounts")
+        .select("portal_email")
         .eq("ru_owner_id", ownerId)
-        .limit(1);
-      if ((stillBound ?? []).length > 0) {
-        return json({
-          success: false,
-          ru_owner_id: ownerId,
-          error: {
-            code: "STILL_BOUND",
-            message: `OwnerID ${ownerId} is still bound to a property or portfolio. Retire the binding first, then close the account.`,
-          },
-        }, 409);
-      }
-
-      // ── Serialisation: one close in flight, then a cooldown ──
-      const { data: inFlight } = await admin
-        .from("ru_call_queue")
-        .select("id, ru_owner_id, claimed_at, created_at")
-        .eq("action", CLOSE_QUEUE_ACTION)
-        .eq("status", "running")
-        .order("created_at", { ascending: true });
-      for (const row of inFlight ?? []) {
-        const started = new Date(row.claimed_at ?? row.created_at).getTime();
-        if (Date.now() - started > STALE_LOCK_MS) {
-          await admin
-            .from("ru_call_queue")
-            .update({ status: "failed", last_error: "Abandoned close lock released", completed_at: new Date().toISOString() })
-            .eq("id", row.id)
-            .then(() => {}, () => {});
-          continue;
-        }
-        return json({
-          success: false,
-          ru_owner_id: ownerId,
-          error: {
-            code: "CLOSE_IN_PROGRESS",
-            message: `A close is already running for OwnerID ${row.ru_owner_id ?? "another sub-account"}. Accounts are closed one at a time — wait for it to finish.`,
-          },
-        }, 409);
-      }
-
-      const { data: lastClose } = await admin
-        .from("ru_call_queue")
-        .select("completed_at, ru_owner_id")
-        .eq("action", CLOSE_QUEUE_ACTION)
-        .not("completed_at", "is", null)
-        .order("completed_at", { ascending: false })
-        .limit(1)
         .maybeSingle();
-      if (lastClose?.completed_at) {
-        const waited = Date.now() - new Date(lastClose.completed_at).getTime();
-        const remaining = cooldownSeconds * 1000 - waited;
-        if (remaining > 0) {
-          return json({
-            success: false,
-            ru_owner_id: ownerId,
-            retry_after_ms: remaining,
-            error: {
-              code: "CLOSE_COOLDOWN",
-              message: `The previous account close finished ${Math.round(waited / 1000)}s ago. Waiting out the ${cooldownSeconds}s gap before the next one.`,
-            },
-          }, 429);
-        }
-      }
+      const label = (typeof body.login_email === "string" && body.login_email.trim())
+        ? body.login_email.trim()
+        : (registryRow?.portal_email ?? `OwnerID ${ownerId}`);
 
-      const nowIso = new Date().toISOString();
-      const { data: lockRow, error: lockErr } = await admin
-        .from("ru_call_queue")
-        .insert({
-          method_key: "Push_ArchiveUser_RQ",
-          action: CLOSE_QUEUE_ACTION,
+      // The registry records the PROVEN outcome — channel_archived_at only when the
+      // roster re-read confirmed the account is gone.
+      const { error: regErr } = await admin.from("ru_retired_accounts").upsert(
+        {
           ru_owner_id: ownerId,
-          priority: 5,
-          status: "running",
-          claimed_at: nowIso,
-          not_before: nowIso,
-          max_attempts: 1,
-          payload: { ru_owner_id: ownerId, reason: note, requested_by: user.email ?? user.id },
-        })
-        .select("id, created_at")
-        .single();
-      if (lockErr || !lockRow) {
+          portal_email: label,
+          reason: note ?? "Closed at the channel from Channel Monitor (Push_ArchiveUser_RQ)",
+          retired_by: user.id,
+          ...(outcome.confirmed ? { channel_archived_at: new Date().toISOString() } : {}),
+          channel_archive_result: {
+            ran_at: new Date().toISOString(),
+            ran_by: user.email ?? user.id,
+            source: action,
+            account_close: {
+              status: outcome.status,
+              verified_via_roster: outcome.verifiedViaRoster,
+              message: outcome.message,
+              attempts: outcome.attempts,
+              code: outcome.code,
+            },
+            steps: outcome.steps,
+          },
+        },
+        { onConflict: "ru_owner_id" },
+      );
+      if (regErr) console.warn("[ru-cert-portal] close registry stamp failed", regErr);
+
+      await admin.from("audit_logs").insert({
+        user_id: user.id,
+        user_email: user.email ?? "unknown",
+        user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
+        action_type: "other",
+        table_name: "ru_retired_accounts",
+        record_id: null,
+        request_origin: "edge_function",
+        edge_function_name: "ru-cert-portal",
+        is_sensitive: true,
+        change_summary: `Close requested for distribution sub-account ${label} (OwnerID ${ownerId}): ${outcome.status} — ${outcome.message}`,
+      }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
+
+      if (outcome.status !== "closed_at_channel") {
+        const rateLimited = outcome.code === "RATE_LIMITED" || outcome.code === "CLOSE_COOLDOWN";
         return json({
           success: false,
-          error: { code: "LOCK_FAILED", message: lockErr?.message ?? "The close lock could not be claimed" },
-        }, 500);
-      }
-
-      // Two simultaneous requests could both have passed the check above: the oldest lock wins.
-      const { data: contenders } = await admin
-        .from("ru_call_queue")
-        .select("id, created_at")
-        .eq("action", CLOSE_QUEUE_ACTION)
-        .eq("status", "running")
-        .order("created_at", { ascending: true })
-        .limit(1);
-      if (contenders?.[0] && contenders[0].id !== lockRow.id) {
-        await admin.from("ru_call_queue").delete().eq("id", lockRow.id).then(() => {}, () => {});
-        return json({
-          success: false,
-          error: { code: "CLOSE_IN_PROGRESS", message: "Another close claimed the slot first. Accounts are closed one at a time." },
-        }, 409);
-      }
-
-      const steps: { step: string; ok: boolean; message: string }[] = [];
-      const releaseLock = async (ok: boolean, message: string) => {
-        await admin
-          .from("ru_call_queue")
-          .update({
-            status: ok ? "completed" : "failed",
-            completed_at: new Date().toISOString(),
-            last_error: ok ? null : message,
-            result: { steps, message },
-          })
-          .eq("id", lockRow.id)
-          .then(() => {}, (e) => console.warn("[ru-cert-portal] close lock release failed", e));
-      };
-
-      try {
-        const { data: credRow } = await admin
-          .from("ru_api_credentials")
-          .select("access_key, secret_enc, login_email, key_scope")
-          .eq("ru_owner_id", ownerId)
-          .maybeSingle();
-        const { data: registryRow } = await admin
-          .from("ru_retired_accounts")
-          .select("portal_email")
-          .eq("ru_owner_id", ownerId)
-          .maybeSingle();
-        const loginEmail = (typeof body.login_email === "string" && body.login_email.trim())
-          ? body.login_email.trim()
-          : (credRow?.login_email ?? registryRow?.portal_email ?? null);
-        const label = loginEmail ?? `OwnerID ${ownerId}`;
-
-        // ── Step 1: the account's OWN keys (the close has no account selector) ──
-        let childAccessKey: string | null = null;
-        let childSecretKey: string | null = null;
-        if (credRow?.access_key && credRow.key_scope !== "master_pair") {
-          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
-          if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
-            childAccessKey = String(credRow.access_key);
-            childSecretKey = plain;
-          }
-        }
-        if (childAccessKey && childSecretKey) {
-          steps.push({ step: "auth", ok: true, message: "Used the stored sub-account API key pair" });
-        } else {
-          const minted = await mintChildKeyPair({
-            ownerId,
-            loginEmail,
-            keyLabel: "ROLOS-close",
-            authUsername: loginEmail,
-            authPassword: suppliedPassword ?? RU_SUB_USER_PASSWORD,
-          });
-          if (minted.ok) {
-            const { data: freshCred } = await admin
-              .from("ru_api_credentials")
-              .select("access_key, secret_enc")
-              .eq("ru_owner_id", ownerId)
-              .maybeSingle();
-            if (freshCred?.access_key) {
-              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: freshCred.secret_enc });
-              if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
-                childAccessKey = String(freshCred.access_key);
-                childSecretKey = plain;
-              }
-            }
-          }
-          if (childAccessKey && childSecretKey) {
-            steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
-          } else {
-            const why = minted.message ?? "the channel refused to mint a key pair for this sub-account";
-            steps.push({ step: "auth", ok: false, message: why });
-            await releaseLock(false, why);
-            return json({
-              success: false,
-              ru_owner_id: ownerId,
-              account_label: label,
-              stopped_after: "auth",
-              steps,
-              error: {
-                code: "NEEDS_KEYS",
-                message: `This account cannot be closed over the API: the close verb runs as the sub-account itself and ${why}. Master credentials are never used for a close.`,
-              },
-            }, 422);
-          }
-        }
-
-        // ── Step 2: close it at the channel ──
-        const { data: closeRes, error: closeErr } = await admin.functions.invoke("rentalsunited-api", {
-          body: {
-            action: "archive_user",
-            owner_id: Number(ownerId),
-            auth_access_key: childAccessKey,
-            auth_secret_key: childSecretKey,
-            parent_action: "ru-cert-portal:close_unbound_account",
-          },
-        });
-        const closeCode = String(closeRes?.error?.code ?? "");
-        const rateLimited = closeCode === "RU_RATE_LIMITED" || closeCode === "RU_RATE_DEFERRED";
-        if (closeErr || closeRes?.success !== true) {
-          const message = closeRes?.error?.message ?? closeErr?.message ?? "The channel did not accept the close request";
-          steps.push({ step: "close_account", ok: false, message });
-          await releaseLock(false, message);
-          return json({
-            success: false,
-            ru_owner_id: ownerId,
-            account_label: label,
-            stopped_after: "close_account",
-            steps,
-            retry_after_ms: rateLimited ? cooldownSeconds * 1000 : undefined,
-            error: {
-              code: rateLimited ? "RATE_LIMITED" : "CLOSE_REFUSED",
-              message: rateLimited
-                ? `${message} This account stays open and can be retried after the window.`
-                : message,
-            },
-          }, rateLimited ? 429 : 502);
-        }
-        steps.push({ step: "close_account", ok: true, message: "The channel accepted Push_ArchiveUser_RQ (close user account)" });
-
-        // ── Step 3: verify against the channel's own roster ──
-        let confirmed = false;
-        let verifyMessage = "The roster could not be re-read, so the close is unverified";
-        try {
-          const { data: roster, error: rosterErr } = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "list_users",
-              include_retired: true,
-              force_fresh: true,
-              parent_action: "ru-cert-portal:close_unbound_account",
-            },
-          });
-          if (!rosterErr && roster?.success !== false) {
-            const users: { owner_id?: string | null; archived?: boolean | null }[] = Array.isArray(roster?.users) ? roster.users : [];
-            const match = users.find((u) => String(u.owner_id ?? "").trim() === ownerId);
-            confirmed = !match || match.archived === true;
-            verifyMessage = confirmed
-              ? (match ? "The channel now lists the account as archived" : "The account no longer appears on the master roster")
-              : "The channel still lists the account as active — it may still be processing (closes can take several minutes)";
-          }
-        } catch (e) {
-          verifyMessage = e instanceof Error ? e.message : String(e);
-        }
-        steps.push({ step: "verify", ok: confirmed, message: verifyMessage });
-
-        // ── Step 4: retire it locally so every read, count and sweep skips it ──
-        const { error: regErr } = await admin.from("ru_retired_accounts").upsert(
-          {
-            ru_owner_id: ownerId,
-            portal_email: label,
-            reason: note ?? "Closed at the channel from Channel Monitor (Push_ArchiveUser_RQ)",
-            retired_by: user.id,
-            channel_archived_at: confirmed ? new Date().toISOString() : null,
-            channel_archive_result: {
-              ran_at: new Date().toISOString(),
-              ran_by: user.email ?? user.id,
-              closed_via: "Push_ArchiveUser_RQ",
-              confirmed_on_roster: confirmed,
-              response_id: closeRes?.response_id ?? null,
-              steps,
-            },
-          },
-          { onConflict: "ru_owner_id" },
-        );
-        steps.push({
-          step: "retire_locally",
-          ok: !regErr,
-          message: regErr?.message ?? "Recorded in the retired registry — excluded from every roster read, listing count and cost attribution",
-        });
-
-        // The close kills every key the account held, so our stored copy is dead weight.
-        await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
-          .then(() => {}, (e) => console.warn("[ru-cert-portal] close key row delete failed", e));
-
-        await admin.from("audit_logs").insert({
-          user_id: user.id,
-          user_email: user.email ?? "unknown",
-          user_role: (roles ?? []).some((r: { role: string }) => r.role === "dev") ? "dev" : "admin",
-          action_type: "other",
-          table_name: "ru_retired_accounts",
-          record_id: null,
-          request_origin: "edge_function",
-          edge_function_name: "ru-cert-portal",
-          is_sensitive: true,
-          change_summary: `Closed distribution sub-account ${label} (OwnerID ${ownerId}) at the channel${confirmed ? " — confirmed on the roster" : " — awaiting roster confirmation"}${note ? `: ${note}` : ""}`,
-        }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
-
-        await releaseLock(true, confirmed ? "closed and confirmed" : "closed, roster confirmation pending");
-        return json({
-          success: true,
           ru_owner_id: ownerId,
           account_label: label,
-          confirmed,
-          cooldown_ms: cooldownSeconds * 1000,
-          steps,
-        });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : String(e);
-        await releaseLock(false, message);
-        return json({
-          success: false,
-          ru_owner_id: ownerId,
-          steps,
-          error: { code: "CLOSE_FAILED", message },
-        }, 500);
+          confirmed: false,
+          account_close: outcome,
+          steps: outcome.steps,
+          retry_after_ms: outcome.retryAfterMs,
+          error: { code: outcome.code, message: outcome.message },
+        }, rateLimited ? 429 : outcome.code === "CLOSE_REFUSED" ? 502 : 422);
       }
+
+      return json({
+        success: true,
+        ru_owner_id: ownerId,
+        account_label: label,
+        confirmed: outcome.confirmed,
+        account_close: outcome,
+        steps: outcome.steps,
+      });
     }
+
 
 
 
@@ -7556,6 +7671,72 @@ Deno.serve(async (req) => {
         }
       }
 
+      /**
+       * ── 4b. Close the retired sub-accounts AT THE CHANNEL ──
+       *
+       * Sterilizing used to leave the portal login alive: the account was recorded as retired
+       * locally but nothing ever asked the channel to close it, so the operator could still sign
+       * in with an email ROL'OS considered dead. The close runs as the sub-account itself, one at
+       * a time, after its listings are archived and its binding is gone. Only a confirmed roster
+       * re-read stamps channel_archived_at — a refusal is reported, never assumed away.
+       */
+      const accountCloses: {
+        ru_owner_id: string;
+        status: string;
+        code: string;
+        confirmed: boolean;
+        message: string;
+      }[] = [];
+      const sterilizePassword = typeof body.password === "string" && body.password ? body.password : null;
+      for (const owner of staleOwners) {
+        const outcome = await closeAccountAtChannel({
+          ownerId: owner,
+          password: sterilizePassword,
+          note: `Sterilized with ${prop.name} for a fresh channel connection`,
+          cooldownSeconds: 30,
+          allowBound: true,
+        });
+        accountCloses.push({
+          ru_owner_id: owner,
+          status: outcome.status,
+          code: outcome.code,
+          confirmed: outcome.confirmed,
+          message: outcome.message,
+        });
+        await admin.from("ru_retired_accounts").update({
+          ...(outcome.confirmed ? { channel_archived_at: new Date().toISOString() } : {}),
+          channel_archive_result: {
+            ran_at: new Date().toISOString(),
+            ran_by: user.email ?? user.id,
+            source: "sterilize_property",
+            property_id: propertyId,
+            account_close: {
+              status: outcome.status,
+              code: outcome.code,
+              message: outcome.message,
+              verified_via_roster: outcome.verifiedViaRoster,
+              steps: outcome.steps,
+            },
+          },
+        }).eq("ru_owner_id", owner)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] sterilize close stamp failed", e));
+      }
+      if (staleOwners.length > 0) {
+        const closedCount = accountCloses.filter((c) => c.confirmed).length;
+        steps.push({
+          step: "close_accounts",
+          ok: closedCount === staleOwners.length,
+          message: closedCount === staleOwners.length
+            ? `${closedCount} distribution account(s) closed at the channel — the portal login no longer works`
+            : `${closedCount}/${staleOwners.length} closed at the channel · outstanding: ${accountCloses
+                .filter((c) => !c.confirmed)
+                .map((c) => `${c.ru_owner_id} (${c.message})`)
+                .join("; ")}`,
+        });
+      }
+
+
+
 
       // ── 5. Every gate earned again from zero ──
       const { data: gateRows } = await admin
@@ -7645,6 +7826,7 @@ Deno.serve(async (req) => {
         listings_already_disconnected: skippedSettled,
         listings_kept: [...keepListings],
         keep_binding: keepBinding,
+        account_closes: accountCloses,
         cancelled_queued_calls: cancelledCalls ?? 0,
         cleared: wipes,
         gates_reset: (gateRows ?? []).length,
