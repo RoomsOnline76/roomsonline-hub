@@ -7814,6 +7814,7 @@ Deno.serve(async (req) => {
         listings_already_disconnected: skippedSettled,
         listings_kept: [...keepListings],
         keep_binding: keepBinding,
+        account_closes: accountCloses,
         cancelled_queued_calls: cancelledCalls ?? 0,
         cleared: wipes,
         gates_reset: (gateRows ?? []).length,
