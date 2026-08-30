@@ -2092,8 +2092,11 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
   fill_company_details: 'Push_FillCompanyDetails_RQ',
   create_user: 'Push_CreateUser_RQ',
   archive_user: 'Push_ArchiveUser_RQ',
-
+  // Status flips (activate / deactivate / archive a listing) all ride the bulk status verb.
+  set_property_status: 'Push_SetPropertiesStatus_RQ',
+  delete_property: 'Push_SetPropertiesStatus_RQ',
 };
+
 
 
 
