@@ -73,7 +73,42 @@ const EVENT_BY_KIND: Record<RuNotificationKind, NotificationEvent> = {
  */
 const FAST_RETRY_DELAYS_MS = [5_000, 15_000, 40_000];
 
+/**
+ * The channel's sliding minute is keyed on method + parameters. After a -6 refusal the only
+ * useful move is to come back once that minute has closed — done here, in the background, so
+ * the stay paints ~a minute after the callback instead of waiting for the minute-scale cron
+ * sweep to pick the parked row up (which added up to another 60s).
+ */
+const RATE_DEFERRED_RETRY_MS = 65_000;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * RU frequently posts the same RLNM callback twice within a second. Both copies used to fire
+ * their own `Pull_GetReservationByID_RQ`, and the second one spent the per-method minute — so
+ * the duplicate was the direct cause of the -6 that parked the booking for over a minute.
+ * The later copy is recorded and dropped: the first is already resolving it.
+ */
+async function findInFlightSibling(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  reservationId: string | null,
+  notificationId: string | undefined,
+): Promise<string | null> {
+  if (!reservationId) return null;
+  const since = new Date(Date.now() - 120_000).toISOString();
+  const { data } = await supabase
+    .from('ru_notifications')
+    .select('id, created_at, resolution_state')
+    .eq('ru_reservation_id', reservationId)
+    .gte('created_at', since)
+    .in('resolution_state', ['pending', 'retrying'])
+    .order('created_at', { ascending: true })
+    .limit(5);
+  const rows = (data || []) as { id: string; resolution_state: string }[];
+  const leader = rows.find((row) => row.id !== notificationId);
+  return leader?.id ?? null;
+}
 
 
 Deno.serve(async (req) => {
@@ -258,6 +293,18 @@ Deno.serve(async (req) => {
       // which one owns the reservation.
       if (!propertyId || !r.dateFrom || !r.dateTo) {
 
+        // A sibling callback for the same reservation is already resolving: a second detail
+        // pull would only spend the channel's per-method minute and stall both of them.
+        const sibling = await findInFlightSibling(supabase, r.ruReservationId, notificationId);
+        if (sibling) {
+          console.log(
+            `[ru-reservation-handler] Duplicate callback for reservation ${r.ruReservationId} — detail pull already in flight (${sibling})`,
+          );
+          await markResolved('resolved', null);
+          await trail('skipped', 'duplicate_callback', 'Duplicate channel callback — detail pull already in flight');
+          continue;
+        }
+
         if (r.ruReservationId) {
           const refreshed = await refreshRuReservationById(supabase, r.ruReservationId, {
             propertyId,
@@ -322,20 +369,48 @@ Deno.serve(async (req) => {
               if (last.rateDeferred) break;
             }
             await parkForSweep(last.error ?? null, last.rateDeferred === true, last.resolvedOwnerId ?? null);
+            if (last.rateDeferred) await deferredRetry();
           };
 
-          if (refreshed.rateDeferred) {
-            // Nothing to retry fast: the channel has told us to come back after its minute.
-            await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
-          } else {
-            const runLadder = fastLadder().catch((e: unknown) =>
-              console.error('[ru-reservation-handler] Fast retry ladder failed:', e),
-            );
-            // deno-lint-ignore no-explicit-any
-            const runtime = (globalThis as any).EdgeRuntime;
-            if (runtime?.waitUntil) runtime.waitUntil(runLadder);
-            else await runLadder;
-          }
+          // Park first (so nothing is lost if this invocation dies), then keep working in the
+          // background: one retry as soon as the channel's minute has closed. The cron sweep
+          // stays as the safety net, but the booking no longer waits for its next tick.
+          const deferredRetry = async () => {
+            await sleep(RATE_DEFERRED_RETRY_MS);
+            const late = await refreshRuReservationById(supabase, reservationId, {
+              propertyId,
+              logPrefix: '[ru-reservation-handler][post-rate-retry]',
+              forceRequest: kind === 'request',
+              kind,
+              creator: r.creator,
+            });
+            if (late.outcome !== 'failed' && late.outcome !== 'unmatched') {
+              await markResolved('resolved', null, late.resolvedOwnerId ?? null);
+              await trail(
+                'ingested',
+                'post_rate_retry',
+                'Channel notification resolved once the channel rate window closed',
+                late.bookingId ?? null,
+              );
+            }
+          };
+
+          const background = async () => {
+            if (refreshed.rateDeferred) {
+              await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
+              await deferredRetry();
+              return;
+            }
+            await fastLadder();
+          };
+
+          const runBackground = background().catch((e: unknown) =>
+            console.error('[ru-reservation-handler] Background reservation retry failed:', e),
+          );
+          // deno-lint-ignore no-explicit-any
+          const runtime = (globalThis as any).EdgeRuntime;
+          if (runtime?.waitUntil) runtime.waitUntil(runBackground);
+          else await runBackground;
 
 
         } else {
