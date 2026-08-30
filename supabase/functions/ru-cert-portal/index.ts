@@ -240,6 +240,61 @@ async function readInvokeErrorBody(err: any): Promise<any | null> {
   }
 }
 
+/**
+ * Listings the channel has already been told to archive, and accounts already closed there.
+ *
+ * Once a listing is archived — or its whole sub-account was closed with `Push_ArchiveUser_RQ` —
+ * it is no longer connected to us, so pushing the identical status again buys nothing: the channel
+ * answers the same success, or refuses it inside the sliding minute (`RU_RATE_DEFERRED`) and the
+ * run burns its window re-archiving history. Archive/sterilize/retire runs therefore skip them.
+ *
+ * `ru_api_log` is the source of truth because it is deliberately retained by sterilization, while
+ * `ru_archive_events` and the local columns are wiped by it.
+ */
+// deno-lint-ignore no-explicit-any
+async function alreadySettledListings(
+  admin: any,
+  listingIds: string[],
+): Promise<{ archivedListings: Set<string>; closedOwners: Set<string> }> {
+  const archivedListings = new Set<string>();
+  const closedOwners = new Set<string>();
+  try {
+    const { data: closed } = await admin
+      .from("ru_retired_accounts")
+      .select("ru_owner_id, channel_archived_at")
+      .not("channel_archived_at", "is", null);
+    for (const r of closed ?? []) {
+      const id = String((r as { ru_owner_id?: unknown }).ru_owner_id ?? "").trim();
+      if (id) closedOwners.add(id);
+    }
+  } catch (e) {
+    console.warn("[ru-cert-portal] closed-account lookup failed", e);
+  }
+  if (listingIds.length === 0) return { archivedListings, closedOwners };
+  try {
+    const { data: rows } = await admin
+      .from("ru_api_log")
+      .select("ru_property_id, request_xml")
+      .eq("action", "Push_SetPropertiesStatus_RQ")
+      .eq("success", true)
+      .in("ru_property_id", listingIds)
+      .order("created_at", { ascending: true })
+      .limit(20000);
+    for (const r of rows ?? []) {
+      const listing = String((r as { ru_property_id?: unknown }).ru_property_id ?? "").trim();
+      const xml = String((r as { request_xml?: unknown }).request_xml ?? "");
+      // Only an archive counts: a reactivation (IsArchived 0) means the listing is live again.
+      if (listing && /<IsArchived>\s*1\s*<\/IsArchived>/i.test(xml)) archivedListings.add(listing);
+      else if (listing && /<IsArchived>\s*0\s*<\/IsArchived>/i.test(xml)) archivedListings.delete(listing);
+    }
+  } catch (e) {
+    console.warn("[ru-cert-portal] archive-history lookup failed", e);
+  }
+  return { archivedListings, closedOwners };
+}
+
+
+
 
 
 /**
@@ -6336,7 +6391,18 @@ Deno.serve(async (req) => {
 
       const archivedListings: string[] = [];
       const failedListings: { listing_id: string; label: string; message: string }[] = [];
+      /**
+       * Listings already archived at the channel are disconnected from us — re-pushing the same
+       * status only spends the sliding-minute window and comes back throttled.
+       */
+      const retireSettled = await alreadySettledListings(admin, listings.map((l) => l.listing_id));
+      const skippedListings: { listing_id: string; label: string; message: string }[] = [];
       for (const l of listings) {
+        if (retireSettled.archivedListings.has(l.listing_id)) {
+          skippedListings.push({ ...l, message: "Already archived at the channel — nothing re-sent" });
+          continue;
+        }
+
         // The channel rate-limits an identical status push inside a 60s window and answers
         // 429/RU_RATE_DEFERRED. `functions.invoke` hides that body behind "non-2xx status
         // code", so read the real body and wait out the window instead of reporting a refusal.
@@ -6390,7 +6456,9 @@ Deno.serve(async (req) => {
           account_label: label,
           ru_owner_id: ownerId,
           archived_listings: archivedListings,
+          skipped_listings: skippedListings,
           failed_listings: failedListings,
+
           error: {
             code: "LISTING_ARCHIVE_REFUSED",
             message: `${failedListings.length} listing(s) were not archived at the channel. Retire anyway to continue regardless.`,
@@ -6552,6 +6620,7 @@ Deno.serve(async (req) => {
         ru_owner_id: ownerId,
         account_label: label,
         archived_listings: archivedListings,
+        skipped_listings: skippedListings,
         failed_listings: failedListings,
         disconnected_properties: disconnected,
         keys_revoked_at_channel: retireKeysCleanAtChannel,
@@ -7273,12 +7342,37 @@ Deno.serve(async (req) => {
         const cur = String(prop.rentalsunited_property_id);
         if (!listingOwners.has(cur)) listingOwners.set(cur, null);
       }
-      const targets = [...listingOwners.keys()].filter((id) => !keepListings.has(id)).sort();
+      const historical = [...listingOwners.keys()].filter((id) => !keepListings.has(id)).sort();
+      /**
+       * A listing already archived at the channel — or one whose sub-account was closed there —
+       * is disconnected from us. Re-pushing the identical status only burns the sliding-minute
+       * window (`RU_RATE_DEFERRED`), so those listings are reported as settled, not re-archived.
+       */
+      const settled = await alreadySettledListings(admin, historical);
+      const skippedSettled: { ru_property_id: string; ru_owner_id: string | null; reason: string }[] = [];
+      const targets = historical.filter((id) => {
+        const owner = listingOwners.get(id) ?? null;
+        if (settled.archivedListings.has(id)) {
+          skippedSettled.push({ ru_property_id: id, ru_owner_id: owner, reason: "Already archived at the channel" });
+          return false;
+        }
+        if (owner && settled.closedOwners.has(owner)) {
+          skippedSettled.push({
+            ru_property_id: id,
+            ru_owner_id: owner,
+            reason: `Its distribution account (${owner}) is already closed at the channel`,
+          });
+          return false;
+        }
+        return true;
+      });
       steps.push({
         step: "collect_listings",
         ok: true,
-        message: `${listingOwners.size} listing(s) seen in this property's history — ${targets.length} to archive, ${keepListings.size} kept`,
+        message: `${listingOwners.size} listing(s) seen in this property's history — ${targets.length} to archive, ` +
+          `${skippedSettled.length} already disconnected, ${keepListings.size} kept`,
       });
+
 
       if (dryRun) {
         return json({
@@ -7286,7 +7380,9 @@ Deno.serve(async (req) => {
           dry_run: true,
           property: { id: prop.id, name: prop.name },
           listings_to_archive: targets.map((id) => ({ ru_property_id: id, ru_owner_id: listingOwners.get(id) ?? null })),
+          listings_already_disconnected: skippedSettled,
           listings_kept: [...keepListings],
+
           keep_binding: keepBinding,
           steps,
         });
@@ -7394,13 +7490,17 @@ Deno.serve(async (req) => {
           orphaned.push({ ru_property_id: listing, ru_owner_id: owner, message: e instanceof Error ? e.message : String(e) });
         }
       }
+      const settledNote = skippedSettled.length > 0
+        ? `, ${skippedSettled.length} skipped (already disconnected from the channel)`
+        : "";
       steps.push({
         step: "archive_listings",
         ok: true,
-        message: orphaned.length === 0
+        message: (orphaned.length === 0
           ? `${archived.length} old listing(s) archived at the channel`
-          : `${archived.length} archived, ${orphaned.length} left as orphans (recorded, not blocking)`,
+          : `${archived.length} archived, ${orphaned.length} left as orphans (recorded, not blocking)`) + settledNote,
       });
+
 
       // ── 4. Wipe local channel state ──
       const wipes: string[] = [];
@@ -7566,6 +7666,7 @@ Deno.serve(async (req) => {
         property: { id: prop.id, name: prop.name },
         archived_listings: archived,
         orphaned_listings: orphaned,
+        listings_already_disconnected: skippedSettled,
         listings_kept: [...keepListings],
         keep_binding: keepBinding,
         cancelled_queued_calls: cancelledCalls ?? 0,
