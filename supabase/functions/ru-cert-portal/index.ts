@@ -278,6 +278,7 @@ async function alreadySettledListings(
       .eq("action", "Push_SetPropertiesStatus_RQ")
       .eq("success", true)
       .in("ru_property_id", listingIds)
+      .order("created_at", { ascending: true })
       .limit(20000);
     for (const r of rows ?? []) {
       const listing = String((r as { ru_property_id?: unknown }).ru_property_id ?? "").trim();
