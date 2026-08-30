@@ -103,8 +103,6 @@ export function OrphanSubAccountsPanel() {
   const [reason, setReason] = useState(DEFAULT_REASON);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [hideAnyway, setHideAnyway] = useState(false);
-  /** Portal password, used only for accounts whose keys we no longer hold. Never stored. */
-  const [password, setPassword] = useState("");
   const [runningOwnerId, setRunningOwnerId] = useState<string | null>(null);
   const [bulkRunning, setBulkRunning] = useState(false);
   const [outcomes, setOutcomes] = useState<Record<string, PurgeOutcome>>({});
@@ -189,7 +187,6 @@ export function OrphanSubAccountsPanel() {
             action: "purge_channel_account",
             ru_owner_id: ownerId,
             login_email: loginEmail,
-            password: password || undefined,
             reason: note || undefined,
           },
         });
@@ -243,7 +240,7 @@ export function OrphanSubAccountsPanel() {
         setRunningOwnerId(null);
       }
     },
-    [password],
+    [],
   );
 
   const archive = useMutation({
@@ -394,20 +391,7 @@ export function OrphanSubAccountsPanel() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1.5">
-        <div className="space-y-1.5 rounded-md border border-border bg-muted/20 px-3 py-2">
-          <Label htmlFor="orphan-purge-password" className="text-[11px]">
-            Portal password (only used for accounts whose API keys we no longer hold — never stored)
-          </Label>
-          <Input
-            id="orphan-purge-password"
-            type="password"
-            autoComplete="off"
-            value={password}
-            placeholder="Sub-account portal password"
-            onChange={(e) => setPassword(e.target.value)}
-            className="h-8 text-xs"
-          />
-        </div>
+
 
         {orphans.length === 0 ? (
           <p className="text-xs text-muted-foreground">
