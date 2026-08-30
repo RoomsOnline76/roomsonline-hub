@@ -8599,6 +8599,14 @@ Deno.serve(async (req) => {
 
 
       const existing = await findOwnerAccount(admin, propertyId ?? "", ownerEmail, portfolioId);
+      /**
+       * A leftover shell row (no OwnerID — what survives a closed account or a sterilized
+       * property) is NOT a binding, but provisioning must still write into it rather than
+       * insert a second row for the same scope. It carries no channel identity, so every
+       * "is it already bound?" check below still reads unbound.
+       */
+      if (!existing.account && existing.shell) existing.account = existing.shell;
+
 
       /**
        * Alternative logins the operator may choose when the resolved owner email cannot
