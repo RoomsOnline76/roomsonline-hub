@@ -331,7 +331,6 @@ export function MasterRosterPanel() {
     [accountLabel, cooldownSeconds, portalPassword, reason],
   );
 
-  );
 
   const runCloses = useCallback(async () => {
     const queue = [...selectedList];
