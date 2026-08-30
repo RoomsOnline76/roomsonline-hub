@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CHANNEL_ONBOARDING_STAGES,
@@ -53,5 +54,12 @@ describe("channel onboarding stages", () => {
     expect(editorSectionForMacro("rooms")).toBe("rooms");
     expect(editorSectionForMacro("media")).toBe("images");
     expect(editorSectionForMacro("commercial")).toBe("rate-plans");
+  });
+
+  it("resumes key verification at api_keys, not company_profile", () => {
+    const src = readFileSync("src/components/admin/channel-monitor/ChannelOnboardTab.tsx", "utf8");
+    const handler = src.slice(src.indexOf("onKeysVerified"));
+    expect(handler).toContain('startAtTaskId: "api_keys"');
+    expect(handler).not.toContain('startAtTaskId: "company_profile"');
   });
 });

@@ -94,8 +94,6 @@ interface RunContext {
   confirmedOwnerName?: string | null;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
-  /** The manual A.2 submission already performed the A.3 ownership probe. */
-  keysVerifiedInRun?: boolean;
   onTask?: (
     id: ChannelOnboardTaskId,
     state: "running" | TaskOutcome,
@@ -1212,15 +1210,7 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
       .filter((r): r is TaskResult => Boolean(r && typeof r.id === "string"));
   const carriedResults: TaskResult[] = allTasks
     .slice(0, startIndex)
-    .map((t) => {
-      if (step === "a" && ctx.keysVerifiedInRun && t.id === "api_keys") {
-        return { id: "api_keys", outcome: "passed", detail: "Key pair verified and stored" } as TaskResult;
-      }
-      if (step === "a" && ctx.keysVerifiedInRun && t.id === "verify_keys") {
-        return { id: "verify_keys", outcome: "passed", detail: "Sub-account credentials verified" } as TaskResult;
-      }
-      return recordedTasks.find((r) => r.id === t.id);
-    })
+    .map((t) => recordedTasks.find((r) => r.id === t.id))
     .filter((r): r is TaskResult => Boolean(r));
   const results: TaskResult[] = [];
 

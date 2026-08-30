@@ -772,7 +772,7 @@ export function ChannelOnboardTab({
    * countdown and resumes itself from the deferred task once the channel's window reopens.
    */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean; keysVerifiedInRun?: boolean }) => {
+    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
       if (!propertyId || stepRunInFlight.current) return;
       stepRunInFlight.current = true;
       const attempt = options?.attempt ?? 0;
@@ -803,7 +803,6 @@ export function ChannelOnboardTab({
             step === "a" && chosenLoginEmail
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
-          keysVerifiedInRun: options?.keysVerifiedInRun,
           onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) => {
             if (state === "failed" || state === "blocked") lastStopTaskRef.current[step] = id;
             setTaskStates((prev) => ({
@@ -1650,7 +1649,7 @@ export function ChannelOnboardTab({
           onKeysVerified={() => {
             setAccountDialogOpen(false);
             setStepARemedyCode(null);
-            void runStep("a", { startAtTaskId: "company_profile", keysVerifiedInRun: true });
+            void runStep("a", { startAtTaskId: "api_keys" });
           }}
 
 
