@@ -401,6 +401,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           neverPushed,
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
+          ownerEmail: creds.ownerEmail,
         } satisfies ChannelPropertyRow;
       });
 
