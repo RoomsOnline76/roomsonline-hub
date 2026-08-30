@@ -3880,6 +3880,8 @@ Deno.serve(async (req) => {
         distances_pushed: distancesSkipped > 0 ? 0 : (Array.isArray(p.distances) ? p.distances.length : 0),
         distances_skipped: distancesSkipped,
 
+        fees: feesResult,
+
         mapping: {
           persisted: mapping_persisted,
           property_uuid: body.property_uuid ?? null,
