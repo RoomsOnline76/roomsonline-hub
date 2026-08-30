@@ -3678,7 +3678,7 @@ Deno.serve(async (req) => {
         // A create that failed may still have registered the listing at RU. Hand the id back so
         // the caller stores it and pushes an update next time instead of creating a duplicate.
         const strandedId = effectiveRuPropertyId === 0 ? extractReturnedPropertyId(response) : null;
-        return ruErrorResponse(status, { ...diag, stranded_ru_property_id: strandedId });
+        return ruErrorResponse(status, { ...diag, stranded_ru_property_id: strandedId, location_change_refused: locationChangeRefused });
       }
 
 
