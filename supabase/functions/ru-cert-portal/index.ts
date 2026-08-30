@@ -5123,16 +5123,19 @@ Deno.serve(async (req) => {
           const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.password_enc });
           if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") storedPassword = plain;
         }
+        // The sub-account's own portal login is an equally valid envelope for the close,
+        // so a mint refusal is not the end of the road — it just falls back to password auth.
+        const passwordEnvelope = (opts.password ?? "").trim() || storedPassword || RU_SUB_USER_PASSWORD;
+        let authMode: "keys" | "password" = "keys";
         if (childAccessKey && childSecretKey) {
           steps.push({ step: "auth", ok: true, message: "Used the stored sub-account API key pair" });
         } else {
-          const mintPassword = (opts.password ?? "").trim() || storedPassword || RU_SUB_USER_PASSWORD;
           const minted = await mintChildKeyPair({
             ownerId,
             loginEmail,
             keyLabel: "ROLOS-close",
             authUsername: loginEmail,
-            authPassword: mintPassword,
+            authPassword: passwordEnvelope,
           });
           if (minted.ok) {
             const { data: freshCred } = await admin
@@ -5150,6 +5153,13 @@ Deno.serve(async (req) => {
           }
           if (childAccessKey && childSecretKey) {
             steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
+          } else if (loginEmail && passwordEnvelope) {
+            authMode = "password";
+            steps.push({
+              step: "auth",
+              ok: true,
+              message: `No key pair could be minted (${minted.message ?? "channel refused"}) — closing with the sub-account's portal login instead`,
+            });
           } else {
             const why = minted.message ?? "the channel refused to mint a key pair for this sub-account";
             steps.push({ step: "auth", ok: false, message: why });
@@ -5166,11 +5176,13 @@ Deno.serve(async (req) => {
           body: {
             action: "archive_user",
             owner_id: Number(ownerId),
-            auth_access_key: childAccessKey,
-            auth_secret_key: childSecretKey,
+            ...(authMode === "keys"
+              ? { auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
+              : { auth_username: loginEmail, auth_password: passwordEnvelope }),
             parent_action: "ru-cert-portal:close_account",
           },
         });
+
         const closeCode = String(closeRes?.error?.code ?? "");
         const rateLimited = closeCode === "RU_RATE_LIMITED" || closeCode === "RU_RATE_DEFERRED";
         if (closeErr || closeRes?.success !== true) {
