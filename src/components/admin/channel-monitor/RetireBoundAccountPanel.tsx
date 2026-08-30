@@ -129,6 +129,7 @@ export function RetireBoundAccountPanel() {
         setSelected("");
         setConfirmText("");
         setNote("");
+        setPortalPassword("");
         refreshDependents();
       } else {
         const message = typeof res.error === "string" ? res.error : res.error?.message;
