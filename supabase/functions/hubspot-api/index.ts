@@ -414,15 +414,22 @@ Deno.serve(async (req) => {
       return (data || []).map((l: { property_id: string }) => l.property_id);
     };
 
-    /** Guard used by every sync action: enabled + credentials present. */
+    /**
+     * Guard used by every sync action: enabled + credentials present.
+     *
+     * The add-on is opt-in, so "off" is a normal state, not a failure: answer
+     * 200 with `skipped` so fire-and-forget callers (and the operator UI) treat
+     * it as a no-op instead of surfacing a runtime error.
+     */
     const requireActive = async (): Promise<
       { token: string; config: Json } | Response
     > => {
-      if (!row?.enabled) return fail("HubSpot is not enabled for this owner", 409, { skipped: true });
+      if (!row?.enabled) return ok({ skipped: true, reason: "hubspot_disabled" });
       const token = await decryptToken();
-      if (!token) return fail("HubSpot credentials are missing", 409, { skipped: true });
+      if (!token) return ok({ skipped: true, reason: "hubspot_credentials_missing" });
       return { token, config: (row.config || {}) as Json };
     };
+
 
     // ---- Trade vs Direct segmentation --------------------------------------
     // Guests booked through an agent are "trade"; everyone else is "direct".
