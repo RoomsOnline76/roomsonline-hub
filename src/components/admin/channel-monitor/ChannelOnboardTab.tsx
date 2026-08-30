@@ -321,6 +321,16 @@ export function ChannelOnboardTab({
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
   /** Last stop code per task, so a refused task can show its own remedy card inline. */
   const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
+  /**
+   * A step that stopped on a hard failure (not a rate-window wait, not a login
+   * conflict) keeps its resume point and reason here so the operator can pick it
+   * up again with one click instead of re-issuing the whole run.
+   */
+  const [failedStep, setFailedStep] = useState<
+    Partial<Record<ChannelOnboardStep, { resumeFromTaskId: ChannelOnboardTaskId | null; summary: string }>>
+  >({});
+  /** The last task a run stopped on — the resume point when the run throws instead of returning. */
+  const lastStopTaskRef = useRef<Partial<Record<ChannelOnboardStep, ChannelOnboardTaskId>>>({});
 
 
   const [rebindEmail, setRebindEmail] = useState("");
@@ -769,6 +779,8 @@ export function ChannelOnboardTab({
       setPushProgress(null);
       setWaiting((prev) => ({ ...prev, [step]: undefined }));
       setTaskCodes({});
+      setFailedStep((prev) => ({ ...prev, [step]: undefined }));
+      lastStopTaskRef.current[step] = undefined;
       setTaskStates((prev) => {
         const next = { ...prev };
         const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
@@ -790,7 +802,8 @@ export function ChannelOnboardTab({
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
           keysVerifiedInRun: options?.keysVerifiedInRun,
-          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
+          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) => {
+            if (state === "failed" || state === "blocked") lastStopTaskRef.current[step] = id;
             setTaskStates((prev) => ({
               ...prev,
               [id]: {
@@ -798,7 +811,8 @@ export function ChannelOnboardTab({
                 detail,
                 waitingUntil: state === "pending" ? Date.now() + (retryAfterMs ?? 60_000) : undefined,
               },
-            })),
+            }));
+          },
           onPushProgress: (progress) => setPushProgress(progress),
         });
         // A taken login is a decision to hand back, not a plain failure: keep the modal
@@ -859,6 +873,8 @@ export function ChannelOnboardTab({
               : "Property published — channels can now connect",
           );
         } else if (conflict) {
+          // The login chooser owns this remedy — no separate retry banner.
+          setFailedStep((prev) => ({ ...prev, [step]: undefined }));
           toast.error("A different distribution login is needed", {
             description: conflict.detail,
             duration: 12000,
@@ -890,16 +906,29 @@ export function ChannelOnboardTab({
             });
           }
         } else {
+          // A hard stop keeps its resume point: the step card offers Resume / Retry.
+          setFailedStep((prev) => ({
+            ...prev,
+            [step]: {
+              resumeFromTaskId: result.resumeFromTaskId ?? lastStopTaskRef.current[step] ?? null,
+              summary: result.summary || "The step stopped before completing.",
+            },
+          }));
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : "The step could not be run";
+        setFailedStep((prev) => ({
+          ...prev,
+          [step]: { resumeFromTaskId: lastStopTaskRef.current[step] ?? null, summary: message },
+        }));
         if (err instanceof SessionExpiredError) {
           toast.error("Your session expired", {
             description: "Sign in again, then re-run the step.",
             duration: 12000,
           });
         } else {
-          toast.error(err instanceof Error ? err.message : "The step could not be run");
+          toast.error(message, { duration: 12000 });
         }
       } finally {
         setRunningStep(null);
@@ -945,6 +974,7 @@ export function ChannelOnboardTab({
   useEffect(() => {
     setWaiting({});
     setStepDetailOpen({});
+    setFailedStep({});
   }, [propertyId]);
 
   /**
@@ -977,6 +1007,7 @@ export function ChannelOnboardTab({
         setRebindEmail("");
         setTaskStates({});
         setTaskCodes({});
+        setFailedStep({});
         setPlan(null);
         setChosenLoginEmail("");
         setEmailConflict(null);
@@ -1065,6 +1096,7 @@ export function ChannelOnboardTab({
             ?.tasks ?? []);
 
     const stepWaiting = waiting[step];
+    const stepFailed = failedStep[step];
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
      * A passed step is settled work: it collapses to its one-line verdict until the
@@ -1147,6 +1179,34 @@ export function ChannelOnboardTab({
                       Retry now
                     </Button>
                   )}
+                </div>
+              )}
+
+              {/* A hard stop keeps its resume point: the operator picks the run up where it stopped. */}
+              {stepFailed && !stepWaiting && runningStep !== step && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {meta.title} stopped{stepFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
+                    </p>
+                    <p className="leading-snug break-words">{stepFailed.summary}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={runningStep !== null}
+                    onClick={() =>
+                      void runStep(step, { startAtTaskId: stepFailed.resumeFromTaskId })
+                    }
+                  >
+                    {runningStep === step ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {stepFailed.resumeFromTaskId ? "Resume" : "Retry"}
+                  </Button>
                 </div>
               )}
 
