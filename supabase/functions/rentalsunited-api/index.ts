@@ -717,6 +717,64 @@ async function resolveOwnerId(creds: RUCredentials, explicit?: number | string |
   return null;
 }
 
+/**
+ * Channel location locks — see the status 310 handler in `push_property`. RU refuses a location
+ * move for the entire life of a listing once any reservation has ever touched it, so the refusal
+ * is cached and replayed locally instead of being rediscovered on every content delta.
+ */
+function locationLockClient() {
+  return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+}
+
+async function readListingLocationLock(
+  ruPropertyId: number,
+): Promise<{ published_location_id: number | null } | null> {
+  try {
+    const { data } = await locationLockClient()
+      .from('ru_listing_location_locks')
+      .select('published_location_id')
+      .eq('ru_property_id', ruPropertyId)
+      .maybeSingle();
+    const published = data?.published_location_id ? Number(data.published_location_id) : null;
+    return published ? { published_location_id: published } : null;
+  } catch (e) {
+    console.warn('[rentalsunited-api] location lock read failed:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+async function recordListingLocationLock(
+  ruPropertyId: number,
+  lock: {
+    property_uuid: string | null;
+    published_location_id: number | null;
+    refused_location_id: number | null;
+    reason: string;
+  },
+): Promise<void> {
+  if (!lock.published_location_id) return; // nothing authoritative to replay
+  try {
+    const supabase = locationLockClient();
+    const { data: existing } = await supabase
+      .from('ru_listing_location_locks')
+      .select('refusal_count')
+      .eq('ru_property_id', ruPropertyId)
+      .maybeSingle();
+    await supabase.from('ru_listing_location_locks').upsert({
+      ru_property_id: ruPropertyId,
+      property_id: lock.property_uuid,
+      published_location_id: lock.published_location_id,
+      refused_location_id: lock.refused_location_id,
+      reason: lock.reason,
+      refusal_count: (Number(existing?.refusal_count) || 0) + 1,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'ru_property_id' });
+  } catch (e) {
+    console.warn('[rentalsunited-api] location lock write failed:', e instanceof Error ? e.message : String(e));
+  }
+}
+
+
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListSpecProp_RQ>
@@ -3417,7 +3475,7 @@ Deno.serve(async (req) => {
     if (action === 'push_property') {
       if (ru_property_id == null || ru_property_id === undefined) return errorResponse('MISSING_PARAM', 'ru_property_id is required (use 0 for new properties)');
       if (!body.property) return errorResponse('MISSING_PARAM', 'property payload is required');
-      const p = body.property;
+      let p = body.property;
       if (!Number.isFinite(Number(p.owner_id)) || Number(p.owner_id) <= 0) {
         return errorResponse('RU_OWNER_ID_REQUIRED', 'A positive linked sub-user owner_id is required; master-account fallback is prohibited');
       }
@@ -3571,8 +3629,33 @@ Deno.serve(async (req) => {
       }
 
 
+      /**
+       * Location lock — RU answers status 310 ("Cannot update property location because there are
+       * existing reservations") for the *life of the listing*: it counts every reservation ever
+       * attached, cancelled and past included, so the refusal never clears. Retrying it on every
+       * save burned a failed push + a Pull_ListSpecProp read + a second push per content delta —
+       * which is also why the ledger looked like it confirmed while the wire was still retrying.
+       * Once refused, we remember the location RU actually holds and send that from the first
+       * attempt, so a content delta is a single accepted call again.
+       */
+      let locationLockApplied: { published_location_id: number; requested_location_id: number } | null = null;
+      if (effectiveRuPropertyId > 0 && Number(p.detailed_location_id) > 0) {
+        const lock = await readListingLocationLock(effectiveRuPropertyId);
+        if (lock?.published_location_id && lock.published_location_id !== Number(p.detailed_location_id)) {
+          locationLockApplied = {
+            published_location_id: lock.published_location_id,
+            requested_location_id: Number(p.detailed_location_id),
+          };
+          console.warn(
+            `[rentalsunited-api] Listing ${effectiveRuPropertyId} has a channel location lock — sending published LocationID ${lock.published_location_id} instead of ${p.detailed_location_id} (status 310 is permanent for this listing)`,
+          );
+          p = { ...p, detailed_location_id: lock.published_location_id };
+        }
+      }
+
       let xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, p);
       let compactRequestXml = compactXml(xml);
+
 
       console.log(`[rentalsunited-api] Push XML length: ${compactRequestXml.length}, ru_property_id: ${effectiveRuPropertyId}, dry_run: ${body.dry_run === true}`);
 
@@ -3657,6 +3740,14 @@ Deno.serve(async (req) => {
           console.warn('[rentalsunited-api] 310 recovery could not read the published location:', e instanceof Error ? e.message : String(e));
         }
         locationChangeRefused = { published_location_id: publishedLocationId, reason: status.message ?? 'existing reservations' };
+        // Remember the refusal so the next content delta is a single accepted call instead of
+        // repeating fail → read → re-push forever.
+        await recordListingLocationLock(effectiveRuPropertyId, {
+          property_uuid: typeof body.property_uuid === 'string' ? body.property_uuid : null,
+          published_location_id: publishedLocationId,
+          refused_location_id: Number(p.detailed_location_id) || null,
+          reason: locationChangeRefused.reason,
+        });
         if (publishedLocationId && publishedLocationId !== Number(p.detailed_location_id)) {
           console.warn(
             `[rentalsunited-api] Location change refused on listing ${effectiveRuPropertyId} (status 310) — re-sending the rest of the content with the published LocationID ${publishedLocationId}`,
@@ -3670,6 +3761,7 @@ Deno.serve(async (req) => {
           status = retryStatus.status;
         }
       }
+
 
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
@@ -3736,6 +3828,10 @@ Deno.serve(async (req) => {
             ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
             : 'Property pushed successfully',
         location_change_refused: locationChangeRefused,
+        // Set when a remembered refusal made us send the channel's published location up front
+        // (no failed attempt, no read-back, one accepted call).
+        location_lock_applied: locationLockApplied,
+
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
