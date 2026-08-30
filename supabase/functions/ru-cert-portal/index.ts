@@ -33,6 +33,7 @@ import {
   writeLedgerRows,
   mapReadinessToLedgerRows,
   LOCAL_CLASS_LEDGER_STEPS,
+  CHANNEL_CLASS_LEDGER_STEPS,
   type ReadinessReportLike,
 
 } from "../_shared/channelStepLedger.ts";
@@ -7394,10 +7395,12 @@ Deno.serve(async (req) => {
      * listings keep selling, the parked backlog fires at the new account the moment keys exist, and
      * gates read "passed" without anything having been proven against the new listing.
      *
-     * This action ends the old life and leaves the property connectable from zero:
+     * This action ends the old channel life and leaves the property reconnectable as-is:
      *   1. cancel the parked call backlog and drop stored notifications / re-pull entries
      *   2. archive every historical listing at the channel (skipping any the caller keeps)
-     *   3. wipe local channel state and reset every onboarding gate to pending
+     *   3. unlink the property from the distribution account locally (keys and company details stay)
+     *   4. close the owner account at the channel
+     *   5. reset only account/channel gates — Ready-to-sell steps 1–5 are not touched
      *
      * `keep_ru_property_ids` preserves a current binding: Albatros keeps listing 5966579 under
      * OwnerID 742620 while everything from before that binding is cleared. `keep_binding` (default
@@ -7663,15 +7666,14 @@ Deno.serve(async (req) => {
       }
 
       if (!keepBinding) {
-        await admin.from("ru_owner_accounts").delete().eq("property_id", propertyId);
-        wipes.push("distribution account binding removed");
-        /**
-         * The portfolio-scoped row is what a sterilized property actually inherits, so it has
-         * to go too — otherwise the property still reads as bound to the dead login (the row
-         * survives with its OwnerID cleared) and a fresh connection cannot be made. Only
-         * removed when it no longer names a live account: a row still carrying an OwnerID that
-         * is not being retired here serves the portfolio's other properties and stays.
-         */
+        const { data: boundRows } = await admin
+          .from("ru_owner_accounts")
+          .select("id, ru_owner_id")
+          .eq("property_id", propertyId);
+        for (const row of boundRows ?? []) {
+          await admin.from("ru_owner_accounts").update({ property_id: null }).eq("id", row.id);
+        }
+        if ((boundRows ?? []).length) wipes.push("property unlinked from distribution account (keys kept)");
         const { data: pfMember } = await admin
           .from("property_portfolio_members")
           .select("portfolio_id")
@@ -7686,8 +7688,8 @@ Deno.serve(async (req) => {
             .maybeSingle();
           const pfOwner = String(pfAccount?.ru_owner_id ?? "").trim();
           if (pfAccount?.id && (!pfOwner || staleOwners.includes(pfOwner))) {
-            await admin.from("ru_owner_accounts").delete().eq("id", pfAccount.id);
-            wipes.push("portfolio distribution account row removed");
+            await admin.from("ru_owner_accounts").update({ portfolio_id: null }).eq("id", pfAccount.id);
+            wipes.push("portfolio distribution account unlinked (keys kept)");
           }
         }
       }
@@ -7759,68 +7761,34 @@ Deno.serve(async (req) => {
 
 
 
-      // ── 5. Every gate earned again from zero ──
+      // Account/channel gates only. Ready-to-sell steps 1–5 stay as they are so the
+      // property can be bound to a new owner immediately without re-earning content.
+      const accountGateKeys = [...CHANNEL_CLASS_LEDGER_STEPS, "monitor_step_a", "monitor_step_b", "ready_to_connect"];
       const { data: gateRows } = await admin
         .from("property_channel_step_status")
         .select("step_key")
-        .eq("property_id", propertyId);
-      await admin
-        .from("property_channel_step_status")
-        .update({
-          status: "pending",
-          input_fingerprint: null,
-          source: "seed",
-          passed_at: null,
-          stale_at: null,
-          last_checked_at: null,
-          blocker_summary: "Property sterilized — the channel connection must be earned from the first step.",
-          details: { sterilized_at: new Date().toISOString(), sterilized_by: user.email ?? user.id },
-        })
-        .eq("property_id", propertyId);
+        .eq("property_id", propertyId)
+        .in("step_key", accountGateKeys);
+      if ((gateRows ?? []).length > 0) {
+        await admin
+          .from("property_channel_step_status")
+          .update({
+            status: "pending",
+            source: "seed",
+            passed_at: null,
+            stale_at: null,
+            last_checked_at: null,
+            blocker_summary: "Distribution account closed — reconnect to a new owner.",
+            details: { sterilized_at: new Date().toISOString(), sterilized_by: user.email ?? user.id },
+          })
+          .eq("property_id", propertyId)
+          .in("step_key", accountGateKeys);
+      }
       steps.push({
         step: "reset_state",
         ok: true,
-        message: `${(gateRows ?? []).length} onboarding gate(s) reset to pending${wipes.length ? ` · cleared ${wipes.join(", ")}` : ""}`,
+        message: `${(gateRows ?? []).length} account/channel gate(s) reset; Ready-to-sell steps 1–5 left unchanged${wipes.length ? ` · cleared ${wipes.join(", ")}` : ""}`,
       });
-
-      /**
-       * ── 6. Re-grade the content steps immediately ──
-       *
-       * A blanket "pending" made a sterilized property read as if its rooms, beds, photos and
-       * amenities were all missing, so the operator had to hunt for blockers that were never
-       * real. The content steps (1–5) are decided entirely from ROL'OS data and owe the channel
-       * nothing, so they are re-graded here — local only, no channel probe — and the property is
-       * declared sterilized with its true verdicts. The account-scoped steps stay pending: those
-       * must genuinely be earned against the new connection.
-       */
-      let contentSteps: { step_key: string; status: string; blocker_summary: string | null }[] = [];
-      try {
-        const report = await scorePropertyWithinBudget(prop, false);
-        const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike)
-          .filter((r) => LOCAL_CLASS_LEDGER_STEPS.includes(r.step_key as never));
-        if (rows.length > 0) {
-          await writeLedgerRows(admin, propertyId, rows);
-          contentSteps = rows.map((r) => ({
-            step_key: r.step_key,
-            status: r.status,
-            blocker_summary: r.blocker_summary ?? null,
-          }));
-        }
-        steps.push({
-          step: "verify_content_steps",
-          ok: contentSteps.every((r) => r.status === "passed"),
-          message: contentSteps.length === 0
-            ? "Content steps could not be graded — they stay pending"
-            : `${contentSteps.filter((r) => r.status === "passed").length}/${contentSteps.length} content step(s) verified as passing` +
-              `${contentSteps.some((r) => r.status !== "passed") ? ` · outstanding: ${contentSteps.filter((r) => r.status !== "passed").map((r) => r.step_key).join(", ")}` : ""}`,
-        });
-      } catch (e) {
-        steps.push({
-          step: "verify_content_steps",
-          ok: false,
-          message: `Content steps could not be graded (${e instanceof Error ? e.message : String(e)}) — they stay pending`,
-        });
-      }
 
       await admin.from("audit_logs").insert({
         user_id: user.id,
@@ -7836,7 +7804,7 @@ Deno.serve(async (req) => {
           `Sterilized ${prop.name} for a fresh channel connection: ${archived.length} old listing(s) archived` +
           `${orphaned.length ? `, ${orphaned.length} orphaned` : ""}` +
           `${keepListings.size ? `, kept listing(s) ${[...keepListings].join(", ")}` : ""}` +
-          `, ${cancelledCalls ?? 0} parked call(s) cancelled, gates reset`,
+          `, ${cancelledCalls ?? 0} parked call(s) cancelled, account/channel gates reset (steps 1–5 kept)`,
       }).then(() => {}, (e) => console.warn("[ru-cert-portal] audit log insert failed", e));
 
       return json({
@@ -7851,7 +7819,7 @@ Deno.serve(async (req) => {
         cancelled_queued_calls: cancelledCalls ?? 0,
         cleared: wipes,
         gates_reset: (gateRows ?? []).length,
-        content_steps: contentSteps,
+        content_steps: [],
         steps,
       });
     }

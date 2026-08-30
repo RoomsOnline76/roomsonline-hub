@@ -134,7 +134,7 @@ export function SterilizePropertyPanel() {
       setPreview(null);
       if (data.success) {
         toast.success(
-          `${data.property?.name ?? "Property"} sterilized — ${(data.archived_listings ?? []).length} old listing(s) archived, ${data.gates_reset ?? 0} gate(s) reset`,
+          `${data.property?.name ?? "Property"} sterilized — ${(data.archived_listings ?? []).length} old listing(s) archived, Ready-to-sell kept`,
         );
       } else {
         toast.error(errorText(data) ?? "Sterilization did not complete.");
@@ -337,9 +337,9 @@ export function SterilizePropertyPanel() {
             <DialogTitle>Sterilize {selected?.name}?</DialogTitle>
             <DialogDescription>
               Every earlier listing is archived at the channel, the distribution sub-account is
-              closed at the channel (its portal login stops working), the parked call backlog is
-              cancelled and all onboarding gates go back to pending. Bookings, rates and history in
-              ROL'OS are untouched. Type the property name to confirm.
+              closed at the channel (keys and company details are kept locally), the parked call
+              backlog is cancelled and account/channel gates are reset. Ready-to-sell steps 1–5 are
+              not touched. Type the property name to confirm.
             </DialogDescription>
           </DialogHeader>
           <Input

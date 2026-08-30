@@ -19,7 +19,7 @@ import type { ChannelPropertyRow } from "@/hooks/useChannelCostMonitor";
 export interface ArchiveExtras {
   /** Close the distribution sub-account itself (channel close-account API). */
   closeAccount: boolean;
-  /** Wipe local channel state and reset the onboarding gates so it can start over. */
+  /** Archive listings, keep keys, close the account, scrub ownership — Ready-to-sell stays. */
   sterilize: boolean;
 }
 
@@ -131,8 +131,9 @@ export function ArchivePropertyDialog({ open, mode, property, busy, onCancel, on
                     Sterilise the property (optional)
                   </Label>
                   <p className="text-[11px] text-muted-foreground">
-                    Clears local channel state, cancels the parked call backlog and resets every onboarding
-                    gate so the property can be connected again as brand new.
+                    Archives listings at the channel, keeps keys and company details, closes the
+                    owner account, and scrubs this property's previous channel ownership. Ready-to-sell
+                    steps 1–5 are not reset so it can be connected to a new owner immediately.
                   </p>
                 </div>
               </div>

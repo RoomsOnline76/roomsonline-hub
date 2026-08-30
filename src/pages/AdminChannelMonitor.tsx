@@ -316,7 +316,9 @@ export default function AdminChannelMonitor() {
       if (!extras.closeAccount && !extras.sterilize) return;
       setBusyId(row.id);
       try {
-        if (extras.closeAccount && row.ownerId) {
+        // Sterilize already archives listings then closes the account. Closing first
+        // would leave listings live on a dead login.
+        if (extras.closeAccount && !extras.sterilize && row.ownerId) {
           const { data: res, error } = await invokeWithSession("ru-close-user", {
             body: { ru_owner_id: String(row.ownerId) },
           });
@@ -351,7 +353,7 @@ export default function AdminChannelMonitor() {
           if (error || !payload?.success) {
             toast.error(errText || error?.message || "Sterilisation did not complete.");
           } else {
-            toast.success(`${row.name} sterilised — ${payload.gates_reset ?? 0} gate(s) reset`);
+            toast.success(`${row.name} sterilised — listings archived, account closed, Ready-to-sell kept`);
           }
         }
       } catch (e) {
