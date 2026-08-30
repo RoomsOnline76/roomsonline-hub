@@ -1105,11 +1105,17 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
 
   // RU deprecated <CleaningPrice> (Notif 258: "Property cleaning price is obsolete. Please
   // provide the cost of cleaning price within the fees collection."). When the caller supplies
-  // the fees collection, cleaning rides there and the element is suppressed entirely; only a
-  // legacy caller without fees still sends a non-zero legacy value.
-  const cleaningPriceXml = !Array.isArray(prop.fees) && Number(prop.cleaning_price ?? 0) > 0
-    ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
-    : '';
+  // the fees collection, cleaning rides in <AdditionalFees> and the legacy element is sent as 0
+  // once per push to clear any old value (RU's own transition guidance); only a legacy caller
+  // without fees still sends a non-zero legacy value.
+  const cleaningPriceXml = Array.isArray(prop.fees)
+    ? `<CleaningPrice>0</CleaningPrice>`
+    : Number(prop.cleaning_price ?? 0) > 0
+      ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
+      : '';
+  // Inline AdditionalFees collection — the ONLY place RU accepts fees (there is no separate
+  // fees verb). XSD position: immediately after </Descriptions>, before SecurityDeposit.
+  const additionalFeesXml = buildAdditionalFeesXml(prop.fees);
   const arrivalInstructionsXml = `<ArrivalInstructions>
       <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
       <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
