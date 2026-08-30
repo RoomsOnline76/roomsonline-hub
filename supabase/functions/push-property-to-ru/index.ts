@@ -4291,6 +4291,32 @@ Deno.serve(async (req) => {
     const isMultiUnit = activeRoomTypes.length > 0;
 
     /**
+     * Resolve an inbound `only_unit_ids` scope against the channel units.
+     *
+     * Callers scope a delta with whatever id they hold: the channel unit id
+     * (hostfully_room_types.id) or the ROL'OS room type id (linked_rolos_id) — Rate Plans links
+     * are authored against ROL'OS room types. Matching on `rt.id` alone silently dropped every
+     * unit, which turned a real rate edit into an "RU_NOT_LISTED" no-op and left the channel on
+     * the old price. A scope that matches nothing is therefore treated as "no scope" rather than
+     * "no targets" — a channel write is never lost to an id-shape mismatch.
+     */
+    const resolveScopedRoomTypes = (raw: unknown, label: string): RoomTypeRow[] => {
+      const ids = Array.isArray(raw) && raw.length > 0 ? raw.map((u: unknown) => String(u)) : null;
+      if (!ids) return activeRoomTypes;
+      const matched = activeRoomTypes.filter((rt) =>
+        ids.includes(String((rt as any).id))
+        || (!!(rt as any).linked_rolos_id && ids.includes(String((rt as any).linked_rolos_id))),
+      );
+      if (matched.length === 0) {
+        console.warn(
+          `[push-property-to-ru] ${label}: only_unit_ids matched no channel unit (${ids.join(', ')}) — falling back to all ${activeRoomTypes.length} active unit(s)`,
+        );
+        return activeRoomTypes;
+      }
+      return matched;
+    };
+
+    /**
      * Gate #10 — distances to nearby attractions (nice-to-have, never blocking). Resolved once
      * for the whole push from the property's authored attractions plus the cached channel
      * destination dictionary; an empty result simply omits the <Distances> block.
