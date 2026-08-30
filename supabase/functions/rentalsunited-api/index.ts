@@ -1,6 +1,6 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
 import { toWireChangeover } from '../_shared/ruChangeover.ts';
-import { buildPushPropertyFeesXml, type RuFeeEntry } from '../_shared/ruFees.ts';
+import { buildAdditionalFeesXml, type RuFeeEntry } from '../_shared/ruFees.ts';
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
