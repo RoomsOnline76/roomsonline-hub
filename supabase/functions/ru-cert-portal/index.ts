@@ -7366,7 +7366,9 @@ Deno.serve(async (req) => {
           dry_run: true,
           property: { id: prop.id, name: prop.name },
           listings_to_archive: targets.map((id) => ({ ru_property_id: id, ru_owner_id: listingOwners.get(id) ?? null })),
+          listings_already_disconnected: skippedSettled,
           listings_kept: [...keepListings],
+
           keep_binding: keepBinding,
           steps,
         });
