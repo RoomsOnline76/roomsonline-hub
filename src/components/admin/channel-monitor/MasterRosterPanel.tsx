@@ -1016,6 +1016,22 @@ export function MasterRosterPanel() {
             />
 
             <div className="space-y-1">
+              <Input
+                value={portalPassword}
+                onChange={(e) => setPortalPassword(e.target.value)}
+                placeholder="Sub-account portal password (only needed when no key pair is stored)"
+                type="password"
+                className="h-8 text-xs"
+                autoComplete="off"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                The close runs as the sub-account itself, so it needs that account's own
+                credentials. Used for this run only and never stored.
+              </p>
+            </div>
+
+
+            <div className="space-y-1">
               <p className="text-[11px] text-muted-foreground">
                 Type <span className="font-mono">{expectedConfirm}</span> to confirm.
               </p>
