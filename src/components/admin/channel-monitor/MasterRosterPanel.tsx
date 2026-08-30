@@ -900,6 +900,24 @@ export function MasterRosterPanel() {
                           Generate key
                         </Button>
                       ) : null}
+                      {ownerId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 gap-1 text-[10px]"
+                          disabled={generating || closing || rematching}
+                          onClick={() => {
+                            setCaptureAccess("");
+                            setCaptureSecret("");
+                            setCaptureLabel("");
+                            setCaptureOwner(ownerId);
+                          }}
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          {needsKey ? "Capture keys" : "Replace keys"}
+                        </Button>
+                      ) : null}
                       <span className="font-mono text-[10px] text-muted-foreground">
                         Sub-account: {ownerId || "—"}
                       </span>
