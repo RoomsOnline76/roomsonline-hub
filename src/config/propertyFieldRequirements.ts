@@ -618,7 +618,14 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     section: "rooms",
     target: ['[data-field="room_description"]'],
     hint: "Open the named unit and add at least 700 characters of original description.",
-    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.description),
+    isSatisfied: (s) => {
+      const rooms = roomRows(s);
+      if (rooms.length === 0) return false;
+      // The channel push sends unit description || property description — a complete
+      // property description must not leave every unit blocked for a blank unit field.
+      if (str(s.description).length >= 700) return true;
+      return rooms.every(UNIT_ROW_RULES.description);
+    },
   },
   {
     key: "room_floors",

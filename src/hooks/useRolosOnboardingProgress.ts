@@ -506,9 +506,11 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     ) => map.set(key, { key, label, ok, ...extra });
 
     /**
-     * When the live publish probe is unavailable we no longer report the check as
-     * "still open" — the wizard judges it locally from the ROL'OS record it already
-     * has, so authored content is shown as satisfied instead of a dead-end blocker.
+     * Ready-to-sell groups are decided from the ROL'OS record. A dry-run that
+     * missed amenities.room_types (bedrooms / beds / amenities still authored in
+     * the Rooms tab) must not hold the wizard open. The local fallback is the
+     * authority whenever one is provided; the live publish group is only used
+     * when there is nothing local to judge.
      */
     const groupCheck = (
       key: DistributionCheckKey,
@@ -516,16 +518,13 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
       name: string,
       fallback?: () => { ok: boolean; detail: string },
     ) => {
+      const local = fallback?.();
+      if (local) {
+        put(key, label, local.ok, { detail: local.detail, unknown: false });
+        return;
+      }
       const g = group(name);
       if (!g) {
-        const local = fallback?.();
-        if (local) {
-          put(key, label, local.ok, {
-            detail: `${local.detail} (checked in ROL'OS — live publish check unavailable)`,
-            unknown: !local.ok,
-          });
-          return;
-        }
         put(key, label, false, { unknown: true, detail: "Not yet resolvable — publish checks unavailable." });
         return;
       }
@@ -682,17 +681,28 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
     // shortfall (for example a single sofa bed counted as one place) surfaces here
     // instead of only failing certification in Phase 2.
     groupCheck("rooms_beds", "Room composition, beds & occupancy", "Rooms & beds", () => {
-      const rows = ((d?.units ?? []) as {
+      const canonical = (((prop.amenities as { room_types?: unknown } | null)?.room_types) ?? []) as Array<{
+        name?: string | null;
+        is_active?: boolean | null;
+        maxPeople?: number | null;
+        max_guests?: number | null;
+        bedConfiguration?: unknown;
+        bed_configuration?: unknown;
+      }>;
+      const stored = ((d?.units ?? []) as {
         name?: string | null;
         is_active?: boolean | null;
         max_guests?: number | null;
         bed_configuration?: unknown;
-      }[]).filter((u) => u.is_active !== false);
+      }[]);
+      const rows = (canonical.length > 0 ? canonical : stored).filter((u) => u.is_active !== false);
       const short = rows
         .map((u) => ({
           name: String(u.name ?? "Unit"),
-          guests: Number(u.max_guests ?? 0),
-          capacity: calculateBedCapacity(u.bed_configuration as never),
+          guests: Number(("maxPeople" in u ? u.maxPeople : undefined) ?? u.max_guests ?? 0),
+          capacity: calculateBedCapacity(
+            (("bedConfiguration" in u ? u.bedConfiguration : undefined) ?? u.bed_configuration) as never,
+          ),
         }))
         .filter((u) => u.guests > 0 && u.capacity < u.guests);
       if (rows.length === 0) {
@@ -709,7 +719,19 @@ export function useRolosOnboardingProgress(propertyId?: string | null) {
                 .join(", ")}`,
       };
     });
-    groupCheck("photos", "Photo count, size, main image & tags", "Photos");
+    groupCheck("photos", "Photo count, size, main image & tags", "Photos", () => {
+      const gallery = Array.isArray(prop.images) ? prop.images.length : 0;
+      const roomPhotos = ((((prop.amenities as { room_types?: Array<{ images?: unknown }> } | null)
+        ?.room_types) ?? []) as Array<{ images?: unknown }>).reduce(
+        (sum, room) => sum + (Array.isArray(room.images) ? room.images.length : 0),
+        0,
+      );
+      const count = gallery + roomPhotos;
+      return {
+        ok: count >= 10,
+        detail: count >= 10 ? `${count} photos captured` : `${count} of 10 photos captured`,
+      };
+    });
     groupCheck("policies_payments", "Policies & payment methods", "Policies & payments");
     groupCheck("pricing_365", "Pricing coverage — rolling 365 days", "Pricing 365d");
     groupCheck("availability_365", "Availability coverage — rolling 365 days", "Availability 365d");
