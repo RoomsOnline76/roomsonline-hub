@@ -92,7 +92,12 @@ export function SterilizePropertyPanel() {
   const run = useMutation({
     mutationFn: async (dryRun: boolean): Promise<SterilizeResult> => {
       if (!selected) throw new Error("Pick a property first.");
-      const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      /**
+       * The preview is an authenticated call: a stale token made the console answer with a
+       * bare "Edge function error". Renew the session first and, when the function still
+       * refuses, read the refusal body so the real reason is shown instead of the transport.
+       */
+      const { data, error } = await invokeWithSession("ru-cert-portal", {
         body: {
           action: "sterilize_property",
           property_id: selected.id,
@@ -100,12 +105,22 @@ export function SterilizePropertyPanel() {
           dry_run: dryRun,
         },
       });
-      if (error) throw error;
-      return (data ?? {}) as SterilizeResult;
+      const payload = (data ?? null) as SterilizeResult | null;
+      if (error) {
+        const ctx = (error as { context?: Response }).context;
+        let body: SterilizeResult | null = payload;
+        if (!body && ctx && typeof ctx.json === "function") {
+          try { body = (await ctx.clone().json()) as SterilizeResult; } catch { /* non-JSON refusal */ }
+        }
+        if (body) return body;
+        throw error;
+      }
+      return (payload ?? {}) as SterilizeResult;
     },
     onSuccess: (data, dryRun) => {
       if (dryRun) {
         setPreview(data);
+        if (data.success === false) toast.error(errorText(data) ?? "The preview could not be built.");
         return;
       }
       setResult(data);
