@@ -1310,20 +1310,6 @@ export function ChannelOnboardTab({
                 )}
               </div>
             )}
-            {propertyId && !accountProvisioned && (
-              <Button
-                size="sm"
-                onClick={() => void runStep("a")}
-                disabled={stepDisabled.a}
-              >
-                {runningStep === "a" ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                {gate.stepAStatus === "blocked" ? "Retry Step A" : "Create Account"}
-              </Button>
-            )}
             {propertyId && !accountProvisioned && !boundLogin && (
               <Button
                 variant="outline"
@@ -1335,8 +1321,8 @@ export function ChannelOnboardTab({
                 }}
                 disabled={runningStep === "a"}
               >
-                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                Add sub-account
+                <Mail className="mr-1.5 h-3.5 w-3.5" />
+                Specify Account Email
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => void gate.refresh()} disabled={!propertyId || gate.loading}>
