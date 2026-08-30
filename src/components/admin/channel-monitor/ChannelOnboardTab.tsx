@@ -1198,13 +1198,24 @@ export function ChannelOnboardTab({
               )}
               {/* Step A has no run button: it starts when the account modal is accepted. */}
               {step === "b" && (
-                <Button size="sm" onClick={() => void runStep(step)} disabled={stepDisabled[step]}>
+                <Button
+                  size="sm"
+                  // Re-run on a settled step is a FULL re-run: no delta compare, every unit's
+                  // content + availability + prices re-sent, and the channel read back.
+                  onClick={() => void runStep(step, { fullRerun: status === "passed" })}
+                  disabled={stepDisabled[step]}
+                  title={
+                    status === "passed"
+                      ? "Full re-run: re-publish all content, availability and pricing, then read the channel back"
+                      : undefined
+                  }
+                >
                   {runningStep === step ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  {status === "passed" ? "Re-run" : meta.cta}
+                  {status === "passed" ? "Full re-run" : meta.cta}
                 </Button>
               )}
 
