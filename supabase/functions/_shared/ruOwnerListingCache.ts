@@ -108,3 +108,17 @@ export async function writeRuOwnerListingCache(
   }
   return fetchedAt;
 }
+/**
+ * Forget an owner's cached listings — used when the account is closed at the channel, so no
+ * later reconciliation or readiness screen can resurrect it from our own cache.
+ */
+export async function dropRuOwnerListingCache(admin: Db, ownerId: string | number): Promise<void> {
+  const normalizedOwnerId = String(ownerId ?? "").trim();
+  if (!normalizedOwnerId) return;
+  try {
+    const { error } = await admin.from("ru_owner_listing_cache").delete().eq("owner_id", normalizedOwnerId);
+    if (error) console.warn(`[ruOwnerListingCache] cache purge failed for OwnerID ${normalizedOwnerId}: ${error.message}`);
+  } catch (e) {
+    console.warn(`[ruOwnerListingCache] cache purge threw for OwnerID ${normalizedOwnerId}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}

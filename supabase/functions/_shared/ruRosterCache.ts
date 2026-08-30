@@ -270,3 +270,28 @@ export function invalidateRuRosterMemo(): void {
   retryNotBefore = 0;
 }
 
+
+/**
+ * Drop one sub-account from the cached roster.
+ *
+ * A closed account keeps living in the cached roster for the whole TTL, so every surface that
+ * reads the roster (reconciliation, the Advanced roster panel, coverage counters) keeps asking
+ * the channel about an account that no longer exists. The close run calls this so the account
+ * disappears from our own library the moment the channel confirms the close.
+ */
+export async function forgetRuRosterUser(admin: Db, ownerId: string | number): Promise<void> {
+  const target = String(ownerId ?? "").trim();
+  if (!target) return;
+  try {
+    const cached = await readCacheRow(admin);
+    if (cached) {
+      const kept = cached.users.filter((u) => String(u.owner_id ?? "").trim() !== target);
+      if (kept.length !== cached.users.length) {
+        await writeCacheRow(admin, kept, "close-account-purge");
+      }
+    }
+  } catch (e) {
+    console.warn(`[ruRosterCache] could not purge OwnerID ${target} from the cached roster: ${(e as Error)?.message}`);
+  }
+  invalidateRuRosterMemo();
+}

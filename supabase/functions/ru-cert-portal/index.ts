@@ -10,7 +10,8 @@
 //   compliance       → refresh cadence panel data (from ru_sync_runs)
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
-import { readRuRoster, invalidateRuRosterMemo, mergeRuRosterUser } from "../_shared/ruRosterCache.ts";
+import { readRuRoster, invalidateRuRosterMemo, mergeRuRosterUser, forgetRuRosterUser } from "../_shared/ruRosterCache.ts";
+import { dropRuOwnerListingCache } from "../_shared/ruOwnerListingCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
@@ -5222,11 +5223,28 @@ Deno.serve(async (req) => {
         }
         steps.push({ step: "verify", ok: confirmed, message: verifyMessage });
 
-        // The close kills every key the account held, so our stored copy is dead weight.
+        /**
+         * A confirmed close must also erase the account from OUR library, or every cache-backed
+         * surface keeps asking the channel about an account that no longer exists: the cached
+         * roster kept it for the whole TTL, the cached listing answer kept its listings, and any
+         * parked call stayed queued to be replayed against a dead login.
+         */
         if (confirmed) {
           await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
             .then(() => {}, (e) => console.warn("[ru-cert-portal] close key row delete failed", e));
+          await admin.from("ru_owner_accounts").delete().eq("ru_owner_id", ownerId)
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close binding row delete failed", e));
+          await admin.from("ru_call_queue")
+            .update({ status: "cancelled", completed_at: new Date().toISOString(), last_error: `Sub-account ${ownerId} was closed at the channel` })
+            .eq("ru_owner_id", ownerId)
+            .in("status", ["pending", "deferred", "claimed", "queued", "retry", "running", "parked"])
+            .neq("action", "ru_close_account")
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close queue purge failed", e));
+          await dropRuOwnerListingCache(admin, ownerId);
+          await forgetRuRosterUser(admin, ownerId);
+          steps.push({ step: "purge_library", ok: true, message: "Removed from the local account library, cached roster, cached listings and the call queue" });
         }
+
 
         await releaseLock(true, confirmed ? "closed and confirmed" : "closed, roster confirmation pending");
         return {
