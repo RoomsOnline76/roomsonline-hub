@@ -5225,10 +5225,9 @@ Deno.serve(async (req) => {
       // No Push_PutBuilding_RQ is issued here, so repeat pushes and cron refreshes can never
       // create duplicate building containers in the white-label portal.
       if (!useBuilding) {
-        // Optional filter: only_unit_ids restricts the push to specific room_type ids
-        const requestedUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
-          ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
-          : activeRoomTypes;
+        // Optional filter: only_unit_ids restricts the push to specific units (channel unit id
+        // or ROL'OS room type id).
+        const requestedUnits = resolveScopedRoomTypes(only_unit_ids, 'standalone units');
 
         // Resumable chunking: each unit costs a content push plus availability/price pushes and
         // both read-backs, so a large property never fits in one invocation's budget — the last
