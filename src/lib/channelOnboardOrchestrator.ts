@@ -442,8 +442,18 @@ export async function gradeReadyToSell(propertyId: string): Promise<{
 
 async function recordStep(
   propertyId: string,
-  stepKey: "monitor_step_a" | "monitor_step_b" | "ready_to_connect",
+  stepKey:
+    | "monitor_step_a"
+    | "monitor_step_b"
+    | "ready_to_connect"
+    // Channel-side steps proved by a completed Step B push — stamped so the
+    // onboarding ledger stops reading the property as mid-onboarding.
+    | "publish"
+    | "currency"
+    | "entitlement"
+    | "connect",
   status: "passed" | "blocked" | "pending",
+
   summary: string,
   details?: Record<string, unknown>,
 ): Promise<void> {
