@@ -34,6 +34,7 @@ interface SterilizeResult {
   archived_listings?: string[];
   orphaned_listings?: { ru_property_id: string; ru_owner_id: string | null; message: string }[];
   listings_kept?: string[];
+  account_closes?: { ru_owner_id: string; status: string; code: string; confirmed: boolean; message: string }[];
   cancelled_queued_calls?: number;
   gates_reset?: number;
   cleared?: string[];
