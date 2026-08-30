@@ -94,6 +94,13 @@ interface RunContext {
   confirmedOwnerName?: string | null;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
+  /**
+   * Operator asked for a FULL re-run of the step (the "Re-run" button on a passed step).
+   * Nothing may be short-circuited: the content/ARI push re-sends the whole set for every
+   * unit and the verification tasks read the channel back instead of trusting this run's
+   * own write receipts.
+   */
+  fullRerun?: boolean;
   onTask?: (
     id: ChannelOnboardTaskId,
     state: "running" | TaskOutcome,
