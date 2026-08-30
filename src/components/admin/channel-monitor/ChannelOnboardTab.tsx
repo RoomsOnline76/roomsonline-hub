@@ -1096,6 +1096,7 @@ export function ChannelOnboardTab({
             ?.tasks ?? []);
 
     const stepWaiting = waiting[step];
+    const stepFailed = failedStep[step];
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
      * A passed step is settled work: it collapses to its one-line verdict until the
