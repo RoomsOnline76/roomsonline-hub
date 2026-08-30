@@ -324,7 +324,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                 Request · {selected.action}
               </p>
               <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-3 text-[11px] leading-relaxed">
-                {selected.request_xml ?? "No request payload retained."}
+                {selected.request_xml ?? payloadPlaceholder(selected, "request")}
               </pre>
             </div>
             <div className="space-y-1">
