@@ -321,6 +321,16 @@ export function ChannelOnboardTab({
   const [stepARemedyCode, setStepARemedyCode] = useState<string | null>(null);
   /** Last stop code per task, so a refused task can show its own remedy card inline. */
   const [taskCodes, setTaskCodes] = useState<Record<string, string | null>>({});
+  /**
+   * A step that stopped on a hard failure (not a rate-window wait, not a login
+   * conflict) keeps its resume point and reason here so the operator can pick it
+   * up again with one click instead of re-issuing the whole run.
+   */
+  const [failedStep, setFailedStep] = useState<
+    Partial<Record<ChannelOnboardStep, { resumeFromTaskId: ChannelOnboardTaskId | null; summary: string }>>
+  >({});
+  /** The last task a run stopped on — the resume point when the run throws instead of returning. */
+  const lastStopTaskRef = useRef<Partial<Record<ChannelOnboardStep, ChannelOnboardTaskId>>>({});
 
 
   const [rebindEmail, setRebindEmail] = useState("");
