@@ -1,2 +1,3 @@
 - [RU Inline AdditionalFees](mem://features/pms/ru-inline-additional-fees) — Fees ride in Push_PutProperty_RQ AdditionalFees; no separate verb; discriminator/fee-type vocabularies; CleaningPrice 0 transition
 - [Channel Unit Scope Id Tolerance](mem://features/pms/channel-unit-scope-id-tolerance) — only_unit_ids accepts ROL'OS room type ids and channel unit ids; an unmatched scope falls back to all units, never RU_NOT_LISTED
+- [Season Change Delta Push](mem://features/pms/season-change-delta-push) — season edits are a rates delta; shared-season mirror refresh on save before the push, sibling deltas
