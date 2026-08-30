@@ -830,6 +830,8 @@ export function ChannelOnboardTab({
         const result = await runOnboardStep(step, {
           propertyId,
           startAtTaskId: resumeFrom,
+          // A full re-run never resumes: it replays the whole chain with forced ARI + read-back.
+          fullRerun: options?.fullRerun === true && !resumeFrom,
           // Only send an explicit operator override. If nothing was chosen in the
           // modal, the backend must resolve from the live property/portfolio rows so
           // a just-reassigned owner email cannot be overwritten by a stale preview.
