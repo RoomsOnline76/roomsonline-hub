@@ -305,6 +305,15 @@ export function ChannelOnboardTab({
     { email: string; message: string; candidates: LoginCandidate[] } | null
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+  /**
+   * True once the operator has manually specified or cleared the login email —
+   * the auto-resolved plan email must never override a deliberate choice.
+   */
+  const emailTouchedRef = useRef(false);
+  const setChosenLoginEmailManual = useCallback((email: string) => {
+    emailTouchedRef.current = true;
+    setChosenLoginEmail(email);
+  }, []);
   /** Optional manual sub-account email entry (before any account exists). */
   const [manualEmailOpen, setManualEmailOpen] = useState(false);
   const [manualEmail, setManualEmail] = useState("");
@@ -673,6 +682,7 @@ export function ChannelOnboardTab({
     setAccountDialogOpen(false);
     setEmailConflict(null);
     setChosenLoginEmail("");
+    emailTouchedRef.current = false;
     setStepARemedyCode(null);
   }, [propertyId]);
 
@@ -1012,6 +1022,31 @@ export function ChannelOnboardTab({
   const boundOwnerId = (gate.snapshot?.binding?.ru_owner_id ?? "").trim() || null;
   const accountProvisioned = Boolean(boundOwnerId) && gate.stepAStatus === "passed";
 
+  /**
+   * A property with no bound account still has a planned login email (owner email,
+   * else the slug login). Resolve it up front so "Will use" shows it and the button
+   * flips to Create Account — the operator only opens the email dialog to override.
+   * A manual choice or clear always wins over the auto-fill.
+   */
+  useEffect(() => {
+    if (!propertyId || boundLogin || emailTouchedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resolved = await planOwnerAccount(propertyId);
+        if (cancelled || emailTouchedRef.current) return;
+        setPlan(resolved);
+        const email = String(resolved?.login_email ?? "").trim();
+        if (email) setChosenLoginEmail((prev) => prev || email);
+      } catch {
+        // Planner errors surface when a step actually runs; stay silent here.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, boundLogin]);
+
 
 
 
@@ -1303,7 +1338,7 @@ export function ChannelOnboardTab({
                       type="button"
                       aria-label="Clear manual sub-account email"
                       className="text-muted-foreground hover:text-foreground"
-                      onClick={() => setChosenLoginEmail("")}
+                      onClick={() => setChosenLoginEmailManual("")}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1409,7 +1444,7 @@ export function ChannelOnboardTab({
                   setManualEmailError("The channel limits emails to 50 characters.");
                   return;
                 }
-                setChosenLoginEmail(email);
+                setChosenLoginEmailManual(email);
                 setManualEmailOpen(false);
               }}
             >
@@ -1509,7 +1544,7 @@ export function ChannelOnboardTab({
           stepADisabled={stepDisabled.a}
           emailConflict={emailConflict}
           chosenLoginEmail={chosenLoginEmail}
-          onChosenLoginEmailChange={setChosenLoginEmail}
+          onChosenLoginEmailChange={setChosenLoginEmailManual}
           remedyCode={stepARemedyCode}
           onRunStepA={() => {
             // Accepting hands over to the Step A card: close here, then run.
