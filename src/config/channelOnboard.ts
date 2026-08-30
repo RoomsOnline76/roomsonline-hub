@@ -41,15 +41,11 @@ export const CHANNEL_ONBOARD_TASKS: ChannelOnboardTask[] = [
   {
     id: "api_keys",
     step: "a",
-    title: "Account credentials",
-    detail: "Pauses for the account's manually created key pair to be captured; skipped when a pair already exists. Keys are never auto-generated.",
+    title: "Capture & verify account credentials",
+    detail:
+      "Opens the capture window for the key pair created in the channel portal, then signs in with it so every later write is correctly scoped. Keys are never auto-generated.",
   },
-  {
-    id: "verify_keys",
-    step: "a",
-    title: "Verify credentials",
-    detail: "Signs in with the account's own credentials so every later write is correctly scoped.",
-  },
+
   {
     id: "company_profile",
     step: "a",
