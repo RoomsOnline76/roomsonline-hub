@@ -318,22 +318,13 @@ Deno.serve(async (req) => {
     let localCleared = false;
 
     if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
-      const localPatch: Record<string, unknown> = {
-        ru_owner_id: null,
-        ru_user_id: null,
-        ru_login_email: null,
-        ru_login_url: null,
-        ru_login_password_enc: null,
-        ru_api_access_key: null,
-        ru_api_secret_enc: null,
-        ru_api_key_label: null,
-        ru_api_keys_verified_at: null,
-        company_details_sent: false,
-        company_filled_at: null,
-        company_details_status: "pending",
-        company_payload: null,
-      };
-      const { error: upErr } = await admin.from("ru_owner_accounts").update(localPatch).eq("id", account.id);
+      /**
+       * The row is removed, not blanked. A blanked row survived as a "shell" that every
+       * binding read still reported as the property's distribution account — so a closed
+       * account kept showing as bound (with its old login) and blocked a fresh connection.
+       */
+      const { error: upErr } = await admin.from("ru_owner_accounts").delete().eq("id", account.id);
+
       if (upErr) {
         return json({
           success: false,
