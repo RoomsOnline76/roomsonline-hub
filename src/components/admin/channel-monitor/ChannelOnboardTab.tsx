@@ -1182,6 +1182,34 @@ export function ChannelOnboardTab({
                 </div>
               )}
 
+              {/* A hard stop keeps its resume point: the operator picks the run up where it stopped. */}
+              {stepFailed && !stepWaiting && runningStep !== step && (
+                <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">
+                      {meta.title} stopped{stepFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
+                    </p>
+                    <p className="leading-snug break-words">{stepFailed.summary}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={runningStep !== null}
+                    onClick={() =>
+                      void runStep(step, { startAtTaskId: stepFailed.resumeFromTaskId })
+                    }
+                  >
+                    {runningStep === step ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {stepFailed.resumeFromTaskId ? "Resume" : "Retry"}
+                  </Button>
+                </div>
+              )}
+
               {/* The account decision lives in the Preview account modal on the picker card. */}
 
 
