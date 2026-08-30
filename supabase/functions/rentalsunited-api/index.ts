@@ -3682,6 +3682,14 @@ Deno.serve(async (req) => {
           console.warn('[rentalsunited-api] 310 recovery could not read the published location:', e instanceof Error ? e.message : String(e));
         }
         locationChangeRefused = { published_location_id: publishedLocationId, reason: status.message ?? 'existing reservations' };
+        // Remember the refusal so the next content delta is a single accepted call instead of
+        // repeating fail → read → re-push forever.
+        await recordListingLocationLock(effectiveRuPropertyId, {
+          property_uuid: typeof body.property_uuid === 'string' ? body.property_uuid : null,
+          published_location_id: publishedLocationId,
+          refused_location_id: Number(p.detailed_location_id) || null,
+          reason: locationChangeRefused.reason,
+        });
         if (publishedLocationId && publishedLocationId !== Number(p.detailed_location_id)) {
           console.warn(
             `[rentalsunited-api] Location change refused on listing ${effectiveRuPropertyId} (status 310) — re-sending the rest of the content with the published LocationID ${publishedLocationId}`,
@@ -3695,6 +3703,7 @@ Deno.serve(async (req) => {
           status = retryStatus.status;
         }
       }
+
 
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
