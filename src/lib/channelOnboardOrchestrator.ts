@@ -979,11 +979,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
-        // First list must not read the channel's copy back (Fix C): ROL'OS authored the rates
-        // and PutPrices already confirmed the write. ListSpecProp remains the single evidence
-        // pull; a routine or onboarding push never adds Pull_ListPropertyPrices_RQ on top of it.
-        verifyReadback: false,
-        ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
+        /**
+         * A routine first list must not read the channel's copy back (Fix C): ROL'OS authored
+         * the rates and PutPrices already confirmed the write. A full re-run is the exception —
+         * the operator asked for proof, so availability and prices are re-sent regardless of
+         * their payload hashes and both calendars are read back.
+         */
+        verifyReadback: ctx.fullRerun === true,
+        ...(ctx.fullRerun
+          ? { forceAvailability: true, forcePrices: true, verifyAvailabilityReadback: true }
+          : {}),
+        ...(!ctx.fullRerun && scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });
     } catch (err) {
