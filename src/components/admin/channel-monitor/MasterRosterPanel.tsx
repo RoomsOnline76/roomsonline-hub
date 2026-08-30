@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AlertTriangle, KeyRound, Loader2, RefreshCw, Trash2, Users, XCircle } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, KeyRound, Loader2, RefreshCw, Trash2, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -43,6 +43,11 @@ interface RosterResult {
   storedKeys: StoredKey[];
   /** Accounts the channel reports as archived/closed — excluded from the list and the counts. */
   archivedExcluded: number;
+  /**
+   * Accounts with no ROLOS binding, no stored key pair and a retired registry entry —
+   * already dead on our side, so they are excluded from the list and the counts too.
+   */
+  retiredUnboundExcluded: number;
   readAt: Date;
 }
 
@@ -152,6 +157,8 @@ const STATE_VARIANT: Record<CloseState, "secondary" | "outline" | "destructive">
  */
 export function MasterRosterPanel() {
   const [result, setResult] = useState<RosterResult | null>(null);
+  /** The whole frame is collapsed until an operator explicitly opens it. */
+  const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [outcomes, setOutcomes] = useState<Record<string, CloseOutcome>>({});
@@ -196,19 +203,35 @@ export function MasterRosterPanel() {
        * closed again, they hold no usable keys, and they inflate every count. Drop them from
        * the list entirely and only report how many were excluded.
        */
-      const users = all.filter((u) => !u.archived);
+      const live = all.filter((u) => !u.archived);
+      const boundIds = new Set(
+        (accounts ?? []).map((a) => String(a.ru_owner_id ?? "").trim()).filter(Boolean),
+      );
+      const retiredIds = new Set(
+        (retiredRows ?? []).map((r) => String(r.ru_owner_id ?? "").trim()).filter(Boolean),
+      );
+      const storedKeys = Array.isArray(keyData?.credentials)
+        ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
+        : [];
+      const keyedIds = new Set(
+        storedKeys.map((k) => String(k.ru_owner_id ?? "").trim()).filter(Boolean),
+      );
+      /**
+       * An account that is unbound, holds no stored key pair and is already retired in ROLOS
+       * is fully dealt with — nothing here can act on it, so it is neither counted nor shown.
+       */
+      const users = live.filter((u) => {
+        const id = String(u.owner_id ?? "").trim();
+        if (!id) return true;
+        return !(retiredIds.has(id) && !boundIds.has(id) && !keyedIds.has(id));
+      });
       return {
         users,
-        archivedExcluded: all.length - users.length,
-        boundIds: new Set(
-          (accounts ?? []).map((a) => String(a.ru_owner_id ?? "").trim()).filter(Boolean),
-        ),
-        retiredIds: new Set(
-          (retiredRows ?? []).map((r) => String(r.ru_owner_id ?? "").trim()).filter(Boolean),
-        ),
-        storedKeys: Array.isArray(keyData?.credentials)
-          ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
-          : [],
+        archivedExcluded: all.length - live.length,
+        retiredUnboundExcluded: live.length - users.length,
+        boundIds,
+        retiredIds,
+        storedKeys,
         readAt: new Date(),
       };
     },
@@ -603,20 +626,36 @@ export function MasterRosterPanel() {
               </Badge>
             ) : null}
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            Live read of every sub-account still open at the channel under our master account, with
-            the ROLOS binding state for each. Accounts already archived or closed at the channel are
-            excluded from this list and its counts. Unbound accounts can be closed at the channel —
-            one at a time, with a pause between each.
-            {result && result.archivedExcluded > 0
-              ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
-              : ""}
-            {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
-          </p>
-
+          {open ? (
+            <p className="text-[11px] text-muted-foreground">
+              Live read of every sub-account still open at the channel under our master account, with
+              the ROLOS binding state for each. Accounts already archived or closed at the channel are
+              excluded from this list and its counts, as are accounts already retired in ROLOS with
+              no binding and no stored key pair. Unbound accounts can be closed at the channel —
+              one at a time, with a pause between each.
+              {result && result.archivedExcluded > 0
+                ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
+                : ""}
+              {result && result.retiredUnboundExcluded > 0
+                ? ` ${result.retiredUnboundExcluded} retired unbound account${result.retiredUnboundExcluded === 1 ? "" : "s"} excluded.`
+                : ""}
+              {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
+            </p>
+          ) : null}
         </div>
         <span className="flex flex-wrap items-center gap-2">
-          {result ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 gap-1.5 text-[11px]"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            {open ? "Collapse" : "Expand"}
+          </Button>
+          {open && result ? (
             rematching ? (
               <Button
                 type="button"
@@ -645,7 +684,7 @@ export function MasterRosterPanel() {
               </Button>
             )
           ) : null}
-          {result && missingKeyIds.length > 0 ? (
+          {open && result && missingKeyIds.length > 0 ? (
             generating ? (
               <Button
                 type="button"
@@ -675,25 +714,27 @@ export function MasterRosterPanel() {
             )
           ) : null}
 
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 gap-1.5 text-[11px]"
-            disabled={read.isPending || closing || rematching}
-            onClick={() => read.mutate()}
-          >
-            {read.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5" />
-            )}
-            {result ? "Re-read master" : "Read master account"}
-          </Button>
+          {open ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 text-[11px]"
+              disabled={read.isPending || closing || rematching}
+              onClick={() => read.mutate()}
+            >
+              {read.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              {result ? "Re-read master" : "Read master account"}
+            </Button>
+          ) : null}
         </span>
       </div>
 
-      {result ? (
+      {open && result ? (
         <div className="mt-2.5 space-y-1.5">
           {result.users.length > 6 && (
             <Input
