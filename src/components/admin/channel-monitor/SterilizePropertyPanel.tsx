@@ -259,6 +259,15 @@ export function SterilizePropertyPanel() {
               Listing {l.ru_property_id} · account {l.ru_owner_id ?? "not recorded"}
             </p>
           ))}
+          {(preview.listings_already_disconnected ?? []).map((l) => (
+            <p key={`d-${l.ru_property_id}`} className="text-muted-foreground">
+              Listing {l.ru_property_id} · skipped — {l.reason}
+            </p>
+          ))}
+          {(preview.steps ?? []).map((s) => (
+            <p key={s.step} className="text-muted-foreground">• {s.message}</p>
+          ))}
+          {errorText(preview) && <p className="text-destructive">{errorText(preview)}</p>}
         </div>
       )}
 
