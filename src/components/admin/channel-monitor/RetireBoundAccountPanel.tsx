@@ -33,6 +33,8 @@ interface RetireResult {
   failed_listings?: { listing_id: string; label: string; message: string }[];
   disconnected_properties?: string[];
   total_listings?: number;
+  account_closed_at_channel?: boolean;
+  account_close?: { status: string; code: string; message: string; confirmed: boolean };
   error?: { code?: string; message?: string } | string;
 }
 
@@ -50,6 +52,8 @@ export function RetireBoundAccountPanel() {
   const [open, setOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [note, setNote] = useState("");
+  /** Held for the run only — the channel close authenticates as the sub-account itself. */
+  const [portalPassword, setPortalPassword] = useState("");
   const [result, setResult] = useState<RetireResult | null>(null);
 
   const { data: accounts, isLoading } = useQuery({
@@ -105,6 +109,7 @@ export function RetireBoundAccountPanel() {
           action: "retire_owner_account",
           ru_owner_id: ownerId,
           reason: note.trim() || undefined,
+          password: portalPassword.trim() || undefined,
           force,
         },
       });
@@ -118,7 +123,7 @@ export function RetireBoundAccountPanel() {
       setResult(res);
       if (res.success) {
         toast.success(
-          `${res.account_label ?? "Account"} retired — ${res.archived_listings?.length ?? 0} listing(s) archived, ${res.disconnected_properties?.length ?? 0} property(ies) disconnected`,
+          `${res.account_label ?? "Account"} retired — ${res.archived_listings?.length ?? 0} listing(s) archived, ${res.disconnected_properties?.length ?? 0} property(ies) disconnected, ${res.account_closed_at_channel ? "account closed at the channel" : "account close not confirmed"}`,
         );
         setOpen(false);
         setSelected("");
@@ -148,9 +153,9 @@ export function RetireBoundAccountPanel() {
         <p className="text-sm font-medium">Retire a bound sub-account</p>
       </div>
       <p className="text-xs text-muted-foreground">
-        Archives the listings at the channel first, then archives the sub-account, then
-        disconnects the property. The property will need a fresh distribution account
-        from Step A before it can be pushed again.
+        Archives the listings at the channel first, then disconnects the property, then closes
+        the sub-account at the channel so its portal login stops working. The property will need
+        a fresh distribution account from Step A before it can be pushed again.
       </p>
 
       {(accounts ?? []).length === 0 ? (
@@ -220,7 +225,7 @@ export function RetireBoundAccountPanel() {
             </li>
             <li className="flex items-start gap-2">
               <StepIcon state={busy ? "running" : result?.success ? "done" : "idle"} />
-              <span>Archive the sub-account so nothing reads, counts or bills it again</span>
+              <span>Record the retirement so nothing reads, counts or bills it again</span>
             </li>
             <li className="flex items-start gap-2">
               <StepIcon state={busy ? "running" : result?.success ? "done" : "idle"} />
@@ -228,6 +233,17 @@ export function RetireBoundAccountPanel() {
                 Disconnect the property and remove the binding
                 {result?.disconnected_properties?.length ? (
                   <span className="text-muted-foreground"> — {result.disconnected_properties.length} property(ies)</span>
+                ) : null}
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <StepIcon
+                state={busy ? "running" : result ? (result.account_closed_at_channel ? "done" : "failed") : "idle"}
+              />
+              <span>
+                Close the account at the channel — the portal login stops working
+                {result?.account_close ? (
+                  <span className="text-muted-foreground"> — {result.account_close.message}</span>
                 ) : null}
               </span>
             </li>
@@ -256,6 +272,18 @@ export function RetireBoundAccountPanel() {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Why this account is being retired"
+              className="h-8 text-xs"
+            />
+            <Label htmlFor="retire-password" className="text-xs">
+              Sub-account portal password (only needed when no key pair is stored)
+            </Label>
+            <Input
+              id="retire-password"
+              type="password"
+              autoComplete="off"
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+              placeholder="Used for this run only, never stored"
               className="h-8 text-xs"
             />
             <Label htmlFor="retire-confirm" className="text-xs">
