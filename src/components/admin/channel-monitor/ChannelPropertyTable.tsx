@@ -55,7 +55,12 @@ export function ChannelPropertyTable({
     return rows.filter((r) => {
       if (stateFilter !== "all" && r.state !== stateFilter) return false;
       if (portfolioFilter !== "all" && r.portfolioName !== portfolioFilter) return false;
-      if (term && !r.name.toLowerCase().includes(term) && !(r.portfolioName || "").toLowerCase().includes(term)) {
+      if (
+        term &&
+        !r.name.toLowerCase().includes(term) &&
+        !(r.portfolioName || "").toLowerCase().includes(term) &&
+        !r.id.toLowerCase().includes(term)
+      ) {
         return false;
       }
       return true;
