@@ -371,18 +371,45 @@ Deno.serve(async (req) => {
             await parkForSweep(last.error ?? null, last.rateDeferred === true, last.resolvedOwnerId ?? null);
           };
 
-          if (refreshed.rateDeferred) {
-            // Nothing to retry fast: the channel has told us to come back after its minute.
-            await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
-          } else {
-            const runLadder = fastLadder().catch((e: unknown) =>
-              console.error('[ru-reservation-handler] Fast retry ladder failed:', e),
-            );
-            // deno-lint-ignore no-explicit-any
-            const runtime = (globalThis as any).EdgeRuntime;
-            if (runtime?.waitUntil) runtime.waitUntil(runLadder);
-            else await runLadder;
-          }
+          // Park first (so nothing is lost if this invocation dies), then keep working in the
+          // background: one retry as soon as the channel's minute has closed. The cron sweep
+          // stays as the safety net, but the booking no longer waits for its next tick.
+          const deferredRetry = async () => {
+            await sleep(RATE_DEFERRED_RETRY_MS);
+            const late = await refreshRuReservationById(supabase, reservationId, {
+              propertyId,
+              logPrefix: '[ru-reservation-handler][post-rate-retry]',
+              forceRequest: kind === 'request',
+              kind,
+              creator: r.creator,
+            });
+            if (late.outcome !== 'failed' && late.outcome !== 'unmatched') {
+              await markResolved('resolved', null, late.resolvedOwnerId ?? null);
+              await trail(
+                'ingested',
+                'post_rate_retry',
+                'Channel notification resolved once the channel rate window closed',
+                late.bookingId ?? null,
+              );
+            }
+          };
+
+          const background = async () => {
+            if (refreshed.rateDeferred) {
+              await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
+              await deferredRetry();
+              return;
+            }
+            await fastLadder();
+          };
+
+          const runBackground = background().catch((e: unknown) =>
+            console.error('[ru-reservation-handler] Background reservation retry failed:', e),
+          );
+          // deno-lint-ignore no-explicit-any
+          const runtime = (globalThis as any).EdgeRuntime;
+          if (runtime?.waitUntil) runtime.waitUntil(runBackground);
+          else await runBackground;
 
 
         } else {
