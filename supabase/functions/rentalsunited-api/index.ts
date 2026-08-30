@@ -188,10 +188,10 @@ interface RUPropertyPayload {
    */
   distances?: RuDistanceEntry[];
   /**
-   * Full fee set for the listing (Charges tab). When present (even empty), a chained
-   * Push_PutPropertyFees_RQ replaces the channel collection right after the content push
-   * succeeds — an empty array retracts all fees. Cleaning rides here, so the legacy
-   * <CleaningPrice> element (Notif 258 "obsolete") is suppressed whenever fees are supplied.
+   * Full fee set for the listing (Charges tab). Emitted inline as <AdditionalFees> after
+   * </Descriptions> in Push_PutProperty_RQ — RU has no separate fees verb, and the collection
+   * replaces the whole set on every push, so an empty array retracts all fees. Cleaning rides
+   * here; the legacy <CleaningPrice> element is then sent as 0 to clear stale values.
    */
   fees?: RuFeeEntry[] | null;
 }
