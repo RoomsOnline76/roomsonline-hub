@@ -10,7 +10,8 @@
 //   compliance       → refresh cadence panel data (from ru_sync_runs)
 //   wl_readiness     → per-property White-Label minimum inventory report
 //   user_management  → status of RU sub-user management (parked)
-import { readRuRoster, invalidateRuRosterMemo, mergeRuRosterUser } from "../_shared/ruRosterCache.ts";
+import { readRuRoster, invalidateRuRosterMemo, mergeRuRosterUser, forgetRuRosterUser } from "../_shared/ruRosterCache.ts";
+import { dropRuOwnerListingCache } from "../_shared/ruOwnerListingCache.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { summarizeReadiness, bookableWindowChecks, localBookableWindowChecks, currencyVerificationChecks, unitsPublishedChecks, classifyChannelWindowEvidence, ruReadAnswered, type RuCheck, type RuUnitInput } from "../_shared/ruReadiness.ts";
 import { computeLocalBookableWindow } from "../_shared/ruLocalWindow.ts";
