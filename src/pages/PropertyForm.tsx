@@ -225,6 +225,7 @@ import { RuPaymentMethodsPicker } from "@/components/property/RuPaymentMethodsPi
 import { RuChannelContentFields } from "@/components/property/RuChannelContentFields";
 
 import { syncPortfolioSeasonDates } from "@/lib/portfolioSeasonSync";
+import { propagateSeasonChange } from "@/lib/seasonChangePush";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import {
   PROPERTY_SECTION_ORDER,
