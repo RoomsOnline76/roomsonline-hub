@@ -3912,11 +3912,23 @@ Deno.serve(async (req) => {
     if (action === 'push_prices') {
       if (!ru_property_id) return errorResponse('MISSING_PARAM', 'ru_property_id is required');
       if (!body.prices || body.prices.length === 0) return errorResponse('MISSING_PARAM', 'prices array is required');
+      // RU rejects any season that starts in the past (Notif StatusID 20 "Past dates"),
+      // which turns the whole call into Status 26. Clamp the window to today: drop
+      // fully-elapsed seasons and trim the DateFrom of the season we are living in.
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const clampedPrices = body.prices
+        .filter((p) => !p.date_to || p.date_to >= todayIso)
+        .map((p) => (p.date_from && p.date_from < todayIso ? { ...p, date_from: todayIso } : p));
+      if (clampedPrices.length === 0) {
+        return jsonResponse({ success: true, skipped: true, message: 'All price seasons are in the past — nothing to push', auth_mode: authMode });
+      }
+      body.prices = clampedPrices;
       for (const p of body.prices) {
         const err = validatePriceEntry(p);
         if (err) return errorResponse('INVALID_PARAM', `Invalid price entry: ${err}`);
       }
       const xml = buildPushPricesXml(scopedCreds, ru_property_id, body.prices);
+
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, partial, status, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) {
