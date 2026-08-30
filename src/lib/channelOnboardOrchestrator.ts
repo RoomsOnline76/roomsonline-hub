@@ -573,10 +573,11 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         ru_owner_id: ownerId || ctx.binding?.ru_owner_id || null,
         login_email: loginEmail || ctx.binding?.login_email || null,
         owner_email: loginEmail || ctx.binding?.owner_email || null,
+        // A stored portal password is NOT a key pair: only a real AccessKey/SecretKey
+        // counts as "keys_stored", so A.2 still pauses for the manual capture.
         keys_stored:
           ctx.keyProvisioning?.source === "minted"
           || ctx.keyProvisioning?.source === "existing"
-          || ctx.keyProvisioning?.source === "password_verified"
           || ctx.binding?.keys_stored === true,
         company_details_sent:
           data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
@@ -632,17 +633,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
-    // The channel no longer mints a brand-new sub-account's first key pair. Its login and
-    // password, proven by a single listings probe, are the credential — the run continues
-    // immediately instead of pausing for a pair that will never arrive automatically.
+    // A verified login/password proves the account exists, but authentication here is dual:
+    // the key/secret pair is still required. Never clear A.2 on a password alone.
     if (provisioning?.source === "password_verified") {
-      ctx.keysProvenInRun = true;
       return {
         id: "api_keys",
-        outcome: "passed",
-        detail: `Sub-account credentials verified${accountLabel ? ` for ${accountLabel}` : ""} — its own login authenticates channel calls until a key pair is pasted${trailText}`,
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}`,
       };
     }
+
 
     if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
@@ -704,12 +705,11 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return { id: "verify_keys", outcome: "failed", detail: "No sub-account is bound yet" };
     }
     // Nothing to verify, and nothing the channel can tell us: refuse without a wire call
-    // rather than authenticating as a child we hold no credential for. A password-verified
-    // account already proved itself in this run, so it never lands here.
+    // rather than authenticating as a child we hold no credential for. A stored portal
+    // password is not a key pair — the pair must be captured first.
     if (
       !binding.keys_stored
       && ctx.keyProvisioning?.source !== "minted"
-      && ctx.keyProvisioning?.source !== "password_verified"
       && !ctx.keysProvenInRun
     ) {
       return {
