@@ -8165,7 +8165,6 @@ Deno.serve(async (req) => {
         let password: string | null = plainPassword ?? (body.ru_login_password as string | undefined) ?? null;
         // True when the password came from us (freshly generated or our encrypted copy):
         // in that case we must never ask the operator for a password we already hold.
-        let passwordIsOurs = Boolean(plainPassword);
         if (!password && account.ru_login_password_enc) {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
@@ -8173,7 +8172,6 @@ Deno.serve(async (req) => {
           password = decrypted && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]"
             ? decrypted as string
             : null;
-          passwordIsOurs = Boolean(password);
         }
         if (password && !account.ru_login_password_enc) {
           // Persist it so later retries/backfills never need the operator again.
@@ -9098,63 +9096,12 @@ Deno.serve(async (req) => {
             keySource = "existing";
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
           } else {
-            /**
-             * §2: no mint. Re-probe the retained CreateUser password with the single
-             * ListOwnerProp pull — Status 0 continues immediately, a rejection is a
-             * typed NEEDS_UI_KEY stop, never a busy-poll or a second mint attempt.
-             */
-            let retainedPassword: string | null = null;
-            if ((existing.account as any)?.ru_login_password_enc) {
-              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
-                encrypted_data: (existing.account as any).ru_login_password_enc,
-              });
-              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-                retainedPassword = decrypted;
-              }
-            }
-            if (retainedPassword && existingLoginEmail) {
-              const probed = await persistChildPasswordAndProbe({
-                ownerId: existingOwnerId,
-                loginEmail: existingLoginEmail,
-                password: retainedPassword,
-              });
-              if (probed.ok) {
-                keySource = "password_verified";
-              } else {
-                keySource = "blocked";
-                keyCode = probed.code ?? "NEEDS_UI_KEY";
-                keyRuStatusId = probed.ruStatusId ?? null;
-                keyRuStatusMessage = probed.ruStatusMessage ?? null;
-                keyWarning = probed.message
-                  ?? `Rentals United rejected the stored password for OwnerID ${existingOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-                return json({
-                  success: false,
-                  error: {
-                    code: keyCode,
-                    ru_status_id: keyRuStatusId,
-                    message: keyWarning,
-                    owner_id: existingOwnerId,
-                    email: existingLoginEmail,
-                  },
-                  account: existing.account,
-                }, 422);
-              }
-            } else {
-              keySource = "blocked";
-              keyCode = "NEEDS_UI_KEY";
-              keyWarning =
-                `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} has no stored password or API key pair. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-              return json({
-                success: false,
-                error: {
-                  code: keyCode,
-                  message: keyWarning,
-                  owner_id: existingOwnerId,
-                  email: existingLoginEmail,
-                },
-                account: existing.account,
-              }, 422);
-            }
+            // A.1 proves/creates identity only. Portal password and XML API keys are dual
+            // credentials; never spend Pull_ListOwnerProp_RQ trying to prove keys with a
+            // password. A.2 owns the sole listing read when the operator submits the pair.
+            keySource = "blocked";
+            keyCode = "RU_MANUAL_KEYS_REQUIRED";
+            keyWarning = `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} is ready. Paste its AccessKey and SecretKey from the channel portal to continue.`;
           }
 
         }
@@ -9563,79 +9510,10 @@ Deno.serve(async (req) => {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
         } else {
-          let childPassword: string | null = adopted ? null : password;
-          if (!childPassword && (saved as any)?.ru_login_password_enc) {
-            const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
-              encrypted_data: (saved as any).ru_login_password_enc,
-            });
-            if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-              childPassword = decrypted;
-            }
-          }
-          // A generated `<slug>@roomsonline.co.za` login was created by us with the platform
-          // password: an adopted account with no stored copy can still probe its own pair.
-          if (!childPassword && isGeneratedDistributionLogin(savedLoginEmail)) {
-            childPassword = RU_SUB_USER_PASSWORD;
-          }
-          // Keep the working password on record so later steps never re-derive it.
-          if (childPassword && !(saved as any)?.ru_login_password_enc && (saved as any)?.id) {
-            const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: childPassword });
-            if (enc) {
-              await admin
-                .from("ru_owner_accounts")
-                .update({ ru_login_password_enc: enc })
-                .eq("id", (saved as any).id);
-            }
-          }
-
-          if (childPassword && savedLoginEmail) {
-            const probed = await persistChildPasswordAndProbe({
-              ownerId: savedOwnerId,
-              loginEmail: savedLoginEmail,
-              password: childPassword,
-            });
-            if (probed.ok) {
-              keySource = "password_verified";
-              keyAttempts.push("child_password: verified via Pull_ListOwnerProp_RQ");
-            } else {
-              keySource = "blocked";
-              keyCode = probed.code ?? "NEEDS_UI_KEY";
-              keyRuStatusId = probed.ruStatusId ?? null;
-              keyRuStatusMessage = probed.ruStatusMessage ?? null;
-              keyAttempts.push(`child_password: rejected — ${probed.code ?? "NEEDS_UI_KEY"}`);
-              keyWarning = probed.message
-                ?? `Rentals United rejected the sub-account password for OwnerID ${savedOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-              return json({
-                success: false,
-                created: !adopted,
-                adopted,
-                error: {
-                  code: keyCode,
-                  ru_status_id: keyRuStatusId,
-                  message: keyWarning,
-                  owner_id: savedOwnerId,
-                  email: savedLoginEmail,
-                },
-                account: saved,
-              }, 422);
-            }
-          } else {
-            keyCode = "NEEDS_UI_KEY";
-            keyAttempts.push("no sub-account password available to probe");
-            keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created but has no usable password to probe. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-            return json({
-              success: false,
-              created: !adopted,
-              adopted,
-              error: {
-                code: keyCode,
-                message: keyWarning,
-                owner_id: savedOwnerId,
-                email: savedLoginEmail,
-              },
-              account: saved,
-            }, 422);
-          }
+          keySource = "blocked";
+          keyCode = "RU_MANUAL_KEYS_REQUIRED";
+          keyAttempts.push("manual key capture required");
+          keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} is ready. Paste its AccessKey and SecretKey from the channel portal to continue.`;
         }
 
       } else {
