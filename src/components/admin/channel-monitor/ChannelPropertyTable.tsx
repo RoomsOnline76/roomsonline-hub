@@ -310,7 +310,7 @@ export function ChannelPropertyTable({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search property or portfolio"
+              placeholder="Search property, portfolio or ID"
               className="h-8 w-56 pl-7 text-xs"
             />
           </div>
