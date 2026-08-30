@@ -999,7 +999,60 @@ export function MasterRosterPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!captureOwner} onOpenChange={(next) => (!next ? setCaptureOwner(null) : undefined)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Capture this sub-account's key pair</DialogTitle>
+            <DialogDescription>
+              Paste the pair issued in the channel portal for{" "}
+              <span className="font-mono">{captureOwner ? accountLabel(captureOwner) : ""}</span>{" "}
+              (sub-account {captureOwner || "—"}). The pair is verified against this sub-account
+              before it is stored, and a pair belonging to another account or already held elsewhere
+              is rejected. The secret is stored encrypted and never shown again.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Input
+              value={captureAccess}
+              onChange={(e) => setCaptureAccess(e.target.value)}
+              placeholder="Access key"
+              className="h-8 font-mono text-xs"
+              autoComplete="off"
+            />
+            <Input
+              value={captureSecret}
+              onChange={(e) => setCaptureSecret(e.target.value)}
+              placeholder="Secret key"
+              type="password"
+              className="h-8 font-mono text-xs"
+              autoComplete="off"
+            />
+            <Input
+              value={captureLabel}
+              onChange={(e) => setCaptureLabel(e.target.value)}
+              placeholder="Label (optional)"
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setCaptureOwner(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={capturing || !captureAccess.trim() || !captureSecret.trim()}
+              onClick={() => void saveCapturedKeys()}
+            >
+              {capturing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Verify &amp; store
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }
 
