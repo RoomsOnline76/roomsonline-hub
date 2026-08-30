@@ -3828,6 +3828,10 @@ Deno.serve(async (req) => {
             ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
             : 'Property pushed successfully',
         location_change_refused: locationChangeRefused,
+        // Set when a remembered refusal made us send the channel's published location up front
+        // (no failed attempt, no read-back, one accepted call).
+        location_lock_applied: locationLockApplied,
+
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
