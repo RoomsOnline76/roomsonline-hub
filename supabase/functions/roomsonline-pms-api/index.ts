@@ -2167,7 +2167,7 @@ async function handleCheckOut(body: any, supabase: any): Promise<Response> {
     });
   }
 
-  await notifyChannelOfLifecycle(supabase, booking_id, "status", "pms_check_out");
+  // No channel call on check-out — see the channel push scope note above.
 
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_out")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
