@@ -5023,13 +5023,12 @@ Deno.serve(async (req) => {
         };
       }
       if (probeData?.success === true && probeData?.owns === true) {
-        await admin
-          .from("ru_api_credentials")
-          .update({ verified_at: new Date().toISOString() })
-          .eq("ru_owner_id", ownerId)
-          .eq("auth_mode", "child_password");
+        // Do NOT stamp verified_at here: that column means "the key pair is proven".
+        // A working login/password only proves the account exists — the AccessKey/
+        // SecretKey pair must still be pasted, so the onboarding gate must stay open.
         return { ok: true, ruStatusId: probeData?.ru_status_id ?? null, ruStatusMessage: probeData?.ru_status_message ?? null };
       }
+
       return {
         ok: false,
         code: "NEEDS_UI_KEY",
