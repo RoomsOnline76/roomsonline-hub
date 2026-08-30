@@ -306,6 +306,8 @@ export function MasterRosterPanel() {
         body: {
           action: "close_unbound_account",
           ru_owner_id: ownerId,
+          login_email: accountLabel(ownerId),
+          password: portalPassword.trim() || null,
           reason: reason.trim() || null,
           cooldown_seconds: cooldownSeconds,
         },
@@ -326,7 +328,9 @@ export function MasterRosterPanel() {
       }
       return { state: "failed", message };
     },
-    [cooldownSeconds, reason],
+    [accountLabel, cooldownSeconds, portalPassword, reason],
+  );
+
   );
 
   const runCloses = useCallback(async () => {
