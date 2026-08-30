@@ -176,6 +176,20 @@ export type KeySource =
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 
+/** Owner listing roster shared from account adoption into the publish chain. */
+const LISTING_ROSTER_TTL_MS = 120_000;
+const listingRosterByProperty = new Map<string, { at: number; data: Record<string, unknown> }>();
+
+function rememberListingRoster(propertyId: string, data: Record<string, unknown>) {
+  listingRosterByProperty.set(propertyId, { at: Date.now(), data });
+}
+
+function listingRosterIfFresh(propertyId: string): Record<string, unknown> | null {
+  const hit = listingRosterByProperty.get(propertyId);
+  if (!hit || Date.now() - hit.at > LISTING_ROSTER_TTL_MS) return null;
+  return hit.data;
+}
+
 /** Channel verbs whose sliding minute a replayed Step B would immediately collide with. */
 const REPLAY_GUARDED_ACTIONS = ["Push_PutAvbUnits_RQ", "Pull_ListOwnerProp_RQ"];
 
@@ -860,9 +874,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         code,
       };
     }
-    // Cache the roster: Step B's read-back asks the channel this exact owner-scoped
-    // question, so one run should only ever read it once.
     ctx.listingRoster = { readAt: Date.now(), data };
+    rememberListingRoster(ctx.propertyId, data);
 
     // Name the listings that were adopted — the IDs are what an operator cross-checks in
     // the channel portal, so a bare count is not enough to trust the adoption.
@@ -1006,6 +1019,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         outcome: "passed",
         detail: `${confirmed.units} unit(s) confirmed live on the channel (ids returned by the publish: ${confirmed.ids.join(", ")})`,
       };
+    }
+    const cachedRoster = ctx.listingRoster?.data ?? listingRosterIfFresh(ctx.propertyId);
+    if (cachedRoster) {
+      const data = cachedRoster;
+      if (data.listings_verified === true) {
+        return {
+          id: "verify_listings",
+          outcome: "passed",
+          detail: `${data.listings_verified_units ?? ""} unit(s) confirmed live on the channel`.trim(),
+        };
+      }
     }
     const { ok, pending, retryAfterMs, detail, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },

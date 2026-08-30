@@ -4081,19 +4081,24 @@ Deno.serve(async (req) => {
       let ownerId = suppliedOwnerId || String(account?.ru_owner_id ?? "").trim();
       const loginEmail = suppliedEmail || account?.ru_login_email || account?.owner_email || null;
       if (!ownerId && loginEmail) {
-        // Push_CreateUser_RS confirms A.1 but does not return OwnerID. Do not pull the
-        // roster immediately after create: Step A pauses at A.2. Resolve the identity
-        // once here, when the operator has supplied the pair needed for A.3.
-        const roster = await listRuSubUsers(admin, {
-          forceFresh: true,
-          source: "step-a-key-owner-resolution",
-        });
         const normalizedLogin = String(loginEmail).trim().toLowerCase();
-        const matched = roster.users.find((candidate) => {
-          const candidateLogin = String(candidate.login_email ?? "").trim().toLowerCase();
-          const candidateEmail = String(candidate.email ?? "").trim().toLowerCase();
-          return candidateLogin === normalizedLogin || candidateEmail === normalizedLogin;
-        });
+        const matchUser = (
+          users: { owner_id?: string; email?: string; login_email?: string; user_account_id?: string }[],
+        ) =>
+          users.find((candidate) => {
+            const candidateLogin = String(candidate.login_email ?? "").trim().toLowerCase();
+            const candidateEmail = String(candidate.email ?? "").trim().toLowerCase();
+            return candidateLogin === normalizedLogin || candidateEmail === normalizedLogin;
+          });
+        let roster = await listRuSubUsers(admin, { source: "step-a-key-owner-resolution" });
+        let matched = matchUser(roster.users);
+        if (!matched) {
+          roster = await listRuSubUsers(admin, {
+            forceFresh: true,
+            source: "step-a-key-owner-resolution",
+          });
+          matched = matchUser(roster.users);
+        }
         ownerId = String(matched?.owner_id ?? "").trim();
         if (ownerId && account?.id) {
           const userAccountId = String(matched?.user_account_id ?? "").trim();
@@ -4261,12 +4266,10 @@ Deno.serve(async (req) => {
       }, { onConflict: "ru_owner_id" });
       if (credErr) return json({ success: false, error: { code: "SAVE_FAILED", message: credErr.message } }, 500);
 
-      // Mirror onto the bound local row (legacy readers) only when it holds this OwnerID.
-      if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
-        // Re-verifying the SAME key pair must not invalidate an accepted company profile —
-        // otherwise Step A looks perpetually stale and re-pushes on every poll.
+      if (account?.id) {
         const keyChanged = String((account as any).ru_api_access_key ?? "").trim() !== accessKey;
         const update: Record<string, unknown> = {
+          ru_owner_id: ownerId,
           ru_api_access_key: accessKey,
           ru_api_secret_enc: enc,
           ru_api_key_label: keyLabel,
