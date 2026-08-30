@@ -313,7 +313,21 @@ export function SterilizePropertyPanel() {
               ))}
             </div>
           )}
+          {(result.account_closes ?? []).length > 0 && (
+            <div className="pt-1 space-y-1">
+              <p className="font-medium">Distribution account closed at the channel</p>
+              {(result.account_closes ?? []).map((c) => (
+                <p
+                  key={c.ru_owner_id}
+                  className={c.confirmed ? "text-muted-foreground" : "text-amber-600"}
+                >
+                  Account {c.ru_owner_id}: {c.confirmed ? "closed and confirmed" : c.message}
+                </p>
+              ))}
+            </div>
+          )}
           {errorText(result) && <p className="text-destructive">{errorText(result)}</p>}
+
         </div>
       )}
 
