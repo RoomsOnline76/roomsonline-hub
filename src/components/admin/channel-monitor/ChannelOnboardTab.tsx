@@ -1209,21 +1209,21 @@ export function ChannelOnboardTab({
               )}
 
               {/* A hard stop keeps its resume point: the operator picks the run up where it stopped. */}
-              {stepFailed && !stepWaiting && runningStep !== step && (
+              {effectiveFailed && !stepWaiting && runningStep !== step && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">
-                      {meta.title} stopped{stepFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
+                      {meta.title} stopped{effectiveFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
                     </p>
-                    <p className="leading-snug break-words">{stepFailed.summary}</p>
+                    <p className="leading-snug break-words">{effectiveFailed.summary}</p>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={runningStep !== null}
                     onClick={() =>
-                      void runStep(step, { startAtTaskId: stepFailed.resumeFromTaskId })
+                      void runStep(step, { startAtTaskId: effectiveFailed.resumeFromTaskId })
                     }
                   >
                     {runningStep === step ? (
@@ -1231,7 +1231,7 @@ export function ChannelOnboardTab({
                     ) : (
                       <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                     )}
-                    {stepFailed.resumeFromTaskId ? "Resume" : "Retry"}
+                    {effectiveFailed.resumeFromTaskId ? "Resume" : "Retry"}
                   </Button>
                 </div>
               )}
