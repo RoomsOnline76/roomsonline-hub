@@ -240,6 +240,60 @@ async function readInvokeErrorBody(err: any): Promise<any | null> {
   }
 }
 
+/**
+ * Listings the channel has already been told to archive, and accounts already closed there.
+ *
+ * Once a listing is archived — or its whole sub-account was closed with `Push_ArchiveUser_RQ` —
+ * it is no longer connected to us, so pushing the identical status again buys nothing: the channel
+ * answers the same success, or refuses it inside the sliding minute (`RU_RATE_DEFERRED`) and the
+ * run burns its window re-archiving history. Archive/sterilize/retire runs therefore skip them.
+ *
+ * `ru_api_log` is the source of truth because it is deliberately retained by sterilization, while
+ * `ru_archive_events` and the local columns are wiped by it.
+ */
+// deno-lint-ignore no-explicit-any
+async function alreadySettledListings(
+  admin: any,
+  listingIds: string[],
+): Promise<{ archivedListings: Set<string>; closedOwners: Set<string> }> {
+  const archivedListings = new Set<string>();
+  const closedOwners = new Set<string>();
+  try {
+    const { data: closed } = await admin
+      .from("ru_retired_accounts")
+      .select("ru_owner_id, channel_archived_at")
+      .not("channel_archived_at", "is", null);
+    for (const r of closed ?? []) {
+      const id = String((r as { ru_owner_id?: unknown }).ru_owner_id ?? "").trim();
+      if (id) closedOwners.add(id);
+    }
+  } catch (e) {
+    console.warn("[ru-cert-portal] closed-account lookup failed", e);
+  }
+  if (listingIds.length === 0) return { archivedListings, closedOwners };
+  try {
+    const { data: rows } = await admin
+      .from("ru_api_log")
+      .select("ru_property_id, request_xml")
+      .eq("action", "Push_SetPropertiesStatus_RQ")
+      .eq("success", true)
+      .in("ru_property_id", listingIds)
+      .limit(20000);
+    for (const r of rows ?? []) {
+      const listing = String((r as { ru_property_id?: unknown }).ru_property_id ?? "").trim();
+      const xml = String((r as { request_xml?: unknown }).request_xml ?? "");
+      // Only an archive counts: a reactivation (IsArchived 0) means the listing is live again.
+      if (listing && /<IsArchived>\s*1\s*<\/IsArchived>/i.test(xml)) archivedListings.add(listing);
+      else if (listing && /<IsArchived>\s*0\s*<\/IsArchived>/i.test(xml)) archivedListings.delete(listing);
+    }
+  } catch (e) {
+    console.warn("[ru-cert-portal] archive-history lookup failed", e);
+  }
+  return { archivedListings, closedOwners };
+}
+
+
+
 
 
 /**
