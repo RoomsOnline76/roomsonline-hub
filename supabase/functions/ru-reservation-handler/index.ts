@@ -369,6 +369,7 @@ Deno.serve(async (req) => {
               if (last.rateDeferred) break;
             }
             await parkForSweep(last.error ?? null, last.rateDeferred === true, last.resolvedOwnerId ?? null);
+            if (last.rateDeferred) await deferredRetry();
           };
 
           // Park first (so nothing is lost if this invocation dies), then keep working in the
