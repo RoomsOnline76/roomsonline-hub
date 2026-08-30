@@ -99,10 +99,14 @@ async function readChannelState(
       | { ruPropertyId?: string | null; dateFrom?: string | null; dateTo?: string | null }
       | null;
     if (!reservation?.ruPropertyId && !reservation?.dateFrom) {
-      const absent = data?.found === false ||
-        isAbsentMessage(typeof data?.raw_xml === 'string' ? data.raw_xml : null);
+      // Only an account-scoped read can prove absence: the master account never sees a
+      // sub-user's reservation, so a master-scoped "does not exist" is not evidence.
+      const scoped = data?.auth_mode && data.auth_mode !== 'master';
+      const absent = !!scoped && (data?.found === false ||
+        isAbsentMessage(typeof data?.raw_xml === 'string' ? data.raw_xml : null));
       return { listing: null, dateFrom: null, dateTo: null, absent };
     }
+
     return {
       listing: reservation.ruPropertyId ? String(reservation.ruPropertyId) : null,
       dateFrom: reservation.dateFrom ? String(reservation.dateFrom).slice(0, 10) : null,
