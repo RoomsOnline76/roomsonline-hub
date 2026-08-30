@@ -1,24 +1,31 @@
-// Charge-driven Rentals United fees collection.
+// Charge-driven Rentals United <AdditionalFees> collection.
 //
-// RU deprecated <CleaningPrice> (Notif 258) and wants every on-top-of-rate amount in the
-// listing's *fees collection*, pushed with Push_PutPropertyFees_RQ. That endpoint replaces
-// the whole collection for the listing, so we always send the complete active set — which
-// also makes removals work. Deposits stay out: they already ride in the mandatory
-// <SecurityDeposit> slot on Push_PutProperty_RQ (see ruDeposits.ts).
+// RU deprecated <CleaningPrice> (Notif 258) and wants every on-top-of-rate amount inside
+// Push_PutProperty_RQ/Property/AdditionalFees — an inline collection on the property push
+// itself (there is NO separate fees verb; Push_PutPropertyFees_RQ does not exist and RU
+// answers "not implemented method"). The collection replaces the listing's whole fee set on
+// every push, so we always send the complete active set — removals retract automatically.
+// Deposits stay out: they ride the mandatory <SecurityDeposit> slot (see ruDeposits.ts).
 //
-// Wire vocabularies (RU PUPS):
-//   ValueTypeID:  1 = Flat amount, 2 = Percent of the stay
-//   ChargeTypeID: 1 = Per night, 2 = Per person per night, 3 = Per stay, 4 = Per person per stay
+// Wire vocabularies (RU PUPS spec, developer.rentalsunited.com):
+//   DiscriminatorID: 1 FlatPerStay · 2 FixedPerDay · 3 IndependentPercentage (fraction of
+//                    stay total, added at the end) · 5 FixedAmountPerPerson ·
+//                    6 FixedAmountPerPersonPerDay
+//   FeeTaxType:      41 Cleaning fee · 34 Resort fee · 33 Service fee · 18 Housekeeping fee ·
+//                    29 Pet fee · 31 Parking fee · 0 unknown
+//   Percentage values are fractions: 0.5% is sent as 0.005.
 
 import { chargeAppliesToUnit, type RuChargeRow } from './ruDeposits.ts';
 
 export interface RuFeeEntry {
   name: string;
+  /** Flat amount in listing currency, or a fraction (0.005 = 0.5%) for percentage fees. */
   value: number;
-  value_type_id: 1 | 2;
-  charge_type_id: 1 | 2 | 3 | 4;
-  included_in_price: boolean;
-  is_mandatory: boolean;
+  discriminator_id: number;
+  fee_tax_type: number;
+  optional: boolean;
+  refundable: boolean;
+  collect_time: 1 | 2;
 }
 
 const DEPOSIT_PATTERN = /deposit|breakage|damage/i;
@@ -28,43 +35,54 @@ function num(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** Map one charge row to an RU fee entry, or null when RU cannot express it. */
+function feeTaxTypeFor(name: string): number {
+  if (/clean/i.test(name)) return 41;
+  if (/resort/i.test(name)) return 34;
+  if (/housekeep/i.test(name)) return 18;
+  if (/service/i.test(name)) return 33;
+  if (/pet/i.test(name)) return 29;
+  if (/park/i.test(name)) return 31;
+  if (/touris/i.test(name)) return 36;
+  return 0; // unknown — valid per the dictionary
+}
+
+/** Map one charge row to an RU additional-fee entry, or null when RU cannot express it. */
 export function mapChargeToRuFee(charge: RuChargeRow): RuFeeEntry | null {
   const name = String(charge.name ?? '').trim();
   if (!name) return null;
   const category = String(charge.category ?? '').toLowerCase();
   if (category === 'deposit' || DEPOSIT_PATTERN.test(name)) return null; // SecurityDeposit slot
-  const value = num(charge.amount);
-  if (value <= 0) return null;
+  const raw = num(charge.amount);
+  if (raw <= 0) return null;
 
   const method = String(charge.calculation_method ?? '').toLowerCase();
-  let valueType: 1 | 2 = 1;
-  let chargeType: 1 | 2 | 3 | 4 = 3;
+  let discriminator = 1; // FlatPerStay
+  let value = raw;
   if (method === 'percentage_of_accommodation' || method === 'percentage' || method === 'percent' || method === 'percentage_of_total') {
-    valueType = 2;
-    chargeType = 3;
+    discriminator = 3; // IndependentPercentage — fraction of stay total
+    value = raw / 100;
   } else if (method === 'per_person_per_night' || method === 'per_guest_per_night') {
-    chargeType = 2;
+    discriminator = 6;
   } else if (method === 'per_person' || method === 'per_guest') {
-    chargeType = 4;
+    discriminator = 5;
   } else if (method === 'per_night' || method === 'per_room_per_night' || method === 'per_room') {
-    chargeType = 1;
+    discriminator = 2; // FixedPerDay
   }
 
   return {
     name,
     value,
-    value_type_id: valueType,
-    charge_type_id: chargeType,
-    included_in_price: charge.is_included_in_rate === true,
-    is_mandatory: true,
+    discriminator_id: discriminator,
+    fee_tax_type: feeTaxTypeFor(name),
+    optional: false,
+    refundable: charge.refundable === true,
+    collect_time: 1,
   };
 }
 
 /**
  * The listing's full fee set from the Charges tab, plus a legacy cleaning fallback when the
- * property carries a cleaning amount with no matching charge row. Deduped by lowercase name —
- * the fees collection is name-keyed on RU's side.
+ * property carries a cleaning amount with no matching charge row. Deduped by lowercase name.
  */
 export function buildRuFeeEntries(
   charges: RuChargeRow[] | null | undefined,
@@ -88,10 +106,11 @@ export function buildRuFeeEntries(
     out.push({
       name: 'Cleaning fee',
       value: legacy,
-      value_type_id: 1,
-      charge_type_id: 3,
-      included_in_price: false,
-      is_mandatory: true,
+      discriminator_id: 1,
+      fee_tax_type: 41,
+      optional: false,
+      refundable: false,
+      collect_time: 1,
     });
   }
   return out;
@@ -106,27 +125,21 @@ function escapeXml(value: string): string {
 }
 
 /**
- * Push_PutPropertyFees_RQ — replaces the listing's entire fee collection.
- * An empty <Fees/> block clears all fees, which is how a deleted charge is retracted.
+ * Inline <AdditionalFees> block for Push_PutProperty_RQ — emitted immediately after
+ * </Descriptions> and before the mandatory trailing <SecurityDeposit> (XSD order validated
+ * against the RU spec sample). An empty <AdditionalFees/> block clears all fees, which is how
+ * a deleted charge is retracted. Returns '' when the caller did not supply a fee set at all
+ * (undefined/null) so legacy callers keep the old payload shape.
  */
-export function buildPushPropertyFeesXml(authXml: string, ruPropertyId: number, fees: RuFeeEntry[]): string {
-  const feesXml = fees
+export function buildAdditionalFeesXml(fees: RuFeeEntry[] | null | undefined): string {
+  if (!Array.isArray(fees)) return '';
+  if (fees.length === 0) return '\n    <AdditionalFees/>';
+  const items = fees
     .map(
-      (f) => `    <Fee>
-      <Name>${escapeXml(f.name)}</Name>
-      <Value>${f.value}</Value>
-      <ValueTypeID>${f.value_type_id}</ValueTypeID>
-      <ChargeTypeID>${f.charge_type_id}</ChargeTypeID>
-      <IncludedInPrice>${f.included_in_price}</IncludedInPrice>
-      <IsMandatory>${f.is_mandatory}</IsMandatory>
-    </Fee>`,
+      (f, i) => `      <AdditionalFee Order="${i + 1}" DiscriminatorID="${f.discriminator_id}" Name="${escapeXml(f.name)}" Optional="${f.optional}" Refundable="${f.refundable}" FeeTaxType="${f.fee_tax_type}" CollectTime="${f.collect_time}">
+        <Value>${f.value}</Value>
+      </AdditionalFee>`,
     )
     .join('\n');
-  return `<Push_PutPropertyFees_RQ>
-  ${authXml}
-  <PropertyID>${ruPropertyId}</PropertyID>
-  <Fees>
-${feesXml}
-  </Fees>
-</Push_PutPropertyFees_RQ>`;
+  return `\n    <AdditionalFees>\n${items}\n    </AdditionalFees>`;
 }
