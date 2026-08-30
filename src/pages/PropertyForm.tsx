@@ -292,6 +292,7 @@ const createPropertySchema = (noStreetAddress: boolean) =>
     check_in_to: z.string().optional(),
     check_out_from: z.string().optional(),
     check_out_to: z.string().optional(),
+    days_before_arrival: z.string().optional(),
     children_policy: z.string().optional(),
     infant_age_from: z.string().optional(),
     infant_age_to: z.string().optional(),
@@ -817,6 +818,7 @@ export default function PropertyForm({
     check_in_to: "20:00",
     check_out_from: "06:00",
     check_out_to: "11:00",
+    days_before_arrival: "0",
     children_policy: "Children are welcome\nChildren up until the age of 12 - Stay free",
     infant_age_from: "1",
     infant_age_to: "2",
@@ -2409,6 +2411,8 @@ export default function PropertyForm({
             check_in_to: houseRules.check_in_to || "20:00",
             check_out_from: houseRules.check_out_from || "06:00",
             check_out_to: houseRules.check_out_to || "11:00",
+            days_before_arrival: String(houseRules.days_before_arrival ?? "0"),
+
             children_policy:
               houseRules.children_policy || "Children are welcome\nChildren up until the age of 12 - Stay free",
             infant_age_from: houseRules.infant_age_from || "1",
@@ -3509,6 +3513,9 @@ export default function PropertyForm({
             check_in_to: formData.check_in_to,
             check_out_from: formData.check_out_from,
             check_out_to: formData.check_out_to,
+            // Channel <DaysBeforeArrival> — how many days ahead the owner should be contacted.
+            days_before_arrival: formData.days_before_arrival,
+
             children_policy: formData.children_policy,
             // Authored in the Policies tab → Arrival policy; preserved verbatim here.
             check_in_instructions: storedArrivalInstructions,
