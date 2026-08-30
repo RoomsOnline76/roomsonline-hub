@@ -204,7 +204,10 @@ export function HouseRulesTab(props: HouseRulesTabProps) {
               <CardHeader className="py-1.5 px-3"><CardTitle className="text-xs flex items-center gap-1.5">
                 <Checkbox id="advance_notice_required" checked={formData.advance_notice_required} onCheckedChange={(c) => setFormData({ ...formData, advance_notice_required: c as boolean })} className="h-3 w-3" />Advance Notice
               </CardTitle></CardHeader>
-              <CardContent className="py-1.5 px-3"><p className="text-[10px] text-muted-foreground">Guests must confirm arrival in advance</p></CardContent>
+              <CardContent className="py-1.5 px-3">
+                <Input value={formData.advance_notice_details ?? ""} onChange={(e) => handleInputChange("advance_notice_details", e.target.value)} className="h-6 text-xs" placeholder="e.g., 48 hours before arrival" disabled={!formData.advance_notice_required} />
+                <p className="text-[10px] text-muted-foreground mt-1">Guests must confirm arrival in advance</p>
+              </CardContent>
             </Card>
           </div>
         </div>
