@@ -3634,6 +3634,43 @@ Deno.serve(async (req) => {
         if (!ok) distancesSkipped = 0;
       }
 
+      /**
+       * Status 310 — "Cannot update property location because there are existing reservations."
+       * RU counts EVERY reservation ever attached to the listing (cancelled and past included),
+       * so an empty ROL'OS/RU calendar does not clear it: the refusal is permanent for that
+       * listing id. The location is only one field of a content delta, so instead of losing the
+       * whole push (descriptions, amenities, images, ARI-relevant fields) we read the location RU
+       * actually holds and re-send once with that value. The listing then accepts everything else
+       * and the caller is told the location move was refused.
+       */
+      let locationChangeRefused: { published_location_id: number | null; reason: string } | null = null;
+      if (!ok && (String(status.id) === '310' || /update property location/i.test(String(status.message ?? '')))) {
+        let publishedLocationId: number | null = null;
+        try {
+          const readXml = await callRentalsUnited(scopedCreds, buildGetPropertyXml(scopedCreds, effectiveRuPropertyId));
+          const readStatus = handleRUStatus(readXml);
+          if (readStatus.ok) {
+            const m = readXml.match(/<DetailedLocationID\b[^>]*>\s*(\d+)\s*</i);
+            publishedLocationId = m ? parseInt(m[1], 10) : null;
+          }
+        } catch (e) {
+          console.warn('[rentalsunited-api] 310 recovery could not read the published location:', e instanceof Error ? e.message : String(e));
+        }
+        locationChangeRefused = { published_location_id: publishedLocationId, reason: status.message ?? 'existing reservations' };
+        if (publishedLocationId && publishedLocationId !== Number(p.detailed_location_id)) {
+          console.warn(
+            `[rentalsunited-api] Location change refused on listing ${effectiveRuPropertyId} (status 310) — re-sending the rest of the content with the published LocationID ${publishedLocationId}`,
+          );
+          const retryPayload = { ...p, detailed_location_id: publishedLocationId };
+          xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, retryPayload);
+          compactRequestXml = compactXml(xml);
+          response = await callRentalsUnited(scopedCreds, xml);
+          const retryStatus = handleRUStatus(response);
+          ok = retryStatus.ok;
+          status = retryStatus.status;
+        }
+      }
+
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
