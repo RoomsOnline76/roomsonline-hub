@@ -440,7 +440,14 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="py-1.5 px-3">
-              <p className="text-xs text-muted-foreground">Guest must notify arrival time</p>
+              <Input
+                value={formData.advance_notice_details ?? ""}
+                onChange={(e) => handleInputChange("advance_notice_details", e.target.value)}
+                className="h-6 text-xs"
+                placeholder="e.g., 48 hours before arrival"
+                disabled={!formData.advance_notice_required}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Guest must notify arrival time</p>
             </CardContent>
           </Card>
 
