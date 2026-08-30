@@ -555,8 +555,10 @@ function preview(value: unknown, max = 4000): string | null {
 
 /**
  * RU requires at least one LocationId when creating a sub-user.
- * Resolve it from: cached pms_mappings geo metadata → live coordinate lookup →
- * ru_locations city/country name match, across the owner's properties.
+ *
+ * Onboarding is deliberately cache-only here. Location authoring/resolution belongs to the
+ * property setup flow; previewing or resuming Step A must never spend (or retry) a channel
+ * location read. A missing local LocationID is therefore one precise readiness blocker.
  */
 async function resolveOwnerLocationIds(
   admin: ReturnType<typeof createClient>,
@@ -580,13 +582,20 @@ async function resolveOwnerLocationIds(
 
   const { data: props } = await admin
     .from("properties")
-    .select("id, city, country, latitude, longitude")
+    .select("id, city, country, ru_location_id")
     .in("id", propertyIds);
 
   const properties = (props ?? []) as Array<{
-    id: string; city: string | null; country: string | null; latitude: number | null; longitude: number | null;
+    id: string; city: string | null; country: string | null; ru_location_id: number | null;
   }>;
   if (properties.length === 0) return [];
+
+  // The property field is the authoritative setup result and costs no channel call.
+  for (const property of properties) {
+    const id = Number(property.ru_location_id);
+    if (Number.isFinite(id) && id > 1) ids.add(id);
+  }
+  if (ids.size > 0) return [...ids];
 
   // 1. Cached geo mapping
   const { data: mappings } = await admin
@@ -602,22 +611,7 @@ async function resolveOwnerLocationIds(
   }
   if (ids.size > 0) return [...ids];
 
-  // 2. Live coordinate lookup via the RU API
-  for (const p of properties) {
-    if (p.latitude == null || p.longitude == null) continue;
-    const { data } = await admin.functions.invoke("rentalsunited-api", {
-      body: { action: "get_location_by_coordinates", metadata: { latitude: p.latitude, longitude: p.longitude } },
-    });
-
-    const id = Number(data?.location_id);
-    if (Number.isFinite(id) && id > 1) {
-      ids.add(id);
-      break;
-    }
-  }
-  if (ids.size > 0) return [...ids];
-
-  // 3. ru_locations cache by city name
+  // Fall back to the locally seeded channel dictionary. Never call get_location_* here.
   for (const p of properties) {
     if (!p.city) continue;
     const { data: loc } = await admin
@@ -631,23 +625,6 @@ async function resolveOwnerLocationIds(
       ids.add(id);
       break;
     }
-  }
-  if (ids.size > 0) return [...ids];
-
-  // 4. Live RU lookup by city / country name (cache is often empty on fresh accounts)
-  for (const p of properties) {
-    for (const name of [p.city, p.country]) {
-      if (!name) continue;
-      const { data } = await admin.functions.invoke("rentalsunited-api", {
-        body: { action: "get_location_by_name", location_name: name },
-      });
-      const id = Number(data?.location_id ?? data?.location?.id);
-      if (Number.isFinite(id) && id > 1) {
-        ids.add(id);
-        break;
-      }
-    }
-    if (ids.size > 0) break;
   }
   return [...ids];
 }
@@ -8097,7 +8074,8 @@ Deno.serve(async (req) => {
       const contactFirstName = contactNameParts[0] || "Property";
       const contactLastName = contactNameParts.slice(1).join(" ") || "Owner";
 
-      // Resolve an RU LocationId for a free-text name (used for CountryId).
+      // Resolve CountryId from the locally seeded dictionary only. Step A must never issue
+      // Pull_GetLocationByName_RQ; property setup owns dictionary refresh and location choice.
       const locationIdByName = async (name: string): Promise<number | null> => {
         if (!name) return null;
         // The cached RU location register first: RU rate-limits repeated
@@ -8112,11 +8090,7 @@ Deno.serve(async (req) => {
         const cached = Number((loc as { id?: number } | null)?.id);
         if (Number.isFinite(cached) && cached > 1) return cached;
 
-        const { data } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "get_location_by_name", location_name: name },
-        });
-        const id = Number((data as any)?.location_id ?? (data as any)?.locations?.[0]?.id);
-        return Number.isFinite(id) && id > 1 ? id : null;
+        return null;
       };
 
 
@@ -8191,7 +8165,6 @@ Deno.serve(async (req) => {
         let password: string | null = plainPassword ?? (body.ru_login_password as string | undefined) ?? null;
         // True when the password came from us (freshly generated or our encrypted copy):
         // in that case we must never ask the operator for a password we already hold.
-        let passwordIsOurs = Boolean(plainPassword);
         if (!password && account.ru_login_password_enc) {
           const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
             encrypted_data: account.ru_login_password_enc,
@@ -8199,7 +8172,6 @@ Deno.serve(async (req) => {
           password = decrypted && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]"
             ? decrypted as string
             : null;
-          passwordIsOurs = Boolean(password);
         }
         if (password && !account.ru_login_password_enc) {
           // Persist it so later retries/backfills never need the operator again.
@@ -8630,42 +8602,26 @@ Deno.serve(async (req) => {
         }
 
 
-        // Retry transient RU/network failures — Phase 1 must not be left half-done.
-        let filled: any = null;
-        let fillErr: any = null;
-        let lastMessage = "";
-        const maxAttempts = hasChildKeys || passwordIsOurs ? 4 : 3;
+        // One task, one channel call. A returned channel status is terminal for this run;
+        // Resume must continue from this task rather than multiplying the same wire request.
         const ownerId = Number(account.ru_owner_id);
         if (!Number.isFinite(ownerId) || ownerId <= 0) {
           return { sent: false, error: "No valid Rentals United OwnerID is bound to this account" };
         }
-        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-          const res = await admin.functions.invoke("rentalsunited-api", {
-            body: {
-              action: "fill_company_details",
-              company,
-              owner_id: ownerId,
-              // Authenticate AS the sub-user so RU writes the details onto the owner's
-              // own profile (RU applies them to whichever account authenticates).
-              ...(hasChildKeys
-                ? { auth_access_key: childAccessKey, auth_secret_key: childSecretKey }
-                : {
-                  auth_username: (account.ru_login_email as string | null) || ownerEmail || null,
-                  auth_password: password || null,
-                }),
-
-            },
-          });
-          filled = res.data;
-          fillErr = res.error;
-          lastMessage = String(
-            (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
-          );
-          if (!fillErr && filled?.success) break;
-          const permanent = /INCOMPLETE|requires these|invalid|credential|password|authenticat/i.test(lastMessage);
-          if (permanent || attempt === maxAttempts) break;
-          await new Promise((r) => setTimeout(r, attempt * 900));
-        }
+        const res = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "fill_company_details",
+            company,
+            owner_id: ownerId,
+            auth_access_key: childAccessKey,
+            auth_secret_key: childSecretKey,
+          },
+        });
+        const filled = res.data;
+        const fillErr = res.error;
+        let lastMessage = String(
+          (filled as any)?.error?.message ?? fillErr?.message ?? "Rentals United rejected the company details",
+        );
         if (/incorrect login or password/i.test(lastMessage)) {
           lastMessage =
             "Rentals United rejected the saved sub-user username/password (Status -4). Push_FillCompanyDetails_RQ requires the sub-user login and has no OwnerID selector. Confirm that the saved login email matches Pull_ListMyUsers_RQ, then save the current RU password and retry.";
@@ -8885,7 +8841,8 @@ Deno.serve(async (req) => {
        */
       if (isPlan) {
         const nameParts = String(ownerName).trim().split(/\s+/);
-        const planUsers = await listRuUsers();
+        // Preview is local-only. Account existence is checked exactly once when Connect runs.
+        const planUsers: RuUser[] = [];
         const boundOwnerId = usableRuId(existing.account?.ru_owner_id);
         const rosterMatch = (boundOwnerId
           ? planUsers.find((u) => usableRuId(u.owner_id) === boundOwnerId) ?? null
@@ -9139,63 +9096,12 @@ Deno.serve(async (req) => {
             keySource = "existing";
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
           } else {
-            /**
-             * §2: no mint. Re-probe the retained CreateUser password with the single
-             * ListOwnerProp pull — Status 0 continues immediately, a rejection is a
-             * typed NEEDS_UI_KEY stop, never a busy-poll or a second mint attempt.
-             */
-            let retainedPassword: string | null = null;
-            if ((existing.account as any)?.ru_login_password_enc) {
-              const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
-                encrypted_data: (existing.account as any).ru_login_password_enc,
-              });
-              if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-                retainedPassword = decrypted;
-              }
-            }
-            if (retainedPassword && existingLoginEmail) {
-              const probed = await persistChildPasswordAndProbe({
-                ownerId: existingOwnerId,
-                loginEmail: existingLoginEmail,
-                password: retainedPassword,
-              });
-              if (probed.ok) {
-                keySource = "password_verified";
-              } else {
-                keySource = "blocked";
-                keyCode = probed.code ?? "NEEDS_UI_KEY";
-                keyRuStatusId = probed.ruStatusId ?? null;
-                keyRuStatusMessage = probed.ruStatusMessage ?? null;
-                keyWarning = probed.message
-                  ?? `Rentals United rejected the stored password for OwnerID ${existingOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-                return json({
-                  success: false,
-                  error: {
-                    code: keyCode,
-                    ru_status_id: keyRuStatusId,
-                    message: keyWarning,
-                    owner_id: existingOwnerId,
-                    email: existingLoginEmail,
-                  },
-                  account: existing.account,
-                }, 422);
-              }
-            } else {
-              keySource = "blocked";
-              keyCode = "NEEDS_UI_KEY";
-              keyWarning =
-                `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} has no stored password or API key pair. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-              return json({
-                success: false,
-                error: {
-                  code: keyCode,
-                  message: keyWarning,
-                  owner_id: existingOwnerId,
-                  email: existingLoginEmail,
-                },
-                account: existing.account,
-              }, 422);
-            }
+            // A.1 proves/creates identity only. Portal password and XML API keys are dual
+            // credentials; never spend Pull_ListOwnerProp_RQ trying to prove keys with a
+            // password. A.2 owns the sole listing read when the operator submits the pair.
+            keySource = "blocked";
+            keyCode = "RU_MANUAL_KEYS_REQUIRED";
+            keyWarning = `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`} is ready. Paste its AccessKey and SecretKey from the channel portal to continue.`;
           }
 
         }
@@ -9333,19 +9239,11 @@ Deno.serve(async (req) => {
         // Step A.0 authority: an operator-submitted login is the ONLY candidate. Slug
         // fallbacks exist purely for the "no email given" path — silently provisioning a
         // different address than the one submitted is never acceptable.
+        // Exactly one create attempt per Connect action. If this address exists outside the
+        // master roster, return the conflict to the operator instead of creating several
+        // fallback accounts in one run.
         const emailCandidates: string[] =
           resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
-        if (!confirmedEmail) {
-          const generatedBase = await generatedLoginBase();
-          // The generated domain is our own company domain, so an address merely sitting on it
-          // is not proof of a generated login — the de-dupe below is what prevents repeats.
-          if (generatedBase) {
-            for (let attempt = 1; attempt <= 4; attempt++) {
-              const generated = generateDistributionLogin(generatedBase, attempt);
-              if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
-            }
-          }
-        }
 
 
         // An address already live as the distribution login for a DIFFERENT property
@@ -9604,79 +9502,10 @@ Deno.serve(async (req) => {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
         } else {
-          let childPassword: string | null = adopted ? null : password;
-          if (!childPassword && (saved as any)?.ru_login_password_enc) {
-            const { data: decrypted } = await admin.rpc("decrypt_sensitive_text", {
-              encrypted_data: (saved as any).ru_login_password_enc,
-            });
-            if (typeof decrypted === "string" && decrypted !== "[ENCRYPTED]" && decrypted !== "[DECRYPTION_ERROR]") {
-              childPassword = decrypted;
-            }
-          }
-          // A generated `<slug>@roomsonline.co.za` login was created by us with the platform
-          // password: an adopted account with no stored copy can still probe its own pair.
-          if (!childPassword && isGeneratedDistributionLogin(savedLoginEmail)) {
-            childPassword = RU_SUB_USER_PASSWORD;
-          }
-          // Keep the working password on record so later steps never re-derive it.
-          if (childPassword && !(saved as any)?.ru_login_password_enc && (saved as any)?.id) {
-            const { data: enc } = await admin.rpc("encrypt_sensitive_text", { plaintext: childPassword });
-            if (enc) {
-              await admin
-                .from("ru_owner_accounts")
-                .update({ ru_login_password_enc: enc })
-                .eq("id", (saved as any).id);
-            }
-          }
-
-          if (childPassword && savedLoginEmail) {
-            const probed = await persistChildPasswordAndProbe({
-              ownerId: savedOwnerId,
-              loginEmail: savedLoginEmail,
-              password: childPassword,
-            });
-            if (probed.ok) {
-              keySource = "password_verified";
-              keyAttempts.push("child_password: verified via Pull_ListOwnerProp_RQ");
-            } else {
-              keySource = "blocked";
-              keyCode = probed.code ?? "NEEDS_UI_KEY";
-              keyRuStatusId = probed.ruStatusId ?? null;
-              keyRuStatusMessage = probed.ruStatusMessage ?? null;
-              keyAttempts.push(`child_password: rejected — ${probed.code ?? "NEEDS_UI_KEY"}`);
-              keyWarning = probed.message
-                ?? `Rentals United rejected the sub-account password for OwnerID ${savedOwnerId}. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-              return json({
-                success: false,
-                created: !adopted,
-                adopted,
-                error: {
-                  code: keyCode,
-                  ru_status_id: keyRuStatusId,
-                  message: keyWarning,
-                  owner_id: savedOwnerId,
-                  email: savedLoginEmail,
-                },
-                account: saved,
-              }, 422);
-            }
-          } else {
-            keyCode = "NEEDS_UI_KEY";
-            keyAttempts.push("no sub-account password available to probe");
-            keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} was created but has no usable password to probe. Log in as this sub-user in the RU portal, generate an XmlApi key and paste it here.`;
-            return json({
-              success: false,
-              created: !adopted,
-              adopted,
-              error: {
-                code: keyCode,
-                message: keyWarning,
-                owner_id: savedOwnerId,
-                email: savedLoginEmail,
-              },
-              account: saved,
-            }, 422);
-          }
+          keySource = "blocked";
+          keyCode = "RU_MANUAL_KEYS_REQUIRED";
+          keyAttempts.push("manual key capture required");
+          keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`} is ready. Paste its AccessKey and SecretKey from the channel portal to continue.`;
         }
 
       } else {
