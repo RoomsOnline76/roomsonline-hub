@@ -633,18 +633,19 @@ export function MasterRosterPanel() {
           {open ? (
             <p className="text-[11px] text-muted-foreground">
               Live read of every sub-account still open at the channel under our master account, with
-              the ROLOS binding state for each. Accounts already archived or closed at the channel are
-              excluded from this list and its counts, as are accounts already retired in ROLOS with
-              no binding and no stored key pair. Unbound accounts can be closed at the channel —
-              one at a time, with a pause between each.
+              the ROLOS binding state for each. Only accounts the channel itself reports as archived
+              or closed are excluded — an account retired in ROLOS that still appears here is still
+              open at the channel, and its portal login still works until it is closed. Unbound
+              accounts can be closed at the channel — one at a time, with a pause between each.
               {result && result.archivedExcluded > 0
                 ? ` ${result.archivedExcluded} archived account${result.archivedExcluded === 1 ? "" : "s"} excluded.`
                 : ""}
-              {result && result.retiredUnboundExcluded > 0
-                ? ` ${result.retiredUnboundExcluded} retired unbound account${result.retiredUnboundExcluded === 1 ? "" : "s"} excluded.`
+              {result && result.retiredStillOpen > 0
+                ? ` ${result.retiredStillOpen} account${result.retiredStillOpen === 1 ? "" : "s"} retired in ROLOS but still open at the channel — close ${result.retiredStillOpen === 1 ? "it" : "them"} here.`
                 : ""}
               {result && ` Read ${result.readAt.toLocaleTimeString()}.`}
             </p>
+
           ) : null}
         </div>
         <span className="flex flex-wrap items-center gap-2">
