@@ -1,0 +1,1 @@
+ALTER TABLE public.ru_api_credentials ALTER COLUMN access_key DROP NOT NULL;

@@ -15087,7 +15087,7 @@ export type Database = {
       }
       ru_api_credentials: {
         Row: {
-          access_key: string
+          access_key: string | null
           auth_mode: string | null
           created_at: string
           id: string
@@ -15103,7 +15103,7 @@ export type Database = {
           verified_at: string | null
         }
         Insert: {
-          access_key: string
+          access_key?: string | null
           auth_mode?: string | null
           created_at?: string
           id?: string
@@ -15119,7 +15119,7 @@ export type Database = {
           verified_at?: string | null
         }
         Update: {
-          access_key?: string
+          access_key?: string | null
           auth_mode?: string | null
           created_at?: string
           id?: string
