@@ -47,6 +47,32 @@ const OUTCOME_LABEL: Record<"ok" | "deferred" | "failed", string> = {
   failed: "failed",
 };
 
+/**
+ * Some ledger rows record a decision, not a wire call: the channel's sliding-minute gate parked the
+ * write ("rate_deferred"), or ROL'OS reopened the stay's nights and queued the acceptance
+ * ("not_attempted"). Those rows legitimately carry no XML, so the pane explains what happened
+ * instead of implying the payload was lost.
+ */
+function payloadPlaceholder(row: RuLiveTrafficRow, side: "request" | "response"): string {
+  const reason = row.error_message?.trim();
+  if (row.transport_status === "not_attempted") {
+    return [
+      `This exchange never left ROL'OS — no ${side} payload exists.`,
+      reason || "The write was queued for the next available channel slot.",
+    ].join("\n\n");
+  }
+  if (row.transport_status === "rate_deferred") {
+    return [
+      `The channel's one-call-per-minute gate held this call back, so there is no ${side} payload.`,
+      reason || "Retry once the sliding minute closes.",
+    ].join("\n\n");
+  }
+  if (side === "response" && row.transport_status === "empty_response") {
+    return reason || "The channel answered with an empty body.";
+  }
+  return `No ${side} payload retained.`;
+}
+
 /** Rows recorded before the key-mint schema-order fix put Scope before Label. */
 function isLegacyShape(row: RuLiveTrafficRow): boolean {
   if (row.action !== "Push_CreateApiKey_RQ") return false;
@@ -55,6 +81,7 @@ function isLegacyShape(row: RuLiveTrafficRow): boolean {
   const labelIndex = xml.indexOf("<Label>");
   return scopeIndex >= 0 && labelIndex >= 0 && scopeIndex < labelIndex;
 }
+
 
 
 function bytes(value: number | null): string {
