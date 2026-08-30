@@ -906,16 +906,29 @@ export function ChannelOnboardTab({
             });
           }
         } else {
+          // A hard stop keeps its resume point: the step card offers Resume / Retry.
+          setFailedStep((prev) => ({
+            ...prev,
+            [step]: {
+              resumeFromTaskId: result.resumeFromTaskId ?? lastStopTaskRef.current[step] ?? null,
+              summary: result.summary || "The step stopped before completing.",
+            },
+          }));
           toast.error("Step did not complete", { description: result.summary, duration: 12000 });
         }
       } catch (err) {
+        const message = err instanceof Error ? err.message : "The step could not be run";
+        setFailedStep((prev) => ({
+          ...prev,
+          [step]: { resumeFromTaskId: lastStopTaskRef.current[step] ?? null, summary: message },
+        }));
         if (err instanceof SessionExpiredError) {
           toast.error("Your session expired", {
             description: "Sign in again, then re-run the step.",
             duration: 12000,
           });
         } else {
-          toast.error(err instanceof Error ? err.message : "The step could not be run");
+          toast.error(message, { duration: 12000 });
         }
       } finally {
         setRunningStep(null);
