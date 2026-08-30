@@ -1544,7 +1544,7 @@ export function ChannelOnboardTab({
           stepADisabled={stepDisabled.a}
           emailConflict={emailConflict}
           chosenLoginEmail={chosenLoginEmail}
-          onChosenLoginEmailChange={setChosenLoginEmail}
+          onChosenLoginEmailChange={setChosenLoginEmailManual}
           remedyCode={stepARemedyCode}
           onRunStepA={() => {
             // Accepting hands over to the Step A card: close here, then run.
