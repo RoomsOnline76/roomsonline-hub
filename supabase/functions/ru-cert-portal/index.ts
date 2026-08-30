@@ -6456,7 +6456,9 @@ Deno.serve(async (req) => {
           account_label: label,
           ru_owner_id: ownerId,
           archived_listings: archivedListings,
+          skipped_listings: skippedListings,
           failed_listings: failedListings,
+
           error: {
             code: "LISTING_ARCHIVE_REFUSED",
             message: `${failedListings.length} listing(s) were not archived at the channel. Retire anyway to continue regardless.`,
