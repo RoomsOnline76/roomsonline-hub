@@ -305,6 +305,15 @@ export function ChannelOnboardTab({
     { email: string; message: string; candidates: LoginCandidate[] } | null
   >(null);
   const [chosenLoginEmail, setChosenLoginEmail] = useState("");
+  /**
+   * True once the operator has manually specified or cleared the login email —
+   * the auto-resolved plan email must never override a deliberate choice.
+   */
+  const emailTouchedRef = useRef(false);
+  const setChosenLoginEmailManual = useCallback((email: string) => {
+    emailTouchedRef.current = true;
+    setChosenLoginEmail(email);
+  }, []);
   /** Optional manual sub-account email entry (before any account exists). */
   const [manualEmailOpen, setManualEmailOpen] = useState(false);
   const [manualEmail, setManualEmail] = useState("");
