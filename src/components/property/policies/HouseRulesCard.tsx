@@ -183,8 +183,23 @@ export const HouseRulesCard: React.FC<HouseRulesCardProps> = ({
               {checkInToIssue && (
                 <p className="text-[10px] text-destructive leading-tight">{checkInToIssue}</p>
               )}
+              <div className="flex items-center gap-1">
+                <Label className="text-xs text-muted-foreground" htmlFor="days_before_arrival">
+                  Contact owner (days before arrival)
+                </Label>
+                <Input
+                  id="days_before_arrival"
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={formData.days_before_arrival ?? "0"}
+                  onChange={(e) => handleInputChange("days_before_arrival", e.target.value)}
+                  className="h-6 text-xs w-16"
+                />
+              </div>
             </CardContent>
           </Card>
+
 
           <Card>
             <CardHeader className="py-1.5 px-3">
