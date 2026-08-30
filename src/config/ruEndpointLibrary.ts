@@ -202,6 +202,9 @@ const ALIAS_TO_ID: Record<string, string> = {
   Push_RemoveProperty_RQ: "Push_SetPropertiesStatus_RQ",
   // Internal orchestration action names logged before the wire verb is known. Cadence for a
   // status flip is on_change: it only fires when a listing is activated, paused or archived.
+  // Fees ride inside Push_PutPrices_RQ (<AdditionalFees>); the channel's certification registry
+  // lists a standalone fees verb, but no such published verb exists on the wire.
+  Push_PutPropertyFees_RQ: "Push_PutPrices_RQ",
   "rentalsunited-api:set_property_status": "Push_SetPropertiesStatus_RQ",
   "rentalsunited-api:delete_property": "Push_SetPropertiesStatus_RQ",
   set_property_status: "Push_SetPropertiesStatus_RQ",
