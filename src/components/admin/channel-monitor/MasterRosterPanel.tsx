@@ -542,6 +542,48 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Manual capture — for sub-accounts whose pair was issued in the channel portal by hand
+   * (mints are refused on some accounts). The backend still proves ownership of the pair
+   * against this OwnerID before storing it, so a wrong or duplicate pair is rejected.
+   */
+  const saveCapturedKeys = useCallback(async () => {
+    const ownerId = captureOwner;
+    if (!ownerId) return;
+    const access = captureAccess.trim();
+    const secret = captureSecret.trim();
+    if (!access || !secret) {
+      toast.error("Both the access key and the secret are required");
+      return;
+    }
+    setCapturing(true);
+    const match = (result?.users ?? []).find((u) => String(u.owner_id ?? "").trim() === ownerId);
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      body: {
+        action: "save_api_keys",
+        ru_owner_id: ownerId,
+        login_email: match ? (match.login_email ?? match.email ?? undefined) : undefined,
+        access_key: access,
+        secret_key: secret,
+        key_label: captureLabel.trim() || "Captured manually",
+      },
+    });
+    setCapturing(false);
+    if (data?.success !== true) {
+      toast.error(data?.error?.message ?? error?.message ?? "The channel did not accept that key pair");
+      return;
+    }
+    toast.success("Key pair verified against this sub-account and stored");
+    setCaptureOwner(null);
+    setCaptureAccess("");
+    setCaptureSecret("");
+    setCaptureLabel("");
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureOwner, captureAccess, captureSecret, captureLabel, result]);
+
+
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/20 p-3">
