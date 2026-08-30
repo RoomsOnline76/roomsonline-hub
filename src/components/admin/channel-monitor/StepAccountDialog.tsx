@@ -310,7 +310,7 @@ export function StepAccountDialog({
       setKeySecret("");
       setKeyNote("Key pair verified and stored. Continuing with the company profile and listings.");
       toast.success("API key pair stored", {
-        description: "Continuing Step A from the company profile.",
+        description: "Credentials verified — continuing onboarding.",
       });
       onKeysVerified();
     } finally {
@@ -330,10 +330,10 @@ export function StepAccountDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <ShieldCheck className="h-4 w-4" />
-            Distribution account — preview Step A
+            Distribution account
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Everything below is what Step A will do. Nothing has been sent to the channel yet.
+            Everything below is what onboarding will do. Nothing has been sent to the channel yet.
           </DialogDescription>
         </DialogHeader>
 
@@ -348,7 +348,7 @@ export function StepAccountDialog({
               <CardDescription className="text-xs">
                 {emailConflict
                   ? "The channel refused the resolved login — choose a usable account email below, then proceed."
-                  : "Confirm the account this property is registered under, then proceed to complete Step A."}
+                  : "Confirm the account this property is registered under, then proceed."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -379,8 +379,8 @@ export function StepAccountDialog({
                       </>
                     ) : (
                       <>
-                        This property is <span className="font-medium">not linked</span> to a distribution account. Step A
-                        will create one under{" "}
+                        This property is <span className="font-medium">not linked</span> to a distribution account.
+                        Onboarding will create one under{" "}
                         <span className="font-medium break-all">{effectiveLogin || "an unresolved email"}</span>.
                       </>
                     )}
@@ -509,7 +509,7 @@ export function StepAccountDialog({
                       {sameEmailReset ? (
                         <p className="text-xs text-muted-foreground">
                           That is the owner email already on file — this will reset the binding (archive listings, clear
-                          the account link) and Step A must be run again.
+                          the account link) and onboarding must be run again.
                         </p>
                       ) : null}
 
@@ -561,12 +561,12 @@ export function StepAccountDialog({
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <KeyRound className="h-4 w-4" />
-                  Step A.2 — API key pair
+                  API key pair
                 </CardTitle>
                 <CardDescription className="text-xs">
                   The sub-account is created. Sign in to the channel portal as{" "}
                   <span className="font-mono">{planLogin || "this sub-account"}</span>, create its API key
-                  pair, then enter both values here. Step A verifies and stores them, then continues.
+                  pair, then enter both values here. They are verified and stored, then onboarding continues.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -621,7 +621,7 @@ export function StepAccountDialog({
                       )}
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Sent automatically by Step A, and only when the channel has not accepted them yet.
+                      Sent automatically during onboarding, and only when the channel has not accepted them yet.
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -653,7 +653,7 @@ export function StepAccountDialog({
                     <>
                       {companyMissing.length > 0 && (
                         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-300">
-                          Missing or placeholder: {companyMissing.join(", ")}. Step A will not send the profile until
+                          Missing or placeholder: {companyMissing.join(", ")}. The company profile will not be sent until
                           these are filled in on the property editor.
                         </p>
                       )}
@@ -682,7 +682,7 @@ export function StepAccountDialog({
           {!((planAccountId || plan?.ru_owner_id) && !planHasKeys) ? (
             <Button disabled={!canRun || runningStepA} onClick={onRunStepA}>
               <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
-              Accept and run Step A
+              Accept and continue
             </Button>
           ) : null}
         </DialogFooter>

@@ -1315,7 +1315,7 @@ export function ChannelOnboardTab({
           <CardDescription className="text-xs">
             Only active, unarchived properties and portfolios with a signed or overridden contract and the Channel Manager add-on activated are listed.
             Portfolios are onboarded once — their member properties inherit the same channel account. Pick one, clear the
-            Ready-to-sell gate, then run Step A and Step B.
+            Ready-to-sell gate, then onboard the property.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1415,7 +1415,7 @@ export function ChannelOnboardTab({
                     ? "Reading the binding…"
                     : boundLogin
                       ? `${boundLogin}${boundOwnerId ? ` · OwnerID ${boundOwnerId}` : " · not created yet"}`
-                      : "Not linked to a sub-account yet — Step A will create one from the property slug."}
+                      : "Not linked to a sub-account yet — onboarding will create one from the property slug."}
                 </p>
                 {!boundLogin && chosenLoginEmail && (
                   <p className="mt-1 flex items-center gap-1.5 text-xs">
@@ -1498,7 +1498,7 @@ export function ChannelOnboardTab({
             <DialogTitle>Specify account email</DialogTitle>
             <DialogDescription>
               Enter the owner email to register as the distribution sub-account. Leave it blank or
-              cancel and Step A will generate one from the property slug instead.
+              cancel and onboarding will generate one from the property slug instead.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
@@ -1575,7 +1575,7 @@ export function ChannelOnboardTab({
                 <div className="flex items-start gap-2 text-xs text-muted-foreground">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                   <span>
-                    Step A and Step B stay locked until the mandatory content, rooms, photos, policies, pricing and
+                    Onboarding stays locked until the mandatory content, rooms, photos, policies, pricing and
                     availability checks pass. Fix them in the property editor, then re-check here.
                   </span>
                 </div>
@@ -1664,7 +1664,7 @@ export function ChannelOnboardTab({
             <AlertDialogDescription>
               {property?.name} will be archived on its current distribution account, unbound, and re-assigned to{" "}
               <span className="font-medium">{rebindEmail.trim()}</span>. If nothing else remains on the old account it is
-              archived too. Step A and Step B will need to run again.
+              archived too. Onboarding will need to run again.
               {binding?.account_scope === "portfolio" && (
                 <span className="mt-2 block text-destructive">
                   This account is shared across the portfolio — every property on it is affected.

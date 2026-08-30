@@ -99,9 +99,9 @@ export const CHANNEL_ONBOARD_STEP_META: Record<
 > = {
   a: {
     key: "monitor_step_a",
-    title: "Step A — Distribution account",
+    title: "Distribution account",
     goal: "One correct distribution account for this owner, with verified credentials and company profile.",
-    cta: "Run Step A",
+    cta: "Continue",
   },
   b: {
     key: "monitor_step_b",
