@@ -307,20 +307,23 @@ export default function AdminChannelMonitor() {
   );
 
   /**
-   * Close the distribution sub-account itself (channel close-account API, child auth) and,
-   * when ticked, sterilise the property so it can be onboarded again from scratch.
-   * Both are opt-in extras on the archive dialog and run only after the archive succeeds.
+   * Archive + sterilize order:
+   *   1. Push_ArchiveUser_RQ at RU (listings gone + account closed, traffic logged)
+   *   2. archive locally
+   *   3. scrub local channel ownership (keys kept, Ready-to-sell untouched)
    */
-  const runArchiveExtras = useCallback(
-    async (row: ChannelPropertyRow, extras: ArchiveExtras) => {
-      if (!extras.closeAccount && !extras.sterilize) return;
-      setBusyId(row.id);
-      try {
-        // Sterilize already archives listings then closes the account. Closing first
-        // would leave listings live on a dead login.
-        if (extras.closeAccount && !extras.sterilize && row.ownerId) {
+  const handleConfirm = useCallback(
+    async (reason: string, extras: ArchiveExtras) => {
+      if (!target) return;
+      const row = target.row;
+      if (target.mode === "archive" && (extras.closeAccount || extras.sterilize) && row.ownerId) {
+        setBusyId(row.id);
+        try {
           const { data: res, error } = await invokeWithSession("ru-close-user", {
-            body: { ru_owner_id: String(row.ownerId) },
+            body: {
+              ru_owner_id: String(row.ownerId),
+              keep_local: extras.sterilize === true,
+            },
           });
           const payload = res as
             | { success?: boolean; message?: string; error?: { message?: string } }
@@ -329,52 +332,50 @@ export default function AdminChannelMonitor() {
             toast.error(
               payload?.error?.message ||
                 error?.message ||
-                "Could not close the distribution account at the channel manager.",
+                "Could not close the distribution account at Rentals United. Local archive was not applied.",
             );
-          } else {
-            toast.success(payload.message || `Distribution account ${row.ownerId} closed`);
+            return;
           }
+          toast.success(payload.message || `Distribution account ${row.ownerId} closed at Rentals United`);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Could not close the distribution account at Rentals United.");
+          return;
+        } finally {
+          setBusyId(null);
         }
+      }
 
-        if (extras.sterilize) {
-          const { data: res, error } = await invokeWithSession("ru-cert-portal", {
-            body: {
-              action: "sterilize_property",
-              property_id: row.id,
-              keep_ru_property_ids: [],
-              dry_run: false,
-            },
-          });
-          const payload = res as
-            | { success?: boolean; gates_reset?: number; error?: { message?: string } | string }
-            | null;
-          const errText =
-            typeof payload?.error === "string" ? payload.error : payload?.error?.message;
-          if (error || !payload?.success) {
-            toast.error(errText || error?.message || "Sterilisation did not complete.");
-          } else {
-            toast.success(`${row.name} sterilised — listings archived, account closed, Ready-to-sell kept`);
-          }
+      const ok = await runPropertyToggle(row, target.mode, reason);
+      if (!ok || target.mode !== "archive" || !extras.sterilize) return;
+
+      setBusyId(row.id);
+      try {
+        const { data: res, error } = await invokeWithSession("ru-cert-portal", {
+          body: {
+            action: "sterilize_property",
+            property_id: row.id,
+            keep_ru_property_ids: [],
+            dry_run: false,
+          },
+        });
+        const payload = res as
+          | { success?: boolean; error?: { message?: string } | string }
+          | null;
+        const errText =
+          typeof payload?.error === "string" ? payload.error : payload?.error?.message;
+        if (error || !payload?.success) {
+          toast.error(errText || error?.message || "Scrub did not complete.");
+        } else {
+          toast.success(`${row.name} scrubbed — Ready-to-sell kept`);
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Teardown failed");
+        toast.error(e instanceof Error ? e.message : "Scrub failed");
       } finally {
         setBusyId(null);
         await data.refresh();
       }
     },
-    [data],
-  );
-
-  // Archiving asks for a reason (it stops selling); activation is a single click.
-  const handleConfirm = useCallback(
-    async (reason: string, extras: ArchiveExtras) => {
-      if (!target) return;
-      const row = target.row;
-      const ok = await runPropertyToggle(row, target.mode, reason);
-      if (ok && target.mode === "archive") await runArchiveExtras(row, extras);
-    },
-    [target, runPropertyToggle, runArchiveExtras],
+    [target, runPropertyToggle, data],
   );
 
 

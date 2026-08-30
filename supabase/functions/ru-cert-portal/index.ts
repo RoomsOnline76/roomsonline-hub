@@ -7712,6 +7712,16 @@ Deno.serve(async (req) => {
       }[] = [];
       const sterilizePassword = typeof body.password === "string" && body.password ? body.password : null;
       for (const owner of staleOwners) {
+        if (settled.closedOwners.has(owner)) {
+          accountCloses.push({
+            ru_owner_id: owner,
+            status: "closed_at_channel",
+            code: "ALREADY_CLOSED",
+            confirmed: true,
+            message: "Already closed at the channel (Push_ArchiveUser_RQ)",
+          });
+          continue;
+        }
         const outcome = await closeAccountAtChannel({
           ownerId: owner,
           password: sterilizePassword,

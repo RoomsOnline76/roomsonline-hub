@@ -90,6 +90,7 @@ Deno.serve(async (req) => {
     const suppliedPassword: string = String(body.password ?? "");
     const suppliedAccessKey: string = String(body.access_key ?? "").trim();
     const suppliedSecretKey: string = String(body.secret_key ?? "").trim();
+    const keepLocal = body.keep_local === true;
 
     if (!accountId && !requestedOwnerId) {
       return json({
@@ -311,13 +312,24 @@ Deno.serve(async (req) => {
       }, 422);
     }
 
-    // Archived sub-users can never authenticate again — drop their stored key pair.
-    await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+    await admin.from("ru_retired_accounts").upsert(
+      {
+        ru_owner_id: ownerId,
+        portal_email: loginEmail || null,
+        reason: "Closed at the channel from Channel Monitor (Push_ArchiveUser_RQ)",
+        retired_by: user.id,
+        channel_archived_at: new Date().toISOString(),
+      },
+      { onConflict: "ru_owner_id" },
+    );
 
-    // Clear local bind so Phase 1 can create a fresh sub-user (only if a local row holds this OwnerID)
+    if (!keepLocal) {
+      await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId);
+    }
+
     let localCleared = false;
 
-    if (account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
+    if (!keepLocal && account?.id && String(account.ru_owner_id ?? "").trim() === ownerId) {
       /**
        * The row is removed, not blanked. A blanked row survived as a "shell" that every
        * binding read still reported as the property's distribution account — so a closed
