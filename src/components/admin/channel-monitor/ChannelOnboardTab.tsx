@@ -95,6 +95,8 @@ import {
 } from "@/lib/channelOnboardOrchestrator";
 
 
+import { useAuth } from "@/hooks/useAuth";
+import { applyAdminScope } from "@/lib/adminScope";
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
@@ -263,6 +265,7 @@ export function ChannelOnboardTab({
   focusConnect?: boolean;
   onSelectionChange?: (propertyId: string) => void;
 }) {
+  const { scopedPropertyIds, scopeResolved } = useAuth();
   const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertyId, setPropertyId] = useState<string>("");
@@ -471,15 +474,20 @@ export function ChannelOnboardTab({
   // archiving flips `ru_archived` on the property row, so it must be filtered
   // here explicitly: it does not touch `is_active` or the billing toggle.
   useEffect(() => {
+    if (!scopeResolved) return;
     let cancelled = false;
     void (async () => {
-      const { data, error } = await supabase
-        .from("properties")
-        .select(
-          "id, name, owner_email, ru_archived, ru_listings_verified_units, ru_listings_verified_at, ru_listings_verified_owner",
-        )
-        .eq("is_active", true)
-        .order("name");
+      const { data, error } = await applyAdminScope(
+        supabase
+          .from("properties")
+          .select(
+            "id, name, owner_email, ru_archived, ru_listings_verified_units, ru_listings_verified_at, ru_listings_verified_owner",
+          )
+          .eq("is_active", true)
+          .order("name"),
+        "id",
+        scopedPropertyIds,
+      );
 
       if (cancelled) return;
       if (error) toast.error("Could not load the property list");
@@ -581,7 +589,7 @@ export function ChannelOnboardTab({
         memberCount: 1,
       }));
 
-      if (eligible.length > 0) {
+      if (eligible.length > 0 && scopedPropertyIds.length === 0) {
         const eligibleIds = eligible.map((p) => p.id);
         const { data: members } = await supabase
           .from("property_portfolio_members")
@@ -688,7 +696,7 @@ export function ChannelOnboardTab({
     return () => {
       cancelled = true;
     };
-  }, [initialPropertyId, initialPortfolioId, refreshOnboardStatuses]);
+  }, [initialPropertyId, initialPortfolioId, refreshOnboardStatuses, scopeResolved, scopedPropertyIds.join(",")]);
 
   /** Re-read the badges whenever the picker is opened, so a pick made after a run is current. */
   const handlePickerOpenChange = useCallback(

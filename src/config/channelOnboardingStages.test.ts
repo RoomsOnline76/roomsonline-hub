@@ -62,4 +62,10 @@ describe("channel onboarding stages", () => {
     expect(handler).toContain('startAtTaskId: "api_keys"');
     expect(handler).not.toContain('startAtTaskId: "company_profile"');
   });
+
+  it("limits the onboard property picker to the signed-in admin's assignments", () => {
+    const src = readFileSync("src/components/admin/channel-monitor/ChannelOnboardTab.tsx", "utf8");
+    expect(src).toContain("applyAdminScope");
+    expect(src).toContain("scopedPropertyIds");
+  });
 });

@@ -462,8 +462,8 @@ export default function AdminOnboarding() {
 
   useEffect(() => {
     if (!scopeResolved) return;
-    // Email is what pins ru-admin to Seesig + Tidal. Do not fetch the full
-    // onboarding queue until we know who is signed in.
+    // Do not fetch the onboarding queue until the signed-in admin's property
+    // assignments are known — a scoped tester must never see the full list.
     if (user && !actorEmail) return;
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
