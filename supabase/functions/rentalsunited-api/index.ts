@@ -1104,9 +1104,10 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   // RU deprecated <CleaningPrice> (Notif 258: "Property cleaning price is obsolete. Please
-  // provide the cost of cleaning price within the fees collection."). Cleaning rides in the
-  // charges/fees collection, so only send the element when a legacy non-zero value exists.
-  const cleaningPriceXml = Number(prop.cleaning_price ?? 0) > 0
+  // provide the cost of cleaning price within the fees collection."). When the caller supplies
+  // the fees collection, cleaning rides there and the element is suppressed entirely; only a
+  // legacy caller without fees still sends a non-zero legacy value.
+  const cleaningPriceXml = !Array.isArray(prop.fees) && Number(prop.cleaning_price ?? 0) > 0
     ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
     : '';
   const arrivalInstructionsXml = `<ArrivalInstructions>
