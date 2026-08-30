@@ -589,6 +589,67 @@ export async function reopenStayNightsAtChannel(
   return reopened.ok === true;
 }
 
+/**
+ * Reopen the stay nights, then park the registration just past the channel's sliding minute so the
+ * calendar write has time to apply. Used both before the first create (nights already closed) and
+ * after a blocked-dates refusal (channel apply lag). Returns null when the reopen or the queue
+ * insert did not land — the caller may then attempt the write itself.
+ */
+async function reopenAndQueueConfirmedReservation(
+  supabase: Db,
+  booking: RuBookingRef,
+  args: {
+    auth: Record<string, unknown>;
+    ruPropertyId: string;
+    fingerprint: string;
+    payload: Record<string, unknown>;
+    traceId: string;
+  },
+): Promise<(RuPushResult & { ruPropertyId: string }) | null> {
+  const reopened = await reopenStayNightsAtChannel(supabase, booking, {
+    auth: args.auth,
+    ruPropertyId: args.ruPropertyId,
+    dateFrom: booking.check_in_date,
+    dateTo: booking.check_out_date,
+    traceId: args.traceId,
+    parentAction: 'ruBookingSync:create:reopen',
+  });
+  if (!reopened) return null;
+  const queuedId = await enqueueRuCall(supabase, {
+    methodKey: `push_confirmed_reservation:${booking.id}`,
+    action: 'push_confirmed_reservation',
+    payload: {
+      action: 'push_confirmed_reservation',
+      ...args.payload,
+      booking_id: booking.id,
+      reservation_fingerprint: args.fingerprint,
+    },
+    propertyId: booking.property_id,
+    priority: 1,
+    delayMs: 65_000,
+  });
+  if (!queuedId) return null;
+  await settleReservationOp(supabase, {
+    bookingId: booking.id,
+    op: 'create',
+    fingerprint: args.fingerprint,
+    outcome: 'deferred',
+    detail: 'Nights reopened at the channel — registration queued for the next channel slot.',
+  });
+  return {
+    ok: false,
+    queued: true,
+    deferred: true,
+    method: 'push_confirmed_reservation',
+    code: 'RU_STAY_QUEUED',
+    message:
+      'The channel had those nights closed (our own sold-out push). They were reopened and the stay is ' +
+      'queued to register at the channel within about a minute.',
+    traceId: args.traceId,
+    ruPropertyId: args.ruPropertyId,
+  };
+}
+
 
 /**
  * Prove the channel really can sell this stay before spending a reservation write on it.
@@ -1426,55 +1487,28 @@ export async function pushRuConfirmedReservation(
     ...auth,
   };
 
+  const queueArgs = { auth, ruPropertyId, fingerprint, payload, traceId };
+
   /**
-   * After a first refusal, prove the calendar is actually open before spending another write. A
-   * Status 0 on the reopen is not proof the stay became sellable, and the refused write costs a
-   * full rate-limit slot.
+   * ROL-C73-001 (2026-08-30): first `Push_PutConfirmedReservationMulti_RQ` was refused Status 1
+   * "Property is not available for a given dates - Can't check in or check out on selected dates"
+   * because our sold-out ARI already closed the stay nights. Prove the calendar is open BEFORE
+   * the first write — sending first burns a rate-limit slot and surfaces a failure the queue
+   * would have avoided. A Status 0 on a reopen is not proof the stay became sellable (channel
+   * apply lag), so closed nights reopen and wait a sliding minute instead of being written now.
    */
-  if (priorRefusals > 0) {
-    const precheck = await stayIsSellableAtChannel(supabase, booking, {
-      auth,
-      ruPropertyId,
-      dateFrom: booking.check_in_date,
-      dateTo: booking.check_out_date,
-      traceId,
-      parentAction: 'ruBookingSync:create:precheck',
-    });
-    if (precheck.checked && !precheck.sellable) {
-      await settleReservationOp(supabase, {
-        bookingId: booking.id,
-        op: 'create',
-        fingerprint,
-        outcome: 'deferred',
-        detail: `Channel calendar still closed for this stay (${precheck.detail}).`,
-      });
-      await recordChannelBookingEvent(supabase, {
-        booking_id: booking.id,
-        property_id: booking.property_id,
-        direction: 'outbound',
-        action: 'created',
-        source: 'ru_booking_sync',
-        outcome: 'skipped',
-        reason: 'channel_calendar_closed',
-        channel_listing_id: ruPropertyId,
-        trace_id: traceId,
-        summary: `Channel calendar is closed for this stay: ${precheck.detail}`,
-        details: { closed_days: precheck.closedDays, refusals_this_hour: priorRefusals },
-      });
-      return {
-        ok: false,
-        method: 'push_confirmed_reservation',
-        code: 'RU_STAY_CLOSED_AT_CHANNEL',
-        message:
-          `The channel calendar still shows this stay as unsellable (${precheck.detail}). ` +
-          'Open those days for this listing in the channel portal, then resend the stay.',
-        traceId,
-        ruPropertyId,
-      };
-    }
+  const precheck = await stayIsSellableAtChannel(supabase, booking, {
+    auth,
+    ruPropertyId,
+    dateFrom: booking.check_in_date,
+    dateTo: booking.check_out_date,
+    traceId,
+    parentAction: 'ruBookingSync:create:precheck',
+  });
+  if (precheck.checked && !precheck.sellable) {
+    const queued = await reopenAndQueueConfirmedReservation(supabase, booking, queueArgs);
+    if (queued) return queued;
   }
-
-
 
   const result = await invokeRu(supabase, 'push_confirmed_reservation', payload, {
     propertyId: booking.property_id,
@@ -1487,59 +1521,13 @@ export async function pushRuConfirmedReservation(
   const reservationId = typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null;
 
   /**
-   * Blocked-dates refusal on a stay WE are handing over: the nights are closed at the channel
-   * because our own availability delta already published them as sold. Reopen exactly those nights
-   * and replay the registration just past the channel's sliding minute (the refused attempt already
-   * spent this minute's slot, so an immediate retry is always rejected). The claim stays open so the
-   * replay is not skipped as a duplicate.
+   * Channel apply lag, or a precheck that could not run: the write still hit closed nights.
+   * Reopen and replay past the sliding minute (the refused attempt already spent this minute's
+   * slot, so an immediate retry is always rejected).
    */
   if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
-    const reopened = await reopenStayNightsAtChannel(supabase, booking, {
-      auth,
-      ruPropertyId,
-      dateFrom: booking.check_in_date,
-      dateTo: booking.check_out_date,
-      traceId,
-      parentAction: 'ruBookingSync:create:reopen',
-    });
-    if (reopened) {
-      const queuedId = await enqueueRuCall(supabase, {
-        methodKey: `push_confirmed_reservation:${booking.id}`,
-        action: 'push_confirmed_reservation',
-        payload: {
-          action: 'push_confirmed_reservation',
-          ...payload,
-          // Internal queue metadata survives a second rate-window hand-off. The terminal drainer
-          // uses it to persist the channel ReservationID and settle this exact claim.
-          booking_id: booking.id,
-          reservation_fingerprint: fingerprint,
-        },
-        propertyId: booking.property_id,
-        priority: 1,
-        delayMs: 65_000,
-      });
-      if (queuedId) {
-        await settleReservationOp(supabase, {
-          bookingId: booking.id,
-          op: 'create',
-          fingerprint,
-          outcome: 'deferred',
-          detail: 'Nights reopened at the channel — registration queued for the next channel slot.',
-        });
-        return {
-          ok: false,
-          queued: true,
-          deferred: true,
-          method: 'push_confirmed_reservation',
-          code: 'RU_STAY_QUEUED',
-          message:
-            'The channel had those nights closed (our own sold-out push). They were reopened and the stay is ' +
-            'queued to register at the channel within about a minute.',
-          traceId,
-          ruPropertyId,
-        };
-      }
-    }
+    const queued = await reopenAndQueueConfirmedReservation(supabase, booking, queueArgs);
+    if (queued) return queued;
   }
 
   await settleReservationOp(supabase, {
