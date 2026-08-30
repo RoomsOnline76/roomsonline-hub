@@ -921,9 +921,22 @@ export async function fetchRuReservationById(
       partial = attempt.reservation;
       partialOwnerId = scope.ownerId;
     }
-    if (attempt.rateDeferred) rateDeferred = true;
+    if (attempt.rateDeferred) {
+      // The channel's sliding minute is keyed on the METHOD + parameters, not on the account:
+      // once `Pull_GetReservationByID_RQ` for this id is refused, every other scope inside the
+      // same minute answers -6 too. Stop the fan-out and hand back a retry.
+      return {
+        reservation: null,
+        rawXml: null,
+        error: 'RU_RATE_DEFERRED: channel rate limit — reservation lookup deferred, will retry',
+        rateDeferred: true,
+        partial,
+        resolvedOwnerId: partialOwnerId ?? null,
+      };
+    }
     if (attempt.error) lastError = attempt.error;
   }
+
 
   // Pass 2 — lead/reservation listings. Owning account first, and with a tight window: the
   // channel answers an over-wide range with an empty list.
