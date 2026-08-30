@@ -22,7 +22,6 @@ import {
   Building2,
   Check,
   CircleDashed,
-  ExternalLink,
   ChevronsUpDown,
   Clock,
   Hourglass,
@@ -1274,15 +1273,6 @@ export function ChannelOnboardTab({
                       <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
                       {step === "a" && task.id === "company_profile" && status === "passed" && (
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                          <Button asChild size="sm" variant="outline" className="h-6 gap-1.5 text-[11px]">
-                            <a
-                              href={`/properties/${propertyId}/edit?section=general&focus=company-information`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              View company profile <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </Button>
                           <Button
                             size="sm"
                             variant="outline"
