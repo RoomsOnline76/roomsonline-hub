@@ -39,6 +39,6 @@ export async function propagateSeasonChange(
   await mirrorCalendarSeasons(propertyId);
   for (const siblingId of siblingIds) {
     await mirrorCalendarSeasons(siblingId);
-    await pushRatePlanRates(siblingId, "portfolio season dates changed");
+    await pushRatePlanRates(siblingId, "rate_plan_update", { label: "Season dates" });
   }
 }
