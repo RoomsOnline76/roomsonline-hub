@@ -116,13 +116,16 @@ async function resolveCurrentListing(
     if (error) return { listing: null, absent: false };
     const listing = data?.reservation?.ruPropertyId;
     if (!listing) {
-      // The channel answering "reservation does not exist" is a definitive answer: there is
-      // nothing to modify, so the push is skipped instead of failing on a mismatched listing.
-      const absent = data?.found === false || isAbsentAtChannel(
+      // The channel answering "reservation does not exist" is a definitive answer ONLY when the
+      // read ran on the account that owns the listing. A master-scoped read cannot see a
+      // sub-account's reservation, so "not found" there means nothing.
+      const scoped = data?.auth_mode && data.auth_mode !== 'master';
+      const absent = !!scoped && (data?.found === false || isAbsentAtChannel(
         typeof data?.raw_xml === 'string' ? data.raw_xml : null,
-      );
+      ));
       return { listing: null, absent };
     }
+
     await supabase
       .from('bookings')
       .update({ channel_listing_id: String(listing) })
