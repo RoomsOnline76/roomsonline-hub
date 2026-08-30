@@ -199,7 +199,14 @@ const ALIAS_TO_ID: Record<string, string> = {
   // No hard delete exists at the channel: removal is an archive through the bulk status verb.
   Push_DeleteProperty_RQ: "Push_SetPropertiesStatus_RQ",
   Push_RemoveProperty_RQ: "Push_SetPropertiesStatus_RQ",
+  // Internal orchestration action names logged before the wire verb is known. Cadence for a
+  // status flip is on_change: it only fires when a listing is activated, paused or archived.
+  "rentalsunited-api:set_property_status": "Push_SetPropertiesStatus_RQ",
+  "rentalsunited-api:delete_property": "Push_SetPropertiesStatus_RQ",
+  set_property_status: "Push_SetPropertiesStatus_RQ",
+  delete_property: "Push_SetPropertiesStatus_RQ",
 };
+
 
 
 /**
