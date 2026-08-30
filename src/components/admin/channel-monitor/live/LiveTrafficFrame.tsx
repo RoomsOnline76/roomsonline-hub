@@ -332,7 +332,7 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                 Response{selected.trace_id ? ` · trace ${selected.trace_id}` : ""}
               </p>
               <pre className="max-h-64 overflow-auto rounded-md border bg-muted/40 p-3 text-[11px] leading-relaxed">
-                {selected.response_xml ?? "No response payload retained."}
+                {selected.response_xml ?? payloadPlaceholder(selected, "response")}
               </pre>
             </div>
           </div>
