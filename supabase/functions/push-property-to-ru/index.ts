@@ -4259,10 +4259,25 @@ Deno.serve(async (req) => {
       if (canonicalNames.size === 0) return dedupedRoomTypes;
       return dedupedRoomTypes
         .filter((rt) => canonicalNames.has(String((rt as any).name || '').trim().toLowerCase()))
-        .map((rt) => ({
-          ...rt,
-          name: canonicalNames.get(String((rt as any).name || '').trim().toLowerCase()) ?? (rt as any).name,
-        })) as RoomTypeRow[];
+        .map((rt) => {
+          const key = String((rt as any).name || '').trim().toLowerCase();
+          const canon = (canonical as Array<Record<string, unknown>>).find((row) =>
+            String(row?.name ?? '').trim().toLowerCase() === key
+            || String(row?.id ?? '').trim() === String((rt as any).id ?? '')
+            || String(row?.pmsRoomId ?? '').trim() === String((rt as any).id ?? ''),
+          );
+          const authoredBeds = (canon?.bedConfiguration ?? canon?.bed_configuration) as RoomTypeRow['bed_configuration'];
+          return {
+            ...rt,
+            name: canonicalNames.get(key) ?? (rt as any).name,
+            ...(Number(canon?.bedrooms) > 0 ? { bedrooms: Number(canon!.bedrooms) } : {}),
+            ...(Number(canon?.beds) > 0 ? { beds: Number(canon!.beds) } : {}),
+            ...(Array.isArray(authoredBeds) && authoredBeds.length ? { bed_configuration: authoredBeds } : {}),
+            ...(Array.isArray(canon?.amenities) && (canon!.amenities as unknown[]).length
+              ? { amenities: canon!.amenities as RoomTypeRow['amenities'] }
+              : {}),
+          };
+        }) as RoomTypeRow[];
     })();
     const isMultiUnit = activeRoomTypes.length > 0;
 

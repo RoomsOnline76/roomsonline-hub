@@ -81,13 +81,15 @@ export function useChannelOnboardGate(propertyId: string | null): ChannelOnboard
     void refresh();
   }, [refresh]);
 
-  // An ungraded property would look "not ready" purely because nobody pressed Re-check.
-  // Grading is local and cheap, so do it once per property when no verdict exists yet.
+  // Re-score from live ROL'OS data once per property when the stored verdict is not a
+  // pass. A scrub can leave Ready-to-sell blocked even though rooms/beds/amenities are
+  // still complete; trusting that stale blocked row would lock onboarding until someone
+  // pressed Re-check. Passed stays as-is so a healthy property does not re-run the scorer.
   const gradedFor = useRef<string | null>(null);
   useEffect(() => {
     if (!propertyId || loading || !snapshot || sessionExpired) return;
     const status = snapshot.steps?.ready_to_sell?.status;
-    if (status && status !== "pending" && status !== "unknown") return;
+    if (status === "passed") return;
     if (gradedFor.current === propertyId) return;
     gradedFor.current = propertyId;
     void regradeRef.current?.();

@@ -92,11 +92,10 @@ interface PropertyRuOwnerPanelProps {
 /**
  * RU owner sub-account panel (Identity tab).
  *
- * Every ROL'OS-PMS owner gets one Rentals United sub-account, shared by all ROL'OS
- * properties in their portfolio. The panel shows the linked OwnerID, creates the
- * sub-account when none exists (after a readiness check + explicit confirmation), and
- * captures the sub-account's own API key pair — until those keys exist, every RU
- * push/pull for this property is gated.
+ * Every ROL'OS-PMS owner gets one Rentals United sub-account. The panel shows the
+ * linked OwnerID, creates the sub-account when none exists (after steps 1–5 pass +
+ * explicit confirmation), and captures the sub-account's own API key pair — until
+ * those keys exist, every RU push/pull for this property is gated.
  */
 export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }: PropertyRuOwnerPanelProps) {
   const { isAdmin } = useAuth();
@@ -315,7 +314,7 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
               )}
             </CardTitle>
             <CardDescription className="text-xs">
-              One distribution account per owner, shared by every ROL'OS property in their portfolio. Channel Manager push and pull stay
+              One distribution account per owner. Channel Manager push and pull stay
               blocked until the sub-account's own API key and secret are captured here.
             </CardDescription>
           </div>
@@ -411,10 +410,10 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">
               No distribution account exists for this owner. Once the mandatory steps 1–5 pass, confirm below and the
-              Channel onboarding page provisions the account (Step A) for this property and its portfolio siblings.
+              Channel onboarding page provisions the account for this property.
             </p>
             <ul className="space-y-1">
-              {identity.readiness.checks.map((c) => (
+              {identity.readiness.checks.filter((c) => c.label !== "Portfolio").map((c) => (
                 <li key={c.label} className="flex items-start gap-2 text-xs">
                   {c.ok ? (
                     <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
@@ -427,6 +426,29 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                   </span>
                 </li>
               ))}
+              {gate.loading || gate.grading ? (
+                <li className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mt-0.5 shrink-0" />
+                  Checking steps 1–5 from the live property record…
+                </li>
+              ) : gate.readyToSell ? (
+                <li className="flex items-start gap-2 text-xs">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                  <span className="font-medium">Steps 1–5 complete</span>
+                </li>
+              ) : gate.readyToSellBlockers.length > 0 ? (
+                gate.readyToSellBlockers.map((blocker, index) => (
+                  <li key={`rts-${index}`} className="flex items-start gap-2 text-xs">
+                    <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                    <span>{blocker}</span>
+                  </li>
+                ))
+              ) : (
+                <li className="flex items-start gap-2 text-xs">
+                  <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                  <span>{blockedReason}</span>
+                </li>
+              )}
             </ul>
             {!readOnly && (
               <div className="space-y-1.5">
@@ -449,9 +471,6 @@ export function PropertyRuOwnerPanel({ propertyId, pmsSystem, readOnly = false }
                   )}
                   Confirm &amp; create
                 </Button>
-                {!gate.readyToSell && !gate.loading && !gate.grading && (
-                  <p className="text-[11px] text-muted-foreground">{blockedReason}</p>
-                )}
               </div>
             )}
           </div>

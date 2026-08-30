@@ -3680,9 +3680,9 @@ Deno.serve(async (req) => {
      * ── property_ru_identity: everything the "RU owner sub-account" panel on a
      * property's Identity tab needs, in one call.
      *
-     * A ROLOS-PMS property must be linked to the owner's RU sub-account (one per
-     * portfolio — shared by every ROLOS property in it) and that sub-account must have
-     * its own API key pair captured before any RU push/pull is allowed.
+     * A ROLOS-PMS property must be linked to the owner's RU sub-account and that
+     * sub-account must have its own API key pair captured before any RU push/pull is
+     * allowed. A portfolio is optional — standalone properties get their own account.
      */
     if (action === "property_ru_identity" || action === "sub_account_readiness") {
       const propertyId: string = body.property_id ?? "";
@@ -3758,7 +3758,6 @@ Deno.serve(async (req) => {
         req("City", !!String(prop.city ?? "").trim(), "Capture the property city."),
         req("Country", !!String(prop.country ?? "").trim(), "Capture the property country."),
         req("RU location", !!String((prop as any).ru_location_id ?? "").trim(), "Resolve the RU LocationID in Identity & Location."),
-        req("Portfolio", !!portfolioId, "Assign the property to a portfolio so the sub-account can be shared with its siblings."),
       ];
       const ready = checks.every((c) => c.ok);
 
