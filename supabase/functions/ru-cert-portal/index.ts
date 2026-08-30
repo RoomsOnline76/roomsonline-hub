@@ -9239,19 +9239,11 @@ Deno.serve(async (req) => {
         // Step A.0 authority: an operator-submitted login is the ONLY candidate. Slug
         // fallbacks exist purely for the "no email given" path — silently provisioning a
         // different address than the one submitted is never acceptable.
+        // Exactly one create attempt per Connect action. If this address exists outside the
+        // master roster, return the conflict to the operator instead of creating several
+        // fallback accounts in one run.
         const emailCandidates: string[] =
           resolvedOwnerEmail.length <= RU_LOGIN_MAX_LENGTH ? [resolvedOwnerEmail] : [];
-        if (!confirmedEmail) {
-          const generatedBase = await generatedLoginBase();
-          // The generated domain is our own company domain, so an address merely sitting on it
-          // is not proof of a generated login — the de-dupe below is what prevents repeats.
-          if (generatedBase) {
-            for (let attempt = 1; attempt <= 4; attempt++) {
-              const generated = generateDistributionLogin(generatedBase, attempt);
-              if (generated && !emailCandidates.includes(generated)) emailCandidates.push(generated);
-            }
-          }
-        }
 
 
         // An address already live as the distribution login for a DIFFERENT property

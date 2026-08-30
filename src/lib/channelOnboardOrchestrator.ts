@@ -721,7 +721,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     }
     // The mint (or the ownership probe on a pasted pair) already proved the credential in
     // this run. Re-asking the channel spends its most rate-limited read on a known answer.
-    if (ctx.keysProvenInRun) {
+    if (ctx.keysProvenInRun || binding.keys_verified) {
       const label = [
         `OwnerID ${binding.ru_owner_id}`,
         binding.login_email || binding.owner_email || null,
@@ -729,7 +729,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       return {
         id: "verify_keys",
         outcome: "skipped",
-        detail: `Credentials proven when the key pair was minted — ${label}`,
+        detail: `Credentials already proven by the A.2 key-pair check — ${label}`,
       };
     }
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
