@@ -1133,8 +1133,9 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
       <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
       <Phone>${escapeXml(prop.arrival_phone || '+27 824602220')}</Phone>
       <DaysBeforeArrival>${Math.max(0, Math.trunc(prop.arrival_days_before ?? 0))}</DaysBeforeArrival>
-      ${buildOptionalNode('PickupService', prop.arrival_pickup_service)}
-      ${buildOptionalNode('HowToArrive', prop.arrival_how_to_arrive)}
+      ${buildProseNode('PickupService', prop.arrival_pickup_service)}
+      ${buildProseNode('HowToArrive', prop.arrival_how_to_arrive)}
+
     </ArrivalInstructions>`;
 
   // Build CheckInOut block. RU rejects the listing when CheckOutUntil > CheckInFrom or when
