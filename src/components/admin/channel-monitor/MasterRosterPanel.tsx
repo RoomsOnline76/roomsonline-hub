@@ -217,23 +217,26 @@ export function MasterRosterPanel() {
         storedKeys.map((k) => String(k.ru_owner_id ?? "").trim()).filter(Boolean),
       );
       /**
-       * An account that is unbound, holds no stored key pair and is already retired in ROLOS
-       * is fully dealt with — nothing here can act on it, so it is neither counted nor shown.
+       * Nothing is hidden for being retired in ROLOS. `live` already drops everything the
+       * channel reports as archived, so a retired account still standing here is precisely
+       * the catch-up case: retired locally, never closed at the channel, portal login still
+       * works. Hiding those rows is what let `ru-c@polka.co.za` keep signing in.
        */
-      const users = live.filter((u) => {
+      const users = live;
+      const retiredStillOpen = users.filter((u) => {
         const id = String(u.owner_id ?? "").trim();
-        if (!id) return true;
-        return !(retiredIds.has(id) && !boundIds.has(id) && !keyedIds.has(id));
-      });
+        return id && retiredIds.has(id) && !boundIds.has(id);
+      }).length;
       return {
         users,
         archivedExcluded: all.length - live.length,
-        retiredUnboundExcluded: live.length - users.length,
+        retiredStillOpen,
         boundIds,
         retiredIds,
         storedKeys,
         readAt: new Date(),
       };
+
     },
     onSuccess: (r) => {
       setResult(r);
