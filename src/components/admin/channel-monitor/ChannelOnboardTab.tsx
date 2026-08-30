@@ -797,7 +797,16 @@ export function ChannelOnboardTab({
    * countdown and resumes itself from the deferred task once the channel's window reopens.
    */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
+    async (
+      step: ChannelOnboardStep,
+      options?: {
+        startAtTaskId?: ChannelOnboardTaskId | null;
+        attempt?: number;
+        silent?: boolean;
+        /** Operator pressed Re-run on a settled step: re-publish and re-verify everything. */
+        fullRerun?: boolean;
+      },
+    ) => {
       if (!propertyId || stepRunInFlight.current) return;
       stepRunInFlight.current = true;
       const attempt = options?.attempt ?? 0;
