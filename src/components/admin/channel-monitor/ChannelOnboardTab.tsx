@@ -1097,6 +1097,32 @@ export function ChannelOnboardTab({
 
     const stepWaiting = waiting[step];
     const stepFailed = failedStep[step];
+    /**
+     * A stop recorded in a previous session (or before a reload) still needs a way back in:
+     * derive the resume point from the live task states, else the recorded ledger outcomes.
+     */
+    const derivedStop =
+      tasks.find((t) => {
+        const s = taskStates[t.id]?.state;
+        return s === "failed" || s === "blocked";
+      })?.id ??
+      (tasks.find((t) => {
+        const outcome = ledgerTasks.find((l) => l.id === t.id)?.outcome;
+        return outcome === "failed" || outcome === "blocked";
+      })?.id ??
+        null);
+    const derivedDetail = derivedStop
+      ? taskStates[derivedStop]?.detail ?? ledgerTasks.find((l) => l.id === derivedStop)?.detail
+      : undefined;
+    const effectiveFailed =
+      stepFailed ??
+      (derivedStop
+        ? {
+            resumeFromTaskId: derivedStop,
+            summary: derivedDetail || "The step stopped before completing.",
+          }
+        : undefined);
+
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
      * A passed step is settled work: it collapses to its one-line verdict until the
