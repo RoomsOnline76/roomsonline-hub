@@ -2274,10 +2274,33 @@ async function loadBookingBlocks(
       external_reservation_id: b.external_reservation_id ?? null,
     })),
   );
-  const publishable = holds.bookingIds.size === 0
+  const heldForWrite = holds.bookingIds.size === 0
     ? sold
     : (sold as any[]).filter((b) => !holds.bookingIds.has(String(b.id)));
   (stats as any).held_for_reservation_write = holds.bookingIds.size;
+
+  /**
+   * Nights the channel itself already owns must NOT be republished as 0 units.
+   *
+   * A channel-sourced reservation (request or confirmed) is decremented on the channel's own
+   * ledger the moment it is created. Closing the same nights from our side makes the listing read
+   * as fully booked, so the channel then refuses to modify or extend its OWN reservation with
+   * "not available for the given dates / could cause a double booking" — which is exactly what
+   * blocked reservation 147110428's extension. The channel keeps the nights closed for us; we only
+   * publish blocks the channel cannot know about (direct, manual, imported, cart holds).
+   */
+  const channelOwnedIds = new Set<string>();
+  const publishable = (heldForWrite as any[]).filter((b) => {
+    const channel = String(b.booking_channel ?? '').toLowerCase();
+    const integration = String(b.integration_type ?? '').toLowerCase();
+    const channelOwned =
+      (channel === 'rentals_united' || integration.startsWith('rentalsunited')) &&
+      String(b.external_reservation_id ?? '').trim().length > 0;
+    if (channelOwned) channelOwnedIds.add(String(b.id));
+    return !channelOwned;
+  });
+  (stats as any).channel_owned_nights_left_to_channel = channelOwnedIds.size;
+
 
 
 
