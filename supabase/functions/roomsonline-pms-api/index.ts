@@ -1980,20 +1980,15 @@ async function handleDeleteGuestProfile(body: any, supabase: any): Promise<Respo
 
 
 /**
- * Tell the Channel Manager about a lifecycle change. Check-in is what accepts a still-held channel
- * request, so this must run even though the local status write already happened — the trigger's
- * background job is deduped per booking and can drop a status change queued behind another.
+ * 🔒 Channel push scope: check-in and check-out are FRONT-DESK events, not channel events.
+ * The stay's dates, unit and status at the channel are unchanged when a guest physically arrives or
+ * leaves, so ROL'OS deliberately makes NO channel call here. Sending one re-confirmed an already
+ * accepted reservation, which forced a reopen/replay cycle and burned the channel's one-call-per-
+ * minute budget on Push_ConfirmReservation / Push_ModifyStay / Push_PutAvbUnits for no state change.
+ * Channel acceptance belongs to booking confirmation; date/unit/cancel edits belong to the booking
+ * editor. Never reintroduce a lifecycle notification from these two handlers.
  */
-// deno-lint-ignore no-explicit-any
-async function notifyChannelOfLifecycle(supabase: any, bookingId: string, change: "confirmed" | "status", source: string) {
-  try {
-    await supabase.functions.invoke("channel-booking-sync", {
-      body: { booking_id: bookingId, change, source },
-    });
-  } catch (err) {
-    console.warn("[pms-api] channel lifecycle sync failed:", err);
-  }
-}
+
 
 // deno-lint-ignore no-explicit-any
 async function handleCheckIn(body: any, supabase: any): Promise<Response> {
