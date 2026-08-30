@@ -3509,6 +3509,9 @@ export default function PropertyForm({
             check_in_to: formData.check_in_to,
             check_out_from: formData.check_out_from,
             check_out_to: formData.check_out_to,
+            // Channel <DaysBeforeArrival> — how many days ahead the owner should be contacted.
+            days_before_arrival: formData.days_before_arrival,
+
             children_policy: formData.children_policy,
             // Authored in the Policies tab → Arrival policy; preserved verbatim here.
             check_in_instructions: storedArrivalInstructions,
