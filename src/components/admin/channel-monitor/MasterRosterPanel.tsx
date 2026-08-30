@@ -166,6 +166,11 @@ export function MasterRosterPanel() {
   
   const [keyOutcomes, setKeyOutcomes] = useState<Record<string, KeyGenOutcome>>({});
   const [generating, setGenerating] = useState(false);
+  const [captureOwner, setCaptureOwner] = useState<string | null>(null);
+  const [captureAccess, setCaptureAccess] = useState("");
+  const [captureSecret, setCaptureSecret] = useState("");
+  const [captureLabel, setCaptureLabel] = useState("");
+  const [capturing, setCapturing] = useState(false);
   const cancelled = useRef(false);
   const rematchCancelled = useRef(false);
   const keyGenCancelled = useRef(false);
