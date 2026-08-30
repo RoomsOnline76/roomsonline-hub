@@ -2295,6 +2295,38 @@ Deno.serve(async (req) => {
         detail = updErr.message;
       }
 
+      /**
+       * A property that is live on the channel must also be *registered* in the ROL'OS
+       * Channel Manager. Step B proved the listing, but nothing wrote the connection row,
+       * so onboarded properties (Leopard, Albatros) read as never connected. Activation
+       * registers it; archiving marks the same row disconnected.
+       */
+      if (status !== "ru_failed") {
+        const { data: existingConn } = await admin
+          .from("rolos_channel_connections")
+          .select("id")
+          .eq("property_id", p.id)
+          .eq("channel_name", "rentals_united")
+          .maybeSingle();
+        const connRow = {
+          property_id: p.id,
+          channel_name: "rentals_united",
+          status: archive ? "disconnected" : "active",
+          settings: { auto_confirm: true, sync_interval_minutes: 30, registered_by: "channel_entitlement" },
+        };
+        const connError = existingConn?.id
+          ? (await admin
+              .from("rolos_channel_connections")
+              .update({ status: connRow.status })
+              .eq("id", existingConn.id)).error
+          : (await admin.from("rolos_channel_connections").insert(connRow)).error;
+        // Bookkeeping only: a registration hiccup must never fail the entitlement itself.
+        if (connError) {
+          console.warn(`[entitlement] Channel Manager registration not written for ${p.id}: ${connError.message}`);
+        }
+      }
+
+
       // ── Units: archiving a building must stop its unit listings too ──
       let unitsChanged = 0;
       let listingCount = 0;
