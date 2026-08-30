@@ -62,6 +62,8 @@ export function SterilizePropertyPanel() {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<SterilizeResult | null>(null);
   const [preview, setPreview] = useState<SterilizeResult | null>(null);
+  /** Held for the run only: the account close authenticates as the sub-account itself. */
+  const [portalPassword, setPortalPassword] = useState("");
 
   const { data: properties, isLoading } = useQuery({
     queryKey: ["sterilize-property-candidates"],
@@ -104,6 +106,7 @@ export function SterilizePropertyPanel() {
           action: "sterilize_property",
           property_id: selected.id,
           keep_ru_property_ids: keepIds,
+          password: portalPassword.trim() || null,
           dry_run: dryRun,
         },
       });
