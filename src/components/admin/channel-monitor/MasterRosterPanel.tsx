@@ -214,9 +214,6 @@ export function MasterRosterPanel() {
       const storedKeys = Array.isArray(keyData?.credentials)
         ? (keyData.credentials as StoredKey[]).filter((k) => !!k?.id)
         : [];
-      const keyedIds = new Set(
-        storedKeys.map((k) => String(k.ru_owner_id ?? "").trim()).filter(Boolean),
-      );
       /**
        * Nothing is hidden for being retired in ROLOS. `live` already drops everything the
        * channel reports as archived, so a retired account still standing here is precisely
