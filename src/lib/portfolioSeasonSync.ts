@@ -45,7 +45,14 @@ export function mergePortfolioSeasonDates(
   });
 }
 
-export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons: PortfolioSeason[]): Promise<number> {
+/**
+ * Copy the source property's season dates onto its portfolio siblings.
+ *
+ * Returns the ids of the siblings that were rewritten, so the caller can mirror their shared
+ * seasons and fire their own channel delta — a sibling whose season dates moved is just as
+ * mispriced at the channel as the property that was edited.
+ */
+export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons: PortfolioSeason[]): Promise<string[]> {
   const { data: memberships, error: membershipError } = await supabase
     .from("property_portfolio_members")
     .select("portfolio_id")
