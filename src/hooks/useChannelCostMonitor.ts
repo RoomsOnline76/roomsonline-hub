@@ -309,13 +309,14 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           acc?.ru_user_id && String(acc.ru_user_id) !== String(acc.ru_owner_id ?? "")
             ? acc.ru_user_id
             : null,
+        ownerEmail: acc?.owner_email ?? null,
 
         keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
         companyDetailsSent: acc?.company_details_sent === true,
       });
       const accountByProperty = new Map<
         string,
-        { ownerId: string | null; subUserId: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
+        { ownerId: string | null; subUserId: string | null; ownerEmail: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
       >();
       for (const p of allProps) {
         const direct = ruAccounts.find((a) => a.property_id === p.id);
