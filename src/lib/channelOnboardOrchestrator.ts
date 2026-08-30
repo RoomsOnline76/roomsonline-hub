@@ -781,6 +781,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const binding = liveBinding(ctx, snapshot);
     const companyLabel = binding.ru_owner_id ? ` (OwnerID ${binding.ru_owner_id})` : "";
 
+    // Hard gate: every write past A.2 is signed with the sub-account's own key pair. A
+    // stored portal password is not that pair, so refuse before spending a channel call.
+    if (!binding.keys_stored) {
+      return {
+        id: "company_profile",
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: `No key pair is stored for this sub-account${companyLabel} — paste its AccessKey and SecretKey first.`,
+      };
+    }
+
     if (binding.company_details_sent) {
       return {
         id: "company_profile",
@@ -788,6 +799,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `Company profile already accepted${companyLabel}`,
       };
     }
+
     // Key provisioning sends the company profile itself (it is the first write a fresh pair
     // makes), so a second Push_FillCompanyDetails_RQ in the same run is pure duplication.
     if (ctx.companyPushedInRun) {
@@ -825,8 +837,18 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
   },
 
-  adopt_listings: async (ctx) => {
+  adopt_listings: async (ctx, snapshot) => {
+    const binding = liveBinding(ctx, snapshot);
+    if (!binding.keys_stored) {
+      return {
+        id: "adopt_listings",
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: "No key pair is stored for this sub-account — paste its AccessKey and SecretKey first.",
+      };
+    }
     // Adopting anything already under the sub-account is what stops Step B duplicating.
+
     const { ok, pending, retryAfterMs, detail, code, data } = await portal(
       { action: "resolve_ru_property_ids", property_id: ctx.propertyId },
       "Could not review the sub-account's existing listings",
