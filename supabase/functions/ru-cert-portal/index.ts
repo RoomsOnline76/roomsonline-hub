@@ -4935,6 +4935,309 @@ Deno.serve(async (req) => {
     };
 
     /**
+     * ── closeAccountAtChannel ────────────────────────────────────────────────────
+     * The one and only place that closes a distribution sub-account AT THE CHANNEL.
+     * Push_ArchiveUser_RQ carries no account selector, so it runs as the sub-account
+     * itself: a proven CHILD key pair (minted here when none is on file) is the only
+     * envelope and the master pair is never used — closing with it would close OUR
+     * master account.
+     *
+     * Strictly serialised on ru_call_queue (one close in flight platform-wide plus a
+     * cooldown), then verified against the channel's own roster. Callers stamp
+     * channel_archived_at from `confirmed` — never from a listing loop.
+     */
+    const CLOSE_QUEUE_ACTION = "ru_close_account";
+    type CloseAccountOutcome = {
+      /** closed_at_channel | close_not_possible */
+      status: "closed_at_channel" | "close_not_possible";
+      confirmed: boolean;
+      code: string;
+      message: string;
+      steps: { step: string; ok: boolean; message: string }[];
+      attempts: number;
+      retryAfterMs?: number;
+      verifiedViaRoster: boolean;
+    };
+    const closeAccountAtChannel = async (opts: {
+      ownerId: string;
+      loginEmail?: string | null;
+      password?: string | null;
+      note?: string | null;
+      cooldownSeconds?: number;
+      /** Set when the binding was already removed in the same run. */
+      allowBound?: boolean;
+    }): Promise<CloseAccountOutcome> => {
+      const ownerId = String(opts.ownerId ?? "").trim();
+      const steps: { step: string; ok: boolean; message: string }[] = [];
+      const cooldownSeconds = Math.min(
+        300,
+        Math.max(30, Number.isFinite(Number(opts.cooldownSeconds)) ? Number(opts.cooldownSeconds) : 60),
+      );
+      const STALE_LOCK_MS = 15 * 60 * 1000; // the channel says a close can take several minutes
+      const fail = (code: string, message: string, extra?: Partial<CloseAccountOutcome>): CloseAccountOutcome => ({
+        status: "close_not_possible",
+        confirmed: false,
+        code,
+        message,
+        steps,
+        attempts: 1,
+        verifiedViaRoster: false,
+        ...extra,
+      });
+
+      if (!/^\d+$/.test(ownerId)) {
+        return fail("BAD_REQUEST", "A numeric ru_owner_id is required to close an account");
+      }
+
+      if (opts.allowBound !== true) {
+        const { data: stillBound } = await admin
+          .from("ru_owner_accounts")
+          .select("id")
+          .eq("ru_owner_id", ownerId)
+          .limit(1);
+        if ((stillBound ?? []).length > 0) {
+          return fail(
+            "STILL_BOUND",
+            `OwnerID ${ownerId} is still bound to a property or portfolio. Retire the binding first, then close the account.`,
+          );
+        }
+      }
+
+      // ── Serialisation: one close in flight, then a cooldown ──
+      const { data: inFlight } = await admin
+        .from("ru_call_queue")
+        .select("id, ru_owner_id, claimed_at, created_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .eq("status", "running")
+        .order("created_at", { ascending: true });
+      for (const row of inFlight ?? []) {
+        const started = new Date(row.claimed_at ?? row.created_at).getTime();
+        if (Date.now() - started > STALE_LOCK_MS) {
+          await admin
+            .from("ru_call_queue")
+            .update({ status: "failed", last_error: "Abandoned close lock released", completed_at: new Date().toISOString() })
+            .eq("id", row.id)
+            .then(() => {}, () => {});
+          continue;
+        }
+        return fail(
+          "CLOSE_IN_PROGRESS",
+          `A close is already running for OwnerID ${row.ru_owner_id ?? "another sub-account"}. Accounts are closed one at a time — wait for it to finish.`,
+        );
+      }
+
+      const { data: lastClose } = await admin
+        .from("ru_call_queue")
+        .select("completed_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .not("completed_at", "is", null)
+        .order("completed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lastClose?.completed_at) {
+        const waited = Date.now() - new Date(lastClose.completed_at).getTime();
+        const remaining = cooldownSeconds * 1000 - waited;
+        if (remaining > 0) {
+          return fail(
+            "CLOSE_COOLDOWN",
+            `The previous account close finished ${Math.round(waited / 1000)}s ago. Waiting out the ${cooldownSeconds}s gap before the next one.`,
+            { retryAfterMs: remaining },
+          );
+        }
+      }
+
+      const nowIso = new Date().toISOString();
+      const { data: lockRow, error: lockErr } = await admin
+        .from("ru_call_queue")
+        .insert({
+          method_key: "Push_ArchiveUser_RQ",
+          action: CLOSE_QUEUE_ACTION,
+          ru_owner_id: ownerId,
+          priority: 5,
+          status: "running",
+          claimed_at: nowIso,
+          not_before: nowIso,
+          max_attempts: 1,
+          payload: { ru_owner_id: ownerId, reason: opts.note ?? null, requested_by: user.email ?? user.id },
+        })
+        .select("id, created_at")
+        .single();
+      if (lockErr || !lockRow) {
+        return fail("LOCK_FAILED", lockErr?.message ?? "The close lock could not be claimed");
+      }
+
+      // Two simultaneous requests could both have passed the check above: the oldest lock wins.
+      const { data: contenders } = await admin
+        .from("ru_call_queue")
+        .select("id, created_at")
+        .eq("action", CLOSE_QUEUE_ACTION)
+        .eq("status", "running")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (contenders?.[0] && contenders[0].id !== lockRow.id) {
+        await admin.from("ru_call_queue").delete().eq("id", lockRow.id).then(() => {}, () => {});
+        return fail("CLOSE_IN_PROGRESS", "Another close claimed the slot first. Accounts are closed one at a time.");
+      }
+
+      const releaseLock = async (ok: boolean, message: string) => {
+        await admin
+          .from("ru_call_queue")
+          .update({
+            status: ok ? "completed" : "failed",
+            completed_at: new Date().toISOString(),
+            last_error: ok ? null : message,
+            result: { steps, message },
+          })
+          .eq("id", lockRow.id)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] close lock release failed", e));
+      };
+
+      try {
+        const { data: credRow } = await admin
+          .from("ru_api_credentials")
+          .select("access_key, secret_enc, login_email, key_scope, password_enc, auth_mode")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        const { data: registryRow } = await admin
+          .from("ru_retired_accounts")
+          .select("portal_email")
+          .eq("ru_owner_id", ownerId)
+          .maybeSingle();
+        const loginEmail = (opts.loginEmail ?? "").trim()
+          ? String(opts.loginEmail).trim()
+          : (credRow?.login_email ?? registryRow?.portal_email ?? null);
+
+        // ── Step 1: the account's OWN keys (the close has no account selector) ──
+        let childAccessKey: string | null = null;
+        let childSecretKey: string | null = null;
+        if (credRow?.access_key && credRow.key_scope !== "master_pair") {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.secret_enc });
+          if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
+            childAccessKey = String(credRow.access_key);
+            childSecretKey = plain;
+          }
+        }
+        // A stored portal password is a valid mint envelope when no pair is on file.
+        let storedPassword: string | null = null;
+        if (!childAccessKey && credRow?.password_enc) {
+          const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: credRow.password_enc });
+          if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") storedPassword = plain;
+        }
+        if (childAccessKey && childSecretKey) {
+          steps.push({ step: "auth", ok: true, message: "Used the stored sub-account API key pair" });
+        } else {
+          const mintPassword = (opts.password ?? "").trim() || storedPassword || RU_SUB_USER_PASSWORD;
+          const minted = await mintChildKeyPair({
+            ownerId,
+            loginEmail,
+            keyLabel: "ROLOS-close",
+            authUsername: loginEmail,
+            authPassword: mintPassword,
+          });
+          if (minted.ok) {
+            const { data: freshCred } = await admin
+              .from("ru_api_credentials")
+              .select("access_key, secret_enc")
+              .eq("ru_owner_id", ownerId)
+              .maybeSingle();
+            if (freshCred?.access_key) {
+              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: freshCred.secret_enc });
+              if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") {
+                childAccessKey = String(freshCred.access_key);
+                childSecretKey = plain;
+              }
+            }
+          }
+          if (childAccessKey && childSecretKey) {
+            steps.push({ step: "auth", ok: true, message: `Minted a fresh key pair (${(minted.attempts ?? []).join(" → ") || "ok"})` });
+          } else {
+            const why = minted.message ?? "the channel refused to mint a key pair for this sub-account";
+            steps.push({ step: "auth", ok: false, message: why });
+            await releaseLock(false, why);
+            return fail(
+              "NEEDS_KEYS",
+              `This account cannot be closed over the API: the close verb runs as the sub-account itself and ${why}. Supply the sub-account portal password to close it. Master credentials are never used for a close.`,
+            );
+          }
+        }
+
+        // ── Step 2: close it at the channel ──
+        const { data: closeRes, error: closeErr } = await admin.functions.invoke("rentalsunited-api", {
+          body: {
+            action: "archive_user",
+            owner_id: Number(ownerId),
+            auth_access_key: childAccessKey,
+            auth_secret_key: childSecretKey,
+            parent_action: "ru-cert-portal:close_account",
+          },
+        });
+        const closeCode = String(closeRes?.error?.code ?? "");
+        const rateLimited = closeCode === "RU_RATE_LIMITED" || closeCode === "RU_RATE_DEFERRED";
+        if (closeErr || closeRes?.success !== true) {
+          const message = closeRes?.error?.message ?? closeErr?.message ?? "The channel did not accept the close request";
+          steps.push({ step: "close_account", ok: false, message });
+          await releaseLock(false, message);
+          return fail(rateLimited ? "RATE_LIMITED" : "CLOSE_REFUSED", rateLimited
+            ? `${message} This account stays open and can be retried after the window.`
+            : message, { retryAfterMs: rateLimited ? cooldownSeconds * 1000 : undefined });
+        }
+        steps.push({ step: "close_account", ok: true, message: "The channel accepted Push_ArchiveUser_RQ (close user account)" });
+
+        // ── Step 3: verify against the channel's own roster ──
+        let confirmed = false;
+        let verifiedViaRoster = false;
+        let verifyMessage = "The roster could not be re-read, so the close is unverified";
+        try {
+          const { data: roster, error: rosterErr } = await admin.functions.invoke("rentalsunited-api", {
+            body: {
+              action: "list_users",
+              include_retired: true,
+              force_fresh: true,
+              parent_action: "ru-cert-portal:close_account",
+            },
+          });
+          if (!rosterErr && roster?.success !== false) {
+            verifiedViaRoster = true;
+            const users: { owner_id?: string | null; archived?: boolean | null }[] = Array.isArray(roster?.users) ? roster.users : [];
+            const match = users.find((u) => String(u.owner_id ?? "").trim() === ownerId);
+            confirmed = !match || match.archived === true;
+            verifyMessage = confirmed
+              ? (match ? "The channel now lists the account as archived" : "The account no longer appears on the master roster")
+              : "The channel still lists the account as active — it may still be processing (closes can take several minutes)";
+          }
+        } catch (e) {
+          verifyMessage = e instanceof Error ? e.message : String(e);
+        }
+        steps.push({ step: "verify", ok: confirmed, message: verifyMessage });
+
+        // The close kills every key the account held, so our stored copy is dead weight.
+        if (confirmed) {
+          await admin.from("ru_api_credentials").delete().eq("ru_owner_id", ownerId)
+            .then(() => {}, (e) => console.warn("[ru-cert-portal] close key row delete failed", e));
+        }
+
+        await releaseLock(true, confirmed ? "closed and confirmed" : "closed, roster confirmation pending");
+        return {
+          status: confirmed ? "closed_at_channel" : "close_not_possible",
+          confirmed,
+          code: confirmed ? "CLOSED" : "CLOSE_UNVERIFIED",
+          message: confirmed
+            ? `The channel closed the account${loginEmail ? ` ${loginEmail}` : ""} (OwnerID ${ownerId})`
+            : `The channel accepted the close but has not confirmed it yet: ${verifyMessage}`,
+          steps,
+          attempts: 1,
+          verifiedViaRoster,
+        };
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        await releaseLock(false, message);
+        return fail("CLOSE_FAILED", message);
+      }
+    };
+
+
+
+    /**
      * ── persistChildPasswordAndProbe ─────────────────────────────────────────────
      * §2 replacement for mintChildKeyPair on the onboard/save-password paths. RU no
      * longer issues a sub-account's first key pair via the API (post 26 Nov 2025), so
