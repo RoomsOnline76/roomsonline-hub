@@ -7503,6 +7503,45 @@ Deno.serve(async (req) => {
         message: `${(gateRows ?? []).length} onboarding gate(s) reset to pending${wipes.length ? ` · cleared ${wipes.join(", ")}` : ""}`,
       });
 
+      /**
+       * ── 6. Re-grade the content steps immediately ──
+       *
+       * A blanket "pending" made a sterilized property read as if its rooms, beds, photos and
+       * amenities were all missing, so the operator had to hunt for blockers that were never
+       * real. The content steps (1–5) are decided entirely from ROL'OS data and owe the channel
+       * nothing, so they are re-graded here — local only, no channel probe — and the property is
+       * declared sterilized with its true verdicts. The account-scoped steps stay pending: those
+       * must genuinely be earned against the new connection.
+       */
+      let contentSteps: { step_key: string; status: string; blocker_summary: string | null }[] = [];
+      try {
+        const report = await scorePropertyWithinBudget(prop, false);
+        const rows = mapReadinessToLedgerRows(report as unknown as ReadinessReportLike)
+          .filter((r) => LOCAL_CLASS_LEDGER_STEPS.includes(r.step_key as never));
+        if (rows.length > 0) {
+          await writeLedgerRows(admin, propertyId, rows);
+          contentSteps = rows.map((r) => ({
+            step_key: r.step_key,
+            status: r.status,
+            blocker_summary: r.blocker_summary ?? null,
+          }));
+        }
+        steps.push({
+          step: "verify_content_steps",
+          ok: contentSteps.every((r) => r.status === "passed"),
+          message: contentSteps.length === 0
+            ? "Content steps could not be graded — they stay pending"
+            : `${contentSteps.filter((r) => r.status === "passed").length}/${contentSteps.length} content step(s) verified as passing` +
+              `${contentSteps.some((r) => r.status !== "passed") ? ` · outstanding: ${contentSteps.filter((r) => r.status !== "passed").map((r) => r.step_key).join(", ")}` : ""}`,
+        });
+      } catch (e) {
+        steps.push({
+          step: "verify_content_steps",
+          ok: false,
+          message: `Content steps could not be graded (${e instanceof Error ? e.message : String(e)}) — they stay pending`,
+        });
+      }
+
       await admin.from("audit_logs").insert({
         user_id: user.id,
         user_email: user.email ?? "unknown",
@@ -7530,6 +7569,7 @@ Deno.serve(async (req) => {
         cancelled_queued_calls: cancelledCalls ?? 0,
         cleared: wipes,
         gates_reset: (gateRows ?? []).length,
+        content_steps: contentSteps,
         steps,
       });
     }
