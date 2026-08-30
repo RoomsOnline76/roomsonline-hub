@@ -873,6 +873,8 @@ export function ChannelOnboardTab({
               : "Property published — channels can now connect",
           );
         } else if (conflict) {
+          // The login chooser owns this remedy — no separate retry banner.
+          setFailedStep((prev) => ({ ...prev, [step]: undefined }));
           toast.error("A different distribution login is needed", {
             description: conflict.detail,
             duration: 12000,
