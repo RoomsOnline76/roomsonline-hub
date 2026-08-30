@@ -6745,9 +6745,10 @@ Deno.serve(async (req) => {
         }, 409);
       }
 
-      // ── Step 2: archive the sub-account ──
-      // channel_archived_at is stamped only when the channel confirmed EVERY listing —
-      // a forced retire with refusals stays visibly unfinished at the channel.
+      // ── Step 2: record the retirement ──
+      // channel_archived_at is NOT stamped here: the account itself is only archived at
+      // the channel once the close in step 4 is confirmed on the roster. "No listing
+      // refused" is not evidence of anything (an account with zero listings would pass).
       const fullyArchivedAtChannel = failedListings.length === 0;
       const { error: retErr } = await admin.from("ru_retired_accounts").upsert(
         {
@@ -6756,10 +6757,11 @@ Deno.serve(async (req) => {
           reason: note ?? "Retired from Channel Monitor — listings archived and property disconnected",
           retired_by: user.id,
           listings_archived: archivedListings.length,
-          channel_archived_at: fullyArchivedAtChannel ? new Date().toISOString() : null,
+          channel_archived_at: null,
         },
         { onConflict: "ru_owner_id" },
       );
+
 
       if (retErr) {
         return json({ success: false, stopped_after: "archive_account", error: { code: "SAVE_FAILED", message: retErr.message } }, 500);
