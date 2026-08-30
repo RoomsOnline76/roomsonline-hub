@@ -50,6 +50,8 @@ export interface ChannelPropertyRow {
   ownerId: string | null;
   /** RU sub-user account id (UserID) linked to this property. */
   subUserId: string | null;
+  /** Portal login email for the channel sub-account linked to this property. */
+  ownerEmail: string | null;
 }
 
 export interface ArchiveEventRow {
