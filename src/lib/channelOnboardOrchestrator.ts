@@ -907,6 +907,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
   // Step B ────────────────────────────────────────────────────────────────────
   review_listings: async (ctx) => {
+    // A full re-run is an explicit instruction to re-publish everything: no delta compare,
+    // so the channel receives the complete content + availability + pricing set again.
+    if (ctx.fullRerun) {
+      ctx.pushScope = { unchanged: false, unitIds: null, changedFields: [] };
+      return {
+        id: "review_listings",
+        outcome: "skipped",
+        detail: "Full re-run requested — the delta compare is bypassed and everything is re-sent.",
+      };
+    }
     // Read-only: compare what is published with local content so the push below only
     // re-sends what actually moved. A failure here is never fatal — the scope simply
     // stays unset and the push falls back to sending everything.
