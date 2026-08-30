@@ -791,6 +791,7 @@ export function ChannelOnboardTab({
         for (const task of stepTasks.slice(from)) next[task.id] = { state: "idle" };
         return next;
       });
+      let continueToPublish = false;
       try {
         const result = await runOnboardStep(step, {
           propertyId,
@@ -855,6 +856,7 @@ export function ChannelOnboardTab({
           setStepARemedyCode(null);
           // Step A is settled — the account modal has nothing left to ask.
           setAccountDialogOpen(false);
+          continueToPublish = true;
 
         } else if (stepABlocker) {
           setStepARemedyCode(stepABlocker.code ?? null);
@@ -870,7 +872,7 @@ export function ChannelOnboardTab({
         if (result.passed) {
           toast.success(
             step === "a"
-              ? "Distribution account provisioned — key pair stored and company details sent, ready for Step B"
+              ? "Distribution account ready — publishing property…"
               : "Property published — channels can now connect",
           );
         } else if (conflict) {
@@ -935,6 +937,7 @@ export function ChannelOnboardTab({
         setRunningStep(null);
         stepRunInFlight.current = false;
         await gate.refresh();
+        if (continueToPublish) void runStep("b");
       }
     },
     [chosenLoginEmail, gate, plan, propertyId],

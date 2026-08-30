@@ -105,9 +105,9 @@ export const CHANNEL_ONBOARD_STEP_META: Record<
   },
   b: {
     key: "monitor_step_b",
-    title: "Step B — Publish property & ARI",
+    title: "Publish property & ARI",
     goal: "The property, its rooms and a full year of availability and pricing are live and read back.",
-    cta: "Run Step B",
+    cta: "Publish",
   },
 };
 
