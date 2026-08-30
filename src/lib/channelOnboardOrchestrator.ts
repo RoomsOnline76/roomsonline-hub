@@ -600,7 +600,13 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
   },
 
 
+  /**
+   * A.2 is one step: capture the account's manually created key pair, then prove it.
+   * Verification is folded in here so the operator never sees a separate "verify" leg
+   * that can only ever repeat A.2's verdict.
+   */
   api_keys: async (ctx, snapshot) => {
+    const capture = await (async (): Promise<TaskResult> => {
     const binding = liveBinding(ctx, snapshot);
     const accountLabel = [
       binding.ru_owner_id ? `OwnerID ${binding.ru_owner_id}` : null,
@@ -676,9 +682,18 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       detail: (provisioning?.warning
         ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText,
     };
+    })();
 
-
-
+    if (capture.outcome !== "passed" && capture.outcome !== "skipped") return capture;
+    const verified = await RUNNERS.verify_keys(ctx, snapshot);
+    if (verified.outcome === "failed" || verified.outcome === "blocked" || verified.outcome === "pending") {
+      return { ...verified, id: "api_keys" };
+    }
+    return {
+      id: "api_keys",
+      outcome: "passed",
+      detail: [capture.detail, verified.detail].filter(Boolean).join(" · "),
+    };
   },
 
   verify_keys: async (ctx, snapshot) => {
