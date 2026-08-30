@@ -1097,6 +1097,32 @@ export function ChannelOnboardTab({
 
     const stepWaiting = waiting[step];
     const stepFailed = failedStep[step];
+    /**
+     * A stop recorded in a previous session (or before a reload) still needs a way back in:
+     * derive the resume point from the live task states, else the recorded ledger outcomes.
+     */
+    const derivedStop =
+      tasks.find((t) => {
+        const s = taskStates[t.id]?.state;
+        return s === "failed" || s === "blocked";
+      })?.id ??
+      (tasks.find((t) => {
+        const outcome = ledgerTasks.find((l) => l.id === t.id)?.outcome;
+        return outcome === "failed" || outcome === "blocked";
+      })?.id ??
+        null);
+    const derivedDetail = derivedStop
+      ? taskStates[derivedStop]?.detail ?? ledgerTasks.find((l) => l.id === derivedStop)?.detail
+      : undefined;
+    const effectiveFailed =
+      stepFailed ??
+      (derivedStop
+        ? {
+            resumeFromTaskId: derivedStop,
+            summary: derivedDetail || "The step stopped before completing.",
+          }
+        : undefined);
+
     const waitRemaining = stepWaiting ? stepWaiting.until - nowTick : 0;
     /**
      * A passed step is settled work: it collapses to its one-line verdict until the
@@ -1183,21 +1209,21 @@ export function ChannelOnboardTab({
               )}
 
               {/* A hard stop keeps its resume point: the operator picks the run up where it stopped. */}
-              {stepFailed && !stepWaiting && runningStep !== step && (
+              {effectiveFailed && !stepWaiting && runningStep !== step && (
                 <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">
-                      {meta.title} stopped{stepFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
+                      {meta.title} stopped{effectiveFailed.resumeFromTaskId ? " partway" : ""} — nothing was rolled back
                     </p>
-                    <p className="leading-snug break-words">{stepFailed.summary}</p>
+                    <p className="leading-snug break-words">{effectiveFailed.summary}</p>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={runningStep !== null}
                     onClick={() =>
-                      void runStep(step, { startAtTaskId: stepFailed.resumeFromTaskId })
+                      void runStep(step, { startAtTaskId: effectiveFailed.resumeFromTaskId })
                     }
                   >
                     {runningStep === step ? (
@@ -1205,7 +1231,7 @@ export function ChannelOnboardTab({
                     ) : (
                       <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                     )}
-                    {stepFailed.resumeFromTaskId ? "Resume" : "Retry"}
+                    {effectiveFailed.resumeFromTaskId ? "Resume" : "Retry"}
                   </Button>
                 </div>
               )}
