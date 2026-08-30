@@ -1287,8 +1287,19 @@ export async function runOnboardStep(step: ChannelOnboardStep, ctx: RunContext):
   // delta path, so the edit gate's cached verdict must go.
   if (passed && step === "b") {
     await recordStep(ctx.propertyId, "ready_to_connect", "passed", "");
+    // The listing, its currency read-back and the Channel Manager entitlement were all
+    // proved by the tasks above — stamp them so the property reads as connected instead
+    // of leaving publish/connect stale and the property looking half-onboarded.
+    for (const derived of ["publish", "currency", "entitlement", "connect"] as const) {
+      const proved = results.find(
+        (r) => r.id === (derived === "publish" ? "verify_listings" : derived === "currency" ? "verify_currency" : "entitlement"),
+      );
+      if (derived !== "connect" && proved && proved.outcome !== "passed") continue;
+      await recordStep(ctx.propertyId, derived, "passed", proved?.detail ?? "Proved by the Step B push");
+    }
     invalidateChannelEditGate(ctx.propertyId);
     notifyRuAccountsChanged();
+
 
     // The daily subscription sweep may already have run before this account became
     // operational. Register this newly-live OwnerID now so reservations and booking
