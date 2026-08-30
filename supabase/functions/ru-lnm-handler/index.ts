@@ -153,8 +153,21 @@ Deno.serve(async (req) => {
        * `cron-ru-lnm-repull` drains the queue and logs the actual `lnm_repull` runs.
        */
       const ARI_TYPES = new Set(['PropertyAvailability', 'PropertyPrice', 'PropertyMinStay', 'PropertyChangeover']);
-      if ((ARI_TYPES.has(changeType) || changeType === 'PropertyStaticDetails') && ruPropertyId) {
-        const isStatic = changeType === 'PropertyStaticDetails';
+      /**
+       * ARI notifications are acknowledged only.
+       *
+       * ROL'OS is the source of truth for availability, prices, min-stay and changeover, so the
+       * channel can only ever be echoing what we published. Queueing a corrective read-back for
+       * those produced refused local calls and no useful information; channel-side bookings arrive
+       * through the reservation notification handler and the 30-minute reservation poll instead.
+       */
+      if (ARI_TYPES.has(changeType)) {
+        console.log(`[ru-lnm-handler] ARI notification acknowledged (${changeType}) property=${ruPropertyId ?? '-'}`);
+        return;
+      }
+      if (changeType === 'PropertyStaticDetails' && ruPropertyId) {
+        const isStatic = true;
+
 
         /**
          * Self-echo suppression.

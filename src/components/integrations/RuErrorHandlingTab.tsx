@@ -94,6 +94,29 @@ export const classifyRuError = (run: {
       fix: "Clear the item named in the message on the Onboard property step, then re-run the step.",
     };
   }
+  if (code === "readback_blocked" || msg.includes("is a channel read-back") || msg.includes("readback_purpose")) {
+    return {
+      key: "readback_blocked",
+      label: "Channel read-back refused locally",
+      severity: "expected",
+      cause:
+        "A job asked to read availability or pricing back off the channel without declaring a purpose. ROL'OS owns both, so the gateway refuses undeclared reads.",
+      handling: "Refused before any channel call — no rate-limited slot was spent and nothing was lost.",
+      fix: "None. Availability and price notifications are acknowledged only; a deliberate read must declare its purpose (onboarding verification, certification probe, coverage audit, availability repair).",
+    };
+  }
+  if (msg.includes("only modify stay in confirmed reservation")) {
+    return {
+      key: "modify_unconfirmed",
+      label: "Stay is still an unconfirmed request at the channel",
+      severity: "expected",
+      cause:
+        "The channel still holds the booking as a request, and a stay modification only applies to a confirmed reservation.",
+      handling: "The modification is refused instead of applied to the wrong verb; the local change still stands.",
+      fix: "Confirm or reject the request first (Requests → accept), then resend the stay change.",
+    };
+  }
+
 
   if (msg.includes("invalid session") || msg.includes("session expired") || code === "invalid_session") {
     return {

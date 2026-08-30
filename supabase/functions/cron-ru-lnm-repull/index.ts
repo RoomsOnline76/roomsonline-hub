@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
     const startedAt = Date.now();
     const methods: string[] = [];
     let deferredHere = false;
-    let queuedHere = false;
+    const queuedHere = false;
+    let ariNoOp = false;
     let failure: string | null = null;
 
     try {
@@ -123,35 +124,23 @@ Deno.serve(async (req) => {
         if (data?.success === false) throw new Error(data?.error?.message ?? 'static re-push failed');
         methods.push('Push_PutProperty_RQ (differential)');
       } else {
-        // Availability only. The notification is almost always the echo of our own ARI write, and
-        // ROL'OS is the source of truth for rates — pulling the channel's prices back here told us
-        // nothing and was the single largest source of `Pull_ListPropertyPrices_RQ` traffic. The
-        // availability read stays: that is how a channel-side booking gets noticed.
-        for (const apiAction of ['get_availability'] as const) {
-          const { data, error } = await supabase.functions.invoke('rentalsunited-api', {
-            body: {
-              action: apiAction,
-              ru_property_id: Number(row.ru_property_id),
-              date_from: row.date_from,
-              date_to: row.date_to,
-              // The notification's Publisher is the sub-account that owns the listing; without it
-              // the pull runs on master credentials and the channel answers "does not exist".
-              ...(row.ru_owner_id ? { owner_id: row.ru_owner_id } : {}),
-              // Park the read-back in the shared call queue rather than losing it to the window.
-              deferrable: true,
-            },
-          });
-          if (error) throw new Error(await invokeErrorMessage(error));
-          if (data?.success === false) throw new Error(data?.error?.message ?? `${apiAction} failed`);
-          if (data?.queued === true) queuedHere = true;
-          methods.push('Pull_ListPropertyAvailabilityCalendar_RQ');
-        }
+        /**
+         * ARI notifications are acknowledged, never read back.
+         *
+         * ROL'OS owns availability and pricing, so the channel's calendar can only ever repeat what
+         * we published — the read-back added nothing and, once the read-back gate started demanding
+         * a declared purpose, every one of these rows failed locally without a channel call ever
+         * being made. Channel-side bookings reach us through the reservation notification handler
+         * and the 30-minute reservation poll, which are the authoritative paths.
+         */
+        ariNoOp = true;
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (isDeferral(message)) deferredHere = true;
       else failure = message;
     }
+
 
 
     summary.processed++;
@@ -206,14 +195,20 @@ Deno.serve(async (req) => {
 
     await supabase.from('ru_sync_runs').insert({
       batch_id: batchId,
-      action: 'lnm_repull',
+      action: ariNoOp ? 'lnm_ari_acknowledged' : 'lnm_repull',
       success: ok,
       error_message: failure,
       elapsed_ms: Date.now() - startedAt,
       property_id: row.property_id,
       ru_property_id: row.ru_property_id,
       details: {
-        scope: 'lnm_corrective_repull',
+        scope: ariNoOp ? 'lnm_skipped_not_applicable' : 'lnm_corrective_repull',
+        ...(ariNoOp
+          ? {
+              reason:
+                "ARI notification acknowledged — ROL'OS owns availability and pricing, so no channel read-back is owed",
+            }
+          : {}),
         coalesced_notifications: row.notifications,
         change_types: row.change_types ?? [],
         date_from: row.date_from,
@@ -224,6 +219,7 @@ Deno.serve(async (req) => {
         queued_via_call_queue: queuedHere || undefined,
       },
     });
+
   }
 
   console.log(
