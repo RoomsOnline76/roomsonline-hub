@@ -779,6 +779,8 @@ export function ChannelOnboardTab({
       setPushProgress(null);
       setWaiting((prev) => ({ ...prev, [step]: undefined }));
       setTaskCodes({});
+      setFailedStep((prev) => ({ ...prev, [step]: undefined }));
+      lastStopTaskRef.current[step] = undefined;
       setTaskStates((prev) => {
         const next = { ...prev };
         const stepTasks = CHANNEL_ONBOARD_TASKS.filter((t) => t.step === step);
