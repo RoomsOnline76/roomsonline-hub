@@ -1022,20 +1022,23 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const confirmedIds = unitRows
       .filter((u) => u.success !== false && typeof u.rentalsunited_property_id === "string")
       .map((u) => String(u.rentalsunited_property_id));
-    if (units > 0 && confirmedIds.length === units) {
+    if (units > 0 && confirmedIds.length === units && !ctx.fullRerun) {
       ctx.pushConfirmedListings = { units, ids: confirmedIds };
     }
     return {
       id: "push_property",
       outcome: "passed",
-      detail: units > 0 ? `${units} unit(s) pushed with full ARI` : "Property pushed with full ARI",
+      detail: units > 0
+        ? `${units} unit(s) pushed with full ARI${ctx.fullRerun ? " (forced re-send, read back at the channel)" : ""}`
+        : `Property pushed with full ARI${ctx.fullRerun ? " (forced re-send, read back at the channel)" : ""}`,
     };
   },
 
   verify_listings: async (ctx) => {
     // The push returned a channel listing id for every unit — that IS the confirmation.
     // Re-reading the owner's roster here only spends the channel's tightest read quota.
-    const confirmed = ctx.pushConfirmedListings;
+    // A full re-run deliberately spends it: the operator asked the channel, not our receipts.
+    const confirmed = ctx.fullRerun ? null : ctx.pushConfirmedListings;
     if (confirmed && confirmed.units > 0) {
       return {
         id: "verify_listings",
@@ -1043,7 +1046,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `${confirmed.units} unit(s) confirmed live on the channel (ids returned by the publish: ${confirmed.ids.join(", ")})`,
       };
     }
-    const cachedRoster = ctx.listingRoster?.data ?? listingRosterIfFresh(ctx.propertyId);
+    const cachedRoster = ctx.fullRerun ? null : (ctx.listingRoster?.data ?? listingRosterIfFresh(ctx.propertyId));
     if (cachedRoster) {
       const data = cachedRoster;
       if (data.listings_verified === true) {
