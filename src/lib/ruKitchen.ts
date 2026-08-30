@@ -13,12 +13,23 @@ import { isRuToken, ruToken, ruTokenId } from "@/lib/ruAmenities";
 /** Channel dictionary id rendered as "Separate kitchen" on OTA listings. */
 export const RU_SEPARATE_KITCHEN_ID = 101;
 
-/** True when the stored amenity list declares the separate kitchen. */
+/**
+ * The truthful default when a property only says "it has its own kitchen": a fully
+ * equipped kitchen (135). Publishing bare 101 makes the OTA read "Separate kitchen",
+ * which is a stronger claim than the property ever made.
+ */
+export const RU_FULLY_EQUIPPED_KITCHEN_ID = 135;
+
+/** The 101 family — every flavour the channel renders from the separate-kitchen block. */
+export const RU_SEPARATE_KITCHEN_FAMILY_IDS = [101, 102, 135, 1262];
+
+/** True when the stored amenity list declares an own (separate) kitchen of any flavour. */
 export function hasSeparateKitchen(values: string[] | null | undefined): boolean {
   return (values || []).some(
-    (v) => isRuToken(v) && ruTokenId(v) === RU_SEPARATE_KITCHEN_ID,
+    (v) => isRuToken(v) && RU_SEPARATE_KITCHEN_FAMILY_IDS.includes(Number(ruTokenId(v))),
   );
 }
+
 
 /**
  * Kitchen flavours are one fact with one answer: a unit has a separate kitchen (101 and
@@ -41,12 +52,17 @@ export function withSingleKitchenFlavour(values: string[] | null | undefined, ke
   });
 }
 
-/** Add or remove the separate-kitchen amenity so the list matches the flag. */
+/**
+ * Add or remove the own-kitchen amenity so the list matches the flag. Turning the flag on
+ * declares a fully equipped kitchen (135) — never bare 101 — and leaves an existing flavour
+ * of the family alone. Turning it off clears the whole family.
+ */
 export function withSeparateKitchen(values: string[] | null | undefined, on: boolean): string[] {
   const list = [...(values || [])];
   const without = list.filter(
-    (v) => !(isRuToken(v) && ruTokenId(v) === RU_SEPARATE_KITCHEN_ID),
+    (v) => !(isRuToken(v) && RU_SEPARATE_KITCHEN_FAMILY_IDS.includes(Number(ruTokenId(v)))),
   );
   if (!on) return without;
-  return hasSeparateKitchen(list) ? list : [...without, ruToken(RU_SEPARATE_KITCHEN_ID)];
+  return hasSeparateKitchen(list) ? list : [...without, ruToken(RU_FULLY_EQUIPPED_KITCHEN_ID)];
 }
+
