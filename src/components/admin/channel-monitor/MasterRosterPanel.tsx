@@ -166,6 +166,8 @@ export function MasterRosterPanel() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [reason, setReason] = useState("");
+  /** Held for the run only — the close authenticates as the sub-account itself. */
+  const [portalPassword, setPortalPassword] = useState("");
   const [cooldownSeconds, setCooldownSeconds] = useState(DEFAULT_COOLDOWN_SECONDS);
   const [closing, setClosing] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
