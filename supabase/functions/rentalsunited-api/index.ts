@@ -1037,7 +1037,12 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
-  const cleaningPriceXml = `<CleaningPrice>${prop.cleaning_price ?? 0}</CleaningPrice>`;
+  // RU deprecated <CleaningPrice> (Notif 258: "Property cleaning price is obsolete. Please
+  // provide the cost of cleaning price within the fees collection."). Cleaning rides in the
+  // charges/fees collection, so only send the element when a legacy non-zero value exists.
+  const cleaningPriceXml = Number(prop.cleaning_price ?? 0) > 0
+    ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
+    : '';
   const arrivalInstructionsXml = `<ArrivalInstructions>
       <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
       <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
