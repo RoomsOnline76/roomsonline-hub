@@ -5640,9 +5640,7 @@ Deno.serve(async (req) => {
       // Step 2: Push each unit as an individual RU property
       // Optional filter: only_unit_ids restricts the per-unit push (building still updated above
       // with full composition so existing RUIDs remain valid). Used for retry of stuck units.
-      const unitsToPush = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
-        ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
-        : activeRoomTypes;
+      const unitsToPush = resolveScopedRoomTypes(only_unit_ids, 'Step 2 per-unit push');
       console.log(`[push-property-to-ru] Step 2: pushing ${unitsToPush.length}/${activeRoomTypes.length} units${only_unit_ids ? ' (filtered)' : ''}`);
       const unitResults: any[] = [];
       for (const unit of unitsToPush) {
