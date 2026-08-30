@@ -1,0 +1,1 @@
+ALTER TYPE public.channel_name ADD VALUE IF NOT EXISTS 'rentals_united';
