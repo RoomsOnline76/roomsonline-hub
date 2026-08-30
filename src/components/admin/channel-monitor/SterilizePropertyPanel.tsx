@@ -221,6 +221,26 @@ export function SterilizePropertyPanel() {
             </p>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="sterilize-password" className="text-xs">
+              Sub-account portal password (optional)
+            </Label>
+            <Input
+              id="sterilize-password"
+              type="password"
+              autoComplete="off"
+              placeholder="Only needed when the account holds no stored key pair"
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Sterilizing now also closes the distribution account at the channel, so its portal
+              login stops working. That close runs as the sub-account itself — supply its password
+              when no key pair is on file. Used for this run only and never stored.
+            </p>
+          </div>
+
+
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
