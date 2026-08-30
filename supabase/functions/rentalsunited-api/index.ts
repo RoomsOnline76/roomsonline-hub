@@ -1138,7 +1138,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <ID>${propertyId}</ID>
     <Name>${escapeXml(prop.name)}</Name>
     <OwnerID>${prop.owner_id}</OwnerID>
-    <!-- no CurrencyID: rejected by RU's XSD; currency is set per location via Push_ChangeCurrency_RQ -->
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
     <IsArchived>false</IsArchived>
