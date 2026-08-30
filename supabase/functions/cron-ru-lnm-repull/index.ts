@@ -195,14 +195,20 @@ Deno.serve(async (req) => {
 
     await supabase.from('ru_sync_runs').insert({
       batch_id: batchId,
-      action: 'lnm_repull',
+      action: ariNoOp ? 'lnm_ari_acknowledged' : 'lnm_repull',
       success: ok,
       error_message: failure,
       elapsed_ms: Date.now() - startedAt,
       property_id: row.property_id,
       ru_property_id: row.ru_property_id,
       details: {
-        scope: 'lnm_corrective_repull',
+        scope: ariNoOp ? 'lnm_skipped_not_applicable' : 'lnm_corrective_repull',
+        ...(ariNoOp
+          ? {
+              reason:
+                "ARI notification acknowledged — ROL'OS owns availability and pricing, so no channel read-back is owed",
+            }
+          : {}),
         coalesced_notifications: row.notifications,
         change_types: row.change_types ?? [],
         date_from: row.date_from,
@@ -213,6 +219,7 @@ Deno.serve(async (req) => {
         queued_via_call_queue: queuedHere || undefined,
       },
     });
+
   }
 
   console.log(
