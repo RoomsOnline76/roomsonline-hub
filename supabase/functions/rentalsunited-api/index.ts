@@ -3044,12 +3044,27 @@ Deno.serve(async (req) => {
     // Every action below that touches ONE sub-user's inventory authenticates as that
     // sub-user when API keys are on file, so the listing lands on the sub-account.
     const childScoped = CHILD_SCOPED_ACTIONS.has(action);
+    // A reservation lives inside the sub-account that owns the listing. A read that arrives with
+    // only a property_id would otherwise run on MASTER credentials, where the channel answers
+    // "Reservation does not exist" (status 28) — which callers then read as "absent at the
+    // channel" and fall back to confirm/create/modify cascades. Derive the OwnerID from the
+    // property so the read is scoped to the account that actually holds the reservation.
+    if (childScoped && (body.owner_id == null || String(body.owner_id).trim() === '') && body.property_id) {
+      const derived = await resolveOwnerIdForPropertyScope(String(body.property_id));
+      if (derived) {
+        body.owner_id = derived;
+        console.log(
+          `[rentalsunited-api] ${action}: owner scope derived from property ${body.property_id} → OwnerID ${derived}`,
+        );
+      }
+    }
     const childResolution = childScoped
       ? await resolveChildAuthDetailed(body)
       : { auth: null, reason: null };
     const childAuth = childResolution.auth;
     const authMode = childAuthMode(childAuth);
     const ownerScope = body.owner_id == null ? '' : String(body.owner_id).trim();
+
     if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${ownerScope || 'n/a'}`);
     }
