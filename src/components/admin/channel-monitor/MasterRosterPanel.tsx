@@ -166,6 +166,11 @@ export function MasterRosterPanel() {
   
   const [keyOutcomes, setKeyOutcomes] = useState<Record<string, KeyGenOutcome>>({});
   const [generating, setGenerating] = useState(false);
+  const [captureOwner, setCaptureOwner] = useState<string | null>(null);
+  const [captureAccess, setCaptureAccess] = useState("");
+  const [captureSecret, setCaptureSecret] = useState("");
+  const [captureLabel, setCaptureLabel] = useState("");
+  const [capturing, setCapturing] = useState(false);
   const cancelled = useRef(false);
   const rematchCancelled = useRef(false);
   const keyGenCancelled = useRef(false);
@@ -542,6 +547,48 @@ export function MasterRosterPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Manual capture — for sub-accounts whose pair was issued in the channel portal by hand
+   * (mints are refused on some accounts). The backend still proves ownership of the pair
+   * against this OwnerID before storing it, so a wrong or duplicate pair is rejected.
+   */
+  const saveCapturedKeys = useCallback(async () => {
+    const ownerId = captureOwner;
+    if (!ownerId) return;
+    const access = captureAccess.trim();
+    const secret = captureSecret.trim();
+    if (!access || !secret) {
+      toast.error("Both the access key and the secret are required");
+      return;
+    }
+    setCapturing(true);
+    const match = (result?.users ?? []).find((u) => String(u.owner_id ?? "").trim() === ownerId);
+    const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+      body: {
+        action: "save_api_keys",
+        ru_owner_id: ownerId,
+        login_email: match ? (match.login_email ?? match.email ?? undefined) : undefined,
+        access_key: access,
+        secret_key: secret,
+        key_label: captureLabel.trim() || "Captured manually",
+      },
+    });
+    setCapturing(false);
+    if (data?.success !== true) {
+      toast.error(data?.error?.message ?? error?.message ?? "The channel did not accept that key pair");
+      return;
+    }
+    toast.success("Key pair verified against this sub-account and stored");
+    setCaptureOwner(null);
+    setCaptureAccess("");
+    setCaptureSecret("");
+    setCaptureLabel("");
+    read.mutate();
+    // read.mutate is stable for a mutation instance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureOwner, captureAccess, captureSecret, captureLabel, result]);
+
+
 
   return (
     <div className="mt-4 rounded-md border border-border bg-muted/20 p-3">
@@ -853,6 +900,24 @@ export function MasterRosterPanel() {
                           Generate key
                         </Button>
                       ) : null}
+                      {ownerId ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 gap-1 text-[10px]"
+                          disabled={generating || closing || rematching}
+                          onClick={() => {
+                            setCaptureAccess("");
+                            setCaptureSecret("");
+                            setCaptureLabel("");
+                            setCaptureOwner(ownerId);
+                          }}
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          {needsKey ? "Capture keys" : "Replace keys"}
+                        </Button>
+                      ) : null}
                       <span className="font-mono text-[10px] text-muted-foreground">
                         Sub-account: {ownerId || "—"}
                       </span>
@@ -934,7 +999,60 @@ export function MasterRosterPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!captureOwner} onOpenChange={(next) => (!next ? setCaptureOwner(null) : undefined)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Capture this sub-account's key pair</DialogTitle>
+            <DialogDescription>
+              Paste the pair issued in the channel portal for{" "}
+              <span className="font-mono">{captureOwner ? accountLabel(captureOwner) : ""}</span>{" "}
+              (sub-account {captureOwner || "—"}). The pair is verified against this sub-account
+              before it is stored, and a pair belonging to another account or already held elsewhere
+              is rejected. The secret is stored encrypted and never shown again.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Input
+              value={captureAccess}
+              onChange={(e) => setCaptureAccess(e.target.value)}
+              placeholder="Access key"
+              className="h-8 font-mono text-xs"
+              autoComplete="off"
+            />
+            <Input
+              value={captureSecret}
+              onChange={(e) => setCaptureSecret(e.target.value)}
+              placeholder="Secret key"
+              type="password"
+              className="h-8 font-mono text-xs"
+              autoComplete="off"
+            />
+            <Input
+              value={captureLabel}
+              onChange={(e) => setCaptureLabel(e.target.value)}
+              placeholder="Label (optional)"
+              className="h-8 text-xs"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => setCaptureOwner(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={capturing || !captureAccess.trim() || !captureSecret.trim()}
+              onClick={() => void saveCapturedKeys()}
+            >
+              {capturing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Verify &amp; store
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+
   );
 }
 
