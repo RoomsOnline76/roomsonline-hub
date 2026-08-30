@@ -50,6 +50,8 @@ export interface ChannelPropertyRow {
   ownerId: string | null;
   /** RU sub-user account id (UserID) linked to this property. */
   subUserId: string | null;
+  /** Portal login email for the channel sub-account linked to this property. */
+  ownerEmail: string | null;
 }
 
 export interface ArchiveEventRow {
@@ -307,13 +309,14 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           acc?.ru_user_id && String(acc.ru_user_id) !== String(acc.ru_owner_id ?? "")
             ? acc.ru_user_id
             : null,
+        ownerEmail: acc?.owner_email ?? null,
 
         keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
         companyDetailsSent: acc?.company_details_sent === true,
       });
       const accountByProperty = new Map<
         string,
-        { ownerId: string | null; subUserId: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
+        { ownerId: string | null; subUserId: string | null; ownerEmail: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
       >();
       for (const p of allProps) {
         const direct = ruAccounts.find((a) => a.property_id === p.id);
@@ -353,6 +356,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         const creds = accountByProperty.get(p.id) ?? {
           ownerId: null,
           subUserId: null,
+          ownerEmail: null,
           keysCaptured: false,
           companyDetailsSent: false,
         };
@@ -397,6 +401,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           neverPushed,
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
+          ownerEmail: creds.ownerEmail,
         } satisfies ChannelPropertyRow;
       });
 
