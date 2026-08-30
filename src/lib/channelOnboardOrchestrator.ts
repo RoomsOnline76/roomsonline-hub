@@ -573,10 +573,11 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         ru_owner_id: ownerId || ctx.binding?.ru_owner_id || null,
         login_email: loginEmail || ctx.binding?.login_email || null,
         owner_email: loginEmail || ctx.binding?.owner_email || null,
+        // A stored portal password is NOT a key pair: only a real AccessKey/SecretKey
+        // counts as "keys_stored", so A.2 still pauses for the manual capture.
         keys_stored:
           ctx.keyProvisioning?.source === "minted"
           || ctx.keyProvisioning?.source === "existing"
-          || ctx.keyProvisioning?.source === "password_verified"
           || ctx.binding?.keys_stored === true,
         company_details_sent:
           data.company_details_pushed === true || ctx.binding?.company_details_sent === true,
