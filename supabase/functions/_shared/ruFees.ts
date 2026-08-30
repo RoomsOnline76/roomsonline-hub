@@ -69,16 +69,22 @@ export function mapChargeToRuFee(charge: RuChargeRow): RuFeeEntry | null {
     discriminator = 2; // FixedPerDay
   }
 
+  // Late/early check-in and check-out charges are only levied when the guest asks for them, so
+  // they publish as OPTIONAL fees. RU's dictionary has no verified tax type for them, and we
+  // never invent channel ids, so they ride FeeTaxType 0 (unknown, valid per the dictionary).
+  const isOnRequest = /\b(late|early)\b.*check|check.*\b(late|early)\b/i.test(name);
+
   return {
     name,
     value,
     discriminator_id: discriminator,
     fee_tax_type: feeTaxTypeFor(name),
-    optional: false,
+    optional: isOnRequest,
     refundable: charge.refundable === true,
     collect_time: 1,
   };
 }
+
 
 /**
  * The listing's full fee set from the Charges tab, plus a legacy cleaning fallback when the
