@@ -633,17 +633,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       };
     }
 
-    // The channel no longer mints a brand-new sub-account's first key pair. Its login and
-    // password, proven by a single listings probe, are the credential — the run continues
-    // immediately instead of pausing for a pair that will never arrive automatically.
+    // A verified login/password proves the account exists, but authentication here is dual:
+    // the key/secret pair is still required. Never clear A.2 on a password alone.
     if (provisioning?.source === "password_verified") {
-      ctx.keysProvenInRun = true;
       return {
         id: "api_keys",
-        outcome: "passed",
-        detail: `Sub-account credentials verified${accountLabel ? ` for ${accountLabel}` : ""} — its own login authenticates channel calls until a key pair is pasted${trailText}`,
+        outcome: "blocked",
+        code: "RU_MANUAL_KEYS_REQUIRED",
+        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}`,
       };
     }
+
 
     if (provisioning?.source === "existing" || binding.keys_stored) {
       return {
