@@ -131,6 +131,11 @@ export function ChannelPropertyTable({
                   Sub-account: {row.ownerId}
                 </span>
               )}
+              {row.ownerEmail && (
+                <span title="Channel sub-account portal login">
+                  {row.ownerEmail}
+                </span>
+              )}
               {row.subUserId && row.subUserId !== row.ownerId && (
                 <span className="font-mono" title="Channel sub-user ID">
                   User: {row.subUserId}
