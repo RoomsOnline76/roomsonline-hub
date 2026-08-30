@@ -1556,11 +1556,18 @@ export function ChannelOnboardTab({
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={gate.readyToSellStatus} />
+                    <Button asChild size="sm" variant="secondary">
+                      <Link to={`/admin/properties/${propertyId}`}>
+                        Open property editor
+                        <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
                     <Button size="sm" variant="outline" onClick={() => void gate.regrade()} disabled={gate.grading}>
                       {gate.grading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                       Re-check
                     </Button>
                   </div>
+
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
