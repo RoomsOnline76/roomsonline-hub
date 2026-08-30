@@ -1338,7 +1338,7 @@ export function ChannelOnboardTab({
                       type="button"
                       aria-label="Clear manual sub-account email"
                       className="text-muted-foreground hover:text-foreground"
-                      onClick={() => setChosenLoginEmail("")}
+                      onClick={() => setChosenLoginEmailManual("")}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1444,7 +1444,7 @@ export function ChannelOnboardTab({
                   setManualEmailError("The channel limits emails to 50 characters.");
                   return;
                 }
-                setChosenLoginEmail(email);
+                setChosenLoginEmailManual(email);
                 setManualEmailOpen(false);
               }}
             >
