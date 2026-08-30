@@ -23,9 +23,7 @@ import { hasPendingRuCreate, resolveRuReservationIdentity } from './ruReservatio
 import {
   blockedDatesRefusalsThisHour,
   RU_BLOCKED_DATES_BREAKER_LIMIT,
-  stayNights,
 } from './ruReservationHold.ts';
-import { parseRuAvailabilityDays } from './ruAvailabilityParsing.ts';
 import { recordChannelBookingEvent } from './channelBookingEvents.ts';
 
 
@@ -649,80 +647,6 @@ async function reopenAndQueueConfirmedReservation(
     ruPropertyId: args.ruPropertyId,
   };
 }
-
-
-/**
- * Prove the channel really can sell this stay before spending a reservation write on it.
- *
- * `Push_PutAvbUnits_RQ` answering Status 0 is NOT proof: on 2026-08-29 a reopen returned Status 0
- * and the create fired 0.4 s later was still refused, because the channel had not applied the
- * calendar write yet (and a competing full-window delta closed the nights again straight after).
- * This is a reservation-write precondition, not recurring polling — hence its own declared
- * read-back purpose.
- */
-async function stayIsSellableAtChannel(
-  supabase: Db,
-  booking: RuBookingRef,
-  args: {
-    auth: Record<string, unknown>;
-    ruPropertyId: string;
-    dateFrom: string;
-    dateTo: string;
-    traceId: string;
-    parentAction: string;
-  },
-): Promise<{ checked: boolean; sellable: boolean; closedDays: string[]; detail: string | null }> {
-  const nights = stayNights(args.dateFrom, args.dateTo);
-  if (nights.length === 0) return { checked: false, sellable: true, closedDays: [], detail: null };
-
-  const read = await invokeRu(supabase, 'get_availability', {
-    ru_property_id: Number(args.ruPropertyId),
-    date_from: args.dateFrom,
-    date_to: args.dateTo,
-    readback_purpose: 'reservation_write_precheck',
-    ...args.auth,
-  }, {
-    propertyId: booking.property_id,
-    ruPropertyId: args.ruPropertyId,
-    traceId: args.traceId,
-    parentAction: args.parentAction,
-    details: { booking_id: booking.id, stay: { from: args.dateFrom, to: args.dateTo } },
-  });
-
-  const xml = typeof read.data?.raw_xml === 'string' ? read.data.raw_xml : '';
-  if (!read.ok || !xml) {
-    // A read we could not perform must never block the write — the channel is the final judge.
-    return { checked: false, sellable: true, closedDays: [], detail: read.message ?? null };
-  }
-
-  const days = parseRuAvailabilityDays(xml);
-  const closedDays: string[] = [];
-  for (const night of nights) {
-    const day = days.get(night);
-    if (!day) continue; // outside the returned window — nothing to assert
-    if (day.blocked || (day.units ?? 0) < 1) closedDays.push(night);
-  }
-
-  // Arrival and departure days must also permit check-in / check-out.
-  const arrival = days.get(args.dateFrom);
-  const departure = days.get(args.dateTo);
-  const changeoverProblems: string[] = [];
-  if (arrival && arrival.changeover != null && arrival.changeover !== 1 && arrival.changeover !== 3) {
-    changeoverProblems.push(`${args.dateFrom} does not allow check-in`);
-  }
-  if (departure && departure.changeover != null && departure.changeover !== 2 && departure.changeover !== 3) {
-    changeoverProblems.push(`${args.dateTo} does not allow check-out`);
-  }
-
-  const sellable = closedDays.length === 0 && changeoverProblems.length === 0;
-  const detail = sellable ? null : [
-    closedDays.length > 0 ? `closed night(s): ${closedDays.join(', ')}` : null,
-    ...changeoverProblems,
-  ].filter(Boolean).join('; ');
-  return { checked: true, sellable, closedDays, detail };
-}
-
-export { stayIsSellableAtChannel };
 
 
 
@@ -1490,25 +1414,14 @@ export async function pushRuConfirmedReservation(
   const queueArgs = { auth, ruPropertyId, fingerprint, payload, traceId };
 
   /**
-   * ROL-C73-001 (2026-08-30): first `Push_PutConfirmedReservationMulti_RQ` was refused Status 1
-   * "Property is not available for a given dates - Can't check in or check out on selected dates"
-   * because our sold-out ARI already closed the stay nights. Prove the calendar is open BEFORE
-   * the first write — sending first burns a rate-limit slot and surfaces a failure the queue
-   * would have avoided. A Status 0 on a reopen is not proof the stay became sellable (channel
-   * apply lag), so closed nights reopen and wait a sliding minute instead of being written now.
+   * Never send PutConfirmedReservation while the calendar is still closed. Live on this stay:
+   * 19:21, 19:40:13 and 19:42:43 each wrote the reservation first (Status 1), then
+   * Push_PutAvbUnits_RQ Status 0 one second later — too late. Status 0 on the reopen is also
+   * not proof the channel has applied it (0.4 s later still refused), so reopen first and park
+   * the registration past the sliding minute. Do not send in this turn.
    */
-  const precheck = await stayIsSellableAtChannel(supabase, booking, {
-    auth,
-    ruPropertyId,
-    dateFrom: booking.check_in_date,
-    dateTo: booking.check_out_date,
-    traceId,
-    parentAction: 'ruBookingSync:create:precheck',
-  });
-  if (precheck.checked && !precheck.sellable) {
-    const queued = await reopenAndQueueConfirmedReservation(supabase, booking, queueArgs);
-    if (queued) return queued;
-  }
+  const queued = await reopenAndQueueConfirmedReservation(supabase, booking, queueArgs);
+  if (queued) return queued;
 
   const result = await invokeRu(supabase, 'push_confirmed_reservation', payload, {
     propertyId: booking.property_id,
@@ -1521,9 +1434,8 @@ export async function pushRuConfirmedReservation(
   const reservationId = typeof result.data?.reservation_id === 'string' ? result.data.reservation_id : null;
 
   /**
-   * Channel apply lag, or a precheck that could not run: the write still hit closed nights.
-   * Reopen and replay past the sliding minute (the refused attempt already spent this minute's
-   * slot, so an immediate retry is always rejected).
+   * Last resort: reopen/queue did not land, so the write went out and the channel refused the
+   * dates. Reopen and park past the sliding minute (this attempt already spent the slot).
    */
   if (!result.ok && isRuBlockedDatesRefusal(result.message)) {
     const queued = await reopenAndQueueConfirmedReservation(supabase, booking, queueArgs);
