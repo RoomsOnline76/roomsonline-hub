@@ -21,10 +21,11 @@ function creatorFromXml(xml: string | null): string | null {
   return match ? match[1].trim() : null;
 }
 
-function nextAttemptAt(attemptCount: number): string {
+function nextAttemptAt(attemptCount: number, minDelayMs = 0): string {
   const minutes = RU_RETRY_BACKOFF_MINUTES[Math.min(attemptCount, MAX_RU_RETRY_ATTEMPTS - 1)];
-  return new Date(Date.now() + minutes * 60_000).toISOString();
+  return new Date(Date.now() + Math.max(minutes * 60_000, minDelayMs)).toISOString();
 }
+
 
 /**
  * Park a notification for another attempt, or mark it failed once the backoff is exhausted.
