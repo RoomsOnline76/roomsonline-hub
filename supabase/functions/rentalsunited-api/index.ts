@@ -1081,15 +1081,16 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal}</SecurityDeposit>`;
 
   // Strict XSD element order per RU schema (validated against live RS errors):
-  // ID > Name > OwnerID > CurrencyID > DetailedLocationID > IsActive > IsArchived >
+  // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived >
   // CleaningPrice > Space > StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID >
   // Floor > BuildingID > Street > ZipCode > Coordinates(Longitude+Latitude) >
   // CompositionRoomsAmenities > ArrivalInstructions > Amenities > Images > CheckInOut >
   // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit
   //
-  // CurrencyID positioning: RU's XSD accepts <CurrencyID> immediately after <OwnerID>.
-  // Without it RU silently inherits the master account's default currency — this is the
-  // root cause of LekkeSlaap "ZAR currency not met" errors for South African properties.
+  // <CurrencyID> is NOT part of Push_PutProperty. RU's XSD rejects the whole document with
+  // "The element 'Property' has invalid child element 'CurrencyID'. List of possible elements
+  // expected: 'DetailedLocationID'." Currency belongs to the LocationID and is only set by
+  // Push_ChangeCurrency_RQ (see push_change_currency) — never re-add it here.
   //
   // NOTES:
   //  - <NoOfUnits> was REMOVED — RU's XSD rejects it at this position with
