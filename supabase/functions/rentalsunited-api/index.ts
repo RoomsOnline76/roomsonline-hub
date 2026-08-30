@@ -717,6 +717,64 @@ async function resolveOwnerId(creds: RUCredentials, explicit?: number | string |
   return null;
 }
 
+/**
+ * Channel location locks — see the status 310 handler in `push_property`. RU refuses a location
+ * move for the entire life of a listing once any reservation has ever touched it, so the refusal
+ * is cached and replayed locally instead of being rediscovered on every content delta.
+ */
+function locationLockClient() {
+  return createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+}
+
+async function readListingLocationLock(
+  ruPropertyId: number,
+): Promise<{ published_location_id: number | null } | null> {
+  try {
+    const { data } = await locationLockClient()
+      .from('ru_listing_location_locks')
+      .select('published_location_id')
+      .eq('ru_property_id', ruPropertyId)
+      .maybeSingle();
+    const published = data?.published_location_id ? Number(data.published_location_id) : null;
+    return published ? { published_location_id: published } : null;
+  } catch (e) {
+    console.warn('[rentalsunited-api] location lock read failed:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+async function recordListingLocationLock(
+  ruPropertyId: number,
+  lock: {
+    property_uuid: string | null;
+    published_location_id: number | null;
+    refused_location_id: number | null;
+    reason: string;
+  },
+): Promise<void> {
+  if (!lock.published_location_id) return; // nothing authoritative to replay
+  try {
+    const supabase = locationLockClient();
+    const { data: existing } = await supabase
+      .from('ru_listing_location_locks')
+      .select('refusal_count')
+      .eq('ru_property_id', ruPropertyId)
+      .maybeSingle();
+    await supabase.from('ru_listing_location_locks').upsert({
+      ru_property_id: ruPropertyId,
+      property_id: lock.property_uuid,
+      published_location_id: lock.published_location_id,
+      refused_location_id: lock.refused_location_id,
+      reason: lock.reason,
+      refusal_count: (Number(existing?.refusal_count) || 0) + 1,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'ru_property_id' });
+  } catch (e) {
+    console.warn('[rentalsunited-api] location lock write failed:', e instanceof Error ? e.message : String(e));
+  }
+}
+
+
 function buildGetPropertyXml(creds: RUCredentials, propertyId: number): string {
   return `<?xml version="1.0" encoding="utf-8"?>
 <Pull_ListSpecProp_RQ>
