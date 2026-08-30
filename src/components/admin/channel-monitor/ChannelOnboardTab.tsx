@@ -682,8 +682,34 @@ export function ChannelOnboardTab({
     setAccountDialogOpen(false);
     setEmailConflict(null);
     setChosenLoginEmail("");
+    emailTouchedRef.current = false;
     setStepARemedyCode(null);
   }, [propertyId]);
+
+  /**
+   * A property with no bound account still has a planned login email (owner email,
+   * else the slug login). Resolve it up front so "Will use" shows it and the button
+   * flips to Create Account — the operator only opens the email dialog to override.
+   * A manual choice or clear always wins over the auto-fill.
+   */
+  useEffect(() => {
+    if (!propertyId || boundLogin || emailTouchedRef.current) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const resolved = await planOwnerAccount(propertyId);
+        if (cancelled || emailTouchedRef.current) return;
+        setPlan(resolved);
+        const email = String(resolved?.login_email ?? "").trim();
+        if (email) setChosenLoginEmail((prev) => prev || email);
+      } catch {
+        // Planner errors surface when a step actually runs; stay silent here.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, boundLogin]);
 
   /**
    * A reset performed elsewhere (retiring the bound account, another tab) sends the
