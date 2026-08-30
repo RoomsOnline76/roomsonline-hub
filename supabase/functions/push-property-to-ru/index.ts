@@ -4291,6 +4291,32 @@ Deno.serve(async (req) => {
     const isMultiUnit = activeRoomTypes.length > 0;
 
     /**
+     * Resolve an inbound `only_unit_ids` scope against the channel units.
+     *
+     * Callers scope a delta with whatever id they hold: the channel unit id
+     * (hostfully_room_types.id) or the ROL'OS room type id (linked_rolos_id) — Rate Plans links
+     * are authored against ROL'OS room types. Matching on `rt.id` alone silently dropped every
+     * unit, which turned a real rate edit into an "RU_NOT_LISTED" no-op and left the channel on
+     * the old price. A scope that matches nothing is therefore treated as "no scope" rather than
+     * "no targets" — a channel write is never lost to an id-shape mismatch.
+     */
+    const resolveScopedRoomTypes = (raw: unknown, label: string): RoomTypeRow[] => {
+      const ids = Array.isArray(raw) && raw.length > 0 ? raw.map((u: unknown) => String(u)) : null;
+      if (!ids) return activeRoomTypes;
+      const matched = activeRoomTypes.filter((rt) =>
+        ids.includes(String((rt as any).id))
+        || (!!(rt as any).linked_rolos_id && ids.includes(String((rt as any).linked_rolos_id))),
+      );
+      if (matched.length === 0) {
+        console.warn(
+          `[push-property-to-ru] ${label}: only_unit_ids matched no channel unit (${ids.join(', ')}) — falling back to all ${activeRoomTypes.length} active unit(s)`,
+        );
+        return activeRoomTypes;
+      }
+      return matched;
+    };
+
+    /**
      * Gate #10 — distances to nearby attractions (nice-to-have, never blocking). Resolved once
      * for the whole push from the property's authored attractions plus the cached channel
      * destination dictionary; an empty result simply omits the <Distances> block.
@@ -4660,16 +4686,12 @@ Deno.serve(async (req) => {
         }
       }
       const targets: { label: string; ru_id: number; unit?: UnitContext; units: number }[] = [];
-      // A scoped delta (one edited unit) must not walk every listed unit — same filter the
-      // static/per-unit paths already apply.
-      const scopedUnitIds = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
-        ? only_unit_ids.map((u: unknown) => String(u))
-        : null;
-      const ariRoomTypes = scopedUnitIds
-        ? activeRoomTypes.filter(rt => scopedUnitIds.includes(rt.id))
-        : activeRoomTypes;
-      if (scopedUnitIds) {
-        const dropped = activeRoomTypes.filter(rt => !scopedUnitIds.includes(rt.id)).map(rt => rt.name);
+      // A scoped delta (one edited unit) must not walk every listed unit — the scope accepts
+      // channel unit ids and ROL'OS room type ids alike.
+      const ariRoomTypes = resolveScopedRoomTypes(only_unit_ids, 'refresh_ari');
+      if (ariRoomTypes.length !== activeRoomTypes.length) {
+        const kept = new Set(ariRoomTypes.map((rt) => String((rt as any).id)));
+        const dropped = activeRoomTypes.filter((rt) => !kept.has(String((rt as any).id))).map((rt) => rt.name);
         console.log(
           `[push-property-to-ru] refresh_ari scoped to ${ariRoomTypes.length} unit(s)` +
           (dropped.length > 0 ? ` — skipped: ${dropped.join(', ')}` : ''),
@@ -5203,10 +5225,9 @@ Deno.serve(async (req) => {
       // No Push_PutBuilding_RQ is issued here, so repeat pushes and cron refreshes can never
       // create duplicate building containers in the white-label portal.
       if (!useBuilding) {
-        // Optional filter: only_unit_ids restricts the push to specific room_type ids
-        const requestedUnits = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
-          ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
-          : activeRoomTypes;
+        // Optional filter: only_unit_ids restricts the push to specific units (channel unit id
+        // or ROL'OS room type id).
+        const requestedUnits = resolveScopedRoomTypes(only_unit_ids, 'standalone units');
 
         // Resumable chunking: each unit costs a content push plus availability/price pushes and
         // both read-backs, so a large property never fits in one invocation's budget — the last
@@ -5619,9 +5640,7 @@ Deno.serve(async (req) => {
       // Step 2: Push each unit as an individual RU property
       // Optional filter: only_unit_ids restricts the per-unit push (building still updated above
       // with full composition so existing RUIDs remain valid). Used for retry of stuck units.
-      const unitsToPush = Array.isArray(only_unit_ids) && only_unit_ids.length > 0
-        ? activeRoomTypes.filter(rt => only_unit_ids.includes(rt.id))
-        : activeRoomTypes;
+      const unitsToPush = resolveScopedRoomTypes(only_unit_ids, 'Step 2 per-unit push');
       console.log(`[push-property-to-ru] Step 2: pushing ${unitsToPush.length}/${activeRoomTypes.length} units${only_unit_ids ? ' (filtered)' : ''}`);
       const unitResults: any[] = [];
       for (const unit of unitsToPush) {
