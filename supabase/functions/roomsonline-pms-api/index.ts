@@ -2075,7 +2075,7 @@ async function handleCheckIn(body: any, supabase: any): Promise<Response> {
   }
 
   // Accept the request / confirm the reservation at the channel.
-  await notifyChannelOfLifecycle(supabase, booking_id, "confirmed", "pms_check_in");
+  // No channel call on check-in — see the channel push scope note above.
 
   return new Response(JSON.stringify(createSuccessResponse(booking, "check_in")),
     { headers: { ...corsHeaders, "Content-Type": "application/json" } });
