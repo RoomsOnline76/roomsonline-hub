@@ -94,6 +94,13 @@ interface RunContext {
   confirmedOwnerName?: string | null;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
+  /**
+   * Operator asked for a FULL re-run of the step (the "Re-run" button on a passed step).
+   * Nothing may be short-circuited: the content/ARI push re-sends the whole set for every
+   * unit and the verification tasks read the channel back instead of trusting this run's
+   * own write receipts.
+   */
+  fullRerun?: boolean;
   onTask?: (
     id: ChannelOnboardTaskId,
     state: "running" | TaskOutcome,
@@ -900,6 +907,16 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
 
   // Step B ────────────────────────────────────────────────────────────────────
   review_listings: async (ctx) => {
+    // A full re-run is an explicit instruction to re-publish everything: no delta compare,
+    // so the channel receives the complete content + availability + pricing set again.
+    if (ctx.fullRerun) {
+      ctx.pushScope = { unchanged: false, unitIds: null, changedFields: [] };
+      return {
+        id: "review_listings",
+        outcome: "skipped",
+        detail: "Full re-run requested — the delta compare is bypassed and everything is re-sent.",
+      };
+    }
     // Read-only: compare what is published with local content so the push below only
     // re-sends what actually moved. A failure here is never fatal — the scope simply
     // stays unset and the push falls back to sending everything.
@@ -962,11 +979,17 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     try {
       result = await pushPropertyToRu(ctx.propertyId, {
         subscribeRlnm: true,
-        // First list must not read the channel's copy back (Fix C): ROL'OS authored the rates
-        // and PutPrices already confirmed the write. ListSpecProp remains the single evidence
-        // pull; a routine or onboarding push never adds Pull_ListPropertyPrices_RQ on top of it.
-        verifyReadback: false,
-        ...(scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
+        /**
+         * A routine first list must not read the channel's copy back (Fix C): ROL'OS authored
+         * the rates and PutPrices already confirmed the write. A full re-run is the exception —
+         * the operator asked for proof, so availability and prices are re-sent regardless of
+         * their payload hashes and both calendars are read back.
+         */
+        verifyReadback: ctx.fullRerun === true,
+        ...(ctx.fullRerun
+          ? { forceAvailability: true, forcePrices: true, verifyAvailabilityReadback: true }
+          : {}),
+        ...(!ctx.fullRerun && scope?.unitIds && scope.unitIds.length > 0 ? { onlyUnitIds: scope.unitIds } : {}),
         onProgress: ({ pushed, total }) => ctx.onPushProgress?.({ pushed, total }),
       });
     } catch (err) {
@@ -999,20 +1022,23 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     const confirmedIds = unitRows
       .filter((u) => u.success !== false && typeof u.rentalsunited_property_id === "string")
       .map((u) => String(u.rentalsunited_property_id));
-    if (units > 0 && confirmedIds.length === units) {
+    if (units > 0 && confirmedIds.length === units && !ctx.fullRerun) {
       ctx.pushConfirmedListings = { units, ids: confirmedIds };
     }
     return {
       id: "push_property",
       outcome: "passed",
-      detail: units > 0 ? `${units} unit(s) pushed with full ARI` : "Property pushed with full ARI",
+      detail: units > 0
+        ? `${units} unit(s) pushed with full ARI${ctx.fullRerun ? " (forced re-send, read back at the channel)" : ""}`
+        : `Property pushed with full ARI${ctx.fullRerun ? " (forced re-send, read back at the channel)" : ""}`,
     };
   },
 
   verify_listings: async (ctx) => {
     // The push returned a channel listing id for every unit — that IS the confirmation.
     // Re-reading the owner's roster here only spends the channel's tightest read quota.
-    const confirmed = ctx.pushConfirmedListings;
+    // A full re-run deliberately spends it: the operator asked the channel, not our receipts.
+    const confirmed = ctx.fullRerun ? null : ctx.pushConfirmedListings;
     if (confirmed && confirmed.units > 0) {
       return {
         id: "verify_listings",
@@ -1020,7 +1046,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         detail: `${confirmed.units} unit(s) confirmed live on the channel (ids returned by the publish: ${confirmed.ids.join(", ")})`,
       };
     }
-    const cachedRoster = ctx.listingRoster?.data ?? listingRosterIfFresh(ctx.propertyId);
+    const cachedRoster = ctx.fullRerun ? null : (ctx.listingRoster?.data ?? listingRosterIfFresh(ctx.propertyId));
     if (cachedRoster) {
       const data = cachedRoster;
       if (data.listings_verified === true) {

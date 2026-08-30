@@ -797,7 +797,16 @@ export function ChannelOnboardTab({
    * countdown and resumes itself from the deferred task once the channel's window reopens.
    */
   const runStep = useCallback(
-    async (step: ChannelOnboardStep, options?: { startAtTaskId?: ChannelOnboardTaskId | null; attempt?: number; silent?: boolean }) => {
+    async (
+      step: ChannelOnboardStep,
+      options?: {
+        startAtTaskId?: ChannelOnboardTaskId | null;
+        attempt?: number;
+        silent?: boolean;
+        /** Operator pressed Re-run on a settled step: re-publish and re-verify everything. */
+        fullRerun?: boolean;
+      },
+    ) => {
       if (!propertyId || stepRunInFlight.current) return;
       stepRunInFlight.current = true;
       const attempt = options?.attempt ?? 0;
@@ -821,6 +830,8 @@ export function ChannelOnboardTab({
         const result = await runOnboardStep(step, {
           propertyId,
           startAtTaskId: resumeFrom,
+          // A full re-run never resumes: it replays the whole chain with forced ARI + read-back.
+          fullRerun: options?.fullRerun === true && !resumeFrom,
           // Only send an explicit operator override. If nothing was chosen in the
           // modal, the backend must resolve from the live property/portfolio rows so
           // a just-reassigned owner email cannot be overwritten by a stale preview.
@@ -1187,13 +1198,24 @@ export function ChannelOnboardTab({
               )}
               {/* Step A has no run button: it starts when the account modal is accepted. */}
               {step === "b" && (
-                <Button size="sm" onClick={() => void runStep(step)} disabled={stepDisabled[step]}>
+                <Button
+                  size="sm"
+                  // Re-run on a settled step is a FULL re-run: no delta compare, every unit's
+                  // content + availability + prices re-sent, and the channel read back.
+                  onClick={() => void runStep(step, { fullRerun: status === "passed" })}
+                  disabled={stepDisabled[step]}
+                  title={
+                    status === "passed"
+                      ? "Full re-run: re-publish all content, availability and pricing, then read the channel back"
+                      : undefined
+                  }
+                >
                   {runningStep === step ? (
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <ArrowRight className="mr-1.5 h-3.5 w-3.5" />
                   )}
-                  {status === "passed" ? "Re-run" : meta.cta}
+                  {status === "passed" ? "Full re-run" : meta.cta}
                 </Button>
               )}
 

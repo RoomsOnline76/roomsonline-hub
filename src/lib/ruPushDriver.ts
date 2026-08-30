@@ -68,6 +68,15 @@ interface RuPushOptions {
    * re-check turn it on because they need proof the channel holds our year.
    */
   verifyReadback?: boolean;
+  /**
+   * Full re-publish: re-send availability and prices even when their payload hashes are
+   * unchanged, and read the calendar back. Used by an operator-requested full re-run of
+   * onboarding Step B — routine pushes must never set these (they burn the channel's
+   * one-write-per-minute window on identical payloads).
+   */
+  forceAvailability?: boolean;
+  forcePrices?: boolean;
+  verifyAvailabilityReadback?: boolean;
   /** Called after every chunk so the UI can show live progress. */
   onProgress?: (progress: { pushed: number; total: number; units: RuPushUnitResult[] }) => void;
 }
@@ -75,7 +84,17 @@ interface RuPushOptions {
 const MAX_CHUNKS = 20;
 
 export async function pushPropertyToRu(propertyId: string, options: RuPushOptions = {}): Promise<RuPushResult> {
-  const { batchSize, onlyUnitIds, dryRun, subscribeRlnm, verifyReadback, onProgress } = options;
+  const {
+    batchSize,
+    onlyUnitIds,
+    dryRun,
+    subscribeRlnm,
+    verifyReadback,
+    forceAvailability,
+    forcePrices,
+    verifyAvailabilityReadback,
+    onProgress,
+  } = options;
 
   let remaining: string[] | undefined = onlyUnitIds;
   let batchId: string | undefined;
@@ -89,6 +108,9 @@ export async function pushPropertyToRu(propertyId: string, options: RuPushOption
         ...(dryRun ? { dry_run: true } : {}),
         ...(subscribeRlnm ? { subscribe_rlnm: true } : {}),
         ...(verifyReadback ? { verify_readback: true } : {}),
+        ...(verifyAvailabilityReadback ? { verify_availability_readback: true } : {}),
+        ...(forceAvailability ? { force_availability: true } : {}),
+        ...(forcePrices ? { force_prices: true } : {}),
         ...(remaining && remaining.length > 0 ? { only_unit_ids: remaining } : {}),
         ...(batchSize ? { batch_size: batchSize } : {}),
         ...(batchId ? { batch_id: batchId } : {}),
