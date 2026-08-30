@@ -2409,6 +2409,8 @@ export default function PropertyForm({
             check_in_to: houseRules.check_in_to || "20:00",
             check_out_from: houseRules.check_out_from || "06:00",
             check_out_to: houseRules.check_out_to || "11:00",
+            days_before_arrival: String(houseRules.days_before_arrival ?? "0"),
+
             children_policy:
               houseRules.children_policy || "Children are welcome\nChildren up until the age of 12 - Stay free",
             infant_age_from: houseRules.infant_age_from || "1",
