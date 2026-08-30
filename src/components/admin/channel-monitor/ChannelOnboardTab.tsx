@@ -1356,7 +1356,7 @@ export function ChannelOnboardTab({
       <Dialog open={manualEmailOpen} onOpenChange={setManualEmailOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add sub-account email</DialogTitle>
+            <DialogTitle>Specify account email</DialogTitle>
             <DialogDescription>
               Enter the owner email to register as the distribution sub-account. Leave it blank or
               cancel and Step A will generate one from the property slug instead.
