@@ -15088,6 +15088,7 @@ export type Database = {
       ru_api_credentials: {
         Row: {
           access_key: string
+          auth_mode: string | null
           created_at: string
           id: string
           key_label: string | null
@@ -15095,6 +15096,7 @@ export type Database = {
           key_scope_detail: Json | null
           key_scope_verified_at: string | null
           login_email: string | null
+          password_enc: string | null
           ru_owner_id: string
           secret_enc: string | null
           updated_at: string
@@ -15102,6 +15104,7 @@ export type Database = {
         }
         Insert: {
           access_key: string
+          auth_mode?: string | null
           created_at?: string
           id?: string
           key_label?: string | null
@@ -15109,6 +15112,7 @@ export type Database = {
           key_scope_detail?: Json | null
           key_scope_verified_at?: string | null
           login_email?: string | null
+          password_enc?: string | null
           ru_owner_id: string
           secret_enc?: string | null
           updated_at?: string
@@ -15116,6 +15120,7 @@ export type Database = {
         }
         Update: {
           access_key?: string
+          auth_mode?: string | null
           created_at?: string
           id?: string
           key_label?: string | null
@@ -15123,6 +15128,7 @@ export type Database = {
           key_scope_detail?: Json | null
           key_scope_verified_at?: string | null
           login_email?: string | null
+          password_enc?: string | null
           ru_owner_id?: string
           secret_enc?: string | null
           updated_at?: string
