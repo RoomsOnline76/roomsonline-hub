@@ -1037,7 +1037,12 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .map(cp => `<CancellationPolicy ValidFrom="${cp.valid_from}" ValidTo="${cp.valid_to}">${cp.percentage}</CancellationPolicy>`)
     .join('\n      ');
 
-  const cleaningPriceXml = `<CleaningPrice>${prop.cleaning_price ?? 0}</CleaningPrice>`;
+  // RU deprecated <CleaningPrice> (Notif 258: "Property cleaning price is obsolete. Please
+  // provide the cost of cleaning price within the fees collection."). Cleaning rides in the
+  // charges/fees collection, so only send the element when a legacy non-zero value exists.
+  const cleaningPriceXml = Number(prop.cleaning_price ?? 0) > 0
+    ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
+    : '';
   const arrivalInstructionsXml = `<ArrivalInstructions>
       <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
       <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
@@ -1076,15 +1081,16 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   const securityDepositXml = `\n    <SecurityDeposit DepositTypeID="${secVal > 0 ? 5 : 1}">${secVal}</SecurityDeposit>`;
 
   // Strict XSD element order per RU schema (validated against live RS errors):
-  // ID > Name > OwnerID > CurrencyID > DetailedLocationID > IsActive > IsArchived >
+  // ID > Name > OwnerID > DetailedLocationID > IsActive > IsArchived >
   // CleaningPrice > Space > StandardGuests > CanSleepMax > PropertyTypeID > ObjectTypeID >
   // Floor > BuildingID > Street > ZipCode > Coordinates(Longitude+Latitude) >
   // CompositionRoomsAmenities > ArrivalInstructions > Amenities > Images > CheckInOut >
   // PaymentMethods > Deposit > CancellationPolicies > Descriptions > SecurityDeposit
   //
-  // CurrencyID positioning: RU's XSD accepts <CurrencyID> immediately after <OwnerID>.
-  // Without it RU silently inherits the master account's default currency — this is the
-  // root cause of LekkeSlaap "ZAR currency not met" errors for South African properties.
+  // <CurrencyID> is NOT part of Push_PutProperty. RU's XSD rejects the whole document with
+  // "The element 'Property' has invalid child element 'CurrencyID'. List of possible elements
+  // expected: 'DetailedLocationID'." Currency belongs to the LocationID and is only set by
+  // Push_ChangeCurrency_RQ (see push_change_currency) — never re-add it here.
   //
   // NOTES:
   //  - <NoOfUnits> was REMOVED — RU's XSD rejects it at this position with
@@ -1132,7 +1138,6 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     <ID>${propertyId}</ID>
     <Name>${escapeXml(prop.name)}</Name>
     <OwnerID>${prop.owner_id}</OwnerID>
-    <CurrencyID>${prop.currency_id}</CurrencyID>
     <DetailedLocationID TypeID="4">${prop.detailed_location_id}</DetailedLocationID>
     <IsActive>true</IsActive>
     <IsArchived>false</IsArchived>
@@ -3629,6 +3634,43 @@ Deno.serve(async (req) => {
         if (!ok) distancesSkipped = 0;
       }
 
+      /**
+       * Status 310 — "Cannot update property location because there are existing reservations."
+       * RU counts EVERY reservation ever attached to the listing (cancelled and past included),
+       * so an empty ROL'OS/RU calendar does not clear it: the refusal is permanent for that
+       * listing id. The location is only one field of a content delta, so instead of losing the
+       * whole push (descriptions, amenities, images, ARI-relevant fields) we read the location RU
+       * actually holds and re-send once with that value. The listing then accepts everything else
+       * and the caller is told the location move was refused.
+       */
+      let locationChangeRefused: { published_location_id: number | null; reason: string } | null = null;
+      if (!ok && (String(status.id) === '310' || /update property location/i.test(String(status.message ?? '')))) {
+        let publishedLocationId: number | null = null;
+        try {
+          const readXml = await callRentalsUnited(scopedCreds, buildGetPropertyXml(scopedCreds, effectiveRuPropertyId));
+          const readStatus = handleRUStatus(readXml);
+          if (readStatus.ok) {
+            const m = readXml.match(/<DetailedLocationID\b[^>]*>\s*(\d+)\s*</i);
+            publishedLocationId = m ? parseInt(m[1], 10) : null;
+          }
+        } catch (e) {
+          console.warn('[rentalsunited-api] 310 recovery could not read the published location:', e instanceof Error ? e.message : String(e));
+        }
+        locationChangeRefused = { published_location_id: publishedLocationId, reason: status.message ?? 'existing reservations' };
+        if (publishedLocationId && publishedLocationId !== Number(p.detailed_location_id)) {
+          console.warn(
+            `[rentalsunited-api] Location change refused on listing ${effectiveRuPropertyId} (status 310) — re-sending the rest of the content with the published LocationID ${publishedLocationId}`,
+          );
+          const retryPayload = { ...p, detailed_location_id: publishedLocationId };
+          xml = buildPushPropertyXml(scopedCreds, effectiveRuPropertyId, retryPayload);
+          compactRequestXml = compactXml(xml);
+          response = await callRentalsUnited(scopedCreds, xml);
+          const retryStatus = handleRUStatus(response);
+          ok = retryStatus.ok;
+          status = retryStatus.status;
+        }
+      }
+
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
         console.error(`[rentalsunited-api] RU error ${status.id}: ${status.message}`);
@@ -3636,7 +3678,7 @@ Deno.serve(async (req) => {
         // A create that failed may still have registered the listing at RU. Hand the id back so
         // the caller stores it and pushes an update next time instead of creating a duplicate.
         const strandedId = effectiveRuPropertyId === 0 ? extractReturnedPropertyId(response) : null;
-        return ruErrorResponse(status, { ...diag, stranded_ru_property_id: strandedId });
+        return ruErrorResponse(status, { ...diag, stranded_ru_property_id: strandedId, location_change_refused: locationChangeRefused });
       }
 
 
@@ -3688,9 +3730,12 @@ Deno.serve(async (req) => {
       return jsonResponse({
 
         success: true,
-        message: distancesSkipped > 0
-          ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
-          : 'Property pushed successfully',
+        message: locationChangeRefused
+          ? `Property pushed successfully — the channel refused the location change (${locationChangeRefused.reason}); the listing keeps its published location`
+          : distancesSkipped > 0
+            ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
+            : 'Property pushed successfully',
+        location_change_refused: locationChangeRefused,
         auth_mode: authMode,
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
