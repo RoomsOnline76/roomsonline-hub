@@ -27,6 +27,7 @@ import {
   resolveRuSecurityDeposit,
   type RuChargeRow,
 } from '../_shared/ruDeposits.ts';
+import { buildRuFeeEntries } from '../_shared/ruFees.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
 import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
@@ -1639,6 +1640,10 @@ function buildUnitPayload(
   // to this unit means the listing carries no security deposit at all.
   const securityDeposit = resolveRuSecurityDeposit(charges, unit.id);
   const cleaningPrice = resolveRuCleaningFee(charges, unit.id) ?? toFiniteNumber(unit.cleaning_fee) ?? 0;
+  // RU wants every on-top-of-rate amount in the fees collection (CleaningPrice is obsolete,
+  // Notif 258). Full active set from the Charges tab, with the legacy cleaning amount as
+  // fallback; deposits stay in the SecurityDeposit slot.
+  const fees = buildRuFeeEntries(charges, unit.id, cleaningPrice);
 
 
   // Use unit images first, fall back to property images
@@ -1785,6 +1790,7 @@ function buildUnitPayload(
     deposit,
     deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
+    fees,
     cancellation_policies: cancellationPolicies.rules,
     cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,
@@ -1839,6 +1845,8 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   // Charges tab is the only authority for the deposit (see ruDeposits.ts).
   const securityDeposit = resolveRuSecurityDeposit(charges, primaryRoom?.id);
   const cleaningPrice = resolveRuCleaningFee(charges, primaryRoom?.id) ?? toFiniteNumber(primaryRoom?.cleaning_fee) ?? 0;
+  // Fees collection carries every charge (cleaning included); see ruFees.ts.
+  const fees = buildRuFeeEntries(charges, primaryRoom?.id, cleaningPrice);
   // Building-level rooms: RU counts the bed amenities inside every Bedroom (257) block
   // and rejects the listing ("Add sufficient amount of beds") when they cover less than
   // half of CanSleepMax. Emit the real bed_configuration of every room type instead of a
@@ -1926,6 +1934,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     payment_methods_is_default: paymentMethods.isDefault,
     deposit, deposit_type_id: depositTypeId,
     cleaning_price: cleaningPrice,
+    fees,
     cancellation_policies: cancellationPolicies.rules,
     cancellation_policies_is_default: cancellationPolicies.isDefault,
     security_deposit: securityDeposit,

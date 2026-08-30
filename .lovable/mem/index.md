@@ -1,0 +1,1 @@
+- [RU Inline AdditionalFees](mem://features/pms/ru-inline-additional-fees) — Fees ride in Push_PutProperty_RQ AdditionalFees; no separate verb; discriminator/fee-type vocabularies; CleaningPrice 0 transition

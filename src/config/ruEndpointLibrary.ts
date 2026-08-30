@@ -86,6 +86,7 @@ export const RU_ENDPOINT_LIBRARY: RuEndpointSpec[] = [
 
   // ---- Listing content ---------------------------------------------------------------------
   spec("Push_PutProperty_RQ", "Publish listing", "content", "on_change", true, "Delta-only static push"),
+  
   spec("Pull_ListProp_RQ", "List listings", "content", "on_demand", false),
   spec("Pull_ListOwnerProp_RQ", "List account listings", "content", "on_demand", false),
   spec("Pull_ListSpecProp_RQ", "Read specific listings", "content", "on_demand", false, "Single-listing read-back — there is no Pull_GetProperty_RQ"),

@@ -1,5 +1,6 @@
 import { normalizeRuTimeZone } from '../_shared/ruTimeZones.ts';
 import { toWireChangeover } from '../_shared/ruChangeover.ts';
+import { buildAdditionalFeesXml, type RuFeeEntry } from '../_shared/ruFees.ts';
 import {
   RU_EMPLOYEE_RANGES,
   RU_PROPERTY_RANGES,
@@ -186,6 +187,13 @@ interface RUPropertyPayload {
    * an empty <Distances/> wrapper is rejected by the channel parser.
    */
   distances?: RuDistanceEntry[];
+  /**
+   * Full fee set for the listing (Charges tab). Emitted inline as <AdditionalFees> after
+   * </Descriptions> in Push_PutProperty_RQ — RU has no separate fees verb, and the collection
+   * replaces the whole set on every push, so an empty array retracts all fees. Cleaning rides
+   * here; the legacy <CleaningPrice> element is then sent as 0 to clear stale values.
+   */
+  fees?: RuFeeEntry[] | null;
 }
 
 const PAYMENT_METHOD_LABELS: Record<number, string> = {
@@ -1096,11 +1104,18 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   // RU deprecated <CleaningPrice> (Notif 258: "Property cleaning price is obsolete. Please
-  // provide the cost of cleaning price within the fees collection."). Cleaning rides in the
-  // charges/fees collection, so only send the element when a legacy non-zero value exists.
-  const cleaningPriceXml = Number(prop.cleaning_price ?? 0) > 0
-    ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
-    : '';
+  // provide the cost of cleaning price within the fees collection."). When the caller supplies
+  // the fees collection, cleaning rides in <AdditionalFees> and the legacy element is sent as 0
+  // once per push to clear any old value (RU's own transition guidance); only a legacy caller
+  // without fees still sends a non-zero legacy value.
+  const cleaningPriceXml = Array.isArray(prop.fees)
+    ? `<CleaningPrice>0</CleaningPrice>`
+    : Number(prop.cleaning_price ?? 0) > 0
+      ? `<CleaningPrice>${Math.trunc(Number(prop.cleaning_price))}</CleaningPrice>`
+      : '';
+  // Inline AdditionalFees collection — the ONLY place RU accepts fees (there is no separate
+  // fees verb). XSD position: immediately after </Descriptions>, before SecurityDeposit.
+  const additionalFeesXml = buildAdditionalFeesXml(prop.fees);
   const arrivalInstructionsXml = `<ArrivalInstructions>
       <Landlord>${escapeXml(prop.arrival_landlord || 'RoomsOnline')}</Landlord>
       <Email>${escapeXml(prop.arrival_email || 'dev@roomsonline.co.za')}</Email>
@@ -1228,7 +1243,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${securityDepositXml}
+    </Descriptions>${additionalFeesXml}${securityDepositXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
@@ -3819,6 +3834,11 @@ Deno.serve(async (req) => {
       }
 
 
+      // Fees ride inline in the content push (AdditionalFees collection) — report what went.
+      const feesResult = Array.isArray(p.fees)
+        ? { pushed: true, fee_count: p.fees.length }
+        : null;
+
       return jsonResponse({
 
         success: true,
@@ -3842,6 +3862,8 @@ Deno.serve(async (req) => {
 
         distances_pushed: distancesSkipped > 0 ? 0 : (Array.isArray(p.distances) ? p.distances.length : 0),
         distances_skipped: distancesSkipped,
+
+        fees: feesResult,
 
         mapping: {
           persisted: mapping_persisted,
