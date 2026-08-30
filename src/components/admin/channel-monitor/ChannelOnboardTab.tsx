@@ -19,8 +19,10 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowRight,
+  Building2,
   Check,
   CircleDashed,
+  ExternalLink,
   ChevronsUpDown,
   Clock,
   Hourglass,
@@ -34,6 +36,8 @@ import {
 
 
 import { supabase } from "@/integrations/supabase/client";
+import { extractFunctionError } from "@/lib/functionError";
+import { notifyRuAccountsChanged } from "@/lib/ruAccountsSignal";
 import { ensureFreshSession, SessionExpiredError } from "@/lib/ensureFreshSession";
 import { fetchChannelManagerEntitlements } from "@/hooks/useChannelManagerEntitlement";
 
@@ -298,6 +302,7 @@ export function ChannelOnboardTab({
   const [nowTick, setNowTick] = useState(() => Date.now());
   /** Operator override: keep a passed Step A expanded. */
   const [stepDetailOpen, setStepDetailOpen] = useState<Partial<Record<ChannelOnboardStep, boolean>>>({});
+  const [pushingCompany, setPushingCompany] = useState(false);
 
   const [plan, setPlan] = useState<OwnerAccountPlan | null>(null);
   const [planLoading, setPlanLoading] = useState(false);
@@ -1150,7 +1155,7 @@ export function ChannelOnboardTab({
             </div>
 
             <div className="flex items-center gap-2">
-              <StatusBadge status={status} />
+              {runningStep !== step && <StatusBadge status={status} />}
               {status === "passed" && runningStep !== step && !stepWaiting && (
                 <Button
                   size="sm"
@@ -1267,6 +1272,51 @@ export function ChannelOnboardTab({
                         )}
                       </p>
                       <p className="text-[11px] leading-snug text-muted-foreground">{detail || task.detail}</p>
+                      {step === "a" && task.id === "company_profile" && status === "passed" && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <Button asChild size="sm" variant="outline" className="h-6 gap-1.5 text-[11px]">
+                            <a
+                              href={`/properties/${propertyId}/edit?section=general&focus=company-information`}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              View company profile <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-6 text-[11px]"
+                            disabled={pushingCompany || runningStep !== null}
+                            onClick={async () => {
+                              setPushingCompany(true);
+                              try {
+                                const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
+                                  body: { action: "ensure_company_details", property_id: propertyId, force: true },
+                                });
+                                if (error) throw new Error(await extractFunctionError(error));
+                                if (!data?.success || data?.company_details_pushed !== true) {
+                                  throw new Error(
+                                    data?.error?.message
+                                      ?? data?.company_details_warning
+                                      ?? "The Channel Manager did not confirm the company-details push",
+                                  );
+                                }
+                                toast.success("Company details accepted by the Channel Manager");
+                                notifyRuAccountsChanged();
+                                await gate.refresh();
+                              } catch (err) {
+                                toast.error(err instanceof Error ? err.message : "Could not send the company details");
+                              } finally {
+                                setPushingCompany(false);
+                              }
+                            }}
+                          >
+                            {pushingCompany ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Building2 className="mr-1 h-3 w-3" />}
+                            Push company details again
+                          </Button>
+                        </div>
+                      )}
                       {remedy && (
                         <div className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-[11px] text-amber-800 dark:text-amber-200">
                           <p className="font-medium">{remedy.title}</p>
