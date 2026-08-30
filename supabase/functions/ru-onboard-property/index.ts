@@ -72,17 +72,11 @@ async function readSteps(admin: any, propertyId: string): Promise<Record<string,
 }
 
 // deno-lint-ignore no-explicit-any
-/**
- * Channel-side ledger steps that a completed Step B has already proved at the channel.
- * They are graded from the push result, never from an operator's word.
- */
-const STEP_B_DERIVED_KEYS = ["publish", "currency", "entitlement", "connect"] as const;
-
 async function writeStep(
   admin: any,
   propertyId: string,
   row: {
-    step_key: OnboardStepKey | string;
+    step_key: OnboardStepKey;
     status: Status;
     blocker_summary?: string | null;
     input_fingerprint?: string | null;
@@ -90,7 +84,6 @@ async function writeStep(
   },
 ): Promise<void> {
   const now = new Date().toISOString();
-  const derived = (STEP_B_DERIVED_KEYS as readonly string[]).includes(row.step_key);
   await admin.from(LEDGER_TABLE).upsert(
     {
       property_id: propertyId,
@@ -99,18 +92,16 @@ async function writeStep(
       blocker_summary: row.blocker_summary ?? null,
       input_fingerprint: row.input_fingerprint ?? null,
       // `manual_signoff` is the only source value that honestly describes an
-      // operator-confirmed monitor step; the readiness grade is local, and the
-      // channel-side steps are proved by the push itself.
-      source: derived ? "push_result" : row.step_key === "ready_to_sell" ? "local" : "manual_signoff",
+      // operator-confirmed monitor step; the readiness grade is local.
+      source: row.step_key === "ready_to_sell" ? "local" : "manual_signoff",
       details: row.details ?? null,
       last_checked_at: now,
-      ...(row.status === "passed" ? { passed_at: now, stale_at: null } : {}),
+      ...(row.status === "passed" ? { passed_at: now } : {}),
       updated_at: now,
     },
     { onConflict: "property_id,step_key" },
   );
 }
-
 
 /** Sub-account row + credential state for one property (or its portfolio). */
 // deno-lint-ignore no-explicit-any
@@ -418,8 +409,7 @@ Deno.serve(async (req) => {
     // ── record_step ─────────────────────────────────────────────────────────
     if (action === "record_step") {
       const stepKey = String(body.step_key ?? "") as OnboardStepKey;
-      const derivedKey = (STEP_B_DERIVED_KEYS as readonly string[]).includes(stepKey);
-      if (!derivedKey && !["monitor_step_a", "monitor_step_b", "ready_to_connect"].includes(stepKey)) {
+      if (!["monitor_step_a", "monitor_step_b", "ready_to_connect"].includes(stepKey)) {
         return json({ success: false, error: { code: "BAD_REQUEST", message: "Unsupported step_key" } }, 400);
       }
       const status = String(body.status ?? "") as Status;
@@ -446,14 +436,13 @@ Deno.serve(async (req) => {
             409,
           );
         }
-        if ((stepKey === "ready_to_connect" || derivedKey) && steps.monitor_step_b?.status !== "passed") {
+        if (stepKey === "ready_to_connect" && steps.monitor_step_b?.status !== "passed") {
           return json(
             { success: false, error: { code: "STEP_B_INCOMPLETE", message: "Push the property and ARI first." } },
             409,
           );
         }
       }
-
 
       const details = (body.details ?? null) as Record<string, unknown> | null;
       await writeStep(admin, propertyId, {

@@ -18457,7 +18457,6 @@ export type Database = {
         | "agoda"
         | "google_hotels"
         | "manual"
-        | "rentals_united"
       channel_reservation_status:
         | "pending"
         | "processed"
@@ -18752,7 +18751,6 @@ export const Constants = {
         "agoda",
         "google_hotels",
         "manual",
-        "rentals_united",
       ],
       channel_reservation_status: [
         "pending",
