@@ -44,10 +44,11 @@ interface RosterResult {
   /** Accounts the channel reports as archived/closed — excluded from the list and the counts. */
   archivedExcluded: number;
   /**
-   * Accounts with no ROLOS binding, no stored key pair and a retired registry entry —
-   * already dead on our side, so they are excluded from the list and the counts too.
+   * Unbound accounts already retired in ROLOS that the channel still lists as open — the
+   * catch-up cases whose portal login still works until they are closed here.
    */
-  retiredUnboundExcluded: number;
+  retiredStillOpen: number;
+
   readAt: Date;
 }
 
