@@ -5053,13 +5053,40 @@ Deno.serve(async (req) => {
       }
       const xml = buildPutConfirmedReservationXml(scopedCreds, stay, body.guest ?? {});
 
-      const compactRequestXml = compactXml(xml);
-      const response = await callRentalsUnited(scopedCreds, xml);
+      let compactRequestXml = compactXml(xml);
+      let response = await callRentalsUnited(scopedCreds, xml);
       console.log(
         `[rentalsunited-api] push_confirmed_reservation (auth=${authMode}) response: ${response.substring(0, 500)}`,
       );
-      const { ok, status } = handleRUStatus(response);
+      let { ok, status } = handleRUStatus(response);
+
+      /**
+       * Status 34 — "RUPrice is not valid. Correct price is:X". The channel prices the stay
+       * itself from the seasons we published and refuses any other amount, so the local booking
+       * total (packages, charges, manual overrides) cannot be used as RUPrice. Restate the stay
+       * once at the channel's own price; the guest still pays the ROL'OS total, which is what
+       * our invoice says. Only one corrective attempt: a second mismatch is a real fault.
+       */
+      if (!ok && status.id === '34') {
+        const corrected = Number(response.match(/Correct price is:\s*([\d.]+)/i)?.[1] ?? NaN);
+        if (Number.isFinite(corrected) && corrected > 0) {
+          console.warn(
+            `[rentalsunited-api] push_confirmed_reservation: channel priced the stay at ${corrected} ` +
+              `(we sent ${stay.client_price}) — restating at the channel price`,
+          );
+          const retryXml = buildPutConfirmedReservationXml(
+            scopedCreds,
+            { ...stay, client_price: corrected },
+            body.guest ?? {},
+          );
+          compactRequestXml = compactXml(retryXml);
+          response = await callRentalsUnited(scopedCreds, retryXml);
+          ({ ok, status } = handleRUStatus(response));
+        }
+      }
+
       if (!ok) {
+
         // Status 56: the listing we hold locally is not (or no longer) at the channel. Retrying
         // cannot fix a stale mapping — say so plainly so the operator republishes the unit.
         if (status.id === '56') {
