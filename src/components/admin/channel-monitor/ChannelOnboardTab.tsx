@@ -974,6 +974,7 @@ export function ChannelOnboardTab({
   useEffect(() => {
     setWaiting({});
     setStepDetailOpen({});
+    setFailedStep({});
   }, [propertyId]);
 
   /**
@@ -1006,6 +1007,7 @@ export function ChannelOnboardTab({
         setRebindEmail("");
         setTaskStates({});
         setTaskCodes({});
+        setFailedStep({});
         setPlan(null);
         setChosenLoginEmail("");
         setEmailConflict(null);
