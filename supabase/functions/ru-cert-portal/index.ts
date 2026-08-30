@@ -7659,6 +7659,72 @@ Deno.serve(async (req) => {
         }
       }
 
+      /**
+       * ── 4b. Close the retired sub-accounts AT THE CHANNEL ──
+       *
+       * Sterilizing used to leave the portal login alive: the account was recorded as retired
+       * locally but nothing ever asked the channel to close it, so the operator could still sign
+       * in with an email ROL'OS considered dead. The close runs as the sub-account itself, one at
+       * a time, after its listings are archived and its binding is gone. Only a confirmed roster
+       * re-read stamps channel_archived_at — a refusal is reported, never assumed away.
+       */
+      const accountCloses: {
+        ru_owner_id: string;
+        status: string;
+        code: string;
+        confirmed: boolean;
+        message: string;
+      }[] = [];
+      const sterilizePassword = typeof body.password === "string" && body.password ? body.password : null;
+      for (const owner of staleOwners) {
+        const outcome = await closeAccountAtChannel({
+          ownerId: owner,
+          password: sterilizePassword,
+          note: `Sterilized with ${prop.name} for a fresh channel connection`,
+          cooldownSeconds: 30,
+          allowBound: true,
+        });
+        accountCloses.push({
+          ru_owner_id: owner,
+          status: outcome.status,
+          code: outcome.code,
+          confirmed: outcome.confirmed,
+          message: outcome.message,
+        });
+        await admin.from("ru_retired_accounts").update({
+          ...(outcome.confirmed ? { channel_archived_at: new Date().toISOString() } : {}),
+          channel_archive_result: {
+            ran_at: new Date().toISOString(),
+            ran_by: user.email ?? user.id,
+            source: "sterilize_property",
+            property_id: propertyId,
+            account_close: {
+              status: outcome.status,
+              code: outcome.code,
+              message: outcome.message,
+              verified_via_roster: outcome.verifiedViaRoster,
+              steps: outcome.steps,
+            },
+          },
+        }).eq("ru_owner_id", owner)
+          .then(() => {}, (e) => console.warn("[ru-cert-portal] sterilize close stamp failed", e));
+      }
+      if (staleOwners.length > 0) {
+        const closedCount = accountCloses.filter((c) => c.confirmed).length;
+        steps.push({
+          step: "close_accounts",
+          ok: closedCount === staleOwners.length,
+          message: closedCount === staleOwners.length
+            ? `${closedCount} distribution account(s) closed at the channel — the portal login no longer works`
+            : `${closedCount}/${staleOwners.length} closed at the channel · outstanding: ${accountCloses
+                .filter((c) => !c.confirmed)
+                .map((c) => `${c.ru_owner_id} (${c.message})`)
+                .join("; ")}`,
+        });
+      }
+
+
+
 
       // ── 5. Every gate earned again from zero ──
       const { data: gateRows } = await admin
