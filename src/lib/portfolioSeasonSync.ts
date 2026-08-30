@@ -45,14 +45,21 @@ export function mergePortfolioSeasonDates(
   });
 }
 
-export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons: PortfolioSeason[]): Promise<number> {
+/**
+ * Copy the source property's season dates onto its portfolio siblings.
+ *
+ * Returns the ids of the siblings that were rewritten, so the caller can mirror their shared
+ * seasons and fire their own channel delta — a sibling whose season dates moved is just as
+ * mispriced at the channel as the property that was edited.
+ */
+export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons: PortfolioSeason[]): Promise<string[]> {
   const { data: memberships, error: membershipError } = await supabase
     .from("property_portfolio_members")
     .select("portfolio_id")
     .eq("property_id", propertyId);
   if (membershipError) throw membershipError;
   const portfolioIds = (memberships ?? []).map((membership) => membership.portfolio_id);
-  if (portfolioIds.length === 0) return 0;
+  if (portfolioIds.length === 0) return [];
 
   const { data: siblingMemberships, error: siblingError } = await supabase
     .from("property_portfolio_members")
@@ -61,7 +68,7 @@ export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons
     .neq("property_id", propertyId);
   if (siblingError) throw siblingError;
   const siblingIds = [...new Set((siblingMemberships ?? []).map((membership) => membership.property_id))];
-  if (siblingIds.length === 0) return 0;
+  if (siblingIds.length === 0) return [];
 
   const { data: siblings, error: propertiesError } = await supabase
     .from("properties")
@@ -70,7 +77,7 @@ export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons
     .eq("is_active", true);
   if (propertiesError) throw propertiesError;
 
-  let updated = 0;
+  const updated: string[] = [];
   for (const sibling of siblings ?? []) {
     const amenities = sibling.amenities && typeof sibling.amenities === "object"
       ? { ...(sibling.amenities as Record<string, unknown>) }
@@ -79,7 +86,7 @@ export async function syncPortfolioSeasonDates(propertyId: string, sourceSeasons
     amenities.seasons = mergePortfolioSeasonDates(sourceSeasons, targetSeasons);
     const { error } = await supabase.from("properties").update({ amenities: amenities as Json }).eq("id", sibling.id);
     if (error) throw error;
-    updated += 1;
+    updated.push(String(sibling.id));
   }
   return updated;
 }

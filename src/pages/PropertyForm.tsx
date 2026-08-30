@@ -225,6 +225,7 @@ import { RuPaymentMethodsPicker } from "@/components/property/RuPaymentMethodsPi
 import { RuChannelContentFields } from "@/components/property/RuChannelContentFields";
 
 import { syncPortfolioSeasonDates } from "@/lib/portfolioSeasonSync";
+import { propagateSeasonChange } from "@/lib/seasonChangePush";
 import { usePMSSync, isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hooks/usePMSSync";
 import {
   PROPERTY_SECTION_ORDER,
@@ -3604,9 +3605,13 @@ export default function PropertyForm({
       const savedPropertyId = savedProperty?.id || propertyId;
 
       // Portfolio calendars share season definitions only. Each property's season/rack rates remain untouched.
+      // A season change is a rates change: the shared-season mirror is refreshed here — before the
+      // save's channel delta runs — so the push resolves the new windows rather than the old ones,
+      // and every sibling that inherited the dates pushes its own delta.
       if (isRolProperty && savedPropertyId && seasonsChanged) {
         try {
-          await syncPortfolioSeasonDates(savedPropertyId, seasons);
+          const siblingIds = await syncPortfolioSeasonDates(savedPropertyId, seasons);
+          await propagateSeasonChange(savedPropertyId, siblingIds);
         } catch (seasonSyncError) {
           console.error("Portfolio season date sync failed:", seasonSyncError);
           toast({
