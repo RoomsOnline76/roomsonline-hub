@@ -2099,6 +2099,44 @@ const RU_VERB_BY_ACTION: Record<string, string> = {
 
 
 
+/**
+ * Sub-user OwnerID that owns a property — its own binding first, then its portfolio's account.
+ * Used to scope reads that only name a property (reservation detail pulls in particular): a
+ * reservation is invisible outside the account that holds the listing.
+ */
+async function resolveOwnerIdForPropertyScope(propertyId: string): Promise<string | null> {
+  try {
+    const admin = getLogClient();
+    const { data: direct } = await admin
+      .from('ru_owner_accounts')
+      .select('ru_owner_id')
+      .eq('property_id', propertyId)
+      .not('ru_owner_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    if (direct?.ru_owner_id) return String(direct.ru_owner_id);
+
+    const { data: members } = await admin
+      .from('property_portfolio_members')
+      .select('portfolio_id')
+      .eq('property_id', propertyId);
+    const portfolioIds = (members || []).map((m: { portfolio_id: string }) => m.portfolio_id);
+    if (portfolioIds.length === 0) return null;
+
+    const { data: viaPortfolio } = await admin
+      .from('ru_owner_accounts')
+      .select('ru_owner_id')
+      .in('portfolio_id', portfolioIds)
+      .not('ru_owner_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    return viaPortfolio?.ru_owner_id ? String(viaPortfolio.ru_owner_id) : null;
+  } catch (e) {
+    console.warn('[rentalsunited-api] owner scope lookup by property failed', e);
+    return null;
+  }
+}
+
 
 /**
  * Resolve the credentials to use for a child-scoped RU call.
@@ -3044,12 +3082,27 @@ Deno.serve(async (req) => {
     // Every action below that touches ONE sub-user's inventory authenticates as that
     // sub-user when API keys are on file, so the listing lands on the sub-account.
     const childScoped = CHILD_SCOPED_ACTIONS.has(action);
+    // A reservation lives inside the sub-account that owns the listing. A read that arrives with
+    // only a property_id would otherwise run on MASTER credentials, where the channel answers
+    // "Reservation does not exist" (status 28) — which callers then read as "absent at the
+    // channel" and fall back to confirm/create/modify cascades. Derive the OwnerID from the
+    // property so the read is scoped to the account that actually holds the reservation.
+    if (childScoped && (body.owner_id == null || String(body.owner_id).trim() === '') && body.property_id) {
+      const derived = await resolveOwnerIdForPropertyScope(String(body.property_id));
+      if (derived) {
+        body.owner_id = derived;
+        console.log(
+          `[rentalsunited-api] ${action}: owner scope derived from property ${body.property_id} → OwnerID ${derived}`,
+        );
+      }
+    }
     const childResolution = childScoped
       ? await resolveChildAuthDetailed(body)
       : { auth: null, reason: null };
     const childAuth = childResolution.auth;
     const authMode = childAuthMode(childAuth);
     const ownerScope = body.owner_id == null ? '' : String(body.owner_id).trim();
+
     if (childScoped) {
       console.log(`[rentalsunited-api] ${action} auth_mode=${authMode} owner_id=${ownerScope || 'n/a'}`);
     }
