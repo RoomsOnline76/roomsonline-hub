@@ -802,7 +802,8 @@ export function ChannelOnboardTab({
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
               : null,
           keysVerifiedInRun: options?.keysVerifiedInRun,
-          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) =>
+          onTask: (id: ChannelOnboardTaskId, state, detail, retryAfterMs) => {
+            if (state === "failed" || state === "blocked") lastStopTaskRef.current[step] = id;
             setTaskStates((prev) => ({
               ...prev,
               [id]: {
@@ -810,7 +811,8 @@ export function ChannelOnboardTab({
                 detail,
                 waitingUntil: state === "pending" ? Date.now() + (retryAfterMs ?? 60_000) : undefined,
               },
-            })),
+            }));
+          },
           onPushProgress: (progress) => setPushProgress(progress),
         });
         // A taken login is a decision to hand back, not a plain failure: keep the modal
