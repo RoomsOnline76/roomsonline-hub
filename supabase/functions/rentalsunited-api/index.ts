@@ -3828,6 +3828,34 @@ Deno.serve(async (req) => {
       }
 
 
+      /**
+       * Chained fees push — RU deprecated <CleaningPrice> (Notif 258) and wants every
+       * on-top-of-rate amount in the fees collection via Push_PutPropertyFees_RQ. The call
+       * replaces the listing's ENTIRE fee set, so we only run it when the caller supplied the
+       * full set (charges-tab snapshot); an empty array deliberately clears stale fees. A fees
+       * refusal never fails the listing push — content already landed, the caller is told.
+       */
+      let feesResult: { pushed: boolean; fee_count: number; status_id: string | null; message: string | null } | null = null;
+      if (Array.isArray(p.fees) && returnedPropertyId != null) {
+        try {
+          const feesXml = buildPushPropertyFeesXml(buildAuthXml(scopedCreds), returnedPropertyId, p.fees);
+          const feesResp = await callRentalsUnited(scopedCreds, feesXml);
+          const feesStatus = handleRUStatus(feesResp);
+          feesResult = {
+            pushed: feesStatus.ok,
+            fee_count: p.fees.length,
+            status_id: String(feesStatus.status?.id ?? '') || null,
+            message: feesStatus.ok ? null : String(feesStatus.status?.message ?? 'fees push refused'),
+          };
+          if (!feesStatus.ok) {
+            console.warn(`[rentalsunited-api] Fees push refused for listing ${returnedPropertyId} (${feesStatus.status?.id}: ${feesStatus.status?.message})`);
+          }
+        } catch (e) {
+          feesResult = { pushed: false, fee_count: p.fees.length, status_id: null, message: e instanceof Error ? e.message : String(e) };
+          console.warn('[rentalsunited-api] Fees push failed:', feesResult.message);
+        }
+      }
+
       return jsonResponse({
 
         success: true,
