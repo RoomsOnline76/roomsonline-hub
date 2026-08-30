@@ -30,6 +30,7 @@ interface SterilizeResult {
   dry_run?: boolean;
   property?: { id: string; name: string };
   listings_to_archive?: { ru_property_id: string; ru_owner_id: string | null }[];
+  listings_already_disconnected?: { ru_property_id: string; ru_owner_id: string | null; reason: string }[];
   archived_listings?: string[];
   orphaned_listings?: { ru_property_id: string; ru_owner_id: string | null; message: string }[];
   listings_kept?: string[];
