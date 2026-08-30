@@ -23,6 +23,7 @@ import {
   Clock,
   Hourglass,
   Loader2,
+  Mail,
   RefreshCw,
   ShieldCheck,
   UserPlus,
