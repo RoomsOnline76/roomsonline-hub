@@ -317,17 +317,26 @@ Deno.serve(async (req) => {
                 );
                 return;
               }
+              // A rate refusal means the channel's sliding minute is still open — every rung
+              // of this ladder falls inside it, so replaying only produces more -6 answers.
+              if (last.rateDeferred) break;
             }
             await parkForSweep(last.error ?? null, last.rateDeferred === true, last.resolvedOwnerId ?? null);
           };
 
-          const runLadder = fastLadder().catch((e: unknown) =>
-            console.error('[ru-reservation-handler] Fast retry ladder failed:', e),
-          );
-          // deno-lint-ignore no-explicit-any
-          const runtime = (globalThis as any).EdgeRuntime;
-          if (runtime?.waitUntil) runtime.waitUntil(runLadder);
-          else await runLadder;
+          if (refreshed.rateDeferred) {
+            // Nothing to retry fast: the channel has told us to come back after its minute.
+            await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
+          } else {
+            const runLadder = fastLadder().catch((e: unknown) =>
+              console.error('[ru-reservation-handler] Fast retry ladder failed:', e),
+            );
+            // deno-lint-ignore no-explicit-any
+            const runtime = (globalThis as any).EdgeRuntime;
+            if (runtime?.waitUntil) runtime.waitUntil(runLadder);
+            else await runLadder;
+          }
+
 
         } else {
 

@@ -21,10 +21,11 @@ function creatorFromXml(xml: string | null): string | null {
   return match ? match[1].trim() : null;
 }
 
-function nextAttemptAt(attemptCount: number): string {
+function nextAttemptAt(attemptCount: number, minDelayMs = 0): string {
   const minutes = RU_RETRY_BACKOFF_MINUTES[Math.min(attemptCount, MAX_RU_RETRY_ATTEMPTS - 1)];
-  return new Date(Date.now() + minutes * 60_000).toISOString();
+  return new Date(Date.now() + Math.max(minutes * 60_000, minDelayMs)).toISOString();
 }
+
 
 /**
  * Park a notification for another attempt, or mark it failed once the backoff is exhausted.
@@ -56,11 +57,14 @@ export async function scheduleRuNotificationRetry(
       resolution_state: state,
       error_message: opts.error ?? null,
       attempt_count: attemptCount,
-      next_attempt_at: state === 'retrying' ? nextAttemptAt(attemptCount) : null,
+      // A rate-limited read must come back AFTER the channel's sliding minute, otherwise the
+      // sweep re-asks inside the same window and collects another -6.
+      next_attempt_at: state === 'retrying' ? nextAttemptAt(attemptCount, opts.freeAttempt ? 75_000 : 0) : null,
       last_attempt_at: new Date().toISOString(),
       ...(opts.ownerId ? { resolved_owner_id: opts.ownerId } : {}),
     })
     .eq('id', notificationId);
+
 
   return state;
 }
