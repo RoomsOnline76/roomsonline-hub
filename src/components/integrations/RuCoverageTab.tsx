@@ -347,6 +347,10 @@ export function RuCoverageTab() {
         </div>
       )}
 
+      <RuFeeAuditPanel />
+
+
+
       {grouped.map((group) => (
         <Card key={group.key}>
           <CardHeader className="pb-3">
