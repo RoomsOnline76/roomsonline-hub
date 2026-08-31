@@ -822,3 +822,94 @@ export function RoomPlanGrid({
     </>
   );
 }
+
+/**
+ * Restriction lane drawn under a room-type header. One thin coloured line per active
+ * restriction per night (blocked, min/max stay, lead days) with a hover explanation —
+ * identical colour language to the week and month grids. The lane collapses entirely
+ * when the visible window has no restrictions.
+ */
+function RestrictionLane({
+  roomTypeId,
+  roomTypeName,
+  dates,
+  colWidth,
+  getRestrictionMarkers,
+  onEditBlock,
+}: {
+  roomTypeId: string;
+  roomTypeName: string;
+  dates: Date[];
+  colWidth: number;
+  getRestrictionMarkers?: (roomTypeId: string, date: Date) => RestrictionMarker[];
+  onEditBlock?: (roomTypeId: string, date: Date) => void;
+}) {
+  const markersByDate = useMemo(() => {
+    if (!getRestrictionMarkers) return [];
+    return dates.map((date) => getRestrictionMarkers(roomTypeId, date) || []);
+  }, [dates, getRestrictionMarkers, roomTypeId]);
+
+  const laneCount = useMemo(
+    () => markersByDate.reduce((max, markers) => Math.max(max, markers.length), 0),
+    [markersByDate],
+  );
+  if (laneCount === 0) return null;
+
+  const height = laneCount * 4 + (laneCount - 1) * 2 + 4;
+
+  return (
+    <TooltipProvider delayDuration={120}>
+      <div className="flex border-b bg-background/60">
+        <div
+          className="sticky left-0 z-20 flex shrink-0 items-center border-r bg-background/95 px-2 text-[8px] uppercase tracking-wide text-muted-foreground"
+          style={{ width: ROOM_PLAN_LABEL_W, height }}
+        >
+          Restrictions
+        </div>
+        {dates.map((date, index) => {
+          const markers = markersByDate[index] || [];
+          return (
+            <div
+              key={date.toISOString()}
+              className={cn("shrink-0 border-r last:border-r-0", isWeekend(date) && "bg-muted/30")}
+              style={{ width: colWidth, height }}
+              onContextMenu={(event) => {
+                if (!onEditBlock || markers.length === 0) return;
+                event.preventDefault();
+                onEditBlock(roomTypeId, date);
+              }}
+            >
+              <div className="flex h-full flex-col justify-center gap-[2px] px-[1px]">
+                {markers.map((marker) => (
+                  <Tooltip key={marker.kind}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={cn(
+                          "flex h-1 items-center justify-center",
+                          marker.colorClass,
+                          restrictionMarkerRounding(marker),
+                        )}
+                      >
+                        {marker.value && (
+                          <span className="text-[6px] font-bold leading-none text-white">{marker.value}</span>
+                        )}
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-[10px] font-semibold">{roomTypeName} · {format(date, "EEE d MMM")}</p>
+                      {marker.tooltip.split("\n").map((line, i) => (
+                        <p key={i} className={cn("text-xs", i === 0 ? "font-medium" : "text-muted-foreground")}>
+                          {line}
+                        </p>
+                      ))}
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </TooltipProvider>
+  );
+}
