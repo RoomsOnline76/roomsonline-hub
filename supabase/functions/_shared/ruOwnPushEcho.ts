@@ -22,6 +22,27 @@ type Db = any;
 
 const ECHO_WINDOW_MS = 10 * 60 * 1000;
 
+/** Notification kinds, mirrored from `ruReservationParsing.ts` (imported loosely to stay shared-safe). */
+export type EchoKind = 'confirmed' | 'modified' | 'cancelled' | 'request';
+
+/**
+ * Only OUR write of the same nature can echo as a given notification kind. A cancellation
+ * notification is never an echo of a create, and a modification is never an echo of a cancel —
+ * suppressing across kinds silently loses genuine channel-side changes.
+ */
+const VERBS_BY_KIND: Record<EchoKind, string[]> = {
+  confirmed: ['Push_PutConfirmedReservationMulti_RQ', 'Push_ModifyStay_RQ'],
+  request: ['Push_PutConfirmedReservationMulti_RQ'],
+  modified: ['Push_ModifyStay_RQ'],
+  cancelled: ['Push_CancelReservation_RQ', 'Push_RejectRequest_RQ'],
+};
+
+/** `includes()` let a short reservation id match a longer one; require a non-digit boundary. */
+function xmlMentionsReservation(xml: string, reservationId: string): boolean {
+  const escaped = reservationId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<!\\d)${escaped}(?!\\d)`).test(xml);
+}
+
 export interface RuOwnPushEcho {
   bookingId: string | null;
   pushedAt: string;
@@ -41,19 +62,23 @@ const OWN_PUSH_VERBS = [
  * already echoed, so a booking-keyed lookup misses both the cancel and modify echoes and the
  * handler fans a detail pull across every account for a reservation RU no longer serves.
  */
-async function findOwnPushOnTheWire(supabase: Db, reservationId: string): Promise<RuOwnPushEcho | null> {
+async function findOwnPushOnTheWire(
+  supabase: Db,
+  reservationId: string,
+  verbs: string[],
+): Promise<RuOwnPushEcho | null> {
   const sinceIso = new Date(Date.now() - ECHO_WINDOW_MS).toISOString();
   const { data } = await supabase
     .from('ru_api_log')
     .select('action, created_at, request_xml')
     .eq('direction', 'outbound')
-    .in('action', OWN_PUSH_VERBS)
+    .in('action', verbs)
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: false })
     .limit(40);
 
   const hit = (data ?? []).find((row: { request_xml?: string | null }) =>
-    typeof row?.request_xml === 'string' && row.request_xml.includes(reservationId)
+    typeof row?.request_xml === 'string' && xmlMentionsReservation(row.request_xml, reservationId)
   );
   return hit ? { bookingId: null, pushedAt: String(hit.created_at) } : null;
 }
@@ -61,9 +86,11 @@ async function findOwnPushOnTheWire(supabase: Db, reservationId: string): Promis
 export async function findRuOwnPushEcho(
   supabase: Db,
   reservationId: string | null | undefined,
+  kind?: EchoKind | null,
 ): Promise<RuOwnPushEcho | null> {
   const id = String(reservationId ?? '').trim();
   if (!id) return null;
+  const verbs = kind ? VERBS_BY_KIND[kind] ?? OWN_PUSH_VERBS : OWN_PUSH_VERBS;
 
   try {
     const { data: booking } = await supabase
@@ -72,7 +99,7 @@ export async function findRuOwnPushEcho(
       .eq('external_reservation_id', id)
       .limit(1)
       .maybeSingle();
-    if (!booking?.id) return await findOwnPushOnTheWire(supabase, id);
+    if (!booking?.id) return await findOwnPushOnTheWire(supabase, id, verbs);
 
 
 
@@ -82,7 +109,9 @@ export async function findRuOwnPushEcho(
       .select('created_at')
       .eq('booking_id', booking.id)
       .eq('direction', 'outbound')
-      .in('outcome', ['pushed', 'queued', 'skipped'])
+      // `skipped` means nothing was actually sent, so it can never be the cause of an echo.
+      .in('outcome', ['pushed', 'queued'])
+      .in('action', verbs)
       .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -91,7 +120,7 @@ export async function findRuOwnPushEcho(
     // The trail row for an interactive save lands after RU has echoed, so the wire log is the
     // fallback proof that the change originated here.
     if (!pushedAt) {
-      const onWire = await findOwnPushOnTheWire(supabase, id);
+      const onWire = await findOwnPushOnTheWire(supabase, id, verbs);
       return onWire ? { ...onWire, bookingId: String(booking.id) } : null;
     }
     return { bookingId: String(booking.id), pushedAt };

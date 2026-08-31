@@ -1320,7 +1320,7 @@ Deno.serve(async (req) => {
           const bookingQuery = admin
             .from("bookings")
             .select(
-              "id, guest_name, guest_email, guest_phone, total_price, status, check_out_date, booking_reference, is_trade, updated_at",
+              "id, guest_name, guest_email, guest_phone, total_price, status, check_out_date, rol_reference, is_trade, updated_at",
             )
             .in("property_id", propertyIds)
             .order("updated_at", { ascending: false })
@@ -1350,7 +1350,7 @@ Deno.serve(async (req) => {
               if (res.ok) contacts += 1;
             }
 
-            const label = (b.booking_reference as string | null) || (b.id as string);
+            const label = (b.rol_reference as string | null) || (b.id as string);
             const dealProps = await withTrade(
               active.token,
               "deals",
