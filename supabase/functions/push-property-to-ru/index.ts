@@ -1659,15 +1659,11 @@ function buildUnitPayload(
   images = restampRuImages(images);
   const inheritedImageCount = Math.max(0, images.length - ownImageCount);
 
-  // Amenities: merge unit + property (property-level facilities are always additive so
-  // the RU-aligned property selection reaches every unit of the listing).
+  // Amenities: the unit owns its own set. Property-wide facilities publish against the
+  // property record only — merging them in would claim every unit has the pool, the
+  // reception and the gym, which is not what was authored.
   let unitAmenities = mapAmenities(unit.amenities);
   {
-    const propAmenities = mapAmenities(property.amenities);
-    const seenIds = new Set(unitAmenities.map(a => a.id));
-    for (const pa of propAmenities) {
-      if (!seenIds.has(pa.id)) { unitAmenities.push(pa); seenIds.add(pa.id); }
-    }
     // Composition-derived amenities: RU expects Bathroom (81), WC (37) and Kitchen (101)
     // to be declared with their quantities. Unit values win, property values are the fallback.
     const comp = resolveUnitComposition(property, unit);
@@ -1758,7 +1754,7 @@ function buildUnitPayload(
     object_type_is_default: objectTypeIsDefault,
     object_type_source: authoredUnitType,
     can_sleep_max: maxGuests,
-    standard_guests: Math.ceil(maxGuests * 0.7),
+    standard_guests: resolveStandardGuests((unit as { standard_guests?: unknown }).standard_guests, maxGuests),
     number_of_beds: beds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
     currency_is_default: !currencyAuthored.authored,
@@ -1914,7 +1910,10 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     object_type_is_default: objectTypeIsDefault,
     object_type_source: authoredSingleType,
     can_sleep_max: maxGuests,
-    standard_guests: Math.ceil(maxGuests * 0.7),
+    standard_guests: resolveStandardGuests(
+      (primaryRoom as { standard_guests?: unknown } | null)?.standard_guests,
+      maxGuests,
+    ),
     number_of_beds: numberOfBeds,
     currency_id: currencyId ?? mapCurrencyToRUId(property.amenities, property.country),
     currency_is_default: !currencyAuthored.authored,
