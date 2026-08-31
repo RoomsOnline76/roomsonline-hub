@@ -29,3 +29,13 @@ still pays the ROL'OS total on our invoice. A second mismatch is a real fault.
 
 Diagnosis aid: out-of-calendar dates answer `There is no space to add this apartment!`, closed
 changeover answers `Can't check in or check out on selected dates` — the two are distinguishable.
+
+**Re-confirmed 2026-08-31 (listing 5974995, Leopard).** The spec-based revert (1 = both allowed) was
+wrong a second time: with Units=1, IsBlocked=false, Reservations=0, MinStay 1 on every stay night,
+`<C>1</C>` was refused with "Can't check in or check out on selected dates" while the same stay on
+nights republished as `<C>4</C>` registered immediately (RU 147112908 / 147112923). Do not revert
+`_shared/ruChangeover.ts` to the document again without a live probe of this shape.
+
+An authored no-arrival/no-departure day (e.g. `changeover_rules: { saturday: 0, sunday: 0 }`) is a
+legitimate refusal — never reopen those nights to force the write. `_shared/ruChangeoverRules.ts`
+(`describeChangeoverViolation`) turns it into plain language for the operator.

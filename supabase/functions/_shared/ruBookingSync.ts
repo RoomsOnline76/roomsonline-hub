@@ -567,8 +567,7 @@ export async function reopenStayNightsAtChannel(
   const spans: Array<Record<string, unknown>> = [];
   if (lastNightStr >= args.dateFrom) {
     // Internal 3 means both arrival and departure are allowed; the shared serializer maps it to
-    // channel wire value 1. Internal 1 would serialize to wire 2 (arrival only) and still make the
-    // departure validation reject the reservation.
+    // channel wire value 4 (measured: 4 is the only code that lets a reservation register).
     spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 3 });
   }
   spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 3 });
@@ -1131,7 +1130,7 @@ export async function modifyRuStay(
    * A refused date change is almost always the changeover validation on the NEW departure day —
    * our own availability delta published it as closed. The reservation legitimately owns every
    * night it already holds, so those are left alone: only the new arrival/departure boundary is
-   * reopened (internal changeover 3 → wire C=1), then the SAME modification is replayed once past
+   * reopened (internal changeover 3 → wire C=4), then the SAME modification is replayed once past
    * the channel's sliding minute. It is never turned into a registration.
    */
   if (!result.ok && isRuBlockedDatesRefusal(result.message)) {

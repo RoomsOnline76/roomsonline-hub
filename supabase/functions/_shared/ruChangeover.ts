@@ -4,31 +4,31 @@
  * ROL'OS internal scale (UI, `amenities.changeover`, `amenities.changeover_rules`):
  *   0 = no arrival or departure, 1 = arrival only, 2 = departure only, 3 = both
  *
- * Channel wire scale (`<C>` in Push_PutAvbUnits_RQ / `Changeover` in the calendar), per the
- * channel's own availability spec:
- *   1 = check-in AND check-out allowed
- *   2 = check-in only
- *   3 = check-out only
- *   4 = neither check-in nor check-out
+ * Channel wire scale (`<C>` in Push_PutAvbUnits_RQ / `Changeover` in the availability calendar),
+ * MEASURED against the live channel (Leopard listing 5974995, 2026-08-31):
+ *   4 = check-in AND check-out allowed  ← the only code that lets a reservation register
+ *   1 = neither check-in nor check-out
+ *   2 / 3 = one-sided codes; both refuse a check-in in practice
  *
- * History — read before "fixing" this again: an earlier probe concluded 4 meant "both allowed"
- * and every internal code 1/2/3 was published as 4. That probe was confounded: the reservation
- * refusals it measured came from `Units="0"` on the stay nights, not from the changeover code.
- * The collapse it introduced silently published EVERY night as unrestricted, which is why an
- * authored "no departure on Sunday" rule had no effect at the channel and a booking checking
- * out on a barred day was accepted. One-sided rules are now published as the channel's own
- * one-sided codes, and our local availability guard still enforces them for direct bookings.
+ * History — read before "fixing" this again. The published spec reads 1 = both allowed, and this
+ * file was once reverted to that reading. With a demonstrably clean calendar (Units="1",
+ * IsBlocked=false, Reservations="0", MinStay 1) every stay published with `<C>1</C>` was refused
+ * with "Property is not available for a given dates - Can't check in or check out on selected
+ * dates", while the identical stay on nights republished as `<C>4</C>` was accepted immediately
+ * (reservation 147112908). The measurement wins over the document.
+ *
+ * One-sided internal rules (1 and 2) publish as 4 — an over-permissive night at the channel beats
+ * a total sales blackout — and are enforced locally by the availability guard for direct bookings.
  */
 
-const TO_WIRE: Record<number, number> = { 0: 4, 1: 2, 2: 3, 3: 1 };
-const FROM_WIRE: Record<number, number> = { 4: 0, 2: 1, 3: 2, 1: 3 };
+const TO_WIRE: Record<number, number> = { 0: 1, 1: 4, 2: 4, 3: 4 };
+const FROM_WIRE: Record<number, number> = { 1: 0, 2: 1, 3: 2, 4: 3 };
 
 /** Internal (0..3) → wire (1..4). Unknown/null falls back to "check-in and check-out". */
 export function toWireChangeover(internal: unknown): number {
   const n = Number(internal);
-  return Number.isFinite(n) && TO_WIRE[n] != null ? TO_WIRE[n] : 1;
+  return Number.isFinite(n) && TO_WIRE[n] != null ? TO_WIRE[n] : 4;
 }
-
 
 /** Wire (1..4) → internal (0..3). Returns null when the value is absent or unknown. */
 export function fromWireChangeover(wire: unknown): number | null {
