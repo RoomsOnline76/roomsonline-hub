@@ -6,7 +6,9 @@
 - [x] Three September bookings on Leopard — ROL-C73-0014 (3–6 Sep, RU 147112908) and ROL-C73-0016 (20–23 Sep, RU 147112923) accepted. ROL-C73-0015 (10–13 Sep) is correctly refused: Sat/Sun are authored as no-arrival/no-departure, so a Sunday check-out violates our own changeover rule.
 - [x] Delta 1 company details, 2 property re-push, 3 name ("Leopard Cottage"), 4 capacity (StandardGuests 5 / CanSleepMax 6, bed config trimmed to match)
 - [x] Delta 5 address → Riversdale: street/zip updated at the channel; the location *move* is refused by the channel with status 310 (existing reservations) — expected. One refusal, published LocationID 83272 kept, lock row recorded, content re-sent once and accepted. No retry storm.
-- [ ] Delta 6 amenities add/remove, 7 cleaning fee remove + re-add
+- [x] Delta 6 amenities: added Iron & Ironing Board (4) — live on read-back; removing Dishwasher (13) only retracted once it was cleared from **both** registries (unit amenities *and* property facilities) — the published set is the union of the two.
+- [x] Delta 7 cleaning fee removed and re-added: both deltas accepted (Status 0, one push each), `<CleaningPrice>0</CleaningPrice>` as expected. Not verifiable at the channel: `Pull_ListSpecProp_RS` returns no `<AdditionalFees>` block, so fee state can only be confirmed from the outbound payload.
+
 
 - [ ] Availability: block 4 consecutive days then open; min-stay change; changeover change + refusal message check
 - [ ] Rates: add 10-day November high season; low season price to 1111
