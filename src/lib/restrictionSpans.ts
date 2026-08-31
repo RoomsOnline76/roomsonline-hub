@@ -359,11 +359,31 @@ export interface RestrictionSpanEdit {
   reason: string | null;
 }
 
+/**
+ * The nights a restriction write actually touched. Every writer returns it so the caller can
+ * scope the Channel Manager delta to exactly that span — never the full year. It covers both the
+ * nights that gained the restriction and the nights that lost it, because reopening a vacated
+ * night is itself an availability change the channel has to receive.
+ */
+export interface RestrictionChangeRange {
+  from: string;
+  to: string;
+}
+
+const rangeOf = (dates: (string | undefined)[]): RestrictionChangeRange | null => {
+  const clean = dates.filter((d): d is string => !!d).sort();
+  if (clean.length === 0) return null;
+  return { from: clean[0], to: clean[clean.length - 1] };
+};
+
 /** Rewrite a span: drop the nights that fell out of the range, write the ones that came in. */
-export async function applyRestrictionSpan(span: RestrictionSpan, edit: RestrictionSpanEdit): Promise<void> {
+export async function applyRestrictionSpan(
+  span: RestrictionSpan,
+  edit: RestrictionSpanEdit,
+): Promise<RestrictionChangeRange | null> {
   if (span.kind === "rate_plan_closure") {
     await applyRatePlanClosureSpan(span, edit);
-    return;
+    return rangeOf([...span.dates, edit.start, edit.end]);
   }
   const nextDates = dateList(edit.start, edit.end);
   const nextSet = new Set(nextDates);
@@ -371,42 +391,50 @@ export async function applyRestrictionSpan(span: RestrictionSpan, edit: Restrict
 
   await clearNights(span.propertyId, span.target, removed, span.kind);
   await writeNights(span.propertyId, span.target, nextDates, span.kind, edit.value, edit.reason);
+  return rangeOf([...removed, ...nextDates]);
 }
 
 /** Shift a span by whole days, keeping its length. */
-export async function moveRestrictionSpan(span: RestrictionSpan, offsetDays: number): Promise<void> {
-  if (offsetDays === 0) return;
+export async function moveRestrictionSpan(
+  span: RestrictionSpan,
+  offsetDays: number,
+): Promise<RestrictionChangeRange | null> {
+  if (offsetDays === 0) return null;
   const start = format(addDays(parseISO(span.start), offsetDays), "yyyy-MM-dd");
   const end = format(addDays(parseISO(span.end), offsetDays), "yyyy-MM-dd");
   return moveRestrictionSpanTo(span, start, end);
 }
 
 /** Relocate a span to an explicit start date, keeping its length. */
-export async function moveRestrictionSpanToStart(span: RestrictionSpan, newStart: string): Promise<void> {
+export async function moveRestrictionSpanToStart(
+  span: RestrictionSpan,
+  newStart: string,
+): Promise<RestrictionChangeRange | null> {
   const length = differenceInCalendarDays(parseISO(span.end), parseISO(span.start));
   const end = format(addDays(parseISO(newStart), length), "yyyy-MM-dd");
   return moveRestrictionSpanTo(span, newStart, end);
 }
 
-async function moveRestrictionSpanTo(span: RestrictionSpan, start: string, end: string): Promise<void> {
+async function moveRestrictionSpanTo(
+  span: RestrictionSpan,
+  start: string,
+  end: string,
+): Promise<RestrictionChangeRange | null> {
   if (span.kind === "rate_plan_closure") {
     await removeRestrictionSpan(span);
     await writeRatePlanClosure(span, dateList(start, end));
-    return;
+    return rangeOf([...span.dates, start, end]);
   }
   const nextDates = dateList(start, end);
   const nextSet = new Set(nextDates);
-  await clearNights(
-    span.propertyId,
-    span.target,
-    span.dates.filter((d) => !nextSet.has(d)),
-    span.kind,
-  );
+  const removed = span.dates.filter((d) => !nextSet.has(d));
+  await clearNights(span.propertyId, span.target, removed, span.kind);
   await writeNights(span.propertyId, span.target, nextDates, span.kind, span.value, span.reason);
+  return rangeOf([...removed, ...nextDates]);
 }
 
 /** Remove a span entirely. */
-export async function removeRestrictionSpan(span: RestrictionSpan): Promise<void> {
+export async function removeRestrictionSpan(span: RestrictionSpan): Promise<RestrictionChangeRange | null> {
   if (span.kind === "rate_plan_closure") {
     const { error } = await supabase
       .from("rolos_rate_plan_stop_sell")
@@ -414,10 +442,39 @@ export async function removeRestrictionSpan(span: RestrictionSpan): Promise<void
       .eq("rate_plan_id", span.ratePlanId!)
       .in("date", span.dates);
     if (error) throw error;
-    return;
+    return rangeOf(span.dates);
   }
   await clearNights(span.propertyId, span.target, span.dates, span.kind);
+  return rangeOf(span.dates);
 }
+
+/**
+ * Partial release: free only part of a span (e.g. the last two nights of a seven-night block)
+ * and leave the rest in force. Only the released nights are cleared, so any other rule on those
+ * nights survives, and the returned range scopes the channel delta to those nights alone.
+ */
+export async function releaseRestrictionNights(
+  span: RestrictionSpan,
+  from: string,
+  to: string,
+): Promise<RestrictionChangeRange | null> {
+  const wanted = new Set(dateList(from, to));
+  const released = span.dates.filter((d) => wanted.has(d));
+  if (released.length === 0) return null;
+
+  if (span.kind === "rate_plan_closure") {
+    const { error } = await supabase
+      .from("rolos_rate_plan_stop_sell")
+      .delete()
+      .eq("rate_plan_id", span.ratePlanId!)
+      .in("date", released);
+    if (error) throw error;
+    return rangeOf(released);
+  }
+  await clearNights(span.propertyId, span.target, released, span.kind);
+  return rangeOf(released);
+}
+
 
 async function writeRatePlanClosure(span: RestrictionSpan, dates: string[]): Promise<void> {
   const { data: user } = await supabase.auth.getUser();
