@@ -836,6 +836,7 @@ export function ChannelOnboardTab({
           // modal, the backend must resolve from the live property/portfolio rows so
           // a just-reassigned owner email cannot be overwritten by a stale preview.
           confirmedOwnerEmail: step === "a" ? chosenLoginEmail || null : null,
+          keyMode,
           confirmedOwnerName:
             step === "a" && chosenLoginEmail
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
