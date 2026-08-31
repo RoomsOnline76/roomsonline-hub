@@ -3905,7 +3905,9 @@ Deno.serve(async (req) => {
       return jsonResponse({
 
         success: true,
-        message: locationChangeRefused
+        message: recreatedAfterDeadListing
+          ? `Property published as a NEW listing — the previous listing ${recreatedAfterDeadListing.dead_ru_property_id} no longer exists at the channel and its id cannot be reused`
+          : locationChangeRefused
           ? `Property pushed successfully — the channel refused the location change (${locationChangeRefused.reason}); the listing keeps its published location`
           : distancesSkipped > 0
             ? `Property pushed successfully — ${distancesSkipped} attraction distance(s) skipped (channel rejected them)`
@@ -3919,7 +3921,9 @@ Deno.serve(async (req) => {
         ru_property_id: returnedPropertyId,
         adopted_existing_listing: adoptedExistingListing,
         reactivated_listing: reactivatedListing,
-        was_create: (ru_property_id as number) === 0 && !adoptedExistingListing,
+        recreated_after_dead_listing: recreatedAfterDeadListing,
+        was_create: recreatedAfterDeadListing != null || ((ru_property_id as number) === 0 && !adoptedExistingListing),
+
 
         building_id: p.building_id ?? null,
 
