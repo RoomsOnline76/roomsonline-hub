@@ -18235,6 +18235,10 @@ export type Database = {
       }
       next_rol_itinerary_reference: { Args: never; Returns: string }
       nextval_subscription_invoice_number: { Args: never; Returns: number }
+      purge_ru_call_queue_terminal: {
+        Args: { _older_than_minutes?: number; _statuses?: string[] }
+        Returns: number
+      }
       rebuild_guest_stats: { Args: { _guest_ids?: string[] }; Returns: number }
       resolve_property_owner_uuid: {
         Args: { _property_id: string }
