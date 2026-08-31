@@ -22,3 +22,11 @@
 - `ru-close-user` cannot archive a freshly created sub-account (OwnerID 742643) because RU requires that account's own key pair for `Push_ArchiveUser_RQ` — orphan account left open at the channel.
 - **Changeover wire mapping corrected again (measured, decisive):** with a demonstrably clean calendar (Units=1, IsBlocked=false, Reservations=0, MinStay 1) every stay published as `<C>1</C>` was refused with "Can't check in or check out on selected dates", while the same stay on nights republished as `<C>4</C>` registered immediately. `_shared/ruChangeover.ts` now maps internal 3/1/2 → wire 4 and internal 0 → wire 1; Leopard's full 366-day calendar was re-published.
 - Refusal wording: added `_shared/ruChangeoverRules.ts` (`describeChangeoverViolation`) so an authored arrival/departure bar is explained in words instead of the raw channel text — still to be wired into the create/modify paths.
+
+## Leopard RU test regime — deltas 8–12 (verified 2026-08-31)
+- [x] Availability block 12–15 Oct: verified blocked at channel (Units 0, IsBlocked true)
+- [x] Re-open same nights: verified open (Units 1, IsBlocked false)
+- [x] Min-stay 3 nights 20–24 Oct: verified MinStay 3 on the channel calendar
+- [x] Changeover: Saturday reopened (wire C=4), Sunday still closed (C=1) — verified on read-back
+- [x] Rates: 10-day Nov high season (10–19 Nov @ 2500) + Low Season repriced to 1111; single delta push accepted (channel price read-back queued behind rate limit)
+- Next: reservation modify/cancel sync checks, Pull_ListReservations cadence + RLNM subscription proof, then the isolated call-log audit and feedback md
