@@ -168,6 +168,8 @@ export function RoomPlanGrid({
   isBlocked,
   onEditBlock,
   isHoliday,
+  getRestrictionMarkers,
+
   onSelectBooking,
   onQuickAction,
   onModifyBooking,
