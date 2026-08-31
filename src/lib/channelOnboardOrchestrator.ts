@@ -92,6 +92,12 @@ interface RunContext {
   /** Operator-confirmed sub-account login, exactly as previewed. Step A only. */
   confirmedOwnerEmail?: string | null;
   confirmedOwnerName?: string | null;
+  /**
+   * How A.2 gets the sub-account's AccessKey/SecretKey pair.
+   * `manual` (default) pauses for the pair created in the channel portal.
+   * `auto` mints it server-side with Push_CreateApiKey_RQ authenticated as the sub-account.
+   */
+  keyMode?: ChannelKeyMode;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
   /**
