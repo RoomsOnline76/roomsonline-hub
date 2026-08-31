@@ -23,8 +23,39 @@ type Db = any;
 const ECHO_WINDOW_MS = 10 * 60 * 1000;
 
 export interface RuOwnPushEcho {
-  bookingId: string;
+  bookingId: string | null;
   pushedAt: string;
+}
+
+/** Reservation-level writes we make ourselves; RU echoes every one of them straight back. */
+const OWN_PUSH_VERBS = [
+  'Push_PutConfirmedReservationMulti_RQ',
+  'Push_ModifyStay_RQ',
+  'Push_CancelReservation_RQ',
+  'Push_RejectRequest_RQ',
+];
+
+/**
+ * The wire log is the only evidence that survives a cancellation: cancelling clears the
+ * booking's channel reservation id, and the outbound trail row is written *after* RU has
+ * already echoed, so a booking-keyed lookup misses both the cancel and modify echoes and the
+ * handler fans a detail pull across every account for a reservation RU no longer serves.
+ */
+async function findOwnPushOnTheWire(supabase: Db, reservationId: string): Promise<RuOwnPushEcho | null> {
+  const sinceIso = new Date(Date.now() - ECHO_WINDOW_MS).toISOString();
+  const { data } = await supabase
+    .from('ru_api_log')
+    .select('action, created_at, request_xml')
+    .eq('direction', 'outbound')
+    .in('action', OWN_PUSH_VERBS)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(40);
+
+  const hit = (data ?? []).find((row: { request_xml?: string | null }) =>
+    typeof row?.request_xml === 'string' && row.request_xml.includes(reservationId)
+  );
+  return hit ? { bookingId: null, pushedAt: String(hit.created_at) } : null;
 }
 
 export async function findRuOwnPushEcho(
@@ -41,7 +72,9 @@ export async function findRuOwnPushEcho(
       .eq('external_reservation_id', id)
       .limit(1)
       .maybeSingle();
-    if (!booking?.id) return null;
+    if (!booking?.id) return await findOwnPushOnTheWire(supabase, id);
+
+
 
     const sinceIso = new Date(Date.now() - ECHO_WINDOW_MS).toISOString();
     const { data: events } = await supabase
@@ -49,14 +82,20 @@ export async function findRuOwnPushEcho(
       .select('created_at')
       .eq('booking_id', booking.id)
       .eq('direction', 'outbound')
-      .in('outcome', ['pushed', 'queued'])
+      .in('outcome', ['pushed', 'queued', 'skipped'])
       .gte('created_at', sinceIso)
       .order('created_at', { ascending: false })
       .limit(1);
 
     const pushedAt = events?.[0]?.created_at as string | undefined;
-    if (!pushedAt) return null;
+    // The trail row for an interactive save lands after RU has echoed, so the wire log is the
+    // fallback proof that the change originated here.
+    if (!pushedAt) {
+      const onWire = await findOwnPushOnTheWire(supabase, id);
+      return onWire ? { ...onWire, bookingId: String(booking.id) } : null;
+    }
     return { bookingId: String(booking.id), pushedAt };
+
   } catch (_err) {
     // Never let echo detection break notification handling — fall through to normal ingest.
     return null;

@@ -1036,6 +1036,35 @@ export async function refreshRuReservationById(
   const lookup = await fetchRuReservationById(supabase, reservationId, opts);
   const { reservation, error } = lookup;
   if (error || !reservation?.ruReservationId) {
+    // A cancellation notification for a reservation the channel no longer serves ("Reservation
+    // does not exist", status 28) is terminal, not a transient miss: retrying it spends six wire
+    // calls per sweep forever. Take the channel at its word and settle the local stay.
+    const notExists = !lookup.rateDeferred && /does not exist|not found/i.test(String(error ?? ''));
+    if (opts.kind === 'cancelled' && notExists) {
+      const { data: booking } = await supabase
+        .from('bookings')
+        .select('id, status')
+        .eq('external_reservation_id', reservationId)
+        .limit(1)
+        .maybeSingle();
+      if (booking?.id && booking.status !== 'cancelled') {
+        await supabase
+          .from('bookings')
+          .update({ status: 'cancelled', cancellation_reason: 'Cancelled at the Channel Manager' })
+          .eq('id', booking.id);
+      }
+      console.log(`${log} Reservation ${reservationId} is gone at the channel — cancellation settled locally`);
+      return {
+        outcome: 'cancelled',
+        bookingId: booking?.id ?? null,
+        propertyId: null,
+        deduped: false,
+        channelLabel: null,
+        note: 'Channel reports the reservation no longer exists',
+        rateDeferred: false,
+        resolvedOwnerId: lookup.resolvedOwnerId ?? null,
+      };
+    }
     console.warn(`${log} Detail pull for reservation ${reservationId} failed: ${error ?? 'not found'}`);
     return {
       outcome: 'failed',
@@ -1048,6 +1077,7 @@ export async function refreshRuReservationById(
       resolvedOwnerId: lookup.resolvedOwnerId ?? null,
     };
   }
+
   const ingested = await ingestRuReservation(supabase, reservation, {
     source: 'rlnm',
     logPrefix: log,
