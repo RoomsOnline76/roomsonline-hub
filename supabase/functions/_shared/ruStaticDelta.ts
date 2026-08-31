@@ -172,6 +172,8 @@ const UNIT_STATIC_COLUMNS = [
   'name',
   'description',
   'max_guests',
+  // Default occupancy the published rate covers (<StandardGuests>).
+  'standard_guests',
   'min_guests',
   'bedrooms',
   'bathrooms',
