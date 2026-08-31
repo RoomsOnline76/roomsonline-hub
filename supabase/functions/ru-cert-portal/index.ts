@@ -8168,6 +8168,35 @@ Deno.serve(async (req) => {
        */
       const confirmedEmail = String(body.confirmed_owner_email ?? "").trim() || null;
       const confirmedName = String(body.confirmed_owner_name ?? "").trim() || null;
+      /**
+       * A.2 credential mode. `manual` (the default for any caller that says nothing) pauses
+       * for the pair created in the channel portal; `auto` mints the sub-account's first pair
+       * server-side with Push_CreateApiKey_RQ authenticated as that sub-account.
+       */
+      const autoKeyMode = String(body.key_mode ?? "manual").trim().toLowerCase() === "auto";
+      /**
+       * One mint envelope, one call. Returns the AccessKey on success, or the channel's own
+       * refusal so A.2 can fall back to the manual capture prompt without pretending to pass.
+       */
+      const tryAutoMint = async (args: {
+        ownerId: string;
+        loginEmail: string | null;
+        accountId: string | null;
+        password: string | null;
+      }) => {
+        const login = (args.loginEmail ?? "").trim();
+        if (!login) {
+          return { ok: false as const, code: "RU_CHILD_AUTH_REQUIRED", message: "No sub-account login is on file to authenticate the key request." };
+        }
+        return await mintChildKeyPair({
+          ownerId: args.ownerId,
+          loginEmail: login,
+          accountId: args.accountId,
+          keyLabel: "ROLOS",
+          authUsername: login,
+          authPassword: (args.password ?? "").trim() || RU_SUB_USER_PASSWORD,
+        });
+      };
       let ownerEmail: string | null = confirmedEmail ?? body.owner_email ?? null;
       let ownerName: string = confirmedName ?? body.owner_name ?? "";
       // Where the login came from — reported so the operator can see which record they
@@ -9405,7 +9434,7 @@ Deno.serve(async (req) => {
         /** Existing binding: if Step A created this account earlier but the key mint was
          * interrupted by roster lag, complete the automatic mint before company details.
          */
-        let keySource: "existing" | "password_verified" | "blocked" = "blocked";
+        let keySource: "existing" | "password_verified" | "minted" | "deferred" | "blocked" = "blocked";
 
         let mintedAccessKey: string | null = null;
         let keyWarning: string | null = null;
@@ -9413,6 +9442,7 @@ Deno.serve(async (req) => {
         let keyRuStatusId: string | null = null;
         let keyRuStatusMessage: string | null = null;
         let keyRetryAfterMs: number | null = null;
+        const existingAttempts: string[] = [];
         const existingOwnerId = usableRuId(existing.account.ru_owner_id);
         const existingLoginEmail = String(
           (existing.account as any).ru_login_email ?? existing.account.owner_email ?? ownerEmail ?? "",
@@ -9420,12 +9450,43 @@ Deno.serve(async (req) => {
         if (existingOwnerId) {
           const { data: existingCred } = await admin
             .from("ru_api_credentials")
-            .select("access_key")
+            .select("access_key, password_enc")
             .eq("ru_owner_id", existingOwnerId)
             .maybeSingle();
           if (existingCred?.access_key || (existing.account as any).ru_api_access_key) {
             keySource = "existing";
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
+          } else if (autoKeyMode) {
+            // Auto mode: mint this sub-account's first pair with its own login, one envelope.
+            let retained: string | null = null;
+            const enc = existingCred?.password_enc ?? (existing.account as any).ru_login_password_enc ?? null;
+            if (enc) {
+              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: enc });
+              if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") retained = plain;
+            }
+            const minted = await tryAutoMint({
+              ownerId: existingOwnerId,
+              loginEmail: existingLoginEmail,
+              accountId: existing.account.id ?? null,
+              password: retained,
+            });
+            if (minted.ok) {
+              keySource = "minted";
+              mintedAccessKey = (minted as any).accessKey ?? null;
+              existingAttempts.push(`Minted a key pair as ${existingLoginEmail}`);
+            } else if ((minted as any).rateDeferred) {
+              keySource = "deferred";
+              keyRetryAfterMs = (minted as any).retryAfterMs ?? null;
+              keyWarning = "The channel rate-limited the key request — waiting for the window to reopen.";
+              existingAttempts.push("Key mint deferred by the channel rate window");
+            } else {
+              keySource = "blocked";
+              keyCode = "RU_MANUAL_KEYS_REQUIRED";
+              keyRuStatusId = (minted as any).ruStatusId ?? null;
+              keyRuStatusMessage = (minted as any).ruStatusMessage ?? null;
+              keyWarning = `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`}: automatic key creation was refused (${(minted as any).message ?? (minted as any).code ?? "no reason given"}). Paste its AccessKey and SecretKey from the channel portal to continue.`;
+              existingAttempts.push(`Mint refused: ${(minted as any).code ?? (minted as any).ruStatusId ?? "unknown"}`);
+            }
           } else {
             // A.1 proves/creates identity only. Portal password and XML API keys are dual
             // credentials; never spend Pull_ListOwnerProp_RQ trying to prove keys with a
@@ -9476,14 +9537,19 @@ Deno.serve(async (req) => {
           account: refreshed ?? existing.account,
           scope: existing.scope,
           key_source: keySource,
-          keys_minted: keySource === "existing",
-          auth_mode: keySource === "password_verified" ? "child_password" : keySource === "existing" ? "child_keys" : null,
+          keys_minted: keySource === "existing" || keySource === "minted",
+          auth_mode: keySource === "password_verified"
+            ? "child_password"
+            : keySource === "existing" || keySource === "minted"
+              ? "child_keys"
+              : null,
           access_key: mintedAccessKey,
           key_warning: keyWarning,
           key_code: keyCode,
           key_ru_status_id: keyRuStatusId,
           key_ru_status_message: keyRuStatusMessage,
           key_retry_after_ms: keyRetryAfterMs,
+          key_attempts: existingAttempts,
         });
       }
 
@@ -9808,14 +9874,14 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
       /** §2: after Push_CreateUser_RQ, persist password + one ListOwnerProp probe — no mint, no wait. */
-      let keySource: "existing" | "password_verified" | "blocked" = "blocked";
+      let keySource: "existing" | "password_verified" | "minted" | "deferred" | "blocked" = "blocked";
 
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
       let keyCode: string | null = null;
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
-      const keyRetryAfterMs: number | null = null;
+      let keyRetryAfterMs: number | null = null;
       // Step A never provisions a replacement sub-account: one run, one account.
 
       const keyAttempts: string[] = [];
@@ -9832,6 +9898,31 @@ Deno.serve(async (req) => {
         if (existingCred?.access_key) {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
+        } else if (autoKeyMode) {
+          // Auto mode: the login/password just created in this run is the mint envelope.
+          const minted = await tryAutoMint({
+            ownerId: savedOwnerId,
+            loginEmail: savedLoginEmail,
+            accountId: (saved as any)?.id ?? null,
+            password: password ?? null,
+          });
+          if (minted.ok) {
+            keySource = "minted";
+            mintedAccessKey = (minted as any).accessKey ?? null;
+            keyAttempts.push(`Minted a key pair as ${savedLoginEmail}`);
+          } else if ((minted as any).rateDeferred) {
+            keySource = "deferred";
+            keyRetryAfterMs = (minted as any).retryAfterMs ?? null;
+            keyWarning = "The channel rate-limited the key request — waiting for the window to reopen.";
+            keyAttempts.push("Key mint deferred by the channel rate window");
+          } else {
+            keySource = "blocked";
+            keyCode = "RU_MANUAL_KEYS_REQUIRED";
+            keyRuStatusId = (minted as any).ruStatusId ?? null;
+            keyRuStatusMessage = (minted as any).ruStatusMessage ?? null;
+            keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`}: automatic key creation was refused (${(minted as any).message ?? (minted as any).code ?? "no reason given"}). Paste its AccessKey and SecretKey from the channel portal to continue.`;
+            keyAttempts.push(`Mint refused: ${(minted as any).code ?? (minted as any).ruStatusId ?? "unknown"}`);
+          }
         } else {
           keySource = "blocked";
           keyCode = "RU_MANUAL_KEYS_REQUIRED";
@@ -9906,8 +9997,12 @@ Deno.serve(async (req) => {
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
         key_source: keySource,
-        keys_minted: keySource === "existing",
-        auth_mode: keySource === "password_verified" ? "child_password" : keySource === "existing" ? "child_keys" : null,
+        keys_minted: keySource === "existing" || keySource === "minted",
+        auth_mode: keySource === "password_verified"
+          ? "child_password"
+          : keySource === "existing" || keySource === "minted"
+            ? "child_keys"
+            : null,
         access_key: mintedAccessKey,
         key_warning: keyWarning,
         key_code: keyCode,

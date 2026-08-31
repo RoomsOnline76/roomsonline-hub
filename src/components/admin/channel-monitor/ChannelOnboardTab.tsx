@@ -90,6 +90,7 @@ import {
   rebindOwner,
   runOnboardStep,
   type LoginCandidate,
+  type ChannelKeyMode,
   type OwnerAccountPlan,
   type TaskOutcome,
 } from "@/lib/channelOnboardOrchestrator";
@@ -337,6 +338,25 @@ export function ChannelOnboardTab({
     setChosenLoginEmail(email);
   }, []);
   /** Optional manual sub-account email entry (before any account exists). */
+  /**
+   * How Step A.2 gets the sub-account's key pair. Manual is the default; the choice is
+   * remembered per operator so a run never silently changes credential provisioning.
+   */
+  const [keyMode, setKeyMode] = useState<ChannelKeyMode>(() => {
+    try {
+      return localStorage.getItem("rolChannelKeyMode") === "auto" ? "auto" : "manual";
+    } catch {
+      return "manual";
+    }
+  });
+  const chooseKeyMode = useCallback((mode: ChannelKeyMode) => {
+    setKeyMode(mode);
+    try {
+      localStorage.setItem("rolChannelKeyMode", mode);
+    } catch {
+      /* private mode — the run still uses the in-memory choice */
+    }
+  }, []);
   const [manualEmailOpen, setManualEmailOpen] = useState(false);
   const [manualEmail, setManualEmail] = useState("");
   const [manualEmailError, setManualEmailError] = useState<string | null>(null);
@@ -836,6 +856,7 @@ export function ChannelOnboardTab({
           // modal, the backend must resolve from the live property/portfolio rows so
           // a just-reassigned owner email cannot be overwritten by a stale preview.
           confirmedOwnerEmail: step === "a" ? chosenLoginEmail || null : null,
+          keyMode,
           confirmedOwnerName:
             step === "a" && chosenLoginEmail
               ? [plan?.contact_first_name, plan?.contact_last_name].filter(Boolean).join(" ").trim() || null
@@ -976,7 +997,7 @@ export function ChannelOnboardTab({
         if (continueToPublish) void runStep("b");
       }
     },
-    [chosenLoginEmail, gate, plan, propertyId],
+    [chosenLoginEmail, gate, keyMode, plan, propertyId],
   );
 
   /**
@@ -1517,6 +1538,30 @@ export function ChannelOnboardTab({
                     </button>
                   </p>
                 )}
+              </div>
+            )}
+            {propertyId && !accountProvisioned && (
+              <div
+                className="flex items-center gap-1 rounded-md border border-border bg-muted/40 p-0.5"
+                role="group"
+                aria-label="Account credential provisioning"
+                title="Manual: paste the key pair from the channel portal. Auto: mint the account's first key pair automatically."
+              >
+                <span className="px-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">Keys</span>
+                {(["manual", "auto"] as ChannelKeyMode[]).map((mode) => (
+                  <Button
+                    key={mode}
+                    type="button"
+                    size="sm"
+                    variant={keyMode === mode ? "default" : "ghost"}
+                    className="h-6 px-2 text-xs capitalize"
+                    aria-pressed={keyMode === mode}
+                    disabled={runningStep === "a"}
+                    onClick={() => chooseKeyMode(mode)}
+                  >
+                    {mode}
+                  </Button>
+                ))}
               </div>
             )}
             {propertyId && !accountProvisioned && !boundLogin && (

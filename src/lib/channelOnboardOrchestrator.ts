@@ -92,6 +92,12 @@ interface RunContext {
   /** Operator-confirmed sub-account login, exactly as previewed. Step A only. */
   confirmedOwnerEmail?: string | null;
   confirmedOwnerName?: string | null;
+  /**
+   * How A.2 gets the sub-account's AccessKey/SecretKey pair.
+   * `manual` (default) pauses for the pair created in the channel portal.
+   * `auto` mints it server-side with Push_CreateApiKey_RQ authenticated as the sub-account.
+   */
+  keyMode?: ChannelKeyMode;
   /** Resume a rate-deferred step from this task instead of replaying the whole chain. */
   startAtTaskId?: ChannelOnboardTaskId | null;
   /**
@@ -178,6 +184,9 @@ export type KeySource =
   | "blocked"
   | "manual"
   | "";
+
+/** Operator choice for Step A.2 credential provisioning. */
+export type ChannelKeyMode = "manual" | "auto";
 
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
@@ -535,6 +544,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         property_id: ctx.propertyId,
         ...(ctx.confirmedOwnerEmail ? { confirmed_owner_email: ctx.confirmedOwnerEmail } : {}),
         ...(ctx.confirmedOwnerName ? { confirmed_owner_name: ctx.confirmedOwnerName } : {}),
+        // Manual is the default: only an explicit "auto" choice unlocks the server-side mint.
+        key_mode: ctx.keyMode === "auto" ? "auto" : "manual",
       },
       "Could not confirm the distribution identity",
     );
@@ -640,6 +651,11 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // way an operator can see which envelopes and replacement logins were tried.
     const trail = (provisioning?.attempts ?? []).filter(Boolean);
     const trailText = trail.length ? ` · ${trail.map((t) => t.trim()).join(" → ")}` : "";
+    // Auto mode must never look like a pass it did not get: a refused mint says so, then
+    // hands the operator the same manual capture prompt.
+    const autoNote = ctx.keyMode === "auto"
+      ? " Automatic key creation did not complete for this account — paste the pair from the channel portal instead."
+      : "";
 
     // Existing accounts can report a stored pair without another wire call.
     if (provisioning?.source === "minted") {
@@ -659,7 +675,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         id: "api_keys",
         outcome: "blocked",
         code: "RU_MANUAL_KEYS_REQUIRED",
-        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}`,
+        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}${autoNote}`,
       };
     }
 
@@ -692,7 +708,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         outcome: "blocked",
         code: provisioning?.code === "NEEDS_UI_KEY" ? "NEEDS_UI_KEY" : "RU_MANUAL_KEYS_REQUIRED",
         detail: (provisioning?.warning
-          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
+          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText + autoNote,
       };
     }
     return {
@@ -700,7 +716,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       outcome: "blocked",
       code: provisioning?.code ?? "RU_MANUAL_KEYS_REQUIRED",
       detail: (provisioning?.warning
-        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText + autoNote,
     };
     })();
 
