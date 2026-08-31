@@ -208,6 +208,47 @@ export function RoomManagerTab({
     setIsDirty(true);
   };
 
+  /**
+   * Copy one unit's amenity set to every other unit.
+   *
+   * Each unit owns its own amenity set — the channel publishes exactly what is ticked on the
+   * unit — so this is a convenience, never an automatic inheritance. "overwrite" replaces each
+   * other unit's set, "merge" adds only what is missing.
+   */
+  const copyAmenitiesToAllRooms = useCallback((sourceId: string, mode: "overwrite" | "merge") => {
+    const source = roomTypes.find((r) => r.id === sourceId);
+    const sourceAmenities = ensureArray(source?.amenities);
+    if (!source || sourceAmenities.length === 0) {
+      toast({
+        title: "Nothing to copy",
+        description: "Select some amenities on this unit first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const targets = roomTypes.filter((r) => r.id !== sourceId);
+    if (targets.length === 0) {
+      toast({ title: "Only one unit", description: "There is no other unit to copy to." });
+      return;
+    }
+    setRoomTypes((prev) =>
+      prev.map((room) => {
+        if (room.id === sourceId) return room;
+        const existing = ensureArray(room.amenities);
+        const next =
+          mode === "overwrite"
+            ? [...sourceAmenities]
+            : [...existing, ...sourceAmenities.filter((a) => !existing.includes(a))];
+        return { ...room, amenities: next, separateKitchen: hasSeparateKitchen(next) };
+      }),
+    );
+    setIsDirty(true);
+    toast({
+      title: mode === "overwrite" ? "Amenities overwritten" : "Amenities merged",
+      description: `${sourceAmenities.length} amenities applied to ${targets.length} other unit${targets.length === 1 ? "" : "s"} — save to push each unit's delta.`,
+    });
+  }, [roomTypes, setRoomTypes, setIsDirty, toast]);
+
 
   const updateRoomTypeField = (id: string, field: string, value: any) => {
     setRoomTypes(prev => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
