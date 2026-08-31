@@ -592,7 +592,18 @@ export function RoomPlanGrid({
 
                   </div>
 
+                  {/* Restriction lane — coloured lines, hover explains why */}
+                  <RestrictionLane
+                    roomTypeId={group.type.id}
+                    roomTypeName={group.type.name}
+                    dates={dates}
+                    colWidth={colWidth}
+                    getRestrictionMarkers={getRestrictionMarkers}
+                    onEditBlock={onEditBlock}
+                  />
+
                   {/* Unit rows */}
+
                   {group.rows.map((row) => {
                     const placed = assignLanes(row.bookings, dates);
                     const lanes = Math.max(1, ...placed.map((entry) => entry.lane + 1));
