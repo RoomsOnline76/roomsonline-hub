@@ -2526,6 +2526,7 @@ export type Database = {
           room_size_unit: string | null
           ru_image_tags: Json
           security_deposit: number | null
+          standard_guests: number | null
           tax_rate: number | null
           thumbnail_url: string | null
           total_units: number | null
@@ -2581,6 +2582,7 @@ export type Database = {
           room_size_unit?: string | null
           ru_image_tags?: Json
           security_deposit?: number | null
+          standard_guests?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
           total_units?: number | null
@@ -2636,6 +2638,7 @@ export type Database = {
           room_size_unit?: string | null
           ru_image_tags?: Json
           security_deposit?: number | null
+          standard_guests?: number | null
           tax_rate?: number | null
           thumbnail_url?: string | null
           total_units?: number | null

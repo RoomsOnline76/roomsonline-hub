@@ -87,7 +87,13 @@ export interface RoomManagerTabProps {
   setIsDirty: (dirty: boolean) => void;
   mealTypeSuggestions: string[];
   handleNewMealType: (mealType: string) => Promise<void>;
+  /** Property-level channel amenities (authored here, stored on the property row). */
+  propertyFacilities?: string[];
+  setPropertyFacilities?: React.Dispatch<React.SetStateAction<string[]>>;
+  /** Keeps the property "separate kitchen" fact in step with the Kitchen amenity. */
+  setSeparateKitchen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
+
 
 export const MIN_ROOM_DESCRIPTION_CHARS = 700;
 
@@ -123,13 +129,18 @@ export function RoomManagerTab({
   setIsDirty,
   mealTypeSuggestions,
   handleNewMealType,
+  propertyFacilities,
+  setPropertyFacilities,
+  setSeparateKitchen,
 }: RoomManagerTabProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+  const [aiPropertyAmenityOpen, setAiPropertyAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
+
 
   useEffect(() => {
     const requestedRoom = searchParams.get("room")?.trim().toLowerCase();
@@ -166,6 +177,7 @@ export function RoomManagerTab({
       changeover: null as number | null,
 
       maxPeople: 2,
+      standardGuests: null as number | null,
       maxAdults: 2,
       maxChildren: 0,
       minStay: 1,
@@ -196,6 +208,47 @@ export function RoomManagerTab({
     setRoomTypes(prev => prev.map((r) => (r.id === id ? { ...r, name } : r)));
     setIsDirty(true);
   };
+
+  /**
+   * Copy one unit's amenity set to every other unit.
+   *
+   * Each unit owns its own amenity set — the channel publishes exactly what is ticked on the
+   * unit — so this is a convenience, never an automatic inheritance. "overwrite" replaces each
+   * other unit's set, "merge" adds only what is missing.
+   */
+  const copyAmenitiesToAllRooms = useCallback((sourceId: string, mode: "overwrite" | "merge") => {
+    const source = roomTypes.find((r) => r.id === sourceId);
+    const sourceAmenities = ensureArray(source?.amenities);
+    if (!source || sourceAmenities.length === 0) {
+      toast({
+        title: "Nothing to copy",
+        description: "Select some amenities on this unit first.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const targets = roomTypes.filter((r) => r.id !== sourceId);
+    if (targets.length === 0) {
+      toast({ title: "Only one unit", description: "There is no other unit to copy to." });
+      return;
+    }
+    setRoomTypes((prev) =>
+      prev.map((room) => {
+        if (room.id === sourceId) return room;
+        const existing = ensureArray(room.amenities);
+        const next =
+          mode === "overwrite"
+            ? [...sourceAmenities]
+            : [...existing, ...sourceAmenities.filter((a) => !existing.includes(a))];
+        return { ...room, amenities: next, separateKitchen: hasSeparateKitchen(next) };
+      }),
+    );
+    setIsDirty(true);
+    toast({
+      title: mode === "overwrite" ? "Amenities overwritten" : "Amenities merged",
+      description: `${sourceAmenities.length} amenities applied to ${targets.length} other unit${targets.length === 1 ? "" : "s"} — save to push each unit's delta.`,
+    });
+  }, [roomTypes, setRoomTypes, setIsDirty, toast]);
 
 
   const updateRoomTypeField = (id: string, field: string, value: any) => {
@@ -599,7 +652,11 @@ export function RoomManagerTab({
             {selectedPMS !== "nightsbridge" && (
               <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
             )}
-            <TabsTrigger value="amenities" className="text-xs h-7">Amenities &amp; Facilities</TabsTrigger>
+            <TabsTrigger value="amenities" className="text-xs h-7">Unit Amenities</TabsTrigger>
+            {setPropertyFacilities && (
+              <TabsTrigger value="property-amenities" className="text-xs h-7">Property Amenities</TabsTrigger>
+            )}
+
             {selectedPMS !== "nightsbridge" && (
               <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
             )}
@@ -1138,6 +1195,26 @@ export function RoomManagerTab({
                     />
                   </div>
                   <div className="space-y-1">
+                    <Label className="text-xs whitespace-nowrap" title="Guests the published rate covers before extra-person charges apply.">
+                      Default
+                    </Label>
+                    <Input type="number"
+                      data-field="standard_guests"
+                      className="h-7 w-full text-xs"
+                      min={1}
+                      max={Number(selectedRoom?.maxPeople) || undefined}
+                      placeholder={String(selectedRoom?.maxPeople ?? "")}
+                      value={selectedRoom?.standardGuests ?? ""}
+                      onChange={(e) => {
+                        const raw = parseInt(e.target.value);
+                        const max = Number(selectedRoom?.maxPeople) || undefined;
+                        const next = Number.isFinite(raw) && raw > 0 ? (max ? Math.min(raw, max) : raw) : null;
+                        updateRoomTypeField(selectedRoomType, "standardGuests", next);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Adults
                       {isRoomFieldPmsSynced(selectedRoomType, "maxAdults") && <Cloud className="h-2.5 w-2.5 text-primary" />}
@@ -1516,28 +1593,59 @@ export function RoomManagerTab({
                 </div>
               );
             })()}
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Info className="h-3 w-3" />
                 Channel amenities first — this unit's selection is pushed to the Channel Manager and OTAs
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs shrink-0"
-                disabled={!propertyId || !selectedRoomType}
-                title={
-                  propertyId
-                    ? "Let TOBI review the property website, photos and ROLOS data to propose amenities for this unit"
-                    : "Save the property first"
-                }
-                onClick={() => setAiUnitAmenityOpen(true)}
-              >
-                <Sparkles className="h-3 w-3 mr-1" />
-                TOBI amenity check
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                {roomTypes.length > 1 && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!selectedRoomType}
+                      title="Add this unit's amenities to every other unit, keeping their existing selections"
+                      onClick={() => copyAmenitiesToAllRooms(selectedRoomType, "merge")}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy to all (merge)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!selectedRoomType}
+                      title="Replace every other unit's amenities with this unit's selection"
+                      onClick={() => copyAmenitiesToAllRooms(selectedRoomType, "overwrite")}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Overwrite all
+                    </Button>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  disabled={!propertyId || !selectedRoomType}
+                  title={
+                    propertyId
+                      ? "Let TOBI review the property website, photos and ROLOS data to propose amenities for this unit"
+                      : "Save the property first"
+                  }
+                  onClick={() => setAiUnitAmenityOpen(true)}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  TOBI amenity check
+                </Button>
+              </div>
             </div>
+
             <div
               data-field="room_amenities"
               className={channelMandatoryClass("room_amenities")}
@@ -1622,6 +1730,59 @@ export function RoomManagerTab({
               );
             })()}
           </TabsContent>
+
+          {/* Property Amenities Sub-tab — property-wide facilities, never copied onto units */}
+          {setPropertyFacilities && (
+            <TabsContent value="property-amenities" className="p-6 space-y-4">
+              <div className="bg-muted border border-border rounded-md p-2">
+                <p className="text-sm text-muted-foreground">
+                  Property-wide amenities (pool, parking, reception…). These publish against the property record only —
+                  each unit's own amenities are authored in the Unit Amenities tab and are never inherited from here.
+                </p>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={!propertyId}
+                  title={propertyId ? "Let TOBI propose property-wide amenities" : "Save the property first"}
+                  onClick={() => setAiPropertyAmenityOpen(true)}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  TOBI amenity check
+                </Button>
+              </div>
+              <div data-field="property_amenities" className={channelMandatoryClass("property_amenities")}>
+                <RUAmenityPicker
+                  scope="property"
+                  value={propertyFacilities ?? []}
+                  onChange={(next) => {
+                    setPropertyFacilities(next);
+                    setSeparateKitchen?.(hasSeparateKitchen(next));
+                    setIsDirty(true);
+                  }}
+                />
+              </div>
+              {propertyId && (
+                <AiAmenityDialog
+                  open={aiPropertyAmenityOpen}
+                  onOpenChange={setAiPropertyAmenityOpen}
+                  propertyId={propertyId}
+                  websiteUrl={propertyWebsiteUrl || undefined}
+                  currentPropertyFacilities={propertyFacilities ?? []}
+                  onApplyProperty={(next) => {
+                    setPropertyFacilities(next);
+                    setSeparateKitchen?.(hasSeparateKitchen(next));
+                    setIsDirty(true);
+                  }}
+                />
+              )}
+            </TabsContent>
+          )}
+
+
 
 
           {/* Room Images Sub-tab */}

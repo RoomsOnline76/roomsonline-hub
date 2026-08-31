@@ -39,6 +39,11 @@ interface RUAmenityPickerProps {
   minimum?: number;
   /** ROLOS-only facilities with no RU mapping, shown in their own section. */
   extraGroups?: ExtraAmenityGroup[];
+  /**
+   * Render *only* the ROLOS-only extras. Used by the Facilities tab, where the channel
+   * amenity catalogue is deliberately absent — that authority sits in the Rooms tab.
+   */
+  extrasOnly?: boolean;
 }
 
 /**
@@ -53,7 +58,9 @@ export default function RUAmenityPicker({
   scope = "unit",
   minimum,
   extraGroups,
+  extrasOnly,
 }: RUAmenityPickerProps) {
+
   const min = minimum ?? (scope === "unit" ? RU_MIN_ROOM_AMENITIES : 0);
   const [catalogue, setCatalogue] = useState<RuAmenity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,8 +186,44 @@ export default function RUAmenityPicker({
     );
   };
 
+  const extrasBlock = extraGroups && extraGroups.length > 0 ? (
+    <div className="rounded-md border">
+      <div className="flex items-center gap-2 border-b px-3 py-1.5">
+        <h4 className="text-xs font-semibold uppercase tracking-wide">ROLOS website only</h4>
+        <Badge variant="outline" className="text-[10px]">Not sent to channels</Badge>
+      </div>
+      <div className="grid gap-4 p-3 sm:grid-cols-2 lg:grid-cols-4">
+        {extraGroups.map((g) => (
+          <div key={g.title} className="space-y-1">
+            <h5 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {g.title}
+            </h5>
+            {g.items.map((label) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <Checkbox
+                  id={`extra-${scope}-${label}`}
+                  className="h-3.5 w-3.5"
+                  disabled={disabled}
+                  checked={(value ?? []).includes(label)}
+                  onCheckedChange={(c) => toggleLabel(label, c === true)}
+                />
+                <Label htmlFor={`extra-${scope}-${label}`} className="text-xs leading-tight cursor-pointer">
+                  {label}
+                </Label>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  // Facilities tab: website-only labels, nothing from the channel catalogue.
+  if (extrasOnly) return <div className="space-y-3">{extrasBlock}</div>;
+
   return (
     <div className="space-y-3">
+
       {/* Readiness meter */}
       {min > 0 && (
         <div className="rounded-md border px-3 py-2 space-y-1.5">
@@ -358,37 +401,8 @@ export default function RUAmenityPicker({
       </div>
 
       {/* ROLOS-only extras (no RU equivalent) */}
-      {extraGroups && extraGroups.length > 0 && (
-        <div className="rounded-md border">
-          <div className="flex items-center gap-2 border-b px-3 py-1.5">
-            <h4 className="text-xs font-semibold uppercase tracking-wide">ROLOS website only</h4>
-            <Badge variant="outline" className="text-[10px]">Not sent to channels</Badge>
-          </div>
-          <div className="grid gap-4 p-3 sm:grid-cols-2 lg:grid-cols-4">
-            {extraGroups.map((g) => (
-              <div key={g.title} className="space-y-1">
-                <h5 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  {g.title}
-                </h5>
-                {g.items.map((label) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <Checkbox
-                      id={`extra-${scope}-${label}`}
-                      className="h-3.5 w-3.5"
-                      disabled={disabled}
-                      checked={(value ?? []).includes(label)}
-                      onCheckedChange={(c) => toggleLabel(label, c === true)}
-                    />
-                    <Label htmlFor={`extra-${scope}-${label}`} className="text-xs leading-tight cursor-pointer">
-                      {label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {extrasBlock}
+
     </div>
   );
 }

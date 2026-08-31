@@ -172,6 +172,8 @@ const UNIT_STATIC_COLUMNS = [
   'name',
   'description',
   'max_guests',
+  // Default occupancy the published rate covers (<StandardGuests>).
+  'standard_guests',
   'min_guests',
   'bedrooms',
   'bathrooms',
@@ -241,6 +243,19 @@ async function fieldFingerprints(snapshot: StaticSnapshot): Promise<Record<strin
     out[key] = (await sha256(stableStringify(value))).slice(0, 16);
   };
   for (const col of PROPERTY_STATIC_COLUMNS) {
+    // `amenities` is a grab-bag jsonb that also mirrors per-unit data (room_types,
+    // changeover_by_unit). Units own their amenities, so a unit edit must not move the
+    // property fingerprint — strip the mirrored keys before hashing.
+    if (col === 'amenities') {
+      const raw = snapshot.property?.[col];
+      let scoped: unknown = raw ?? null;
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const { room_types: _rt, changeover_by_unit: _cbu, ...rest } = raw as Record<string, unknown>;
+        scoped = rest;
+      }
+      await add(`property.${col}`, scoped);
+      continue;
+    }
     await add(`property.${col}`, snapshot.property?.[col] ?? null);
   }
   await add('property.charges', snapshot.charges);
