@@ -2723,6 +2723,7 @@ export default function PropertyForm({
                   room.changeover ?? room.changeover_code ?? null,
                 mealTypes: room.mealTypes || room.meal_types || [],
                 maxPeople: room.maxPeople || room.max_guests || room.max_people || 2,
+                standardGuests: room.standardGuests ?? room.standard_guests ?? null,
                 maxAdults: room.maxAdults || room.max_adults || room.max_guests || 2,
                 minGuests: room.minGuests || room.min_guests || 1,
                 maxChildren: room.maxChildren || room.max_children || 0,
@@ -3667,6 +3668,8 @@ export default function PropertyForm({
               name: room.name || "Unnamed Room",
               description: room.description || null,
               max_guests: room.maxPeople || room.maxAdults || 2,
+              // Default occupancy the published rate covers; blank keeps the derived fallback.
+              standard_guests: Number(room.standardGuests) > 0 ? Number(room.standardGuests) : null,
               daily_rate: baseRate,
               is_active: room.is_active !== false,
               bed_configuration: room.bedConfiguration || null,

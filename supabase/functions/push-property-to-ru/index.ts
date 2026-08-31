@@ -610,6 +610,18 @@ function toFiniteNumber(value: unknown): number | null {
 
 // ── Mapping Functions ────────────────────────────────────────
 
+/**
+ * <StandardGuests> = guests the published rate covers before extra-person charges apply.
+ * Authored per unit in the room editor; falls back to the historical 70%-of-max derivation
+ * when nothing is authored, and never exceeds the unit's maximum.
+ */
+function resolveStandardGuests(authored: unknown, maxGuests: number): number {
+  const max = Math.max(1, Number(maxGuests) || 1);
+  const n = Number(authored);
+  if (Number.isFinite(n) && n >= 1) return Math.min(Math.floor(n), max);
+  return Math.max(1, Math.ceil(max * 0.7));
+}
+
 function mapAmenities(amenitiesData: Record<string, unknown> | null): { id: number; count: number; padded?: boolean }[] {
   if (!amenitiesData) return [];
   // Canonical resolution: `ru:<id>` / `ru:<id>:<count>` tokens picked in ROLOS, plus
