@@ -1770,6 +1770,12 @@ export function RoomManagerTab({
                   onOpenChange={setAiPropertyAmenityOpen}
                   propertyId={propertyId}
                   websiteUrl={propertyWebsiteUrl || undefined}
+                  currentPropertyFacilities={propertyFacilities ?? []}
+                  onApplyProperty={(next) => {
+                    setPropertyFacilities(next);
+                    setSeparateKitchen?.(hasSeparateKitchen(next));
+                    setIsDirty(true);
+                  }}
                 />
               )}
             </TabsContent>
