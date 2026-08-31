@@ -651,6 +651,11 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
     // way an operator can see which envelopes and replacement logins were tried.
     const trail = (provisioning?.attempts ?? []).filter(Boolean);
     const trailText = trail.length ? ` · ${trail.map((t) => t.trim()).join(" → ")}` : "";
+    // Auto mode must never look like a pass it did not get: a refused mint says so, then
+    // hands the operator the same manual capture prompt.
+    const autoNote = ctx.keyMode === "auto"
+      ? " Automatic key creation did not complete for this account — paste the pair from the channel portal instead."
+      : "";
 
     // Existing accounts can report a stored pair without another wire call.
     if (provisioning?.source === "minted") {
