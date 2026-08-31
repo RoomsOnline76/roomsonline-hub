@@ -90,6 +90,7 @@ import {
   rebindOwner,
   runOnboardStep,
   type LoginCandidate,
+  type ChannelKeyMode,
   type OwnerAccountPlan,
   type TaskOutcome,
 } from "@/lib/channelOnboardOrchestrator";
@@ -996,7 +997,7 @@ export function ChannelOnboardTab({
         if (continueToPublish) void runStep("b");
       }
     },
-    [chosenLoginEmail, gate, plan, propertyId],
+    [chosenLoginEmail, gate, keyMode, plan, propertyId],
   );
 
   /**
