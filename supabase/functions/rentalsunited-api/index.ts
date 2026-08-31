@@ -1106,9 +1106,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     .join('\n      ');
 
   const paymentMethodsXml = prop.payment_methods
-    // Attribute-only: RU's request XSD declares <PaymentMethod> with an empty content model, so
-    // the human label must NOT be sent as element text ("The element cannot contain text.").
-    .map(pm => `<PaymentMethod PaymentMethodID="${pm}" />`)
+    .map(pm => `<PaymentMethod PaymentMethodID="${pm}">${escapeXml(PAYMENT_METHOD_LABELS[pm] || `Method ${pm}`)}</PaymentMethod>`)
     .join('\n      ');
 
   const depositXml = `<Deposit DepositTypeID="${prop.deposit_type_id || 1}">${prop.deposit ?? 0}</Deposit>`;
