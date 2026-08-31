@@ -337,6 +337,25 @@ export function ChannelOnboardTab({
     setChosenLoginEmail(email);
   }, []);
   /** Optional manual sub-account email entry (before any account exists). */
+  /**
+   * How Step A.2 gets the sub-account's key pair. Manual is the default; the choice is
+   * remembered per operator so a run never silently changes credential provisioning.
+   */
+  const [keyMode, setKeyMode] = useState<ChannelKeyMode>(() => {
+    try {
+      return localStorage.getItem("rolChannelKeyMode") === "auto" ? "auto" : "manual";
+    } catch {
+      return "manual";
+    }
+  });
+  const chooseKeyMode = useCallback((mode: ChannelKeyMode) => {
+    setKeyMode(mode);
+    try {
+      localStorage.setItem("rolChannelKeyMode", mode);
+    } catch {
+      /* private mode — the run still uses the in-memory choice */
+    }
+  }, []);
   const [manualEmailOpen, setManualEmailOpen] = useState(false);
   const [manualEmail, setManualEmail] = useState("");
   const [manualEmailError, setManualEmailError] = useState<string | null>(null);
