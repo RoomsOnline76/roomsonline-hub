@@ -1655,6 +1655,153 @@ Deno.serve(async (req) => {
       });
     }
 
+    /**
+     * ── fee_audit: prove the published fee state from the OUTBOUND payload.
+     *
+     * `Pull_ListSpecProp_RS` does not return the `<AdditionalFees>` collection (nor a usable
+     * cleaning slot), so a read-back can never prove what fees a listing carries. Until RU
+     * returns the block, the authoritative evidence is the newest ACCEPTED
+     * `Push_PutProperty_RQ` we sent: its `<AdditionalFees>` / `<CleaningPrice>` /
+     * `<SecurityDeposit>` values are exactly what the channel stored.
+     *
+     * The audit therefore parses the wire log and reconciles it against the authored
+     * `property_charges` set, flagging drift where a charge exists locally but is absent from
+     * the last accepted push (or vice versa).
+     */
+    if (action === "fee_audit") {
+      const propertyId: string | null = body.property_id ?? null;
+
+      let props: Array<{ id: string; name: string; rentalsunited_property_id: number | null }> = [];
+      if (propertyId) {
+        const { data } = await admin
+          .from("properties")
+          .select("id, name, rentalsunited_property_id")
+          .eq("id", propertyId)
+          .maybeSingle();
+        if (data) props = [data as typeof props[number]];
+      } else {
+        const { data } = await admin
+          .from("properties")
+          .select("id, name, rentalsunited_property_id")
+          .not("rentalsunited_property_id", "is", null)
+          .eq("is_active", true)
+          .order("name");
+        props = (data ?? []) as typeof props;
+      }
+
+      const numOf = (v: string | undefined) => {
+        const n = Number(String(v ?? "").trim());
+        return Number.isFinite(n) ? n : 0;
+      };
+      const tag = (xml: string, name: string): string | undefined =>
+        new RegExp(`<${name}[^>]*>([^<]*)</${name}>`, "i").exec(xml)?.[1];
+
+      /** Parse the fee state out of one outbound Push_PutProperty_RQ payload. */
+      const parseOutboundFees = (xml: string) => {
+        const feesBlock = /<AdditionalFees[^>]*>([\s\S]*?)<\/AdditionalFees>/i.exec(xml)?.[1] ?? "";
+        const entries = [...feesBlock.matchAll(/<AdditionalFee\b[\s\S]*?<\/AdditionalFee>/gi)].map((m) => {
+          const frag = m[0];
+          const discriminator = numOf(/DiscriminatorID="([^"]*)"/i.exec(frag)?.[1] ?? tag(frag, "DiscriminatorID"));
+          return {
+            name: (tag(frag, "Name") ?? "").replace(/^<!\[CDATA\[|\]\]>$/g, "").trim(),
+            value: numOf(tag(frag, "Value")),
+            discriminator_id: discriminator,
+            fee_tax_type: numOf(/FeeTaxType="([^"]*)"/i.exec(frag)?.[1] ?? tag(frag, "FeeTaxType")),
+          };
+        });
+        return {
+          additional_fees: entries,
+          cleaning_price: numOf(tag(xml, "CleaningPrice")),
+          security_deposit: numOf(tag(xml, "SecurityDeposit")),
+        };
+      };
+
+      const results: Array<Record<string, unknown>> = [];
+      for (const p of props) {
+        const ruId = p.rentalsunited_property_id ? String(p.rentalsunited_property_id) : null;
+
+        // Newest ACCEPTED property push for this listing — that is the state RU stored.
+        let logQuery = admin
+          .from("ru_api_log")
+          .select("id, created_at, request_xml, status_id, status_message, trace_id, ru_property_id, success")
+          .eq("success", true)
+          .ilike("request_xml", "%Push_PutProperty_RQ%")
+          .order("created_at", { ascending: false })
+          .limit(1);
+        logQuery = ruId ? logQuery.eq("ru_property_id", ruId) : logQuery.eq("property_id", p.id);
+        const { data: logRow } = await logQuery.maybeSingle();
+
+        const { data: charges } = await admin
+          .from("property_charges")
+          .select("id, name, amount, category, is_active, calculation_method")
+          .eq("property_id", p.id);
+        const authored = (charges ?? []).filter((c) => c.is_active !== false && Number(c.amount) > 0);
+        const authoredFees = authored.filter(
+          (c) => String(c.category ?? "").toLowerCase() !== "deposit" && !/deposit|breakage|damage/i.test(String(c.name ?? "")),
+        );
+        const authoredDeposits = authored.filter(
+          (c) => String(c.category ?? "").toLowerCase() === "deposit" || /deposit|breakage|damage/i.test(String(c.name ?? "")),
+        );
+
+        const xml = String((logRow as { request_xml?: string } | null)?.request_xml ?? "");
+        const published = xml ? parseOutboundFees(xml) : null;
+        const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+        const publishedNames = new Set((published?.additional_fees ?? []).map((f) => norm(f.name)));
+        const cleaningPublished =
+          (published?.cleaning_price ?? 0) > 0 || [...publishedNames].some((n) => n.includes("clean"));
+
+        const missing = authoredFees
+          .filter((c) => !publishedNames.has(norm(String(c.name ?? ""))))
+          .filter((c) => !(/clean/i.test(String(c.name ?? "")) && cleaningPublished))
+          .map((c) => String(c.name));
+        const extra = (published?.additional_fees ?? [])
+          .filter((f) => !authoredFees.some((c) => norm(String(c.name ?? "")) === norm(f.name)))
+          .map((f) => f.name);
+
+        const depositAuthored = authoredDeposits.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        const depositDrift = Math.abs((published?.security_deposit ?? 0) - depositAuthored) > 0.005;
+
+        const verdict = !ruId
+          ? "not_published"
+          : !published
+            ? "no_evidence"
+            : missing.length || extra.length || depositDrift
+              ? "drift"
+              : "in_sync";
+
+        results.push({
+          property_id: p.id,
+          property_name: p.name,
+          ru_property_id: ruId,
+          verdict,
+          evidence_source: "outbound Push_PutProperty_RQ (read-back cannot prove fees)",
+          evidence_at: (logRow as { created_at?: string } | null)?.created_at ?? null,
+          evidence_trace_id: (logRow as { trace_id?: string } | null)?.trace_id ?? null,
+          published,
+          authored: {
+            fees: authoredFees.map((c) => ({
+              name: String(c.name),
+              amount: Number(c.amount) || 0,
+              calculation_method: c.calculation_method ?? null,
+            })),
+            security_deposit: depositAuthored,
+          },
+          drift: { missing_at_channel: missing, unexpected_at_channel: extra, deposit_drift: depositDrift },
+        });
+      }
+
+      return json({
+        success: true,
+        generated_at: new Date().toISOString(),
+        note:
+          "Rentals United does not return <AdditionalFees> on Pull_ListSpecProp_RS, so fee state is audited " +
+          "against the newest accepted outbound Push_PutProperty_RQ instead of a read-back.",
+        properties: results,
+      });
+    }
+
+
+
 
     // ── evidence: printable / downloadable bundle for the RU certification call ──
     if (action === "evidence") {
