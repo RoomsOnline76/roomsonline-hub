@@ -142,7 +142,41 @@ export async function resolveRuChildAuth(
  * carries — needed when a stay is moved between units, because RU's modify verb has to name the
  * listing the reservation currently sits on *and* the listing it moves to.
  */
+/**
+ * Plain-language reason when this stay breaks the property's (or unit's) authored changeover rules,
+ * or null when the stay is allowed. Read locally — no channel call.
+ */
+export async function describeBookingChangeoverViolation(
+  supabase: Db,
+  booking: RuBookingRef,
+): Promise<string | null> {
+  const { data: property } = await supabase
+    .from('properties')
+    .select('amenities')
+    .eq('id', booking.property_id)
+    .maybeSingle();
+
+  let unitAmenities: Record<string, unknown> | null = null;
+  if (booking.room_type_id) {
+    const { data: unit } = await supabase
+      .from('hostfully_room_types')
+      .select('amenities')
+      .eq('id', booking.room_type_id)
+      .maybeSingle();
+    unitAmenities = (unit?.amenities ?? null) as Record<string, unknown> | null;
+  }
+
+  return describeChangeoverViolation(
+    (property?.amenities ?? null) as Record<string, unknown> | null,
+    unitAmenities,
+    booking.room_type_id ?? null,
+    booking.check_in_date,
+    booking.check_out_date,
+  );
+}
+
 export async function resolveRuPropertyId(
+
   supabase: Db,
   booking: RuBookingRef,
   roomTypeOverride?: string | null,
