@@ -1190,6 +1190,26 @@ export function RoomManagerTab({
                     />
                   </div>
                   <div className="space-y-1">
+                    <Label className="text-xs whitespace-nowrap" title="Guests the published rate covers before extra-person charges apply.">
+                      Default
+                    </Label>
+                    <Input type="number"
+                      data-field="standard_guests"
+                      className="h-7 w-full text-xs"
+                      min={1}
+                      max={Number(selectedRoom?.maxPeople) || undefined}
+                      placeholder={String(selectedRoom?.maxPeople ?? "")}
+                      value={selectedRoom?.standardGuests ?? ""}
+                      onChange={(e) => {
+                        const raw = parseInt(e.target.value);
+                        const max = Number(selectedRoom?.maxPeople) || undefined;
+                        const next = Number.isFinite(raw) && raw > 0 ? (max ? Math.min(raw, max) : raw) : null;
+                        updateRoomTypeField(selectedRoomType, "standardGuests", next);
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
                     <Label className="text-xs whitespace-nowrap flex items-center gap-0.5">
                       Adults
                       {isRoomFieldPmsSynced(selectedRoomType, "maxAdults") && <Cloud className="h-2.5 w-2.5 text-primary" />}
