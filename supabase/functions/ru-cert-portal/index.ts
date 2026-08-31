@@ -9997,8 +9997,12 @@ Deno.serve(async (req) => {
         account: finalAccount ?? saved,
         scope: portfolioId ? "portfolio" : "property",
         key_source: keySource,
-        keys_minted: keySource === "existing",
-        auth_mode: keySource === "password_verified" ? "child_password" : keySource === "existing" ? "child_keys" : null,
+        keys_minted: keySource === "existing" || keySource === "minted",
+        auth_mode: keySource === "password_verified"
+          ? "child_password"
+          : keySource === "existing" || keySource === "minted"
+            ? "child_keys"
+            : null,
         access_key: mintedAccessKey,
         key_warning: keyWarning,
         key_code: keyCode,
