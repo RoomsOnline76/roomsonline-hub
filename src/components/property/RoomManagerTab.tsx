@@ -87,7 +87,13 @@ export interface RoomManagerTabProps {
   setIsDirty: (dirty: boolean) => void;
   mealTypeSuggestions: string[];
   handleNewMealType: (mealType: string) => Promise<void>;
+  /** Property-level channel amenities (authored here, stored on the property row). */
+  propertyFacilities?: string[];
+  setPropertyFacilities?: React.Dispatch<React.SetStateAction<string[]>>;
+  /** Keeps the property "separate kitchen" fact in step with the Kitchen amenity. */
+  setSeparateKitchen?: React.Dispatch<React.SetStateAction<boolean>>;
 }
+
 
 export const MIN_ROOM_DESCRIPTION_CHARS = 700;
 
