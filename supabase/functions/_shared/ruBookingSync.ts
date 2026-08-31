@@ -1004,6 +1004,23 @@ export async function modifyRuStay(
   }
   booking.external_reservation_id = identity.reservationId;
 
+  /**
+   * A date change that lands on a barred arrival/departure weekday is the operator's own rule, not
+   * a channel fault. Say so before sending, instead of letting the reopen/replay ladder republish
+   * nights over that rule.
+   */
+  if (modify.date_from || modify.date_to) {
+    const violation = await describeBookingChangeoverViolation(supabase, {
+      ...booking,
+      check_in_date: modify.date_from ?? booking.check_in_date,
+      check_out_date: modify.date_to ?? booking.check_out_date,
+    });
+    if (violation) {
+      return { ok: false, method: 'modify_stay', code: 'RU_CHANGEOVER_RULE', message: violation, traceId };
+    }
+  }
+
+
   if (isRuLead(booking)) {
 
     if (opts.confirmLead === false) {
