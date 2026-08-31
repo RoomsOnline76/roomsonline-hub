@@ -185,6 +185,9 @@ export type KeySource =
   | "manual"
   | "";
 
+/** Operator choice for Step A.2 credential provisioning. */
+export type ChannelKeyMode = "manual" | "auto";
+
 
 /** The channel's sliding read window, used when it does not say how long to wait. */
 const DEFAULT_RATE_WINDOW_MS = 60_000;
