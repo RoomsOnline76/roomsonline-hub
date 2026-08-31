@@ -1318,8 +1318,38 @@ export async function pushRuConfirmedReservation(
     };
   }
 
+  /**
+   * The property's OWN changeover rules bar some arrival/departure weekdays. The channel refuses
+   * such a stay in its own raw wording and we used to answer with a reopen/replay ladder that would
+   * have republished nights over the operator's rule. Detect it here, before any channel call.
+   */
+  const violation = await describeBookingChangeoverViolation(supabase, booking);
+  if (violation) {
+    await recordChannelBookingEvent(supabase, {
+      booking_id: booking.id,
+      property_id: booking.property_id,
+      direction: 'outbound',
+      action: 'created',
+      source: 'ru_booking_sync',
+      outcome: 'failed',
+      reason: 'changeover_rule',
+      channel_listing_id: ruPropertyId,
+      trace_id: traceId,
+      summary: violation,
+    }).catch(() => {});
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: 'RU_CHANGEOVER_RULE',
+      message: violation,
+      traceId,
+      ruPropertyId,
+    };
+  }
+
   const guests = (Number(booking.adults ?? 0) || 0) + (Number(booking.children ?? 0) || 0) +
     (Number(booking.teens ?? 0) || 0);
+
 
   // Same content, same booking → one channel write. A refusal the channel repeats for the same
   // stay (dates it will not sell) is terminal: it was being re-sent every minute forever.
