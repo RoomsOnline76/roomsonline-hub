@@ -651,7 +651,11 @@ export function RoomManagerTab({
             {selectedPMS !== "nightsbridge" && (
               <TabsTrigger value="rate-types" className="text-xs h-7">Rate Types</TabsTrigger>
             )}
-            <TabsTrigger value="amenities" className="text-xs h-7">Amenities &amp; Facilities</TabsTrigger>
+            <TabsTrigger value="amenities" className="text-xs h-7">Unit Amenities</TabsTrigger>
+            {setPropertyFacilities && (
+              <TabsTrigger value="property-amenities" className="text-xs h-7">Property Amenities</TabsTrigger>
+            )}
+
             {selectedPMS !== "nightsbridge" && (
               <TabsTrigger value="room-images" className="text-xs h-7">Images</TabsTrigger>
             )}
