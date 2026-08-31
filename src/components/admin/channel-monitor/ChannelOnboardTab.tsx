@@ -1540,6 +1540,30 @@ export function ChannelOnboardTab({
                 )}
               </div>
             )}
+            {propertyId && !accountProvisioned && (
+              <div
+                className="flex items-center gap-1 rounded-md border border-border bg-muted/40 p-0.5"
+                role="group"
+                aria-label="Account credential provisioning"
+                title="Manual: paste the key pair from the channel portal. Auto: mint the account's first key pair automatically."
+              >
+                <span className="px-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">Keys</span>
+                {(["manual", "auto"] as ChannelKeyMode[]).map((mode) => (
+                  <Button
+                    key={mode}
+                    type="button"
+                    size="sm"
+                    variant={keyMode === mode ? "default" : "ghost"}
+                    className="h-6 px-2 text-xs capitalize"
+                    aria-pressed={keyMode === mode}
+                    disabled={runningStep === "a"}
+                    onClick={() => chooseKeyMode(mode)}
+                  >
+                    {mode}
+                  </Button>
+                ))}
+              </div>
+            )}
             {propertyId && !accountProvisioned && !boundLogin && (
               chosenLoginEmail ? (
                 <Button
