@@ -10,12 +10,13 @@
 - [x] Delta 7 cleaning fee removed and re-added: both deltas accepted (Status 0, one push each), `<CleaningPrice>0</CleaningPrice>` as expected. Not verifiable at the channel: `Pull_ListSpecProp_RS` returns no `<AdditionalFees>` block, so fee state can only be confirmed from the outbound payload.
 
 
-- [ ] Availability: block 4 consecutive days then open; min-stay change; changeover change + refusal message check
-- [ ] Rates: add 10-day November high season; low season price to 1111
-- [ ] Cadence: confirm Pull_ListReservations_RQ every 30 min with correct window; RLNM subscription in place
-- [ ] Reservation modify + cancel sync
-- [ ] Isolate call log for the test window; audit failed/throttled/duplicate/unnecessary calls
-- [ ] Deliver `docs/verification/leopard-full-cycle-2026-08-31.md`
+- [x] Availability: block 4 consecutive days then open; min-stay change; changeover change + refusal message check
+- [x] Rates: add 10-day November high season; low season price to 1111
+- [x] Cadence: `Pull_ListReservations_RQ` every 30 min, window -7d → +400d; LNM/RLNM subscription verified for OwnerID 742640
+- [x] Reservation modify + cancel sync (own-push echo suppression and Status 28 terminal handling fixed)
+- [x] Isolate call log for the test window; audit failed/throttled/duplicate/unnecessary calls
+- [x] Delivered `docs/verification/leopard-full-cycle-2026-08-31.md`
+
 
 ## Issues found (for the feedback doc)
 - Sterilize leaves `hostfully_room_types.is_active = false` while the Rooms tab still lists the unit, so readiness silently falls back to property-level values (0 beds) and Step B is blocked with unexplained "6 requirements outstanding".
