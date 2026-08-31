@@ -9537,14 +9537,19 @@ Deno.serve(async (req) => {
           account: refreshed ?? existing.account,
           scope: existing.scope,
           key_source: keySource,
-          keys_minted: keySource === "existing",
-          auth_mode: keySource === "password_verified" ? "child_password" : keySource === "existing" ? "child_keys" : null,
+          keys_minted: keySource === "existing" || keySource === "minted",
+          auth_mode: keySource === "password_verified"
+            ? "child_password"
+            : keySource === "existing" || keySource === "minted"
+              ? "child_keys"
+              : null,
           access_key: mintedAccessKey,
           key_warning: keyWarning,
           key_code: keyCode,
           key_ru_status_id: keyRuStatusId,
           key_ru_status_message: keyRuStatusMessage,
           key_retry_after_ms: keyRetryAfterMs,
+          key_attempts: existingAttempts,
         });
       }
 
