@@ -71,7 +71,7 @@ export function describeChangeoverViolation(
   const arrivalCode = changeoverCodeForDate(propertyAmenities, unitAmenities, unitId, checkIn);
   const departureCode = changeoverCodeForDate(propertyAmenities, unitAmenities, unitId, checkOut);
   const arrivalAllowed = arrivalCode === 1 || arrivalCode === 3;
-  const departureAllowed = arrivalCode === 3 || departureCode === 2 || departureCode === 3;
+  const departureAllowed = departureCode === 2 || departureCode === 3;
 
   if (!arrivalAllowed && !departureAllowed) {
     return `This property does not accept arrivals on ${label(checkIn)} or departures on ${label(checkOut)}. Change the dates or relax the changeover rule for those days.`;
@@ -79,7 +79,7 @@ export function describeChangeoverViolation(
   if (!arrivalAllowed) {
     return `This property does not accept arrivals on ${label(checkIn)}. Change the arrival date or relax the changeover rule for that day.`;
   }
-  if (!(departureCode === 2 || departureCode === 3)) {
+  if (!departureAllowed) {
     return `This property does not accept departures on ${label(checkOut)}. Change the departure date or relax the changeover rule for that day.`;
   }
   return null;
