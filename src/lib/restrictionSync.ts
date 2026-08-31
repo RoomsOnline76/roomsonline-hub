@@ -98,10 +98,13 @@ export async function syncRestrictionsToChannels(
   } else if (summary.pending > 0 && summary.pushed === 0) {
     toast.info("Saved — the channel update pushes itself once readiness clears", { id: toastId });
   } else if (summary.pushed > 0) {
-    toast.success(
-      `Saved — Channel Manager updating in the background (${summary.pushed} propert${summary.pushed === 1 ? "y" : "ies"})`,
-      { id: toastId },
-    );
+    const nights = range.from && range.to
+      ? range.from === range.to
+        ? ` (1 night)`
+        : ` (${range.from} → ${range.to})`
+      : "";
+    toast.success(`Saved — sending only the affected nights to the Channel Manager${nights}`, { id: toastId });
+
   } else {
     toast.info("Saved — no Channel Manager listing to update", { id: toastId });
   }
