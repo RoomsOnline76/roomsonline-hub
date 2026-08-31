@@ -99,6 +99,12 @@ interface RoomPlanGridProps {
    */
   isBlocked?: (roomTypeId: string, date: Date) => BlockDetail | boolean | null;
   isHoliday?: (date: Date) => string | null;
+  /**
+   * Restriction markers per room type / night — drawn as coloured lines in a lane
+   * beneath the type header, same colour language as the week / month grids.
+   */
+  getRestrictionMarkers?: (roomTypeId: string, date: Date) => RestrictionMarker[];
+
   /** Right-click / long-press on a blocked night — opens the restriction editor. */
   onEditBlock?: (roomTypeId: string, date: Date) => void;
   onSelectBooking: (booking: RoomPlanBooking) => void;
