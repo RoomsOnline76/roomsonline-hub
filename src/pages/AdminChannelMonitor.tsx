@@ -560,9 +560,11 @@ export default function AdminChannelMonitor() {
             {/* Engineers' surface: exchange log, booking trail, refresh compliance, call queue. */}
             {tab === "advanced" && (
               <>
-                <Suspense fallback={<Skeleton className="h-32 w-full" />}>
-                  <OrphanSubAccountsPanel />
-                </Suspense>
+                {(isDev || isFearlessLeader) && (
+                  <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+                    <OrphanSubAccountsPanel />
+                  </Suspense>
+                )}
 
                 <Collapsible open={exchangeOpen} onOpenChange={setExchangeOpen}>
                   <section className="space-y-2" ref={exchangeLogRef}>
