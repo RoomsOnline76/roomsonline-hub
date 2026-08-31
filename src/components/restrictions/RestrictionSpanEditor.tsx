@@ -66,11 +66,11 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
   const valueLabel = VALUE_LABELS[span.kind];
 
 
-  const finish = async (message: string) => {
+  const finish = async (message: string, change: RestrictionSpanChange) => {
     // Close and confirm straight away; the refresh + channel push continue behind the dialog.
     toast.success(message);
     onOpenChange(false);
-    void onChanged(span);
+    void onChanged(span, change);
   };
 
   const handleSave = async () => {
@@ -79,13 +79,15 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     if (valueLabel && (!value || Number(value) <= 0)) { toast.error(`Enter a ${valueLabel.toLowerCase()} value`); return; }
     setBusy(true);
     try {
-      await applyRestrictionSpan(span, {
+      const range = await applyRestrictionSpan(span, {
         start,
         end,
         value: valueLabel ? Number(value) : null,
         reason: reason.trim() || null,
       });
-      await finish("Restriction updated");
+      // Shrinking or moving the span frees nights, so treat any edit that lets nights go as a reopen.
+      const freedNights = start > span.start || end < span.end;
+      await finish("Restriction updated", { range, reopened: freedNights });
     } catch (error: any) {
       console.error("Failed to update restriction span:", error);
       toast.error(error.message || "Could not update the restriction");
@@ -103,8 +105,8 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     if (!start) return;
     setBusy(true);
     try {
-      await moveRestrictionSpanToStart(span, start);
-      await finish("Restriction moved");
+      const range = await moveRestrictionSpanToStart(span, start);
+      await finish("Restriction moved", { range, reopened: true });
     } catch (error: any) {
       console.error("Failed to move restriction span:", error);
       toast.error(error.message || "Could not move the restriction");
@@ -113,17 +115,44 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     }
   };
 
+  const handleRelease = async () => {
+    if (!releaseFrom || !releaseTo) { toast.error("Pick the nights to release"); return; }
+    if (releaseTo < releaseFrom) { toast.error("The last night must fall on or after the first"); return; }
+    if (releaseFrom < span.start || releaseTo > span.end) {
+      toast.error("Those nights fall outside this restriction");
+      return;
+    }
+    setBusy(true);
+    try {
+      const range = await releaseRestrictionNights(span, releaseFrom, releaseTo);
+      if (!range) {
+        toast.info("Those nights are not part of this restriction");
+        return;
+      }
+      await finish(
+        span.kind === "block" ? "Nights released and reopened" : "Restriction lifted for those nights",
+        { range, reopened: true },
+      );
+    } catch (error: any) {
+      console.error("Failed to release restriction nights:", error);
+      toast.error(error.message || "Could not release those nights");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleRemove = async () => {
     setBusy(true);
     try {
-      await removeRestrictionSpan(span);
-      await finish(span.kind === "block" ? "Nights unblocked" : "Restriction removed");
+      const range = await removeRestrictionSpan(span);
+      await finish(span.kind === "block" ? "Nights unblocked" : "Restriction removed", { range, reopened: true });
     } catch (error: any) {
       console.error("Failed to remove restriction span:", error);
       toast.error(error.message || "Could not remove the restriction");
     } finally {
       setBusy(false);
     }
+
   };
 
   return (
