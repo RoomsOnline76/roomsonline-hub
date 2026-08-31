@@ -3794,6 +3794,52 @@ Deno.serve(async (req) => {
         }
       }
 
+      /**
+       * Dead-listing recovery — status 18 "Property with given ID does not exist."
+       *
+       * A listing that was published and then archived/deleted at the channel keeps its id in our
+       * records (and still shows up in the owner's listing list, which is how adoption picked it),
+       * but the channel will no longer accept an update against it: the id cannot be reused. The
+       * only correct move is to mint a NEW listing, so we re-send once as a create.
+       *
+       * Safety: a create is only allowed here because the channel just told us the id it would
+       * have collided with does not exist, and the adoption candidate for this name is exactly
+       * that dead id — so there is nothing left to duplicate. Distances are dropped (never sent on
+       * a create) and the dead id is purged from both listing snapshots so no later unit or push
+       * adopts it again.
+       */
+      let recreatedAfterDeadListing: { dead_ru_property_id: number } | null = null;
+      if (
+        !ok &&
+        effectiveRuPropertyId > 0 &&
+        (String(status.id) === '18' || /property with given id does not exist|property does not exist/i.test(String(status.message ?? '')))
+      ) {
+        const deadId = effectiveRuPropertyId;
+        console.warn(
+          `[rentalsunited-api] Listing ${deadId} no longer exists at the channel (status ${status.id}) — creating a fresh listing for "${p.name}"`,
+        );
+        const ownerIdNum = Number(p.owner_id);
+        const snap = readOwnerListingSnapshot(ownerIdNum);
+        if (snap) {
+          const pruned = snap.filter((l) => String(l.id) !== String(deadId));
+          writeOwnerListingSnapshot(ownerIdNum, pruned);
+          await writeRuOwnerListingCache(getLogClient(), ownerIdNum, pruned, 'rentalsunited-api:push_property_dead_listing');
+        }
+        effectiveRuPropertyId = 0;
+        adoptedExistingListing = null;
+        reactivatedListing = false;
+        const createPayload = { ...p, distances: [] };
+        xml = buildPushPropertyXml(scopedCreds, 0, createPayload);
+        compactRequestXml = compactXml(xml);
+        response = await callRentalsUnited(scopedCreds, xml);
+        const retryStatus = handleRUStatus(response);
+        ok = retryStatus.ok;
+        status = retryStatus.status;
+        if (ok) recreatedAfterDeadListing = { dead_ru_property_id: deadId };
+      }
+
+
+
 
       if (!ok) {
         const diag = buildDiagnostics(compactRequestXml, status, 'push_property', response);
