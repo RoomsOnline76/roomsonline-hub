@@ -544,6 +544,8 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         property_id: ctx.propertyId,
         ...(ctx.confirmedOwnerEmail ? { confirmed_owner_email: ctx.confirmedOwnerEmail } : {}),
         ...(ctx.confirmedOwnerName ? { confirmed_owner_name: ctx.confirmedOwnerName } : {}),
+        // Manual is the default: only an explicit "auto" choice unlocks the server-side mint.
+        key_mode: ctx.keyMode === "auto" ? "auto" : "manual",
       },
       "Could not confirm the distribution identity",
     );
