@@ -32,8 +32,14 @@ export interface ChannelSyncOptions {
   dateTo?: string | null;
   /** Restrict an ARI write to these unit ids. */
   onlyUnitIds?: string[] | null;
+  /**
+   * Write availability even when the payload hash is unchanged. Restriction removals and
+   * partial releases set this: reopening nights must reach the channel, hash race or not.
+   */
+  forceAvailability?: boolean;
   /** Pull the channel calendar back after the write (booking events only). */
   verifyAvailabilityReadback?: boolean;
+
 }
 
 /** Ordinary edits stay silent and make no channel call before wizard step 13. */
@@ -139,6 +145,8 @@ export async function queueChannelRatesSync(
         ...(options.dateFrom ? { date_from: options.dateFrom } : {}),
         ...(options.dateTo ? { date_to: options.dateTo } : {}),
         ...(options.onlyUnitIds && options.onlyUnitIds.length > 0 ? { only_unit_ids: options.onlyUnitIds } : {}),
+        ...(options.forceAvailability ? { force_availability: true } : {}),
+
         ...(options.verifyAvailabilityReadback ? { verify_availability_readback: true } : {}),
       },
     });

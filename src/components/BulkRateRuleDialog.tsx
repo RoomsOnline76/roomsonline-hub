@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { syncRestrictionsToChannels } from "@/lib/restrictionSync";
+import { queueChannelRatesSync } from "@/lib/channelContentSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
 
 interface BulkRateRuleDialogProps {
@@ -155,7 +155,11 @@ export function BulkRateRuleDialog({
       toast.success(`Set rate to ${rate} for ${filteredDates.length} dates`);
       // Rates changed — the Channel Manager update fires itself (parked and retried if the
       // listing is currently short of the mandatory readiness gate).
-      if (propertyId) void syncRestrictionsToChannels([propertyId], "rate", { from: fromDate, to: toDate });
+      // A rate rule is a pricing change, not a restriction: it keeps the pricing path (the
+      // restriction_* triggers deliberately skip Push_PutPrices_RQ).
+      if (propertyId) {
+        void queueChannelRatesSync(propertyId, "rate_change", { dateFrom: fromDate, dateTo: toDate });
+      }
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {

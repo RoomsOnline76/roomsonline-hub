@@ -5,23 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MoveHorizontal, Trash2 } from "lucide-react";
+import { Loader2, MoveHorizontal, Trash2, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import {
   applyRestrictionSpan,
   formatSpanAttribution,
   moveRestrictionSpanToStart,
+  releaseRestrictionNights,
   removeRestrictionSpan,
   RESTRICTION_KIND_LABELS,
+  type RestrictionChangeRange,
   type RestrictionSpan,
 } from "@/lib/restrictionSpans";
+
+/** What the write touched, so the caller can scope the channel delta to exactly those nights. */
+export interface RestrictionSpanChange {
+  range: RestrictionChangeRange | null;
+  /** True when nights were freed (removal, partial release, shrink) — the reopen must be forced. */
+  reopened: boolean;
+}
 
 interface RestrictionSpanEditorProps {
   span: RestrictionSpan | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after a successful save/move/remove so the caller can refresh + push to channels. */
-  onChanged: (span: RestrictionSpan) => void | Promise<void>;
+  /** Called after a successful save/move/release/remove so the caller can refresh + push to channels. */
+  onChanged: (span: RestrictionSpan, change: RestrictionSpanChange) => void | Promise<void>;
 }
 
 const VALUE_LABELS: Partial<Record<RestrictionSpan["kind"], string>> = {
@@ -36,6 +45,8 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
   const [end, setEnd] = useState("");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
+  const [releaseFrom, setReleaseFrom] = useState("");
+  const [releaseTo, setReleaseTo] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -44,17 +55,22 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     setEnd(span.end);
     setValue(span.value != null ? String(span.value) : "");
     setReason(span.reason || "");
+    // Default the release window to the tail of the span — the common case is freeing the last
+    // nights of a block after a guest shortened or cancelled part of a hold.
+    setReleaseFrom(span.end);
+    setReleaseTo(span.end);
   }, [span, open]);
 
   if (!span) return null;
 
   const valueLabel = VALUE_LABELS[span.kind];
 
-  const finish = async (message: string) => {
+
+  const finish = async (message: string, change: RestrictionSpanChange) => {
     // Close and confirm straight away; the refresh + channel push continue behind the dialog.
     toast.success(message);
     onOpenChange(false);
-    void onChanged(span);
+    void onChanged(span, change);
   };
 
   const handleSave = async () => {
@@ -63,13 +79,15 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     if (valueLabel && (!value || Number(value) <= 0)) { toast.error(`Enter a ${valueLabel.toLowerCase()} value`); return; }
     setBusy(true);
     try {
-      await applyRestrictionSpan(span, {
+      const range = await applyRestrictionSpan(span, {
         start,
         end,
         value: valueLabel ? Number(value) : null,
         reason: reason.trim() || null,
       });
-      await finish("Restriction updated");
+      // Shrinking or moving the span frees nights, so treat any edit that lets nights go as a reopen.
+      const freedNights = start > span.start || end < span.end;
+      await finish("Restriction updated", { range, reopened: freedNights });
     } catch (error: any) {
       console.error("Failed to update restriction span:", error);
       toast.error(error.message || "Could not update the restriction");
@@ -87,8 +105,8 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     if (!start) return;
     setBusy(true);
     try {
-      await moveRestrictionSpanToStart(span, start);
-      await finish("Restriction moved");
+      const range = await moveRestrictionSpanToStart(span, start);
+      await finish("Restriction moved", { range, reopened: true });
     } catch (error: any) {
       console.error("Failed to move restriction span:", error);
       toast.error(error.message || "Could not move the restriction");
@@ -97,17 +115,44 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     }
   };
 
+  const handleRelease = async () => {
+    if (!releaseFrom || !releaseTo) { toast.error("Pick the nights to release"); return; }
+    if (releaseTo < releaseFrom) { toast.error("The last night must fall on or after the first"); return; }
+    if (releaseFrom < span.start || releaseTo > span.end) {
+      toast.error("Those nights fall outside this restriction");
+      return;
+    }
+    setBusy(true);
+    try {
+      const range = await releaseRestrictionNights(span, releaseFrom, releaseTo);
+      if (!range) {
+        toast.info("Those nights are not part of this restriction");
+        return;
+      }
+      await finish(
+        span.kind === "block" ? "Nights released and reopened" : "Restriction lifted for those nights",
+        { range, reopened: true },
+      );
+    } catch (error: any) {
+      console.error("Failed to release restriction nights:", error);
+      toast.error(error.message || "Could not release those nights");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleRemove = async () => {
     setBusy(true);
     try {
-      await removeRestrictionSpan(span);
-      await finish(span.kind === "block" ? "Nights unblocked" : "Restriction removed");
+      const range = await removeRestrictionSpan(span);
+      await finish(span.kind === "block" ? "Nights unblocked" : "Restriction removed", { range, reopened: true });
     } catch (error: any) {
       console.error("Failed to remove restriction span:", error);
       toast.error(error.message || "Could not remove the restriction");
     } finally {
       setBusy(false);
     }
+
   };
 
   return (
@@ -158,6 +203,46 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
                 start date above.
               </p>
             </div>
+
+            {span.nights > 1 && (
+              <div className="space-y-1.5 rounded-lg border border-border p-3">
+                <Label className="text-xs text-muted-foreground">
+                  {span.kind === "block" ? "Release part of this block" : "Lift this rule for part of the span"}
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="release-from" className="text-[11px]">First night</Label>
+                    <Input
+                      id="release-from"
+                      type="date"
+                      min={span.start}
+                      max={span.end}
+                      value={releaseFrom}
+                      onChange={(e) => setReleaseFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="release-to" className="text-[11px]">Last night</Label>
+                    <Input
+                      id="release-to"
+                      type="date"
+                      min={span.start}
+                      max={span.end}
+                      value={releaseTo}
+                      onChange={(e) => setReleaseTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button type="button" variant="secondary" size="sm" className="h-7 text-xs" disabled={busy} onClick={handleRelease}>
+                  <Unlock className="mr-1 h-3 w-3" />
+                  {span.kind === "block" ? "Release these nights" : "Lift for these nights"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  The rest of the span stays in place, and only the released nights are sent to the Channel Manager.
+                </p>
+              </div>
+            )}
+
 
             {valueLabel && (
               <div className="space-y-1.5">

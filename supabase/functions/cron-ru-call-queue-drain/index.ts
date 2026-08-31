@@ -162,10 +162,13 @@ Deno.serve(async (req) => {
               ...(onlyUnitIds.length > 0 ? { only_unit_ids: onlyUnitIds } : {}),
               ...(p.ari_date_from ? { ari_date_from: String(p.ari_date_from) } : {}),
               ...(p.ari_date_to ? { ari_date_to: String(p.ari_date_to) } : {}),
+              // A reopen (block removed / nights released) must land even if the hash matches.
+              ...(p.force_availability === true ? { force_availability: true } : {}),
               verify_readback: false,
               verify_availability_readback: p.verify_availability_readback === true,
             },
           });
+
           if (error) throw new Error(await invokeErrorMessage(error));
           if (data?.success === false) {
             const code = String(data?.error?.code ?? '');

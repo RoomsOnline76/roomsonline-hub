@@ -107,6 +107,12 @@ export async function queueRuAriDelta(
    */
   options: {
     force?: boolean;
+    /**
+     * Write availability even when the payload hash matches the last push. A reopen (block
+     * removed, nights partially released) must land at the channel; a hash race must never
+     * swallow it. Unlike `force` it does not bypass the debounce.
+     */
+    forceAvailability?: boolean;
     /** Restrict the write to these unit ids. */
     onlyUnitIds?: string[] | null;
     /** Affected span — a restriction range, rate-plan season or booking stay. */
@@ -129,21 +135,55 @@ export async function queueRuAriDelta(
     // Park the edit instead of sleeping on it: a Deno isolate dies long before a 5-minute wait
     // elapses, so an in-process sleep silently lost the last click. The shared background queue
     // already collapses one pending row per `method_key`, so a burst of restriction/rate clicks
-    // becomes exactly one delayed refresh carrying the LAST span.
+    // becomes exactly one delayed refresh — carrying the UNION of the parked spans, so a block
+    // in September followed by a release in October cannot lose either range.
     if (!options.force) {
       const sinceLast = await lastRealPushAgeMs(supabase, propertyId);
       if (sinceLast < RU_ARI_DELTA_DEBOUNCE_MS) {
         const delayMs = RU_ARI_DELTA_DEBOUNCE_MS - sinceLast;
+        const methodKey = `${RU_ARI_DELTA_QUEUE_ACTION}:${propertyId}`;
+        let from = options.dateFrom ?? null;
+        let to = options.dateTo ?? null;
+        let units = options.onlyUnitIds && options.onlyUnitIds.length > 0 ? [...options.onlyUnitIds] : null;
+        let forceAvb = options.forceAvailability === true;
+        try {
+          const { data: pending } = await supabase
+            .from("ru_call_queue")
+            .select("payload")
+            .eq("method_key", methodKey)
+            .eq("status", "pending")
+            .limit(1);
+          const prior = (pending?.[0]?.payload ?? null) as Record<string, unknown> | null;
+          if (prior) {
+            const priorFrom = typeof prior.ari_date_from === "string" ? prior.ari_date_from : null;
+            const priorTo = typeof prior.ari_date_to === "string" ? prior.ari_date_to : null;
+            // Either side unscoped means the parked delta already covers the full window.
+            if (!priorFrom || !priorTo || !from || !to) {
+              from = null;
+              to = null;
+            } else {
+              from = priorFrom < from ? priorFrom : from;
+              to = priorTo > to ? priorTo : to;
+            }
+            const priorUnits = Array.isArray(prior.only_unit_ids) ? (prior.only_unit_ids as unknown[]).map(String) : null;
+            if (!priorUnits || !units) units = null;
+            else units = Array.from(new Set([...priorUnits, ...units]));
+            if (prior.force_availability === true) forceAvb = true;
+          }
+        } catch (mergeErr) {
+          console.warn("[ruAriDelta] could not merge the parked span, using this one", mergeErr);
+        }
         try {
           await supabase.rpc("ru_enqueue_call", {
-            _method_key: `${RU_ARI_DELTA_QUEUE_ACTION}:${propertyId}`,
+            _method_key: methodKey,
             _action: RU_ARI_DELTA_QUEUE_ACTION,
             _payload: {
               property_id: propertyId,
               trigger,
-              only_unit_ids: options.onlyUnitIds && options.onlyUnitIds.length > 0 ? options.onlyUnitIds : null,
-              ari_date_from: options.dateFrom ?? null,
-              ari_date_to: options.dateTo ?? null,
+              only_unit_ids: units && units.length > 0 ? units : null,
+              ari_date_from: from,
+              ari_date_to: to,
+              force_availability: forceAvb,
               verify_availability_readback: options.verifyAvailabilityReadback === true,
             },
             _property_id: propertyId,
@@ -151,9 +191,11 @@ export async function queueRuAriDelta(
             _delay_ms: delayMs,
           });
           console.log(
-            `[ruAriDelta] ${trigger} delta coalesced for ${propertyId} — replays in ${Math.round(delayMs / 1000)}s`,
+            `[ruAriDelta] ${trigger} delta coalesced for ${propertyId} — replays in ${Math.round(delayMs / 1000)}s` +
+            ` (window ${from ?? "full"} → ${to ?? "full"})`,
           );
           return { queued: true, reason: "coalesced" };
+
         } catch (queueErr) {
           // Parking failed — fall through and write now rather than losing the edit entirely.
           console.warn("[ruAriDelta] coalesce enqueue failed, pushing inline", queueErr);
@@ -172,8 +214,10 @@ export async function queueRuAriDelta(
         ...(options.dateTo ? { ari_date_to: options.dateTo } : {}),
         verify_readback: false,
         verify_availability_readback: options.verifyAvailabilityReadback === true,
-        // A booking must close the sold nights even if a hash race says availability is unchanged.
-        ...(options.force ? { force_availability: true } : {}),
+        // A booking must close the sold nights, and a reopen must open them, even if a hash race
+        // says availability is unchanged.
+        ...(options.force || options.forceAvailability ? { force_availability: true } : {}),
+
       },
     });
     // A 422 gate refusal surfaces as an "error" with the structured body on error.context.
