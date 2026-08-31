@@ -1703,7 +1703,11 @@ Deno.serve(async (req) => {
           const frag = m[0];
           const discriminator = numOf(/DiscriminatorID="([^"]*)"/i.exec(frag)?.[1] ?? tag(frag, "DiscriminatorID"));
           return {
-            name: (tag(frag, "Name") ?? "").replace(/^<!\[CDATA\[|\]\]>$/g, "").trim(),
+            // RU carries the fee name as an ATTRIBUTE (`<AdditionalFee Name="Cleaning Fee" …>`);
+            // the element form is tolerated for older payloads.
+            name: (/\bName="([^"]*)"/i.exec(frag)?.[1] ?? tag(frag, "Name") ?? "")
+              .replace(/^<!\[CDATA\[|\]\]>$/g, "")
+              .trim(),
             value: numOf(tag(frag, "Value")),
             discriminator_id: discriminator,
             fee_tax_type: numOf(/FeeTaxType="([^"]*)"/i.exec(frag)?.[1] ?? tag(frag, "FeeTaxType")),
