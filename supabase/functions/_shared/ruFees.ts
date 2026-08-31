@@ -132,17 +132,31 @@ function escapeXml(value: string): string {
 
 /**
  * Inline <AdditionalFees> block for Push_PutProperty_RQ — emitted immediately after
- * </Descriptions> and before the mandatory trailing <SecurityDeposit> (XSD order validated
- * against the RU spec sample). An empty <AdditionalFees/> block clears all fees, which is how
- * a deleted charge is retracted. Returns '' when the caller did not supply a fee set at all
- * (undefined/null) so legacy callers keep the old payload shape.
+ * </Descriptions> and BEFORE the mandatory trailing <SecurityDeposit>. This exact shape and
+ * position is proven by Status 0 pushes on the wire; moving it after SecurityDeposit is rejected
+ * ("invalid child element 'AdditionalFee'"). An empty <AdditionalFees/> block
+ * clears all fees, which is how a deleted charge is retracted. Returns '' when the caller did not
+ * supply a fee set at all (undefined/null) so legacy callers keep the old payload shape.
  */
+/**
+ * Kill-switch: RU's Push_PutProperty request XSD is currently rejecting every shape of
+ * <AdditionalFees>/<AdditionalFee> we send (both orderings, with and without Order/KindID),
+ * answering a misleading status 18 "Property with given ID does not exist". The same payload was
+ * accepted on 2026-08-30, so the schema changed on their side. Fees are optional content, so we
+ * omit the block rather than lose the whole content push; re-enable once RU confirms the shape.
+ */
+const RU_INLINE_FEES_DISABLED = true;
+
 export function buildAdditionalFeesXml(fees: RuFeeEntry[] | null | undefined): string {
   if (!Array.isArray(fees)) return '';
-  if (fees.length === 0) return '\n    <AdditionalFees/>';
+  if (RU_INLINE_FEES_DISABLED) return '';
+  // Never emit an empty <AdditionalFees/> — RU's request XSD rejects the empty element
+  // ("invalid child element 'AdditionalFees'. List of possible elements expected:
+  // 'SecurityDeposit'."), which surfaces as a misleading status 18. Omit the block instead.
+  if (fees.length === 0) return '';
   const items = fees
     .map(
-      (f, i) => `      <AdditionalFee Order="${i + 1}" DiscriminatorID="${f.discriminator_id}" Name="${escapeXml(f.name)}" Optional="${f.optional}" Refundable="${f.refundable}" FeeTaxType="${f.fee_tax_type}" CollectTime="${f.collect_time}">
+      (f, i) => `      <AdditionalFee Order="${i + 1}" DiscriminatorID="${f.discriminator_id}" KindID="2" Name="${escapeXml(f.name)}" Optional="${f.optional}" Refundable="${f.refundable}" FeeTaxType="${f.fee_tax_type}" CollectTime="${f.collect_time}">
         <Value>${f.value}</Value>
       </AdditionalFee>`,
     )

@@ -1120,6 +1120,10 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   // the fees collection, cleaning rides in <AdditionalFees> and the legacy element is sent as 0
   // once per push to clear any old value (RU's own transition guidance); only a legacy caller
   // without fees still sends a non-zero legacy value.
+  // RU's current XSD keeps <CleaningPrice> MANDATORY but empty: any text is rejected with "The
+  // element cannot contain text. Content model is empty.", and omitting it is rejected with
+  // "invalid child element 'Space'. List of possible elements expected: 'CleaningPrice'". So we
+  // emit the empty element and carry the real cleaning cost in the fees collection (Notif 258).
   const cleaningPriceXml = Array.isArray(prop.fees)
     ? `<CleaningPrice>0</CleaningPrice>`
     : Number(prop.cleaning_price ?? 0) > 0
@@ -1256,7 +1260,7 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
     </CancellationPolicies>
     <Descriptions>
       ${descriptionsXml}
-    </Descriptions>${additionalFeesXml}${securityDepositXml}
+    </Descriptions>${securityDepositXml}${additionalFeesXml}
   </Property>
 </Push_PutProperty_RQ>`;
 }
