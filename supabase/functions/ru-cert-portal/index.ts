@@ -8168,6 +8168,35 @@ Deno.serve(async (req) => {
        */
       const confirmedEmail = String(body.confirmed_owner_email ?? "").trim() || null;
       const confirmedName = String(body.confirmed_owner_name ?? "").trim() || null;
+      /**
+       * A.2 credential mode. `manual` (the default for any caller that says nothing) pauses
+       * for the pair created in the channel portal; `auto` mints the sub-account's first pair
+       * server-side with Push_CreateApiKey_RQ authenticated as that sub-account.
+       */
+      const autoKeyMode = String(body.key_mode ?? "manual").trim().toLowerCase() === "auto";
+      /**
+       * One mint envelope, one call. Returns the AccessKey on success, or the channel's own
+       * refusal so A.2 can fall back to the manual capture prompt without pretending to pass.
+       */
+      const tryAutoMint = async (args: {
+        ownerId: string;
+        loginEmail: string | null;
+        accountId: string | null;
+        password: string | null;
+      }) => {
+        const login = (args.loginEmail ?? "").trim();
+        if (!login) {
+          return { ok: false as const, code: "RU_CHILD_AUTH_REQUIRED", message: "No sub-account login is on file to authenticate the key request." };
+        }
+        return await mintChildKeyPair({
+          ownerId: args.ownerId,
+          loginEmail: login,
+          accountId: args.accountId,
+          keyLabel: "ROLOS",
+          authUsername: login,
+          authPassword: (args.password ?? "").trim() || RU_SUB_USER_PASSWORD,
+        });
+      };
       let ownerEmail: string | null = confirmedEmail ?? body.owner_email ?? null;
       let ownerName: string = confirmedName ?? body.owner_name ?? "";
       // Where the login came from — reported so the operator can see which record they
