@@ -41,6 +41,7 @@ import type { WebsiteSyncSuggestion } from "@/components/property/WebsiteSyncMod
 import { WebsiteSyncModal } from "@/components/property/WebsiteSyncModal";
 import { syncFromWebsite } from "@/lib/api/websiteSync";
 import { GooglePlaceSearchDialog } from "@/components/integrations/GooglePlaceSearchDialog";
+import { ChannelLocationLockNotice } from "@/components/property/ChannelLocationLockNotice";
 
 interface GeneralTabProps {
   // Form state
