@@ -150,10 +150,10 @@ const RU_INLINE_FEES_DISABLED = false;
 export function buildAdditionalFeesXml(fees: RuFeeEntry[] | null | undefined): string {
   if (!Array.isArray(fees)) return '';
   if (RU_INLINE_FEES_DISABLED) return '';
-  // Never emit an empty <AdditionalFees/> — RU's request XSD rejects the empty element
-  // ("invalid child element 'AdditionalFees'. List of possible elements expected:
-  // 'SecurityDeposit'."), which surfaces as a misleading status 18. Omit the block instead.
-  if (fees.length === 0) return '';
+  // Removal semantics: RU only clears fees/taxes when the container is PRESENT but EMPTY.
+  // Omitting <AdditionalFees> entirely is a no-op at their end, so a deleted charge would
+  // linger in the portal forever. Emit the paired empty element (not self-closing).
+  if (fees.length === 0) return `\n    <AdditionalFees></AdditionalFees>`;
   const items = fees
     .map(
       (f, i) => `      <AdditionalFee Order="${i + 1}" DiscriminatorID="${f.discriminator_id}" KindID="2" Name="${escapeXml(f.name)}" Optional="${f.optional}" Refundable="${f.refundable}" FeeTaxType="${f.fee_tax_type}" CollectTime="${f.collect_time}">
@@ -163,3 +163,4 @@ export function buildAdditionalFeesXml(fees: RuFeeEntry[] | null | undefined): s
     .join('\n');
   return `\n    <AdditionalFees>\n${items}\n    </AdditionalFees>`;
 }
+
