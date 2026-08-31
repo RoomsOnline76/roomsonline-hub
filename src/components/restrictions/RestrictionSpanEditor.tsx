@@ -5,23 +5,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MoveHorizontal, Trash2 } from "lucide-react";
+import { Loader2, MoveHorizontal, Trash2, Unlock } from "lucide-react";
 import { toast } from "sonner";
 import {
   applyRestrictionSpan,
   formatSpanAttribution,
   moveRestrictionSpanToStart,
+  releaseRestrictionNights,
   removeRestrictionSpan,
   RESTRICTION_KIND_LABELS,
+  type RestrictionChangeRange,
   type RestrictionSpan,
 } from "@/lib/restrictionSpans";
+
+/** What the write touched, so the caller can scope the channel delta to exactly those nights. */
+export interface RestrictionSpanChange {
+  range: RestrictionChangeRange | null;
+  /** True when nights were freed (removal, partial release, shrink) — the reopen must be forced. */
+  reopened: boolean;
+}
 
 interface RestrictionSpanEditorProps {
   span: RestrictionSpan | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Called after a successful save/move/remove so the caller can refresh + push to channels. */
-  onChanged: (span: RestrictionSpan) => void | Promise<void>;
+  /** Called after a successful save/move/release/remove so the caller can refresh + push to channels. */
+  onChanged: (span: RestrictionSpan, change: RestrictionSpanChange) => void | Promise<void>;
 }
 
 const VALUE_LABELS: Partial<Record<RestrictionSpan["kind"], string>> = {
@@ -36,6 +45,8 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
   const [end, setEnd] = useState("");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
+  const [releaseFrom, setReleaseFrom] = useState("");
+  const [releaseTo, setReleaseTo] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -44,11 +55,16 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
     setEnd(span.end);
     setValue(span.value != null ? String(span.value) : "");
     setReason(span.reason || "");
+    // Default the release window to the tail of the span — the common case is freeing the last
+    // nights of a block after a guest shortened or cancelled part of a hold.
+    setReleaseFrom(span.end);
+    setReleaseTo(span.end);
   }, [span, open]);
 
   if (!span) return null;
 
   const valueLabel = VALUE_LABELS[span.kind];
+
 
   const finish = async (message: string) => {
     // Close and confirm straight away; the refresh + channel push continue behind the dialog.
