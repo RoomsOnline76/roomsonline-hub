@@ -5299,7 +5299,7 @@ Deno.serve(async (req) => {
 
 
           // Stale RU ID recovery (see multi-unit flow): re-push as a create.
-          const staleIdError = /property does not exist/i.test(
+          const staleIdError = /property (?:with given id )?does not exist/i.test(
             String(pushErr?.message || pushResult?.error?.message || ''),
           );
           if (existingUnitRuId > 0 && (pushErr || !pushResult?.success) && staleIdError) {
@@ -5704,7 +5704,7 @@ Deno.serve(async (req) => {
         // Stale RU ID recovery: a stored unit ID can point at a property that no longer
         // exists under this owner (account recreated / unit deleted in RU). RU answers
         // "Property does not exist." — drop the stale ID and re-push as a fresh create.
-        const staleIdError = /property does not exist/i.test(
+        const staleIdError = /property (?:with given id )?does not exist/i.test(
           String(pushErr?.message || pushResult?.error?.message || ''),
         );
         if (existingUnitRuId > 0 && (pushErr || !pushResult?.success) && staleIdError) {
