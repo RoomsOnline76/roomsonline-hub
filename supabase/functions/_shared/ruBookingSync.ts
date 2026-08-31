@@ -25,6 +25,8 @@ import {
   RU_BLOCKED_DATES_BREAKER_LIMIT,
 } from './ruReservationHold.ts';
 import { recordChannelBookingEvent } from './channelBookingEvents.ts';
+import { describeChangeoverViolation } from './ruChangeoverRules.ts';
+
 
 
 
@@ -140,7 +142,41 @@ export async function resolveRuChildAuth(
  * carries — needed when a stay is moved between units, because RU's modify verb has to name the
  * listing the reservation currently sits on *and* the listing it moves to.
  */
+/**
+ * Plain-language reason when this stay breaks the property's (or unit's) authored changeover rules,
+ * or null when the stay is allowed. Read locally — no channel call.
+ */
+export async function describeBookingChangeoverViolation(
+  supabase: Db,
+  booking: RuBookingRef,
+): Promise<string | null> {
+  const { data: property } = await supabase
+    .from('properties')
+    .select('amenities')
+    .eq('id', booking.property_id)
+    .maybeSingle();
+
+  let unitAmenities: Record<string, unknown> | null = null;
+  if (booking.room_type_id) {
+    const { data: unit } = await supabase
+      .from('hostfully_room_types')
+      .select('amenities')
+      .eq('id', booking.room_type_id)
+      .maybeSingle();
+    unitAmenities = (unit?.amenities ?? null) as Record<string, unknown> | null;
+  }
+
+  return describeChangeoverViolation(
+    (property?.amenities ?? null) as Record<string, unknown> | null,
+    unitAmenities,
+    booking.room_type_id ?? null,
+    booking.check_in_date,
+    booking.check_out_date,
+  );
+}
+
 export async function resolveRuPropertyId(
+
   supabase: Db,
   booking: RuBookingRef,
   roomTypeOverride?: string | null,
@@ -968,6 +1004,23 @@ export async function modifyRuStay(
   }
   booking.external_reservation_id = identity.reservationId;
 
+  /**
+   * A date change that lands on a barred arrival/departure weekday is the operator's own rule, not
+   * a channel fault. Say so before sending, instead of letting the reopen/replay ladder republish
+   * nights over that rule.
+   */
+  if (modify.date_from || modify.date_to) {
+    const violation = await describeBookingChangeoverViolation(supabase, {
+      ...booking,
+      check_in_date: modify.date_from ?? booking.check_in_date,
+      check_out_date: modify.date_to ?? booking.check_out_date,
+    });
+    if (violation) {
+      return { ok: false, method: 'modify_stay', code: 'RU_CHANGEOVER_RULE', message: violation, traceId };
+    }
+  }
+
+
   if (isRuLead(booking)) {
 
     if (opts.confirmLead === false) {
@@ -1318,8 +1371,38 @@ export async function pushRuConfirmedReservation(
     };
   }
 
+  /**
+   * The property's OWN changeover rules bar some arrival/departure weekdays. The channel refuses
+   * such a stay in its own raw wording and we used to answer with a reopen/replay ladder that would
+   * have republished nights over the operator's rule. Detect it here, before any channel call.
+   */
+  const violation = await describeBookingChangeoverViolation(supabase, booking);
+  if (violation) {
+    await recordChannelBookingEvent(supabase, {
+      booking_id: booking.id,
+      property_id: booking.property_id,
+      direction: 'outbound',
+      action: 'created',
+      source: 'ru_booking_sync',
+      outcome: 'failed',
+      reason: 'changeover_rule',
+      channel_listing_id: ruPropertyId,
+      trace_id: traceId,
+      summary: violation,
+    }).catch(() => {});
+    return {
+      ok: false,
+      method: 'push_confirmed_reservation',
+      code: 'RU_CHANGEOVER_RULE',
+      message: violation,
+      traceId,
+      ruPropertyId,
+    };
+  }
+
   const guests = (Number(booking.adults ?? 0) || 0) + (Number(booking.children ?? 0) || 0) +
     (Number(booking.teens ?? 0) || 0);
+
 
   // Same content, same booking → one channel write. A refusal the channel repeats for the same
   // stay (dates it will not sell) is terminal: it was being re-sent every minute forever.
