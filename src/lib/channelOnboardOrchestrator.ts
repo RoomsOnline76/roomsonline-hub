@@ -708,7 +708,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         outcome: "blocked",
         code: provisioning?.code === "NEEDS_UI_KEY" ? "NEEDS_UI_KEY" : "RU_MANUAL_KEYS_REQUIRED",
         detail: (provisioning?.warning
-          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText,
+          ?? `${accountLabel ? `${accountLabel}: ` : ""}Sub-account created — enter its AccessKey and SecretKey to continue.`) + trailText + autoNote,
       };
     }
     return {
@@ -716,7 +716,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
       outcome: "blocked",
       code: provisioning?.code ?? "RU_MANUAL_KEYS_REQUIRED",
       detail: (provisioning?.warning
-        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText,
+        ?? `${accountLabel ? `${accountLabel}: ` : ""}No key pair is stored for this sub-account — enter its AccessKey and SecretKey to continue.`) + trailText + autoNote,
     };
     })();
 
