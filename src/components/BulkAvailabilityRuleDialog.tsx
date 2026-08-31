@@ -154,7 +154,13 @@ export function BulkAvailabilityRuleDialog({
       if (error) throw error;
 
       toast.success(`Updated availability to ${units} units for ${filteredDates.length} dates`);
-      if (propertyId) await syncRestrictionsToChannels([propertyId], "availability", { from: fromDate, to: toDate });
+      // Reopening nights (units > 0) is forced: the channel must receive the open nights even if
+      // the availability fingerprint looks unchanged.
+      if (propertyId) {
+        await syncRestrictionsToChannels([propertyId], "availability", { from: fromDate, to: toDate }, {
+          forceAvailability: units > 0,
+        });
+      }
       onRuleCreated?.();
       onOpenChange(false);
     } catch (error: any) {
