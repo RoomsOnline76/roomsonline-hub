@@ -133,25 +133,28 @@ export function RestrictionsManagerDialog({
     if (match) setEditing((current) => current ?? match);
   }, [open, focusBlock, spans]);
 
-  const handleChanged = (span: RestrictionSpan) => {
+  const handleChanged = (span: RestrictionSpan, change: RestrictionSpanChange) => {
     // Refresh the UI first and let the Channel Manager delta run in the background — the
     // operator should never wait on an edge-function round trip to see their own edit.
     void refetch();
     onChanged?.();
     if (span.kind !== "rate_plan_closure") {
       // syncRestrictionsToChannels already stays silent for properties that are not yet
-      // connected; only a genuine throw is worth an error toast. The span's own nights scope the
-      // channel write so a five-night edit never re-sends the whole year.
+      // connected; only a genuine throw is worth an error toast. The nights the write actually
+      // touched scope the channel delta — a two-night release is a two-night availability push,
+      // never the whole year, and never prices.
       const nights = [...(span.dates ?? [])].sort();
-      void syncRestrictionsToChannels([span.propertyId], "stop_sell", {
-        from: nights[0] ?? null,
-        to: nights[nights.length - 1] ?? null,
+      const range = change?.range ?? { from: nights[0] ?? null, to: nights[nights.length - 1] ?? null };
+      const label = span.kind === "block" ? "stop_sell" : span.kind;
+      void syncRestrictionsToChannels([span.propertyId], label, range, {
+        // Reopened nights must reach the channel even if the availability fingerprint looks unchanged.
+        forceAvailability: change?.reopened === true,
       }).catch((error) => {
         console.error("Restriction change saved but the channel push failed:", error);
       });
     }
-
   };
+
 
   return (
     <>
