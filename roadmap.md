@@ -2,7 +2,7 @@
 
 - [x] Step A onboarding uses distribution email `ru-two@polka.co.za` (OwnerID 742640, verified child keys)
 - [x] Re-activate Leopard unit row so readiness gate passes (sterilize left it inactive)
-- [ ] Step B — publish property + rooms + full ARI, read back
+- [ ] Step B — BLOCKED: Rentals United's Push_PutProperty request schema now rejects our document (status 18 + "The element cannot contain text. Content model is empty."). Byte-identical payloads were accepted 30 Aug 20:18, so their XSD changed overnight. Inline <AdditionalFees> is refused in both element positions, with and without Order/KindID, so it is temporarily switched off (`RU_INLINE_FEES_DISABLED` in `_shared/ruFees.ts`); one further element is still rejecting its text value and needs RU support to confirm the current request schema.
 - [ ] Three September bookings on Leopard
 - [ ] Delta tests: company details, property name, capacity, address (Riversdale), amenities, cleaning fee remove/re-add
 - [ ] Availability: block 4 consecutive days then open; min-stay change; changeover change + refusal message check
