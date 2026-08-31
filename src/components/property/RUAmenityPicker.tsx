@@ -39,6 +39,11 @@ interface RUAmenityPickerProps {
   minimum?: number;
   /** ROLOS-only facilities with no RU mapping, shown in their own section. */
   extraGroups?: ExtraAmenityGroup[];
+  /**
+   * Render *only* the ROLOS-only extras. Used by the Facilities tab, where the channel
+   * amenity catalogue is deliberately absent — that authority sits in the Rooms tab.
+   */
+  extrasOnly?: boolean;
 }
 
 /**
@@ -53,7 +58,9 @@ export default function RUAmenityPicker({
   scope = "unit",
   minimum,
   extraGroups,
+  extrasOnly,
 }: RUAmenityPickerProps) {
+
   const min = minimum ?? (scope === "unit" ? RU_MIN_ROOM_AMENITIES : 0);
   const [catalogue, setCatalogue] = useState<RuAmenity[]>([]);
   const [loading, setLoading] = useState(true);
