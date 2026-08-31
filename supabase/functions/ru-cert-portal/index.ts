@@ -9434,7 +9434,7 @@ Deno.serve(async (req) => {
         /** Existing binding: if Step A created this account earlier but the key mint was
          * interrupted by roster lag, complete the automatic mint before company details.
          */
-        let keySource: "existing" | "password_verified" | "blocked" = "blocked";
+        let keySource: "existing" | "password_verified" | "minted" | "deferred" | "blocked" = "blocked";
 
         let mintedAccessKey: string | null = null;
         let keyWarning: string | null = null;
@@ -9442,6 +9442,7 @@ Deno.serve(async (req) => {
         let keyRuStatusId: string | null = null;
         let keyRuStatusMessage: string | null = null;
         let keyRetryAfterMs: number | null = null;
+        const existingAttempts: string[] = [];
         const existingOwnerId = usableRuId(existing.account.ru_owner_id);
         const existingLoginEmail = String(
           (existing.account as any).ru_login_email ?? existing.account.owner_email ?? ownerEmail ?? "",
@@ -9449,12 +9450,43 @@ Deno.serve(async (req) => {
         if (existingOwnerId) {
           const { data: existingCred } = await admin
             .from("ru_api_credentials")
-            .select("access_key")
+            .select("access_key, password_enc")
             .eq("ru_owner_id", existingOwnerId)
             .maybeSingle();
           if (existingCred?.access_key || (existing.account as any).ru_api_access_key) {
             keySource = "existing";
             mintedAccessKey = String(existingCred?.access_key ?? (existing.account as any).ru_api_access_key ?? "") || null;
+          } else if (autoKeyMode) {
+            // Auto mode: mint this sub-account's first pair with its own login, one envelope.
+            let retained: string | null = null;
+            const enc = existingCred?.password_enc ?? (existing.account as any).ru_login_password_enc ?? null;
+            if (enc) {
+              const { data: plain } = await admin.rpc("decrypt_sensitive_text", { encrypted_data: enc });
+              if (typeof plain === "string" && plain !== "[ENCRYPTED]" && plain !== "[DECRYPTION_ERROR]") retained = plain;
+            }
+            const minted = await tryAutoMint({
+              ownerId: existingOwnerId,
+              loginEmail: existingLoginEmail,
+              accountId: existing.account.id ?? null,
+              password: retained,
+            });
+            if (minted.ok) {
+              keySource = "minted";
+              mintedAccessKey = (minted as any).accessKey ?? null;
+              existingAttempts.push(`Minted a key pair as ${existingLoginEmail}`);
+            } else if ((minted as any).rateDeferred) {
+              keySource = "deferred";
+              keyRetryAfterMs = (minted as any).retryAfterMs ?? null;
+              keyWarning = "The channel rate-limited the key request — waiting for the window to reopen.";
+              existingAttempts.push("Key mint deferred by the channel rate window");
+            } else {
+              keySource = "blocked";
+              keyCode = "RU_MANUAL_KEYS_REQUIRED";
+              keyRuStatusId = (minted as any).ruStatusId ?? null;
+              keyRuStatusMessage = (minted as any).ruStatusMessage ?? null;
+              keyWarning = `Sub-account ${existingLoginEmail ?? `OwnerID ${existingOwnerId}`}: automatic key creation was refused (${(minted as any).message ?? (minted as any).code ?? "no reason given"}). Paste its AccessKey and SecretKey from the channel portal to continue.`;
+              existingAttempts.push(`Mint refused: ${(minted as any).code ?? (minted as any).ruStatusId ?? "unknown"}`);
+            }
           } else {
             // A.1 proves/creates identity only. Portal password and XML API keys are dual
             // credentials; never spend Pull_ListOwnerProp_RQ trying to prove keys with a
