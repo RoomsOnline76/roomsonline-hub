@@ -6436,7 +6436,7 @@ export default function PropertyForm({
 
 
               {/* Property Surroundings — moved from Identity & Location */}
-              <Collapsible defaultOpen={false}>
+              <Collapsible defaultOpen>
                 <Card>
                   <CollapsibleTrigger asChild>
                     <CardHeader className="py-2 px-4 cursor-pointer hover:bg-muted/50 transition-colors">
