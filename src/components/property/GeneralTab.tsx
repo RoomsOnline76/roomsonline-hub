@@ -786,6 +786,9 @@ export function GeneralTab(props: GeneralTabProps) {
                   </div>
                 </div>
               )}
+              <div className="mt-3">
+                <ChannelLocationLockNotice propertyId={propertyId} />
+              </div>
               <div className={cn("grid gap-3 mt-3", noStreetAddress ? "grid-cols-1" : "grid-cols-2 md:grid-cols-4")} data-field="geo">
                 <div className="flex flex-col gap-1">
 
