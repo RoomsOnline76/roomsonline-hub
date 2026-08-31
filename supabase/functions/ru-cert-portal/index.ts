@@ -8206,10 +8206,12 @@ Deno.serve(async (req) => {
           ownerId: args.ownerId,
           loginEmail: login,
           accountId: args.accountId,
+          propertyId,
           keyLabel: "ROLOS",
           authUsername: login,
           authPassword: (args.password ?? "").trim() || RU_SUB_USER_PASSWORD,
         });
+
       };
       let ownerEmail: string | null = confirmedEmail ?? body.owner_email ?? null;
       let ownerName: string = confirmedName ?? body.owner_name ?? "";
