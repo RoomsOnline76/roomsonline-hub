@@ -1731,6 +1731,42 @@ export default function PMSDashboard() {
     return map;
   }, [portfolioDataByProperty, makeIsBlocked]);
 
+  /* Room-plan restriction lines: same markers the week/month grids draw, resolved by
+   * room type id (the room plan is id-keyed, overrides are name-keyed). */
+  const makeRestrictionMarkers = useCallback(
+    (types: { id: string; name: string }[], oMap: Map<string, AvailabilityOverride>) => {
+      const nameById = new Map(types.map(t => [t.id, t.name]));
+      return (roomTypeId: string, date: Date): RestrictionMarker[] => {
+        const name = nameById.get(roomTypeId);
+        if (!name) return [];
+        const at = (d: Date) => oMap.get(`${name}-${format(d, "yyyy-MM-dd")}`);
+        const current = at(date);
+        if (!current) return [];
+        return buildRestrictionMarkers(
+          current,
+          at(addDays(date, -1)),
+          at(addDays(date, 1)),
+          isBlockedOverride(current) ? formatBlockedTooltip(date, blockDetailOf(current)) : undefined,
+        );
+      };
+    },
+    [],
+  );
+
+  const roomTypeRestrictionMarkers = useMemo(
+    () => makeRestrictionMarkers(roomTypes, overrideMap),
+    [makeRestrictionMarkers, roomTypes, overrideMap],
+  );
+
+  const portfolioRestrictionMarkersByProperty = useMemo(() => {
+    const map = new Map<string, (roomTypeId: string, date: Date) => RestrictionMarker[]>();
+    portfolioDataByProperty.forEach((propData, propId) => {
+      map.set(propId, makeRestrictionMarkers(propData.roomTypes, propData.overrideMap));
+    });
+    return map;
+  }, [portfolioDataByProperty, makeRestrictionMarkers]);
+
+
 
   // Navigation
   const navigateBy = (dir: number) => {
