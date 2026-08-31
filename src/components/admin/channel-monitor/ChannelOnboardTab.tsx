@@ -1564,8 +1564,8 @@ export function ChannelOnboardTab({
                 ))}
               </div>
             )}
-            {propertyId && !accountProvisioned && !boundLogin && (
-              chosenLoginEmail ? (
+            {propertyId && !accountProvisioned && (
+              boundLogin || chosenLoginEmail ? (
                 <Button
                   variant="default"
                   size="sm"
@@ -1580,6 +1580,7 @@ export function ChannelOnboardTab({
                   Connect
 
                 </Button>
+
               ) : (
                 <Button
                   variant="outline"
