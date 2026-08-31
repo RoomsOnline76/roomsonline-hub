@@ -204,6 +204,46 @@ export function RestrictionSpanEditor({ span, open, onOpenChange, onChanged }: R
               </p>
             </div>
 
+            {span.nights > 1 && (
+              <div className="space-y-1.5 rounded-lg border border-border p-3">
+                <Label className="text-xs text-muted-foreground">
+                  {span.kind === "block" ? "Release part of this block" : "Lift this rule for part of the span"}
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="release-from" className="text-[11px]">First night</Label>
+                    <Input
+                      id="release-from"
+                      type="date"
+                      min={span.start}
+                      max={span.end}
+                      value={releaseFrom}
+                      onChange={(e) => setReleaseFrom(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="release-to" className="text-[11px]">Last night</Label>
+                    <Input
+                      id="release-to"
+                      type="date"
+                      min={span.start}
+                      max={span.end}
+                      value={releaseTo}
+                      onChange={(e) => setReleaseTo(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Button type="button" variant="secondary" size="sm" className="h-7 text-xs" disabled={busy} onClick={handleRelease}>
+                  <Unlock className="mr-1 h-3 w-3" />
+                  {span.kind === "block" ? "Release these nights" : "Lift for these nights"}
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  The rest of the span stays in place, and only the released nights are sent to the Channel Manager.
+                </p>
+              </div>
+            )}
+
+
             {valueLabel && (
               <div className="space-y-1.5">
                 <Label htmlFor="span-value">{valueLabel}</Label>
