@@ -177,6 +177,7 @@ export function RoomManagerTab({
       changeover: null as number | null,
 
       maxPeople: 2,
+      standardGuests: null as number | null,
       maxAdults: 2,
       maxChildren: 0,
       minStay: 1,
