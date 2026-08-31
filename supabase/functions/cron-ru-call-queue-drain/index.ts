@@ -166,8 +166,9 @@ Deno.serve(async (req) => {
               ...(p.force_availability === true ? { force_availability: true } : {}),
               verify_readback: false,
               verify_availability_readback: p.verify_availability_readback === true,
-
+            },
           });
+
           if (error) throw new Error(await invokeErrorMessage(error));
           if (data?.success === false) {
             const code = String(data?.error?.code ?? '');
