@@ -43,7 +43,7 @@ export const CHANNEL_ONBOARD_TASKS: ChannelOnboardTask[] = [
     step: "a",
     title: "Capture & verify account credentials",
     detail:
-      "Opens the capture window for the key pair created in the channel portal, then signs in with it so every later write is correctly scoped. Keys are never auto-generated.",
+      "On Manual, opens the capture window for the key pair created in the channel portal. On Auto, the account's first pair is minted automatically on its own login. Either way the pair is signed in with before any later write.",
   },
 
   {
