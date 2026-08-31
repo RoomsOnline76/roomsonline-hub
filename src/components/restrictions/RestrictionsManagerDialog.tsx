@@ -20,7 +20,7 @@ import {
   type RestrictionKind,
   type RestrictionSpan,
 } from "@/lib/restrictionSpans";
-import { RestrictionSpanEditor } from "./RestrictionSpanEditor";
+import { RestrictionSpanEditor, type RestrictionSpanChange } from "./RestrictionSpanEditor";
 
 interface RestrictionsManagerDialogProps {
   open: boolean;
