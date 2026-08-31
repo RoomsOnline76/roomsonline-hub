@@ -14,7 +14,6 @@ export interface RestrictionLike {
   is_available?: boolean | null;
   available_units?: number | null;
   block_reason?: string | null;
-  [key: string]: unknown;
 }
 
 export type RestrictionMarkerKind =
@@ -79,7 +78,8 @@ export function buildRestrictionMarkers(
     });
   }
 
-  const numeric: Array<{ kind: RestrictionMarkerKind; field: keyof RestrictionLike; unit: string; showValue: boolean }> = [
+  type NumericField = "minimum_stay" | "maximum_stay" | "lead_days_advance" | "lead_days_post";
+  const numeric: Array<{ kind: RestrictionMarkerKind; field: NumericField; unit: string; showValue: boolean }> = [
     { kind: "min_stay", field: "minimum_stay", unit: "nights", showValue: true },
     { kind: "max_stay", field: "maximum_stay", unit: "nights", showValue: true },
     { kind: "lead_advance", field: "lead_days_advance", unit: "days", showValue: false },
