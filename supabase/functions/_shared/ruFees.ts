@@ -139,13 +139,13 @@ function escapeXml(value: string): string {
  * supply a fee set at all (undefined/null) so legacy callers keep the old payload shape.
  */
 /**
- * Kill-switch: RU's Push_PutProperty request XSD is currently rejecting every shape of
- * <AdditionalFees>/<AdditionalFee> we send (both orderings, with and without Order/KindID),
- * answering a misleading status 18 "Property with given ID does not exist". The same payload was
- * accepted on 2026-08-30, so the schema changed on their side. Fees are optional content, so we
- * omit the block rather than lose the whole content push; re-enable once RU confirms the shape.
+ * The status 18 that looked like a fees-schema rejection was the channel refusing an UPDATE
+ * against a listing id that had been archived/deleted (dead ids cannot be reused — see
+ * mem://constraints/pms/no-reuse-of-dead-listing-ids). Inline fees are back on; the kill-switch
+ * stays here only as the lever to pull if RU ever really does reject the collection shape.
  */
-const RU_INLINE_FEES_DISABLED = true;
+const RU_INLINE_FEES_DISABLED = false;
+
 
 export function buildAdditionalFeesXml(fees: RuFeeEntry[] | null | undefined): string {
   if (!Array.isArray(fees)) return '';

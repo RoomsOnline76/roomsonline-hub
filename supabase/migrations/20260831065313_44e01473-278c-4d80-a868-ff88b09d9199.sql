@@ -1,0 +1,1 @@
+UPDATE public.properties SET rentalsunited_property_id = NULL WHERE id = 'c7351c08-79bc-4e13-a05d-3c1b280969b9' AND rentalsunited_property_id = '5973280';
