@@ -7641,6 +7641,10 @@ export default function PropertyForm({
               setIsDirty={setIsDirty}
               mealTypeSuggestions={mealTypeSuggestions}
               handleNewMealType={handleNewMealType}
+              propertyFacilities={selectedFacilities}
+              setPropertyFacilities={setSelectedFacilities}
+              setSeparateKitchen={setSeparateKitchen}
+
             />
             </>
             )}</DeferredWhen>
