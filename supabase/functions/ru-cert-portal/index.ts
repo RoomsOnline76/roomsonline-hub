@@ -4912,9 +4912,20 @@ Deno.serve(async (req) => {
       let deferral: { retryAfterMs: number; message: string; ruStatusId: string | null; ruStatusMessage: string | null } | null = null;
 
       for (const variant of variants) {
+        // Stamp the owner/property context: an unstamped exchange lands in `ru_api_log` with a
+        // null OwnerID and is therefore invisible in every property/account-scoped monitor view,
+        // which is why operators could not find the mint envelope at all.
         const { data, error: invokeError } = await admin.functions.invoke("rentalsunited-api", {
-          body: { action: "create_child_api_key", key_label: variant.keyLabel, ...variant.body },
+          body: {
+            action: "create_child_api_key",
+            key_label: variant.keyLabel,
+            owner_id: Number(opts.ownerId) || undefined,
+            property_id: opts.propertyId ?? undefined,
+            parent_action: "ru-cert-portal:mint_child_api_key",
+            ...variant.body,
+          },
         });
+
         const errBody = invokeError ? await readInvokeErrorBody(invokeError) : null;
         const rawMessage = String(data?.error?.message ?? errBody?.error?.message ?? invokeError?.message ?? "");
         const ruStatusId = data?.error?.ru_status_id ?? errBody?.error?.ru_status_id ?? null;
