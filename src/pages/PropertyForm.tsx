@@ -6370,139 +6370,28 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
-              {/* Composition — property-wide fallback for channel distribution */}
-              <Card>
-                <CardHeader className="py-2 px-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm">Composition (property-wide fallback)</CardTitle>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Info className="h-3 w-3" />
-                      Unit values in the Rooms tab take priority — these are used only where a unit has none
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="py-2 px-4">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Bedrooms</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="h-7 text-xs"
-                        value={propBedrooms}
-                        onChange={(e) => {
-                          setPropBedrooms(Math.max(0, parseInt(e.target.value) || 0));
-                          setIsDirty(true);
-                        }}
-                      />
-                      <p className="text-[10px] text-muted-foreground">Keep 0 for a studio</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">
-                        Bathrooms <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        className={cn("h-7 text-xs", propBathrooms === null && "border-destructive")}
-                        value={propBathrooms ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setPropBathrooms(v === "" ? null : Math.max(0, parseInt(v) || 0));
-                          setIsDirty(true);
-                        }}
-                      />
-                      <p className="text-[10px] text-muted-foreground">Or shower rooms</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">
-                        Toilets <span className="text-destructive">*</span>
-                      </Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        className={cn("h-7 text-xs", propToilets === null && "border-destructive")}
-                        value={propToilets ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setPropToilets(v === "" ? null : Math.max(0, parseInt(v) || 0));
-                          setIsDirty(true);
-                        }}
-                      />
-                      <p className="text-[10px] text-muted-foreground">Separate from bathrooms</p>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Separate kitchen</Label>
-                      <div className="flex items-center gap-2 pt-1">
-                        <Switch
-                          id="separate_kitchen"
-                          checked={separateKitchen}
-                          onCheckedChange={(c) => {
-                            setSeparateKitchen(c);
-                            // One fact, one meaning: the channel publishes "Separate kitchen"
-                            // from the Kitchen amenity, so keep the selection in step.
-                            setSelectedFacilities((prev) => withSeparateKitchen(prev, c));
-                            setIsDirty(true);
-                          }}
-                        />
-                        <Label htmlFor="separate_kitchen" className="text-xs cursor-pointer">
-                          {separateKitchen ? "Yes" : "No"}
-                        </Label>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Kitchen / cooking area / kitchenette — may be outside the unit
-                      </p>
-                    </div>
-                  </div>
-                  {(propBathrooms === null || propToilets === null) && (
-                    <p className="mt-2 text-[11px] text-destructive">
-                      Bathrooms and toilets are mandatory for Channel Manager and OTA distribution.
-                      Capture them per unit in the Rooms tab, or here as the property-wide fallback.
-                    </p>
-                  )}
-
-                </CardContent>
-              </Card>
-
-              {/* Property Amenities & Facilities — Rentals United aligned */}
-              <Card>
+              {/*
+                Website-only facilities. Everything the Channel Manager consumes — the RU-aligned
+                property amenity list and the per-unit composition (bedrooms / bathrooms / toilets /
+                kitchen) — is authored in the Rooms tab, so it is not duplicated here.
+              */}
+              <Card data-field="facilities">
                 <CardHeader className="py-2 px-4">
                   <div className="flex items-center justify-between gap-3">
-                    <CardTitle className="text-sm">Property Amenities &amp; Facilities</CardTitle>
-                    <div className="flex items-center gap-3">
-                      <div className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Info className="h-3 w-3" />
-                        Channel amenities first — the selection is pushed to the Channel Manager and OTAs
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs shrink-0"
-                        disabled={!propertyId}
-                        title={
-                          propertyId
-                            ? "Let TOBI review the property website and ROLOS data to propose amenities"
-                            : "Save the property first"
-                        }
-                        onClick={() => setAiAmenityOpen(true)}
-                      >
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        TOBI amenity check
-                      </Button>
+                    <CardTitle className="text-sm">Website Facilities (ROL'OS listing only)</CardTitle>
+                    <div className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      Channel amenities and unit composition live in the Rooms tab
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="py-2 px-4">
                   <RUAmenityPicker
                     scope="property"
+                    extrasOnly
                     value={selectedFacilities}
                     onChange={(next) => {
                       setSelectedFacilities(next);
-                      // Selecting/clearing the Kitchen amenity is the same statement as the
-                      // "Separate kitchen" toggle above — mirror it so ROLOS matches the listing.
-                      setSeparateKitchen(hasSeparateKitchen(next));
                       setIsDirty(true);
                     }}
                     extraGroups={ROLOS_ONLY_FACILITY_GROUPS}
@@ -6510,19 +6399,6 @@ export default function PropertyForm({
                 </CardContent>
               </Card>
 
-              {propertyId && (
-                <AiAmenityDialog
-                  open={aiAmenityOpen}
-                  onOpenChange={setAiAmenityOpen}
-                  propertyId={propertyId}
-                  websiteUrl={formData.property_url || undefined}
-                  currentPropertyFacilities={selectedFacilities}
-                  onApplyProperty={(next) => {
-                    setSelectedFacilities(next);
-                    setIsDirty(true);
-                  }}
-                />
-              )}
 
 
               {/* Breakfast Options */}
