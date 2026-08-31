@@ -1588,28 +1588,59 @@ export function RoomManagerTab({
                 </div>
               );
             })()}
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Info className="h-3 w-3" />
                 Channel amenities first — this unit's selection is pushed to the Channel Manager and OTAs
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs shrink-0"
-                disabled={!propertyId || !selectedRoomType}
-                title={
-                  propertyId
-                    ? "Let TOBI review the property website, photos and ROLOS data to propose amenities for this unit"
-                    : "Save the property first"
-                }
-                onClick={() => setAiUnitAmenityOpen(true)}
-              >
-                <Sparkles className="h-3 w-3 mr-1" />
-                TOBI amenity check
-              </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                {roomTypes.length > 1 && (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!selectedRoomType}
+                      title="Add this unit's amenities to every other unit, keeping their existing selections"
+                      onClick={() => copyAmenitiesToAllRooms(selectedRoomType, "merge")}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy to all (merge)
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={!selectedRoomType}
+                      title="Replace every other unit's amenities with this unit's selection"
+                      onClick={() => copyAmenitiesToAllRooms(selectedRoomType, "overwrite")}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Overwrite all
+                    </Button>
+                  </>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs shrink-0"
+                  disabled={!propertyId || !selectedRoomType}
+                  title={
+                    propertyId
+                      ? "Let TOBI review the property website, photos and ROLOS data to propose amenities for this unit"
+                      : "Save the property first"
+                  }
+                  onClick={() => setAiUnitAmenityOpen(true)}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  TOBI amenity check
+                </Button>
+              </div>
             </div>
+
             <div
               data-field="room_amenities"
               className={channelMandatoryClass("room_amenities")}
