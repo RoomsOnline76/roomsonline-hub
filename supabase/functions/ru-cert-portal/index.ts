@@ -4839,7 +4839,10 @@ Deno.serve(async (req) => {
       ownerId: string;
       loginEmail: string | null;
       accountId?: string | null;
+      /** Property this mint belongs to, so the wire log is visible in property-scoped views. */
+      propertyId?: string | null;
       keyLabel?: string;
+
       authAccessKey?: string | null;
       authSecretKey?: string | null;
       authUsername?: string | null;
