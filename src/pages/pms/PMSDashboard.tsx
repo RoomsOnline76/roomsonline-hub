@@ -28,6 +28,7 @@ import { usePMSBrand } from "@/contexts/PMSBrandContext";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
 import { RestrictionsManagerDialog } from "@/components/restrictions/RestrictionsManagerDialog";
 import { invalidateRestrictionQueries } from "@/lib/restrictionRefresh";
+import { buildRestrictionMarkers, type RestrictionMarker } from "@/lib/restrictionMarkers";
 import { BulkMinimumStayDialog } from "@/components/BulkMinimumStayDialog";
 import { BulkMaximumStayDialog } from "@/components/BulkMaximumStayDialog";
 import { BulkLeadDaysAdvanceDialog } from "@/components/BulkLeadDaysAdvanceDialog";
@@ -2367,6 +2368,7 @@ export default function PMSDashboard() {
                           isHoliday={getHolidayName}
                           getRateForDate={(rtId, date) => getPortfolioRateForDate(prop.id, rtId, date)}
                           isBlocked={portfolioIsBlockedByProperty.get(prop.id)}
+                          getRestrictionMarkers={portfolioRestrictionMarkersByProperty.get(prop.id)}
                           onEditBlock={openBlockEditor(planRoomTypes, prop.id)}
                           onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                           onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
@@ -2397,6 +2399,7 @@ export default function PMSDashboard() {
                   isHoliday={getHolidayName}
                   getRateForDate={getRateForDate}
                   isBlocked={isRoomTypeBlocked}
+                  getRestrictionMarkers={roomTypeRestrictionMarkers}
                   onEditBlock={openBlockEditor(visibleRoomTypes, propertyId)}
                   onSelectBooking={(b) => openBookingSheet(b as unknown as BookingRow)}
                   onQuickAction={(b, action) => handleQuickAction(b as unknown as BookingRow, action)}
