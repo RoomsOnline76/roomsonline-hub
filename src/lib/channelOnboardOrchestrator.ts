@@ -675,7 +675,7 @@ const RUNNERS: Record<ChannelOnboardTaskId, TaskRunner> = {
         id: "api_keys",
         outcome: "blocked",
         code: "RU_MANUAL_KEYS_REQUIRED",
-        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}`,
+        detail: `${accountLabel ? `${accountLabel}: ` : ""}Login and password stored and verified — now paste the AccessKey and SecretKey created in the channel portal.${trailText}${autoNote}`,
       };
     }
 
