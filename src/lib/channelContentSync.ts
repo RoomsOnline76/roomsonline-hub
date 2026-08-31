@@ -145,6 +145,8 @@ export async function queueChannelRatesSync(
         ...(options.dateFrom ? { date_from: options.dateFrom } : {}),
         ...(options.dateTo ? { date_to: options.dateTo } : {}),
         ...(options.onlyUnitIds && options.onlyUnitIds.length > 0 ? { only_unit_ids: options.onlyUnitIds } : {}),
+        ...(options.forceAvailability ? { force_availability: true } : {}),
+
         ...(options.verifyAvailabilityReadback ? { verify_availability_readback: true } : {}),
       },
     });
