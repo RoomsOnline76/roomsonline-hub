@@ -4290,7 +4290,14 @@ Deno.serve(async (req) => {
       }
       if (canonicalNames.size === 0) return dedupedRoomTypes;
       return dedupedRoomTypes
-        .filter((rt) => canonicalNames.has(String((rt as any).name || '').trim().toLowerCase()))
+        // A unit already published at the channel is never dropped by the name filter: a rename
+        // on either side would otherwise orphan it and silently degrade the push to
+        // property-level fallback values (0 beds → "not ready").
+        .filter((rt) =>
+          canonicalNames.has(String((rt as any).name || '').trim().toLowerCase())
+          || String((rt as any).rentalsunited_property_id || '').trim() !== '',
+        )
+
         .map((rt) => {
           const key = String((rt as any).name || '').trim().toLowerCase();
           const canon = (canonical as Array<Record<string, unknown>>).find((row) =>
