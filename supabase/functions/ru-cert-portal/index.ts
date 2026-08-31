@@ -9874,14 +9874,14 @@ Deno.serve(async (req) => {
       if (saveErr) return json({ success: false, error: { code: "SAVE_FAILED", message: saveErr.message } }, 500);
 
       /** §2: after Push_CreateUser_RQ, persist password + one ListOwnerProp probe — no mint, no wait. */
-      let keySource: "existing" | "password_verified" | "blocked" = "blocked";
+      let keySource: "existing" | "password_verified" | "minted" | "deferred" | "blocked" = "blocked";
 
       let mintedAccessKey: string | null = null;
       let keyWarning: string | null = null;
       let keyCode: string | null = null;
       let keyRuStatusId: string | null = null;
       let keyRuStatusMessage: string | null = null;
-      const keyRetryAfterMs: number | null = null;
+      let keyRetryAfterMs: number | null = null;
       // Step A never provisions a replacement sub-account: one run, one account.
 
       const keyAttempts: string[] = [];
@@ -9898,6 +9898,31 @@ Deno.serve(async (req) => {
         if (existingCred?.access_key) {
           keySource = "existing";
           mintedAccessKey = String(existingCred.access_key);
+        } else if (autoKeyMode) {
+          // Auto mode: the login/password just created in this run is the mint envelope.
+          const minted = await tryAutoMint({
+            ownerId: savedOwnerId,
+            loginEmail: savedLoginEmail,
+            accountId: (saved as any)?.id ?? null,
+            password: password ?? null,
+          });
+          if (minted.ok) {
+            keySource = "minted";
+            mintedAccessKey = (minted as any).accessKey ?? null;
+            keyAttempts.push(`Minted a key pair as ${savedLoginEmail}`);
+          } else if ((minted as any).rateDeferred) {
+            keySource = "deferred";
+            keyRetryAfterMs = (minted as any).retryAfterMs ?? null;
+            keyWarning = "The channel rate-limited the key request — waiting for the window to reopen.";
+            keyAttempts.push("Key mint deferred by the channel rate window");
+          } else {
+            keySource = "blocked";
+            keyCode = "RU_MANUAL_KEYS_REQUIRED";
+            keyRuStatusId = (minted as any).ruStatusId ?? null;
+            keyRuStatusMessage = (minted as any).ruStatusMessage ?? null;
+            keyWarning = `Sub-account ${savedLoginEmail ?? `OwnerID ${savedOwnerId}`}: automatic key creation was refused (${(minted as any).message ?? (minted as any).code ?? "no reason given"}). Paste its AccessKey and SecretKey from the channel portal to continue.`;
+            keyAttempts.push(`Mint refused: ${(minted as any).code ?? (minted as any).ruStatusId ?? "unknown"}`);
+          }
         } else {
           keySource = "blocked";
           keyCode = "RU_MANUAL_KEYS_REQUIRED";
