@@ -129,13 +129,18 @@ export function RoomManagerTab({
   setIsDirty,
   mealTypeSuggestions,
   handleNewMealType,
+  propertyFacilities,
+  setPropertyFacilities,
+  setSeparateKitchen,
 }: RoomManagerTabProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
+  const [aiPropertyAmenityOpen, setAiPropertyAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
+
 
   useEffect(() => {
     const requestedRoom = searchParams.get("room")?.trim().toLowerCase();
