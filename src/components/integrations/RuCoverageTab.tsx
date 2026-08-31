@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Download, FileText, RefreshCw } from "lucide-react";
+import { RuFeeAuditPanel } from "@/components/integrations/RuFeeAuditPanel";
 
 type Rag = "green" | "amber" | "red" | "grey";
 
@@ -346,6 +347,10 @@ export function RuCoverageTab() {
           />
         </div>
       )}
+
+      <RuFeeAuditPanel />
+
+
 
       {grouped.map((group) => (
         <Card key={group.key}>
