@@ -214,8 +214,10 @@ export async function queueRuAriDelta(
         ...(options.dateTo ? { ari_date_to: options.dateTo } : {}),
         verify_readback: false,
         verify_availability_readback: options.verifyAvailabilityReadback === true,
-        // A booking must close the sold nights even if a hash race says availability is unchanged.
-        ...(options.force ? { force_availability: true } : {}),
+        // A booking must close the sold nights, and a reopen must open them, even if a hash race
+        // says availability is unchanged.
+        ...(options.force || options.forceAvailability ? { force_availability: true } : {}),
+
       },
     });
     // A 422 gate refusal surfaces as an "error" with the structured body on error.context.
