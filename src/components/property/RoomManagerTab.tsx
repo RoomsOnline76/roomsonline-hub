@@ -1730,6 +1730,53 @@ export function RoomManagerTab({
             })()}
           </TabsContent>
 
+          {/* Property Amenities Sub-tab — property-wide facilities, never copied onto units */}
+          {setPropertyFacilities && (
+            <TabsContent value="property-amenities" className="p-6 space-y-4">
+              <div className="bg-muted border border-border rounded-md p-2">
+                <p className="text-sm text-muted-foreground">
+                  Property-wide amenities (pool, parking, reception…). These publish against the property record only —
+                  each unit's own amenities are authored in the Unit Amenities tab and are never inherited from here.
+                </p>
+              </div>
+              <div className="flex items-center justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={!propertyId}
+                  title={propertyId ? "Let TOBI propose property-wide amenities" : "Save the property first"}
+                  onClick={() => setAiPropertyAmenityOpen(true)}
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  TOBI amenity check
+                </Button>
+              </div>
+              <div data-field="property_amenities" className={channelMandatoryClass("property_amenities")}>
+                <RUAmenityPicker
+                  scope="property"
+                  value={propertyFacilities ?? []}
+                  onChange={(next) => {
+                    setPropertyFacilities(next);
+                    setSeparateKitchen?.(hasSeparateKitchen(next));
+                    setIsDirty(true);
+                  }}
+                />
+              </div>
+              {propertyId && (
+                <AiAmenityDialog
+                  open={aiPropertyAmenityOpen}
+                  onOpenChange={setAiPropertyAmenityOpen}
+                  propertyId={propertyId}
+                  websiteUrl={propertyWebsiteUrl || undefined}
+                />
+              )}
+            </TabsContent>
+          )}
+
+
+
 
           {/* Room Images Sub-tab */}
           <TabsContent value="room-images" className="p-6 space-y-4">
