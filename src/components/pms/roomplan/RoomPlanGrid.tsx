@@ -15,8 +15,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatBlockedTooltip, type BlockDetail } from "@/lib/blockAttribution";
+import {
+  restrictionMarkerRounding,
+  type RestrictionMarker,
+} from "@/lib/restrictionMarkers";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RoomPlanBar, RoomPlanBooking, RoomPlanCancelContext } from "./RoomPlanBar";
 import type { BookingUnitLine } from "@/hooks/useBookingRoomLines";
+
 import {
   ROOM_PLAN_COL_W,
   ROOM_PLAN_COL_W_COMPACT,
