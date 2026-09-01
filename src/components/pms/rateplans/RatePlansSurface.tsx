@@ -324,6 +324,16 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                     No live rate set
                   </Badge>
                 )}
+                {plan.los_enabled && (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground" title="Length-of-stay rungs are authored on this plan">
+                    LOS
+                  </Badge>
+                )}
+                {plan.fsp_enabled && (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground" title="Full-stay cells are authored on this plan">
+                    Full stay
+                  </Badge>
+                )}
                 {plan.is_active === false && (
                   <Badge variant="outline" className="ml-2 text-xs text-muted-foreground">Inactive</Badge>
                 )}
