@@ -19,6 +19,7 @@
 import {
   normalizePricingInputs,
   resolveNightRates,
+  stayQuote,
   type DifferentialType,
   type FspCell,
   type LosRung,
@@ -28,6 +29,8 @@ import {
   type PricingInputs,
   type PricingRatePlan,
   type PricingSeason,
+  type StayQuote,
+  type StayQuoteInput,
 } from "./ratePricing.ts";
 
 export type RateSource =
@@ -132,6 +135,12 @@ export interface RateResolver {
   pricingInputs?: PricingInputs;
 
   resolveDays: (unit: UnitRateContext, from: string, to: string) => DayRate[];
+  /**
+   * Stay-level quote (nightly / length-of-stay / full-stay) for one unit.
+   * Thin wrapper over the pure `stayQuote` using the snapshot already loaded here.
+   * With both ladder flags off it returns exactly today's nightly total.
+   */
+  quoteStay: (unit: UnitRateContext, stay: StayQuoteInput) => StayQuote;
   coverage: (days: DayRate[]) => RateCoverage;
   /**
    * Units whose `linked_rolos_id` resolves to no rate plan, rack rate or daily rate at all —
@@ -612,6 +621,12 @@ export async function createRateResolver(
     return resolveNightRates(inputs, unit, from, to);
   };
 
+  const quoteStay = (unit: UnitRateContext, stay: StayQuoteInput): StayQuote => {
+    const rolosId = unit?.linked_rolos_id ? String(unit.linked_rolos_id) : null;
+    const plan = rolosId ? ratePlans[rolosId] ?? null : null;
+    return stayQuote(pricingInputs, unit, plan, stay);
+  };
+
   const coverage = (days: DayRate[]): RateCoverage => {
     const count = (source: RateSource) => days.filter((d) => d.source === source).length;
     return {
@@ -651,6 +666,7 @@ export async function createRateResolver(
     ratePlans,
     pricingInputs,
     resolveDays,
+    quoteStay,
     coverage,
     unlinkedUnits,
   };
