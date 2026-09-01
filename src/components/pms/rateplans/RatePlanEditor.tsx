@@ -18,10 +18,12 @@ import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
+import { RatePlanStayShapeSection } from "./RatePlanStayShapeSection";
 import {
   draftToPayload,
   emptyDraft,
   canonicalPricingModel,
+  ladderIssues,
   ratePlanDraftReducer,
   readCalendarSeasons,
   type CalendarSeason,
@@ -31,6 +33,7 @@ import {
   type RatePlanDraft,
   pricingNoun,
 } from "./ratePlanDraft";
+
 
 
 
