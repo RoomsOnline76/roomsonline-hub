@@ -1028,38 +1028,6 @@ Deno.serve(async (req) => {
       return json(result);
     }
 
-    if (action === "season_rate_matrix") {
-      const propertyId = String(body?.property_id ?? "");
-      const denied = await assertAccess(propertyId);
-      if (denied) return json({ error: denied }, 403);
-      const result = await seasonRateMatrix(sb, propertyId, (body?.draft ?? {}) as Draft);
-      return json(result);
-    }
-
-    if (action === "legacy_rate_audit") {
-      const propertyId = String(body?.property_id ?? "");
-      const ratePlanId = String(body?.rate_plan_id ?? "");
-      const denied = await assertAccess(propertyId);
-      if (denied) return json({ error: denied }, 403);
-      if (ratePlanId) return json(await legacyRateAudit(sb, propertyId, ratePlanId));
-      return json(await propertyLegacyRateAudit(sb, propertyId));
-    }
-
-    if (action === "migrate_calendar_rates") {
-      const propertyId = String(body?.property_id ?? "");
-      const ratePlanId = String(body?.rate_plan_id ?? "");
-      const denied = await assertAccess(propertyId);
-      if (denied) return json({ error: denied }, 403);
-      const dryRun = body?.dry_run === true;
-      if (!ratePlanId) {
-        const result = await migratePropertyCalendarRates(sb, propertyId, dryRun);
-        if ((result as any).error) return json(result, 400);
-        return json(result);
-      }
-      const result = await migrateCalendarRates(sb, propertyId, ratePlanId, dryRun);
-      if ((result as any).error) return json(result, 400);
-      return json(result);
-    }
 
 
 
