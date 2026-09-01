@@ -234,6 +234,11 @@ export async function createRateResolver(
     window?: { from: string; to: string };
     /** "direct" prices the website/checkout, "channels" the Channel Manager / OTA push. */
     audience?: "direct" | "channels";
+    /**
+     * Preview scope only: price every unit this plan is linked to from THIS plan,
+     * instead of the property's primary/live plan. Production callers omit it.
+     */
+    preferRatePlanId?: string | null;
   } = {},
 ): Promise<RateResolver> {
   let amenities = opts.amenities ?? null;
