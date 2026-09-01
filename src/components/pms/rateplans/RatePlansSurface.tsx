@@ -450,12 +450,12 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             {/* Own click space: date navigation must not bubble up to the card's edit handler. */}
             <div onClick={(e) => e.stopPropagation()} role="presentation">
               <RatePlanRateMatrix
-                ratePlanId={plan.id}
+                plans={matrixPlans}
                 units={gridUnits}
                 rows={planRateRows}
-                baseRate={plan.base_rate}
                 seasonColors={seasonColors}
               />
+
             </div>
           </CardContent>
         </Card>
