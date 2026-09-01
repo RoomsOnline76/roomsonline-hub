@@ -299,6 +299,8 @@ async function previewDraft(
     stay: { min_stay: number; max_stay: number | null };
   }[] = [];
 
+  const draftParentId = draft.derived_from_plan_id ? String(draft.derived_from_plan_id) : null;
+
   for (const unit of draftUnits) {
     const rolosId = String(unit.room_type_id);
     const resolved = resolver.units.find((u) => String(u.linked_rolos_id ?? "") === rolosId);
@@ -317,6 +319,12 @@ async function previewDraft(
       max_stay: intOrNull(draft.max_stay),
       differential_type: unit.differential_type ?? "none",
       differential_value: unit.differential_value ?? null,
+      // A derived draft must track its parent in the preview exactly as the saved
+      // plan does — otherwise the offset lands on the draft's own base rate.
+      derived_from_plan_id: draftParentId,
+      derivation_type: draftParentId ? (draft.derivation_type === "amount" ? "amount" : "percent") : null,
+      derivation_value: draftParentId ? (num(draft.derivation_value) ?? 0) : null,
+      derivation_rounding: draftParentId ? (draft.derivation_rounding ?? null) : null,
     };
 
     // Draft plan season rates (tier 3), keyed to Calendar seasons.
@@ -326,13 +334,25 @@ async function previewDraft(
     const seasonBucket: Record<string, { roomAmount: number; adultAmount?: number }> = {};
     for (const sr of draft.season_rates ?? []) {
       if (!sr?.calendar_season_id) continue;
+      const cell = seasonUnitValue(sr, rolosId);
+      if (draftParentId) {
+        // Derived: a typed absolute is a pin, anything else is an offset override.
+        const pinned = sr.mode === "absolute" ? (cell ?? positive(sr.base_rate)) : null;
+        planSeasons.push({
+          calendar_season_id: String(sr.calendar_season_id),
+          base_rate: pinned ?? null,
+          is_pinned: Boolean(pinned),
+          derivation_value: pinned ? null : (cell ?? sr.derivation_value ?? null),
+          extra_adult_rate: positive(sr.extra_adult_rate),
+        });
+        continue;
+      }
       const amount = draftSeasonAmount(draft, sr, unit);
       if (amount === null) continue;
       seasonBucket[`${sr.calendar_season_id}-${planId}`] = {
         roomAmount: amount,
         adultAmount: positive(sr.extra_adult_rate) ?? undefined,
       };
-      const cell = seasonUnitValue(sr, rolosId);
       planSeasons.push({
         calendar_season_id: String(sr.calendar_season_id),
         base_rate: sr.mode === "differential" ? null : (cell ?? positive(sr.base_rate)),
@@ -350,6 +370,7 @@ async function previewDraft(
       ratePlans: { ...baseInputs.ratePlans, [rolosId]: plan },
       planSeasonRates: { ...baseInputs.planSeasonRates, [rolosId]: planSeasons },
     };
+
 
     const days = resolveNightRates(inputs, ctx, window.from, window.to);
     const stay = resolveStayRules(inputs, ctx, window.from, window.from);
