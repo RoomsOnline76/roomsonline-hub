@@ -94,7 +94,42 @@ interface Draft {
   derivation_rounding?: string | null;
   units?: DraftUnit[];
   season_rates?: DraftSeasonRate[];
+  /**
+   * Stay-shape ladders (Phase 0 contract). ABSENT keys are a strict no-op: the
+   * flags are left as they are and no child row is touched, so the current editor
+   * payload can never wipe an authored ladder.
+   */
+  los_enabled?: boolean;
+  fsp_enabled?: boolean;
+  los_rungs?: DraftLosRung[];
+  fsp_cells?: DraftFspCell[];
 }
+
+interface DraftStayWindow {
+  room_type_id?: string | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+interface DraftLosRung extends DraftStayWindow {
+  nights?: number | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_rate?: number | null;
+}
+
+interface DraftFspCell extends DraftStayWindow {
+  nights?: number | null;
+  nr_of_guests?: number | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_total?: number | null;
+}
+
+
 
 
 const num = (v: unknown): number | null => {
