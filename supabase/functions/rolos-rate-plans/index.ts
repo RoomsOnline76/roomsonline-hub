@@ -746,11 +746,20 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
 
   // --- Stay-shape ladders (LOS rungs / Full Stay cells) --------------------
   // Present key = replace the whole set for this plan. Absent key = untouched.
-  if (Array.isArray(draft.los_rungs)) {
+  // An explicit `false` flag also clears that ladder, so rows can never survive
+  // behind a switch that is off.
+  const losOff = draft.los_enabled === false;
+  const fspOff = draft.fsp_enabled === false;
+
+  if (losOff) {
+    await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
+  } else if (Array.isArray(draft.los_rungs)) {
     const rows: Record<string, unknown>[] = [];
     for (const r of draft.los_rungs) {
       const nights = intOrNull(r?.nights);
-      if (nights === null || nights < 1) continue;
+      if (nights === null || nights < 1 || nights !== Number(r?.nights)) {
+        return { error: "Every length-of-stay rung needs a whole number of nights, 1 or more" };
+      }
       const seasonId = r?.calendar_season_id ? String(r.calendar_season_id) : null;
       const from = r?.start_date || null;
       const to = r?.end_date || null;
@@ -763,9 +772,14 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (pinned && pinnedRate === null) {
         return { error: `The ${nights}-night rung is pinned but has no rate` };
       }
+      const derivationType = r?.derivation_type === "amount" ? "amount" : "percent";
       const derivationValue = num(r?.derivation_value);
       if (!pinned && derivationValue === null) {
         return { error: `The ${nights}-night rung needs an adjustment value` };
+      }
+      // A -100% (or worse) offset would zero the nightly out. Refuse it.
+      if (!pinned && derivationType === "percent" && (derivationValue as number) <= -100) {
+        return { error: `The ${nights}-night rung discount cannot be 100% or more` };
       }
       rows.push({
         rate_plan_id: planId,
@@ -774,11 +788,14 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         start_date: from,
         end_date: to,
         nights,
-        derivation_type: r?.derivation_type === "amount" ? "amount" : "percent",
+        derivation_type: derivationType,
         derivation_value: derivationValue ?? 0,
         is_pinned: pinned,
         pinned_rate: pinned ? pinnedRate : null,
       });
+    }
+    if (draft.los_enabled === true && rows.length === 0) {
+      return { error: "Add at least one length-of-stay rung, or turn it off" };
     }
     await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
     if (rows.length > 0) {
@@ -787,12 +804,19 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     }
   }
 
-  if (Array.isArray(draft.fsp_cells)) {
+  if (fspOff) {
+    await sb.from("rolos_rate_plan_fsp_cells").delete().eq("rate_plan_id", planId);
+  } else if (Array.isArray(draft.fsp_cells)) {
     const rows: Record<string, unknown>[] = [];
     for (const c of draft.fsp_cells) {
       const nights = intOrNull(c?.nights);
       const guests = intOrNull(c?.nr_of_guests);
-      if (nights === null || nights < 1 || guests === null || guests < 1) continue;
+      if (nights === null || nights < 1 || nights !== Number(c?.nights)) {
+        return { error: "Every full-stay cell needs a whole number of nights, 1 or more" };
+      }
+      if (guests === null || guests < 1 || guests !== Number(c?.nr_of_guests)) {
+        return { error: "Every full-stay cell needs a whole number of guests, 1 or more" };
+      }
       const seasonId = c?.calendar_season_id ? String(c.calendar_season_id) : null;
       const from = c?.start_date || null;
       const to = c?.end_date || null;
@@ -801,12 +825,16 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       }
       const pinned = c?.is_pinned === true;
       const pinnedTotal = positive(c?.pinned_total);
+      const derivationType = c?.derivation_type === "amount" ? "amount" : "percent";
       const derivationValue = num(c?.derivation_value);
       if (pinned && pinnedTotal === null) {
         return { error: `The ${nights}-night / ${guests}-guest cell is pinned but has no total` };
       }
       if (!pinned && derivationValue === null) {
         return { error: `The ${nights}-night / ${guests}-guest cell needs an adjustment value` };
+      }
+      if (!pinned && derivationType === "percent" && (derivationValue as number) <= -100) {
+        return { error: `The ${nights}-night / ${guests}-guest cell discount cannot be 100% or more` };
       }
       rows.push({
         rate_plan_id: planId,
@@ -817,11 +845,14 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         nights,
         nr_of_guests: guests,
         // A pinned cell carries no derivation; a derived cell carries no total.
-        derivation_type: pinned ? null : (c?.derivation_type === "amount" ? "amount" : "percent"),
+        derivation_type: pinned ? null : derivationType,
         derivation_value: pinned ? null : derivationValue,
         is_pinned: pinned,
         pinned_total: pinned ? pinnedTotal : null,
       });
+    }
+    if (draft.fsp_enabled === true && rows.length === 0) {
+      return { error: "Add at least one full-stay cell, or turn it off" };
     }
     await sb.from("rolos_rate_plan_fsp_cells").delete().eq("rate_plan_id", planId);
     if (rows.length > 0) {
@@ -829,6 +860,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (fspErr) return { error: `Saved the plan but could not store the full-stay grid: ${fspErr.message}` };
     }
   }
+
 
 
 

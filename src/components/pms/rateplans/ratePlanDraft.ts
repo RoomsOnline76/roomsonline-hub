@@ -53,6 +53,32 @@ export interface DraftSeasonRate {
   unit_rates: Record<string, string>;
 }
 
+/**
+ * One length-of-stay rung: from N nights in a season, the nightly is offset off the
+ * daily rate (or pinned outright). Daily stays the parent — this is a derived product.
+ */
+export interface DraftLosRung {
+  calendar_season_id: string;
+  nights: string;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  is_pinned: boolean;
+  /** Nightly amount, only used when pinned. */
+  pinned_rate: string;
+}
+
+/** One full-stay cell: nights x guests in a season, quoted as a single stay total. */
+export interface DraftFspCell {
+  calendar_season_id: string;
+  nights: string;
+  nr_of_guests: string;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  is_pinned: boolean;
+  /** Stay total, only used when pinned. */
+  pinned_total: string;
+}
+
 
 export interface RatePlanDraft {
   rate_plan_id: string | null;
@@ -89,7 +115,14 @@ export interface RatePlanDraft {
   derivation_rounding: string;
   units: DraftUnit[];
   season_rates: DraftSeasonRate[];
+  /** Length-of-stay ladder: off by default, derived from the daily rate when on. */
+  los_enabled: boolean;
+  los_rungs: DraftLosRung[];
+  /** Full-stay grid: off by default, derived from the daily stay total when on. */
+  fsp_enabled: boolean;
+  fsp_cells: DraftFspCell[];
 }
+
 
 export const emptyDraft = (): RatePlanDraft => ({
   rate_plan_id: null,
@@ -117,7 +150,12 @@ export const emptyDraft = (): RatePlanDraft => ({
   derivation_rounding: "nearest_10",
   units: [],
   season_rates: [],
+  los_enabled: false,
+  los_rungs: [],
+  fsp_enabled: false,
+  fsp_cells: [],
 });
+
 
 /** Preview the nightly price a derived plan produces off a parent amount. */
 export function derivedPreview(
@@ -153,7 +191,33 @@ export type DraftAction =
    * Seed the matrix from the rates the live booking engine resolves today. Only the
    * seasons in `matrix` are touched; `calendarSeasonId` limits it to one column.
    */
-  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string };
+  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string }
+  /** Stay-shape ladders. Rows are positional — the editor renders them in order. */
+  | { type: "add_los_rung"; calendarSeasonId: string }
+  | { type: "patch_los_rung"; index: number; patch: Partial<DraftLosRung> }
+  | { type: "remove_los_rung"; index: number }
+  | { type: "add_fsp_cell"; calendarSeasonId: string }
+  | { type: "patch_fsp_cell"; index: number; patch: Partial<DraftFspCell> }
+  | { type: "remove_fsp_cell"; index: number };
+
+export const newLosRung = (calendarSeasonId: string): DraftLosRung => ({
+  calendar_season_id: calendarSeasonId,
+  nights: "3",
+  derivation_type: "percent",
+  derivation_value: "-10",
+  is_pinned: false,
+  pinned_rate: "",
+});
+
+export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
+  calendar_season_id: calendarSeasonId,
+  nights: "7",
+  nr_of_guests: "2",
+  derivation_type: "percent",
+  derivation_value: "-20",
+  is_pinned: false,
+  pinned_total: "",
+});
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -167,6 +231,7 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
 });
 
 
+
 /** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
 const promoted = (rate: DraftSeasonRate, value: string): DraftSeasonRate =>
   rate.mode === "none" && value !== "" ? { ...rate, mode: "absolute" } : rate;
@@ -177,8 +242,15 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
     case "reset":
       return action.draft;
 
-    case "field":
-      return { ...state, [action.key]: action.value } as RatePlanDraft;
+    case "field": {
+      const next = { ...state, [action.key]: action.value } as RatePlanDraft;
+      // Switching a ladder off drops its rows in the same reduction, so a save can
+      // never leave authored rows sitting behind a false flag.
+      if (action.key === "los_enabled" && action.value !== true) next.los_rungs = [];
+      if (action.key === "fsp_enabled" && action.value !== true) next.fsp_cells = [];
+      return next;
+    }
+
 
     case "toggle_unit": {
       const exists = state.units.some((u) => u.room_type_id === action.roomTypeId);
@@ -296,6 +368,31 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
         }),
       };
     }
+
+    case "add_los_rung":
+      return { ...state, los_rungs: [...state.los_rungs, newLosRung(action.calendarSeasonId)] };
+
+    case "patch_los_rung":
+      return {
+        ...state,
+        los_rungs: state.los_rungs.map((r, i) => (i === action.index ? { ...r, ...action.patch } : r)),
+      };
+
+    case "remove_los_rung":
+      return { ...state, los_rungs: state.los_rungs.filter((_, i) => i !== action.index) };
+
+    case "add_fsp_cell":
+      return { ...state, fsp_cells: [...state.fsp_cells, newFspCell(action.calendarSeasonId)] };
+
+    case "patch_fsp_cell":
+      return {
+        ...state,
+        fsp_cells: state.fsp_cells.map((c, i) => (i === action.index ? { ...c, ...action.patch } : c)),
+      };
+
+    case "remove_fsp_cell":
+      return { ...state, fsp_cells: state.fsp_cells.filter((_, i) => i !== action.index) };
+
 
     default:
       return state;
@@ -463,8 +560,120 @@ export function draftToPayload(draft: RatePlanDraft) {
         };
       }),
 
+    // Stay-shape ladders. The season id is the window, so no explicit dates and no
+    // per-unit scoping are written from this editor.
+    los_enabled: draft.los_enabled,
+    los_rungs: draft.los_enabled
+      ? draft.los_rungs.filter(losRungIsValid).map((r) => ({
+          calendar_season_id: r.calendar_season_id,
+          room_type_id: null,
+          start_date: null,
+          end_date: null,
+          nights: numeric(r.nights),
+          derivation_type: r.is_pinned ? null : r.derivation_type,
+          derivation_value: r.is_pinned ? null : numeric(r.derivation_value),
+          is_pinned: r.is_pinned,
+          pinned_rate: r.is_pinned ? numeric(r.pinned_rate) : null,
+        }))
+      : [],
+    fsp_enabled: draft.fsp_enabled,
+    fsp_cells: draft.fsp_enabled
+      ? draft.fsp_cells.filter(fspCellIsValid).map((c) => ({
+          calendar_season_id: c.calendar_season_id,
+          room_type_id: null,
+          start_date: null,
+          end_date: null,
+          nights: numeric(c.nights),
+          nr_of_guests: numeric(c.nr_of_guests),
+          derivation_type: c.is_pinned ? null : c.derivation_type,
+          derivation_value: c.is_pinned ? null : numeric(c.derivation_value),
+          is_pinned: c.is_pinned,
+          pinned_total: c.is_pinned ? numeric(c.pinned_total) : null,
+        }))
+      : [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Ladder validation — the editor blocks Save on these, and the edge function
+// re-checks the same rules so a stale client can never write a broken ladder.
+// ---------------------------------------------------------------------------
+
+const positiveInt = (value: string): number | null => {
+  const n = numeric(value);
+  return n !== null && Number.isInteger(n) && n >= 1 ? n : null;
+};
+
+/** A derived offset must be a real number and may never wipe the price out. */
+const offsetIsValid = (type: DerivationType, value: string): boolean => {
+  const n = numeric(value);
+  if (n === null) return false;
+  return type === "percent" ? n > -100 : true;
+};
+
+export function losRungIsValid(rung: DraftLosRung): boolean {
+  if (!rung.calendar_season_id || positiveInt(rung.nights) === null) return false;
+  if (rung.is_pinned) {
+    const pinned = numeric(rung.pinned_rate);
+    return pinned !== null && pinned > 0;
+  }
+  return offsetIsValid(rung.derivation_type, rung.derivation_value);
+}
+
+export function fspCellIsValid(cell: DraftFspCell): boolean {
+  if (!cell.calendar_season_id) return false;
+  if (positiveInt(cell.nights) === null || positiveInt(cell.nr_of_guests) === null) return false;
+  if (cell.is_pinned) {
+    const pinned = numeric(cell.pinned_total);
+    return pinned !== null && pinned > 0;
+  }
+  return offsetIsValid(cell.derivation_type, cell.derivation_value);
+}
+
+/**
+ * Everything wrong with the draft's ladders, one plain sentence per problem.
+ * An empty array means the ladders are safe to save.
+ */
+export function ladderIssues(draft: RatePlanDraft): string[] {
+  const issues: string[] = [];
+
+  if (draft.los_enabled) {
+    const seen = new Set<string>();
+    draft.los_rungs.forEach((r, i) => {
+      if (!losRungIsValid(r)) {
+        issues.push(`Length-of-stay row ${i + 1} needs a season, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
+        return;
+      }
+      const key = `${r.calendar_season_id}|${positiveInt(r.nights)}`;
+      if (seen.has(key)) issues.push(`Two length-of-stay rows claim ${r.nights} nights in the same season — keep one.`);
+      seen.add(key);
+    });
+    if (draft.los_rungs.filter(losRungIsValid).length === 0) {
+      issues.push("Add at least one length-of-stay rung, or turn it off.");
+    }
+  }
+
+  if (draft.fsp_enabled) {
+    const seen = new Set<string>();
+    draft.fsp_cells.forEach((c, i) => {
+      if (!fspCellIsValid(c)) {
+        issues.push(`Full-stay row ${i + 1} needs a season, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
+        return;
+      }
+      const key = `${c.calendar_season_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
+      if (seen.has(key)) {
+        issues.push(`Two full-stay rows claim ${c.nights} nights for ${c.nr_of_guests} guests in the same season — keep one.`);
+      }
+      seen.add(key);
+    });
+    if (draft.fsp_cells.filter(fspCellIsValid).length === 0) {
+      issues.push("Add at least one full-stay cell, or turn it off.");
+    }
+  }
+
+  return issues;
+}
+
 
 /** Human summary used on the list cards. */
 export function pricingSummary(baseRate: number | null, pricedSeasons: number): string {

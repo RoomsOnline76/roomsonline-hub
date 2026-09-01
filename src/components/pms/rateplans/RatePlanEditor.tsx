@@ -18,10 +18,12 @@ import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
+import { RatePlanStayShapeSection } from "./RatePlanStayShapeSection";
 import {
   draftToPayload,
   emptyDraft,
   canonicalPricingModel,
+  ladderIssues,
   ratePlanDraftReducer,
   readCalendarSeasons,
   type CalendarSeason,
@@ -31,6 +33,7 @@ import {
   type RatePlanDraft,
   pricingNoun,
 } from "./ratePlanDraft";
+
 
 
 
@@ -199,7 +202,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       let next = emptyDraft();
 
       if (ratePlanId) {
-        const [{ data: plan }, { data: links }, { data: seasonRates }, { data: policyLink }] = await Promise.all([
+        const [{ data: plan }, { data: links }, { data: seasonRates }, { data: policyLink }, losRows, fspRows] =
+          await Promise.all([
           supabase.from("rolos_rate_plans").select("*").eq("id", ratePlanId).maybeSingle(),
           supabase
             .from("rolos_rate_plan_room_types")
@@ -214,7 +218,20 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             .is("deleted_at", null),
 
           supabase.from("rolos_policy_rate_links").select("policy_id").eq("rate_plan_id", ratePlanId).maybeSingle(),
+          // Stay-shape ladders. A read failure (or a partial deploy) simply means
+          // "no ladder" — never a toast, never a blocked editor.
+          supabase
+            .from("rolos_rate_plan_los_rungs")
+            .select("calendar_season_id, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+            .eq("rate_plan_id", ratePlanId)
+            .order("nights"),
+          supabase
+            .from("rolos_rate_plan_fsp_cells")
+            .select("calendar_season_id, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+            .eq("rate_plan_id", ratePlanId)
+            .order("nights"),
         ]);
+
 
         if (plan) {
           next = {
@@ -253,8 +270,28 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               calendarIdBySharedId,
               Boolean((plan as { derived_from_plan_id?: string | null }).derived_from_plan_id),
             ),
+            los_enabled: (plan as { los_enabled?: boolean }).los_enabled === true,
+            fsp_enabled: (plan as { fsp_enabled?: boolean }).fsp_enabled === true,
+            los_rungs: (losRows.data ?? []).map((r) => ({
+              calendar_season_id: str(r.calendar_season_id),
+              nights: str(r.nights),
+              derivation_type: r.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
+              derivation_value: str(r.derivation_value),
+              is_pinned: r.is_pinned === true,
+              pinned_rate: str(r.pinned_rate),
+            })),
+            fsp_cells: (fspRows.data ?? []).map((c) => ({
+              calendar_season_id: str(c.calendar_season_id),
+              nights: str(c.nights),
+              nr_of_guests: str(c.nr_of_guests),
+              derivation_type: c.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
+              derivation_value: str(c.derivation_value),
+              is_pinned: c.is_pinned === true,
+              pinned_total: str(c.pinned_total),
+            })),
           };
         }
+
       } else {
 
         // A brand-new plan sells every unit by default — the common case.
@@ -429,7 +466,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
 
-
+  /** Stay-shape problems. Non-empty blocks the save and is shown in the ladder card. */
+  const stayShapeIssues = useMemo(() => ladderIssues(draft), [draft]);
 
   const handleSave = useCallback(async () => {
     if (!draft.name.trim()) {
@@ -440,6 +478,11 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       toast.error(`Link at least one ${noun.singular} to this rate plan`);
       return;
     }
+    if (stayShapeIssues.length > 0) {
+      toast.error(stayShapeIssues[0]);
+      return;
+    }
+
     setSaving(true);
     const { data, error } = await supabase.functions.invoke("rolos-rate-plans", {
       body: { action: "save_plan", property_id: propertyId, draft: draftToPayload(draft) },
@@ -472,7 +515,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
     setLegacyRefresh((n) => n + 1);
     onSaved();
-  }, [draft, propertyId, ratePlanId, onSaved, noun]);
+  }, [draft, propertyId, ratePlanId, onSaved, noun, stayShapeIssues]);
 
   if (loading) {
     return (
@@ -714,7 +757,23 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         </CardContent>
       </Card>
 
+      {/* 2b. Stay shapes derived from the daily rate */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Longer stays</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RatePlanStayShapeSection
+            draft={draft}
+            seasons={seasons}
+            dispatch={dispatch}
+            issues={stayShapeIssues}
+          />
+        </CardContent>
+      </Card>
+
       {/* 3. Restrictions */}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">3. Restrictions</CardTitle>
