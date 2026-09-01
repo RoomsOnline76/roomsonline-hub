@@ -3,15 +3,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { CalendarDays, ChevronsRight, Wand2 } from "lucide-react";
+import { CalendarDays, ChevronsRight } from "lucide-react";
 import type {
   CalendarSeason,
   DraftSeasonRate,
-  LiveSeasonMatrix,
   RatePlanDraft,
   SeasonPricingMode,
 } from "./ratePlanDraft";
 import { seasonRateFor, seasonUnitRate, pricingNoun } from "./ratePlanDraft";
+
 import { seasonColor, type SeasonColorMap } from "@/lib/seasonColors";
 
 interface RoomTypeOption {
