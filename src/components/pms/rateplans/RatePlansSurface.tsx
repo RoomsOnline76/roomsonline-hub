@@ -280,11 +280,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       [properties, plans],
     );
 
-    const renderPlanCard = (plan: RatePlan) => {
+    const renderPlanCard = (plan: RatePlan, series: RatePlan[] = [plan]) => {
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
-      const planRateRows = seasonRateRows.filter((r) => r.rate_plan_id === plan.id);
+      const seriesIds = series.map((p) => p.id);
+      const planRateRows = seasonRateRows.filter((r) => seriesIds.includes(r.rate_plan_id));
       const gridUnits = linkedIds.map((id) => ({ id, name: getRoomTypeName(id) }));
+      const matrixPlans = series.map((p) => ({ id: p.id, name: p.name, baseRate: p.base_rate }));
       // Warn when a property sells several plans but none is nominated as the live rate.
       const siblingActive = plans.filter(
         (pl) => pl.property_id === plan.property_id && pl.is_active !== false,
@@ -297,6 +299,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
       return (
         <div key={plan.id} className="flex items-stretch gap-2">
+
         <Card className={`group min-w-0 flex-1 ${plan.is_active === false ? "opacity-50" : ""}`}>
           <CardHeader className="px-4 py-2.5">
             <div className="flex items-start justify-between gap-3">
