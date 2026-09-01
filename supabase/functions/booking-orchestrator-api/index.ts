@@ -457,6 +457,39 @@ async function resolveRolosRates(
     // An embed rate override must not be overwritten by the rack tier.
     const hasEmbedOverride = Boolean(embedRate) && rolosPlan?.base_rate === embedRate;
 
+    // Stay-shape quote for the same window. Length-of-stay ladders adjust the
+    // published nightly series; full-stay cells are applied at book time only
+    // (availability must still paint a nightly number), so we only publish the
+    // additive `stay_quote` descriptor for them.
+    let stayQuoteBlock: { shape: string; nights: number; source: string; display_per_night: number } | null = null;
+    const losByDate = new Map<string, number>();
+    if (resolver) {
+      const lastNight = addDaysIso(endDate, -1);
+      if (lastNight >= startDate) {
+        try {
+          const quote = resolver.quoteStay(
+            { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
+            { from: startDate, to: lastNight, adults: 2, units: 1 },
+          );
+          stayQuoteBlock = {
+            shape: quote.shape,
+            nights: quote.nights,
+            source: String(quote.source),
+            display_per_night: quote.display_per_night,
+          };
+          if (quote.shape === "los_nightly" && Array.isArray(quote.nightly)) {
+            const dates = [...resolvedByDate.keys()].sort();
+            if (dates.length === quote.nightly.length) {
+              dates.forEach((d, i) => losByDate.set(d, Number(quote.nightly![i])));
+            }
+          }
+        } catch {
+          stayQuoteBlock = null;
+        }
+      }
+    }
+
+
     const dailyRates: any[] = [];
     const availArr: any[] = [];
     const cur = new Date(startDate);
