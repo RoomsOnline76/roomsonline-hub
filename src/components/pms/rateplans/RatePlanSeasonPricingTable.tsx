@@ -276,19 +276,6 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                       ) : null}
 
 
-                      {(legacyPendingBySeason?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-5 gap-1 px-1.5 text-[10px] font-normal"
-                          title="Copy the legacy Calendar rates for this season into its cells"
-                          onClick={() => onSeedFromLive(season.calendar_season_id)}
-                        >
-                          <Wand2 className="h-3 w-3" />
-                          Import legacy
-                        </Button>
-                      )}
 
                     </div>
                   </th>
