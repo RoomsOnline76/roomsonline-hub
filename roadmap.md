@@ -35,4 +35,5 @@
 ## Rate card (deck matrix)
 - [x] Season columns rendered vertically (HIGH/MEDIUM/LOW + price rotated), row height grows to fit
 - [x] Prices shown without thousand separators (R4321)
-- [ ] BAR vs Rack compare shows identical nightly values — BAR has no authored season rates (all `base_rate` null), so the resolver falls back to the same season source as Rack
+- [x] BAR vs Rack compare showed identical nightly values — plan card previews resolved from the property's primary plan; `preview_plan` now scopes the resolver to the requested plan (`preferRatePlanId`)
+- [x] Sealion season blocks: BAR = Rack −10%, Corporate = Rack −15% — both plans linked as derived plans off Rack so season amounts track Rack per season
