@@ -267,8 +267,28 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               calendarIdBySharedId,
               Boolean((plan as { derived_from_plan_id?: string | null }).derived_from_plan_id),
             ),
+            los_enabled: (plan as { los_enabled?: boolean }).los_enabled === true,
+            fsp_enabled: (plan as { fsp_enabled?: boolean }).fsp_enabled === true,
+            los_rungs: (losRows.data ?? []).map((r) => ({
+              calendar_season_id: str(r.calendar_season_id),
+              nights: str(r.nights),
+              derivation_type: r.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
+              derivation_value: str(r.derivation_value),
+              is_pinned: r.is_pinned === true,
+              pinned_rate: str(r.pinned_rate),
+            })),
+            fsp_cells: (fspRows.data ?? []).map((c) => ({
+              calendar_season_id: str(c.calendar_season_id),
+              nights: str(c.nights),
+              nr_of_guests: str(c.nr_of_guests),
+              derivation_type: c.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
+              derivation_value: str(c.derivation_value),
+              is_pinned: c.is_pinned === true,
+              pinned_total: str(c.pinned_total),
+            })),
           };
         }
+
       } else {
 
         // A brand-new plan sells every unit by default — the common case.
