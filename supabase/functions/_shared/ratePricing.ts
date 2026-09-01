@@ -393,11 +393,11 @@ function activePlan(inputs: PricingInputs, unit: UnitRateContext): PricingRatePl
 // Derived plans (Tour Operator off static RACK, BAR Net off yielded BAR)
 // ---------------------------------------------------------------------------
 
-/** Round a derived amount. Only "none" skips the nearest-10 rule. */
+/** Round a derived amount up to the next 10. Only "none" keeps the exact figure. */
 export function roundDerived(amount: number, rounding?: string | null): number {
   if (!Number.isFinite(amount)) return amount;
   if (rounding === "none") return Math.round(amount * 100) / 100;
-  return Math.round(amount / 10) * 10;
+  return Math.ceil(amount / 10) * 10;
 }
 
 /** Apply a derived plan's offset to a parent nightly price. */
