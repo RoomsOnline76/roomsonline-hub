@@ -466,7 +466,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
 
-
+  /** Stay-shape problems. Non-empty blocks the save and is shown in the ladder card. */
+  const stayShapeIssues = useMemo(() => ladderIssues(draft), [draft]);
 
   const handleSave = useCallback(async () => {
     if (!draft.name.trim()) {
@@ -477,6 +478,11 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       toast.error(`Link at least one ${noun.singular} to this rate plan`);
       return;
     }
+    if (stayShapeIssues.length > 0) {
+      toast.error(stayShapeIssues[0]);
+      return;
+    }
+
     setSaving(true);
     const { data, error } = await supabase.functions.invoke("rolos-rate-plans", {
       body: { action: "save_plan", property_id: propertyId, draft: draftToPayload(draft) },
