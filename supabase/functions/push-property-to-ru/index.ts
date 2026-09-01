@@ -48,6 +48,8 @@ import {
   type DayRate,
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
+import { losPricingForPeriod, splitPeriodsByLos } from '../_shared/ruLosPricing.ts';
+
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
@@ -3018,12 +3020,48 @@ async function pushARI(
 
       const compressed = compressToPeriods(dayRates);
       const overlaps = findPeriodOverlaps(compressed);
-      const priceEntries = compressed.map((p) => ({
+
+      // ── Length-of-stay ladder. The nightly <Price> stays the parent price above; a rung only
+      // derives from it (or replaces it with its pin). Plans with the flag off attach nothing, so
+      // their payload — and its hash — is byte-identical to today's.
+      const unitRolosId = targetUnit.linked_rolos_id ? String(targetUnit.linked_rolos_id) : null;
+      // Building-level fallback prices at the lowest unit nightly, so no single plan owns it.
+      const losPlan = !unit && resolver.units.length > 1
+        ? undefined
+        : (unitRolosId ? resolver.ratePlans[unitRolosId] : undefined);
+      const losRungs = (unitRolosId ? resolver.pricingInputs?.losRungs?.[unitRolosId] : undefined) ?? [];
+      const seasonIdOn = (date: string): string | null => {
+        for (const season of resolver.seasons) {
+          if ((season.periods ?? []).some((p) => date >= p.from && date <= p.to)) return String(season.id);
+        }
+        return null;
+      };
+      const losEnabled = losPlan?.los_enabled === true && losRungs.length > 0;
+
+      const nightlyByDate = new Map(dayRates.map((d) => [d.date, Number(d.price ?? 0)]));
+      type LosPeriod = typeof compressed[number] & { los_pricing?: { nights: number; price: number }[] };
+      const withLos: LosPeriod[] = losEnabled
+        ? splitPeriodsByLos(compressed, (date) => {
+          return losPricingForPeriod({
+            parentNightly: nightlyByDate.get(date) ?? 0,
+            rungs: losRungs,
+            dateFrom: date,
+            dateTo: date,
+            calendarSeasonId: seasonIdOn(date),
+            unitRolosId,
+            rounding: losPlan?.derivation_rounding ?? null,
+          });
+        })
+        : compressed.map((p) => ({ ...p }) as LosPeriod);
+
+      const priceEntries = withLos.map((p) => ({
         date_from: p.date_from,
         date_to: p.date_to,
         price: p.price,
         extra_guest_price: p.extra_guest_price,
+        ...(p.los_pricing && p.los_pricing.length > 0 ? { los_pricing: p.los_pricing } : {}),
       }));
+
 
       const expectedDays = norm.expected_days;
       const cov = resolver.coverage(dayRates);

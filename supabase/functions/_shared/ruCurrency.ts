@@ -371,15 +371,36 @@ export function convertPriceEntries<T extends { price: number; extra_guest_price
   entries: T[],
   effectiveRate: number,
 ): T[] {
-  return entries.map((e) => ({
-    ...e,
-    price: convertAmount(Number(e.price), effectiveRate),
-    extra_guest_price:
-      e.extra_guest_price != null && Number(e.extra_guest_price) > 0
-        ? convertAmount(Number(e.extra_guest_price), effectiveRate)
-        : e.extra_guest_price,
-  }));
+  return entries.map((e) => {
+    const nested = (e as { los_pricing?: unknown }).los_pricing;
+    return {
+      ...e,
+      price: convertAmount(Number(e.price), effectiveRate),
+      extra_guest_price:
+        e.extra_guest_price != null && Number(e.extra_guest_price) > 0
+          ? convertAmount(Number(e.extra_guest_price), effectiveRate)
+          : e.extra_guest_price,
+      // Length-of-stay rungs are derived from the nightly, so they must follow the same FX.
+      ...(Array.isArray(nested)
+        ? {
+          los_pricing: nested.map((los: Record<string, unknown>) => ({
+            ...los,
+            price: convertAmount(Number(los.price), effectiveRate),
+            ...(Array.isArray(los.losps)
+              ? {
+                losps: (los.losps as unknown as Record<string, unknown>[]).map((lp) => ({
+                  ...lp,
+                  price: convertAmount(Number(lp.price), effectiveRate),
+                })),
+              }
+              : {}),
+          })),
+        }
+        : {}),
+    };
+  });
 }
+
 
 // Reverse a published fallback-currency amount back into the authored currency.
 export function revertAmount(amount: number, effectiveRate: number): number {
