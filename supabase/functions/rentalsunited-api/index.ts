@@ -4020,7 +4020,19 @@ Deno.serve(async (req) => {
         const err = validateFspSeason(s);
         if (err) return errorResponse('INVALID_PARAM', `Invalid FSP season: ${err}`);
       }
-      const xml = buildPushFspPricesXml(scopedCreds, ru_property_id, body.fsp_seasons);
+      // The channel rejects the whole body with Status 26 / Notif 20 "Past dates" when a single
+      // FSPSeason predates today. Drop stale dates here instead of shipping a doomed write.
+      const fspToday = new Date().toISOString().slice(0, 10);
+      const fspSeasonsToPush = (body.fsp_seasons as RUFspSeason[]).filter((s) => String(s.date) >= fspToday);
+      const droppedPastFsp = body.fsp_seasons.length - fspSeasonsToPush.length;
+      if (fspSeasonsToPush.length === 0) {
+        return errorResponse('RU_FSP_ALL_PAST', `All ${body.fsp_seasons.length} Full Stay season dates are before today (${fspToday}) — nothing to publish`);
+      }
+      if (droppedPastFsp > 0) {
+        console.warn(`[rentalsunited-api] push_prices_fsp ${ru_property_id}: dropped ${droppedPastFsp} past-dated FSP season(s) before ${fspToday}`);
+      }
+      const xml = buildPushFspPricesXml(scopedCreds, ru_property_id, fspSeasonsToPush);
+
       const response = await callRentalsUnited(scopedCreds, xml);
       const { ok, partial, status, notifs } = parseDiscountResponse(response);
       if (!ok && !partial) return ruErrorResponse(status);
