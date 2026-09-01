@@ -48,6 +48,8 @@ import {
   type DayRate,
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
+import { losPricingForPeriod, splitPeriodsByLos } from '../_shared/ruLosPricing.ts';
+
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
 import { auditChannelPriceCoverage, persistPriceCoverage, type PriceCoverageResult } from '../_shared/ruPriceCoverage.ts';
