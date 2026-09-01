@@ -19,6 +19,7 @@ import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
 import { RatePlanStayShapeSection } from "./RatePlanStayShapeSection";
+import { dedupeRoomTypesByName } from "./dedupeRoomTypes";
 import {
   draftToPayload,
   emptyDraft,
@@ -305,7 +306,16 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       } else {
 
         // A brand-new plan sells every unit by default — the common case.
-        next = { ...next, units: roomTypes.map((rt) => ({ room_type_id: rt.id, differential_type: "none", differential_value: "" })) };
+        // A brand-new plan sells every unit by default — the common case. Duplicate
+        // unit rows with the same name are linked once, never twice.
+        next = {
+          ...next,
+          units: dedupeRoomTypesByName(roomTypes).map((rt) => ({
+            room_type_id: rt.id,
+            differential_type: "none",
+            differential_value: "",
+          })),
+        };
       }
 
       if (cancelled) return;
@@ -473,6 +483,15 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   );
 
   const noun = useMemo(() => pricingNoun(draft.pricing_model), [draft.pricing_model]);
+
+  /**
+   * Display list of units: one row per unit name. Duplicate rows for the same unit
+   * collapse to the id this plan is already linked to.
+   */
+  const visibleRoomTypes = useMemo(
+    () => dedupeRoomTypesByName(roomTypes, draft.units.map((u) => u.room_type_id)),
+    [roomTypes, draft.units],
+  );
 
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
 
@@ -765,7 +784,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             draft={draft}
             seasons={seasons}
             seasonColors={seasonColors}
-            roomTypes={roomTypes}
+            roomTypes={visibleRoomTypes}
             liveMatrix={liveMatrix}
             liveMatrixLoading={liveMatrixLoading || legacyLoading}
             legacyPendingBySeason={legacyPendingBySeason}
@@ -832,7 +851,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         <CardContent>
           <RatePlanUnitsSection
             draft={draft}
-            roomTypes={roomTypes}
+            roomTypes={visibleRoomTypes}
             onToggle={onToggleUnit}
             onDifferential={onUnitDifferential}
           />
