@@ -137,9 +137,11 @@ export default function SeasonsCalendar({
   isReadOnly,
   externalSystem,
   mealTypeSuggestions = [],
+  propertyId,
   onSeasonsChange,
   onSeasonRatesChange,
 }: SeasonsCalendarProps) {
+  const stayShapeBySeason = useStayShapeBySeason(propertyId);
   const { toast } = useToast();
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
