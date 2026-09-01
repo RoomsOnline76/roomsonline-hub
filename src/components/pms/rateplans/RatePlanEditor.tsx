@@ -306,7 +306,16 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       } else {
 
         // A brand-new plan sells every unit by default — the common case.
-        next = { ...next, units: roomTypes.map((rt) => ({ room_type_id: rt.id, differential_type: "none", differential_value: "" })) };
+        // A brand-new plan sells every unit by default — the common case. Duplicate
+        // unit rows with the same name are linked once, never twice.
+        next = {
+          ...next,
+          units: dedupeRoomTypesByName(roomTypes).map((rt) => ({
+            room_type_id: rt.id,
+            differential_type: "none",
+            differential_value: "",
+          })),
+        };
       }
 
       if (cancelled) return;
