@@ -307,7 +307,6 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                 {seasons.map((season) => {
                   const rate = seasonRateFor(draft, season.calendar_season_id);
                   const columnValue = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
-                  const liveValue = liveMatrix?.get(season.calendar_season_id)?.get(rt.id);
                   // What this cell resolves to while it is empty, best hint first.
                   const fallback =
                     rate.mode === "derived"
@@ -316,11 +315,10 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         ? columnValue
                         : rate.mode === "differential"
                           ? "0"
-                          : liveValue && liveValue > 0
-                            ? `${fmtMoney(liveValue)} legacy`
-                            : planBase > 0
-                              ? `${fmtMoney(planBase)} base`
-                              : "Rate";
+                          : planBase > 0
+                            ? `${fmtMoney(planBase)} base`
+                            : "Rate";
+
 
                   return (
                     <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
