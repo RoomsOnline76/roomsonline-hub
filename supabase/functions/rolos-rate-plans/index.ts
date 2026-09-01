@@ -6,8 +6,7 @@
  *   preview      : price a draft plan with the SAME pure engine booking/ARI use.
  *   save_plan    : persist a plan and keep every backward-compatible store in step.
  *   copy_plan    : copy a plan (+ season pricing, units, restrictions) to sibling properties.
- *   legacy_rate_audit      : does this plan still rely on rates authored in the old Calendar grid?
- *   migrate_calendar_rates : copy those legacy Calendar rates into the plan matrix (once).
+ *
  *
  * Rate Plans are the authoring surface and the plan season rate now outranks the legacy
  * Calendar season rate. Saves still mirror authored amounts into
