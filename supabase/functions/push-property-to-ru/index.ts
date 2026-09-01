@@ -49,6 +49,7 @@ import {
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
 import { losPricingForPeriod, splitPeriodsByLos } from '../_shared/ruLosPricing.ts';
+import { convertFspSeasons, fspSeasonForNight } from '../_shared/ruFspPricing.ts';
 
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
@@ -145,6 +146,7 @@ import {
   correctCurrencyDrift,
   verifyRuPropertyCurrency,
   convertPriceEntries,
+  convertAmount,
   refreshRuLocationsCache,
   loadCurrencyState,
   getFxRate,
@@ -2783,7 +2785,7 @@ async function pushARI(
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_entries?: number; availability_payload_bytes?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
+  const result: { availability_reserved_days?: number; availability_entries?: number; availability_payload_bytes?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { mode?: 'fsp'; seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
 
   const today = new Date();
   const oneYearLater = new Date(today);
@@ -3117,6 +3119,141 @@ async function pushARI(
         console.error(`[pushARI] Aborting price push for RU property ${ruPropertyId}: ${result.prices_error}`);
         return result;
       }
+
+      const recordCurrency = () => {
+        if (!currency) return;
+        result.currency = {
+          published_iso: currency.published_iso,
+          authored_iso: currency.authored_iso,
+          conversion_in_force: Boolean(currency.conversion_in_force && currency.effective_rate),
+          fx_rate: currency.conversion_in_force ? currency.fx_rate : null,
+          margin_pct: currency.margin_pct,
+          effective_rate: currency.conversion_in_force ? currency.effective_rate : null,
+          reason: currency.reason,
+        };
+      };
+
+      // ── Full Stay Pricing matrix (opt-in). Two conditions, both explicit: the operator has
+      // opted the property in (`amenities.ru_push_fsp`) and the unit's plan is a full-stay plan.
+      // `fsp_enabled` alone must never flip the channel model — it already drives native checkout.
+      // <FSPSeasons> replaces <Season> for this listing; turning the opt-in off and pushing again
+      // restores the nightly form. A building-level fallback push stays on Season.
+      const fspCells = (unitRolosId ? resolver.pricingInputs?.fspCells?.[unitRolosId] : undefined) ?? [];
+      const wantsFsp = (property.amenities as Record<string, unknown> | null)?.ru_push_fsp === true
+        && losPlan?.fsp_enabled === true;
+
+      if (wantsFsp) {
+        let fspSeasons = dayRates
+          .map((d) =>
+            fspSeasonForNight({
+              date: d.date,
+              parentNightly: Number(d.price ?? 0),
+              cells: fspCells,
+              calendarSeasonId: seasonIdOn(d.date),
+              unitRolosId,
+              rounding: losPlan?.derivation_rounding ?? null,
+            })
+          )
+          .filter((s): s is NonNullable<typeof s> => s !== null);
+
+        if (fspSeasons.length === 0) {
+          // Never ship a wipe with zero nights — fall through to the nightly form instead.
+          console.warn(`[pushARI] RU ${ruPropertyId}: Full Stay opt-in is on but no priced night produced a season — falling back to the nightly Season push`);
+        } else {
+          if (currency?.conversion_in_force && currency.effective_rate) {
+            fspSeasons = convertFspSeasons(fspSeasons, currency.effective_rate, convertAmount);
+            console.log(`[pushARI] RU ${ruPropertyId}: converting ${fspSeasons.length} FSP seasons ${currency.authored_iso}→${currency.published_iso} at effective ${currency.effective_rate}`);
+          }
+          recordCurrency();
+
+          const fspBytes = JSON.stringify(fspSeasons).length;
+          result.prices_payload = { mode: 'fsp', seasons: fspSeasons.length, bytes: fspBytes };
+          console.log(`[pushARI] RU ${ruPropertyId}: FSP price payload ${fspSeasons.length} seasons / ${fspBytes} bytes`);
+
+          const fspHash = await ariHash({
+            window: { from: todayStr, to: oneYearStr },
+            mode: 'fsp',
+            seasons: fspSeasons,
+          });
+          result.prices_hash = fspHash;
+          if (!ari.forcePrices && ari.priorPricesHash && ari.priorPricesHash === fspHash) {
+            result.prices_pushed = true;
+            result.skipped_prices = true;
+            console.log(`[pushARI] RU ${ruPropertyId}: FSP prices unchanged — skipping the write`);
+            return result;
+          }
+
+          // The FSP body is far fatter per date than a compressed Season, so chunk hard.
+          const FSP_CHUNK = 30;
+          const fspChunks: typeof fspSeasons[] = [];
+          for (let i = 0; i < fspSeasons.length; i += FSP_CHUNK) {
+            fspChunks.push(fspSeasons.slice(i, i + FSP_CHUNK));
+          }
+          let fspAttempt = await invokeRuWithRetry(
+            supabase,
+            {
+              action: 'push_prices_fsp',
+              ru_property_id: ruPropertyId,
+              fsp_seasons: fspChunks[0],
+              ...(await ariPushMeta('ari_prices_fsp', ['prices.fsp_seasons', 'prices.currency'], fspChunks[0])),
+              ...childAuth,
+            },
+            { label: `push_prices_fsp ${ruPropertyId}` },
+          );
+          result.prices_attempts = fspAttempt.attempts;
+          for (let c = 1; c < fspChunks.length && fspAttempt.ok; c++) {
+            const next = await invokeRuWithRetry(
+              supabase,
+              {
+                action: 'push_prices_fsp',
+                ru_property_id: ruPropertyId,
+                fsp_seasons: fspChunks[c],
+                ...(await ariPushMeta('ari_prices_fsp_chunk', ['prices.fsp_seasons', 'prices.currency'], fspChunks[c])),
+                ...childAuth,
+              },
+              { label: `push_prices_fsp ${ruPropertyId} chunk ${c + 1}` },
+            );
+            result.prices_attempts = (result.prices_attempts ?? 0) + next.attempts;
+            if (!next.ok) fspAttempt = next;
+          }
+          if (fspChunks.length > 1 && result.prices_payload) result.prices_payload.chunks = fspChunks.length;
+
+          if (!fspAttempt.ok) {
+            // No Season-shaped recovery read here: `verifyPrices` compares <Season> rows and would
+            // report a false negative (or a false positive) against a Full Stay listing.
+            result.prices_error = fspAttempt.message || 'Unknown error';
+            if (fspAttempt.httpStatus) result.prices_http_status = fspAttempt.httpStatus;
+          } else {
+            result.prices_pushed = true;
+          }
+
+          try {
+            await supabase.from('sync_logs').insert({
+              property_id: property.id,
+              external_system: 'rentals_united',
+              sync_type: 'prices',
+              status: fspAttempt.ok ? 'success' : 'error',
+              message: fspAttempt.ok
+                ? `Full Stay prices pushed — ${fspSeasons.length} FSP season(s) sent (${result.price_coverage?.summary ?? 'coverage unknown'}); channel read-back not applicable in Full Stay mode`
+                : `Full Stay price push failed: ${result.prices_error}`,
+              request_data: {
+                ru_property_id: ruPropertyId,
+                unit_id: unit?.id ?? null,
+                mode: 'fsp',
+                seasons: fspSeasons.length,
+                sample: fspSeasons.slice(0, 3),
+                window: { from: todayStr, to: oneYearStr },
+              },
+            });
+          } catch (logErr) {
+            console.warn('[pushARI] Failed to persist FSP price push log:', logErr);
+          }
+
+          return result;
+        }
+      }
+
+
 
       let outboundPrices = priceEntries;
       if (currency?.conversion_in_force && currency.effective_rate) {
