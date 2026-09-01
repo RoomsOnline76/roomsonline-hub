@@ -150,7 +150,12 @@ export const emptyDraft = (): RatePlanDraft => ({
   derivation_rounding: "nearest_10",
   units: [],
   season_rates: [],
+  los_enabled: false,
+  los_rungs: [],
+  fsp_enabled: false,
+  fsp_cells: [],
 });
+
 
 /** Preview the nightly price a derived plan produces off a parent amount. */
 export function derivedPreview(
