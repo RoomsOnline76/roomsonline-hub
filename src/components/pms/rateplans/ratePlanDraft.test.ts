@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   draftToPayload,
+  ladderIssues,
   emptyDraft,
   ratePlanDraftReducer,
   readCalendarSeasons,
@@ -230,5 +231,90 @@ describe("readCalendarSeasons: expired seasons", () => {
 
   it("keeps them when explicitly asked", () => {
     expect(readCalendarSeasons(blob, { includeExpired: true })).toHaveLength(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stay-shape ladders (LOS / Full Stay). Daily stays the parent: with both
+// switches off the payload must say so and carry no rows.
+// ---------------------------------------------------------------------------
+
+describe("stay-shape ladders", () => {
+  it("starts off with no rows", () => {
+    const d = emptyDraft();
+    expect(d.los_enabled).toBe(false);
+    expect(d.fsp_enabled).toBe(false);
+    expect(d.los_rungs).toEqual([]);
+    expect(d.fsp_cells).toEqual([]);
+    const payload = draftToPayload(d);
+    expect(payload.los_enabled).toBe(false);
+    expect(payload.fsp_enabled).toBe(false);
+    expect(payload.los_rungs).toEqual([]);
+    expect(payload.fsp_cells).toEqual([]);
+    expect(ladderIssues(d)).toEqual([]);
+  });
+
+  it("adds a LOS rung and puts it on the wire", () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    expect(s.los_rungs).toHaveLength(1);
+    expect(ladderIssues(s)).toEqual([]);
+    expect(draftToPayload(s).los_rungs).toEqual([
+      {
+        calendar_season_id: "s1",
+        room_type_id: null,
+        start_date: null,
+        end_date: null,
+        nights: 3,
+        derivation_type: "percent",
+        derivation_value: -10,
+        is_pinned: false,
+        pinned_rate: null,
+      },
+    ]);
+  });
+
+  it("writes a pinned full-stay cell as a total with no derivation", () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "fsp_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_fsp_cell", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, {
+      type: "patch_fsp_cell",
+      index: 0,
+      patch: { is_pinned: true, pinned_total: "11200" },
+    });
+    expect(draftToPayload(s).fsp_cells[0]).toMatchObject({
+      nights: 7,
+      nr_of_guests: 2,
+      is_pinned: true,
+      pinned_total: 11200,
+      derivation_type: null,
+      derivation_value: null,
+    });
+  });
+
+  it("clears the rungs when the switch goes off", () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, { type: "field", key: "los_enabled", value: false });
+    expect(s.los_rungs).toEqual([]);
+    expect(ladderIssues(s)).toEqual([]);
+  });
+
+  it("reports a duplicate threshold in the same season", () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    expect(ladderIssues(s).some((i) => i.includes("keep one"))).toBe(true);
+  });
+
+  it("reports a switch left on with nothing authored, and a -100% offset", () => {
+    const on = { ...emptyDraft(), fsp_enabled: true };
+    expect(ladderIssues(on)).toContain("Add at least one full-stay cell, or turn it off.");
+
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, { type: "patch_los_rung", index: 0, patch: { derivation_value: "-100" } });
+    expect(ladderIssues(s).length).toBeGreaterThan(0);
+    expect(draftToPayload(s).los_rungs).toEqual([]);
   });
 });
