@@ -146,6 +146,7 @@ import {
   correctCurrencyDrift,
   verifyRuPropertyCurrency,
   convertPriceEntries,
+  convertAmount,
   refreshRuLocationsCache,
   loadCurrencyState,
   getFxRate,
@@ -2784,7 +2785,7 @@ async function pushARI(
   const amenities = (property.amenities || {}) as Record<string, any>;
   const seasons = amenities.seasons as any[] | undefined;
   const seasonRates = amenities.season_rates as Record<string, any> | undefined;
-  const result: { availability_reserved_days?: number; availability_entries?: number; availability_payload_bytes?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
+  const result: { availability_reserved_days?: number; availability_entries?: number; availability_payload_bytes?: number; availability_pushed?: boolean; prices_pushed?: boolean; availability_error?: string; prices_error?: string; availability_attempts?: number; prices_attempts?: number; prices_payload?: { mode?: 'fsp'; seasons: number; bytes: number; chunks?: number }; availability_http_status?: number; prices_http_status?: number; availability_verification?: AvailabilityVerification; prices_verification?: PriceVerification; price_coverage_audit?: PriceCoverageResult; prices_year_verified?: boolean; price_coverage?: Record<string, any>; availability_coverage?: Record<string, any>; manual_restrictions?: Record<string, any>; currency?: Record<string, any>; availability_hash?: string; prices_hash?: string; skipped_avb?: boolean; skipped_prices?: boolean; skipped_availability_readback?: boolean } = {};
 
   const today = new Date();
   const oneYearLater = new Date(today);
@@ -3215,7 +3216,7 @@ async function pushARI(
             result.prices_attempts = (result.prices_attempts ?? 0) + next.attempts;
             if (!next.ok) fspAttempt = next;
           }
-          if (fspChunks.length > 1) result.prices_payload.chunks = fspChunks.length;
+          if (fspChunks.length > 1 && result.prices_payload) result.prices_payload.chunks = fspChunks.length;
 
           if (!fspAttempt.ok) {
             // No Season-shaped recovery read here: `verifyPrices` compares <Season> rows and would
@@ -3224,7 +3225,6 @@ async function pushARI(
             if (fspAttempt.httpStatus) result.prices_http_status = fspAttempt.httpStatus;
           } else {
             result.prices_pushed = true;
-            result.prices_verification = null;
           }
 
           try {
