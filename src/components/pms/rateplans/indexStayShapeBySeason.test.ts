@@ -4,7 +4,7 @@ import {
   type StayShapeFspRow,
   type StayShapeLosRow,
   type StayShapePlanRow,
-} from "../indexStayShapeBySeason";
+} from "./indexStayShapeBySeason";
 
 const plan = (over: Partial<StayShapePlanRow> = {}): StayShapePlanRow => ({
   id: "p1",
