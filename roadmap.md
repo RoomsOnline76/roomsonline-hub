@@ -31,3 +31,8 @@
 - [x] Changeover: Saturday reopened (wire C=4), Sunday still closed (C=1) — verified on read-back
 - [x] Rates: 10-day Nov high season (10–19 Nov @ 2500) + Low Season repriced to 1111; single delta push accepted (channel price read-back queued behind rate limit)
 - Next: reservation modify/cancel sync checks, Pull_ListReservations cadence + RLNM subscription proof, then the isolated call-log audit and feedback md
+
+## Rate card (deck matrix)
+- [x] Season columns rendered vertically (HIGH/MEDIUM/LOW + price rotated), row height grows to fit
+- [x] Prices shown without thousand separators (R4321)
+- [ ] BAR vs Rack compare shows identical nightly values — BAR has no authored season rates (all `base_rate` null), so the resolver falls back to the same season source as Rack
