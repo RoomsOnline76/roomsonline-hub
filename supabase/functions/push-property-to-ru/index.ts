@@ -49,6 +49,7 @@ import {
   type UnitRateContext,
 } from '../_shared/rateResolution.ts';
 import { losPricingForPeriod, splitPeriodsByLos } from '../_shared/ruLosPricing.ts';
+import { convertFspSeasons, fspSeasonForNight } from '../_shared/ruFspPricing.ts';
 
 
 import { parseRuPriceSeasons } from '../_shared/ruPriceParsing.ts';
