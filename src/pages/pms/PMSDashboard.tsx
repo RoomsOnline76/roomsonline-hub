@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 
@@ -6,6 +6,7 @@ import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
+import { changeoverConfigFromAmenities, changeoverException as resolveChangeoverException } from "@/lib/changeoverRules";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, endOfWeek, differenceInDays, isToday, parseISO, getDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -1697,6 +1698,16 @@ export default function PMSDashboard() {
     return rateSeasons.find(s => dateStr >= s.start_date && dateStr <= s.end_date) || null;
   };
 
+  /** Nights whose changeover rule differs from the property master rule, for the calendar lane. */
+  const changeoverConfig = useMemo(
+    () => changeoverConfigFromAmenities((propertyData as any)?.amenities ?? null),
+    [propertyData],
+  );
+  const changeoverExceptionFor = useCallback(
+    (date: Date) => resolveChangeoverException(changeoverConfig, format(date, "yyyy-MM-dd")),
+    [changeoverConfig],
+  );
+
   // Get restriction for room type on date
   const getRestriction = (roomTypeName: string, date: Date): AvailabilityOverride | undefined => {
     return overrideMap.get(`${roomTypeName}-${format(date, "yyyy-MM-dd")}`);
@@ -2442,7 +2453,8 @@ export default function PMSDashboard() {
                             {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
-                        <WeekCalendarGrid
+                        <ChangeoverExceptionContext.Provider value={changeoverExceptionFor}>
+<WeekCalendarGrid
                           dates={portfolioWeekDates}
                           roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
@@ -2458,6 +2470,7 @@ export default function PMSDashboard() {
                           onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
+</ChangeoverExceptionContext.Provider>
                       </div>
                     );
                   })}
@@ -2498,7 +2511,8 @@ export default function PMSDashboard() {
                             {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
-                        <MonthCalendarGrid
+                        <ChangeoverExceptionContext.Provider value={changeoverExceptionFor}>
+<MonthCalendarGrid
                           weekChunks={[propDates]}
                           roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
@@ -2513,6 +2527,7 @@ export default function PMSDashboard() {
                           onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
+</ChangeoverExceptionContext.Provider>
                       </div>
                     );
                   })}
@@ -2766,15 +2781,48 @@ function DateHeaderCell({ date, season, className: extraClass }: { date: Date; s
   return cellContent;
 }
 
+/**
+ * Changeover exceptions for the calendar. Provided once by the dashboard and read by the deep
+ * row renderers, so the resolver does not have to be threaded through every grid layer.
+ * Calendars mark only nights whose rule DIFFERS from the property master rule.
+ */
+const ChangeoverExceptionContext = createContext<(date: Date) => ChangeoverException | null>(() => null);
+
+type ChangeoverException = { code: number; origin: string; tooltip: string };
+
+function useChangeoverException(): (date: Date) => ChangeoverException | null {
+  return useContext(ChangeoverExceptionContext);
+}
+
 // ──────────── Shared: Restriction colored lines ────────────
-function RestrictionLines({ restriction, prevRestriction, nextRestriction, date }: {
+function RestrictionLines({ restriction, prevRestriction, nextRestriction, date, changeover }: {
   restriction: AvailabilityOverride | undefined;
   prevRestriction?: AvailabilityOverride | undefined;
   nextRestriction?: AvailabilityOverride | undefined;
   date?: Date;
+  /** Set when this night's changeover rule differs from the property master rule. */
+  changeover?: { code: number; origin: string; tooltip: string } | null;
 }) {
-  if (!restriction) return null;
+  if (!restriction && !changeover) return null;
   const lines: JSX.Element[] = [];
+
+  if (changeover) {
+    lines.push(
+      <Tooltip key="co">
+        <TooltipTrigger asChild>
+          <div className="h-1 flex-1 rounded-full bg-violet-500" />
+        </TooltipTrigger>
+        <TooltipContent>
+          {changeover.tooltip.split("\n").map((line, i) => (
+            <p key={i} className={cn("text-xs", i === 0 ? "font-medium" : "text-muted-foreground")}>{line}</p>
+          ))}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (!restriction) {
+    return <div className="flex flex-col gap-0.5 w-full px-0.5 mt-0.5">{lines}</div>;
+  }
 
   const getLineClass = (hasPrev: boolean, hasNext: boolean, baseColor: string) => {
     const rounded = hasPrev && hasNext ? "" : hasPrev ? "rounded-r-full" : hasNext ? "rounded-l-full" : "rounded-full";
@@ -3023,6 +3071,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
   onEditBlock?: (roomTypeId: string, date: Date) => void;
 }) {
+  const changeoverExceptionFor = useChangeoverException();
   const isSingleRoom = typeRooms.length <= 1;
   const singleRoom = typeRooms.length === 1 ? typeRooms[0] : null;
   const singleRoomOOS = singleRoom?.status === "out_of_service";
@@ -3080,7 +3129,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
-                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} />
+                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} changeover={changeoverExceptionFor(date)} />
                     </div>
                   )}
                   {/* Booking bars for single-room types */}
@@ -3228,6 +3277,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   cellW: string;
   labelW: string;
 }) {
+  const changeoverExceptionFor = useChangeoverException();
   const typeRooms = roomsByType.get(rt.id) || [];
   const totalUnits = typeRooms.length || 1;
 
@@ -3298,7 +3348,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
                           {booked > 0 && <span className="text-muted-foreground"> / {booked}b</span>}
                         </div>
                       )}
-                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} />
+                      <RestrictionLines restriction={restriction} prevRestriction={prevRestriction} nextRestriction={nextRestriction} date={date} changeover={changeoverExceptionFor(date)} />
                     </div>
                   )}
                   {dayBookings.map(b => {

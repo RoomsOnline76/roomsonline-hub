@@ -12,6 +12,7 @@ import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEdi
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { confirmChannelPush } from "@/lib/channelPushConfirm";
 import {
+  CHANGEOVER_FIELD_PATHS,
   joinFieldLabels,
   sectionsOf,
   type ChangedChannelField,
@@ -37,14 +38,19 @@ const activeConfirmations = new Map<string, symbol>();
  */
 const inFlightSections = new Map<string, Promise<string | null>>();
 
-async function triggerSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
-  const key = `${propertyId}:${section}`;
+async function triggerSection(
+  propertyId: string,
+  section: ChannelPushSection,
+  fields: ChangedChannelField[],
+): Promise<string | null> {
+  const paths = Array.from(new Set(fields.map((f) => f.path))).sort().join(",");
+  const key = `${propertyId}:${section}:${paths}`;
   const existing = inFlightSections.get(key);
   if (existing) {
     console.log(`[channel save push] joining in-flight ${section} push for ${propertyId}`);
     return await existing;
   }
-  const work = runSection(propertyId, section);
+  const work = runSection(propertyId, section, fields);
   inFlightSections.set(key, work);
   try {
     return await work;
@@ -54,7 +60,11 @@ async function triggerSection(propertyId: string, section: ChannelPushSection): 
 }
 
 
-async function runSection(propertyId: string, section: ChannelPushSection): Promise<string | null> {
+async function runSection(
+  propertyId: string,
+  section: ChannelPushSection,
+  fields: ChangedChannelField[],
+): Promise<string | null> {
   if (section === "company") {
     const { data, error } = await supabase.functions.invoke("ru-cert-portal", {
       body: {
@@ -70,11 +80,30 @@ async function runSection(propertyId: string, section: ChannelPushSection): Prom
     if (data?.success === false) return data?.error?.message ?? "The channel rejected the company profile.";
     return null;
   }
-  const outcome = section === "content"
-    ? await queueChannelContentSync(propertyId, "property_save_mandatory_fields")
-    : await queueChannelRatesSync(propertyId, "property_save_mandatory_fields");
+  if (section === "content") {
+    const outcome = await queueChannelContentSync(propertyId, "property_save_mandatory_fields");
+    return outcome?.error ?? null;
+  }
+
+  // Rates section. Changeover is an availability-only concern: it must never ride along with a
+  // prices push, and it must be forced so an unchanged availability hash cannot swallow it.
+  // Anything else in the same save keeps its own (prices) delta — the two never merge.
+  const changeover = fields.filter((f) => CHANGEOVER_FIELD_PATHS.has(f.path));
+  const others = fields.filter((f) => !CHANGEOVER_FIELD_PATHS.has(f.path));
+  if (changeover.length > 0) {
+    const outcome = await queueChannelRatesSync(propertyId, "changeover_change", {
+      forceAvailability: true,
+      // The channel must be asked back what changeover it now holds for those nights: a silent
+      // accept was exactly how changeover edits went missing.
+      verifyAvailabilityReadback: true,
+    });
+    if (outcome?.error) return outcome.error;
+    if (others.length === 0) return null;
+  }
+  const outcome = await queueChannelRatesSync(propertyId, "property_save_mandatory_fields");
   return outcome?.error ?? null;
 }
+
 
 
 /**
@@ -113,7 +142,7 @@ export async function pushChangedChannelFields(
     const labels = joinFieldLabels(fields);
     const sinceIso = new Date(Date.now() - 5_000).toISOString();
 
-    const triggerError = await triggerSection(propertyId, section);
+    const triggerError = await triggerSection(propertyId, section, fields);
     if (triggerError) {
       failed.push(labels);
       reasons.push(triggerError);

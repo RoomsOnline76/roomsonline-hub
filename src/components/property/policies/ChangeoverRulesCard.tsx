@@ -13,9 +13,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { AlertTriangle, CalendarClock, CheckCircle2, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { channelMandatoryClass } from "@/lib/channelMandatoryFields";
+import type { ChangeoverSpan } from "@/lib/changeoverRules";
 import {
   CHANGEOVER_CODES,
   CHANGEOVER_DOW_KEYS,
@@ -33,6 +36,11 @@ export interface ChangeoverRulesCardProps {
   onRulesChange: (next: Partial<Record<ChangeoverDowKey, number>>) => void;
   /** Units with their own override, for transparency. */
   unitOverrides?: Array<{ name: string; changeover: number }>;
+  /** Date-range / season spans that override the weekday rules for those nights. */
+  spans?: ChangeoverSpan[];
+  onSpansChange?: (next: ChangeoverSpan[]) => void;
+  /** Authored seasons, so a span can be pinned to a season instead of typed dates. */
+  seasons?: Array<{ id?: string; name?: string; title?: string; from?: string; to?: string }>;
 }
 
 export function ChangeoverRulesCard({
@@ -41,6 +49,9 @@ export function ChangeoverRulesCard({
   rules,
   onRulesChange,
   unitOverrides = [],
+  spans = [],
+  onSpansChange,
+  seasons = [],
 }: ChangeoverRulesCardProps) {
   const authored = master !== null && master !== undefined;
   // Collapsed once the mandatory master rule is set, so the tab only shows open work.
@@ -49,6 +60,31 @@ export function ChangeoverRulesCard({
     if (!authored) setOpenOverride(null);
   }, [authored]);
   const open = openOverride ?? !authored;
+
+  const spanSeasons = seasons.filter((s) => s.id && s.from && s.to);
+
+  const addSpan = (base: Partial<ChangeoverSpan>) => {
+    if (!onSpansChange) return;
+    onSpansChange([
+      ...spans,
+      {
+        id: `co-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        from: base.from ?? "",
+        to: base.to ?? "",
+        code: base.code ?? (master ?? 3),
+        season_id: base.season_id,
+        label: base.label,
+      },
+    ]);
+  };
+
+  const patchSpan = (id: string, patch: Partial<ChangeoverSpan>) => {
+    onSpansChange?.(spans.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  };
+
+  const removeSpan = (id: string) => {
+    onSpansChange?.(spans.filter((s) => s.id !== id));
+  };
 
   const setDay = (day: ChangeoverDowKey, value: string) => {
     const next = { ...rules };
@@ -142,6 +178,101 @@ export function ChangeoverRulesCard({
             ))}
           </div>
         </div>
+
+        {onSpansChange && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Date ranges &amp; seasons (optional)</Label>
+              <div className="flex items-center gap-1">
+                {spanSeasons.length > 0 && (
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const season = spanSeasons.find((s) => s.id === id);
+                      if (!season) return;
+                      addSpan({
+                        from: season.from,
+                        to: season.to,
+                        season_id: season.id,
+                        label: season.title || season.name,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-[150px] text-xs">
+                      <SelectValue placeholder="Add from season" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {spanSeasons.map((s) => (
+                        <SelectItem key={s.id} value={String(s.id)} className="text-xs">
+                          {s.title || s.name || "Season"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => addSpan({})}>
+                  <Plus className="mr-1 h-3 w-3" />
+                  Date range
+                </Button>
+              </div>
+            </div>
+            {spans.length === 0 ? (
+              <p className="text-[10px] text-muted-foreground">
+                No range overrides — every night follows the rules above.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {spans.map((span) => (
+                  <div key={span.id} className="flex flex-wrap items-center gap-1">
+                    <Input
+                      type="date"
+                      value={span.from}
+                      onChange={(e) => patchSpan(span.id, { from: e.target.value, season_id: undefined })}
+                      className="h-7 w-[130px] text-xs"
+                    />
+                    <span className="text-[10px] text-muted-foreground">to</span>
+                    <Input
+                      type="date"
+                      value={span.to}
+                      onChange={(e) => patchSpan(span.id, { to: e.target.value, season_id: undefined })}
+                      className="h-7 w-[130px] text-xs"
+                    />
+                    <Select value={String(span.code)} onValueChange={(v) => patchSpan(span.id, { code: Number(v) })}>
+                      <SelectTrigger className="h-7 w-[190px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CHANGEOVER_CODES.map((c) => (
+                          <SelectItem key={c.value} value={String(c.value)} className="text-xs">
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {span.label && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {span.label}
+                      </Badge>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeSpan(span.id)}
+                      aria-label="Remove range"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+                <p className="text-[10px] text-muted-foreground">
+                  A range beats the weekday rules for those nights; a unit's own rule still wins.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {unitOverrides.length > 0 && (
           <div className="space-y-1">

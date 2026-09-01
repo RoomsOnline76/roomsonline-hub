@@ -2020,28 +2020,53 @@ function unitChangeoverOverride(unitId: unknown, propertyAmenities: Record<strin
   return raw == null || raw === '' || isNaN(Number(raw)) ? null : Number(raw);
 }
 
+/** Authored date-range / season changeover spans (`amenities.changeover_spans`). */
+function changeoverSpans(propertyAmenities: Record<string, any>): { from: string; to: string; code: number }[] {
+  const raw = propertyAmenities?.changeover_spans;
+  if (!Array.isArray(raw)) return [];
+  const out: { from: string; to: string; code: number }[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const from = typeof r.from === 'string' ? r.from.slice(0, 10) : '';
+    const to = typeof r.to === 'string' ? r.to.slice(0, 10) : '';
+    const code = Number(r.code);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) continue;
+    if (!Number.isFinite(code) || code < 0 || code > 3) continue;
+    out.push({ from: from <= to ? from : to, to: from <= to ? to : from, code });
+  }
+  return out;
+}
+
 function resolveChangeoverRules(
   unit: UnitContext | undefined,
   propertyAmenities: Record<string, any>,
-): { perDow: Record<number, number> | null; defaultCode: number; isDefault: boolean } {
+): {
+  perDow: Record<number, number> | null;
+  defaultCode: number;
+  isDefault: boolean;
+  spans: { from: string; to: string; code: number }[];
+} {
   const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
   const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
-  const authoredCode =
-    unitAmenities.changeover ??
-    unitChangeoverOverride((unit as { id?: unknown } | undefined)?.id, propertyAmenities) ??
-    propertyAmenities.changeover;
+  const unitOverride =
+    unitAmenities.changeover ?? unitChangeoverOverride((unit as { id?: unknown } | undefined)?.id, propertyAmenities);
+  const authoredCode = unitOverride ?? propertyAmenities.changeover;
   const defaultCode = Number(authoredCode ?? 3);
+  // A unit override outranks the property's spans and weekday rules, so it publishes flat.
+  const spans = unitOverride != null ? [] : changeoverSpans(propertyAmenities);
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     const perDow: Record<number, number> = {};
     for (let i = 0; i < 7; i++) {
       const v = rules[DOW_KEYS[i]];
       if (v != null && !isNaN(Number(v))) perDow[i] = Number(v);
     }
-    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false };
+    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false, spans };
   }
   // No per-day rules and no authored code — the code below is our assumption, not the owner's.
-  return { perDow: null, defaultCode, isDefault: authoredCode == null };
+  return { perDow: null, defaultCode, isDefault: authoredCode == null && spans.length === 0, spans };
 }
+
 
 /** Is a changeover rule authored anywhere for this unit / property? */
 function isChangeoverAuthored(
@@ -2055,7 +2080,9 @@ function isChangeoverAuthored(
     if (DOW_KEYS.some((k) => rules[k] != null && !isNaN(Number(rules[k])))) return true;
   }
   if (unitChangeoverOverride(unitId, propertyAmenities) != null) return true;
+  if (changeoverSpans(propertyAmenities).length > 0) return true;
   return (ua.changeover ?? propertyAmenities.changeover) != null;
+
 }
 
 
@@ -2133,29 +2160,49 @@ function normalizeAvailabilityWindow(
 }
 
 
+function spanCodeForDate(
+  spans: { from: string; to: string; code: number }[] | null,
+  iso: string,
+): number | null {
+  if (!spans || spans.length === 0) return null;
+  let code: number | null = null;
+  for (const s of spans) {
+    if (iso >= s.from && iso <= s.to) code = s.code;
+  }
+  return code;
+}
+
 function expandAvailability(
   periods: { from: string; to: string; minStay: number }[],
   units: number,
-  changeover: { perDow: Record<number, number> | null; defaultCode: number }
+  changeover: {
+    perDow: Record<number, number> | null;
+    defaultCode: number;
+    spans?: { from: string; to: string; code: number }[] | null;
+  }
 ): { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] {
   const out: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] = [];
-  if (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode)) {
-    // No per-day rules (or every weekday equals the default) — keep ranges (efficient)
+  const spans = changeover.spans && changeover.spans.length > 0 ? changeover.spans : null;
+  if (!spans && (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode))) {
+    // No per-day rules, no spans (or every weekday equals the default) — keep ranges (efficient)
     return periods.map(p => ({ date_from: p.from, date_to: p.to, units, min_stay: p.minStay, changeover: changeover.defaultCode }));
   }
-  // Per-day rules — emit one entry per night, then recompact into ranges before the wire.
+  // Per-day rules and/or date-range spans — emit one entry per night, then recompact into ranges.
   for (const p of periods) {
     const start = new Date(p.from + 'T00:00:00Z');
     const end = new Date(p.to + 'T00:00:00Z');
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
       const dow = d.getUTCDay();
-      const code = changeover.perDow[dow] ?? changeover.defaultCode;
+      // Precedence: span covering the night → weekday rule → default (unit override already
+      // folded into `defaultCode` by `resolveChangeoverRules`).
+      const code = spanCodeForDate(spans, iso) ?? changeover.perDow?.[dow] ?? changeover.defaultCode;
       out.push({ date_from: iso, date_to: iso, units, min_stay: p.minStay, changeover: code });
     }
   }
   return collapseAvbRanges(out);
 }
+
 
 type AvailEntry = { date_from: string; date_to: string; units: number; min_stay: number; max_stay?: number; changeover: number };
 

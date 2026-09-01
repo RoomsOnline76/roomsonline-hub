@@ -2,4 +2,5 @@
 - [Channel Unit Scope Id Tolerance](mem://features/pms/channel-unit-scope-id-tolerance) — only_unit_ids accepts ROL'OS room type ids and channel unit ids; an unmatched scope falls back to all units, never RU_NOT_LISTED
 - [Season Change Delta Push](mem://features/pms/season-change-delta-push) — season edits are a rates delta; shared-season mirror refresh on save before the push, sibling deltas
 - [No Reuse of Dead Listing Ids](mem://constraints/pms/no-reuse-of-dead-listing-ids) — status 18 on an archived/deleted listing means mint a NEW listing; never reuse, adopt or reactivate that id
+- [Changeover Delta Only](mem://features/pms/changeover-delta-only) — changeover edits push an availability-only forced delta, spans/seasons authorable, calendars mark nights differing from the master
 - [ARI Delta Halves Never Both](mem://features/pms/ari-delta-halves-never-both) — rate edits push prices only, availability edits push availability only; both only on onboarding/full/scheduled runs; scope-keyed debounce queue

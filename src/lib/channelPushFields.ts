@@ -99,11 +99,22 @@ const FIELD_SPECS: readonly FieldSpec[] = [
   { path: "cancellation_master_mode", label: "cancellation policy", section: "rates" },
   { path: "amenities.cancellation_policies", label: "cancellation policy", section: "rates" },
   { path: "amenities.payment_methods", label: "payment methods", section: "rates" },
-  // Changeover decides which days guests may arrive or depart; it ships with availability.
+  // Changeover decides which days guests may arrive or depart; it ships with availability only
+  // (never with prices), so these paths are pushed as their own changeover delta.
   { path: "amenities.changeover", label: "changeover rule", section: "rates" },
   { path: "amenities.changeover_rules", label: "changeover rule", section: "rates" },
   { path: "amenities.changeover_by_unit", label: "changeover rule", section: "rates" },
+  { path: "amenities.changeover_spans", label: "changeover rule", section: "rates" },
 ];
+
+/** Paths that carry changeover and must travel in an availability-only delta. */
+export const CHANGEOVER_FIELD_PATHS: ReadonlySet<string> = new Set([
+  "amenities.changeover",
+  "amenities.changeover_rules",
+  "amenities.changeover_by_unit",
+  "amenities.changeover_spans",
+]);
+
 
 /**
  * Mandatory readiness check (`_shared/ruReadiness` keys) → the payload path(s) whose change
@@ -137,7 +148,7 @@ export const MANDATORY_CHECK_PATHS: Readonly<Record<string, readonly string[]>> 
   has_toilets: ["toilets"],
   beds_distributed: ["amenities.room_types"],
   beds_authored: ["amenities.room_types"],
-  changeover_authored: ["amenities.changeover", "amenities.changeover_by_unit"],
+  changeover_authored: ["amenities.changeover", "amenities.changeover_by_unit", "amenities.changeover_spans"],
   meets_minimum_images: ["images"],
   images_meet_size: ["images"],
   images_meet_cert_size: ["images"],
