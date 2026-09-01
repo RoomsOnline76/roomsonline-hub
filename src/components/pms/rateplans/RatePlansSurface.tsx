@@ -56,6 +56,8 @@ export interface RatePlan {
   is_primary_sell?: boolean | null;
   push_to_channels?: boolean | null;
   sell_priority?: number | null;
+  los_enabled?: boolean | null;
+  fsp_enabled?: boolean | null;
 }
 
 interface RoomType {
@@ -130,7 +132,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const [plansRes, roomTypesRes, propsRes] = await Promise.all([
         supabase
           .from("rolos_rate_plans")
-          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority")
+          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority, los_enabled, fsp_enabled")
           .in("property_id", ids)
           .is("deleted_at", null)
           .order("name"),
@@ -320,6 +322,16 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                 {needsPrimaryChoice && (
                   <Badge variant="destructive" className="ml-2 align-middle text-xs font-normal" title="Several active plans and no live rate chosen — open the plan and set the live/direct rate">
                     No live rate set
+                  </Badge>
+                )}
+                {plan.los_enabled && (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground" title="Length-of-stay rungs are authored on this plan">
+                    LOS
+                  </Badge>
+                )}
+                {plan.fsp_enabled && (
+                  <Badge variant="outline" className="ml-2 align-middle text-xs font-normal text-muted-foreground" title="Full-stay cells are authored on this plan">
+                    Full stay
                   </Badge>
                 )}
                 {plan.is_active === false && (

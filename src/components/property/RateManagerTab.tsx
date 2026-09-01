@@ -138,6 +138,7 @@ export function RateManagerTab({
           {/* ── Seasons Calendar Sub-tab ───────────────────────────────────── */}
           <TabsContent value="seasons-calendar" className="p-4">
             <SeasonsCalendar
+              propertyId={propertyId}
               seasons={seasons}
               seasonRates={seasonRates}
               roomTypes={roomTypes}

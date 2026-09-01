@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { isSeasonExpired } from "@/lib/seasonLifecycle";
 import { computeSeasonCoverage } from "@/lib/seasonCoverage";
+import { useStayShapeBySeason } from "@/components/pms/rateplans/useStayShapeBySeason";
 
 const SEASON_COLORS = [
   { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
@@ -79,6 +80,8 @@ interface SeasonsCalendarProps {
   isReadOnly: boolean;
   externalSystem?: string;
   mealTypeSuggestions?: string[];
+  /** Read-only: used to surface saved LOS / full-stay ladders on a season. */
+  propertyId?: string | null;
   onSeasonsChange: (seasons: Season[]) => void;
   onSeasonRatesChange: (rates: SeasonRates) => void;
   onSelectedRoomTypeChange?: (id: string) => void;
@@ -135,9 +138,11 @@ export default function SeasonsCalendar({
   isReadOnly,
   externalSystem,
   mealTypeSuggestions = [],
+  propertyId,
   onSeasonsChange,
   onSeasonRatesChange,
 }: SeasonsCalendarProps) {
+  const stayShapeBySeason = useStayShapeBySeason(propertyId);
   const { toast } = useToast();
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
@@ -689,6 +694,27 @@ export default function SeasonsCalendar({
                 ))}
               </div>
 
+              {/* Stay shape — read-only mirror of ladders authored on Rate Plans */}
+              {(stayShapeBySeason[selectedSeason.id]?.plans?.length ?? 0) > 0 && (
+                <div className="space-y-1 border-t pt-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Stay shape (from Rate Plans)</Label>
+                  {stayShapeBySeason[selectedSeason.id].plans.map((p) => (
+                    <div key={p.rate_plan_id} className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      {p.los.map((r) => (
+                        <span key={`los-${r.nights}-${r.label}`}> &middot; LOS {r.label}</span>
+                      ))}
+                      {p.fsp.map((c) => (
+                        <span key={`fsp-${c.nights}-${c.guests}-${c.label}`}> &middot; FSP {c.label}</span>
+                      ))}
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground">
+                    Edit length-of-stay and full-stay on Rate Plans. Calendar still owns the dates.
+                  </p>
+                </div>
+              )}
+
               {linkedRateTypes.length > 0 && (
                 <div className="text-xs text-muted-foreground mt-2">
                   Linked rate types: {linkedRateTypes.map((rt) => rt.name).join(", ")}
@@ -717,7 +743,7 @@ export default function SeasonsCalendar({
           <div className="flex items-start gap-2 rounded-lg border border-dashed p-3">
             <BedDouble className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <div className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Nightly rates are captured in Rate Plans.</span>{" "}
+              <span className="font-medium text-foreground">Nightly rates, length-of-stay and full-stay are captured in Rate Plans.</span>{" "}
               The Calendar defines seasons — their dates, colours and minimum stay — only. Open{" "}
               <span className="font-medium text-foreground">Rate Manager &rarr; Rate Plans &rarr; Pricing by season</span>{" "}
               to set the amount each unit charges in every season.
