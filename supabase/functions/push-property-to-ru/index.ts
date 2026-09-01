@@ -2133,29 +2133,49 @@ function normalizeAvailabilityWindow(
 }
 
 
+function spanCodeForDate(
+  spans: { from: string; to: string; code: number }[] | null,
+  iso: string,
+): number | null {
+  if (!spans || spans.length === 0) return null;
+  let code: number | null = null;
+  for (const s of spans) {
+    if (iso >= s.from && iso <= s.to) code = s.code;
+  }
+  return code;
+}
+
 function expandAvailability(
   periods: { from: string; to: string; minStay: number }[],
   units: number,
-  changeover: { perDow: Record<number, number> | null; defaultCode: number }
+  changeover: {
+    perDow: Record<number, number> | null;
+    defaultCode: number;
+    spans?: { from: string; to: string; code: number }[] | null;
+  }
 ): { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] {
   const out: { date_from: string; date_to: string; units: number; min_stay: number; changeover: number }[] = [];
-  if (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode)) {
-    // No per-day rules (or every weekday equals the default) — keep ranges (efficient)
+  const spans = changeover.spans && changeover.spans.length > 0 ? changeover.spans : null;
+  if (!spans && (!changeover.perDow || changeoverIsUniform(changeover.perDow, changeover.defaultCode))) {
+    // No per-day rules, no spans (or every weekday equals the default) — keep ranges (efficient)
     return periods.map(p => ({ date_from: p.from, date_to: p.to, units, min_stay: p.minStay, changeover: changeover.defaultCode }));
   }
-  // Per-day rules — emit one entry per night, then recompact into ranges before the wire.
+  // Per-day rules and/or date-range spans — emit one entry per night, then recompact into ranges.
   for (const p of periods) {
     const start = new Date(p.from + 'T00:00:00Z');
     const end = new Date(p.to + 'T00:00:00Z');
     for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
       const iso = d.toISOString().slice(0, 10);
       const dow = d.getUTCDay();
-      const code = changeover.perDow[dow] ?? changeover.defaultCode;
+      // Precedence: span covering the night → weekday rule → default (unit override already
+      // folded into `defaultCode` by `resolveChangeoverRules`).
+      const code = spanCodeForDate(spans, iso) ?? changeover.perDow?.[dow] ?? changeover.defaultCode;
       out.push({ date_from: iso, date_to: iso, units, min_stay: p.minStay, changeover: code });
     }
   }
   return collapseAvbRanges(out);
 }
+
 
 type AvailEntry = { date_from: string; date_to: string; units: number; min_stay: number; max_stay?: number; changeover: number };
 
