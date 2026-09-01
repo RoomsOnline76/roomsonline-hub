@@ -592,6 +592,8 @@ export async function createRateResolver(
     seasonRateKeys,
     ratePlans,
     planSeasonRates,
+    losRungs,
+    fspCells,
     parentPlans,
 
     relationalSeasonRates,
