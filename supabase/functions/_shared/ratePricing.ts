@@ -63,6 +63,9 @@ export interface PricingRatePlan {
   derivation_value?: number | null;
   /** Currently only "nearest_10" | "none". Defaults to nearest_10. */
   derivation_rounding?: string | null;
+  /** Stay-shape switches (orthogonal to pricing_model). Default false. */
+  los_enabled?: boolean;
+  fsp_enabled?: boolean;
 }
 
 /**
