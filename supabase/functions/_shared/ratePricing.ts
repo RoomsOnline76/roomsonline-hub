@@ -250,6 +250,8 @@ export function normalizePricingInputs(partial: Partial<PricingInputs>): Pricing
     dailyOverrides: partial.dailyOverrides ?? base.dailyOverrides,
     closedDates: partial.closedDates ?? base.closedDates,
     parentPlans: partial.parentPlans ?? base.parentPlans,
+    losRungs: partial.losRungs ?? base.losRungs,
+    fspCells: partial.fspCells ?? base.fspCells,
   };
 }
 
