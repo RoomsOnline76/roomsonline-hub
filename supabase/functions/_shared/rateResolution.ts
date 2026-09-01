@@ -20,6 +20,8 @@ import {
   normalizePricingInputs,
   resolveNightRates,
   type DifferentialType,
+  type FspCell,
+  type LosRung,
   type ParentPlanPricing,
   type PlanSeasonRate,
 
