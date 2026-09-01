@@ -3144,6 +3144,9 @@ async function pushARI(
 
       if (wantsFsp) {
         let fspSeasons = dayRates
+          // A single past-dated FSPSeason makes the channel reject the entire body
+          // (Status 26 / Notif 20 "Past dates"), so stale nights never enter the payload.
+          .filter((d) => String(d.date) >= todayStr)
           .map((d) =>
             fspSeasonForNight({
               date: d.date,
@@ -3155,6 +3158,7 @@ async function pushARI(
             })
           )
           .filter((s): s is NonNullable<typeof s> => s !== null);
+
 
         if (fspSeasons.length === 0) {
           // Never ship a wipe with zero nights — fall through to the nightly form instead.
