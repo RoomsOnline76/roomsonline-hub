@@ -68,15 +68,7 @@ interface StoredSeasonRateRow {
 }
 
 
-/** A unit/season cell that is priced only by the legacy Calendar grid. */
-interface LegacyPendingCell {
-  calendar_season_id: string;
-  season_name?: string;
-  room_type_id: string;
-  room_name?: string;
-  room_amount: number;
-  adult_amount?: number | null;
-}
+
 
 /**
  * Stored season rates are one row per season x unit. Collapse them into one draft
