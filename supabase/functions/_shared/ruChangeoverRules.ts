@@ -21,7 +21,30 @@ function num(value: unknown): number | null {
   return Number.isFinite(n) && n >= 0 && n <= 3 ? n : null;
 }
 
-/** Internal changeover code (0..3) in force on a given date. Defaults to 3 (both allowed). */
+/** Authored date-range / season spans, later rows winning on overlap. */
+function spanCode(amenities: Amenities, dateIso: string): number | null {
+  const raw = (amenities?.changeover_spans ?? null) as unknown;
+  if (!Array.isArray(raw)) return null;
+  let code: number | null = null;
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const from = typeof r.from === 'string' ? r.from.slice(0, 10) : '';
+    const to = typeof r.to === 'string' ? r.to.slice(0, 10) : '';
+    const c = num(r.code);
+    if (c == null || !from || !to) continue;
+    const lo = from <= to ? from : to;
+    const hi = from <= to ? to : from;
+    if (dateIso >= lo && dateIso <= hi) code = c;
+  }
+  return code;
+}
+
+/**
+ * Internal changeover code (0..3) in force on a given date. Defaults to 3 (both allowed).
+ *
+ * Precedence: unit override → date-range/season span → weekday rule → property master.
+ */
 export function changeoverCodeForDate(
   propertyAmenities: Amenities,
   unitAmenities: Amenities,
@@ -32,10 +55,16 @@ export function changeoverCodeForDate(
   const unitOverride = unitId && byUnit && typeof byUnit === 'object' ? byUnit[unitId] : null;
   const overrideAmenities = (unitOverride && typeof unitOverride === 'object' ? unitOverride : unitAmenities) as Amenities;
 
+  const directUnitCode = num(overrideAmenities?.changeover) ?? num(unitOverride);
+  if (directUnitCode != null) return directUnitCode;
+
+  const span = spanCode(overrideAmenities, dateIso) ?? spanCode(propertyAmenities, dateIso);
+  if (span != null) return span;
+
   const rules = ((overrideAmenities?.changeover_rules ?? propertyAmenities?.changeover_rules) ?? null) as
     | Record<string, unknown>
     | null;
-  const fallback = num(overrideAmenities?.changeover) ?? num(propertyAmenities?.changeover) ?? 3;
+  const fallback = num(propertyAmenities?.changeover) ?? 3;
 
   const dow = new Date(`${dateIso}T00:00:00Z`).getUTCDay();
   const dayName = DOW_NAMES[dow];
@@ -47,6 +76,7 @@ export function changeoverCodeForDate(
   }
   return fallback;
 }
+
 
 const WEEKDAY_LABEL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
