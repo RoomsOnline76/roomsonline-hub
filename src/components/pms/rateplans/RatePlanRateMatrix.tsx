@@ -60,8 +60,11 @@ const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
 const money = (n: number) => `R${Math.round(n).toLocaleString()}`;
 const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
 
-/** Row height for every unit row — one row per unit (or per compared plan) across seasons and nights. */
-const ROW_CLASS = "h-7";
+/** Minimum row height; rows grow to fit rotated season labels/prices. */
+const ROW_CLASS = "min-h-7";
+
+/** Rotated-90°-clockwise text (reads top-to-bottom) for narrow season columns. */
+const VERTICAL_TEXT = "[writing-mode:vertical-rl] whitespace-nowrap";
 
 /** Sample window: a full month of nights so the strip spans the card width. */
 const NIGHTS = 30;
@@ -268,9 +271,9 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 <th
                   key={name}
                   title={`${name} season`}
-                  className={`w-14 px-1 text-center text-[9px] font-medium ${color.tint} ${color.text}`}
+                  className={`w-6 px-0 py-1 align-bottom text-[9px] font-medium ${color.tint} ${color.text}`}
                 >
-                  <span className="inline-flex items-center gap-1">
+                  <span className={`mx-auto inline-flex items-center gap-1 ${VERTICAL_TEXT}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} aria-hidden />
                     {name}
                   </span>
@@ -330,11 +333,13 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                       <td
                         key={name}
                         title={`${u.name} · ${plan.name} · ${name}${price === null ? " (base fallback)" : ""}`}
-                        className={`px-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
+                        className={`px-0 py-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
                           price === null ? "text-muted-foreground" : "text-foreground"
                         }`}
                       >
-                        {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                        <span className={`mx-auto inline-block ${VERTICAL_TEXT}`}>
+                          {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                        </span>
                       </td>
                     );
                   })}
