@@ -124,6 +124,13 @@ export interface AriDeltaOptions {
    * `booking_*` trigger regardless of prices_hash state.
    */
   skipPrices?: boolean;
+  /**
+   * Mirror of `skipPrices`: a rate/season/rate-plan edit changes what a night costs, never
+   * whether it is sellable, so it must PutPrices the affected window and nothing else.
+   * Set by every rates-only trigger. Rates and availability only travel together for
+   * onboarding, an explicit full refresh, and scheduled reconciliation.
+   */
+  skipAvailability?: boolean;
 }
 
 
