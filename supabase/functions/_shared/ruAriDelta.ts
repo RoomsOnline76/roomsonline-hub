@@ -220,7 +220,7 @@ export async function queueRuAriDelta(
         verify_availability_readback: options.verifyAvailabilityReadback === true && scope !== 'rates',
         // A booking must close the sold nights, and a reopen must open them, even if a hash race
         // says availability is unchanged.
-...((options.force || options.forceAvailability) && scope !== 'rates' ? { force_availability: true } : {}),
+        ...((options.force || options.forceAvailability) && scope !== 'rates' ? { force_availability: true } : {}),
 
       },
     });
