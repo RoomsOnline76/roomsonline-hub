@@ -115,7 +115,14 @@ export interface RatePlanDraft {
   derivation_rounding: string;
   units: DraftUnit[];
   season_rates: DraftSeasonRate[];
+  /** Length-of-stay ladder: off by default, derived from the daily rate when on. */
+  los_enabled: boolean;
+  los_rungs: DraftLosRung[];
+  /** Full-stay grid: off by default, derived from the daily stay total when on. */
+  fsp_enabled: boolean;
+  fsp_cells: DraftFspCell[];
 }
+
 
 export const emptyDraft = (): RatePlanDraft => ({
   rate_plan_id: null,
