@@ -2786,7 +2786,11 @@ async function pushARI(
 
 
 
-  {
+  if (ari.skipAvailability) {
+    result.skipped_avb = true;
+    console.log(`[pushARI] RU ${ruPropertyId}: rates-only trigger — availability skipped by design`);
+  } else {
+
     try {
       let availEntries: AvailEntry[] = expandAvailability(allPeriods, unitUnits, changeoverConfig);
       // Manual dashboard restrictions win over season-derived values.
