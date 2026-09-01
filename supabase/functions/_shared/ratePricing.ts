@@ -135,6 +135,7 @@ export interface FspCell {
 }
 
 
+/** Legacy relational season window (rolos_rate_seasons + rolos_rate_prices). */
 export interface PricingRelationalRate {
   start_date: string;
   end_date: string;
