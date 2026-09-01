@@ -274,6 +274,8 @@ export async function createRateResolver(
   const relationalSeasonRates: Record<string, RelationalSeasonRate[]> = {};
   const ratePlans: Record<string, PricingRatePlan> = {};
   const planSeasonRates: Record<string, PlanSeasonRate[]> = {};
+  const losRungs: Record<string, LosRung[]> = {};
+  const fspCells: Record<string, FspCell[]> = {};
   const parentPlans: Record<string, ParentPlanPricing> = {};
   const dailyOverrides: Record<string, Record<string, never>> = {};
 
