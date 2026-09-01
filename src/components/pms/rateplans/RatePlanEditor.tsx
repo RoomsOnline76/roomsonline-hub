@@ -19,6 +19,7 @@ import { RatePlanSeasonPricingTable } from "./RatePlanSeasonPricingTable";
 import { RatePlanUnitsSection } from "./RatePlanUnitsSection";
 import { RatePlanEffectivePreview } from "./RatePlanEffectivePreview";
 import { RatePlanStayShapeSection } from "./RatePlanStayShapeSection";
+import { dedupeRoomTypesByName } from "./dedupeRoomTypes";
 import {
   draftToPayload,
   emptyDraft,
