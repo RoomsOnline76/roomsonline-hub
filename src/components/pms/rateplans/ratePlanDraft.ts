@@ -242,8 +242,15 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
     case "reset":
       return action.draft;
 
-    case "field":
-      return { ...state, [action.key]: action.value } as RatePlanDraft;
+    case "field": {
+      const next = { ...state, [action.key]: action.value } as RatePlanDraft;
+      // Switching a ladder off drops its rows in the same reduction, so a save can
+      // never leave authored rows sitting behind a false flag.
+      if (action.key === "los_enabled" && action.value !== true) next.los_rungs = [];
+      if (action.key === "fsp_enabled" && action.value !== true) next.fsp_cells = [];
+      return next;
+    }
+
 
     case "toggle_unit": {
       const exists = state.units.some((u) => u.room_type_id === action.roomTypeId);
