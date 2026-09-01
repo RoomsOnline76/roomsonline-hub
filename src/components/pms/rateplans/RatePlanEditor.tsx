@@ -757,7 +757,23 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         </CardContent>
       </Card>
 
+      {/* 2b. Stay shapes derived from the daily rate */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Longer stays</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RatePlanStayShapeSection
+            draft={draft}
+            seasons={seasons}
+            dispatch={dispatch}
+            issues={stayShapeIssues}
+          />
+        </CardContent>
+      </Card>
+
       {/* 3. Restrictions */}
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">3. Restrictions</CardTitle>
