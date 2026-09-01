@@ -23,6 +23,7 @@ import { normalizeRevenueStream, resolveBreakfastConfig, postBookingStreamSplit 
 import { applyBookedInventory } from "../_shared/availabilityCache.ts";
 import { expandPackageById, packageAddOnTotal } from "../_shared/packages.ts";
 import { normaliseEmail, normaliseGuestName, rebuildGuestStats } from "../_shared/guestStats.ts";
+import { createRateResolver, addDays as addDaysIso } from "../_shared/rateResolution.ts";
 import { reconcileBookingCharges, resolveBookingChargeContext, chargesBreakdownSnapshot } from "../_shared/propertyCharges.ts";
 
 // ============================================================================
@@ -1108,7 +1109,8 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
   const reservationId = `ROL-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
   const confirmationNumber = reservationId;
 
-  // Calculate total
+  // Calculate total — cached nightly sum is the baseline; ROL'OS Rate Plans
+  // stay shapes (length-of-stay / full stay) win when a ladder matches.
   let totalAmount = 0;
   // deno-lint-ignore no-explicit-any
   for (const avail of ((currentAvailability || []) as any[])) {
@@ -1120,6 +1122,66 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       const roomCount = requiredRooms.get(avail.external_room_type_id) || 0;
       totalAmount += (rateData.room_amount || 0) * roomCount;
     }
+  }
+
+  // Per-line stay quotes. Fail closed: any missing unit link, resolver failure or
+  // zero quote keeps the cached sum above — never a gap-filled or invented price.
+  const stayShapeByLine = new Map<number, { shape: string; source: string; stay_total: number }>();
+  try {
+    const lastNight = addDaysIso(departure_date, -1);
+    if (lastNight >= arrival_date) {
+      const { data: unitRows } = await supabase
+        .from("hostfully_room_types")
+        .select("id, name, linked_rolos_id")
+        .eq("property_id", propertyId);
+      const units = (unitRows || []) as Array<{ id: string; name: string; linked_rolos_id: string | null }>;
+      const slugify = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+      const unitFor = (roomTypeId: string) =>
+        units.find((u) => u.id === roomTypeId) ||
+        units.find((u) => slugify(u.name) === roomTypeId) ||
+        units.find((u) => slugify(u.name) === slugify(roomTypeId)) || null;
+
+      const linkedLines = rooms
+        .map((r, idx) => ({ idx, room: r, unit: unitFor(r.room_type_id) }))
+        .filter((l) => l.unit?.linked_rolos_id);
+
+      if (linkedLines.length > 0) {
+        const resolver = await createRateResolver(supabase, propertyId, {
+          window: { from: arrival_date, to: lastNight },
+          audience: "direct",
+        });
+        let shapedTotal = 0;
+        let allPriced = true;
+        for (const line of linkedLines) {
+          const quote = resolver.quoteStay(
+            { id: line.unit!.id, name: line.unit!.name, linked_rolos_id: line.unit!.linked_rolos_id },
+            {
+              from: arrival_date,
+              to: lastNight,
+              adults: line.room.adults ?? 0,
+              teens: line.room.teens ?? 0,
+              children: line.room.children ?? 0,
+              units: 1,
+            },
+          );
+          if (!(quote.stay_total > 0)) { allPriced = false; break; }
+          shapedTotal += quote.stay_total;
+          stayShapeByLine.set(line.idx, {
+            shape: quote.shape,
+            source: String(quote.source),
+            stay_total: quote.stay_total,
+          });
+        }
+        if (allPriced && linkedLines.length === rooms.length && shapedTotal > 0) {
+          totalAmount = shapedTotal;
+        } else {
+          stayShapeByLine.clear();
+        }
+      }
+    }
+  } catch (stayErr) {
+    console.warn("[roomsonline-pms-api] stay quote unavailable, using cached nightly sum:", stayErr);
+    stayShapeByLine.clear();
   }
 
   // Create reservation in pms_reservations (cache)
@@ -1138,12 +1200,19 @@ async function handleCreateReservation(body: unknown, supabase: any): Promise<Re
       reservation_name: guest.name,
       reservation_voucher: voucher || confirmationNumber,
       rate_type_name: rate_type_id,
-      rooms: rooms.map(r => ({
+      rooms: rooms.map((r, idx) => ({
         room_type_id: r.room_type_id,
         adults: r.adults,
         teens: r.teens,
         children: r.children,
         infants: r.infants,
+        ...(stayShapeByLine.has(idx)
+          ? {
+              stay_shape: stayShapeByLine.get(idx)!.shape,
+              stay_quote_source: stayShapeByLine.get(idx)!.source,
+              stay_total: stayShapeByLine.get(idx)!.stay_total,
+            }
+          : {}),
       })),
       total_amount: totalAmount,
       currency: "ZAR",
