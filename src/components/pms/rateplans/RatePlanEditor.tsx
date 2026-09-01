@@ -515,7 +515,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
     setLegacyRefresh((n) => n + 1);
     onSaved();
-  }, [draft, propertyId, ratePlanId, onSaved, noun]);
+  }, [draft, propertyId, ratePlanId, onSaved, noun, stayShapeIssues]);
 
   if (loading) {
     return (
