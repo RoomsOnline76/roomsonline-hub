@@ -1403,7 +1403,9 @@ function validatePriceEntry(p: RUPriceEntry): string | null {
 function validateFspSeason(s: RUFspSeason): string | null {
   if (!s.date) return 'FSP date is required';
   if (s.default_price == null || s.default_price < 0) return 'FSP default_price must be >= 0';
-  if (!s.rows || s.rows.length === 0) return 'FSP rows are required';
+  // Rows may legitimately be empty: DefaultPrice alone keeps that night sellable at the nightly.
+  if (!s.rows) return 'FSP rows are required';
+
   for (const r of s.rows) {
     if (r.nr_of_guests == null || r.nr_of_guests <= 0) return 'FSP nr_of_guests must be > 0';
     if (!r.prices || r.prices.length === 0) return 'FSP row prices required';
