@@ -2080,7 +2080,9 @@ function isChangeoverAuthored(
     if (DOW_KEYS.some((k) => rules[k] != null && !isNaN(Number(rules[k])))) return true;
   }
   if (unitChangeoverOverride(unitId, propertyAmenities) != null) return true;
+  if (changeoverSpans(propertyAmenities).length > 0) return true;
   return (ua.changeover ?? propertyAmenities.changeover) != null;
+
 }
 
 
