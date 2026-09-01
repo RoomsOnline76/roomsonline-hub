@@ -2164,6 +2164,18 @@ const CalendarAccommodation = () => {
     return selected.length === total ? "All" : `${selected.length}/${total}`;
   };
 
+  // Read-only pointer: which seasons carry a saved LOS / full-stay ladder.
+  const stayShapeSeasonNames = useMemo(() => {
+    const ids = Object.keys(stayShapeBySeason);
+    if (ids.length === 0) return [];
+    const amenities = (selectedPropertyData as { amenities?: { seasons?: unknown } } | undefined)?.amenities;
+    const seasons = Array.isArray(amenities?.seasons) ? (amenities?.seasons as { id?: string; name?: string; title?: string }[]) : [];
+    return ids.map((id) => {
+      const match = seasons.find((s) => s?.id === id);
+      return match?.name || match?.title || id;
+    });
+  }, [stayShapeBySeason, selectedPropertyData]);
+
   return (
     <AppLayout>
       <PageHeader
