@@ -784,7 +784,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             draft={draft}
             seasons={seasons}
             seasonColors={seasonColors}
-            roomTypes={roomTypes}
+            roomTypes={visibleRoomTypes}
             liveMatrix={liveMatrix}
             liveMatrixLoading={liveMatrixLoading || legacyLoading}
             legacyPendingBySeason={legacyPendingBySeason}
@@ -851,7 +851,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         <CardContent>
           <RatePlanUnitsSection
             draft={draft}
-            roomTypes={roomTypes}
+            roomTypes={visibleRoomTypes}
             onToggle={onToggleUnit}
             onDifferential={onUnitDifferential}
           />
