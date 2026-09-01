@@ -130,26 +130,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </p>
       </div>
 
-      {hasLegacyPending && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-          <p className="max-w-[40rem] text-xs text-foreground">
-            <strong>{legacyPendingCells}</strong> {noun.singular}/season rate{legacyPendingCells === 1 ? "" : "s"} on this plan still
-            live only in the old Calendar grid. Move them here so Rate Plans holds every price. Cells you have already
-            priced are left untouched, and nothing is committed until you save.
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-7 shrink-0 gap-1.5 text-xs"
-            disabled={liveMatrixLoading}
-            onClick={() => onSeedFromLive()}
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-            Move these rates into this plan
-          </Button>
-        </div>
-      )}
+
+
 
 
       <div className="overflow-x-auto rounded-md border">
