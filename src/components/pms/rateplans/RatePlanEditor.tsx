@@ -785,11 +785,6 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             seasons={seasons}
             seasonColors={seasonColors}
             roomTypes={visibleRoomTypes}
-            liveMatrix={liveMatrix}
-            liveMatrixLoading={liveMatrixLoading || legacyLoading}
-            legacyPendingBySeason={legacyPendingBySeason}
-            legacyPendingCells={legacyPending.length}
-            onSeedFromLive={onSeedFromLive}
             onChange={onSeasonChange}
             onCellChange={onSeasonCellChange}
             onFillColumn={onFillSeasonColumn}
