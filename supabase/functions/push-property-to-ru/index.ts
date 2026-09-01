@@ -2020,28 +2020,53 @@ function unitChangeoverOverride(unitId: unknown, propertyAmenities: Record<strin
   return raw == null || raw === '' || isNaN(Number(raw)) ? null : Number(raw);
 }
 
+/** Authored date-range / season changeover spans (`amenities.changeover_spans`). */
+function changeoverSpans(propertyAmenities: Record<string, any>): { from: string; to: string; code: number }[] {
+  const raw = propertyAmenities?.changeover_spans;
+  if (!Array.isArray(raw)) return [];
+  const out: { from: string; to: string; code: number }[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const from = typeof r.from === 'string' ? r.from.slice(0, 10) : '';
+    const to = typeof r.to === 'string' ? r.to.slice(0, 10) : '';
+    const code = Number(r.code);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) continue;
+    if (!Number.isFinite(code) || code < 0 || code > 3) continue;
+    out.push({ from: from <= to ? from : to, to: from <= to ? to : from, code });
+  }
+  return out;
+}
+
 function resolveChangeoverRules(
   unit: UnitContext | undefined,
   propertyAmenities: Record<string, any>,
-): { perDow: Record<number, number> | null; defaultCode: number; isDefault: boolean } {
+): {
+  perDow: Record<number, number> | null;
+  defaultCode: number;
+  isDefault: boolean;
+  spans: { from: string; to: string; code: number }[];
+} {
   const unitAmenities = (unit?.amenities || {}) as Record<string, any>;
   const rules = (unitAmenities.changeover_rules ?? propertyAmenities.changeover_rules) as Record<string, any> | undefined;
-  const authoredCode =
-    unitAmenities.changeover ??
-    unitChangeoverOverride((unit as { id?: unknown } | undefined)?.id, propertyAmenities) ??
-    propertyAmenities.changeover;
+  const unitOverride =
+    unitAmenities.changeover ?? unitChangeoverOverride((unit as { id?: unknown } | undefined)?.id, propertyAmenities);
+  const authoredCode = unitOverride ?? propertyAmenities.changeover;
   const defaultCode = Number(authoredCode ?? 3);
+  // A unit override outranks the property's spans and weekday rules, so it publishes flat.
+  const spans = unitOverride != null ? [] : changeoverSpans(propertyAmenities);
   if (rules && typeof rules === 'object' && !Array.isArray(rules)) {
     const perDow: Record<number, number> = {};
     for (let i = 0; i < 7; i++) {
       const v = rules[DOW_KEYS[i]];
       if (v != null && !isNaN(Number(v))) perDow[i] = Number(v);
     }
-    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false };
+    if (Object.keys(perDow).length > 0) return { perDow, defaultCode, isDefault: false, spans };
   }
   // No per-day rules and no authored code — the code below is our assumption, not the owner's.
-  return { perDow: null, defaultCode, isDefault: authoredCode == null };
+  return { perDow: null, defaultCode, isDefault: authoredCode == null && spans.length === 0, spans };
 }
+
 
 /** Is a changeover rule authored anywhere for this unit / property? */
 function isChangeoverAuthored(
