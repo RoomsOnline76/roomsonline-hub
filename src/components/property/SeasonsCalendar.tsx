@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { isSeasonExpired } from "@/lib/seasonLifecycle";
 import { computeSeasonCoverage } from "@/lib/seasonCoverage";
+import { useStayShapeBySeason } from "@/components/pms/rateplans/useStayShapeBySeason";
 
 const SEASON_COLORS = [
   { name: "Red", value: "red", bg: "bg-red-200", border: "border-danger-border", text: "text-destructive", cell: "bg-danger-surface" },
