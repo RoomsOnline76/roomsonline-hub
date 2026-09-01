@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, RefreshCw, ChevronsLeft, ChevronsRight, Building2, AlertCircle, Loader2, Cloud, CloudOff } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useStayShapeBySeason } from "@/components/pms/rateplans/useStayShapeBySeason";
 import { BulkRateRuleDialog } from "@/components/BulkRateRuleDialog";
 import { BulkAvailabilityRuleDialog } from "@/components/BulkAvailabilityRuleDialog";
 import { BulkStopSellDialog } from "@/components/BulkStopSellDialog";
@@ -204,6 +205,7 @@ const CalendarAccommodation = () => {
   const { toast } = useToast();
   const [selectedProperty, setSelectedProperty] = useState<string>(searchParams.get("property") || "");
   const [viewMode, setViewMode] = useState<"week" | "month">("month");
+  const stayShapeBySeason = useStayShapeBySeason(selectedProperty || null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [bulkRateOpen, setBulkRateOpen] = useState(false);
   const [bulkAvailabilityOpen, setBulkAvailabilityOpen] = useState(false);
@@ -2165,7 +2167,7 @@ const CalendarAccommodation = () => {
   };
 
   // Read-only pointer: which seasons carry a saved LOS / full-stay ladder.
-  const stayShapeSeasonNames = useMemo(() => {
+  const stayShapeSeasonNames = React.useMemo(() => {
     const ids = Object.keys(stayShapeBySeason);
     if (ids.length === 0) return [];
     const amenities = (selectedPropertyData as { amenities?: { seasons?: unknown } } | undefined)?.amenities;
@@ -2305,6 +2307,16 @@ const CalendarAccommodation = () => {
 
         <Card>
           <CardContent className="p-3">
+            {stayShapeSeasonNames.length > 0 && (
+              <button
+                type="button"
+                onClick={() => navigate("/pms/rate-plans")}
+                className="mb-2 block text-left text-xs text-muted-foreground hover:text-foreground"
+              >
+                Stay shape on {stayShapeSeasonNames.join(", ")} — edit in Rate Plans
+              </button>
+            )}
+
             {/* Filters and Actions */}
             <div className="flex flex-wrap gap-2 mb-3">
               <Popover>
