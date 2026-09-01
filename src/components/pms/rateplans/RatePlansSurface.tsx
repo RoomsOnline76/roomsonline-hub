@@ -132,7 +132,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const [plansRes, roomTypesRes, propsRes] = await Promise.all([
         supabase
           .from("rolos_rate_plans")
-          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority")
+          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority, los_enabled, fsp_enabled")
           .in("property_id", ids)
           .is("deleted_at", null)
           .order("name"),
