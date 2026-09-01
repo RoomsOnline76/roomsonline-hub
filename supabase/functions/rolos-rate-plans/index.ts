@@ -56,7 +56,7 @@ interface DraftUnit {
 
 interface DraftSeasonRate {
   calendar_season_id: string;
-  mode?: "none" | "absolute" | "differential";
+  mode?: "none" | "absolute" | "differential" | "derived";
   base_rate?: number | null;
   differential_type?: DifferentialType;
   differential_value?: number | null;
