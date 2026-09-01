@@ -345,6 +345,8 @@ export async function createRateResolver(
         derivation_type: (plan?.derivation_type as "percent" | "amount" | null) ?? null,
         derivation_value: plan?.derivation_value ?? null,
         derivation_rounding: plan?.derivation_rounding ?? "nearest_10",
+        los_enabled: plan?.los_enabled === true,
+        fsp_enabled: plan?.fsp_enabled === true,
       };
     }
 
