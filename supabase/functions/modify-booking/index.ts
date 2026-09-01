@@ -162,7 +162,15 @@ async function recalculateRolPrice(
   supabase: any,
   booking: any,
   modifications: ModifyRequest["modifications"]
-): Promise<{ total: number; rate_plan_id: string; nightly: number | null; source: string | null } | null> {
+): Promise<
+  {
+    total: number;
+    rate_plan_id: string;
+    nightly: number | null;
+    source: string | null;
+    shape: "nightly" | "los_nightly" | "full_stay";
+  } | null
+> {
   const plan = await resolveBookingRatePlan(supabase, booking);
   if (!plan) return null;
 
@@ -180,6 +188,9 @@ async function recalculateRolPrice(
   let nightlyRates: number[] = [];
   let extraAdultRate: number | undefined;
   let source: string | null = null;
+  let shape: "nightly" | "los_nightly" | "full_stay" = "nightly";
+  /** Set when the stay-shape engine priced the stay; the rack fallback below is then skipped. */
+  let shaped: RolModifyQuote | null = null;
 
   if (booking.property_id) {
     try {
@@ -191,12 +202,21 @@ async function recalculateRolPrice(
         resolver.units.find((u) => roomTypeId && String(u.id) === roomTypeId) ??
         resolver.units[0];
       if (unit) {
-        const days = resolver.resolveDays(unit, checkIn, addDays(checkOut, -1));
-        const priced = days.filter((d) => Number(d.price) > 0);
-        if (priced.length > 0) {
-          nightlyRates = days.map((d) => (Number(d.price) > 0 ? Number(d.price) : baseRate));
-          extraAdultRate = days[0]?.extra_guest_price ?? undefined;
-          source = days[0]?.source ?? null;
+        /* The stay-shape engine is the authority once a unit resolves: it reproduces the
+         * nightly sum when both flags are off and applies the LOS / Full Stay ladder
+         * otherwise — the same contract create_reservation uses. An unpriced night makes it
+         * return null, which must stay a refusal rather than a rack gap-fill. */
+        shaped = rolModifyQuote(
+          resolver,
+          { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id ?? null },
+          { from: checkIn, to: addDays(checkOut, -1), adults, teens, children, units: roomCount },
+          plan.id,
+        );
+        if (shaped) {
+          source = shaped.source;
+          shape = shaped.shape;
+        } else {
+          return null;
         }
       }
     } catch (e) {
@@ -204,27 +224,33 @@ async function recalculateRolPrice(
     }
   }
 
-  if (nightlyRates.length !== nights) {
-    // Nothing seasonal covers the stay — the plan's rack rate is the authority.
-    nightlyRates = Array.from({ length: nights }, () => baseRate);
-    source = source ?? "rack_rate";
+  let rounded: number;
+  let nightly: number | null;
+
+  if (shaped) {
+    rounded = shaped.total;
+    nightly = shaped.nightly;
+  } else {
+    // No resolver / no unit (wizard or unlinked property): the plan's rack rate is the authority.
+    if (nightlyRates.length !== nights) {
+      nightlyRates = Array.from({ length: nights }, () => baseRate);
+      source = source ?? "rack_rate";
+    }
+    if (nightlyRates.every((r) => !(r > 0))) return null;
+
+    const total = stayTotalForModel(model, {
+      nightlyRates,
+      adults,
+      teens,
+      children,
+      units: roomCount,
+      extraAdultRate,
+    });
+
+    rounded = Math.round((Number(total) || 0) * 100) / 100;
+    if (!(rounded > 0)) return null;
+    nightly = nights > 0 ? Math.round((rounded / nights) * 100) / 100 : null;
   }
-
-  if (nightlyRates.every((r) => !(r > 0))) return null;
-
-  const total = stayTotalForModel(model, {
-    nightlyRates,
-    adults,
-    teens,
-    children,
-    units: roomCount,
-    extraAdultRate,
-  });
-
-  const rounded = Math.round((Number(total) || 0) * 100) / 100;
-  if (!(rounded > 0)) return null;
-
-  const nightly = nights > 0 ? Math.round((rounded / nights) * 100) / 100 : null;
 
   try {
     const parityRows: ParityRow[] = [{
@@ -236,15 +262,16 @@ async function recalculateRolPrice(
       resolved_tier: source,
       legacy_rate: Number(booking.total_price ?? 0),
       legacy_tier: "modify_booking_previous_total",
-      notes: { nights, pricing_model: model, metric: "stay_total" },
+      notes: { nights, pricing_model: model, metric: "stay_total", shape },
     }];
     await logRateParity(supabase, "modify-booking", parityRows);
   } catch (_e) {
     // Parity logging must never block a reprice.
   }
 
-  return { total: rounded, rate_plan_id: plan.id, nightly, source };
+  return { total: rounded, rate_plan_id: plan.id, nightly, source, shape };
 }
+
 
 
 /**
