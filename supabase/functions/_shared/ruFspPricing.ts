@@ -79,6 +79,11 @@ export function fspSeasonForNight(opts: {
   };
 }
 
+function defaultConvertAmount(amount: number, effectiveRate: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Math.ceil(amount * effectiveRate);
+}
+
 /**
  * Publish the matrix in the fallback currency. `convertPriceEntries` is Season-shaped, so the FSP
  * form gets its own converter instead of overloading it.
@@ -86,7 +91,8 @@ export function fspSeasonForNight(opts: {
 export function convertFspSeasons(
   seasons: RuFspSeason[],
   effectiveRate: number,
-  convertAmount: (amount: number, effectiveRate: number) => number,
+  /** Same rounding-up rule as `convertAmount` in ruCurrency; injectable to keep this file pure. */
+  convertAmount: (amount: number, effectiveRate: number) => number = defaultConvertAmount,
 ): RuFspSeason[] {
   return seasons.map((s) => ({
     ...s,
