@@ -236,6 +236,7 @@ async function resolveRolosRates(
   embedRoomTypeId?: string,
   embedPricingModel?: string,
   embedLinkedRolosId?: string,
+  occupancy?: { adults: number; teens: number; children: number; units: number },
 ) {
   const { data: hfRoomRows } = await supabase
     .from("hostfully_room_types")
@@ -461,7 +462,9 @@ async function resolveRolosRates(
     // published nightly series; full-stay cells are applied at book time only
     // (availability must still paint a nightly number), so we only publish the
     // additive `stay_quote` descriptor for them.
-    let stayQuoteBlock: { shape: string; nights: number; source: string; display_per_night: number } | null = null;
+    let stayQuoteBlock:
+      | { shape: string; nights: number; source: string; display_per_night: number; stay_total: number }
+      | null = null;
     const losByDate = new Map<string, number>();
     if (resolver) {
       const lastNight = addDaysIso(endDate, -1);
@@ -469,13 +472,21 @@ async function resolveRolosRates(
         try {
           const quote = resolver.quoteStay(
             { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
-            { from: startDate, to: lastNight, adults: 2, units: 1 },
+            {
+              from: startDate,
+              to: lastNight,
+              adults: occupancy?.adults ?? 2,
+              teens: occupancy?.teens ?? 0,
+              children: occupancy?.children ?? 0,
+              units: occupancy?.units ?? 1,
+            },
           );
           stayQuoteBlock = {
             shape: quote.shape,
             nights: quote.nights,
             source: String(quote.source),
             display_per_night: quote.display_per_night,
+            stay_total: quote.stay_total,
           };
           if (quote.shape === "los_nightly" && Array.isArray(quote.nightly)) {
             const dates = [...resolvedByDate.keys()].sort();
@@ -730,6 +741,15 @@ Deno.serve(async (req) => {
         room_types: clientRoomTypes,
       } = body;
 
+      // Optional guest occupancy for stay-shape quoting. Omitted fields keep
+      // today's defaults so callers that send no pax get an identical result.
+      const occupancy = {
+        adults: Math.max(1, Number(body.adults) || 2),
+        teens: Math.max(0, Number(body.teens) || 0),
+        children: Math.max(0, Number(body.children) || 0),
+        units: Math.max(1, Number(body.units) || 1),
+      };
+
       if (!property_id || !start_date || !end_date) {
         return fail("Missing property_id, start_date, or end_date");
       }
@@ -848,6 +868,7 @@ Deno.serve(async (req) => {
           const rolosResult = await resolveRolosRates(
             supabase, property_id, start_date, end_date,
             embed_rate, embed_room_type_id, embed_pricing_model, embed_linked_rolos_id,
+            occupancy,
           );
           if (rolosResult) return ok(rolosResult);
         }
