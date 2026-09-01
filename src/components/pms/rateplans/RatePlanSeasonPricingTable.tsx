@@ -91,9 +91,9 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
   const noun = pricingNoun(draft.pricing_model);
   const planBase = Number(draft.base_rate);
-  const hasLegacyPending = legacyPendingCells > 0;
   const isDerivedPlan = Boolean(draft.derived_from_plan_id);
   const derivationSuffix = draft.derivation_type === "amount" ? "R" : "%";
+
 
 
   if (seasons.length === 0) {
