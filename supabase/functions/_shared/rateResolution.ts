@@ -279,7 +279,7 @@ export async function createRateResolver(
     const { data: planLinks } = await supabase
       .from("rolos_rate_plan_room_types")
       .select(
-        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay, is_primary_sell, push_to_channels, sell_priority, derived_from_plan_id, derivation_type, derivation_value, derivation_rounding)",
+        "room_type_id, rate_plan_id, is_active, differential_type, differential_value, rolos_rate_plans!inner(id, base_rate, pricing_model, adult_1_rate, adult_2_rate, is_active, min_stay, max_stay, is_primary_sell, push_to_channels, sell_priority, derived_from_plan_id, derivation_type, derivation_value, derivation_rounding, los_enabled, fsp_enabled)",
       )
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
