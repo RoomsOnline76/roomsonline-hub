@@ -25,20 +25,12 @@ interface Props {
   /** Season name -> Calendar-authored colour, so columns match the Calendar. */
   seasonColors?: SeasonColorMap;
   roomTypes: RoomTypeOption[];
-  /** Legacy Calendar-authored rates, per season per unit — import source only. */
-  liveMatrix?: LiveSeasonMatrix;
-  liveMatrixLoading?: boolean;
-  /** Calendar season id -> unit ids still priced only by the legacy Calendar grid. */
-  legacyPendingBySeason?: Map<string, Set<string>>;
-  /** Total cells waiting on the legacy import. Zero hides every import affordance. */
-  legacyPendingCells?: number;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
   onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
-  /** Import legacy Calendar rates into the matrix. Omit the season id for every season. */
-  onSeedFromLive: (calendarSeasonId?: string) => void;
 }
+
 
 const todayISO = (): string => {
   const now = new Date();
