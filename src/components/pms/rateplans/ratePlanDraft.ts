@@ -369,6 +369,31 @@ export function ratePlanDraftReducer(state: RatePlanDraft, action: DraftAction):
       };
     }
 
+    case "add_los_rung":
+      return { ...state, los_rungs: [...state.los_rungs, newLosRung(action.calendarSeasonId)] };
+
+    case "patch_los_rung":
+      return {
+        ...state,
+        los_rungs: state.los_rungs.map((r, i) => (i === action.index ? { ...r, ...action.patch } : r)),
+      };
+
+    case "remove_los_rung":
+      return { ...state, los_rungs: state.los_rungs.filter((_, i) => i !== action.index) };
+
+    case "add_fsp_cell":
+      return { ...state, fsp_cells: [...state.fsp_cells, newFspCell(action.calendarSeasonId)] };
+
+    case "patch_fsp_cell":
+      return {
+        ...state,
+        fsp_cells: state.fsp_cells.map((c, i) => (i === action.index ? { ...c, ...action.patch } : c)),
+      };
+
+    case "remove_fsp_cell":
+      return { ...state, fsp_cells: state.fsp_cells.filter((_, i) => i !== action.index) };
+
+
     default:
       return state;
   }
