@@ -18,6 +18,13 @@ interface PreviewUnit {
   days: Day[];
 }
 
+/** A plan in the comparison series. A single-element series renders as before. */
+export interface MatrixPlan {
+  id: string;
+  name: string;
+  baseRate?: number | null;
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   daily_override: "Daily override",
   calendar_season: "Season",
@@ -53,89 +60,107 @@ const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
 const money = (n: number) => `R${Math.round(n).toLocaleString()}`;
 const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
 
-/** Row height for every unit row — one row per unit across seasons and nights. */
+/** Row height for every unit row — one row per unit (or per compared plan) across seasons and nights. */
 const ROW_CLASS = "h-7";
 
 /** Sample window: a full month of nights so the strip spans the card width. */
 const NIGHTS = 30;
 
 /**
- * Single aligned rate matrix for a rate plan card: one row per linked unit, with the
- * authored season prices and the live 7-night sample rates in the SAME row, so a unit
- * (e.g. STEENBOK) reads left to right without any cross-table drift.
+ * Aligned rate matrix for a rate plan card. One row per linked unit for a single plan;
+ * when several plans are compared, each unit grows one sub-row per plan so the authored
+ * season prices and the live sample nights line up on the same nights.
  */
 export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
-  ratePlanId,
+  plans,
   units,
   rows,
-  baseRate,
   seasonColors,
 }: {
-  ratePlanId: string;
+  /** Plan series to render (1 = today's behaviour, 2+ = inline comparison). */
+  plans: MatrixPlan[];
   /** Linked units in card order. */
   units: GridUnit[];
-  /** Authored season rates for this plan. */
+  /** Authored season rates for every plan in the series (carries `rate_plan_id`). */
   rows: SeasonRateRow[];
-  baseRate: number | null;
   seasonColors?: SeasonColorMap;
 }) {
-  const [preview, setPreview] = useState<PreviewUnit[]>([]);
+  const [preview, setPreview] = useState<Record<string, PreviewUnit[]>>({});
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>(today);
 
   const jump = useCallback((days: number) => setStartDate((prev) => addDays(prev, days)), []);
 
+  const planIdsKey = useMemo(() => plans.map((p) => p.id).join(","), [plans]);
+  const comparing = plans.length > 1;
+
   useEffect(() => {
     let cancelled = false;
+    const ids = planIdsKey ? planIdsKey.split(",") : [];
+    if (ids.length === 0) {
+      setPreview({});
+      setLoading(false);
+      return;
+    }
     (async () => {
       setLoading(true);
-      const { data } = await supabase.functions.invoke("rolos-rate-plans", {
-        body: {
-          action: "preview_plan",
-          rate_plan_id: ratePlanId,
-          window: { from: startDate, to: addDays(startDate, NIGHTS - 1) },
-        },
-      });
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          const { data } = await supabase.functions.invoke("rolos-rate-plans", {
+            body: {
+              action: "preview_plan",
+              rate_plan_id: id,
+              window: { from: startDate, to: addDays(startDate, NIGHTS - 1) },
+            },
+          });
+          return [id, ((data as { units?: PreviewUnit[] } | null)?.units ?? []) as PreviewUnit[]] as const;
+        }),
+      );
       if (cancelled) return;
-      setPreview(((data as { units?: PreviewUnit[] } | null)?.units ?? []) as PreviewUnit[]);
+      setPreview(Object.fromEntries(results));
       setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [ratePlanId, startDate]);
+  }, [planIdsKey, startDate]);
 
+  /** Season order = union across compared plans; prices keyed by plan + unit. */
   const { seasons, priceFor } = useMemo(() => {
     const order: string[] = [];
-    const planWide = new Map<string, number>();
-    const byUnit = new Map<string, Map<string, number>>();
+    const planWide = new Map<string, number>(); // `${planId}|${season}`
+    const byUnit = new Map<string, number>(); // `${planId}|${unitId}|${season}`
     for (const row of rows) {
       const name = row.season_name?.trim();
       const rate = Number(row.base_rate ?? 0);
+      const planId = row.rate_plan_id ?? "";
       if (!name || !(rate > 0)) continue;
       if (!order.includes(name)) order.push(name);
       if (row.room_type_id) {
-        const bucket = byUnit.get(row.room_type_id) ?? new Map<string, number>();
-        bucket.set(name, rate);
-        byUnit.set(row.room_type_id, bucket);
-      } else if (!planWide.has(name)) {
-        planWide.set(name, rate);
+        byUnit.set(`${planId}|${row.room_type_id}|${name}`, rate);
+      } else {
+        const key = `${planId}|${name}`;
+        if (!planWide.has(key)) planWide.set(key, rate);
       }
     }
     return {
       seasons: order,
-      priceFor: (unitId: string, season: string): number | null =>
-        byUnit.get(unitId)?.get(season) ?? planWide.get(season) ?? null,
+      priceFor: (planId: string, unitId: string, season: string): number | null =>
+        byUnit.get(`${planId}|${unitId}|${season}`) ?? planWide.get(`${planId}|${season}`) ?? null,
     };
   }, [rows]);
 
-  /** Nightly rates keyed by unit id, so each unit row picks up its own sample data. */
-  const nightsByUnit = useMemo(() => {
-    const map = new Map<string, Map<string, Day>>();
-    for (const u of preview) {
-      const bucket = new Map<string, Day>();
-      for (const d of u.days) bucket.set(d.date, d);
-      map.set(u.room_type_id, bucket);
+  /** Nightly rates keyed by plan, then unit, so each row picks up its own sample data. */
+  const nightsByPlanUnit = useMemo(() => {
+    const map = new Map<string, Map<string, Map<string, Day>>>();
+    for (const [planId, planUnits] of Object.entries(preview)) {
+      const perUnit = new Map<string, Map<string, Day>>();
+      for (const u of planUnits) {
+        const bucket = new Map<string, Day>();
+        for (const d of u.days) bucket.set(d.date, d);
+        perUnit.set(u.room_type_id, bucket);
+      }
+      map.set(planId, perUnit);
     }
     return map;
   }, [preview]);
@@ -147,8 +172,9 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
 
   const seasonByDate = useMemo(() => {
     const map = new Map<string, string>();
+    const allUnits = Object.values(preview).flat();
     for (const d of dates) {
-      for (const u of preview) {
+      for (const u of allUnits) {
         const name = u.days.find((x) => x.date === d)?.season_name?.trim();
         if (name) {
           map.set(d, name);
@@ -158,6 +184,26 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
     }
     return map;
   }, [dates, preview]);
+
+  /** Cheapest nightly price per unit+night across compared plans, for the highlight. */
+  const cheapestByUnitDate = useMemo(() => {
+    if (!comparing) return new Map<string, number>();
+    const map = new Map<string, number>();
+    for (const plan of plans) {
+      const perUnit = nightsByPlanUnit.get(plan.id);
+      if (!perUnit) continue;
+      for (const u of units) {
+        for (const d of dates) {
+          const price = perUnit.get(u.id)?.get(d)?.price;
+          if (!price || price <= 0) continue;
+          const key = `${u.id}|${d}`;
+          const current = map.get(key);
+          if (current === undefined || price < current) map.set(key, price);
+        }
+      }
+    }
+    return map;
+  }, [comparing, plans, nightsByPlanUnit, units, dates]);
 
   if (units.length === 0) {
     return <p className="mt-2 text-xs italic text-muted-foreground/60">Not linked to any units</p>;
@@ -172,6 +218,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
           {/* Group header: authored seasons on the left, sample-night navigation on the right. */}
           <tr className="h-6 border-b text-[10px] uppercase tracking-wide text-muted-foreground">
             <th className="w-20 px-1.5 text-left font-normal">Unit</th>
+            {comparing && <th className="w-20 px-1.5 text-left font-normal">Plan</th>}
             {seasons.length > 0 && (
               <th colSpan={seasons.length} className="px-2 text-left font-medium">
                 Rate by season
@@ -214,6 +261,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
           {/* Column header: season names, then each sample night. */}
           <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
             <th className="px-2" />
+            {comparing && <th className="px-2" />}
             {seasons.map((name) => {
               const color = seasonColor(name, seasonColors);
               return (
@@ -252,45 +300,64 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
           </tr>
         </thead>
         <tbody>
-          {units.map((u) => {
-            const nights = nightsByUnit.get(u.id);
-            return (
-              <tr key={u.id} className={`border-t border-border/60 ${ROW_CLASS}`}>
-                <td className="max-w-[5rem] truncate px-1.5 text-[11px] font-medium" title={u.name}>
-                  {u.name}
-                </td>
-                {seasons.map((name) => {
-                  const price = priceFor(u.id, name);
-                  const fallback = price === null && baseRate && baseRate > 0 ? baseRate : null;
-                  return (
+          {units.map((u) =>
+            plans.map((plan, planIndex) => {
+              const nights = nightsByPlanUnit.get(plan.id)?.get(u.id);
+              const baseRate = plan.baseRate ?? null;
+              return (
+                <tr
+                  key={`${u.id}|${plan.id}`}
+                  className={`${planIndex === 0 ? "border-t border-border/60" : "border-t border-border/30"} ${ROW_CLASS}`}
+                >
+                  {planIndex === 0 && (
                     <td
-                      key={name}
-                      title={`${u.name} · ${name}${price === null ? " (base fallback)" : ""}`}
-                      className={`px-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
-                        price === null ? "text-muted-foreground" : "text-foreground"
-                      }`}
+                      rowSpan={plans.length}
+                      className="max-w-[5rem] truncate px-1.5 align-middle text-[11px] font-medium"
+                      title={u.name}
                     >
-                      {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                      {u.name}
                     </td>
-                  );
-                })}
-                {dates.map((d, i) => {
-                  const day = nights?.get(d);
-                  return (
-                    <td
-                      key={d}
-                      title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                      className={`px-0 text-center font-mono text-[9px] leading-none tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
-                        day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
-                      }`}
-                    >
-                      {day && day.price > 0 ? short(day.price) : loading ? "" : "–"}
+                  )}
+                  {comparing && (
+                    <td className="max-w-[5rem] truncate px-1.5 text-[10px] text-muted-foreground" title={plan.name}>
+                      {plan.name}
                     </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
+                  )}
+                  {seasons.map((name) => {
+                    const price = priceFor(plan.id, u.id, name);
+                    const fallback = price === null && baseRate && baseRate > 0 ? baseRate : null;
+                    return (
+                      <td
+                        key={name}
+                        title={`${u.name} · ${plan.name} · ${name}${price === null ? " (base fallback)" : ""}`}
+                        className={`px-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
+                          price === null ? "text-muted-foreground" : "text-foreground"
+                        }`}
+                      >
+                        {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                      </td>
+                    );
+                  })}
+                  {dates.map((d, i) => {
+                    const day = nights?.get(d);
+                    const cheapest =
+                      comparing && day && day.price > 0 && cheapestByUnitDate.get(`${u.id}|${d}`) === day.price;
+                    return (
+                      <td
+                        key={d}
+                        title={`${u.name} · ${plan.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}${cheapest ? " · cheapest of compared plans" : ""}`}
+                        className={`px-0 text-center font-mono text-[9px] leading-none tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                          day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
+                        } ${cheapest ? "font-semibold text-primary underline decoration-primary/50" : ""}`}
+                      >
+                        {day && day.price > 0 ? short(day.price) : loading ? "" : "–"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            }),
+          )}
         </tbody>
       </table>
     </div>

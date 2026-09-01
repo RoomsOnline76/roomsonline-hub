@@ -22,6 +22,8 @@ import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
 import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
+import { RatePlanDeck } from "@/components/pms/rateplans/RatePlanDeck";
+
 import { RatePlanExtrasSummary } from "@/components/pms/rateplans/RatePlanExtrasSummary";
 
 import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGrid";
@@ -280,11 +282,13 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       [properties, plans],
     );
 
-    const renderPlanCard = (plan: RatePlan) => {
+    const renderPlanCard = (plan: RatePlan, series: RatePlan[] = [plan]) => {
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
-      const planRateRows = seasonRateRows.filter((r) => r.rate_plan_id === plan.id);
+      const seriesIds = series.map((p) => p.id);
+      const planRateRows = seasonRateRows.filter((r) => seriesIds.includes(r.rate_plan_id));
       const gridUnits = linkedIds.map((id) => ({ id, name: getRoomTypeName(id) }));
+      const matrixPlans = series.map((p) => ({ id: p.id, name: p.name, baseRate: p.base_rate }));
       // Warn when a property sells several plans but none is nominated as the live rate.
       const siblingActive = plans.filter(
         (pl) => pl.property_id === plan.property_id && pl.is_active !== false,
@@ -297,6 +301,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         : () => setEditor({ propertyId: plan.property_id, ratePlanId: plan.id });
       return (
         <div key={plan.id} className="flex items-stretch gap-2">
+
         <Card className={`group min-w-0 flex-1 ${plan.is_active === false ? "opacity-50" : ""}`}>
           <CardHeader className="px-4 py-2.5">
             <div className="flex items-start justify-between gap-3">
@@ -447,12 +452,12 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             {/* Own click space: date navigation must not bubble up to the card's edit handler. */}
             <div onClick={(e) => e.stopPropagation()} role="presentation">
               <RatePlanRateMatrix
-                ratePlanId={plan.id}
+                plans={matrixPlans}
                 units={gridUnits}
                 rows={planRateRows}
-                baseRate={plan.base_rate}
                 seasonColors={seasonColors}
               />
+
             </div>
           </CardContent>
         </Card>
@@ -519,9 +524,11 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
               ) : (
-                <div className="grid gap-4 grid-cols-1">
-                  {section.plans.map(renderPlanCard)}
-                </div>
+                <RatePlanDeck
+                  plans={section.plans}
+                  renderCard={(frontPlan, series) => renderPlanCard(frontPlan, series)}
+                />
+
               )}
               {showPackages && (
                 <div className="pt-4 border-t">
