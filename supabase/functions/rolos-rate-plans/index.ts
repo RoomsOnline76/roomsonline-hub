@@ -626,6 +626,13 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     updated_at: new Date().toISOString(),
   };
 
+  // Stay-shape flags are written only when the caller sends them, so an editor that
+  // knows nothing about LOS/Full Stay cannot turn an authored ladder off.
+  if (typeof draft.los_enabled === "boolean") payload.los_enabled = draft.los_enabled;
+  if (typeof draft.fsp_enabled === "boolean") payload.fsp_enabled = draft.fsp_enabled;
+
+
+
 
   // Only one plan per property may be the live/direct plan — demote the incumbent
   // before writing this one (a partial unique index enforces it in the database).
