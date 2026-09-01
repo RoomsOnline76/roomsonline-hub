@@ -148,7 +148,7 @@ export const MANDATORY_CHECK_PATHS: Readonly<Record<string, readonly string[]>> 
   has_toilets: ["toilets"],
   beds_distributed: ["amenities.room_types"],
   beds_authored: ["amenities.room_types"],
-  changeover_authored: ["amenities.changeover", "amenities.changeover_by_unit"],
+  changeover_authored: ["amenities.changeover", "amenities.changeover_by_unit", "amenities.changeover_spans"],
   meets_minimum_images: ["images"],
   images_meet_size: ["images"],
   images_meet_cert_size: ["images"],
