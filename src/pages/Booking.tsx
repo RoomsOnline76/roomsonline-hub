@@ -56,6 +56,7 @@ import { captureCommissionOrigin } from "@/lib/bookingOrigin";
 import { SpecialOfferPicker, type CheckoutOffer } from "@/components/booking/SpecialOfferPicker";
 import { isSpecialEligible, type SpecialRecord } from "@/lib/specialsResolver";
 import { useResolvedCancellationPolicy } from "@/hooks/useResolvedCancellationPolicy";
+import { stayQuotedTotal } from "@/lib/stayQuotedTotal";
 import {
   Collapsible,
   CollapsibleContent,
@@ -956,6 +957,10 @@ const Booking = () => {
             embed_pricing_model: embedPricingModel || undefined,
             embed_linked_rolos_id: embedLinkedRolosId || undefined,
             room_types: roomTypes.map(rt => ({ id: rt.id, name: rt.name })),
+            adults: rooms.reduce((s, r) => s + (r.numberOfAdults || 0), 0) || 2,
+            teens: rooms.reduce((s, r) => s + (r.numberOfTeens || 0), 0),
+            children: rooms.reduce((s, r) => s + (r.numberOfChildren || 0), 0),
+            units: Math.max(1, rooms.length),
           },
         });
 
@@ -1174,6 +1179,8 @@ const Booking = () => {
             // Handle both snake_case and camelCase
             totalRoomAmount += rate.room_amount || rate.roomAmount || 0;
           });
+          // Full Stay plans price the whole stay; nightly/LOS keep the sum.
+          totalRoomAmount = stayQuotedTotal(rateType.stay_quote, totalRoomAmount);
 
           if (totalRoomAmount > 0) {
             lineItems.push({
