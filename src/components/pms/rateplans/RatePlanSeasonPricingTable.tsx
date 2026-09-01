@@ -340,8 +340,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        An empty cell inherits the season's "all units" value, then the plan base rate. "legacy" shows what the booking
-        engine currently quotes for that unit and season.
+        An empty cell inherits the season's "all units" value, then the plan base rate.
+
         {isDerivedPlan
           ? " On a tracked season, typing a rate into a cell pins that unit to the typed amount and stops it following the parent plan."
           : ""}
