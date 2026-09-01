@@ -831,6 +831,30 @@ Deno.serve(async (req) => {
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
 
+    /* Stamp the stay shape onto the room lines, with the same keys create_reservation writes,
+     * so a LOS / Full Stay stay stays recognisable after a modify. Never invents a rooms[]
+     * a booking never had. */
+    if (repricedShape) {
+      const lines = Array.isArray(updateData.rooms)
+        ? updateData.rooms
+        : Array.isArray(booking.rooms)
+          ? booking.rooms
+          : null;
+      if (lines) {
+        updateData.rooms = lines.map((line: any) =>
+          line && typeof line === "object"
+            ? {
+                ...line,
+                stay_shape: repricedShape!.shape,
+                stay_quote_source: repricedShape!.source,
+                stay_total: repricedShape!.stay_total,
+              }
+            : line
+        );
+      }
+    }
+
+
     /* Deliberate overbooking. Only admin / dev / fearless_leader may bypass the
      * availability guard; anyone else has the reason stripped so the guard still
      * refuses the clash. */
