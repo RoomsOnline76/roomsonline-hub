@@ -482,7 +482,9 @@ async function previewSavedPlan(
   ]);
 
   const amenities = (property?.amenities ?? {}) as Record<string, any>;
-  const resolver = await createRateResolver(sb, propertyId, { amenities, window });
+  // Scope the resolver to this plan, otherwise every card previews the property's
+  // primary plan and comparisons show identical numbers.
+  const resolver = await createRateResolver(sb, propertyId, { amenities, window, preferRatePlanId: ratePlanId });
   const inputs = resolver.pricingInputs as PricingInputs;
   const roomById = new Map<string, any>(((roomTypes ?? []) as any[]).map((r) => [String(r.id), r]));
 
