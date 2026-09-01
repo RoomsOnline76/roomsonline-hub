@@ -55,6 +55,8 @@ export function losPricingForPeriod(opts: {
   if (!Array.isArray(rungs) || rungs.length === 0) return [];
 
   const byNights = new Map<number, RuLosPricing>();
+  const pinned = new Map<number, boolean>();
+
   for (const rung of rungs) {
     const nights = Number(rung?.nights);
     if (!Number.isFinite(nights) || nights < 1) continue;
