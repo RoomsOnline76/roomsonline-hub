@@ -14,7 +14,8 @@ export type RuDeltaScope = 'rates' | 'availability' | 'both';
 
 /** Availability/inventory-only triggers — never attach Push_PutPrices_RQ. */
 const AVAILABILITY_ONLY =
-  /^(booking_|restriction_|stop_sell|minimum_stay|maximum_stay|min_stay|max_stay|lead_days|availability|block|unblock|release|partial_release|calendar_block|checkin|checkout|reservation_)/;
+  /^(booking_|restriction_|stop_sell|minimum_stay|maximum_stay|min_stay|max_stay|lead_days|availability|block|unblock|release|partial_release|calendar_block|checkin|checkout|reservation_|changeover)/;
+
 
 /** Price-only triggers — never attach Push_PutAvb_RQ. */
 const RATES_ONLY =
