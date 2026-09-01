@@ -30,6 +30,9 @@ const FULL_SCOPE =
 export function ruDeltaScopeForTrigger(trigger: string | null | undefined): RuDeltaScope {
   const t = (trigger ?? '').trim().toLowerCase();
   if (!t) return 'both';
+  // Explicit half markers (pending-delta resume uses `<trigger>:rates` / `<trigger>:availability`).
+  if (t.endsWith(':rates') || t.endsWith(':prices')) return 'rates';
+  if (t.endsWith(':availability') || t.endsWith(':avb')) return 'availability';
   if (FULL_SCOPE.test(t)) return 'both';
   if (AVAILABILITY_ONLY.test(t)) return 'availability';
   if (RATES_ONLY.test(t)) return 'rates';
