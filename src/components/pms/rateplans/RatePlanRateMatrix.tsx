@@ -268,10 +268,13 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 <th
                   key={name}
                   title={`${name} season`}
-                  className={`w-14 px-1 text-center text-[9px] font-medium ${color.tint} ${color.text}`}
+                  className={`w-7 px-0 py-1 align-bottom text-[9px] font-medium ${color.tint} ${color.text}`}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} aria-hidden />
+                  <span
+                    className="mx-auto flex items-center gap-1 whitespace-nowrap"
+                    style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                  >
+                    <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${color.dot}`} aria-hidden />
                     {name}
                   </span>
                 </th>
