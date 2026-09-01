@@ -20,7 +20,7 @@ import {
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-/** Same shape as the engine's `applyDerivation`. */
+/** Same shape as the engine's `applyDerivation` (rounds up to the next 10). */
 export function applyOffset(
   amount: number,
   type: DerivationType,
@@ -28,7 +28,7 @@ export function applyOffset(
   rounding: string,
 ): number {
   const raw = type === "percent" ? amount * (1 + value / 100) : amount + value;
-  const next = rounding === "none" ? round2(raw) : Math.round(raw / 10) * 10;
+  const next = rounding === "none" ? round2(raw) : Math.ceil(raw / 10) * 10;
   return next > 0 ? next : 0;
 }
 
