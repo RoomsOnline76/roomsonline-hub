@@ -93,6 +93,9 @@ async function runSection(
   if (changeover.length > 0) {
     const outcome = await queueChannelRatesSync(propertyId, "changeover_change", {
       forceAvailability: true,
+      // The channel must be asked back what changeover it now holds for those nights: a silent
+      // accept was exactly how changeover edits went missing.
+      verifyAvailabilityReadback: true,
     });
     if (outcome?.error) return outcome.error;
     if (others.length === 0) return null;
