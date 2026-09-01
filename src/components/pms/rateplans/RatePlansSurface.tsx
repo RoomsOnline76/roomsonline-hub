@@ -60,6 +60,10 @@ export interface RatePlan {
   sell_priority?: number | null;
   los_enabled?: boolean | null;
   fsp_enabled?: boolean | null;
+  derived_from_plan_id?: string | null;
+  derivation_type?: string | null;
+  derivation_value?: number | null;
+  derivation_rounding?: string | null;
 }
 
 interface RoomType {
@@ -134,7 +138,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       const [plansRes, roomTypesRes, propsRes] = await Promise.all([
         supabase
           .from("rolos_rate_plans")
-          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority, los_enabled, fsp_enabled")
+          .select("id, property_id, name, code, description, is_active, min_stay, max_stay, min_advance_days, requires_deposit, deposit_percentage, base_rate, pricing_model, breakfast_included, breakfast_amount, breakfast_basis, is_primary_sell, push_to_channels, sell_priority, los_enabled, fsp_enabled, derived_from_plan_id, derivation_type, derivation_value, derivation_rounding")
           .in("property_id", ids)
           .is("deleted_at", null)
           .order("name"),
@@ -282,11 +286,38 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
       [properties, plans],
     );
 
+    /**
+     * Season rows for one plan. A derived plan authors no amounts of its own, so its
+     * card mirrors the parent's authored rates with the plan's offset + rounding
+     * applied — the same maths the resolver uses for nightly prices.
+     */
+    const derivedSeasonRows = (plan: RatePlan): SeasonRateRow[] => {
+      const own = seasonRateRows.filter((r) => r.rate_plan_id === plan.id);
+      if (own.some((r) => Number(r.base_rate ?? 0) > 0)) return own;
+      const parentId = plan.derived_from_plan_id;
+      if (!parentId) return own;
+      const parentRows = seasonRateRows.filter(
+        (r) => r.rate_plan_id === parentId && Number(r.base_rate ?? 0) > 0,
+      );
+      return parentRows
+        .map((r) => ({
+          ...r,
+          rate_plan_id: plan.id,
+          base_rate: applyDerivation(
+            Number(r.base_rate),
+            plan.derivation_type as "percent" | "amount" | null | undefined,
+            plan.derivation_value,
+            plan.derivation_rounding,
+          ),
+        }))
+        .filter((r) => Number(r.base_rate ?? 0) > 0);
+    };
+
     const renderPlanCard = (plan: RatePlan, series: RatePlan[] = [plan]) => {
       const linkedIds = getLinkedRoomTypes(plan.id).filter((id) => roomTypes.some((rt) => rt.id === id));
       const pricedSeasons = seasonCounts[plan.id] ?? 0;
       const seriesIds = series.map((p) => p.id);
-      const planRateRows = seasonRateRows.filter((r) => seriesIds.includes(r.rate_plan_id));
+      const planRateRows = series.flatMap((p) => derivedSeasonRows(p));
       const gridUnits = linkedIds.map((id) => ({ id, name: getRoomTypeName(id) }));
       const matrixPlans = series.map((p) => ({ id: p.id, name: p.name, baseRate: p.base_rate }));
       // Warn when a property sells several plans but none is nominated as the live rate.
