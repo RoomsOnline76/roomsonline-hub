@@ -73,16 +73,12 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   seasons,
   seasonColors,
   roomTypes,
-  liveMatrix,
-  liveMatrixLoading,
-  legacyPendingBySeason,
-  legacyPendingCells = 0,
   onChange,
   onCellChange,
   onFillColumn,
   onFillRow,
-  onSeedFromLive,
 }: Props) {
+
   const setMode = useCallback(
     (calendarSeasonId: string, mode: SeasonPricingMode) => onChange(calendarSeasonId, { mode }),
     [onChange],
