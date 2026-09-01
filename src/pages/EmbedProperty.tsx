@@ -18,6 +18,7 @@ import { MapPin, Phone, Mail, Tag, ChevronDown, Users, BedDouble, Bath, Loader2 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchLiveRates, type LivePropertyRates, type LiveRoomRate } from "@/lib/pmsLiveAvailability";
+import { stayQuotedTotal, type GuestStayQuote } from "@/lib/stayQuotedTotal";
 import { EmbedConciergeChat } from "@/components/embed/EmbedConciergeChat";
 import { useItinerary } from "@/contexts/ItineraryContext";
 
@@ -449,6 +450,7 @@ export default function EmbedProperty() {
         const ratesByDate: Record<string, number> = {};
         let minRate: number | null = null;
         let hasAvailability = false;
+        let stayQuote: GuestStayQuote | null = null;
 
         const avail = rt.rooms_available_per_night || rt.roomsAvailablePerNight || rt.availability_per_night || rt.availabilityPerNight || [];
         for (const day of avail) {
@@ -460,6 +462,7 @@ export default function EmbedProperty() {
           if (effectiveUnits > 0) hasAvailability = true;
         }
         for (const rateType of rateTypes) {
+          if (!stayQuote && rateType.stay_quote) stayQuote = rateType.stay_quote as GuestStayQuote;
           for (const r of (rateType.rates || [])) {
             const amt = r.room_amount ?? r.roomAmount ?? 0;
             const dateStr = r.date || r.night_date || "";
@@ -469,7 +472,7 @@ export default function EmbedProperty() {
             }
           }
         }
-        liveRooms.push({ roomTypeId: String(id), roomName: name, minRate, available: hasAvailability, availableByDate, ratesByDate });
+        liveRooms.push({ roomTypeId: String(id), roomName: name, minRate, available: hasAvailability, availableByDate, ratesByDate, stayQuote });
         if (minRate !== null && (lowestRate === null || minRate < lowestRate)) lowestRate = minRate;
       }
 
@@ -691,8 +694,16 @@ export default function EmbedProperty() {
       return resolveSeasonRate(roomId, roomName, dateKey, baseFallback);
     });
     const hasCompletePricing = nightlyRates.length > 0 && nightlyRates.every((nightlyRate) => nightlyRate != null && nightlyRate > 0);
+    // Full Stay plans quote the whole stay, not the nightly sum. The grid quote
+    // is only usable when it covers exactly these nights.
+    const liveStayQuote = liveRates?.rooms.find((r) =>
+      r.roomTypeId === roomId || r.roomName === roomName
+    )?.stayQuote ?? null;
+    const rateTypeStayQuote = liveStayQuote && Number(liveStayQuote.nights) === nightlyRates.length
+      ? liveStayQuote
+      : null;
     const resolvedStayTotal = hasCompletePricing
-      ? nightlyRates.reduce((sum, nightlyRate) => sum + (nightlyRate ?? 0), 0)
+      ? stayQuotedTotal(rateTypeStayQuote, nightlyRates.reduce((sum, nightlyRate) => sum + (nightlyRate ?? 0), 0))
       : null;
     if (resolvedStayTotal != null) {
       effectiveRate = resolvedStayTotal / nightlyRates.length;

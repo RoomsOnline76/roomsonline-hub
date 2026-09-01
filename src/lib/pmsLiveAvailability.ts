@@ -4,6 +4,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays } from "date-fns";
+import type { GuestStayQuote } from "@/lib/stayQuotedTotal";
 
 export interface LiveRoomRate {
   roomTypeId: string;
@@ -12,6 +13,8 @@ export interface LiveRoomRate {
   available: boolean;
   availableByDate: Record<string, number>;
   ratesByDate: Record<string, number>;
+  /** Additive stay-shape descriptor published by the native resolver, when present. */
+  stayQuote?: GuestStayQuote | null;
 }
 
 export interface LivePropertyRates {
