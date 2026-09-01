@@ -694,6 +694,27 @@ export default function SeasonsCalendar({
                 ))}
               </div>
 
+              {/* Stay shape — read-only mirror of ladders authored on Rate Plans */}
+              {(stayShapeBySeason[selectedSeason.id]?.plans?.length ?? 0) > 0 && (
+                <div className="space-y-1 border-t pt-2">
+                  <Label className="text-xs font-medium text-muted-foreground">Stay shape (from Rate Plans)</Label>
+                  {stayShapeBySeason[selectedSeason.id].plans.map((p) => (
+                    <div key={p.rate_plan_id} className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      {p.los.map((r) => (
+                        <span key={`los-${r.nights}-${r.label}`}> &middot; LOS {r.label}</span>
+                      ))}
+                      {p.fsp.map((c) => (
+                        <span key={`fsp-${c.nights}-${c.guests}-${c.label}`}> &middot; FSP {c.label}</span>
+                      ))}
+                    </div>
+                  ))}
+                  <p className="text-[11px] text-muted-foreground">
+                    Edit length-of-stay and full-stay on Rate Plans. Calendar still owns the dates.
+                  </p>
+                </div>
+              )}
+
               {linkedRateTypes.length > 0 && (
                 <div className="text-xs text-muted-foreground mt-2">
                   Linked rate types: {linkedRateTypes.map((rt) => rt.name).join(", ")}
