@@ -3056,6 +3056,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
   onSelectBooking: (b: BookingRow, tab?: BookingDetailTab) => void;
   onEditBlock?: (roomTypeId: string, date: Date) => void;
 }) {
+  const changeoverExceptionFor = useChangeoverException();
   const isSingleRoom = typeRooms.length <= 1;
   const singleRoom = typeRooms.length === 1 ? typeRooms[0] : null;
   const singleRoomOOS = singleRoom?.status === "out_of_service";
@@ -3076,7 +3077,6 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
         {weekDates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
-          const changeoverExceptionFor = changeoverException;
           const prevRestriction = i > 0 ? getRestriction(rt.name, weekDates[i - 1]) : undefined;
           const nextRestriction = i < weekDates.length - 1 ? getRestriction(rt.name, weekDates[i + 1]) : undefined;
           const { booked, avail } = getMonthAvail(date);
@@ -3262,6 +3262,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
   cellW: string;
   labelW: string;
 }) {
+  const changeoverExceptionFor = useChangeoverException();
   const typeRooms = roomsByType.get(rt.id) || [];
   const totalUnits = typeRooms.length || 1;
 
@@ -3296,7 +3297,6 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
         {dates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
-          const changeoverExceptionFor = changeoverException;
           const prevRestriction = i > 0 ? getRestriction(rt.name, dates[i - 1]) : undefined;
           const nextRestriction = i < dates.length - 1 ? getRestriction(rt.name, dates[i + 1]) : undefined;
           const { booked, avail } = getAvail(date);
