@@ -2766,6 +2766,19 @@ function DateHeaderCell({ date, season, className: extraClass }: { date: Date; s
   return cellContent;
 }
 
+/**
+ * Changeover exceptions for the calendar. Provided once by the dashboard and read by the deep
+ * row renderers, so the resolver does not have to be threaded through every grid layer.
+ * Calendars mark only nights whose rule DIFFERS from the property master rule.
+ */
+const ChangeoverExceptionContext = createContext<(date: Date) => ChangeoverException | null>(() => null);
+
+type ChangeoverException = { code: number; origin: string; tooltip: string };
+
+function useChangeoverException(): (date: Date) => ChangeoverException | null {
+  return useContext(ChangeoverExceptionContext);
+}
+
 // ──────────── Shared: Restriction colored lines ────────────
 function RestrictionLines({ restriction, prevRestriction, nextRestriction, date, changeover }: {
   restriction: AvailabilityOverride | undefined;
@@ -3063,6 +3076,7 @@ function MonthRoomTypeRows({ rt, weekDates, typeRooms, bookings, getRateForDate,
         {weekDates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
+          const changeoverExceptionFor = changeoverException;
           const prevRestriction = i > 0 ? getRestriction(rt.name, weekDates[i - 1]) : undefined;
           const nextRestriction = i < weekDates.length - 1 ? getRestriction(rt.name, weekDates[i + 1]) : undefined;
           const { booked, avail } = getMonthAvail(date);
@@ -3282,6 +3296,7 @@ function RoomTypeSection({ rt, dates, roomsByType, bookings, getRateForDate, get
         {dates.map((date, i) => {
           const rate = getRateForDate(rt.id, date);
           const restriction = getRestriction(rt.name, date);
+          const changeoverExceptionFor = changeoverException;
           const prevRestriction = i > 0 ? getRestriction(rt.name, dates[i - 1]) : undefined;
           const nextRestriction = i < dates.length - 1 ? getRestriction(rt.name, dates[i + 1]) : undefined;
           const { booked, avail } = getAvail(date);
