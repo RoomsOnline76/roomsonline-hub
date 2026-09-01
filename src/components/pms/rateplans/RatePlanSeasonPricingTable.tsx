@@ -3,15 +3,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { CalendarDays, ChevronsRight, Wand2 } from "lucide-react";
+import { CalendarDays, ChevronsRight } from "lucide-react";
 import type {
   CalendarSeason,
   DraftSeasonRate,
-  LiveSeasonMatrix,
   RatePlanDraft,
   SeasonPricingMode,
 } from "./ratePlanDraft";
 import { seasonRateFor, seasonUnitRate, pricingNoun } from "./ratePlanDraft";
+
 import { seasonColor, type SeasonColorMap } from "@/lib/seasonColors";
 
 interface RoomTypeOption {
@@ -25,20 +25,12 @@ interface Props {
   /** Season name -> Calendar-authored colour, so columns match the Calendar. */
   seasonColors?: SeasonColorMap;
   roomTypes: RoomTypeOption[];
-  /** Legacy Calendar-authored rates, per season per unit — import source only. */
-  liveMatrix?: LiveSeasonMatrix;
-  liveMatrixLoading?: boolean;
-  /** Calendar season id -> unit ids still priced only by the legacy Calendar grid. */
-  legacyPendingBySeason?: Map<string, Set<string>>;
-  /** Total cells waiting on the legacy import. Zero hides every import affordance. */
-  legacyPendingCells?: number;
   onChange: (calendarSeasonId: string, patch: Partial<DraftSeasonRate>) => void;
   onCellChange: (calendarSeasonId: string, roomTypeId: string, value: string) => void;
   onFillColumn: (calendarSeasonId: string, value: string) => void;
   onFillRow: (roomTypeId: string, sourceCalendarSeasonId: string) => void;
-  /** Import legacy Calendar rates into the matrix. Omit the season id for every season. */
-  onSeedFromLive: (calendarSeasonId?: string) => void;
 }
+
 
 const todayISO = (): string => {
   const now = new Date();
@@ -73,16 +65,12 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   seasons,
   seasonColors,
   roomTypes,
-  liveMatrix,
-  liveMatrixLoading,
-  legacyPendingBySeason,
-  legacyPendingCells = 0,
   onChange,
   onCellChange,
   onFillColumn,
   onFillRow,
-  onSeedFromLive,
 }: Props) {
+
   const setMode = useCallback(
     (calendarSeasonId: string, mode: SeasonPricingMode) => onChange(calendarSeasonId, { mode }),
     [onChange],
@@ -91,9 +79,9 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
   const linkedUnits = roomTypes.filter((rt) => draft.units.some((u) => u.room_type_id === rt.id));
   const noun = pricingNoun(draft.pricing_model);
   const planBase = Number(draft.base_rate);
-  const hasLegacyPending = legacyPendingCells > 0;
   const isDerivedPlan = Boolean(draft.derived_from_plan_id);
   const derivationSuffix = draft.derivation_type === "amount" ? "R" : "%";
+
 
 
   if (seasons.length === 0) {
@@ -130,26 +118,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </p>
       </div>
 
-      {hasLegacyPending && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-          <p className="max-w-[40rem] text-xs text-foreground">
-            <strong>{legacyPendingCells}</strong> {noun.singular}/season rate{legacyPendingCells === 1 ? "" : "s"} on this plan still
-            live only in the old Calendar grid. Move them here so Rate Plans holds every price. Cells you have already
-            priced are left untouched, and nothing is committed until you save.
-          </p>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-7 shrink-0 gap-1.5 text-xs"
-            disabled={liveMatrixLoading}
-            onClick={() => onSeedFromLive()}
-          >
-            <Wand2 className="h-3.5 w-3.5" />
-            Move these rates into this plan
-          </Button>
-        </div>
-      )}
+
+
 
 
       <div className="overflow-x-auto rounded-md border">
@@ -276,19 +246,6 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                       ) : null}
 
 
-                      {(legacyPendingBySeason?.get(season.calendar_season_id)?.size ?? 0) > 0 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className="h-5 gap-1 px-1.5 text-[10px] font-normal"
-                          title="Copy the legacy Calendar rates for this season into its cells"
-                          onClick={() => onSeedFromLive(season.calendar_season_id)}
-                        >
-                          <Wand2 className="h-3 w-3" />
-                          Import legacy
-                        </Button>
-                      )}
 
                     </div>
                   </th>
@@ -320,7 +277,6 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                 {seasons.map((season) => {
                   const rate = seasonRateFor(draft, season.calendar_season_id);
                   const columnValue = rate.mode === "differential" ? rate.differential_value : rate.base_rate;
-                  const liveValue = liveMatrix?.get(season.calendar_season_id)?.get(rt.id);
                   // What this cell resolves to while it is empty, best hint first.
                   const fallback =
                     rate.mode === "derived"
@@ -329,11 +285,10 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         ? columnValue
                         : rate.mode === "differential"
                           ? "0"
-                          : liveValue && liveValue > 0
-                            ? `${fmtMoney(liveValue)} legacy`
-                            : planBase > 0
-                              ? `${fmtMoney(planBase)} base`
-                              : "Rate";
+                          : planBase > 0
+                            ? `${fmtMoney(planBase)} base`
+                            : "Rate";
+
 
                   return (
                     <td key={season.calendar_season_id} className="border-l p-1.5 align-middle">
@@ -355,8 +310,8 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
         </table>
       </div>
       <p className="text-[10px] text-muted-foreground">
-        An empty cell inherits the season's "all units" value, then the plan base rate. "legacy" shows what the booking
-        engine currently quotes for that unit and season.
+        An empty cell inherits the season's "all units" value, then the plan base rate.
+
         {isDerivedPlan
           ? " On a tracked season, typing a rate into a cell pins that unit to the typed amount and stops it following the parent plan."
           : ""}
