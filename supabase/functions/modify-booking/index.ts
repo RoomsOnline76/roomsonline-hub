@@ -641,6 +641,7 @@ Deno.serve(async (req) => {
     let newTotalPrice: number | null = null;
     let repricedPlanId: string | null = null;
     let repricedNightly: number | null = null;
+    let repricedShape: { shape: string; source: string | null; stay_total: number } | null = null;
 
     if (isRolNative && paxOrDatesChanged) {
       const repriced = await recalculateRolPrice(supabase, booking, modifications);
@@ -648,6 +649,8 @@ Deno.serve(async (req) => {
         newTotalPrice = repriced.total;
         repricedPlanId = repriced.rate_plan_id;
         repricedNightly = repriced.nightly;
+        repricedShape = { shape: repriced.shape, source: repriced.source, stay_total: repriced.total };
+
         console.log(
           `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
         );
