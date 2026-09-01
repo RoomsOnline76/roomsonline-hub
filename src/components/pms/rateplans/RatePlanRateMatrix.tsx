@@ -333,11 +333,16 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                       <td
                         key={name}
                         title={`${u.name} · ${plan.name} · ${name}${price === null ? " (base fallback)" : ""}`}
-                        className={`px-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
+                        className={`px-0 py-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
                           price === null ? "text-muted-foreground" : "text-foreground"
                         }`}
                       >
-                        {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                        <span
+                          className="mx-auto inline-block whitespace-nowrap"
+                          style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+                        >
+                          {price !== null ? money(price) : fallback ? money(fallback) : "–"}
+                        </span>
                       </td>
                     );
                   })}
