@@ -229,6 +229,8 @@ function emptyInputs(): PricingInputs {
     dailyOverrides: {},
     closedDates: {},
     parentPlans: {},
+    losRungs: {},
+    fspCells: {},
   };
 }
 
