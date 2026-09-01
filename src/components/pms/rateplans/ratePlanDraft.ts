@@ -191,7 +191,33 @@ export type DraftAction =
    * Seed the matrix from the rates the live booking engine resolves today. Only the
    * seasons in `matrix` are touched; `calendarSeasonId` limits it to one column.
    */
-  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string };
+  | { type: "seed_matrix"; matrix: LiveSeasonMatrix; calendarSeasonId?: string }
+  /** Stay-shape ladders. Rows are positional — the editor renders them in order. */
+  | { type: "add_los_rung"; calendarSeasonId: string }
+  | { type: "patch_los_rung"; index: number; patch: Partial<DraftLosRung> }
+  | { type: "remove_los_rung"; index: number }
+  | { type: "add_fsp_cell"; calendarSeasonId: string }
+  | { type: "patch_fsp_cell"; index: number; patch: Partial<DraftFspCell> }
+  | { type: "remove_fsp_cell"; index: number };
+
+export const newLosRung = (calendarSeasonId: string): DraftLosRung => ({
+  calendar_season_id: calendarSeasonId,
+  nights: "3",
+  derivation_type: "percent",
+  derivation_value: "-10",
+  is_pinned: false,
+  pinned_rate: "",
+});
+
+export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
+  calendar_season_id: calendarSeasonId,
+  nights: "7",
+  nr_of_guests: "2",
+  derivation_type: "percent",
+  derivation_value: "-20",
+  is_pinned: false,
+  pinned_total: "",
+});
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -203,6 +229,7 @@ const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   derivation_value: "",
   unit_rates: {},
 });
+
 
 
 /** Typing a rate into a "Not priced" column promotes it to a fixed seasonal rate. */
