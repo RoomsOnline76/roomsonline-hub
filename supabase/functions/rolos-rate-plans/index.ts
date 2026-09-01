@@ -56,7 +56,7 @@ interface DraftUnit {
 
 interface DraftSeasonRate {
   calendar_season_id: string;
-  mode?: "none" | "absolute" | "differential";
+  mode?: "none" | "absolute" | "differential" | "derived";
   base_rate?: number | null;
   differential_type?: DifferentialType;
   differential_value?: number | null;
@@ -94,7 +94,42 @@ interface Draft {
   derivation_rounding?: string | null;
   units?: DraftUnit[];
   season_rates?: DraftSeasonRate[];
+  /**
+   * Stay-shape ladders (Phase 0 contract). ABSENT keys are a strict no-op: the
+   * flags are left as they are and no child row is touched, so the current editor
+   * payload can never wipe an authored ladder.
+   */
+  los_enabled?: boolean;
+  fsp_enabled?: boolean;
+  los_rungs?: DraftLosRung[];
+  fsp_cells?: DraftFspCell[];
 }
+
+interface DraftStayWindow {
+  room_type_id?: string | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+}
+
+interface DraftLosRung extends DraftStayWindow {
+  nights?: number | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_rate?: number | null;
+}
+
+interface DraftFspCell extends DraftStayWindow {
+  nights?: number | null;
+  nr_of_guests?: number | null;
+  derivation_type?: "percent" | "amount" | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_total?: number | null;
+}
+
+
 
 
 const num = (v: unknown): number | null => {
@@ -591,6 +626,13 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     updated_at: new Date().toISOString(),
   };
 
+  // Stay-shape flags are written only when the caller sends them, so an editor that
+  // knows nothing about LOS/Full Stay cannot turn an authored ladder off.
+  if (typeof draft.los_enabled === "boolean") payload.los_enabled = draft.los_enabled;
+  if (typeof draft.fsp_enabled === "boolean") payload.fsp_enabled = draft.fsp_enabled;
+
+
+
 
   // Only one plan per property may be the live/direct plan — demote the incumbent
   // before writing this one (a partial unique index enforces it in the database).
@@ -701,6 +743,94 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     const { error: srErr } = await sb.from("rolos_rate_plan_season_rates").insert(seasonRows);
     if (srErr) return { error: `Saved the plan but could not store season pricing: ${srErr.message}` };
   }
+
+  // --- Stay-shape ladders (LOS rungs / Full Stay cells) --------------------
+  // Present key = replace the whole set for this plan. Absent key = untouched.
+  if (Array.isArray(draft.los_rungs)) {
+    const rows: Record<string, unknown>[] = [];
+    for (const r of draft.los_rungs) {
+      const nights = intOrNull(r?.nights);
+      if (nights === null || nights < 1) continue;
+      const seasonId = r?.calendar_season_id ? String(r.calendar_season_id) : null;
+      const from = r?.start_date || null;
+      const to = r?.end_date || null;
+      // A rung with neither a calendar season nor an explicit window prices nothing.
+      if (!seasonId && !(from && to)) {
+        return { error: "Every length-of-stay rung needs a season or a date range" };
+      }
+      const pinned = r?.is_pinned === true;
+      const pinnedRate = positive(r?.pinned_rate);
+      if (pinned && pinnedRate === null) {
+        return { error: `The ${nights}-night rung is pinned but has no rate` };
+      }
+      const derivationValue = num(r?.derivation_value);
+      if (!pinned && derivationValue === null) {
+        return { error: `The ${nights}-night rung needs an adjustment value` };
+      }
+      rows.push({
+        rate_plan_id: planId,
+        room_type_id: r?.room_type_id ? String(r.room_type_id) : null,
+        calendar_season_id: seasonId,
+        start_date: from,
+        end_date: to,
+        nights,
+        derivation_type: r?.derivation_type === "amount" ? "amount" : "percent",
+        derivation_value: derivationValue ?? 0,
+        is_pinned: pinned,
+        pinned_rate: pinned ? pinnedRate : null,
+      });
+    }
+    await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
+    if (rows.length > 0) {
+      const { error: losErr } = await sb.from("rolos_rate_plan_los_rungs").insert(rows);
+      if (losErr) return { error: `Saved the plan but could not store the length-of-stay rungs: ${losErr.message}` };
+    }
+  }
+
+  if (Array.isArray(draft.fsp_cells)) {
+    const rows: Record<string, unknown>[] = [];
+    for (const c of draft.fsp_cells) {
+      const nights = intOrNull(c?.nights);
+      const guests = intOrNull(c?.nr_of_guests);
+      if (nights === null || nights < 1 || guests === null || guests < 1) continue;
+      const seasonId = c?.calendar_season_id ? String(c.calendar_season_id) : null;
+      const from = c?.start_date || null;
+      const to = c?.end_date || null;
+      if (!seasonId && !(from && to)) {
+        return { error: "Every full-stay cell needs a season or a date range" };
+      }
+      const pinned = c?.is_pinned === true;
+      const pinnedTotal = positive(c?.pinned_total);
+      const derivationValue = num(c?.derivation_value);
+      if (pinned && pinnedTotal === null) {
+        return { error: `The ${nights}-night / ${guests}-guest cell is pinned but has no total` };
+      }
+      if (!pinned && derivationValue === null) {
+        return { error: `The ${nights}-night / ${guests}-guest cell needs an adjustment value` };
+      }
+      rows.push({
+        rate_plan_id: planId,
+        room_type_id: c?.room_type_id ? String(c.room_type_id) : null,
+        calendar_season_id: seasonId,
+        start_date: from,
+        end_date: to,
+        nights,
+        nr_of_guests: guests,
+        // A pinned cell carries no derivation; a derived cell carries no total.
+        derivation_type: pinned ? null : (c?.derivation_type === "amount" ? "amount" : "percent"),
+        derivation_value: pinned ? null : derivationValue,
+        is_pinned: pinned,
+        pinned_total: pinned ? pinnedTotal : null,
+      });
+    }
+    await sb.from("rolos_rate_plan_fsp_cells").delete().eq("rate_plan_id", planId);
+    if (rows.length > 0) {
+      const { error: fspErr } = await sb.from("rolos_rate_plan_fsp_cells").insert(rows);
+      if (fspErr) return { error: `Saved the plan but could not store the full-stay grid: ${fspErr.message}` };
+    }
+  }
+
+
 
   // --- Restrictions --------------------------------------------------------
   await sb.from("rolos_stay_restrictions").delete().eq("rate_plan_id", planId).eq("source", "rate_plan");

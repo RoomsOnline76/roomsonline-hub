@@ -63,6 +63,9 @@ export interface PricingRatePlan {
   derivation_value?: number | null;
   /** Currently only "nearest_10" | "none". Defaults to nearest_10. */
   derivation_rounding?: string | null;
+  /** Stay-shape switches (orthogonal to pricing_model). Default false. */
+  los_enabled?: boolean;
+  fsp_enabled?: boolean;
 }
 
 /**
@@ -99,6 +102,36 @@ export interface PlanSeasonRate {
   derivation_value?: number | null;
   /** Derived plans: a manually typed rate that stops tracking the parent. */
   is_pinned?: boolean;
+}
+
+/**
+ * One length-of-stay rung: from `nights` nights up, the nightly price changes.
+ * Rows live in rolos_rate_plan_los_rungs. The highest matching threshold wins.
+ */
+export interface LosRung {
+  nights: number;
+  derivation_type: DerivationType;
+  derivation_value: number;
+  is_pinned?: boolean;
+  pinned_rate?: number | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  room_type_id?: string | null;
+}
+
+/** One full-stay-price cell: nights x guests -> a stay total. rolos_rate_plan_fsp_cells. */
+export interface FspCell {
+  nights: number;
+  nr_of_guests: number;
+  derivation_type?: DerivationType | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_total?: number | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  room_type_id?: string | null;
 }
 
 
@@ -144,6 +177,10 @@ export interface PricingInputs {
   closedDates?: Record<string, Set<string> | string[]>;
   /** Parent plans keyed by rate_plan_id, for plans other plans derive from. */
   parentPlans?: Record<string, ParentPlanPricing>;
+  /** Length-of-stay rungs per linked_rolos_id (keyed like planSeasonRates). */
+  losRungs?: Record<string, LosRung[]>;
+  /** Full-stay-price cells per linked_rolos_id (keyed like planSeasonRates). */
+  fspCells?: Record<string, FspCell[]>;
 }
 
 
@@ -192,6 +229,8 @@ function emptyInputs(): PricingInputs {
     dailyOverrides: {},
     closedDates: {},
     parentPlans: {},
+    losRungs: {},
+    fspCells: {},
   };
 }
 
@@ -211,6 +250,8 @@ export function normalizePricingInputs(partial: Partial<PricingInputs>): Pricing
     dailyOverrides: partial.dailyOverrides ?? base.dailyOverrides,
     closedDates: partial.closedDates ?? base.closedDates,
     parentPlans: partial.parentPlans ?? base.parentPlans,
+    losRungs: partial.losRungs ?? base.losRungs,
+    fspCells: partial.fspCells ?? base.fspCells,
   };
 }
 
@@ -733,4 +774,215 @@ export function stayTotalForModel(raw: unknown, input: OccupancyInput): number {
     total += nightly + extraAdults * extraRate + teenCharge + childCharge;
   }
   return total;
+}
+
+// ─── Stay quote (LOS / Full Stay contract) ─────────────────────────────
+// Occupancy model (per_room / per_person / …) and stay shape (nightly /
+// los_nightly / full_stay) are ORTHOGONAL. Daily stays the parent product:
+// LOS and Full Stay are derived from the same plan and the same nightly series.
+//
+// Fails closed: with no rungs/cells, or with either flag off, or with an
+// unpriced night in the window, this returns exactly what stayTotalForModel
+// returns today for the resolved nightly series.
+
+export type StayQuoteShape = "nightly" | "los_nightly" | "full_stay";
+
+export interface StayQuoteInput {
+  /** Arrival date. */
+  from: string;
+  /** Last night, inclusive — same convention as resolveNightRates. */
+  to: string;
+  adults: number;
+  teens?: number;
+  children?: number;
+  units?: number;
+  extraAdultRate?: number;
+  childRate?: number;
+  teenRate?: number;
+}
+
+export interface StayQuote {
+  shape: StayQuoteShape;
+  nights: number;
+  /** null only when shape === "full_stay". */
+  nightly: number[] | null;
+  stay_total: number;
+  source: RateSource | "los_derived" | "los_pinned" | "fsp_derived" | "fsp_pinned";
+  /** stay_total / nights, rounded to cents. Display only — never a billed amount. */
+  display_per_night: number;
+}
+
+const cents = (n: number): number => (Number.isFinite(n) ? Math.round(n * 100) / 100 : 0);
+
+/** A LOS rung / FSP cell applies to a night when its season or window covers it. */
+function windowCovers(
+  row: { calendar_season_id?: string | null; start_date?: string | null; end_date?: string | null },
+  date: string,
+  calendarSeasonId: string | null,
+): boolean {
+  if (row?.calendar_season_id) {
+    return Boolean(calendarSeasonId) && String(row.calendar_season_id) === calendarSeasonId;
+  }
+  if (row?.start_date && row?.end_date) return date >= row.start_date && date <= row.end_date;
+  return false;
+}
+
+const unitScoped = (rowUnit: string | null | undefined, rolosId: string | null): boolean =>
+  !rowUnit || (Boolean(rolosId) && String(rowUnit) === rolosId);
+
+/** The dominant source of a nightly series; "rack_rate" when the series is mixed or empty. */
+function dominantSource(days: DayRate[]): RateSource {
+  const first = days[0]?.source;
+  if (!first) return "rack_rate";
+  return days.every((d) => d.source === first) ? first : "rack_rate";
+}
+
+/**
+ * Quote a whole stay.
+ *
+ * Selection order:
+ *   1. Resolve the nightly series (unchanged 6-tier stack). An uncovered window
+ *      is an unpriced stay — never gap-filled from LOS/FSP.
+ *   2. Full Stay, when the plan has fsp_enabled and a cell matches nights + guests.
+ *   3. LOS, when the plan has los_enabled and a rung matches (highest threshold wins).
+ *   4. Nightly.
+ */
+export function stayQuote(
+  rawInputs: Partial<PricingInputs>,
+  unit: UnitRateContext,
+  planArg: PricingRatePlan | null | undefined,
+  stay: StayQuoteInput,
+): StayQuote {
+  const inputs = normalizePricingInputs(rawInputs);
+  const rolosId = unit?.linked_rolos_id ? String(unit.linked_rolos_id) : null;
+  const plan = planArg ?? (rolosId ? inputs.ratePlans?.[rolosId] : undefined) ?? null;
+
+  const window = eachDatePure(stay.from, stay.to);
+  const nights = window.length;
+  const days = resolveNightRates(inputs, unit, stay.from, stay.to);
+  const nightlyRates = days.map((d) => d.price);
+
+  const occupancy = (rates: number[]): OccupancyInput => ({
+    nightlyRates: rates,
+    adults: stay.adults,
+    teens: stay.teens,
+    children: stay.children,
+    extraAdultRate: stay.extraAdultRate,
+    childRate: stay.childRate,
+    teenRate: stay.teenRate,
+    units: stay.units,
+  });
+
+  const nightlyQuote = (): StayQuote => {
+    const total = stayTotalForModel(plan?.pricing_model, occupancy(nightlyRates));
+    return {
+      shape: "nightly",
+      nights,
+      nightly: nightlyRates,
+      stay_total: cents(total),
+      source: dominantSource(days),
+      display_per_night: nights > 0 ? cents(total / nights) : 0,
+    };
+  };
+
+  // 1. Coverage: an unpriced night means the stay is unpriced. Fail closed.
+  if (nights === 0 || days.length < nights) {
+    return {
+      shape: "nightly",
+      nights,
+      nightly: [],
+      stay_total: 0,
+      source: dominantSource(days),
+      display_per_night: 0,
+    };
+  }
+
+  if (!plan || plan.is_active === false) return nightlyQuote();
+
+  const arrivalSeasonId = seasonForDate(inputs.seasons, stay.from)?.id ?? null;
+  const rounding = plan.derivation_rounding;
+
+  // 2. Full Stay.
+  if (plan.fsp_enabled === true) {
+    const guests = Math.max(0, stay.adults) + Math.max(0, stay.teens ?? 0) + Math.max(0, stay.children ?? 0);
+    const cells = (rolosId ? inputs.fspCells?.[rolosId] : undefined) ?? [];
+    const cell = cells.find((c) =>
+      Number(c?.nights) === nights
+      && Number(c?.nr_of_guests) === guests
+      && unitScoped(c?.room_type_id, rolosId)
+      && windowCovers(c, stay.from, arrivalSeasonId)
+    );
+    if (cell) {
+      if (cell.is_pinned) {
+        const pinned = positive(cell.pinned_total);
+        if (pinned) {
+          return {
+            shape: "full_stay",
+            nights,
+            nightly: null,
+            stay_total: cents(pinned),
+            source: "fsp_pinned",
+            display_per_night: cents(pinned / nights),
+          };
+        }
+      } else {
+        const dailyStayTotal = stayTotalForModel(plan.pricing_model, occupancy(nightlyRates));
+        const derived = applyDerivation(dailyStayTotal, cell.derivation_type, cell.derivation_value, rounding);
+        if (derived) {
+          return {
+            shape: "full_stay",
+            nights,
+            nightly: null,
+            stay_total: cents(derived),
+            source: "fsp_derived",
+            display_per_night: cents(derived / nights),
+          };
+        }
+      }
+    }
+  }
+
+  // 3. Length of stay — highest matching threshold wins.
+  if (plan.los_enabled === true) {
+    const rungs = ((rolosId ? inputs.losRungs?.[rolosId] : undefined) ?? []).filter((r) =>
+      Number(r?.nights) >= 1
+      && nights >= Number(r.nights)
+      && unitScoped(r?.room_type_id, rolosId)
+      && windowCovers(r, stay.from, arrivalSeasonId)
+    );
+    const rung = rungs.reduce<LosRung | null>(
+      (best, r) => (!best || Number(r.nights) > Number(best.nights) ? r : best),
+      null,
+    );
+    if (rung) {
+      let adjusted: number[] | null = null;
+      let source: StayQuote["source"] = "los_derived";
+      if (rung.is_pinned) {
+        const pin = positive(rung.pinned_rate);
+        if (pin) {
+          adjusted = nightlyRates.map(() => pin);
+          source = "los_pinned";
+        }
+      } else {
+        const mapped = nightlyRates.map((n) =>
+          applyDerivation(n, rung.derivation_type, rung.derivation_value, rounding)
+        );
+        if (mapped.every((n): n is number => typeof n === "number" && n > 0)) adjusted = mapped;
+      }
+      if (adjusted) {
+        const total = stayTotalForModel(plan.pricing_model, occupancy(adjusted));
+        return {
+          shape: "los_nightly",
+          nights,
+          nightly: adjusted,
+          stay_total: cents(total),
+          source,
+          display_per_night: cents(total / nights),
+        };
+      }
+    }
+  }
+
+  // 4. Nightly.
+  return nightlyQuote();
 }
