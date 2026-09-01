@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback, Fragment } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
 
@@ -6,6 +6,7 @@ import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
 import { usePmsPropertyId } from "@/hooks/usePmsPropertyId";
 import { supabase } from "@/integrations/supabase/client";
+import { changeoverConfigFromAmenities, changeoverException as resolveChangeoverException } from "@/lib/changeoverRules";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { format, addDays, startOfWeek, endOfWeek, differenceInDays, isToday, parseISO, getDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -1696,6 +1697,16 @@ export default function PMSDashboard() {
     const dateStr = format(date, "yyyy-MM-dd");
     return rateSeasons.find(s => dateStr >= s.start_date && dateStr <= s.end_date) || null;
   };
+
+  /** Nights whose changeover rule differs from the property master rule, for the calendar lane. */
+  const changeoverConfig = useMemo(
+    () => changeoverConfigFromAmenities((propertyData as any)?.amenities ?? null),
+    [propertyData],
+  );
+  const changeoverExceptionFor = useCallback(
+    (date: Date) => resolveChangeoverException(changeoverConfig, format(date, "yyyy-MM-dd")),
+    [changeoverConfig],
+  );
 
   // Get restriction for room type on date
   const getRestriction = (roomTypeName: string, date: Date): AvailabilityOverride | undefined => {
