@@ -13155,6 +13155,121 @@ export type Database = {
           },
         ]
       }
+      rolos_rate_plan_fsp_cells: {
+        Row: {
+          calendar_season_id: string | null
+          created_at: string
+          derivation_type: string | null
+          derivation_value: number | null
+          end_date: string | null
+          id: string
+          is_pinned: boolean
+          nights: number
+          nr_of_guests: number
+          pinned_total: number | null
+          rate_plan_id: string
+          room_type_id: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          calendar_season_id?: string | null
+          created_at?: string
+          derivation_type?: string | null
+          derivation_value?: number | null
+          end_date?: string | null
+          id?: string
+          is_pinned?: boolean
+          nights: number
+          nr_of_guests: number
+          pinned_total?: number | null
+          rate_plan_id: string
+          room_type_id?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calendar_season_id?: string | null
+          created_at?: string
+          derivation_type?: string | null
+          derivation_value?: number | null
+          end_date?: string | null
+          id?: string
+          is_pinned?: boolean
+          nights?: number
+          nr_of_guests?: number
+          pinned_total?: number | null
+          rate_plan_id?: string
+          room_type_id?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_fsp_cells_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rolos_rate_plan_los_rungs: {
+        Row: {
+          calendar_season_id: string | null
+          created_at: string
+          derivation_type: string
+          derivation_value: number
+          end_date: string | null
+          id: string
+          is_pinned: boolean
+          nights: number
+          pinned_rate: number | null
+          rate_plan_id: string
+          room_type_id: string | null
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          calendar_season_id?: string | null
+          created_at?: string
+          derivation_type: string
+          derivation_value: number
+          end_date?: string | null
+          id?: string
+          is_pinned?: boolean
+          nights: number
+          pinned_rate?: number | null
+          rate_plan_id: string
+          room_type_id?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calendar_season_id?: string | null
+          created_at?: string
+          derivation_type?: string
+          derivation_value?: number
+          end_date?: string | null
+          id?: string
+          is_pinned?: boolean
+          nights?: number
+          pinned_rate?: number | null
+          rate_plan_id?: string
+          room_type_id?: string | null
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_los_rungs_rate_plan_id_fkey"
+            columns: ["rate_plan_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_rate_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rolos_rate_plan_room_types: {
         Row: {
           created_at: string | null
@@ -13373,11 +13488,13 @@ export type Database = {
           derivation_value: number | null
           derived_from_plan_id: string | null
           description: string | null
+          fsp_enabled: boolean
           id: string
           infant_rate: number | null
           is_active: boolean | null
           is_primary_sell: boolean
           is_tax_inclusive: boolean | null
+          los_enabled: boolean
           max_advance_days: number | null
           max_stay: number | null
           min_advance_days: number | null
@@ -13417,11 +13534,13 @@ export type Database = {
           derivation_value?: number | null
           derived_from_plan_id?: string | null
           description?: string | null
+          fsp_enabled?: boolean
           id?: string
           infant_rate?: number | null
           is_active?: boolean | null
           is_primary_sell?: boolean
           is_tax_inclusive?: boolean | null
+          los_enabled?: boolean
           max_advance_days?: number | null
           max_stay?: number | null
           min_advance_days?: number | null
@@ -13461,11 +13580,13 @@ export type Database = {
           derivation_value?: number | null
           derived_from_plan_id?: string | null
           description?: string | null
+          fsp_enabled?: boolean
           id?: string
           infant_rate?: number | null
           is_active?: boolean | null
           is_primary_sell?: boolean
           is_tax_inclusive?: boolean | null
+          los_enabled?: boolean
           max_advance_days?: number | null
           max_stay?: number | null
           min_advance_days?: number | null
