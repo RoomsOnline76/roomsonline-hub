@@ -79,6 +79,8 @@ interface SeasonsCalendarProps {
   isReadOnly: boolean;
   externalSystem?: string;
   mealTypeSuggestions?: string[];
+  /** Read-only: used to surface saved LOS / full-stay ladders on a season. */
+  propertyId?: string | null;
   onSeasonsChange: (seasons: Season[]) => void;
   onSeasonRatesChange: (rates: SeasonRates) => void;
   onSelectedRoomTypeChange?: (id: string) => void;
