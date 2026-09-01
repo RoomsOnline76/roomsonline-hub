@@ -177,6 +177,10 @@ export interface PricingInputs {
   closedDates?: Record<string, Set<string> | string[]>;
   /** Parent plans keyed by rate_plan_id, for plans other plans derive from. */
   parentPlans?: Record<string, ParentPlanPricing>;
+  /** Length-of-stay rungs per linked_rolos_id (keyed like planSeasonRates). */
+  losRungs?: Record<string, LosRung[]>;
+  /** Full-stay-price cells per linked_rolos_id (keyed like planSeasonRates). */
+  fspCells?: Record<string, FspCell[]>;
 }
 
 
