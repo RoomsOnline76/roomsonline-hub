@@ -555,7 +555,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       onlyUnitIds: draft.units.map((u) => u.room_type_id),
     });
 
-    setLegacyRefresh((n) => n + 1);
+    
     onSaved();
   }, [draft, propertyId, ratePlanId, onSaved, noun, stayShapeIssues, ruPushFsp, loadedRuPushFsp, amenitiesLoaded, seasons]);
 
