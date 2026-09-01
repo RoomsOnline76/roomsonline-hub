@@ -30,6 +30,7 @@ import { type SeasonRateRow } from "@/components/pms/rateplans/RatePlanSeasonGri
 
 import { buildSeasonColorMap, type SeasonColorMap } from "@/lib/seasonColors";
 import { canonicalPricingModel, pricingNoun } from "@/components/pms/rateplans/ratePlanDraft";
+import { applyOffset } from "@/components/pms/rateplans/stayShapePreview";
 
 export const PRICING_MODELS = [
   { value: "per_room", label: "Per Room", suffix: "/room", desc: "Flat rate per room per night" },
@@ -303,12 +304,15 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
         .map((r) => ({
           ...r,
           rate_plan_id: plan.id,
-          base_rate: applyDerivation(
-            Number(r.base_rate),
-            plan.derivation_type as "percent" | "amount" | null | undefined,
-            plan.derivation_value,
-            plan.derivation_rounding,
-          ),
+          base_rate:
+            plan.derivation_type === "percent" || plan.derivation_type === "amount"
+              ? applyOffset(
+                  Number(r.base_rate),
+                  plan.derivation_type,
+                  Number(plan.derivation_value ?? 0),
+                  plan.derivation_rounding || "nearest_10",
+                )
+              : null,
         }))
         .filter((r) => Number(r.base_rate ?? 0) > 0);
     };
