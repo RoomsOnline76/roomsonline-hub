@@ -560,8 +560,120 @@ export function draftToPayload(draft: RatePlanDraft) {
         };
       }),
 
+    // Stay-shape ladders. The season id is the window, so no explicit dates and no
+    // per-unit scoping are written from this editor.
+    los_enabled: draft.los_enabled,
+    los_rungs: draft.los_enabled
+      ? draft.los_rungs.filter(losRungIsValid).map((r) => ({
+          calendar_season_id: r.calendar_season_id,
+          room_type_id: null,
+          start_date: null,
+          end_date: null,
+          nights: numeric(r.nights),
+          derivation_type: r.is_pinned ? null : r.derivation_type,
+          derivation_value: r.is_pinned ? null : numeric(r.derivation_value),
+          is_pinned: r.is_pinned,
+          pinned_rate: r.is_pinned ? numeric(r.pinned_rate) : null,
+        }))
+      : [],
+    fsp_enabled: draft.fsp_enabled,
+    fsp_cells: draft.fsp_enabled
+      ? draft.fsp_cells.filter(fspCellIsValid).map((c) => ({
+          calendar_season_id: c.calendar_season_id,
+          room_type_id: null,
+          start_date: null,
+          end_date: null,
+          nights: numeric(c.nights),
+          nr_of_guests: numeric(c.nr_of_guests),
+          derivation_type: c.is_pinned ? null : c.derivation_type,
+          derivation_value: c.is_pinned ? null : numeric(c.derivation_value),
+          is_pinned: c.is_pinned,
+          pinned_total: c.is_pinned ? numeric(c.pinned_total) : null,
+        }))
+      : [],
   };
 }
+
+// ---------------------------------------------------------------------------
+// Ladder validation — the editor blocks Save on these, and the edge function
+// re-checks the same rules so a stale client can never write a broken ladder.
+// ---------------------------------------------------------------------------
+
+const positiveInt = (value: string): number | null => {
+  const n = numeric(value);
+  return n !== null && Number.isInteger(n) && n >= 1 ? n : null;
+};
+
+/** A derived offset must be a real number and may never wipe the price out. */
+const offsetIsValid = (type: DerivationType, value: string): boolean => {
+  const n = numeric(value);
+  if (n === null) return false;
+  return type === "percent" ? n > -100 : true;
+};
+
+export function losRungIsValid(rung: DraftLosRung): boolean {
+  if (!rung.calendar_season_id || positiveInt(rung.nights) === null) return false;
+  if (rung.is_pinned) {
+    const pinned = numeric(rung.pinned_rate);
+    return pinned !== null && pinned > 0;
+  }
+  return offsetIsValid(rung.derivation_type, rung.derivation_value);
+}
+
+export function fspCellIsValid(cell: DraftFspCell): boolean {
+  if (!cell.calendar_season_id) return false;
+  if (positiveInt(cell.nights) === null || positiveInt(cell.nr_of_guests) === null) return false;
+  if (cell.is_pinned) {
+    const pinned = numeric(cell.pinned_total);
+    return pinned !== null && pinned > 0;
+  }
+  return offsetIsValid(cell.derivation_type, cell.derivation_value);
+}
+
+/**
+ * Everything wrong with the draft's ladders, one plain sentence per problem.
+ * An empty array means the ladders are safe to save.
+ */
+export function ladderIssues(draft: RatePlanDraft): string[] {
+  const issues: string[] = [];
+
+  if (draft.los_enabled) {
+    const seen = new Set<string>();
+    draft.los_rungs.forEach((r, i) => {
+      if (!losRungIsValid(r)) {
+        issues.push(`Length-of-stay row ${i + 1} needs a season, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
+        return;
+      }
+      const key = `${r.calendar_season_id}|${positiveInt(r.nights)}`;
+      if (seen.has(key)) issues.push(`Two length-of-stay rows claim ${r.nights} nights in the same season — keep one.`);
+      seen.add(key);
+    });
+    if (draft.los_rungs.filter(losRungIsValid).length === 0) {
+      issues.push("Add at least one length-of-stay rung, or turn it off.");
+    }
+  }
+
+  if (draft.fsp_enabled) {
+    const seen = new Set<string>();
+    draft.fsp_cells.forEach((c, i) => {
+      if (!fspCellIsValid(c)) {
+        issues.push(`Full-stay row ${i + 1} needs a season, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
+        return;
+      }
+      const key = `${c.calendar_season_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
+      if (seen.has(key)) {
+        issues.push(`Two full-stay rows claim ${c.nights} nights for ${c.nr_of_guests} guests in the same season — keep one.`);
+      }
+      seen.add(key);
+    });
+    if (draft.fsp_cells.filter(fspCellIsValid).length === 0) {
+      issues.push("Add at least one full-stay cell, or turn it off.");
+    }
+  }
+
+  return issues;
+}
+
 
 /** Human summary used on the list cards. */
 export function pricingSummary(baseRate: number | null, pricedSeasons: number): string {
