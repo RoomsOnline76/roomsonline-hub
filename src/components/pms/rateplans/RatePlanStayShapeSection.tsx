@@ -2,16 +2,27 @@
  * Length of stay and Full stay authoring for one rate plan.
  *
  * Daily is the parent product: both ladders are *derived* from the nightly amounts
- * typed in "Pricing by season". Nothing here changes what a guest is quoted or what a
- * channel receives yet — the book page and channel pushes stay nightly.
+ * typed in "Pricing by season". ROL'OS checkout and modify apply them straight away;
+ * the channel keeps nightly seasons unless this property is opted into the Full Stay
+ * matrix below.
  */
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
   CalendarSeason,
@@ -30,6 +41,11 @@ interface Props {
   dispatch: React.Dispatch<DraftAction>;
   /** Sentences from `ladderIssues` — rendered so the operator sees why Save is blocked. */
   issues: string[];
+  /** Property-level channel switch (`amenities.ru_push_fsp`), not a plan field. */
+  ruPushFsp: boolean;
+  onRuPushFspChange: (next: boolean) => void;
+  /** False until the editor has read the property's amenities. */
+  amenitiesLoaded: boolean;
 }
 
 const OFFSET_TYPES: { value: DerivationType; label: string }[] = [
@@ -40,7 +56,16 @@ const OFFSET_TYPES: { value: DerivationType; label: string }[] = [
 /** The season a new row should default to: the first one still sellable. */
 const defaultSeasonId = (seasons: CalendarSeason[]): string => seasons[0]?.calendar_season_id ?? "";
 
-export function RatePlanStayShapeSection({ draft, seasons, dispatch, issues }: Props) {
+export function RatePlanStayShapeSection({
+  draft,
+  seasons,
+  dispatch,
+  issues,
+  ruPushFsp,
+  onRuPushFspChange,
+  amenitiesLoaded,
+}: Props) {
+  const [confirmRuPush, setConfirmRuPush] = useState(false);
   const seasonName = useCallback(
     (id: string) => seasons.find((s) => s.calendar_season_id === id)?.name ?? "Season",
     [seasons],
@@ -91,7 +116,8 @@ export function RatePlanStayShapeSection({ draft, seasons, dispatch, issues }: P
           <div>
             <Label htmlFor="rp-los" className="text-sm font-medium">Length of stay (nightly by nights)</Label>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Derived from the daily rate for this plan. Channels still see a nightly rate.
+              ROL'OS checkout already applies matching rungs. Rentals United receives them as
+              {" "}&lt;LOSS&gt; on the nightly season.
             </p>
           </div>
           <Switch
@@ -198,7 +224,9 @@ export function RatePlanStayShapeSection({ draft, seasons, dispatch, issues }: P
           <div>
             <Label htmlFor="rp-fsp" className="text-sm font-medium">Full stay (one price for the stay)</Label>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Derived from the daily stay total. The book page still quotes nightly for now.
+              ROL'OS checkout and modify use this matrix when nights and guests match a cell;
+              otherwise LOS, then nightly. Rentals United keeps nightly seasons (and LOSS if you
+              authored rungs) until you opt the property into the Full Stay matrix below.
             </p>
           </div>
           <Switch
@@ -310,6 +338,44 @@ export function RatePlanStayShapeSection({ draft, seasons, dispatch, issues }: P
           </div>
         )}
       </div>
+
+      {/* ── Channel opt-in ─────────────────────────────────────────────── */}
+      {draft.fsp_enabled && (
+        <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+          <div>
+            <Label htmlFor="rp-ru-push-fsp" className="text-sm font-medium">
+              Publish Full Stay to Rentals United
+            </Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Replaces nightly seasons on the RU listing with a per-night stay matrix. Unmatched
+              occupancy still sells at the parent nightly (DefaultPrice). Turn off and save to
+              publish seasons again. Default off.
+            </p>
+          </div>
+          <Switch
+            id="rp-ru-push-fsp"
+            checked={ruPushFsp}
+            disabled={noSeasons || !amenitiesLoaded}
+            onCheckedChange={(v) => (v ? setConfirmRuPush(true) : onRuPushFspChange(false))}
+          />
+        </div>
+      )}
+
+      <AlertDialog open={confirmRuPush} onOpenChange={setConfirmRuPush}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish Full Stay pricing to the channel?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This listing's next rate push will send RU Full Stay pricing and replace nightly
+              seasons on the channel. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onRuPushFspChange(true)}>Continue</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {noSeasons && (
         <p className="text-xs text-muted-foreground">

@@ -132,6 +132,10 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { policies } = useReservationPolicies(propertyId);
+  // Property-level RU Full Stay opt-in (`amenities.ru_push_fsp`) — not part of the plan draft.
+  const [ruPushFsp, setRuPushFsp] = useState(false);
+  const [loadedRuPushFsp, setLoadedRuPushFsp] = useState<boolean | null>(null);
+  const [amenitiesLoaded, setAmenitiesLoaded] = useState(false);
 
   // Kept in refs so the fill handlers stay stable while still seeing current rows/columns.
   const draftUnitIdsRef = useRef<string[]>([]);
@@ -192,6 +196,12 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
         supabase.from("rolos_shared_seasons").select("id, calendar_season_id").eq("property_id", propertyId),
       ]);
       const calendarSeasons = readCalendarSeasons(property?.amenities);
+      const amenityFlag = (property?.amenities as Record<string, unknown> | null)?.ru_push_fsp;
+      if (!cancelled) {
+        setRuPushFsp(amenityFlag === true);
+        setLoadedRuPushFsp(amenityFlag === undefined ? null : amenityFlag === true);
+        setAmenitiesLoaded(true);
+      }
 
       const calendarIdBySharedId = new Map<string, string>(
         (seasonRows.data ?? [])
@@ -494,6 +504,19 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       return;
     }
     toast.success(ratePlanId ? "Rate plan updated" : "Rate plan created");
+
+    // Persist the property-level channel opt-in only when the operator actually changed it, so a
+    // property that never opted in keeps an amenities blob (and channel payloads) byte-identical.
+    if (amenitiesLoaded && ruPushFsp !== (loadedRuPushFsp ?? false)) {
+      const { data: row } = await supabase
+        .from("properties")
+        .select("amenities")
+        .eq("id", propertyId)
+        .maybeSingle();
+      const amenities = { ...((row?.amenities as Record<string, unknown> | null) ?? {}), ru_push_fsp: ruPushFsp };
+      await supabase.from("properties").update({ amenities }).eq("id", propertyId);
+      setLoadedRuPushFsp(ruPushFsp);
+    }
     // Prices changed — push rates & availability to the Channel Manager and report the
     // confirmed outcome. Fire-and-forget: a channel failure never fails the save.
     // Scope the write to the span this plan actually prices and the units it links, so a single
@@ -515,7 +538,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
     setLegacyRefresh((n) => n + 1);
     onSaved();
-  }, [draft, propertyId, ratePlanId, onSaved, noun, stayShapeIssues]);
+  }, [draft, propertyId, ratePlanId, onSaved, noun, stayShapeIssues, ruPushFsp, loadedRuPushFsp, amenitiesLoaded, seasons]);
 
   if (loading) {
     return (
@@ -768,6 +791,9 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             seasons={seasons}
             dispatch={dispatch}
             issues={stayShapeIssues}
+            ruPushFsp={ruPushFsp}
+            onRuPushFspChange={setRuPushFsp}
+            amenitiesLoaded={amenitiesLoaded}
           />
         </CardContent>
       </Card>
