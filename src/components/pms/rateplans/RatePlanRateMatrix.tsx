@@ -58,7 +58,7 @@ const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
 };
 
 const money = (n: number) => `R${Math.round(n)}`;
-const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
+const short = (n: number) => String(Math.round(n));
 
 /** Row height for every unit row — grows to fit its content. */
 const ROW_CLASS = "min-h-7";
@@ -354,7 +354,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                       <td
                         key={d}
                         title={`${u.name} · ${plan.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}${cheapest ? " · cheapest of compared plans" : ""}`}
-                        className={`px-0 text-center font-mono text-[9px] leading-none tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                        className={`px-0 text-center font-mono text-[8px] leading-none tracking-tighter tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                           day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
                         } ${cheapest ? "font-semibold text-primary underline decoration-primary/50" : ""}`}
                       >
