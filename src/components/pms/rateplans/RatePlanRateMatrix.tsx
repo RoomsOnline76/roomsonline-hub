@@ -93,7 +93,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
         body: {
           action: "preview_plan",
           rate_plan_id: ratePlanId,
-          window: { from: startDate, to: addDays(startDate, 6) },
+          window: { from: startDate, to: addDays(startDate, NIGHTS - 1) },
         },
       });
       if (cancelled) return;
