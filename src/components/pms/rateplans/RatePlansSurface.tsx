@@ -550,9 +550,6 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                   )}
                 </div>
               )}
-              {!readOnly && section.plans.length > 0 && (
-                <PropertyLegacyRatesBanner propertyId={section.id} onMigrated={fetchData} />
-              )}
 
 
 
