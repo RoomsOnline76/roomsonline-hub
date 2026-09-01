@@ -199,7 +199,8 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       let next = emptyDraft();
 
       if (ratePlanId) {
-        const [{ data: plan }, { data: links }, { data: seasonRates }, { data: policyLink }] = await Promise.all([
+        const [{ data: plan }, { data: links }, { data: seasonRates }, { data: policyLink }, losRows, fspRows] =
+          await Promise.all([
           supabase.from("rolos_rate_plans").select("*").eq("id", ratePlanId).maybeSingle(),
           supabase
             .from("rolos_rate_plan_room_types")
@@ -214,7 +215,20 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             .is("deleted_at", null),
 
           supabase.from("rolos_policy_rate_links").select("policy_id").eq("rate_plan_id", ratePlanId).maybeSingle(),
+          // Stay-shape ladders. A read failure (or a partial deploy) simply means
+          // "no ladder" — never a toast, never a blocked editor.
+          supabase
+            .from("rolos_rate_plan_los_rungs")
+            .select("calendar_season_id, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+            .eq("rate_plan_id", ratePlanId)
+            .order("nights"),
+          supabase
+            .from("rolos_rate_plan_fsp_cells")
+            .select("calendar_season_id, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+            .eq("rate_plan_id", ratePlanId)
+            .order("nights"),
         ]);
+
 
         if (plan) {
           next = {
