@@ -311,8 +311,15 @@ export async function createRateResolver(
      * lowest sell_priority, then the highest base rate (the historic behaviour,
      * now only a last-resort tie-break).
      */
+    const preferred = opts.preferRatePlanId ? String(opts.preferRatePlanId) : null;
     const better = (a: any, b: any): boolean => {
       const pa = a.rolos_rate_plans, pb = b.rolos_rate_plans;
+      // Preview scope: the requested plan always wins for the units it sells.
+      if (preferred) {
+        const ia = String(a.rate_plan_id ?? pa?.id ?? "") === preferred;
+        const ib = String(b.rate_plan_id ?? pb?.id ?? "") === preferred;
+        if (ia !== ib) return ia;
+      }
       if (Boolean(pa?.is_primary_sell) !== Boolean(pb?.is_primary_sell)) return Boolean(pa?.is_primary_sell);
       const sa = Number(pa?.sell_priority ?? 100), sb = Number(pb?.sell_priority ?? 100);
       if (sa !== sb) return sa < sb;
