@@ -388,7 +388,7 @@ export function convertPriceEntries<T extends { price: number; extra_guest_price
             price: convertAmount(Number(los.price), effectiveRate),
             ...(Array.isArray(los.losps)
               ? {
-                losps: (los.losps as Record<string, unknown>[]).map((lp) => ({
+                losps: (los.losps as unknown as Record<string, unknown>[]).map((lp) => ({
                   ...lp,
                   price: convertAmount(Number(lp.price), effectiveRate),
                 })),

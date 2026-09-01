@@ -3039,7 +3039,8 @@ async function pushARI(
       const losEnabled = losPlan?.los_enabled === true && losRungs.length > 0;
 
       const nightlyByDate = new Map(dayRates.map((d) => [d.date, Number(d.price ?? 0)]));
-      const withLos = losEnabled
+      type LosPeriod = typeof compressed[number] & { los_pricing?: { nights: number; price: number }[] };
+      const withLos: LosPeriod[] = losEnabled
         ? splitPeriodsByLos(compressed, (date) => {
           return losPricingForPeriod({
             parentNightly: nightlyByDate.get(date) ?? 0,
@@ -3051,14 +3052,14 @@ async function pushARI(
             rounding: losPlan?.derivation_rounding ?? null,
           });
         })
-        : compressed.map((p) => ({ ...p }));
+        : compressed.map((p) => ({ ...p }) as LosPeriod);
 
       const priceEntries = withLos.map((p) => ({
         date_from: p.date_from,
         date_to: p.date_to,
         price: p.price,
         extra_guest_price: p.extra_guest_price,
-        ...((p as { los_pricing?: unknown[] }).los_pricing?.length ? { los_pricing: (p as { los_pricing: unknown[] }).los_pricing } : {}),
+        ...(p.los_pricing && p.los_pricing.length > 0 ? { los_pricing: p.los_pricing } : {}),
       }));
 
 
