@@ -12,6 +12,7 @@
 //
 // Failures are logged and swallowed: a channel refresh must never break the booking flow.
 
+import { ruDeltaScopeForTrigger } from './ruDeltaScope.ts';
 import { readInvokeErrorBody } from "./ruInvokeBody.ts";
 import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from "./ruSyncGate.ts";
 
@@ -137,15 +138,18 @@ export async function queueRuAriDelta(
     // already collapses one pending row per `method_key`, so a burst of restriction/rate clicks
     // becomes exactly one delayed refresh — carrying the UNION of the parked spans, so a block
     // in September followed by a release in October cannot lose either range.
+    const scope = ruDeltaScopeForTrigger(trigger);
     if (!options.force) {
       const sinceLast = await lastRealPushAgeMs(supabase, propertyId);
       if (sinceLast < RU_ARI_DELTA_DEBOUNCE_MS) {
         const delayMs = RU_ARI_DELTA_DEBOUNCE_MS - sinceLast;
-        const methodKey = `${RU_ARI_DELTA_QUEUE_ACTION}:${propertyId}`;
+        // Scope-keyed: a rates delta and an availability delta must never collapse into each
+        // other, or the coalesced row would publish the half nobody edited.
+        const methodKey = `${RU_ARI_DELTA_QUEUE_ACTION}:${propertyId}:${scope}`;
         let from = options.dateFrom ?? null;
         let to = options.dateTo ?? null;
         let units = options.onlyUnitIds && options.onlyUnitIds.length > 0 ? [...options.onlyUnitIds] : null;
-        let forceAvb = options.forceAvailability === true;
+        let forceAvb = options.forceAvailability === true && scope !== 'rates';
         try {
           const { data: pending } = await supabase
             .from("ru_call_queue")
@@ -184,7 +188,7 @@ export async function queueRuAriDelta(
               ari_date_from: from,
               ari_date_to: to,
               force_availability: forceAvb,
-              verify_availability_readback: options.verifyAvailabilityReadback === true,
+              verify_availability_readback: options.verifyAvailabilityReadback === true && scope !== 'rates',
             },
             _property_id: propertyId,
             _priority: 120,
@@ -213,10 +217,10 @@ export async function queueRuAriDelta(
         ...(options.dateFrom ? { ari_date_from: options.dateFrom } : {}),
         ...(options.dateTo ? { ari_date_to: options.dateTo } : {}),
         verify_readback: false,
-        verify_availability_readback: options.verifyAvailabilityReadback === true,
+        verify_availability_readback: options.verifyAvailabilityReadback === true && scope !== 'rates',
         // A booking must close the sold nights, and a reopen must open them, even if a hash race
         // says availability is unchanged.
-        ...(options.force || options.forceAvailability ? { force_availability: true } : {}),
+...((options.force || options.forceAvailability) && scope !== 'rates' ? { force_availability: true } : {}),
 
       },
     });
