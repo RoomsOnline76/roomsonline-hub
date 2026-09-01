@@ -13,6 +13,8 @@ import {
 } from "../_shared/propertyCharges.ts";
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
+import { rolModifyQuote, type RolModifyQuote } from "../_shared/rolModifyQuote.ts";
+
 import {
   logRateParity,
   type ParityRow,
