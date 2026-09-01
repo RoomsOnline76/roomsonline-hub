@@ -20,7 +20,6 @@ import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
 import { RatePlanSyncToOthersDialog } from "@/components/pms/rateplans/RatePlanSyncToOthersDialog";
-import { PropertyLegacyRatesBanner } from "@/components/pms/rateplans/PropertyLegacyRatesBanner";
 import { RatePlanRateMatrix } from "@/components/pms/rateplans/RatePlanRateMatrix";
 import { RatePlanDeck } from "@/components/pms/rateplans/RatePlanDeck";
 
