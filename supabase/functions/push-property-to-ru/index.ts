@@ -3410,25 +3410,27 @@ Deno.serve(async (req) => {
      * ARI delta scope + read-back opt-in for this request. `verify_availability_readback` defaults
      * to false: only booking confirm/cancel/modify pulls the channel calendar back.
      */
-    // Cut 3: an inventory-only trigger is a booking event (cancel/create/move/dates/pax/price-on
-    // -reservation) OR a dashboard restriction edit (block/unblock, min/max stay, lead days,
-    // partial release). Both change only whether a night is sellable, so they must never attach
-    // Push_PutPrices_RQ — even when prices_hash is stale. Rate/season/rate-plan triggers keep
-    // their own pricing path.
+    // Cut 3 / delta scope: a trigger owns exactly one half of ARI. Booking events and dashboard
+    // restriction edits (block/unblock, min/max stay, lead days, partial release) change only
+    // whether a night is sellable → availability only, never Push_PutPrices_RQ. Rate, season and
+    // rate-plan edits change only what a night costs → prices only, never Push_PutAvb_RQ. The two
+    // halves travel together only for onboarding, an explicit full refresh, or a scheduled run.
     const triggerName = typeof reqBody.trigger === 'string' ? reqBody.trigger : '';
-    const isInventoryOnlyTrigger =
-      triggerName.startsWith('booking_') ||
-      /^(restriction_|stop_sell|minimum_stay|maximum_stay|min_stay|max_stay|lead_days|availability)/.test(triggerName);
+    const deltaScope = ruDeltaScopeForTrigger(triggerName);
+    const isInventoryOnlyTrigger = deltaScope === 'availability';
+    const isRatesOnlyTrigger = deltaScope === 'rates';
     const ariRequestOptions: AriDeltaOptions = {
       windowFrom: typeof reqBody.ari_date_from === 'string' ? reqBody.ari_date_from : undefined,
       windowTo: typeof reqBody.ari_date_to === 'string' ? reqBody.ari_date_to : undefined,
-      availabilityReadback: reqBody.verify_availability_readback === true,
-      forceAvailability: reqBody.force_availability === true,
+      availabilityReadback: reqBody.verify_availability_readback === true && !isRatesOnlyTrigger,
+      forceAvailability: reqBody.force_availability === true && !isRatesOnlyTrigger,
       // Re-send identical rates on request — needed after a corrective currency flip, where the
       // amounts are unchanged but were published under the wrong ISO. Never true on an
       // inventory-only trigger: skipPrices below wins regardless.
       forcePrices: reqBody.force_prices === true && !isInventoryOnlyTrigger,
       skipPrices: isInventoryOnlyTrigger,
+      skipAvailability: isRatesOnlyTrigger,
+
 
 
     };
