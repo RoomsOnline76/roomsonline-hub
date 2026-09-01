@@ -743,7 +743,7 @@ export default function SeasonsCalendar({
           <div className="flex items-start gap-2 rounded-lg border border-dashed p-3">
             <BedDouble className="h-4 w-4 text-primary mt-0.5 shrink-0" />
             <div className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Nightly rates are captured in Rate Plans.</span>{" "}
+              <span className="font-medium text-foreground">Nightly rates, length-of-stay and full-stay are captured in Rate Plans.</span>{" "}
               The Calendar defines seasons — their dates, colours and minimum stay — only. Open{" "}
               <span className="font-medium text-foreground">Rate Manager &rarr; Rate Plans &rarr; Pricing by season</span>{" "}
               to set the amount each unit charges in every season.
