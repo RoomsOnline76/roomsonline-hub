@@ -470,6 +470,70 @@ export async function createRateResolver(
       }
     }
 
+    // Stay-shape ladders (LOS rungs / Full Stay cells). Loader-only for now: no plan
+    // has the flags on, so these are empty in production. A missing table on a preview
+    // branch is treated as "none" so the nightly path always survives.
+    if (planIds.length > 0) {
+      const [{ data: rungRows }, { data: cellRows }] = await Promise.all([
+        supabase
+          .from("rolos_rate_plan_los_rungs")
+          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+          .in("rate_plan_id", planIds),
+        supabase
+          .from("rolos_rate_plan_fsp_cells")
+          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+          .in("rate_plan_id", planIds),
+      ]);
+
+      const targetsFor = (planId: string, roomTypeId: unknown): string[] => {
+        const planRooms = planToRooms[planId] ?? [];
+        const roomKey = roomTypeId ? String(roomTypeId) : null;
+        return roomKey ? (planRooms.includes(roomKey) ? [roomKey] : []) : planRooms;
+      };
+
+      for (const row of (rungRows ?? []) as any[]) {
+        const entry: LosRung = {
+          nights: Number(row.nights),
+          derivation_type: row.derivation_type === "amount" ? "amount" : "percent",
+          derivation_value: Number(row.derivation_value) || 0,
+          is_pinned: row.is_pinned === true,
+          pinned_rate: row.pinned_rate ?? null,
+          calendar_season_id: row.calendar_season_id ? String(row.calendar_season_id) : null,
+          start_date: row.start_date ?? null,
+          end_date: row.end_date ?? null,
+          room_type_id: row.room_type_id ? String(row.room_type_id) : null,
+        };
+        if (!Number.isFinite(entry.nights) || entry.nights < 1) continue;
+        for (const target of targetsFor(row.rate_plan_id, row.room_type_id)) {
+          (losRungs[target] ||= []).push(entry);
+        }
+      }
+
+      for (const row of (cellRows ?? []) as any[]) {
+        const entry: FspCell = {
+          nights: Number(row.nights),
+          nr_of_guests: Number(row.nr_of_guests),
+          derivation_type: row.derivation_type === "amount" || row.derivation_type === "percent"
+            ? row.derivation_type
+            : null,
+          derivation_value: row.derivation_value ?? null,
+          is_pinned: row.is_pinned === true,
+          pinned_total: row.pinned_total ?? null,
+          calendar_season_id: row.calendar_season_id ? String(row.calendar_season_id) : null,
+          start_date: row.start_date ?? null,
+          end_date: row.end_date ?? null,
+          room_type_id: row.room_type_id ? String(row.room_type_id) : null,
+        };
+        if (!Number.isFinite(entry.nights) || entry.nights < 1) continue;
+        if (!Number.isFinite(entry.nr_of_guests) || entry.nr_of_guests < 1) continue;
+        for (const target of targetsFor(row.rate_plan_id, row.room_type_id)) {
+          (fspCells[target] ||= []).push(entry);
+        }
+      }
+    }
+
+
+
     // Tier 4 — relational seasons (rolos_rate_seasons + rolos_rate_prices).
     // Never overrides a calendar or plan season rate, it only fills dates they leave unpriced.
     if (planIds.length > 0) {
