@@ -510,7 +510,13 @@ async function resolveRolosRates(
         }
       }
       const effectiveRate = resolvedRate ?? fallbackRate;
-      const nightly = isClosed ? 0 : effectiveRate;
+      // A matching length-of-stay rung replaces the nightly for resolver-priced
+      // nights only; fallback/embed nights keep today's number.
+      const losRate = losByDate.get(ds);
+      const shapedRate = (!isClosed && losRate !== undefined && losRate > 0 && resolvedByDate.has(ds))
+        ? losRate
+        : effectiveRate;
+      const nightly = isClosed ? 0 : shapedRate;
       // Per-person models must publish occupancy amounts, otherwise checkout
       // (which reads adult_amounts for PER_PERSON) resolves the stay to zero.
       const perPersonAmounts = isPerPerson
@@ -552,6 +558,7 @@ async function resolveRolosRates(
         rate_type_name: rolosPlan?.rate_plan_name || "Standard Rate",
         price_type: priceTypeForModel(pricingModel),
         rates: dailyRates,
+        ...(stayQuoteBlock ? { stay_quote: stayQuoteBlock } : {}),
       }],
       rooms_available_per_night: availArr,
     };
