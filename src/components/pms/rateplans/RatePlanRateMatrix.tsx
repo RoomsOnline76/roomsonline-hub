@@ -60,8 +60,8 @@ const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
 const money = (n: number) => `R${Math.round(n).toLocaleString()}`;
 const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
 
-/** Row height for every unit row — one row per unit (or per compared plan) across seasons and nights. */
-const ROW_CLASS = "h-7";
+/** Row height for every unit row — grows to fit its content. */
+const ROW_CLASS = "min-h-7";
 
 /** Sample window: a full month of nights so the strip spans the card width. */
 const NIGHTS = 30;
