@@ -2453,7 +2453,8 @@ export default function PMSDashboard() {
                             {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
-                        <WeekCalendarGrid
+                        <ChangeoverExceptionContext.Provider value={changeoverExceptionFor}>
+<WeekCalendarGrid
                           dates={portfolioWeekDates}
                           roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
@@ -2469,6 +2470,7 @@ export default function PMSDashboard() {
                           onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
+</ChangeoverExceptionContext.Provider>
                       </div>
                     );
                   })}
@@ -2509,7 +2511,8 @@ export default function PMSDashboard() {
                             {propRoomTypes.length} types · {displayedRoomCount} rooms
                           </Badge>
                         </div>
-                        <MonthCalendarGrid
+                        <ChangeoverExceptionContext.Provider value={changeoverExceptionFor}>
+<MonthCalendarGrid
                           weekChunks={[propDates]}
                           roomTypes={propRoomTypes}
                           roomsByType={propData.roomsByType}
@@ -2524,6 +2527,7 @@ export default function PMSDashboard() {
                           onEditBlock={openBlockEditor(propRoomTypes, prop.id)}
                           bookingsLoading={false}
                         />
+</ChangeoverExceptionContext.Provider>
                       </div>
                     );
                   })}
