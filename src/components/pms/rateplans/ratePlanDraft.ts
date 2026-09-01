@@ -53,6 +53,32 @@ export interface DraftSeasonRate {
   unit_rates: Record<string, string>;
 }
 
+/**
+ * One length-of-stay rung: from N nights in a season, the nightly is offset off the
+ * daily rate (or pinned outright). Daily stays the parent — this is a derived product.
+ */
+export interface DraftLosRung {
+  calendar_season_id: string;
+  nights: string;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  is_pinned: boolean;
+  /** Nightly amount, only used when pinned. */
+  pinned_rate: string;
+}
+
+/** One full-stay cell: nights x guests in a season, quoted as a single stay total. */
+export interface DraftFspCell {
+  calendar_season_id: string;
+  nights: string;
+  nr_of_guests: string;
+  derivation_type: DerivationType;
+  derivation_value: string;
+  is_pinned: boolean;
+  /** Stay total, only used when pinned. */
+  pinned_total: string;
+}
+
 
 export interface RatePlanDraft {
   rate_plan_id: string | null;
