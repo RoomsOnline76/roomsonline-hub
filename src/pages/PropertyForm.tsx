@@ -3502,7 +3502,7 @@ export default function PropertyForm({
           // channel push reads when a unit overrides the property rule.
           changeover: changeoverMaster,
           changeover_rules: changeoverRules,
-          changeover_spans: normalizeChangeoverSpans(changeoverSpans).map((sp) => ({ ...sp })) as unknown as Json,
+          changeover_spans: JSON.parse(JSON.stringify(normalizeChangeoverSpans(changeoverSpans))),
           changeover_by_unit: Object.fromEntries(
             roomTypes
               .filter((r: any) => r?.id && r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
