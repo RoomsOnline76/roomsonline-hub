@@ -56,6 +56,9 @@ const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : Strin
 /** Row height for every unit row — one row per unit across seasons and nights. */
 const ROW_CLASS = "h-7";
 
+/** Sample window: a full month of nights so the strip spans the card width. */
+const NIGHTS = 30;
+
 /**
  * Single aligned rate matrix for a rate plan card: one row per linked unit, with the
  * authored season prices and the live 7-night sample rates in the SAME row, so a unit
@@ -90,7 +93,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
         body: {
           action: "preview_plan",
           rate_plan_id: ratePlanId,
-          window: { from: startDate, to: addDays(startDate, 6) },
+          window: { from: startDate, to: addDays(startDate, NIGHTS - 1) },
         },
       });
       if (cancelled) return;
@@ -138,7 +141,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
   }, [preview]);
 
   const dates = useMemo(
-    () => Array.from({ length: 7 }, (_, i) => addDays(startDate, i)),
+    () => Array.from({ length: NIGHTS }, (_, i) => addDays(startDate, i)),
     [startDate],
   );
 
@@ -164,21 +167,21 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
 
   return (
     <div className="mt-2 overflow-x-auto rounded-md border">
-      <table className="w-full border-collapse text-xs">
+      <table className="w-full table-fixed border-collapse text-xs">
         <thead>
           {/* Group header: authored seasons on the left, sample-night navigation on the right. */}
           <tr className="h-6 border-b text-[10px] uppercase tracking-wide text-muted-foreground">
-            <th className="w-24 px-2 text-left font-normal">Unit</th>
+            <th className="w-20 px-1.5 text-left font-normal">Unit</th>
             {seasons.length > 0 && (
               <th colSpan={seasons.length} className="px-2 text-left font-medium">
                 Rate by season
               </th>
             )}
-            <th colSpan={7} className="border-l-2 border-foreground/10 bg-muted/30 px-1">
+            <th colSpan={NIGHTS} className="border-l-2 border-foreground/10 bg-muted/30 px-1">
               <div className="flex items-center justify-between gap-1">
                 <span className="font-medium">
                   {isToday
-                    ? "Next 7 nights"
+                    ? `Next ${NIGHTS} nights`
                     : new Date(`${startDate}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                 </span>
                 <span className="flex items-center gap-0.5">
@@ -217,7 +220,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 <th
                   key={name}
                   title={`${name} season`}
-                  className={`w-16 px-2 text-center font-medium ${color.tint} ${color.text}`}
+                  className={`w-14 px-1 text-center text-[9px] font-medium ${color.tint} ${color.text}`}
                 >
                   <span className="inline-flex items-center gap-1">
                     <span className={`h-1.5 w-1.5 rounded-full ${color.dot}`} aria-hidden />
@@ -230,7 +233,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
               <th
                 key={d}
                 title={[d, d === today() ? "Today" : null, seasonByDate.get(d), holidayName(d)].filter(Boolean).join(" · ")}
-                className={`w-10 px-0.5 py-0.5 text-center font-normal ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/30" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                className={`px-0 py-0.5 text-center text-[9px] font-normal ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/30" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                   isWeekend(d) || isSunday(d) || holidayName(d) ? "font-medium text-foreground" : ""
                 } ${d === today() ? "text-foreground ring-1 ring-inset ring-primary" : ""}`}
               >
@@ -239,7 +242,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                 ) : (
                   dayLabel(d)
                 )}
-                <span className="block text-[9px] opacity-70">{d.slice(8, 10)}</span>
+                <span className="block text-[9px] leading-none opacity-70">{d.slice(8, 10)}</span>
                 <span className="mt-px flex items-center justify-center gap-0.5">
                   {(isWeekend(d) || isSunday(d)) && <span className="block h-1 w-1 rounded-full bg-amber-500" aria-hidden />}
                   {holidayName(d) && <span className="block h-1 w-1 rounded-full bg-primary" aria-hidden />}
@@ -253,7 +256,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
             const nights = nightsByUnit.get(u.id);
             return (
               <tr key={u.id} className={`border-t border-border/60 ${ROW_CLASS}`}>
-                <td className="max-w-[6rem] truncate px-2 font-medium" title={u.name}>
+                <td className="max-w-[5rem] truncate px-1.5 text-[11px] font-medium" title={u.name}>
                   {u.name}
                 </td>
                 {seasons.map((name) => {
@@ -263,7 +266,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                     <td
                       key={name}
                       title={`${u.name} · ${name}${price === null ? " (base fallback)" : ""}`}
-                      className={`px-2 text-center font-mono tabular-nums ${seasonColor(name, seasonColors).tint} ${
+                      className={`px-1 text-center font-mono text-[10px] tabular-nums ${seasonColor(name, seasonColors).tint} ${
                         price === null ? "text-muted-foreground" : "text-foreground"
                       }`}
                     >
@@ -277,7 +280,7 @@ export const RatePlanRateMatrix = memo(function RatePlanRateMatrix({
                     <td
                       key={d}
                       title={`${u.name} · ${d}${holidayName(d) ? ` · ${holidayName(d)}` : ""}${day ? ` · R${day.price.toLocaleString()} (${sourceLabel(day)})` : ""}`}
-                      className={`px-0.5 text-center font-mono text-[10px] tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
+                      className={`px-0 text-center font-mono text-[9px] leading-none tabular-nums ${i === 0 ? "border-l-2 border-foreground/10 bg-muted/20" : ""} ${columnTint(d, seasonByDate.get(d), seasonColors)} ${
                         day?.source === "daily_override" ? "font-semibold text-warning-foreground" : ""
                       }`}
                     >
