@@ -123,8 +123,6 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
   const [draft, dispatch] = useReducer(ratePlanDraftReducer, emptyDraft());
   const [seasons, setSeasons] = useState<CalendarSeason[]>([]);
   const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
-  const [liveMatrix, setLiveMatrix] = useState<LiveSeasonMatrix>(() => new Map());
-  const [liveMatrixLoading, setLiveMatrixLoading] = useState(false);
   /** Other plans on this property that may act as a parent (one level of derivation only). */
   const [parentOptions, setParentOptions] = useState<{ id: string; name: string }[]>([]);
 
