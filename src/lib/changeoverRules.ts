@@ -127,11 +127,10 @@ export function resolveChangeover(
     };
   }
   const dow = new Date(`${dateIso}T00:00:00Z`).getUTCDay();
-  const dayKey = CHANGEOVER_DOW_KEYS[(dow + 6) % 7] as ChangeoverDowKey | undefined;
-  const weekdayKey = CHANGEOVER_DOW_KEYS.find(
-    (k) => k.toLowerCase() === WEEKDAY_LABEL[dow].toLowerCase(),
-  ) ?? dayKey;
-  if (weekdayKey && isCode(config.rules[weekdayKey])) {
+  // CHANGEOVER_DOW_KEYS is Sunday-first, matching getUTCDay().
+  const weekdayKey = CHANGEOVER_DOW_KEYS[dow] as ChangeoverDowKey;
+  if (isCode(config.rules[weekdayKey])) {
+
     return {
       code: Number(config.rules[weekdayKey]),
       source: "weekday",
