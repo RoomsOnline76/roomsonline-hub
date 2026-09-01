@@ -56,6 +56,8 @@ export interface RatePlan {
   is_primary_sell?: boolean | null;
   push_to_channels?: boolean | null;
   sell_priority?: number | null;
+  los_enabled?: boolean | null;
+  fsp_enabled?: boolean | null;
 }
 
 interface RoomType {
