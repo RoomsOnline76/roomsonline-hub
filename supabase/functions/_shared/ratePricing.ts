@@ -104,8 +104,37 @@ export interface PlanSeasonRate {
   is_pinned?: boolean;
 }
 
+/**
+ * One length-of-stay rung: from `nights` nights up, the nightly price changes.
+ * Rows live in rolos_rate_plan_los_rungs. The highest matching threshold wins.
+ */
+export interface LosRung {
+  nights: number;
+  derivation_type: DerivationType;
+  derivation_value: number;
+  is_pinned?: boolean;
+  pinned_rate?: number | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  room_type_id?: string | null;
+}
 
-/** Legacy relational season window (rolos_rate_seasons + rolos_rate_prices). */
+/** One full-stay-price cell: nights x guests -> a stay total. rolos_rate_plan_fsp_cells. */
+export interface FspCell {
+  nights: number;
+  nr_of_guests: number;
+  derivation_type?: DerivationType | null;
+  derivation_value?: number | null;
+  is_pinned?: boolean;
+  pinned_total?: number | null;
+  calendar_season_id?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  room_type_id?: string | null;
+}
+
+
 export interface PricingRelationalRate {
   start_date: string;
   end_date: string;
