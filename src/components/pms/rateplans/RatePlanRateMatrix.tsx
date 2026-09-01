@@ -57,7 +57,7 @@ const columnTint = (iso: string, season?: string, colors?: SeasonColorMap) => {
   return "";
 };
 
-const money = (n: number) => `R${Math.round(n).toLocaleString()}`;
+const money = (n: number) => `R${Math.round(n)}`;
 const short = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10}k` : String(Math.round(n)));
 
 /** Row height for every unit row — grows to fit its content. */
