@@ -519,7 +519,7 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
               {section.plans.length === 0 ? (
                 plans.length > 0 ? <p className="text-sm text-muted-foreground italic">No rate plans for this property.</p> : null
               ) : (
-                <div className="grid gap-4 xl:grid-cols-2">
+                <div className="grid gap-4 grid-cols-1">
                   {section.plans.map(renderPlanCard)}
                 </div>
               )}
