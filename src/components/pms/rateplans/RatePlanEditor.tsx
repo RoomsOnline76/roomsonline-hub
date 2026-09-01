@@ -484,6 +484,15 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
 
   const noun = useMemo(() => pricingNoun(draft.pricing_model), [draft.pricing_model]);
 
+  /**
+   * Display list of units: one row per unit name. Duplicate rows for the same unit
+   * collapse to the id this plan is already linked to.
+   */
+  const visibleRoomTypes = useMemo(
+    () => dedupeRoomTypesByName(roomTypes, draft.units.map((u) => u.room_type_id)),
+    [roomTypes, draft.units],
+  );
+
   const pricedSeasons = useMemo(() => draft.season_rates.filter((s) => s.mode !== "none").length, [draft.season_rates]);
 
   /** Stay-shape problems. Non-empty blocks the save and is shown in the ladder card. */
