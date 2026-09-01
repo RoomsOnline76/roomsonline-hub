@@ -12,6 +12,7 @@ import { CHANNEL_EDIT_GATE_REASON, channelEditGateState } from "@/lib/channelEdi
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { confirmChannelPush } from "@/lib/channelPushConfirm";
 import {
+  CHANGEOVER_FIELD_PATHS,
   joinFieldLabels,
   sectionsOf,
   type ChangedChannelField,
@@ -138,7 +139,7 @@ export async function pushChangedChannelFields(
     const labels = joinFieldLabels(fields);
     const sinceIso = new Date(Date.now() - 5_000).toISOString();
 
-    const triggerError = await triggerSection(propertyId, section);
+    const triggerError = await triggerSection(propertyId, section, fields);
     if (triggerError) {
       failed.push(labels);
       reasons.push(triggerError);
