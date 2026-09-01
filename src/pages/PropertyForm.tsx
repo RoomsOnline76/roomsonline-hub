@@ -86,6 +86,7 @@ import {
   type ChangeoverDowKey,
 } from "@/config/channelPropertyTypes";
 import ChangeoverRulesCard from "@/components/property/policies/ChangeoverRulesCard";
+import { normalizeChangeoverSpans, type ChangeoverSpan } from "@/lib/changeoverRules";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { isRolosPms } from "@/lib/pmsUtils";
 import { useAuth } from "@/hooks/useAuth";
@@ -917,6 +918,8 @@ export default function PropertyForm({
   /** Channel changeover: master rule (0-3) + optional per-day overrides. */
   const [changeoverMaster, setChangeoverMaster] = useState<number | null>(null);
   const [changeoverRules, setChangeoverRules] = useState<Partial<Record<ChangeoverDowKey, number>>>({});
+  /** Date-range / season changeover overrides (beat the weekday rules for those nights). */
+  const [changeoverSpans, setChangeoverSpans] = useState<ChangeoverSpan[]>([]);
   const [cancellationPolicies, setCancellationPolicies] = useState([
     { forfeit: "10", type: "% of Total", days: "999" },
     { forfeit: "100", type: "% of Total", days: "30" },
@@ -2952,6 +2955,8 @@ export default function PropertyForm({
             setChangeoverMaster(Number(amenities.changeover));
           if (amenities?.changeover_rules && typeof amenities.changeover_rules === "object")
             setChangeoverRules(amenities.changeover_rules as Partial<Record<ChangeoverDowKey, number>>);
+          if (Array.isArray(amenities?.changeover_spans))
+            setChangeoverSpans(normalizeChangeoverSpans(amenities.changeover_spans));
           if (amenities?.property_floor !== undefined && amenities?.property_floor !== null)
             setPropertyFloor(Number(amenities.property_floor));
           if (amenities?.property_size_sqm) setPropertySizeSqm(Number(amenities.property_size_sqm));
@@ -3497,6 +3502,7 @@ export default function PropertyForm({
           // channel push reads when a unit overrides the property rule.
           changeover: changeoverMaster,
           changeover_rules: changeoverRules,
+          changeover_spans: normalizeChangeoverSpans(changeoverSpans),
           changeover_by_unit: Object.fromEntries(
             roomTypes
               .filter((r: any) => r?.id && r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
@@ -7450,6 +7456,12 @@ export default function PropertyForm({
                       setChangeoverRules(next);
                       setIsDirty(true);
                     }}
+                    spans={changeoverSpans}
+                    onSpansChange={(next) => {
+                      setChangeoverSpans(next);
+                      setIsDirty(true);
+                    }}
+                    seasons={seasons}
                     unitOverrides={roomTypes
                       .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
                       .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
@@ -7560,6 +7572,12 @@ export default function PropertyForm({
                       setChangeoverRules(next);
                       setIsDirty(true);
                     }}
+                    spans={changeoverSpans}
+                    onSpansChange={(next) => {
+                      setChangeoverSpans(next);
+                      setIsDirty(true);
+                    }}
+                    seasons={seasons}
                     unitOverrides={roomTypes
                       .filter((r: any) => r?.changeover !== null && r?.changeover !== undefined && r?.changeover !== "")
                       .map((r: any) => ({ name: r.name || "Unit", changeover: Number(r.changeover) }))}
