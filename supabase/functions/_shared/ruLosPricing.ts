@@ -69,13 +69,12 @@ export function losPricingForPeriod(opts: {
     }
     if (price === null) continue;
 
-    const existing = byNights.get(nights);
     // Same threshold twice: a pin is authoritative, otherwise the later row wins.
-    if (existing && rung.is_pinned !== true && byNights.get(nights)?.price !== undefined && existing.price > 0 && rung.is_pinned === false) {
-      byNights.set(nights, { nights, price });
-    } else if (!existing || rung.is_pinned === true) {
-      byNights.set(nights, { nights, price });
-    }
+    const existing = pinned.get(nights);
+    if (existing === true && rung.is_pinned !== true) continue;
+    pinned.set(nights, rung.is_pinned === true);
+    byNights.set(nights, { nights, price });
+
   }
 
   return [...byNights.values()].sort((a, b) => a.nights - b.nights);
