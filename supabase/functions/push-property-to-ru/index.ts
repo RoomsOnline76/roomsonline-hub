@@ -3038,11 +3038,11 @@ async function pushARI(
       };
       const losEnabled = losPlan?.los_enabled === true && losRungs.length > 0;
 
+      const nightlyByDate = new Map(dayRates.map((d) => [d.date, Number(d.price ?? 0)]));
       const withLos = losEnabled
         ? splitPeriodsByLos(compressed, (date) => {
-          const day = dayRates.find((d) => d.date === date);
           return losPricingForPeriod({
-            parentNightly: Number(day?.price ?? 0),
+            parentNightly: nightlyByDate.get(date) ?? 0,
             rungs: losRungs,
             dateFrom: date,
             dateTo: date,
