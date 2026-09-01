@@ -136,6 +136,7 @@ export interface AriDeltaOptions {
 
 import { summarizeRuExchanges } from '../_shared/ruApiLog.ts';
 import { loadPropertyDistances } from '../_shared/ruDistances.ts';
+import { ruDeltaScopeForTrigger } from '../_shared/ruDeltaScope.ts';
 import {
   decideRuCurrency,
   verifyAndRecordCurrency,
