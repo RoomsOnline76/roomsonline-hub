@@ -16,7 +16,7 @@ const cathedralPeak = {
 };
 
 describe("profile-driven report window", () => {
-  it("keeps the standard six months opening on the review month by default", () => {
+  it("keeps the standard seven months opening on the review month by default", () => {
     const options = reportWindowOptions(parseReportProfile({}));
     expect(windowMonths("2026-08-20", "2026-08", options)).toEqual([
       "2026-08",
@@ -25,6 +25,8 @@ describe("profile-driven report window", () => {
       "2026-11",
       "2026-12",
       "2027-01",
+      "2027-02",
+
     ]);
   });
 

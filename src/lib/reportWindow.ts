@@ -1,14 +1,14 @@
 /**
  * Client mirror of `supabase/functions/_shared/reportWindow.ts` — keep both in
- * step. A revenue review shows the month it covers plus the next five; anything
+ * step. A revenue review shows the month it covers plus the next six; anything
  * further out is carried in the data but never displayed.
  */
 
-export const REPORT_WINDOW_MONTHS = 6;
+export const REPORT_WINDOW_MONTHS = 7;
 
 /**
  * Per-property window shape from `report_profile`. Most packs use the standard
- * six months opening on the review month; a client may print more months and/or
+ * seven months opening on the review month; a client may print more months and/or
  * open on the month just closed.
  */
 export interface ReportWindowOptions {
@@ -89,7 +89,7 @@ export function windowMonths(
   return Array.from({ length: windowLength(options) }, (_, i) => addMonths(start, i));
 }
 
-/** The months a report may display: review month + the next five. */
+/** The months a report may display: review month + the next six. */
 export function monthsInWindow(
   months: string[] | null | undefined,
   asOfDate: string,

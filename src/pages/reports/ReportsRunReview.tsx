@@ -141,7 +141,7 @@ export default function ReportsRunReview() {
   }, [run, stage, completion]);
 
   /**
-   * Everything downstream sees the review month plus five ahead — every one of
+   * Everything downstream sees the review month plus six ahead — every one of
    * them, so a month with no uploaded extract shows as a gap rather than
    * disappearing from the review.
    */
@@ -161,7 +161,7 @@ export default function ReportsRunReview() {
     );
   }, [snapshot, run, windowOptions]);
 
-  /** The month the review covers — the anchor for the six-month window. */
+  /** The month the review covers — the anchor for the seven-month window. */
   const handleSetReportMonth = useCallback(
     async (month: string) => {
       if (!runId || !/^\d{4}-\d{2}$/.test(month)) return;

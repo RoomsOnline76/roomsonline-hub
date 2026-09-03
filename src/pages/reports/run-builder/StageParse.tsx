@@ -57,7 +57,7 @@ export function StageParse({ ctx }: { ctx: RunBuilderContext }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            The as-of date anchors the six-month window and picks the comparison column in the
+            The as-of date anchors the seven-month window and picks the comparison column in the
             previous report. Change it here and re-parse.
           </p>
           <div className="flex flex-wrap items-end gap-3">

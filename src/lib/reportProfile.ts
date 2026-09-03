@@ -29,7 +29,7 @@ export interface ReportProfile {
   /** Extra named columns, e.g. the client's own budget. */
   year_columns: ReportYearColumn[];
   /**
-   * How many months the printed window covers. `null` keeps the standard six.
+   * How many months the printed window covers. `null` keeps the standard seven.
    * Cathedral Peak's pack prints eight.
    */
   window_months: number | null;
