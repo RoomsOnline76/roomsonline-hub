@@ -25,6 +25,8 @@ describe("profile-driven report window", () => {
       "2026-11",
       "2026-12",
       "2027-01",
+      "2027-02",
+
     ]);
   });
 
