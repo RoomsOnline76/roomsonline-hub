@@ -112,12 +112,12 @@ export function pastMonthsNote(past: PastMonthActual[]): string {
   return `${past.length} uploaded month(s) fall before this review window (${months}) — used as last-year actuals instead of report months.`;
 }
 
-/** How many months the printed report shows: the review month plus five ahead. */
-export const REPORT_WINDOW_MONTHS = 6;
+/** How many months the printed report shows: the review month plus six ahead. */
+export const REPORT_WINDOW_MONTHS = 7;
 
 /**
  * Per-property window shape from `report_profile`. Most packs use the standard
- * six months opening on the review month; a client may print more months and/or
+ * seven months opening on the review month; a client may print more months and/or
  * open on the month just closed.
  */
 export interface ReportWindowOptions {
@@ -159,7 +159,7 @@ export function windowEndMonth(
 }
 
 /**
- * Every month the report prints — the review month plus the next five, whether
+ * Every month the report prints — the review month plus the next six, whether
  * or not data was uploaded for them. Months with no figures print as dashes so
  * a gap in the uploads is visible rather than silently dropped.
  */
@@ -172,7 +172,7 @@ export function windowMonths(
   return Array.from({ length: windowLength(options) }, (_, i) => addMonths(start, i));
 }
 
-/** The months a report is allowed to display: review month + the next five. */
+/** The months a report is allowed to display: review month + the next six. */
 export function monthsInWindow(
   months: string[],
   asOfDate: string,

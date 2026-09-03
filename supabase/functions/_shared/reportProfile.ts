@@ -14,7 +14,7 @@ export interface ReportProfile {
   source_unavailable: boolean;
   source_mode: ReportSourceMode;
   year_columns: ReportYearColumn[];
-  /** Months the printed window covers. `null` keeps the standard six. */
+  /** Months the printed window covers. `null` keeps the standard seven. */
   window_months: number | null;
   /** Shift of the window start relative to the review month (`-1` = month just closed). */
   window_start_offset: number;
