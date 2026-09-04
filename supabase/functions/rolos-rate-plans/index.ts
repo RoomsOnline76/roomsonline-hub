@@ -878,6 +878,43 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     if (resErr) console.warn("[rolos-rate-plans] restriction write failed", resErr.message);
   }
 
+  /**
+   * Dated event-weekend minimums, mirrored so the calendar and the channel enforce them.
+   * Kept on their own `source` so the plan-level row above is never clobbered, and only
+   * rewritten when this payload actually carried ladders (absent keys stay a no-op).
+   */
+  const laddersSent = losOff || fspOff || Array.isArray(draft.los_rungs) || Array.isArray(draft.fsp_cells);
+  if (laddersSent) {
+    await sb
+      .from("rolos_stay_restrictions")
+      .delete()
+      .eq("rate_plan_id", planId)
+      .eq("source", "rate_plan_window");
+    // One row per window/unit: the strictest minimum wins where rows repeat.
+    const byWindow = new Map<string, { room_type_id: string | null; start_date: string; end_date: string; min_stay: number }>();
+    for (const w of datedMinStays) {
+      const key = `${w.room_type_id ?? "all"}|${w.start_date}|${w.end_date}`;
+      const existing = byWindow.get(key);
+      if (!existing || w.min_stay > existing.min_stay) byWindow.set(key, w);
+    }
+    if (byWindow.size > 0) {
+      const { error: winErr } = await sb.from("rolos_stay_restrictions").insert(
+        [...byWindow.values()].map((w) => ({
+          property_id: propertyId,
+          rate_plan_id: planId,
+          room_type_id: w.room_type_id,
+          start_date: w.start_date,
+          end_date: w.end_date,
+          min_stay: w.min_stay,
+          source: "rate_plan_window",
+          source_ref: planId,
+        })),
+      );
+      if (winErr) console.warn("[rolos-rate-plans] dated restriction write failed", winErr.message);
+    }
+  }
+
+
   // --- Cancellation policy link -------------------------------------------
   await sb.from("rolos_policy_rate_links").delete().eq("rate_plan_id", planId);
   if (draft.policy_id) {
