@@ -2705,8 +2705,9 @@ const Booking = () => {
                   {/* Rate plan offers available for this stay length */}
                   {(() => {
                     const offers = offersForRoom(room);
-                    if (offers.length < 2) return null;
-                    const activeId = room.rateTypeId || offers[0].id;
+                    const unavailable = unavailableOffersForRoom(room);
+                    if (offers.length < 2 && unavailable.length === 0) return null;
+                    const activeId = room.rateTypeId || offers[0]?.id;
                     return (
                       <div className="space-y-1.5">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rate options</p>
@@ -2726,9 +2727,13 @@ const Booking = () => {
                               >
                                 <span className="min-w-0">
                                   <span className="block truncate font-medium">{offer.name}</span>
-                                  {offer.minStay && offer.minStay > 1 && (
-                                    <span className="text-[10px] text-muted-foreground">Min {offer.minStay} nights</span>
-                                  )}
+                                  {(offer.minStay && offer.minStay > 1) || offer.maxStay ? (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {offer.minStay && offer.minStay > 1 ? `Min ${offer.minStay} nights` : ''}
+                                      {offer.minStay && offer.minStay > 1 && offer.maxStay ? ' · ' : ''}
+                                      {offer.maxStay ? `Max ${offer.maxStay} nights` : ''}
+                                    </span>
+                                  ) : null}
                                 </span>
                                 {offer.total > 0 && (
                                   <span className="shrink-0 text-right text-sm font-semibold">
@@ -2738,10 +2743,20 @@ const Booking = () => {
                               </button>
                             );
                           })}
+                          {unavailable.map((offer) => (
+                            <div
+                              key={`na-${offer.id}`}
+                              className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground"
+                            >
+                              <span className="block truncate">{offer.name}</span>
+                              <span className="shrink-0 text-[11px]">{offer.reason}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
                   })()}
+
 
 
 
