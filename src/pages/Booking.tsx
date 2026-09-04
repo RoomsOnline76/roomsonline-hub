@@ -3223,7 +3223,16 @@ const Booking = () => {
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
           <div className="max-w-2xl mx-auto">
+            {stayRuleBlocks.length > 0 && (
+              <div className="mb-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive space-y-0.5">
+                {stayRuleBlocks.map((msg) => (
+                  <p key={msg}>{msg}</p>
+                ))}
+                <p className="text-muted-foreground">Adjust your dates to continue.</p>
+              </div>
+            )}
             <Button
+
               onClick={() => createBookingMutation.mutate()}
               disabled={createBookingMutation.isPending || !isFormValid}
               className="w-full h-12 text-base font-medium rounded-xl gap-2"
