@@ -260,25 +260,57 @@ async function recalculateRolPrice(
     nightly = nights > 0 ? Math.round((rounded / nights) * 100) / 100 : null;
   }
 
+  /* Packages and specials are decided by the engine, on the new stay's own subtotal.
+   * A stay that no longer qualifies loses the discount; one that does keeps it. */
+  let discountTotal = 0;
+  let discountLines: DiscountLine[] = [];
+  if (booking.property_id) {
+    try {
+      const res = await loadStayDiscounts(supabase, booking.property_id, {
+        checkIn,
+        checkOut,
+        subtotal: rounded,
+        rooms: roomCount,
+        roomIds: roomTypeId ? [roomTypeId] : [],
+        ratePlanIds: [plan.id],
+      });
+      discountTotal = res.discount_total;
+      discountLines = res.lines;
+    } catch (e) {
+      console.warn("[modify-booking] discount pass failed:", (e as Error).message);
+    }
+  }
+  const netTotal = Math.round(Math.max(0, rounded - discountTotal) * 100) / 100;
+
   try {
     const parityRows: ParityRow[] = [{
       property_id: booking.property_id,
       room_type_id: roomTypeId,
       rate_plan_id: plan.id,
       stay_date: checkIn,
-      resolved_rate: rounded,
+      resolved_rate: netTotal,
       resolved_tier: source,
       legacy_rate: Number(booking.total_price ?? 0),
       legacy_tier: "modify_booking_previous_total",
-      notes: { nights, pricing_model: model, metric: "stay_total", shape },
+      notes: { nights, pricing_model: model, metric: "stay_total", shape, gross: rounded, discount_total: discountTotal },
     }];
     await logRateParity(supabase, "modify-booking", parityRows);
   } catch (_e) {
     // Parity logging must never block a reprice.
   }
 
-  return { total: rounded, rate_plan_id: plan.id, nightly, source, shape };
+  return {
+    total: netTotal,
+    gross_total: rounded,
+    discount_total: discountTotal,
+    discounts: discountLines,
+    rate_plan_id: plan.id,
+    nightly,
+    source,
+    shape,
+  };
 }
+
 
 
 
