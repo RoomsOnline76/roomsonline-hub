@@ -1154,12 +1154,16 @@ Deno.serve(async (req) => {
     // ── quote_stay ───────────────────────────────────────────────────
     // Server-side accommodation total for the exact rooms being booked.
     if (action === "quote_stay") {
-      const { property_id, rooms } = body;
+      const { property_id, rooms, age_verified, is_subscriber, selected_special_id } = body;
       if (!property_id || !Array.isArray(rooms) || rooms.length === 0) {
         return fail("Missing property_id or rooms");
       }
       try {
-        const quote = await quoteStayForRooms(supabase, property_id, rooms);
+        const quote = await quoteStayForRooms(supabase, property_id, rooms, {
+          ageVerified: age_verified === true,
+          isSubscriber: is_subscriber === true,
+          selectedSpecialId: selected_special_id ?? null,
+        });
         return new Response(JSON.stringify({ success: true, data: quote }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
