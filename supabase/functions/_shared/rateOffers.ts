@@ -23,6 +23,12 @@ export interface OfferWindow {
   room_type_id?: string | null;
   /** Minimum nights this window demands. */
   min_stay_nights?: number | null;
+  /** Maximum nights this window allows. */
+  max_stay_nights?: number | null;
+  /** No arrivals inside the window. */
+  closed_to_arrival?: boolean | null;
+  /** No departures inside the window. */
+  closed_to_departure?: boolean | null;
 }
 
 export interface OfferPlan {
@@ -49,8 +55,59 @@ export interface OfferEligibility {
   eligible: boolean;
   min_stay: number;
   max_stay: number | null;
-  reason?: "unit" | "min_stay" | "max_stay";
+  reason?: "unit" | "min_stay" | "max_stay" | "closed_to_arrival" | "closed_to_departure";
 }
+
+/**
+ * One row of the operator's Minimum Stay Entry form, as stored in
+ * `rolos_stay_restrictions`.
+ */
+export interface StayRule {
+  start_date: string | null;
+  end_date: string | null;
+  room_type_id?: string | null;
+  min_stay?: number | null;
+  max_stay?: number | null;
+  /** Minimum for the arrival weekdays listed below. */
+  days_of_week?: number[] | null;
+  /** Minimum that applies when the arrival weekday is not listed. */
+  other_days_min_stay?: number | null;
+  /** Stop applying the rule when arrival is this close (in days). */
+  ignore_within_days?: number | null;
+  closed_to_arrival?: boolean | null;
+  closed_to_departure?: boolean | null;
+  is_active?: boolean | null;
+}
+
+/** UTC weekday of an ISO date, 0 = Sunday (matches the form's checkboxes). */
+const isoWeekday = (iso: string): number => new Date(`${iso}T00:00:00Z`).getUTCDay();
+
+const daysBetween = (fromIso: string, toIso: string): number =>
+  Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
+
+/**
+ * Turn a saved stay rule into the offer window that applies to this stay, or
+ * null when the rule is off, out of range, or ignored this close to arrival.
+ */
+export function stayRuleWindow(rule: StayRule, stay: OfferStay, todayIso: string): OfferWindow | null {
+  if (rule.is_active === false) return null;
+  const ignoreWithin = Number(rule.ignore_within_days ?? 0);
+  if (ignoreWithin > 0 && daysBetween(todayIso, stay.from) < ignoreWithin) return null;
+  const window: OfferWindow = {
+    start_date: rule.start_date ?? null,
+    end_date: rule.end_date ?? null,
+    room_type_id: rule.room_type_id ?? null,
+    closed_to_arrival: rule.closed_to_arrival ?? false,
+    closed_to_departure: rule.closed_to_departure ?? false,
+    max_stay_nights: rule.max_stay ?? null,
+  };
+  if (!windowOverlapsStay(window, stay)) return null;
+  const days = rule.days_of_week ?? [];
+  const arrivalListed = days.length === 0 || days.includes(isoWeekday(stay.from));
+  window.min_stay_nights = arrivalListed ? (rule.min_stay ?? null) : (rule.other_days_min_stay ?? null);
+  return window;
+}
+
 
 const positive = (value: unknown): number | null => {
   const n = Number(value);
