@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
-import { offerEligibility, stayRuleWindow, type OfferPlan, type OfferStay, type OfferWindow, type StayRule } from "../_shared/rateOffers.ts";
+import { closedDates, offerEligibility, offerReasonText, stayRuleWindow, type OfferPlan, type OfferStay, type OfferWindow, type StayRule } from "../_shared/rateOffers.ts";
 
 
 const corsHeaders = {
