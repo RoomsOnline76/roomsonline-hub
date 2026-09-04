@@ -238,13 +238,13 @@ export function RatePlanStayShapeSection({
               const patch = (p: Partial<DraftLosRung>) => dispatch({ type: "patch_los_rung", index, patch: p });
               return (
                 <div key={`los-${index}`} className="space-y-1">
-                  <div className="grid items-end gap-2 md:grid-cols-[0.8fr_1.4fr_1fr_0.8fr_1.1fr_0.8fr_auto_auto]">
+                  <div className="grid items-end gap-2 md:grid-cols-[7rem_repeat(auto-fit,minmax(6rem,1fr))_auto_auto]">
                     {scopeSelect(rung.scope, (v) => patch({ scope: v }))}
                     {rung.scope === "dates"
                       ? datedFields(rung, patch)
                       : seasonSelect(rung.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
-                    {rung.scope === "season" && unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
-                    {rung.scope === "dates" && unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
+                    {unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
+
                     <Input
                       className="h-9"
                       type="number"
