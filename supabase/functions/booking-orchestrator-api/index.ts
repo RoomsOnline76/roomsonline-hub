@@ -923,6 +923,7 @@ async function quoteStayForRooms(
   supabase: any,
   propertyId: string,
   rooms: any[],
+  opts: { ageVerified?: boolean; isSubscriber?: boolean; selectedSpecialId?: string | null } = {},
 ) {
   const { data: propRow } = await supabase
     .from("properties")
