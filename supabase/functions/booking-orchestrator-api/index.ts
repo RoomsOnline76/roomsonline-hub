@@ -426,12 +426,22 @@ async function resolveRolosRates(
     console.warn("[orchestrator] rate resolver unavailable, using calendar fallback:", e);
   }
 
-  const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
-    const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+  /**
+   * Build one room-type block. `res`/`planOverride` let the offers pass below
+   * re-price the same unit from another eligible rate plan without changing the
+   * default (winning-plan) result.
+   */
+  const buildRoomType = (
+    room: any,
+    res: typeof resolver,
+    planOverride: any | null,
+  ) => {
+    const rolosPlan = planOverride ?? (room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null);
     const fallbackRate = rolosPlan?.base_rate ?? (room.daily_rate ? Number(room.daily_rate) : 0);
     const pricingModel = canonicalPricingModel(rolosPlan?.pricing_model ?? "per_unit");
     const isPerPerson = pricingModel === "per_person";
     const isSharing = pricingModel === "per_person_sharing";
+
 
     // Amenity/room identifiers used to look into season_rates
     const overviewId = room.linked_rolos_id ? rolosToOverview[room.linked_rolos_id] : undefined;
