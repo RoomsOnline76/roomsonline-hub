@@ -699,12 +699,14 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanStayShapeSection
             draft={draft}
             seasons={seasons}
+            units={visibleRoomTypes}
             dispatch={dispatch}
             issues={stayShapeIssues}
             ruPushFsp={ruPushFsp}
             onRuPushFspChange={setRuPushFsp}
             amenitiesLoaded={amenitiesLoaded}
           />
+
         </CardContent>
       </Card>
 
