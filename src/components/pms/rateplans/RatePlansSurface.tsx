@@ -10,12 +10,13 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Plus, TrendingUp, Pencil, DollarSign, Trash2, Building2, Ban, CalendarRange, Copy, BedDouble,
+  Plus, TrendingUp, Pencil, DollarSign, Trash2, Building2, Ban, CalendarRange, Copy, BedDouble, CalendarClock,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { pushRatePlanRates } from "@/lib/channelSavePush";
 import { RatePlanStopSellDialog } from "@/components/restrictions/RatePlanStopSellDialog";
+import { MinimumStayDialog } from "@/components/restrictions/MinimumStayDialog";
 import { PackagesManager } from "@/components/pms/packages/PackagesManager";
 import { BREAKFAST_BASIS_LABELS } from "@/components/charges/ChargeCalculator";
 import { RatePlanEditor } from "@/components/pms/rateplans/RatePlanEditor";
@@ -118,6 +119,8 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
     const [seasonColors, setSeasonColors] = useState<SeasonColorMap>({});
     const [loading, setLoading] = useState(true);
     const [stopSellPlan, setStopSellPlan] = useState<RatePlan | null>(null);
+    /** Property whose Minimum Stay Entry form is open. */
+    const [stayRulesProperty, setStayRulesProperty] = useState<string | null>(null);
     const [syncPlan, setSyncPlan] = useState<RatePlan | null>(null);
     const [editor, setEditor] = useState<{ propertyId: string; ratePlanId: string | null } | null>(null);
 
@@ -538,14 +541,18 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
                     {section.plans.length} plan{section.plans.length === 1 ? "" : "s"}
                   </Badge>
                   {!readOnly && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() => setEditor({ propertyId: section.id, ratePlanId: null })}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />New plan
-                    </Button>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setStayRulesProperty(section.id)}>
+                        <CalendarClock className="h-4 w-4 mr-1" />Stay rules
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditor({ propertyId: section.id, ratePlanId: null })}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />New plan
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
@@ -622,6 +629,17 @@ export const RatePlansSurface = forwardRef<RatePlansSurfaceHandle, RatePlansSurf
             sourcePropertyId={syncPlan.property_id}
             properties={properties}
             onCopied={fetchData}
+          />
+        )}
+
+        {!readOnly && stayRulesProperty && (
+          <MinimumStayDialog
+            open={!!stayRulesProperty}
+            onOpenChange={(o) => { if (!o) setStayRulesProperty(null); }}
+            propertyId={stayRulesProperty}
+            propertyName={properties.find((p) => p.id === stayRulesProperty)?.name}
+            units={roomTypes.filter((rt) => rt.property_id === stayRulesProperty).map((rt) => ({ id: rt.id, name: rt.name }))}
+            ratePlans={plans.filter((p) => p.property_id === stayRulesProperty).map((p) => ({ id: p.id, name: p.name }))}
           />
         )}
 
