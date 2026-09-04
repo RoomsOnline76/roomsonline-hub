@@ -215,7 +215,8 @@ export function RatePlanStayShapeSection({
             <Label htmlFor="rp-los" className="text-sm font-medium">Length of stay (nightly by nights)</Label>
             <p className="mt-0.5 text-xs text-muted-foreground">
               ROL'OS checkout already applies matching rungs. Rentals United receives them as
-              {" "}&lt;LOSS&gt; on the nightly season.
+              {" "}&lt;LOSS&gt; on the nightly season. Switch a row to <strong>Dates</strong> for an event
+              weekend — with or without a price change — and set its minimum nights there.
             </p>
           </div>
           <Switch
@@ -232,14 +233,18 @@ export function RatePlanStayShapeSection({
               <p className="text-xs text-muted-foreground">No rungs yet — add the first nights threshold.</p>
             )}
             {draft.los_rungs.map((rung: DraftLosRung, index) => {
-              const preview = losRungPreview(draft, rung, index);
+              const preview = losRungPreview(draft, rung, index, seasons);
               const invalid = !losRungIsValid(rung);
+              const patch = (p: Partial<DraftLosRung>) => dispatch({ type: "patch_los_rung", index, patch: p });
               return (
                 <div key={`los-${index}`} className="space-y-1">
-                  <div className="grid items-end gap-2 md:grid-cols-[1.4fr_0.8fr_1.1fr_0.8fr_auto_auto]">
-                    {seasonSelect(rung.calendar_season_id, (v) =>
-                      dispatch({ type: "patch_los_rung", index, patch: { calendar_season_id: v } }),
-                    )}
+                  <div className="grid items-end gap-2 md:grid-cols-[0.8fr_1.4fr_1fr_0.8fr_1.1fr_0.8fr_auto_auto]">
+                    {scopeSelect(rung.scope, (v) => patch({ scope: v }))}
+                    {rung.scope === "dates"
+                      ? datedFields(rung, patch)
+                      : seasonSelect(rung.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                    {rung.scope === "season" && unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
+                    {rung.scope === "dates" && unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
                     <Input
                       className="h-9"
                       type="number"
@@ -248,8 +253,9 @@ export function RatePlanStayShapeSection({
                       value={rung.nights}
                       placeholder="Nights"
                       aria-label="From nights"
-                      onChange={(e) => dispatch({ type: "patch_los_rung", index, patch: { nights: e.target.value } })}
+                      onChange={(e) => patch({ nights: e.target.value })}
                     />
+
                     {rung.is_pinned ? (
                       <Input
                         className="h-9 md:col-span-2"
