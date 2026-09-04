@@ -133,11 +133,30 @@ export function effectiveMinStay(plan: OfferPlan, stay: OfferStay): number {
   return min;
 }
 
+/** Windows that apply to this stay and unit. */
+const applicableWindows = (plan: OfferPlan, stay: OfferStay): OfferWindow[] =>
+  (plan.windows ?? []).filter((w) =>
+    (!w.room_type_id || String(w.room_type_id) === String(stay.room_type_id)) && windowOverlapsStay(w, stay)
+  );
+
 export function offerEligibility(plan: OfferPlan, stay: OfferStay): OfferEligibility {
   const min = effectiveMinStay(plan, stay);
-  const max = positive(plan.max_stay);
+  const windows = applicableWindows(plan, stay);
+  // Window maxima are stricter than the plan's own ceiling.
+  const windowMax = windows
+    .map((w) => positive(w.max_stay_nights))
+    .filter((n): n is number => n !== null);
+  const max = [positive(plan.max_stay), ...windowMax]
+    .filter((n): n is number => n !== null)
+    .reduce<number | null>((acc, n) => (acc === null || n < acc ? n : acc), null);
   const sellsUnit = plan.room_type_ids.some((id) => String(id) === String(stay.room_type_id));
   if (!sellsUnit) return { eligible: false, min_stay: min, max_stay: max, reason: "unit" };
+  if (windows.some((w) => w.closed_to_arrival && (!w.start_date || w.start_date <= stay.from) && (!w.end_date || w.end_date >= stay.from))) {
+    return { eligible: false, min_stay: min, max_stay: max, reason: "closed_to_arrival" };
+  }
+  if (windows.some((w) => w.closed_to_departure && (!w.start_date || w.start_date <= stay.to) && (!w.end_date || w.end_date >= stay.to))) {
+    return { eligible: false, min_stay: min, max_stay: max, reason: "closed_to_departure" };
+  }
   if (stay.nights < min) return { eligible: false, min_stay: min, max_stay: max, reason: "min_stay" };
   if (max !== null && stay.nights > max) return { eligible: false, min_stay: min, max_stay: max, reason: "max_stay" };
   return { eligible: true, min_stay: min, max_stay: max };
