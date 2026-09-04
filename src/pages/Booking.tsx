@@ -1728,7 +1728,9 @@ const Booking = () => {
     if (guestName.trim().length < 2) missing.push("Full name (min 2 characters)");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) missing.push("Valid email address");
     if (guestPhone.trim().length < 10) missing.push("Phone number (min 10 digits)");
+    missing.push(...stayRuleBlocks);
     return missing;
+
   };
 
   const missingFields = getMissingFields();
