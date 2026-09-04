@@ -79,6 +79,8 @@ interface RoomBooking {
   numberOfChildren: number;
   numberOfInfants: number;
   numberOfPets: number;
+  /** Guest-chosen rate plan for this room (falls back to the property default). */
+  rateTypeId?: string;
   // Per-room date overrides (optional - uses default dates if not set)
   checkIn?: string;
   checkOut?: string;
