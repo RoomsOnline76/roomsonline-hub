@@ -927,8 +927,14 @@ const Booking = () => {
       // Try preloaded availability from sessionStorage first (set by PropertyShowcase)
       let availability = availabilityData;
       // Skip sessionStorage preload for live-API PMS systems — preloaded data only has today's snapshot,
-      // not the full booking date range, which causes zero-rate calculations ("On Request")
-      const skipPreload = ['hostfully', 'benson', 'hotelbeds', 'hyperguest'].includes(externalSystem || '');
+      // not the full booking date range, which causes zero-rate calculations ("On Request").
+      // Also skip it for any real search: the preload carries no rate-plan offers or stay
+      // rules, so using it would quote a stay the engine may refuse.
+      const todayIso = format(new Date(), 'yyyy-MM-dd');
+      const skipPreload = ['hostfully', 'benson', 'hotelbeds', 'hyperguest'].includes(externalSystem || '')
+        || checkIn !== todayIso
+        || nights > 1;
+
       if (!availability && property?.id && !skipPreload) {
         try {
           const preloaded = sessionStorage.getItem(`avail_preload_${property.id}`);
