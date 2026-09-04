@@ -20,6 +20,7 @@ import {
   normalizePricingInputs,
   resolveNightRates,
   stayQuote,
+  type DailyOverride,
   type DifferentialType,
   type FspCell,
   type LosRung,
