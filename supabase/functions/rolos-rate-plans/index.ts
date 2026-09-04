@@ -109,6 +109,11 @@ interface DraftStayWindow {
   calendar_season_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /**
+   * Advisory minimum nights for a dated window (event weekends). Mirrored into
+   * `rolos_stay_restrictions`; it prices, it never blocks direct checkout.
+   */
+  min_stay_nights?: number | null;
 }
 
 interface DraftLosRung extends DraftStayWindow {
@@ -127,6 +132,7 @@ interface DraftFspCell extends DraftStayWindow {
   is_pinned?: boolean;
   pinned_total?: number | null;
 }
+
 
 
 
