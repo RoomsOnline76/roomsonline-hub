@@ -219,23 +219,34 @@ export type DraftAction =
   | { type: "remove_fsp_cell"; index: number };
 
 export const newLosRung = (calendarSeasonId: string): DraftLosRung => ({
+  scope: "season",
   calendar_season_id: calendarSeasonId,
+  start_date: "",
+  end_date: "",
+  room_type_id: "",
   nights: "3",
   derivation_type: "percent",
   derivation_value: "-10",
   is_pinned: false,
   pinned_rate: "",
+  min_stay_nights: "",
 });
 
 export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
+  scope: "season",
   calendar_season_id: calendarSeasonId,
+  start_date: "",
+  end_date: "",
+  room_type_id: "",
   nights: "7",
   nr_of_guests: "2",
   derivation_type: "percent",
   derivation_value: "-20",
   is_pinned: false,
   pinned_total: "",
+  min_stay_nights: "",
 });
+
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
