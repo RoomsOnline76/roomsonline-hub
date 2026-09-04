@@ -478,7 +478,16 @@ async function resolveRolosRates(
     // (availability must still paint a nightly number), so we only publish the
     // additive `stay_quote` descriptor for them.
     let stayQuoteBlock:
-      | { shape: string; nights: number; source: string; display_per_night: number; stay_total: number }
+      | {
+        shape: string;
+        nights: number;
+        source: string;
+        display_per_night: number;
+        stay_total: number;
+        pricing_model: string;
+        /** True when `stay_total` — not the nightly sum — is the billable figure. */
+        total_authoritative: boolean;
+      }
       | null = null;
     const losByDate = new Map<string, number>();
     if (res) {
@@ -494,6 +503,13 @@ async function resolveRolosRates(
               teens: occupancy?.teens ?? 0,
               children: occupancy?.children ?? 0,
               units: occupancy?.units ?? 1,
+              // Guest-tier amounts stay in the engine so the quoted stay total is
+              // the one checkout bills for per-person plans.
+              adult1Rate: rolosPlan?.adult_1_rate,
+              adult2Rate: rolosPlan?.adult_2_rate,
+              teenRate: rolosPlan?.teen_rate,
+              childRate: rolosPlan?.child_rate,
+              extraAdultRate: rolosPlan?.adult_1_rate,
             },
           );
           stayQuoteBlock = {
@@ -502,11 +518,20 @@ async function resolveRolosRates(
             source: String(quote.source),
             display_per_night: quote.display_per_night,
             stay_total: quote.stay_total,
+            pricing_model: pricingModel,
+            // Overwritten below for los_nightly once we know whether every night
+            // of the published series actually carries the adjusted rate.
+            total_authoritative: quote.shape !== "nightly",
           };
           if (quote.shape === "los_nightly" && Array.isArray(quote.nightly)) {
             const dates = [...resolvedByDate.keys()].sort();
             if (dates.length === quote.nightly.length) {
               dates.forEach((d, i) => losByDate.set(d, Number(quote.nightly![i])));
+            } else if (stayQuoteBlock) {
+              // The ladder could not be laid over the published nightly series
+              // (fallback/embed nights), so the nightly sum would undercount the
+              // stay. The engine total is then the only correct figure.
+              stayQuoteBlock.total_authoritative = true;
             }
           }
         } catch {
@@ -882,6 +907,168 @@ async function resolveWizardRates(
   return { room_types: syntheticRoomTypes };
 }
 
+
+// ─── server stay quote ─────────────────────────────────────────────────
+/**
+ * Authoritative accommodation total for a set of booked rooms.
+ *
+ * The booking page used to re-add nightly numbers in the browser, which drifts
+ * from the engine whenever a length-of-stay ladder, a full-stay cell or a
+ * guest-tier amount applies. This returns the engine's own stay total for the
+ * exact room / plan / dates / occupancy being booked, so the quoted figure and
+ * the charged figure are the same number.
+ */
+async function quoteStayForRooms(
+  supabase: any,
+  propertyId: string,
+  rooms: any[],
+) {
+  const { data: propRow } = await supabase
+    .from("properties")
+    .select("amenities")
+    .eq("id", propertyId)
+    .maybeSingle();
+  const amenities: any = propRow?.amenities || {};
+
+  const { data: hfRoomRows } = await supabase
+    .from("hostfully_room_types")
+    .select("id, name, linked_rolos_id, daily_rate, is_active")
+    .eq("property_id", propertyId)
+    .eq("is_active", true);
+  let units: any[] = (hfRoomRows || []) as any[];
+  if (units.length === 0) {
+    const { data: nativeRooms } = await supabase
+      .from("rolos_room_types")
+      .select("id, name")
+      .eq("property_id", propertyId)
+      .eq("is_active", true);
+    units = ((nativeRooms || []) as any[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      linked_rolos_id: r.id,
+      daily_rate: null,
+    }));
+  }
+
+  const rolosIds = units.map((u) => u.linked_rolos_id).filter(Boolean);
+  const plansByUnit: Record<string, any[]> = {};
+  if (rolosIds.length > 0) {
+    const { data: links } = await supabase
+      .from("rolos_rate_plan_room_types")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, is_active, sell_priority)")
+      .in("room_type_id", rolosIds)
+      .eq("rolos_rate_plans.is_active", true);
+    for (const link of ((links || []) as any[])) {
+      (plansByUnit[link.room_type_id] ||= []).push(link.rolos_rate_plans);
+    }
+    for (const list of Object.values(plansByUnit)) {
+      list.sort((a: any, b: any) =>
+        (Number(a?.sell_priority ?? 100) - Number(b?.sell_priority ?? 100))
+        || String(a?.name ?? "").localeCompare(String(b?.name ?? ""))
+      );
+    }
+  }
+
+  const resolverCache = new Map<string, any>();
+  const resolverFor = async (planId: string | null) => {
+    const key = planId ?? "__default__";
+    if (resolverCache.has(key)) return resolverCache.get(key);
+    const res = await createRateResolver(supabase, propertyId, {
+      amenities,
+      window: { from: minFrom, to: maxTo },
+      audience: "direct",
+      ...(planId ? { preferRatePlanId: planId } : {}),
+    });
+    resolverCache.set(key, res);
+    return res;
+  };
+
+  const normalized = (rooms || []).map((room: any) => {
+    const checkIn = String(room?.check_in ?? "");
+    const checkOut = String(room?.check_out ?? "");
+    return {
+      room_type_id: String(room?.room_type_id ?? ""),
+      room_type_name: room?.room_type_name ? String(room.room_type_name) : null,
+      rate_type_id: room?.rate_type_id ? String(room.rate_type_id) : null,
+      check_in: checkIn,
+      check_out: checkOut,
+      adults: Math.max(0, Number(room?.adults) || 0),
+      teens: Math.max(0, Number(room?.teens) || 0),
+      children: Math.max(0, Number(room?.children) || 0),
+      units: Math.max(1, Number(room?.units) || 1),
+    };
+  }).filter((r) => r.room_type_id && r.check_in && r.check_out && r.check_out > r.check_in);
+
+  if (normalized.length === 0) return { rooms: [], total: 0 };
+
+  const minFrom = normalized.map((r) => r.check_in).sort()[0];
+  const maxTo = normalized.map((r) => addDaysIso(r.check_out, -1)).sort().at(-1)!;
+
+  const results: any[] = [];
+  for (const req of normalized) {
+    const unit = units.find((u) =>
+      String(u.id) === req.room_type_id
+      || String(u.linked_rolos_id ?? "") === req.room_type_id
+      || (req.room_type_name && String(u.name).trim().toLowerCase() === req.room_type_name.trim().toLowerCase())
+    );
+    if (!unit?.linked_rolos_id) continue;
+
+    const candidates = plansByUnit[String(unit.linked_rolos_id)] ?? [];
+    const plan = candidates.find((p) => String(p.id) === req.rate_type_id) ?? candidates[0] ?? null;
+    let res: any;
+    try {
+      res = await resolverFor(plan ? String(plan.id) : null);
+    } catch (e) {
+      console.warn("[orchestrator] quote_stay resolver failed", e);
+      continue;
+    }
+
+    const lastNight = addDaysIso(req.check_out, -1);
+    let quote: any;
+    try {
+      quote = res.quoteStay(
+        { id: unit.id, name: unit.name, linked_rolos_id: unit.linked_rolos_id },
+        {
+          from: req.check_in,
+          to: lastNight,
+          adults: req.adults,
+          teens: req.teens,
+          children: req.children,
+          units: req.units,
+          adult1Rate: plan?.adult_1_rate != null ? Number(plan.adult_1_rate) : undefined,
+          adult2Rate: plan?.adult_2_rate != null ? Number(plan.adult_2_rate) : undefined,
+          teenRate: plan?.teen_rate != null ? Number(plan.teen_rate) : undefined,
+          childRate: plan?.child_rate != null ? Number(plan.child_rate) : undefined,
+          extraAdultRate: plan?.adult_1_rate != null ? Number(plan.adult_1_rate) : undefined,
+        },
+      );
+    } catch (e) {
+      console.warn("[orchestrator] quote_stay failed for unit", unit.id, e);
+      continue;
+    }
+    if (!quote || !(Number(quote.stay_total) > 0)) continue;
+
+    results.push({
+      room_type_id: req.room_type_id,
+      rate_type_id: plan ? String(plan.id) : null,
+      rate_type_name: plan?.name ?? null,
+      pricing_model: canonicalPricingModel(plan?.pricing_model ?? "per_unit"),
+      check_in: req.check_in,
+      check_out: req.check_out,
+      nights: quote.nights,
+      shape: quote.shape,
+      source: String(quote.source),
+      per_night: quote.display_per_night,
+      accommodation_total: quote.stay_total,
+    });
+  }
+
+  return {
+    rooms: results,
+    total: Math.round(results.reduce((s, r) => s + Number(r.accommodation_total || 0), 0) * 100) / 100,
+  };
+}
+
 // ─── main handler ──────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -922,6 +1109,24 @@ Deno.serve(async (req) => {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── quote_stay ───────────────────────────────────────────────────
+    // Server-side accommodation total for the exact rooms being booked.
+    if (action === "quote_stay") {
+      const { property_id, rooms } = body;
+      if (!property_id || !Array.isArray(rooms) || rooms.length === 0) {
+        return fail("Missing property_id or rooms");
+      }
+      try {
+        const quote = await quoteStayForRooms(supabase, property_id, rooms);
+        return new Response(JSON.stringify({ success: true, data: quote }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch (e) {
+        console.warn("[orchestrator] quote_stay error:", e);
+        return fail(e instanceof Error ? e.message : "Quote failed", 500);
+      }
     }
 
     // ── fetch_availability ───────────────────────────────────────────
