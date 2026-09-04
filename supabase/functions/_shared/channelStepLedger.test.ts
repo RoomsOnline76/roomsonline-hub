@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, it } from "https://deno.land/std@0.208.0/testing/bdd.ts";
+import { expect } from "https://deno.land/std@0.208.0/expect/mod.ts";
 import {
   CHANNEL_LEDGER_STEP_KEYS,
   READY_TO_SELL_LEDGER_STEPS,
@@ -7,7 +8,7 @@ import {
   sanitizeLedgerDetail,
   mapReadinessToLedgerRows,
   ledgerFingerprint,
-} from "./channelStepLedger";
+} from "./channelStepLedger.ts";
 
 function fakeAdmin(value: unknown) {
   return {
@@ -55,16 +56,23 @@ describe("ledger logging", () => {
   });
 
   it("never throws and never prints secrets", () => {
-    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    logLedgerEvent({ propertyId: "p1", event: "keys.verified", detail: { secret_key: "s3cr3t" } });
-    const line = spy.mock.calls[0].join(" ");
-    expect(line).not.toContain("s3cr3t");
-    expect(line).toContain("keys.verified");
-    spy.mockRestore();
+    const original = console.log;
+    const lines: string[] = [];
+    console.log = (...args: unknown[]) => {
+      lines.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+    };
+    try {
+      logLedgerEvent({ propertyId: "p1", event: "keys.verified", detail: { secret_key: "s3cr3t" } });
+    } finally {
+      console.log = original;
+    }
+    const line = lines.join(" ");
+    expect(line.includes("s3cr3t")).toBe(false);
+    expect(line.includes("keys.verified")).toBe(true);
   });
 
   it("documents all fourteen canonical step keys", () => {
-    expect(CHANNEL_LEDGER_STEP_KEYS).toHaveLength(14);
+    expect(CHANNEL_LEDGER_STEP_KEYS.length).toBe(14);
   });
 
   it("Ready-to-sell is the five local content steps", () => {
@@ -87,7 +95,7 @@ describe("readiness → ledger mapping", () => {
         { key: "currency_verified", group: "Channel publishing", label: "Currency", mandatory: false, passed: true },
       ],
     });
-    const byStep = new Map(rows.map((r) => [r.step_key, r]));
+    const byStep = new Map(rows.map((r) => [String(r.step_key), r]));
     expect(byStep.get("identity")?.status).toBe("passed");
     expect(byStep.get("media")?.status).toBe("blocked");
     expect(byStep.get("media")?.blocker_summary).toBe("Galjoen: Only 4 photos");
