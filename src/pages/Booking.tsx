@@ -1682,7 +1682,9 @@ const Booking = () => {
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
-    guestPhone.trim().length >= 10;
+    guestPhone.trim().length >= 10 &&
+    stayRuleBlocks.length === 0;
+
 
   // Get list of missing required fields for tooltip
   const getMissingFields = (): string[] => {
