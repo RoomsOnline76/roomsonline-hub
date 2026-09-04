@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, it } from "https://deno.land/std@0.208.0/testing/bdd.ts";
+import { expect } from "https://deno.land/std@0.208.0/expect/mod.ts";
 import { changeoverIsUniform, collapseAvbRanges, type RuAvbEntry } from './ruAvbCollapse.ts';
 
 const day = (iso: string, over: Partial<RuAvbEntry> = {}): RuAvbEntry => ({
