@@ -730,13 +730,28 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (!seasonId && !(from && to)) {
         return { error: "Every length-of-stay rung needs a season or a date range" };
       }
+      const unitId = r?.room_type_id ? String(r.room_type_id) : null;
+      const windowMinStay = intOrNull(r?.min_stay_nights);
+      if (from && to) {
+        if (to < from) return { error: `The ${nights}-night rung ends before it starts` };
+        const key = `los:${nights}:${unitId ?? "all"}`;
+        const clash = clashOf(key, from, to);
+        if (clash) {
+          return { error: `Two ${nights}-night rungs overlap: ${from} → ${to} and ${clash}` };
+        }
+        datedWindows.push({ key, from, to, label: `${from} → ${to}` });
+        if (windowMinStay !== null && windowMinStay >= 1) {
+          datedMinStays.push({ room_type_id: unitId, start_date: from, end_date: to, min_stay: windowMinStay });
+        }
+      }
       const pinned = r?.is_pinned === true;
       const pinnedRate = positive(r?.pinned_rate);
       if (pinned && pinnedRate === null) {
         return { error: `The ${nights}-night rung is pinned but has no rate` };
       }
       const derivationType = r?.derivation_type === "amount" ? "amount" : "percent";
-      const derivationValue = num(r?.derivation_value);
+      // A dated minimum-stay row may carry no price change at all: it then rides the parent nightly.
+      const derivationValue = num(r?.derivation_value) ?? (windowMinStay !== null ? 0 : null);
       if (!pinned && derivationValue === null) {
         return { error: `The ${nights}-night rung needs an adjustment value` };
       }
@@ -746,7 +761,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       }
       rows.push({
         rate_plan_id: planId,
-        room_type_id: r?.room_type_id ? String(r.room_type_id) : null,
+        room_type_id: unitId,
         calendar_season_id: seasonId,
         start_date: from,
         end_date: to,
@@ -755,7 +770,9 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         derivation_value: derivationValue ?? 0,
         is_pinned: pinned,
         pinned_rate: pinned ? pinnedRate : null,
+        min_stay_nights: windowMinStay,
       });
+
     }
     if (draft.los_enabled === true && rows.length === 0) {
       return { error: "Add at least one length-of-stay rung, or turn it off" };
