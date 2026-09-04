@@ -643,8 +643,29 @@ const offsetIsValid = (type: DerivationType, value: string): boolean => {
   return type === "percent" ? n > -100 : true;
 };
 
+/** A dated row needs both ends of its window, in order. */
+const datesAreValid = (row: { scope: LadderScope; start_date: string; end_date: string }): boolean =>
+  Boolean(row.start_date && row.end_date) && row.start_date <= row.end_date;
+
+/** A window scope is either a season id or a valid date range — never neither. */
+const windowIsValid = (row: {
+  scope: LadderScope;
+  calendar_season_id: string;
+  start_date: string;
+  end_date: string;
+  min_stay_nights: string;
+}): boolean => {
+  if (row.scope === "dates") {
+    if (!datesAreValid(row)) return false;
+    // Optional, but when typed it must be a whole number of nights.
+    if (row.min_stay_nights !== "" && positiveInt(row.min_stay_nights) === null) return false;
+    return true;
+  }
+  return Boolean(row.calendar_season_id);
+};
+
 export function losRungIsValid(rung: DraftLosRung): boolean {
-  if (!rung.calendar_season_id || positiveInt(rung.nights) === null) return false;
+  if (!windowIsValid(rung) || positiveInt(rung.nights) === null) return false;
   if (rung.is_pinned) {
     const pinned = numeric(rung.pinned_rate);
     return pinned !== null && pinned > 0;
@@ -653,7 +674,7 @@ export function losRungIsValid(rung: DraftLosRung): boolean {
 }
 
 export function fspCellIsValid(cell: DraftFspCell): boolean {
-  if (!cell.calendar_season_id) return false;
+  if (!windowIsValid(cell)) return false;
   if (positiveInt(cell.nights) === null || positiveInt(cell.nr_of_guests) === null) return false;
   if (cell.is_pinned) {
     const pinned = numeric(cell.pinned_total);
@@ -662,6 +683,12 @@ export function fspCellIsValid(cell: DraftFspCell): boolean {
   return offsetIsValid(cell.derivation_type, cell.derivation_value);
 }
 
+/** Two dated windows touching the same day. */
+const windowsOverlap = (
+  a: { start_date: string; end_date: string },
+  b: { start_date: string; end_date: string },
+): boolean => a.start_date <= b.end_date && b.start_date <= a.end_date;
+
 /**
  * Everything wrong with the draft's ladders, one plain sentence per problem.
  * An empty array means the ladders are safe to save.
@@ -669,17 +696,48 @@ export function fspCellIsValid(cell: DraftFspCell): boolean {
 export function ladderIssues(draft: RatePlanDraft): string[] {
   const issues: string[] = [];
 
+  /** Same threshold + same unit, on windows that touch: only one may win. */
+  const clashes = <T extends { scope: LadderScope; start_date: string; end_date: string; room_type_id: string }>(
+    rows: T[],
+    thresholdKey: (row: T) => string,
+    sentence: (row: T, other: T) => string,
+  ): string[] => {
+    const out: string[] = [];
+    const dated = rows.filter((r) => r.scope === "dates");
+    for (let i = 0; i < dated.length; i += 1) {
+      for (let j = i + 1; j < dated.length; j += 1) {
+        const a = dated[i];
+        const b = dated[j];
+        if (thresholdKey(a) !== thresholdKey(b)) continue;
+        if (a.room_type_id !== b.room_type_id) continue;
+        if (!windowsOverlap(a, b)) continue;
+        out.push(sentence(a, b));
+      }
+    }
+    return out;
+  };
+
   if (draft.los_enabled) {
     const seen = new Set<string>();
     draft.los_rungs.forEach((r, i) => {
       if (!losRungIsValid(r)) {
-        issues.push(`Length-of-stay row ${i + 1} needs a season, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
+        const window = r.scope === "dates" ? "a start and end date" : "a season";
+        issues.push(`Length-of-stay row ${i + 1} needs ${window}, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
         return;
       }
-      const key = `${r.calendar_season_id}|${positiveInt(r.nights)}`;
+      if (r.scope === "dates") return;
+      const key = `${r.calendar_season_id}|${r.room_type_id}|${positiveInt(r.nights)}`;
       if (seen.has(key)) issues.push(`Two length-of-stay rows claim ${r.nights} nights in the same season — keep one.`);
       seen.add(key);
     });
+    issues.push(
+      ...clashes(
+        draft.los_rungs.filter(losRungIsValid),
+        (r) => String(positiveInt(r.nights)),
+        (a, b) =>
+          `Two length-of-stay rows claim ${a.nights} nights on overlapping dates (${a.start_date}–${a.end_date} and ${b.start_date}–${b.end_date}) — keep one.`,
+      ),
+    );
     if (draft.los_rungs.filter(losRungIsValid).length === 0) {
       issues.push("Add at least one length-of-stay rung, or turn it off.");
     }
@@ -689,15 +747,25 @@ export function ladderIssues(draft: RatePlanDraft): string[] {
     const seen = new Set<string>();
     draft.fsp_cells.forEach((c, i) => {
       if (!fspCellIsValid(c)) {
-        issues.push(`Full-stay row ${i + 1} needs a season, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
+        const window = c.scope === "dates" ? "a start and end date" : "a season";
+        issues.push(`Full-stay row ${i + 1} needs ${window}, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
         return;
       }
-      const key = `${c.calendar_season_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
+      if (c.scope === "dates") return;
+      const key = `${c.calendar_season_id}|${c.room_type_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
       if (seen.has(key)) {
         issues.push(`Two full-stay rows claim ${c.nights} nights for ${c.nr_of_guests} guests in the same season — keep one.`);
       }
       seen.add(key);
     });
+    issues.push(
+      ...clashes(
+        draft.fsp_cells.filter(fspCellIsValid),
+        (c) => `${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`,
+        (a, b) =>
+          `Two full-stay rows claim ${a.nights} nights for ${a.nr_of_guests} guests on overlapping dates (${a.start_date}–${a.end_date} and ${b.start_date}–${b.end_date}) — keep one.`,
+      ),
+    );
     if (draft.fsp_cells.filter(fspCellIsValid).length === 0) {
       issues.push("Add at least one full-stay cell, or turn it off.");
     }
@@ -705,6 +773,7 @@ export function ladderIssues(draft: RatePlanDraft): string[] {
 
   return issues;
 }
+
 
 
 /** Human summary used on the list cards. */
