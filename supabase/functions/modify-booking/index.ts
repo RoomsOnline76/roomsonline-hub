@@ -14,6 +14,8 @@ import {
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import { rolModifyQuote, type RolModifyQuote } from "../_shared/rolModifyQuote.ts";
+import { loadStayDiscounts } from "../_shared/loadStayDiscounts.ts";
+import type { DiscountLine } from "../_shared/stayDiscounts.ts";
 
 import {
   logRateParity,
@@ -692,7 +694,7 @@ Deno.serve(async (req) => {
         repricedShape = { shape: repriced.shape, source: repriced.source, stay_total: repriced.total };
 
         console.log(
-          `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
+          `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source}, gross ${repriced.gross_total}, discounts ${repriced.discount_total})`,
         );
       } else if (operatorAccommodation === undefined) {
         // No plan and no operator price means we would leave a stale total behind — refuse
