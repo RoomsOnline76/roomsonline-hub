@@ -14723,11 +14723,18 @@ export type Database = {
           closed_to_departure: boolean
           conflict_notes: Json | null
           created_at: string
+          days_of_week: number[] | null
           end_date: string | null
           has_conflict: boolean
           id: string
+          ignore_within_days: number | null
+          is_active: boolean
+          label: string | null
           max_stay: number | null
           min_stay: number | null
+          other_days_min_stay: number | null
+          price_adjust_type: string | null
+          price_adjust_value: number | null
           property_id: string
           rate_plan_id: string | null
           room_type_id: string | null
@@ -14741,11 +14748,18 @@ export type Database = {
           closed_to_departure?: boolean
           conflict_notes?: Json | null
           created_at?: string
+          days_of_week?: number[] | null
           end_date?: string | null
           has_conflict?: boolean
           id?: string
+          ignore_within_days?: number | null
+          is_active?: boolean
+          label?: string | null
           max_stay?: number | null
           min_stay?: number | null
+          other_days_min_stay?: number | null
+          price_adjust_type?: string | null
+          price_adjust_value?: number | null
           property_id: string
           rate_plan_id?: string | null
           room_type_id?: string | null
@@ -14759,11 +14773,18 @@ export type Database = {
           closed_to_departure?: boolean
           conflict_notes?: Json | null
           created_at?: string
+          days_of_week?: number[] | null
           end_date?: string | null
           has_conflict?: boolean
           id?: string
+          ignore_within_days?: number | null
+          is_active?: boolean
+          label?: string | null
           max_stay?: number | null
           min_stay?: number | null
+          other_days_min_stay?: number | null
+          price_adjust_type?: string | null
+          price_adjust_value?: number | null
           property_id?: string
           rate_plan_id?: string | null
           room_type_id?: string | null
