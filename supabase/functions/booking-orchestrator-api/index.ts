@@ -1065,9 +1065,47 @@ async function quoteStayForRooms(
     });
   }
 
+  const total = Math.round(results.reduce((s, r) => s + Number(r.accommodation_total || 0), 0) * 100) / 100;
+
+  // ── packages and specials (Phase 3) ──────────────────────────────────
+  // The engine decides the discount too, so the figure the guest is shown is
+  // the figure the server can prove at charge time.
+  const stayStart = normalized.map((r) => r.check_in).sort()[0];
+  const stayEnd = normalized.map((r) => r.check_out).sort().at(-1)!;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: specialRows } = await supabase
+    .from("property_specials")
+    .select("*")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .or(
+      `and(valid_from.lte.${stayEnd},valid_to.gte.${stayStart}),`
+      + `and(book_from.lte.${today},book_until.gte.${today})`,
+    );
+
+  const discounts = stayDiscounts(
+    {
+      checkIn: stayStart,
+      checkOut: stayEnd,
+      subtotal: total,
+      rooms: results.length,
+      roomIds: results.map((r) => r.room_type_id),
+      ratePlanIds: results.map((r) => r.rate_type_id).filter(Boolean) as string[],
+      ageVerified: opts.ageVerified === true,
+      isSubscriber: opts.isSubscriber === true,
+    },
+    Array.isArray(amenities?.packages) ? amenities.packages : [],
+    (specialRows || []) as any[],
+    opts.selectedSpecialId ?? null,
+  );
+
   return {
     rooms: results,
-    total: Math.round(results.reduce((s, r) => s + Number(r.accommodation_total || 0), 0) * 100) / 100,
+    total,
+    discounts: discounts.lines,
+    eligible_specials: discounts.eligible_specials,
+    discount_total: discounts.discount_total,
+    net_total: discounts.net_total,
   };
 }
 
