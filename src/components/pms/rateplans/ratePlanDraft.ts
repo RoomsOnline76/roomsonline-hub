@@ -53,23 +53,39 @@ export interface DraftSeasonRate {
   unit_rates: Record<string, string>;
 }
 
+/** A ladder row is either bound to a painted season or to an explicit date window. */
+export type LadderScope = "season" | "dates";
+
 /**
- * One length-of-stay rung: from N nights in a season, the nightly is offset off the
- * daily rate (or pinned outright). Daily stays the parent — this is a derived product.
+ * One length-of-stay rung: from N nights in a season (or a dated window such as an
+ * event weekend), the nightly is offset off the daily rate (or pinned outright).
+ * Daily stays the parent — this is a derived product.
  */
 export interface DraftLosRung {
+  scope: LadderScope;
   calendar_season_id: string;
+  /** Dated scope only. */
+  start_date: string;
+  end_date: string;
+  /** Empty = every unit this plan sells. */
+  room_type_id: string;
   nights: string;
   derivation_type: DerivationType;
   derivation_value: string;
   is_pinned: boolean;
   /** Nightly amount, only used when pinned. */
   pinned_rate: string;
+  /** Dated scope only: advisory minimum nights mirrored into stay restrictions. */
+  min_stay_nights: string;
 }
 
-/** One full-stay cell: nights x guests in a season, quoted as a single stay total. */
+/** One full-stay cell: nights x guests in a season or dated window, quoted as one total. */
 export interface DraftFspCell {
+  scope: LadderScope;
   calendar_season_id: string;
+  start_date: string;
+  end_date: string;
+  room_type_id: string;
   nights: string;
   nr_of_guests: string;
   derivation_type: DerivationType;
@@ -77,7 +93,9 @@ export interface DraftFspCell {
   is_pinned: boolean;
   /** Stay total, only used when pinned. */
   pinned_total: string;
+  min_stay_nights: string;
 }
+
 
 
 export interface RatePlanDraft {
