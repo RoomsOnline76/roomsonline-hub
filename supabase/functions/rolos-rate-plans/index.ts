@@ -691,6 +691,29 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   const losOff = draft.los_enabled === false;
   const fspOff = draft.fsp_enabled === false;
 
+  /**
+   * Dated windows that also carry an advisory minimum stay. Collected while the
+   * ladders are validated and mirrored into `rolos_stay_restrictions` below, so the
+   * calendar and the channel enforce the event-weekend minimum the operator typed.
+   */
+  const datedMinStays: {
+    room_type_id: string | null;
+    start_date: string;
+    end_date: string;
+    min_stay: number;
+  }[] = [];
+
+  /** Two dated rows for the same nights threshold and unit may not overlap. */
+  const datedWindows: { key: string; from: string; to: string; label: string }[] = [];
+  const clashOf = (key: string, from: string, to: string): string | null => {
+    for (const w of datedWindows) {
+      if (w.key !== key) continue;
+      if (from <= w.to && w.from <= to) return w.label;
+    }
+    return null;
+  };
+
+
   if (losOff) {
     await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
   } else if (Array.isArray(draft.los_rungs)) {
