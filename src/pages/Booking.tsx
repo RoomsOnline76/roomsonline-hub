@@ -2126,6 +2126,8 @@ const Booking = () => {
               children: r.numberOfChildren,
               units: 1,
             })),
+            age_verified: ageVerified,
+            selected_special_id: selectedSpecialId ?? undefined,
           },
         });
         const quoted = (quoteRes?.data ?? quoteRes);
@@ -2135,7 +2137,13 @@ const Booking = () => {
           const shownAccommodation = costBreakdown
             .filter((i) => i.nights > 0 && i.total > 0)
             .reduce((sum, i) => sum + i.total, 0);
-          if (Math.abs(shownAccommodation - serverAccommodation) > 1) {
+          // Compare net of packages and specials — the engine now decides those too.
+          const shownDiscount = appliedPromotions
+            .filter((p) => p.type === 'package' || p.type === 'special')
+            .reduce((sum, p) => sum + Number(p.discount || 0), 0);
+          const shownNet = Math.max(0, shownAccommodation - shownDiscount);
+          const serverNet = Number(quoted?.net_total ?? serverAccommodation);
+          if (Math.abs(shownNet - serverNet) > 1) {
             await calculateCost();
             throw new Error("The price for these dates has just changed — please review the updated total and try again.");
           }
