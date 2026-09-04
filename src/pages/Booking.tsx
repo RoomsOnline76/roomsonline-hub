@@ -1121,14 +1121,16 @@ const Booking = () => {
         // Get rate types array - handle both formats
         const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
         
-        // Find rate type - use flexible matching with fallbacks
+        // Find rate type - the guest's chosen offer for this room wins, then the
+        // property default, then the fallbacks below.
+        const desiredRateTypeId = room.rateTypeId || selectedRateType;
         const availableRateTypeIds = rateTypesArray.map((rt: any) => String(rt.rate_type_id || rt.rateTypeId));
-        console.log('[Booking] Looking for rate type:', selectedRateType, 'Available:', availableRateTypeIds);
-        
-        // Step 1: Try exact match with selectedRateType
+        console.log('[Booking] Looking for rate type:', desiredRateTypeId, 'Available:', availableRateTypeIds);
+
+        // Step 1: Try exact match with the desired rate plan
         let rateType = rateTypesArray.find((rt: any) => {
           const rtId = String(rt.rate_type_id || rt.rateTypeId);
-          return rtId === selectedRateType;
+          return rtId === desiredRateTypeId;
         });
 
         // Step 2: Fallback to universal rate types ('default' or 'per-unit')
