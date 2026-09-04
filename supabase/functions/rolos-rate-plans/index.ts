@@ -803,10 +803,26 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (!seasonId && !(from && to)) {
         return { error: "Every full-stay cell needs a season or a date range" };
       }
+      const unitId = c?.room_type_id ? String(c.room_type_id) : null;
+      const windowMinStay = intOrNull(c?.min_stay_nights);
+      if (from && to) {
+        if (to < from) return { error: `The ${nights}-night / ${guests}-guest cell ends before it starts` };
+        const key = `fsp:${nights}:${guests}:${unitId ?? "all"}`;
+        const clash = clashOf(key, from, to);
+        if (clash) {
+          return {
+            error: `Two ${nights}-night / ${guests}-guest cells overlap: ${from} → ${to} and ${clash}`,
+          };
+        }
+        datedWindows.push({ key, from, to, label: `${from} → ${to}` });
+        if (windowMinStay !== null && windowMinStay >= 1) {
+          datedMinStays.push({ room_type_id: unitId, start_date: from, end_date: to, min_stay: windowMinStay });
+        }
+      }
       const pinned = c?.is_pinned === true;
       const pinnedTotal = positive(c?.pinned_total);
       const derivationType = c?.derivation_type === "amount" ? "amount" : "percent";
-      const derivationValue = num(c?.derivation_value);
+      const derivationValue = num(c?.derivation_value) ?? (windowMinStay !== null ? 0 : null);
       if (pinned && pinnedTotal === null) {
         return { error: `The ${nights}-night / ${guests}-guest cell is pinned but has no total` };
       }
@@ -818,7 +834,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       }
       rows.push({
         rate_plan_id: planId,
-        room_type_id: c?.room_type_id ? String(c.room_type_id) : null,
+        room_type_id: unitId,
         calendar_season_id: seasonId,
         start_date: from,
         end_date: to,
@@ -829,7 +845,9 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         derivation_value: pinned ? null : derivationValue,
         is_pinned: pinned,
         pinned_total: pinned ? pinnedTotal : null,
+        min_stay_nights: windowMinStay,
       });
+
     }
     if (draft.fsp_enabled === true && rows.length === 0) {
       return { error: "Add at least one full-stay cell, or turn it off" };
