@@ -2,6 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
+import { offerEligibility, type OfferPlan, type OfferStay, type OfferWindow } from "../_shared/rateOffers.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
