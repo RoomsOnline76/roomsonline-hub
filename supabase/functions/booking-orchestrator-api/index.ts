@@ -2,6 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
+import { offerEligibility, type OfferPlan, type OfferStay, type OfferWindow } from "../_shared/rateOffers.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,15 +268,18 @@ async function resolveRolosRates(
   const rolosIds = (hfRooms || []).filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
   const ratePlanMap: Record<string, any> = {};
   const closedDatesByRoom: Record<string, Set<string>> = {};
+  /** Every live plan↔unit link, used to build the length-of-stay offer list. */
+  const planLinkRows: any[] = [];
 
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active, min_stay, max_stay)")
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
     if (rpRoomTypes) {
+      planLinkRows.push(...(rpRoomTypes as any[]));
       for (const entry of rpRoomTypes) {
         const plan = (entry as any).rolos_rate_plans;
         if (plan?.base_rate != null) {
@@ -426,12 +431,22 @@ async function resolveRolosRates(
     console.warn("[orchestrator] rate resolver unavailable, using calendar fallback:", e);
   }
 
-  const syntheticRoomTypes = (hfRooms || []).map((room: any) => {
-    const rolosPlan = room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null;
+  /**
+   * Build one room-type block. `res`/`planOverride` let the offers pass below
+   * re-price the same unit from another eligible rate plan without changing the
+   * default (winning-plan) result.
+   */
+  const buildRoomType = (
+    room: any,
+    res: typeof resolver,
+    planOverride: any | null,
+  ) => {
+    const rolosPlan = planOverride ?? (room.linked_rolos_id ? ratePlanMap[room.linked_rolos_id] : null);
     const fallbackRate = rolosPlan?.base_rate ?? (room.daily_rate ? Number(room.daily_rate) : 0);
     const pricingModel = canonicalPricingModel(rolosPlan?.pricing_model ?? "per_unit");
     const isPerPerson = pricingModel === "per_person";
     const isSharing = pricingModel === "per_person_sharing";
+
 
     // Amenity/room identifiers used to look into season_rates
     const overviewId = room.linked_rolos_id ? rolosToOverview[room.linked_rolos_id] : undefined;
@@ -443,10 +458,10 @@ async function resolveRolosRates(
     // Resolver prices for this unit, keyed by night. `endDate` is the checkout
     // date (exclusive), so the resolver window ends the night before.
     const resolvedByDate = new Map<string, DayRate>();
-    if (resolver) {
+    if (res) {
       const lastNight = addDaysIso(endDate, -1);
       if (lastNight >= startDate) {
-        for (const day of resolver.resolveDays(
+        for (const day of res.resolveDays(
           { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
           startDate,
           lastNight,
@@ -466,11 +481,11 @@ async function resolveRolosRates(
       | { shape: string; nights: number; source: string; display_per_night: number; stay_total: number }
       | null = null;
     const losByDate = new Map<string, number>();
-    if (resolver) {
+    if (res) {
       const lastNight = addDaysIso(endDate, -1);
       if (lastNight >= startDate) {
         try {
-          const quote = resolver.quoteStay(
+          const quote = res.quoteStay(
             { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
             {
               from: startDate,
@@ -573,11 +588,127 @@ async function resolveRolosRates(
       }],
       rooms_available_per_night: availArr,
     };
-  });
+  };
+
+  const syntheticRoomTypes = (hfRooms || []).map((room: any) => buildRoomType(room, resolver, null));
+
+  // ── Length-of-stay aware offers ─────────────────────────────────────────
+  // Each unit publishes every rate plan that accepts the searched stay length:
+  // a 1-night search only sees the plans with no minimum, a 3-night search sees
+  // the 3-night plans too. The plan that wins today stays first in the list.
+  const stayNights = Math.max(
+    1,
+    Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000),
+  );
+  const lastStayNight = addDaysIso(endDate, -1);
+  if (resolver && planLinkRows.length > 0 && lastStayNight >= startDate) {
+    try {
+      const planMeta = new Map<string, { plan: any; rooms: Set<string> }>();
+      for (const link of planLinkRows) {
+        const plan = (link as any).rolos_rate_plans;
+        if (!plan?.id) continue;
+        const key = String(plan.id);
+        const entry = planMeta.get(key) ?? { plan, rooms: new Set<string>() };
+        entry.rooms.add(String(link.room_type_id));
+        planMeta.set(key, entry);
+      }
+
+      // Dated event windows (a LOS rung carrying a minimum-nights value).
+      const windowsByPlan: Record<string, OfferWindow[]> = {};
+      try {
+        const { data: rungRows } = await supabase
+          .from("rolos_rate_plan_los_rungs")
+          .select("rate_plan_id, room_type_id, start_date, end_date, min_stay_nights")
+          .in("rate_plan_id", [...planMeta.keys()]);
+        for (const row of (rungRows ?? []) as any[]) {
+          if (!row.min_stay_nights) continue;
+          (windowsByPlan[String(row.rate_plan_id)] ||= []).push({
+            start_date: row.start_date ?? null,
+            end_date: row.end_date ?? null,
+            room_type_id: row.room_type_id ? String(row.room_type_id) : null,
+            min_stay_nights: Number(row.min_stay_nights),
+          });
+        }
+      } catch (_) { /* column/table missing on a preview branch — no dated windows */ }
+
+      const offerPlans: OfferPlan[] = [...planMeta.entries()].map(([id, entry]) => ({
+        rate_plan_id: id,
+        name: entry.plan?.name ?? null,
+        min_stay: entry.plan?.min_stay ?? null,
+        max_stay: entry.plan?.max_stay ?? null,
+        room_type_ids: [...entry.rooms],
+        windows: windowsByPlan[id] ?? [],
+      }));
+
+      // One resolver per offered plan, so each offer is priced from its own plan.
+      const MAX_OFFERS = 6;
+      const offeredIds = offerPlans.slice(0, MAX_OFFERS).map((p) => p.rate_plan_id);
+      const resolverByPlan = new Map<string, typeof resolver>();
+      for (const planId of offeredIds) {
+        try {
+          resolverByPlan.set(
+            planId,
+            await createRateResolver(supabase, propertyId, {
+              amenities,
+              window: { from: startDate, to: endDate },
+              audience: "direct",
+              preferRatePlanId: planId,
+            }),
+          );
+        } catch (e) {
+          console.warn("[orchestrator] offer resolver failed for plan", planId, e);
+        }
+      }
+
+      for (const roomBlock of syntheticRoomTypes) {
+        const room = (hfRooms || []).find((r: any) => r.id === roomBlock.room_type_id);
+        const unitId = room?.linked_rolos_id ? String(room.linked_rolos_id) : null;
+        if (!room || !unitId) continue;
+        const stay: OfferStay = {
+          from: startDate,
+          to: lastStayNight,
+          nights: stayNights,
+          room_type_id: unitId,
+        };
+        const defaultId = String(roomBlock.rate_types[0]?.rate_type_id ?? "");
+        const entries: any[] = [];
+        for (const offer of offerPlans) {
+          if (!offeredIds.includes(offer.rate_plan_id)) continue;
+          const verdict = offerEligibility(offer, stay);
+          if (!verdict.eligible) continue;
+          const planResolver = resolverByPlan.get(offer.rate_plan_id);
+          if (!planResolver) continue;
+          const meta = planMeta.get(offer.rate_plan_id)?.plan;
+          const priced = buildRoomType(room, planResolver, {
+            base_rate: meta?.base_rate != null ? Number(meta.base_rate) : undefined,
+            pricing_model: meta?.pricing_model || "per_unit",
+            adult_1_rate: meta?.adult_1_rate != null ? Number(meta.adult_1_rate) : undefined,
+            adult_2_rate: meta?.adult_2_rate != null ? Number(meta.adult_2_rate) : undefined,
+            teen_rate: meta?.teen_rate != null ? Number(meta.teen_rate) : undefined,
+            child_rate: meta?.child_rate != null ? Number(meta.child_rate) : undefined,
+            infant_rate: meta?.infant_rate != null ? Number(meta.infant_rate) : undefined,
+            rate_plan_id: offer.rate_plan_id,
+            rate_plan_name: offer.name,
+          });
+          const rateType = priced.rate_types[0];
+          if (!rateType || !rateType.rates?.some((r: any) => Number(r.room_amount) > 0)) continue;
+          entries.push({ ...rateType, min_stay: verdict.min_stay, max_stay: verdict.max_stay });
+        }
+        if (entries.length === 0) continue;
+        entries.sort((a, b) =>
+          (String(a.rate_type_id) === defaultId ? 0 : 1) - (String(b.rate_type_id) === defaultId ? 0 : 1)
+        );
+        roomBlock.rate_types = entries;
+      }
+    } catch (e) {
+      console.warn("[orchestrator] rate-plan offers unavailable:", e);
+    }
+  }
 
   if (syntheticRoomTypes.length > 0 && syntheticRoomTypes.some((rt: any) => rt.rate_types[0]?.rates[0]?.room_amount > 0)) {
     return { room_types: syntheticRoomTypes, hf_rooms: (hfRooms || []).map((r: any) => ({ id: r.id, name: r.name, linked_rolos_id: r.linked_rolos_id })) };
   }
+
   return null;
 }
 

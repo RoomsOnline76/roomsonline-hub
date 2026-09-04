@@ -79,6 +79,8 @@ interface RoomBooking {
   numberOfChildren: number;
   numberOfInfants: number;
   numberOfPets: number;
+  /** Guest-chosen rate plan for this room (falls back to the property default). */
+  rateTypeId?: string;
   // Per-room date overrides (optional - uses default dates if not set)
   checkIn?: string;
   checkOut?: string;
@@ -1119,14 +1121,16 @@ const Booking = () => {
         // Get rate types array - handle both formats
         const rateTypesArray = roomType.rate_types || roomType.rateTypes || [];
         
-        // Find rate type - use flexible matching with fallbacks
+        // Find rate type - the guest's chosen offer for this room wins, then the
+        // property default, then the fallbacks below.
+        const desiredRateTypeId = room.rateTypeId || selectedRateType;
         const availableRateTypeIds = rateTypesArray.map((rt: any) => String(rt.rate_type_id || rt.rateTypeId));
-        console.log('[Booking] Looking for rate type:', selectedRateType, 'Available:', availableRateTypeIds);
-        
-        // Step 1: Try exact match with selectedRateType
+        console.log('[Booking] Looking for rate type:', desiredRateTypeId, 'Available:', availableRateTypeIds);
+
+        // Step 1: Try exact match with the desired rate plan
         let rateType = rateTypesArray.find((rt: any) => {
           const rtId = String(rt.rate_type_id || rt.rateTypeId);
-          return rtId === selectedRateType;
+          return rtId === desiredRateTypeId;
         });
 
         // Step 2: Fallback to universal rate types ('default' or 'per-unit')
@@ -1911,6 +1915,31 @@ const Booking = () => {
     }
   };
 
+  // Rate plans on offer for a room, given the searched stay length. The backend
+  // only publishes plans whose minimum-stay rules accept this stay.
+  const offersForRoom = useCallback((room: RoomBooking) => {
+    const list: any[] = availabilityData?.room_types || availabilityData?.roomTypes || [];
+    const match = list.find((rt: any) =>
+      String(rt.room_type_id ?? rt.id) === String(room.roomTypeId) ||
+      (rt.room_type_name || rt.name || '').toLowerCase() === (room.roomTypeName || '').toLowerCase()
+    );
+    const rateTypes: any[] = match?.rate_types || match?.rateTypes || [];
+    return rateTypes.map((rt: any) => {
+      const rates: any[] = Array.isArray(rt.rates) ? rt.rates : [];
+      const perNight = Number(rt.stay_quote?.display_per_night ?? rates[0]?.room_amount ?? 0);
+      const total = Number(
+        rt.stay_quote?.stay_total ?? rates.reduce((s: number, r: any) => s + Number(r.room_amount || 0), 0)
+      );
+      return {
+        id: String(rt.rate_type_id ?? rt.rateTypeId ?? ''),
+        name: rt.rate_type_name || rt.rateTypeName || 'Rate',
+        minStay: rt.min_stay ? Number(rt.min_stay) : null,
+        perNight,
+        total,
+      };
+    }).filter((o) => o.id);
+  }, [availabilityData]);
+
   // Update room
   const updateRoom = (index: number, field: keyof RoomBooking, value: string | number) => {
     const newRooms = [...rooms];
@@ -1920,12 +1949,14 @@ const Booking = () => {
         ...newRooms[index],
         roomTypeId: String(value),
         roomTypeName: roomType?.name || '',
+        rateTypeId: undefined,
       };
     } else {
       newRooms[index] = { ...newRooms[index], [field]: value };
     }
     setRooms(newRooms);
   };
+
 
   // Increment/decrement guest count
   const adjustGuestCount = (roomIndex: number, field: 'numberOfAdults' | 'numberOfTeens' | 'numberOfChildren' | 'numberOfInfants' | 'numberOfPets', delta: number) => {
@@ -2617,7 +2648,50 @@ const Booking = () => {
                         ))}
                       </SelectContent>
                     </Select>
-           )}
+            )}
+
+                  {/* Rate plan offers available for this stay length */}
+                  {(() => {
+                    const offers = offersForRoom(room);
+                    if (offers.length < 2) return null;
+                    const activeId = room.rateTypeId || offers[0].id;
+                    return (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rate options</p>
+                        <div className="grid gap-1.5">
+                          {offers.map((offer) => {
+                            const isActive = String(activeId) === offer.id;
+                            return (
+                              <button
+                                key={offer.id}
+                                type="button"
+                                onClick={() => updateRoom(index, 'rateTypeId', offer.id)}
+                                className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                                  isActive
+                                    ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                                    : 'border-border hover:border-[hsl(var(--primary))]/50'
+                                }`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium">{offer.name}</span>
+                                  {offer.minStay && offer.minStay > 1 && (
+                                    <span className="text-[10px] text-muted-foreground">Min {offer.minStay} nights</span>
+                                  )}
+                                </span>
+                                {offer.total > 0 && (
+                                  <span className="shrink-0 text-right text-sm font-semibold">
+                                    <FormattedPrice amount={offer.total} />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+
 
           {/* Specials Banner */}
           {property?.id && (
