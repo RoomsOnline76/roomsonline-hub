@@ -1958,11 +1958,7 @@ const Booking = () => {
   // Rate plans on offer for a room, given the searched stay length. The backend
   // only publishes plans whose minimum-stay rules accept this stay.
   const offersForRoom = useCallback((room: RoomBooking) => {
-    const list: any[] = availabilityData?.room_types || availabilityData?.roomTypes || [];
-    const match = list.find((rt: any) =>
-      String(rt.room_type_id ?? rt.id) === String(room.roomTypeId) ||
-      (rt.room_type_name || rt.name || '').toLowerCase() === (room.roomTypeName || '').toLowerCase()
-    );
+    const match = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
     const rateTypes: any[] = match?.rate_types || match?.rateTypes || [];
     return rateTypes.map((rt: any) => {
       const rates: any[] = Array.isArray(rt.rates) ? rt.rates : [];
@@ -1974,11 +1970,27 @@ const Booking = () => {
         id: String(rt.rate_type_id ?? rt.rateTypeId ?? ''),
         name: rt.rate_type_name || rt.rateTypeName || 'Rate',
         minStay: rt.min_stay ? Number(rt.min_stay) : null,
+        maxStay: rt.max_stay ? Number(rt.max_stay) : null,
         perNight,
         total,
       };
     }).filter((o) => o.id);
-  }, [availabilityData]);
+  }, [availabilityRoomBlock]);
+
+  /** Plans this stay just misses, with the reason the backend gave. */
+  const unavailableOffersForRoom = useCallback((room: RoomBooking) => {
+    const match = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
+    const rows: any[] = Array.isArray(match?.unavailable_rates) ? match.unavailable_rates : [];
+    return rows
+      .map((r: any) => ({
+        id: String(r.rate_type_id ?? ''),
+        name: r.rate_type_name || 'Rate',
+        reason: r.reason_text || 'Not available for these dates',
+      }))
+      .filter((r) => r.id);
+  }, [availabilityRoomBlock]);
+
+
 
   // Update room
   const updateRoom = (index: number, field: keyof RoomBooking, value: string | number) => {
