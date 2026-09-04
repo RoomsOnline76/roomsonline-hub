@@ -173,6 +173,12 @@ export interface PricingInputs {
   unitDailyRates: Record<string, number>;
   /** Calendar daily overrides: unit key (rolos id or unit id) -> date -> override. */
   dailyOverrides: Record<string, Record<string, DailyOverride>>;
+  /**
+   * Rate-plan-scoped daily overrides: plan id -> unit key -> date -> override.
+   * Only consulted when that plan is the one being priced; a plan-scoped
+   * override beats the plan-agnostic one for the same night.
+   */
+  planDailyOverrides?: Record<string, Record<string, Record<string, DailyOverride>>>;
   /** Stop-sell dates per linked_rolos_id. */
   closedDates?: Record<string, Set<string> | string[]>;
   /** Parent plans keyed by rate_plan_id, for plans other plans derive from. */
@@ -227,6 +233,7 @@ function emptyInputs(): PricingInputs {
     relationalSeasonRates: {},
     unitDailyRates: {},
     dailyOverrides: {},
+    planDailyOverrides: {},
     closedDates: {},
     parentPlans: {},
     losRungs: {},
@@ -248,6 +255,7 @@ export function normalizePricingInputs(partial: Partial<PricingInputs>): Pricing
     relationalSeasonRates: partial.relationalSeasonRates ?? base.relationalSeasonRates,
     unitDailyRates: partial.unitDailyRates ?? base.unitDailyRates,
     dailyOverrides: partial.dailyOverrides ?? base.dailyOverrides,
+    planDailyOverrides: partial.planDailyOverrides ?? base.planDailyOverrides,
     closedDates: partial.closedDates ?? base.closedDates,
     parentPlans: partial.parentPlans ?? base.parentPlans,
     losRungs: partial.losRungs ?? base.losRungs,
@@ -375,7 +383,17 @@ function overrideFor(
   unit: UnitRateContext,
   date: string,
 ): DailyOverride | null {
-  for (const key of unitKeys(unit)) {
+  const keys = unitKeys(unit);
+  // A plan-scoped override wins for the plan being priced.
+  const planId = activePlan(inputs, unit)?.rate_plan_id;
+  const scoped = planId ? inputs.planDailyOverrides?.[String(planId)] : undefined;
+  if (scoped) {
+    for (const key of keys) {
+      const hit = scoped[key]?.[date];
+      if (hit) return hit;
+    }
+  }
+  for (const key of keys) {
     const hit = inputs.dailyOverrides?.[key]?.[date];
     if (hit) return hit;
   }
