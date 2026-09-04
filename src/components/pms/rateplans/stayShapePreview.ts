@@ -12,11 +12,13 @@ import {
   fspCellIsValid,
   losRungIsValid,
   seasonRateFor,
+  type CalendarSeason,
   type DerivationType,
   type DraftFspCell,
   type DraftLosRung,
   type RatePlanDraft,
 } from "./ratePlanDraft";
+
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
