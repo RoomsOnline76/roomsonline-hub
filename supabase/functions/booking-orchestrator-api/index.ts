@@ -647,7 +647,7 @@ async function resolveRolosRates(
 
       // Sell priority is the operator's own ordering; it decides which plan a
       // guest sees first. No cap — every live plan gets a verdict.
-      const offerPlans: OfferPlan[] = [...planMeta.entries()]
+      const offerPlans: (OfferPlan & { sell_priority: number })[] = [...planMeta.entries()]
         .map(([id, entry]) => ({
           rate_plan_id: id,
           name: entry.plan?.name ?? null,
