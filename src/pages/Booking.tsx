@@ -1679,11 +1679,47 @@ const Booking = () => {
     }
   }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified, selectedSpecialId]);
 
+  // The stay rules the backend published for the rooms in the cart. The browser
+  // must refuse a stay the engine would reject, rather than quoting it and
+  // failing at the till.
+  const availabilityRoomBlock = useCallback((roomTypeId: string, roomTypeName?: string) => {
+    const list: any[] = (availabilityData as any)?.room_types || (availabilityData as any)?.roomTypes || [];
+    return list.find((rt: any) =>
+      String(rt.room_type_id ?? rt.id) === String(roomTypeId) ||
+      (rt.room_type_name || rt.name || '').toLowerCase() === (roomTypeName || '').toLowerCase()
+    );
+  }, [availabilityData]);
+
+  const stayRuleBlocks = useMemo(() => {
+    if (!checkIn || !checkOut || nights <= 0) return [] as string[];
+    const problems: string[] = [];
+    for (const room of rooms) {
+      const block = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
+      if (!block) continue;
+      const label = block.room_type_name || block.name || room.roomTypeName || 'this room';
+      const offers: any[] = Array.isArray(block.rate_types) ? block.rate_types : [];
+      const chosen = offers.find((o: any) => String(o.rate_type_id ?? o.rateTypeId) === String(room.rateTypeId)) || offers[0];
+      const min = chosen?.min_stay ? Number(chosen.min_stay) : null;
+      const max = chosen?.max_stay ? Number(chosen.max_stay) : null;
+      if (min && nights < min) problems.push(`${label} needs at least ${min} night${min === 1 ? '' : 's'}`);
+      if (max && nights > max) problems.push(`${label} allows at most ${max} night${max === 1 ? '' : 's'}`);
+      const noArrive: string[] = block.closed_to_arrival_dates || [];
+      const noDepart: string[] = block.closed_to_departure_dates || [];
+      const ci = room.checkIn || checkIn;
+      const co = room.checkOut || checkOut;
+      if (noArrive.includes(ci)) problems.push(`${label} takes no arrivals on ${format(parseISO(ci), 'd MMM')}`);
+      if (noDepart.includes(co)) problems.push(`${label} takes no departures on ${format(parseISO(co), 'd MMM')}`);
+    }
+    return [...new Set(problems)];
+  }, [rooms, checkIn, checkOut, nights, availabilityRoomBlock]);
+
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
     guestPhone.trim().length >= 10 &&
     stayRuleBlocks.length === 0;
+
+
 
 
   // Get list of missing required fields for tooltip
