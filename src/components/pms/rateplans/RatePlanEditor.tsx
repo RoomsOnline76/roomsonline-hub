@@ -223,14 +223,19 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           // "no ladder" — never a toast, never a blocked editor.
           supabase
             .from("rolos_rate_plan_los_rungs")
-            .select("calendar_season_id, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+            .select(
+              "calendar_season_id, room_type_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate, min_stay_nights",
+            )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
           supabase
             .from("rolos_rate_plan_fsp_cells")
-            .select("calendar_season_id, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+            .select(
+              "calendar_season_id, room_type_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total, min_stay_nights",
+            )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
+
         ]);
 
 
@@ -274,22 +279,33 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             los_enabled: (plan as { los_enabled?: boolean }).los_enabled === true,
             fsp_enabled: (plan as { fsp_enabled?: boolean }).fsp_enabled === true,
             los_rungs: (losRows.data ?? []).map((r) => ({
+              scope: (r.calendar_season_id ? "season" : "dates") as "season" | "dates",
               calendar_season_id: str(r.calendar_season_id),
+              start_date: str(r.start_date),
+              end_date: str(r.end_date),
+              room_type_id: str(r.room_type_id),
               nights: str(r.nights),
               derivation_type: r.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
               derivation_value: str(r.derivation_value),
               is_pinned: r.is_pinned === true,
               pinned_rate: str(r.pinned_rate),
+              min_stay_nights: str((r as { min_stay_nights?: number | null }).min_stay_nights),
             })),
             fsp_cells: (fspRows.data ?? []).map((c) => ({
+              scope: (c.calendar_season_id ? "season" : "dates") as "season" | "dates",
               calendar_season_id: str(c.calendar_season_id),
+              start_date: str(c.start_date),
+              end_date: str(c.end_date),
+              room_type_id: str(c.room_type_id),
               nights: str(c.nights),
               nr_of_guests: str(c.nr_of_guests),
               derivation_type: c.derivation_type === "amount" ? ("amount" as const) : ("percent" as const),
               derivation_value: str(c.derivation_value),
               is_pinned: c.is_pinned === true,
               pinned_total: str(c.pinned_total),
+              min_stay_nights: str((c as { min_stay_nights?: number | null }).min_stay_nights),
             })),
+
           };
         }
 
@@ -683,12 +699,14 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           <RatePlanStayShapeSection
             draft={draft}
             seasons={seasons}
+            units={visibleRoomTypes}
             dispatch={dispatch}
             issues={stayShapeIssues}
             ruPushFsp={ruPushFsp}
             onRuPushFspChange={setRuPushFsp}
             amenitiesLoaded={amenitiesLoaded}
           />
+
         </CardContent>
       </Card>
 

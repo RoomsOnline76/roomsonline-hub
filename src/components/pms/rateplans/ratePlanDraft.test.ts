@@ -270,6 +270,8 @@ describe("stay-shape ladders", () => {
         derivation_value: -10,
         is_pinned: false,
         pinned_rate: null,
+        min_stay_nights: null,
+
       },
     ]);
   });
@@ -316,5 +318,71 @@ describe("stay-shape ladders", () => {
     s = ratePlanDraftReducer(s, { type: "patch_los_rung", index: 0, patch: { derivation_value: "-100" } });
     expect(ladderIssues(s).length).toBeGreaterThan(0);
     expect(draftToPayload(s).los_rungs).toEqual([]);
+  });
+});
+
+// Dated windows: an event weekend targets explicit dates (optionally one unit) and can
+// carry an advisory minimum stay with or without a price change.
+describe("dated ladder windows", () => {
+  const datedRung = () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    return ratePlanDraftReducer(s, {
+      type: "patch_los_rung",
+      index: 0,
+      patch: {
+        scope: "dates",
+        start_date: "2026-12-12",
+        end_date: "2026-12-14",
+        nights: "2",
+        min_stay_nights: "2",
+        room_type_id: "unit-a",
+      },
+    });
+  };
+
+  it("writes dates, unit and minimum nights instead of a season", () => {
+    const row = draftToPayload(datedRung()).los_rungs[0];
+    expect(row).toMatchObject({
+      calendar_season_id: null,
+      start_date: "2026-12-12",
+      end_date: "2026-12-14",
+      room_type_id: "unit-a",
+      nights: 2,
+      min_stay_nights: 2,
+    });
+    expect(ladderIssues(datedRung())).toEqual([]);
+  });
+
+  it("rejects a window with no dates and one that ends before it starts", () => {
+    let s = ratePlanDraftReducer(datedRung(), {
+      type: "patch_los_rung",
+      index: 0,
+      patch: { start_date: "", end_date: "" },
+    });
+    expect(ladderIssues(s).length).toBeGreaterThan(0);
+    s = ratePlanDraftReducer(datedRung(), {
+      type: "patch_los_rung",
+      index: 0,
+      patch: { end_date: "2026-12-10" },
+    });
+    expect(ladderIssues(s).length).toBeGreaterThan(0);
+  });
+
+  it("rejects two overlapping windows on the same threshold and unit", () => {
+    let s = datedRung();
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, {
+      type: "patch_los_rung",
+      index: 1,
+      patch: {
+        scope: "dates",
+        start_date: "2026-12-13",
+        end_date: "2026-12-16",
+        nights: "2",
+        room_type_id: "unit-a",
+      },
+    });
+    expect(ladderIssues(s).some((i) => i.includes("2026-12-13"))).toBe(true);
   });
 });

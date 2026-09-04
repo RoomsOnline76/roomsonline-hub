@@ -13164,6 +13164,7 @@ export type Database = {
           end_date: string | null
           id: string
           is_pinned: boolean
+          min_stay_nights: number | null
           nights: number
           nr_of_guests: number
           pinned_total: number | null
@@ -13180,6 +13181,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_pinned?: boolean
+          min_stay_nights?: number | null
           nights: number
           nr_of_guests: number
           pinned_total?: number | null
@@ -13196,6 +13198,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_pinned?: boolean
+          min_stay_nights?: number | null
           nights?: number
           nr_of_guests?: number
           pinned_total?: number | null
@@ -13223,6 +13226,7 @@ export type Database = {
           end_date: string | null
           id: string
           is_pinned: boolean
+          min_stay_nights: number | null
           nights: number
           pinned_rate: number | null
           rate_plan_id: string
@@ -13238,6 +13242,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_pinned?: boolean
+          min_stay_nights?: number | null
           nights: number
           pinned_rate?: number | null
           rate_plan_id: string
@@ -13253,6 +13258,7 @@ export type Database = {
           end_date?: string | null
           id?: string
           is_pinned?: boolean
+          min_stay_nights?: number | null
           nights?: number
           pinned_rate?: number | null
           rate_plan_id?: string

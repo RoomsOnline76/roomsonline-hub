@@ -12,11 +12,13 @@ import {
   fspCellIsValid,
   losRungIsValid,
   seasonRateFor,
+  type CalendarSeason,
   type DerivationType,
   type DraftFspCell,
   type DraftLosRung,
   type RatePlanDraft,
 } from "./ratePlanDraft";
+
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -67,40 +69,90 @@ export interface LadderPreviewLine {
   text: string | null;
 }
 
+/** The season the Calendar paints over a given date, if any. */
+export function seasonCoveringDate(seasons: CalendarSeason[], date: string): CalendarSeason | null {
+  if (!date) return null;
+  for (const season of seasons || []) {
+    for (const period of season.periods || []) {
+      if (period?.from && period?.to && date >= period.from && date <= period.to) return season;
+    }
+  }
+  return null;
+}
+
+/**
+ * The nightly a ladder row derives from: its own season, or — for a dated window —
+ * the season covering the window's first night.
+ */
+function nightlyForRow(
+  draft: RatePlanDraft,
+  row: { scope: "season" | "dates"; calendar_season_id: string; start_date: string },
+  seasons: CalendarSeason[],
+): number | null {
+  if (row.scope !== "dates") return draftSeasonNightly(draft, row.calendar_season_id);
+  const season = seasonCoveringDate(seasons, row.start_date);
+  return season ? draftSeasonNightly(draft, season.calendar_season_id) : null;
+}
+
+/** Appended to every dated row that also carries an advisory minimum stay. */
+function minStaySuffix(row: { scope: "season" | "dates"; min_stay_nights: string }): string {
+  if (row.scope !== "dates") return "";
+  const n = Number(row.min_stay_nights);
+  return Number.isFinite(n) && n >= 1 ? ` · minimum ${n} night${n === 1 ? "" : "s"}` : "";
+}
+
 /** One line per LOS rung: what the derived nightly comes to. */
-export function losRungPreview(draft: RatePlanDraft, rung: DraftLosRung, index: number): LadderPreviewLine {
+export function losRungPreview(
+  draft: RatePlanDraft,
+  rung: DraftLosRung,
+  index: number,
+  seasons: CalendarSeason[] = [],
+): LadderPreviewLine {
   const key = `los-${index}`;
   if (!losRungIsValid(rung)) return { key, text: null };
-  if (rung.is_pinned) return { key, text: `Pinned at R${Number(rung.pinned_rate).toLocaleString()} / night from ${rung.nights} nights` };
-  const nightly = draftSeasonNightly(draft, rung.calendar_season_id);
-  if (nightly === null) return { key, text: null };
+  const suffix = minStaySuffix(rung);
+  if (rung.is_pinned) {
+    return {
+      key,
+      text: `Pinned at R${Number(rung.pinned_rate).toLocaleString()} / night from ${rung.nights} nights${suffix}`,
+    };
+  }
+  const nightly = nightlyForRow(draft, rung, seasons);
+  if (nightly === null) return { key, text: suffix ? `Unpriced${suffix}` : null };
   const derived = applyOffset(nightly, rung.derivation_type, Number(rung.derivation_value), draft.derivation_rounding);
   return {
     key,
-    text: `From ${rung.nights} nights: R${nightly.toLocaleString()} → R${derived.toLocaleString()} / night`,
+    text: `From ${rung.nights} nights: R${nightly.toLocaleString()} → R${derived.toLocaleString()} / night${suffix}`,
   };
 }
 
 /** One line per full-stay cell: what the derived stay total comes to. */
-export function fspCellPreview(draft: RatePlanDraft, cell: DraftFspCell, index: number): LadderPreviewLine {
+export function fspCellPreview(
+  draft: RatePlanDraft,
+  cell: DraftFspCell,
+  index: number,
+  seasons: CalendarSeason[] = [],
+): LadderPreviewLine {
   const key = `fsp-${index}`;
   if (!fspCellIsValid(cell)) return { key, text: null };
   const nights = Number(cell.nights);
   const guests = Number(cell.nr_of_guests);
+  const suffix = minStaySuffix(cell);
   if (cell.is_pinned) {
     const total = Number(cell.pinned_total);
     return {
       key,
-      text: `${nights} nights, ${guests} guest${guests === 1 ? "" : "s"}: pinned at R${total.toLocaleString()} (R${Math.round(total / nights).toLocaleString()} / night)`,
+      text: `${nights} nights, ${guests} guest${guests === 1 ? "" : "s"}: pinned at R${total.toLocaleString()} (R${Math.round(total / nights).toLocaleString()} / night)${suffix}`,
     };
   }
-  const nightly = draftSeasonNightly(draft, cell.calendar_season_id);
-  if (nightly === null) return { key, text: null };
+  const nightly = nightlyForRow(draft, cell, seasons);
+  if (nightly === null) return { key, text: suffix ? `Unpriced${suffix}` : null };
   const daily = stayTotal(draft.pricing_model, nightly, nights, guests);
   if (daily <= 0) return { key, text: null };
   const derived = applyOffset(daily, cell.derivation_type, Number(cell.derivation_value), draft.derivation_rounding);
   return {
     key,
-    text: `${nights} nights, ${guests} guest${guests === 1 ? "" : "s"}: R${daily.toLocaleString()} → R${derived.toLocaleString()} for the stay`,
+    text: `${nights} nights, ${guests} guest${guests === 1 ? "" : "s"}: R${daily.toLocaleString()} → R${derived.toLocaleString()} for the stay${suffix}`,
   };
 }
+

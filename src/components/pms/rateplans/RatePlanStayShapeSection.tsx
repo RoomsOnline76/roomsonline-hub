@@ -30,6 +30,7 @@ import type {
   DraftAction,
   DraftFspCell,
   DraftLosRung,
+  LadderScope,
   RatePlanDraft,
 } from "./ratePlanDraft";
 import { fspCellIsValid, losRungIsValid } from "./ratePlanDraft";
@@ -38,6 +39,8 @@ import { fspCellPreview, losRungPreview } from "./stayShapePreview";
 interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
+  /** Units this plan can sell — a row may target one of them instead of all. */
+  units: { id: string; name: string }[];
   dispatch: React.Dispatch<DraftAction>;
   /** Sentences from `ladderIssues` — rendered so the operator sees why Save is blocked. */
   issues: string[];
@@ -53,12 +56,21 @@ const OFFSET_TYPES: { value: DerivationType; label: string }[] = [
   { value: "amount", label: "Amount off/on" },
 ];
 
+const SCOPES: { value: LadderScope; label: string }[] = [
+  { value: "season", label: "Season" },
+  { value: "dates", label: "Dates" },
+];
+
+const ALL_UNITS = "__all__";
+
 /** The season a new row should default to: the first one still sellable. */
 const defaultSeasonId = (seasons: CalendarSeason[]): string => seasons[0]?.calendar_season_id ?? "";
+
 
 export function RatePlanStayShapeSection({
   draft,
   seasons,
+  units,
   dispatch,
   issues,
   ruPushFsp,
@@ -69,6 +81,10 @@ export function RatePlanStayShapeSection({
   const seasonName = useCallback(
     (id: string) => seasons.find((s) => s.calendar_season_id === id)?.name ?? "Season",
     [seasons],
+  );
+  const unitName = useCallback(
+    (id: string) => units.find((u) => u.id === id)?.name ?? "Unit",
+    [units],
   );
 
   const setFlag = useCallback(
@@ -91,6 +107,70 @@ export function RatePlanStayShapeSection({
     </Select>
   );
 
+  const scopeSelect = (value: LadderScope, onChange: (next: LadderScope) => void) => (
+    <Select value={value} onValueChange={(v) => onChange(v as LadderScope)}>
+      <SelectTrigger className="h-9" aria-label="Applies to">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {SCOPES.map((s) => (
+          <SelectItem key={s.value} value={s.value}>
+            {s.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const unitSelect = (value: string, onChange: (next: string) => void) => (
+    <Select value={value || ALL_UNITS} onValueChange={(v) => onChange(v === ALL_UNITS ? "" : v)}>
+      <SelectTrigger className="h-9" aria-label="Unit">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_UNITS}>All units</SelectItem>
+        {units.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  /** Dates + optional minimum stay, shown only when the row is scoped to dates. */
+  const datedFields = (
+    row: { start_date: string; end_date: string; min_stay_nights: string },
+    patch: (next: Partial<{ start_date: string; end_date: string; min_stay_nights: string }>) => void,
+  ) => (
+    <>
+      <Input
+        className="h-9"
+        type="date"
+        value={row.start_date}
+        aria-label="From date"
+        onChange={(e) => patch({ start_date: e.target.value })}
+      />
+      <Input
+        className="h-9"
+        type="date"
+        value={row.end_date}
+        aria-label="To date"
+        onChange={(e) => patch({ end_date: e.target.value })}
+      />
+      <Input
+        className="h-9"
+        type="number"
+        min={1}
+        step={1}
+        value={row.min_stay_nights}
+        placeholder="Min nights"
+        aria-label="Minimum stay for this window"
+        onChange={(e) => patch({ min_stay_nights: e.target.value })}
+      />
+    </>
+  );
+
   const offsetSelect = (value: DerivationType, onChange: (next: DerivationType) => void) => (
     <Select value={value} onValueChange={(v) => onChange(v as DerivationType)}>
       <SelectTrigger className="h-9">
@@ -108,6 +188,24 @@ export function RatePlanStayShapeSection({
 
   const noSeasons = seasons.length === 0;
 
+  /** What the row applies to, spelled out under the inputs. */
+  const windowLabel = (row: {
+    scope: LadderScope;
+    calendar_season_id: string;
+    start_date: string;
+    end_date: string;
+    room_type_id: string;
+  }) => {
+    const window =
+      row.scope === "dates"
+        ? row.start_date && row.end_date
+          ? `${row.start_date} → ${row.end_date}`
+          : "Pick the dates"
+        : seasonName(row.calendar_season_id);
+    return row.room_type_id ? `${window} · ${unitName(row.room_type_id)}` : window;
+  };
+
+
   return (
     <div className="space-y-6">
       {/* ── Length of stay ─────────────────────────────────────────────── */}
@@ -117,7 +215,8 @@ export function RatePlanStayShapeSection({
             <Label htmlFor="rp-los" className="text-sm font-medium">Length of stay (nightly by nights)</Label>
             <p className="mt-0.5 text-xs text-muted-foreground">
               ROL'OS checkout already applies matching rungs. Rentals United receives them as
-              {" "}&lt;LOSS&gt; on the nightly season.
+              {" "}&lt;LOSS&gt; on the nightly season. Switch a row to <strong>Dates</strong> for an event
+              weekend — with or without a price change — and set its minimum nights there.
             </p>
           </div>
           <Switch
@@ -134,14 +233,18 @@ export function RatePlanStayShapeSection({
               <p className="text-xs text-muted-foreground">No rungs yet — add the first nights threshold.</p>
             )}
             {draft.los_rungs.map((rung: DraftLosRung, index) => {
-              const preview = losRungPreview(draft, rung, index);
+              const preview = losRungPreview(draft, rung, index, seasons);
               const invalid = !losRungIsValid(rung);
+              const patch = (p: Partial<DraftLosRung>) => dispatch({ type: "patch_los_rung", index, patch: p });
               return (
                 <div key={`los-${index}`} className="space-y-1">
-                  <div className="grid items-end gap-2 md:grid-cols-[1.4fr_0.8fr_1.1fr_0.8fr_auto_auto]">
-                    {seasonSelect(rung.calendar_season_id, (v) =>
-                      dispatch({ type: "patch_los_rung", index, patch: { calendar_season_id: v } }),
-                    )}
+                  <div className="grid items-end gap-2 md:grid-cols-[7rem_repeat(auto-fit,minmax(6rem,1fr))_auto_auto]">
+                    {scopeSelect(rung.scope, (v) => patch({ scope: v }))}
+                    {rung.scope === "dates"
+                      ? datedFields(rung, patch)
+                      : seasonSelect(rung.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                    {unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
+
                     <Input
                       className="h-9"
                       type="number"
@@ -150,8 +253,9 @@ export function RatePlanStayShapeSection({
                       value={rung.nights}
                       placeholder="Nights"
                       aria-label="From nights"
-                      onChange={(e) => dispatch({ type: "patch_los_rung", index, patch: { nights: e.target.value } })}
+                      onChange={(e) => patch({ nights: e.target.value })}
                     />
+
                     {rung.is_pinned ? (
                       <Input
                         className="h-9 md:col-span-2"
@@ -201,9 +305,10 @@ export function RatePlanStayShapeSection({
                     </Button>
                   </div>
                   <p className={`text-[11px] ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-                    {seasonName(rung.calendar_season_id)} ·{" "}
+                    {windowLabel(rung)} ·{" "}
                     {preview.text ?? (invalid ? "incomplete row" : "unpriced — set the daily first")}
                   </p>
+
                 </div>
               );
             })}
@@ -243,14 +348,18 @@ export function RatePlanStayShapeSection({
               Guests = adults + teens + children at quote time.
             </p>
             {draft.fsp_cells.map((cell: DraftFspCell, index) => {
-              const preview = fspCellPreview(draft, cell, index);
+              const preview = fspCellPreview(draft, cell, index, seasons);
               const invalid = !fspCellIsValid(cell);
+              const patch = (p: Partial<DraftFspCell>) => dispatch({ type: "patch_fsp_cell", index, patch: p });
               return (
                 <div key={`fsp-${index}`} className="space-y-1">
-                  <div className="grid items-end gap-2 md:grid-cols-[1.4fr_0.7fr_0.7fr_1.1fr_0.8fr_auto_auto]">
-                    {seasonSelect(cell.calendar_season_id, (v) =>
-                      dispatch({ type: "patch_fsp_cell", index, patch: { calendar_season_id: v } }),
-                    )}
+                  <div className="grid items-end gap-2 md:grid-cols-[7rem_repeat(auto-fit,minmax(6rem,1fr))_auto_auto]">
+                    {scopeSelect(cell.scope, (v) => patch({ scope: v }))}
+                    {cell.scope === "dates"
+                      ? datedFields(cell, patch)
+                      : seasonSelect(cell.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                    {unitSelect(cell.room_type_id, (v) => patch({ room_type_id: v }))}
+
                     <Input
                       className="h-9"
                       type="number"
@@ -322,9 +431,10 @@ export function RatePlanStayShapeSection({
                     </Button>
                   </div>
                   <p className={`text-[11px] ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-                    {seasonName(cell.calendar_season_id)} ·{" "}
+                    {windowLabel(cell)} ·{" "}
                     {preview.text ?? (invalid ? "incomplete row" : "unpriced — set the daily first")}
                   </p>
+
                 </div>
               );
             })}

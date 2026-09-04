@@ -53,23 +53,39 @@ export interface DraftSeasonRate {
   unit_rates: Record<string, string>;
 }
 
+/** A ladder row is either bound to a painted season or to an explicit date window. */
+export type LadderScope = "season" | "dates";
+
 /**
- * One length-of-stay rung: from N nights in a season, the nightly is offset off the
- * daily rate (or pinned outright). Daily stays the parent — this is a derived product.
+ * One length-of-stay rung: from N nights in a season (or a dated window such as an
+ * event weekend), the nightly is offset off the daily rate (or pinned outright).
+ * Daily stays the parent — this is a derived product.
  */
 export interface DraftLosRung {
+  scope: LadderScope;
   calendar_season_id: string;
+  /** Dated scope only. */
+  start_date: string;
+  end_date: string;
+  /** Empty = every unit this plan sells. */
+  room_type_id: string;
   nights: string;
   derivation_type: DerivationType;
   derivation_value: string;
   is_pinned: boolean;
   /** Nightly amount, only used when pinned. */
   pinned_rate: string;
+  /** Dated scope only: advisory minimum nights mirrored into stay restrictions. */
+  min_stay_nights: string;
 }
 
-/** One full-stay cell: nights x guests in a season, quoted as a single stay total. */
+/** One full-stay cell: nights x guests in a season or dated window, quoted as one total. */
 export interface DraftFspCell {
+  scope: LadderScope;
   calendar_season_id: string;
+  start_date: string;
+  end_date: string;
+  room_type_id: string;
   nights: string;
   nr_of_guests: string;
   derivation_type: DerivationType;
@@ -77,7 +93,9 @@ export interface DraftFspCell {
   is_pinned: boolean;
   /** Stay total, only used when pinned. */
   pinned_total: string;
+  min_stay_nights: string;
 }
+
 
 
 export interface RatePlanDraft {
@@ -201,23 +219,34 @@ export type DraftAction =
   | { type: "remove_fsp_cell"; index: number };
 
 export const newLosRung = (calendarSeasonId: string): DraftLosRung => ({
+  scope: "season",
   calendar_season_id: calendarSeasonId,
+  start_date: "",
+  end_date: "",
+  room_type_id: "",
   nights: "3",
   derivation_type: "percent",
   derivation_value: "-10",
   is_pinned: false,
   pinned_rate: "",
+  min_stay_nights: "",
 });
 
 export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
+  scope: "season",
   calendar_season_id: calendarSeasonId,
+  start_date: "",
+  end_date: "",
+  room_type_id: "",
   nights: "7",
   nr_of_guests: "2",
   derivation_type: "percent",
   derivation_value: "-20",
   is_pinned: false,
   pinned_total: "",
+  min_stay_nights: "",
 });
+
 
 const emptySeasonRate = (calendarSeasonId: string): DraftSeasonRate => ({
   calendar_season_id: calendarSeasonId,
@@ -560,36 +589,39 @@ export function draftToPayload(draft: RatePlanDraft) {
         };
       }),
 
-    // Stay-shape ladders. The season id is the window, so no explicit dates and no
-    // per-unit scoping are written from this editor.
+    // Stay-shape ladders. A row is scoped either to a painted season or to an
+    // explicit date window (event weekends), optionally to a single unit.
     los_enabled: draft.los_enabled,
     los_rungs: draft.los_enabled
       ? draft.los_rungs.filter(losRungIsValid).map((r) => ({
-          calendar_season_id: r.calendar_season_id,
-          room_type_id: null,
-          start_date: null,
-          end_date: null,
+          calendar_season_id: r.scope === "dates" ? null : r.calendar_season_id,
+          room_type_id: r.room_type_id || null,
+          start_date: r.scope === "dates" ? r.start_date : null,
+          end_date: r.scope === "dates" ? r.end_date : null,
           nights: numeric(r.nights),
           derivation_type: r.is_pinned ? null : r.derivation_type,
           derivation_value: r.is_pinned ? null : numeric(r.derivation_value),
           is_pinned: r.is_pinned,
           pinned_rate: r.is_pinned ? numeric(r.pinned_rate) : null,
+          min_stay_nights: r.scope === "dates" ? numeric(r.min_stay_nights) : null,
         }))
       : [],
     fsp_enabled: draft.fsp_enabled,
     fsp_cells: draft.fsp_enabled
       ? draft.fsp_cells.filter(fspCellIsValid).map((c) => ({
-          calendar_season_id: c.calendar_season_id,
-          room_type_id: null,
-          start_date: null,
-          end_date: null,
+          calendar_season_id: c.scope === "dates" ? null : c.calendar_season_id,
+          room_type_id: c.room_type_id || null,
+          start_date: c.scope === "dates" ? c.start_date : null,
+          end_date: c.scope === "dates" ? c.end_date : null,
           nights: numeric(c.nights),
           nr_of_guests: numeric(c.nr_of_guests),
           derivation_type: c.is_pinned ? null : c.derivation_type,
           derivation_value: c.is_pinned ? null : numeric(c.derivation_value),
           is_pinned: c.is_pinned,
           pinned_total: c.is_pinned ? numeric(c.pinned_total) : null,
+          min_stay_nights: c.scope === "dates" ? numeric(c.min_stay_nights) : null,
         }))
+
       : [],
   };
 }
@@ -611,8 +643,29 @@ const offsetIsValid = (type: DerivationType, value: string): boolean => {
   return type === "percent" ? n > -100 : true;
 };
 
+/** A dated row needs both ends of its window, in order. */
+const datesAreValid = (row: { scope: LadderScope; start_date: string; end_date: string }): boolean =>
+  Boolean(row.start_date && row.end_date) && row.start_date <= row.end_date;
+
+/** A window scope is either a season id or a valid date range — never neither. */
+const windowIsValid = (row: {
+  scope: LadderScope;
+  calendar_season_id: string;
+  start_date: string;
+  end_date: string;
+  min_stay_nights: string;
+}): boolean => {
+  if (row.scope === "dates") {
+    if (!datesAreValid(row)) return false;
+    // Optional, but when typed it must be a whole number of nights.
+    if (row.min_stay_nights !== "" && positiveInt(row.min_stay_nights) === null) return false;
+    return true;
+  }
+  return Boolean(row.calendar_season_id);
+};
+
 export function losRungIsValid(rung: DraftLosRung): boolean {
-  if (!rung.calendar_season_id || positiveInt(rung.nights) === null) return false;
+  if (!windowIsValid(rung) || positiveInt(rung.nights) === null) return false;
   if (rung.is_pinned) {
     const pinned = numeric(rung.pinned_rate);
     return pinned !== null && pinned > 0;
@@ -621,7 +674,7 @@ export function losRungIsValid(rung: DraftLosRung): boolean {
 }
 
 export function fspCellIsValid(cell: DraftFspCell): boolean {
-  if (!cell.calendar_season_id) return false;
+  if (!windowIsValid(cell)) return false;
   if (positiveInt(cell.nights) === null || positiveInt(cell.nr_of_guests) === null) return false;
   if (cell.is_pinned) {
     const pinned = numeric(cell.pinned_total);
@@ -630,6 +683,12 @@ export function fspCellIsValid(cell: DraftFspCell): boolean {
   return offsetIsValid(cell.derivation_type, cell.derivation_value);
 }
 
+/** Two dated windows touching the same day. */
+const windowsOverlap = (
+  a: { start_date: string; end_date: string },
+  b: { start_date: string; end_date: string },
+): boolean => a.start_date <= b.end_date && b.start_date <= a.end_date;
+
 /**
  * Everything wrong with the draft's ladders, one plain sentence per problem.
  * An empty array means the ladders are safe to save.
@@ -637,17 +696,48 @@ export function fspCellIsValid(cell: DraftFspCell): boolean {
 export function ladderIssues(draft: RatePlanDraft): string[] {
   const issues: string[] = [];
 
+  /** Same threshold + same unit, on windows that touch: only one may win. */
+  const clashes = <T extends { scope: LadderScope; start_date: string; end_date: string; room_type_id: string }>(
+    rows: T[],
+    thresholdKey: (row: T) => string,
+    sentence: (row: T, other: T) => string,
+  ): string[] => {
+    const out: string[] = [];
+    const dated = rows.filter((r) => r.scope === "dates");
+    for (let i = 0; i < dated.length; i += 1) {
+      for (let j = i + 1; j < dated.length; j += 1) {
+        const a = dated[i];
+        const b = dated[j];
+        if (thresholdKey(a) !== thresholdKey(b)) continue;
+        if (a.room_type_id !== b.room_type_id) continue;
+        if (!windowsOverlap(a, b)) continue;
+        out.push(sentence(a, b));
+      }
+    }
+    return out;
+  };
+
   if (draft.los_enabled) {
     const seen = new Set<string>();
     draft.los_rungs.forEach((r, i) => {
       if (!losRungIsValid(r)) {
-        issues.push(`Length-of-stay row ${i + 1} needs a season, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
+        const window = r.scope === "dates" ? "a start and end date" : "a season";
+        issues.push(`Length-of-stay row ${i + 1} needs ${window}, a nights threshold and ${r.is_pinned ? "a nightly rate" : "an adjustment"}.`);
         return;
       }
-      const key = `${r.calendar_season_id}|${positiveInt(r.nights)}`;
+      if (r.scope === "dates") return;
+      const key = `${r.calendar_season_id}|${r.room_type_id}|${positiveInt(r.nights)}`;
       if (seen.has(key)) issues.push(`Two length-of-stay rows claim ${r.nights} nights in the same season — keep one.`);
       seen.add(key);
     });
+    issues.push(
+      ...clashes(
+        draft.los_rungs.filter(losRungIsValid),
+        (r) => String(positiveInt(r.nights)),
+        (a, b) =>
+          `Two length-of-stay rows claim ${a.nights} nights on overlapping dates (${a.start_date}–${a.end_date} and ${b.start_date}–${b.end_date}) — keep one.`,
+      ),
+    );
     if (draft.los_rungs.filter(losRungIsValid).length === 0) {
       issues.push("Add at least one length-of-stay rung, or turn it off.");
     }
@@ -657,15 +747,25 @@ export function ladderIssues(draft: RatePlanDraft): string[] {
     const seen = new Set<string>();
     draft.fsp_cells.forEach((c, i) => {
       if (!fspCellIsValid(c)) {
-        issues.push(`Full-stay row ${i + 1} needs a season, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
+        const window = c.scope === "dates" ? "a start and end date" : "a season";
+        issues.push(`Full-stay row ${i + 1} needs ${window}, nights, guests and ${c.is_pinned ? "a stay total" : "an adjustment"}.`);
         return;
       }
-      const key = `${c.calendar_season_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
+      if (c.scope === "dates") return;
+      const key = `${c.calendar_season_id}|${c.room_type_id}|${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`;
       if (seen.has(key)) {
         issues.push(`Two full-stay rows claim ${c.nights} nights for ${c.nr_of_guests} guests in the same season — keep one.`);
       }
       seen.add(key);
     });
+    issues.push(
+      ...clashes(
+        draft.fsp_cells.filter(fspCellIsValid),
+        (c) => `${positiveInt(c.nights)}|${positiveInt(c.nr_of_guests)}`,
+        (a, b) =>
+          `Two full-stay rows claim ${a.nights} nights for ${a.nr_of_guests} guests on overlapping dates (${a.start_date}–${a.end_date} and ${b.start_date}–${b.end_date}) — keep one.`,
+      ),
+    );
     if (draft.fsp_cells.filter(fspCellIsValid).length === 0) {
       issues.push("Add at least one full-stay cell, or turn it off.");
     }
@@ -673,6 +773,7 @@ export function ladderIssues(draft: RatePlanDraft): string[] {
 
   return issues;
 }
+
 
 
 /** Human summary used on the list cards. */

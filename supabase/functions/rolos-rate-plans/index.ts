@@ -109,6 +109,11 @@ interface DraftStayWindow {
   calendar_season_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /**
+   * Advisory minimum nights for a dated window (event weekends). Mirrored into
+   * `rolos_stay_restrictions`; it prices, it never blocks direct checkout.
+   */
+  min_stay_nights?: number | null;
 }
 
 interface DraftLosRung extends DraftStayWindow {
@@ -127,6 +132,7 @@ interface DraftFspCell extends DraftStayWindow {
   is_pinned?: boolean;
   pinned_total?: number | null;
 }
+
 
 
 
@@ -685,6 +691,29 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   const losOff = draft.los_enabled === false;
   const fspOff = draft.fsp_enabled === false;
 
+  /**
+   * Dated windows that also carry an advisory minimum stay. Collected while the
+   * ladders are validated and mirrored into `rolos_stay_restrictions` below, so the
+   * calendar and the channel enforce the event-weekend minimum the operator typed.
+   */
+  const datedMinStays: {
+    room_type_id: string | null;
+    start_date: string;
+    end_date: string;
+    min_stay: number;
+  }[] = [];
+
+  /** Two dated rows for the same nights threshold and unit may not overlap. */
+  const datedWindows: { key: string; from: string; to: string; label: string }[] = [];
+  const clashOf = (key: string, from: string, to: string): string | null => {
+    for (const w of datedWindows) {
+      if (w.key !== key) continue;
+      if (from <= w.to && w.from <= to) return w.label;
+    }
+    return null;
+  };
+
+
   if (losOff) {
     await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
   } else if (Array.isArray(draft.los_rungs)) {
@@ -701,13 +730,28 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (!seasonId && !(from && to)) {
         return { error: "Every length-of-stay rung needs a season or a date range" };
       }
+      const unitId = r?.room_type_id ? String(r.room_type_id) : null;
+      const windowMinStay = intOrNull(r?.min_stay_nights);
+      if (from && to) {
+        if (to < from) return { error: `The ${nights}-night rung ends before it starts` };
+        const key = `los:${nights}:${unitId ?? "all"}`;
+        const clash = clashOf(key, from, to);
+        if (clash) {
+          return { error: `Two ${nights}-night rungs overlap: ${from} → ${to} and ${clash}` };
+        }
+        datedWindows.push({ key, from, to, label: `${from} → ${to}` });
+        if (windowMinStay !== null && windowMinStay >= 1) {
+          datedMinStays.push({ room_type_id: unitId, start_date: from, end_date: to, min_stay: windowMinStay });
+        }
+      }
       const pinned = r?.is_pinned === true;
       const pinnedRate = positive(r?.pinned_rate);
       if (pinned && pinnedRate === null) {
         return { error: `The ${nights}-night rung is pinned but has no rate` };
       }
       const derivationType = r?.derivation_type === "amount" ? "amount" : "percent";
-      const derivationValue = num(r?.derivation_value);
+      // A dated minimum-stay row may carry no price change at all: it then rides the parent nightly.
+      const derivationValue = num(r?.derivation_value) ?? (windowMinStay !== null ? 0 : null);
       if (!pinned && derivationValue === null) {
         return { error: `The ${nights}-night rung needs an adjustment value` };
       }
@@ -717,7 +761,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       }
       rows.push({
         rate_plan_id: planId,
-        room_type_id: r?.room_type_id ? String(r.room_type_id) : null,
+        room_type_id: unitId,
         calendar_season_id: seasonId,
         start_date: from,
         end_date: to,
@@ -726,7 +770,9 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         derivation_value: derivationValue ?? 0,
         is_pinned: pinned,
         pinned_rate: pinned ? pinnedRate : null,
+        min_stay_nights: windowMinStay,
       });
+
     }
     if (draft.los_enabled === true && rows.length === 0) {
       return { error: "Add at least one length-of-stay rung, or turn it off" };
@@ -757,10 +803,26 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       if (!seasonId && !(from && to)) {
         return { error: "Every full-stay cell needs a season or a date range" };
       }
+      const unitId = c?.room_type_id ? String(c.room_type_id) : null;
+      const windowMinStay = intOrNull(c?.min_stay_nights);
+      if (from && to) {
+        if (to < from) return { error: `The ${nights}-night / ${guests}-guest cell ends before it starts` };
+        const key = `fsp:${nights}:${guests}:${unitId ?? "all"}`;
+        const clash = clashOf(key, from, to);
+        if (clash) {
+          return {
+            error: `Two ${nights}-night / ${guests}-guest cells overlap: ${from} → ${to} and ${clash}`,
+          };
+        }
+        datedWindows.push({ key, from, to, label: `${from} → ${to}` });
+        if (windowMinStay !== null && windowMinStay >= 1) {
+          datedMinStays.push({ room_type_id: unitId, start_date: from, end_date: to, min_stay: windowMinStay });
+        }
+      }
       const pinned = c?.is_pinned === true;
       const pinnedTotal = positive(c?.pinned_total);
       const derivationType = c?.derivation_type === "amount" ? "amount" : "percent";
-      const derivationValue = num(c?.derivation_value);
+      const derivationValue = num(c?.derivation_value) ?? (windowMinStay !== null ? 0 : null);
       if (pinned && pinnedTotal === null) {
         return { error: `The ${nights}-night / ${guests}-guest cell is pinned but has no total` };
       }
@@ -772,7 +834,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
       }
       rows.push({
         rate_plan_id: planId,
-        room_type_id: c?.room_type_id ? String(c.room_type_id) : null,
+        room_type_id: unitId,
         calendar_season_id: seasonId,
         start_date: from,
         end_date: to,
@@ -783,7 +845,9 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         derivation_value: pinned ? null : derivationValue,
         is_pinned: pinned,
         pinned_total: pinned ? pinnedTotal : null,
+        min_stay_nights: windowMinStay,
       });
+
     }
     if (draft.fsp_enabled === true && rows.length === 0) {
       return { error: "Add at least one full-stay cell, or turn it off" };
@@ -813,6 +877,43 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
     });
     if (resErr) console.warn("[rolos-rate-plans] restriction write failed", resErr.message);
   }
+
+  /**
+   * Dated event-weekend minimums, mirrored so the calendar and the channel enforce them.
+   * Kept on their own `source` so the plan-level row above is never clobbered, and only
+   * rewritten when this payload actually carried ladders (absent keys stay a no-op).
+   */
+  const laddersSent = losOff || fspOff || Array.isArray(draft.los_rungs) || Array.isArray(draft.fsp_cells);
+  if (laddersSent) {
+    await sb
+      .from("rolos_stay_restrictions")
+      .delete()
+      .eq("rate_plan_id", planId)
+      .eq("source", "rate_plan_window");
+    // One row per window/unit: the strictest minimum wins where rows repeat.
+    const byWindow = new Map<string, { room_type_id: string | null; start_date: string; end_date: string; min_stay: number }>();
+    for (const w of datedMinStays) {
+      const key = `${w.room_type_id ?? "all"}|${w.start_date}|${w.end_date}`;
+      const existing = byWindow.get(key);
+      if (!existing || w.min_stay > existing.min_stay) byWindow.set(key, w);
+    }
+    if (byWindow.size > 0) {
+      const { error: winErr } = await sb.from("rolos_stay_restrictions").insert(
+        [...byWindow.values()].map((w) => ({
+          property_id: propertyId,
+          rate_plan_id: planId,
+          room_type_id: w.room_type_id,
+          start_date: w.start_date,
+          end_date: w.end_date,
+          min_stay: w.min_stay,
+          source: "rate_plan_window",
+          source_ref: planId,
+        })),
+      );
+      if (winErr) console.warn("[rolos-rate-plans] dated restriction write failed", winErr.message);
+    }
+  }
+
 
   // --- Cancellation policy link -------------------------------------------
   await sb.from("rolos_policy_rate_links").delete().eq("rate_plan_id", planId);
