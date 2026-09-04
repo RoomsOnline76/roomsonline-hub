@@ -4,3 +4,4 @@
 - [No Reuse of Dead Listing Ids](mem://constraints/pms/no-reuse-of-dead-listing-ids) — status 18 on an archived/deleted listing means mint a NEW listing; never reuse, adopt or reactivate that id
 - [Changeover Delta Only](mem://features/pms/changeover-delta-only) — changeover edits push an availability-only forced delta, spans/seasons authorable, calendars mark nights differing from the master
 - [ARI Delta Halves Never Both](mem://features/pms/ari-delta-halves-never-both) — rate edits push prices only, availability edits push availability only; both only on onboarding/full/scheduled runs; scope-keyed debounce queue
+- [Dated LOS / Full Stay Windows](mem://features/pms/dated-los-windows) — scope season|dates on rungs/cells, per-unit optional, advisory min_stay_nights mirrored as source rate_plan_window, no overlap on same threshold
