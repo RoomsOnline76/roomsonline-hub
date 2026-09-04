@@ -20,6 +20,7 @@ import {
   normalizePricingInputs,
   resolveNightRates,
   stayQuote,
+  type DailyOverride,
   type DifferentialType,
   type FspCell,
   type LosRung,
@@ -291,7 +292,62 @@ export async function createRateResolver(
   const losRungs: Record<string, LosRung[]> = {};
   const fspCells: Record<string, FspCell[]> = {};
   const parentPlans: Record<string, ParentPlanPricing> = {};
-  const dailyOverrides: Record<string, Record<string, never>> = {};
+  const dailyOverrides: Record<string, Record<string, DailyOverride>> = {};
+  const planDailyOverrides: Record<string, Record<string, Record<string, DailyOverride>>> = {};
+
+  /**
+   * Calendar-owned per-date rate overrides (Bulk rate update). A row carries an
+   * optional `rates.rate_plan_id`: when set the price only applies to that rate
+   * plan, otherwise it applies whichever plan is priced.
+   */
+  {
+    let query = supabase
+      .from("property_availability")
+      .select("room_type, date, rates")
+      .eq("property_id", propertyId)
+      .not("rates", "is", null);
+    if (opts.window?.from) query = query.gte("date", opts.window.from);
+    if (opts.window?.to) query = query.lte("date", opts.window.to);
+    const { data: overrideRows } = await query;
+
+    const unitKeysByName = new Map<string, string[]>();
+    for (const room of hfRooms as any[]) {
+      const name = String(room.name ?? "").trim().toLowerCase();
+      if (!name) continue;
+      const keys = [String(room.id), room.linked_rolos_id ? String(room.linked_rolos_id) : "", String(room.name)]
+        .filter(Boolean);
+      unitKeysByName.set(name, [...(unitKeysByName.get(name) ?? []), ...keys]);
+    }
+
+    const writeOverride = (
+      target: Record<string, Record<string, DailyOverride>>,
+      keys: string[],
+      date: string,
+      price: number,
+      extra: number | null,
+    ) => {
+      for (const key of keys) (target[key] ||= {})[date] = { price, extra_guest_price: extra };
+    };
+
+    for (const row of ((overrideRows ?? []) as any[])) {
+      const rates = row?.rates && typeof row.rates === "object" ? row.rates : null;
+      if (!rates) continue;
+      const keys = unitKeysByName.get(String(row.room_type ?? "").trim().toLowerCase())
+        ?? [String(row.room_type ?? "")].filter(Boolean);
+      const date = String(row.date);
+      const extra = Number(rates.extra_guest_price) || null;
+
+      const amount = Number(rates.room_amount);
+      if (Number.isFinite(amount) && amount > 0) writeOverride(dailyOverrides, keys, date, amount, extra);
+
+      const planPrices = rates.plan_prices && typeof rates.plan_prices === "object" ? rates.plan_prices : {};
+      for (const [planId, raw] of Object.entries(planPrices as Record<string, unknown>)) {
+        const planAmount = Number(raw);
+        if (!Number.isFinite(planAmount) || planAmount <= 0) continue;
+        writeOverride((planDailyOverrides[String(planId)] ||= {}), keys, date, planAmount, extra);
+      }
+    }
+  }
 
   if (rolosIds.length > 0) {
     const { data: planLinks } = await supabase
@@ -619,9 +675,9 @@ export async function createRateResolver(
 
     relationalSeasonRates,
     unitDailyRates,
-    // No Calendar-owned per-date rate override store exists yet; the engine already
-    // honours this tier as soon as one is wired in.
-    dailyOverrides: dailyOverrides as Record<string, Record<string, never>>,
+    // Calendar-owned per-date overrides (tier 1), plan-agnostic and plan-scoped.
+    dailyOverrides,
+    planDailyOverrides,
     closedDates,
   });
 

@@ -167,6 +167,19 @@ Deno.test("a Calendar daily override wins over every other tier", () => {
   assertEquals(days[1].extra_guest_price, 400);
 });
 
+Deno.test("a plan-scoped daily override only prices that plan, and beats the plan-agnostic one", () => {
+  const base = {
+    ratePlans: { "rolos-hut": plan({ base_rate: 900 }) },
+    dailyOverrides: { "rolos-hut": { "2026-12-20": { price: 3500 } } },
+  };
+  // Scoped to the plan being priced: it wins.
+  const mine = inputs({ ...base, planDailyOverrides: { [PLAN_ID]: { "rolos-hut": { "2026-12-20": { price: 4200 } } } } });
+  assertEquals(resolveNightRate(mine, hut, "2026-12-20")?.price, 4200);
+  // Scoped to another plan: ignored, the plan-agnostic override still applies.
+  const other = inputs({ ...base, planDailyOverrides: { "other-plan": { "rolos-hut": { "2026-12-20": { price: 4200 } } } } });
+  assertEquals(resolveNightRate(other, hut, "2026-12-20")?.price, 3500);
+});
+
 Deno.test("an override with no usable price does not blank the night", () => {
   const i = inputs({
     ratePlans: { "rolos-hut": plan({ base_rate: 900 }) },
