@@ -453,10 +453,10 @@ async function resolveRolosRates(
     // Resolver prices for this unit, keyed by night. `endDate` is the checkout
     // date (exclusive), so the resolver window ends the night before.
     const resolvedByDate = new Map<string, DayRate>();
-    if (resolver) {
+    if (res) {
       const lastNight = addDaysIso(endDate, -1);
       if (lastNight >= startDate) {
-        for (const day of resolver.resolveDays(
+        for (const day of res.resolveDays(
           { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
           startDate,
           lastNight,
@@ -476,11 +476,11 @@ async function resolveRolosRates(
       | { shape: string; nights: number; source: string; display_per_night: number; stay_total: number }
       | null = null;
     const losByDate = new Map<string, number>();
-    if (resolver) {
+    if (res) {
       const lastNight = addDaysIso(endDate, -1);
       if (lastNight >= startDate) {
         try {
-          const quote = resolver.quoteStay(
+          const quote = res.quoteStay(
             { id: room.id, name: room.name, linked_rolos_id: room.linked_rolos_id },
             {
               from: startDate,
