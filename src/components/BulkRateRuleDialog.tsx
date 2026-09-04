@@ -149,22 +149,39 @@ export function BulkRateRuleDialog({
         return;
       }
 
+      // One row per room/date holds every plan's price, so aiming a price at one
+      // plan never wipes the price another plan already has for that night.
+      const { data: existingRows } = await supabase
+        .from("property_availability")
+        .select("room_type, date, rates")
+        .eq("property_id", propertyId)
+        .in("room_type", selectedRoomTypes)
+        .gte("date", fromDate)
+        .lte("date", toDate);
+      const existingByKey = new Map<string, any>();
+      for (const row of existingRows || []) {
+        existingByKey.set(`${(row as any).room_type}|${(row as any).date}`, (row as any).rates);
+      }
+
       const records = [];
       for (const roomType of selectedRoomTypes) {
         for (const date of filteredDates) {
+          const dateKey = format(date, "yyyy-MM-dd");
+          const prior = existingByKey.get(`${roomType}|${dateKey}`);
+          const priorRates = prior && typeof prior === "object" ? prior : {};
+          const planPrices = { ...(priorRates.plan_prices || {}) } as Record<string, number>;
+          if (ratePlanId !== ALL_PLANS) planPrices[ratePlanId] = rate;
           records.push({
             property_id: propertyId,
             room_type: roomType,
-            date: format(date, "yyyy-MM-dd"),
+            date: dateKey,
             rates: {
+              ...priorRates,
               rate_type_id: "standard",
               rate_type_name: "Standard Rate",
-              // Null = applies to every rate plan; otherwise only this plan is repriced.
-              rate_plan_id: ratePlanId === ALL_PLANS ? null : ratePlanId,
-              rate_plan_name: ratePlanId === ALL_PLANS
-                ? null
-                : (ratePlans.find((p) => p.id === ratePlanId)?.name ?? null),
-              room_amount: rate,
+              // room_amount = the every-plan price; plan_prices = per-rate-plan prices.
+              room_amount: ratePlanId === ALL_PLANS ? rate : (priorRates.room_amount ?? null),
+              plan_prices: planPrices,
               price_type: "UnitRate"
             },
             external_system: 'manual',

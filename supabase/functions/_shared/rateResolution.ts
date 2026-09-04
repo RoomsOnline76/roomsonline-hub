@@ -319,19 +319,32 @@ export async function createRateResolver(
       unitKeysByName.set(name, [...(unitKeysByName.get(name) ?? []), ...keys]);
     }
 
+    const writeOverride = (
+      target: Record<string, Record<string, DailyOverride>>,
+      keys: string[],
+      date: string,
+      price: number,
+      extra: number | null,
+    ) => {
+      for (const key of keys) (target[key] ||= {})[date] = { price, extra_guest_price: extra };
+    };
+
     for (const row of ((overrideRows ?? []) as any[])) {
       const rates = row?.rates && typeof row.rates === "object" ? row.rates : null;
-      const amount = Number(rates?.room_amount);
-      if (!Number.isFinite(amount) || amount <= 0) continue;
+      if (!rates) continue;
       const keys = unitKeysByName.get(String(row.room_type ?? "").trim().toLowerCase())
         ?? [String(row.room_type ?? "")].filter(Boolean);
-      const planId = rates.rate_plan_id && rates.rate_plan_id !== "standard" ? String(rates.rate_plan_id) : null;
-      const target = planId ? (planDailyOverrides[planId] ||= {}) : dailyOverrides;
-      for (const key of keys) {
-        ((target as Record<string, Record<string, DailyOverride>>)[key] ||= {})[String(row.date)] = {
-          price: amount,
-          extra_guest_price: Number(rates.extra_guest_price) || null,
-        };
+      const date = String(row.date);
+      const extra = Number(rates.extra_guest_price) || null;
+
+      const amount = Number(rates.room_amount);
+      if (Number.isFinite(amount) && amount > 0) writeOverride(dailyOverrides, keys, date, amount, extra);
+
+      const planPrices = rates.plan_prices && typeof rates.plan_prices === "object" ? rates.plan_prices : {};
+      for (const [planId, raw] of Object.entries(planPrices as Record<string, unknown>)) {
+        const planAmount = Number(raw);
+        if (!Number.isFinite(planAmount) || planAmount <= 0) continue;
+        writeOverride((planDailyOverrides[String(planId)] ||= {}), keys, date, planAmount, extra);
       }
     }
   }
