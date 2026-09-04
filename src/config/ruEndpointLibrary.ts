@@ -197,6 +197,8 @@ const ALIAS_TO_ID: Record<string, string> = {
   Push_PutCompanyDetails_RQ: "Push_FillCompanyDetails_RQ",
   Push_PutOwnerDetails_RQ: "Push_PutOwner_RQ",
   Push_PutPropertyStatus_RQ: "Push_SetPropertiesStatus_RQ",
+  // Legacy availability spelling. Every calendar write we make goes out as the Units variant.
+  Push_PutAvb_RQ: "Push_PutAvbUnits_RQ",
   // No hard delete exists at the channel: removal is an archive through the bulk status verb.
   Push_DeleteProperty_RQ: "Push_SetPropertiesStatus_RQ",
   Push_RemoveProperty_RQ: "Push_SetPropertiesStatus_RQ",
