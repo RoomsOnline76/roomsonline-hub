@@ -5,11 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { queueChannelRatesSync } from "@/lib/channelContentSync";
 import { format, eachDayOfInterval, getDay } from "date-fns";
+
+/** Sentinel for "this price applies to every rate plan". */
+const ALL_PLANS = "__all_plans__";
 
 interface BulkRateRuleDialogProps {
   open: boolean;
@@ -29,6 +33,9 @@ export function BulkRateRuleDialog({
   onRuleCreated
 }: BulkRateRuleDialogProps) {
   const [selectedRoomTypes, setSelectedRoomTypes] = useState<string[]>([]);
+  /** ALL_PLANS = the price applies whichever rate plan is being sold. */
+  const [ratePlanId, setRatePlanId] = useState<string>(ALL_PLANS);
+  const [ratePlans, setRatePlans] = useState<{ id: string; name: string }[]>([]);
   const [fromDate, setFromDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(() => format(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"));
   const [rateAmount, setRateAmount] = useState("");
@@ -47,8 +54,25 @@ export function BulkRateRuleDialog({
   useEffect(() => {
     if (open) {
       setSelectedRoomTypes([]);
+      setRatePlanId(ALL_PLANS);
     }
   }, [open]);
+
+  // The property's live rate plans, so a price can be aimed at just one of them.
+  useEffect(() => {
+    if (!open || !propertyId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("rolos_rate_plans")
+        .select("id, name")
+        .eq("property_id", propertyId)
+        .eq("is_active", true)
+        .order("name");
+      if (!cancelled) setRatePlans((data || []) as { id: string; name: string }[]);
+    })();
+    return () => { cancelled = true; };
+  }, [open, propertyId]);
 
   const toggleDay = (day: keyof typeof selectedDays) => {
     if (day === "allDays") {
@@ -135,6 +159,11 @@ export function BulkRateRuleDialog({
             rates: {
               rate_type_id: "standard",
               rate_type_name: "Standard Rate",
+              // Null = applies to every rate plan; otherwise only this plan is repriced.
+              rate_plan_id: ratePlanId === ALL_PLANS ? null : ratePlanId,
+              rate_plan_name: ratePlanId === ALL_PLANS
+                ? null
+                : (ratePlans.find((p) => p.id === ratePlanId)?.name ?? null),
               room_amount: rate,
               price_type: "UnitRate"
             },
@@ -152,7 +181,10 @@ export function BulkRateRuleDialog({
 
       if (error) throw error;
 
-      toast.success(`Set rate to ${rate} for ${filteredDates.length} dates`);
+      const planLabel = ratePlanId === ALL_PLANS
+        ? "all rate plans"
+        : (ratePlans.find((p) => p.id === ratePlanId)?.name ?? "the selected rate plan");
+      toast.success(`Set rate to ${rate} for ${filteredDates.length} dates (${planLabel})`);
       // Rates changed — the Channel Manager update fires itself (parked and retried if the
       // listing is currently short of the mandatory readiness gate).
       // A rate rule is a pricing change, not a restriction: it keeps the pricing path (the
@@ -216,6 +248,26 @@ export function BulkRateRuleDialog({
           {/* Right Content - Form */}
           <div className="col-span-8 space-y-6">
             <div className="border rounded-lg p-6 space-y-4">
+              <div className="space-y-2">
+                <Label>Rate Plan</Label>
+                <Select value={ratePlanId} onValueChange={setRatePlanId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All rate plans" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ALL_PLANS}>All rate plans</SelectItem>
+                    {ratePlans.map((plan) => (
+                      <SelectItem key={plan.id} value={plan.id}>{plan.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {ratePlanId === ALL_PLANS
+                    ? "This price replaces the season rate on the selected nights, whichever plan is sold."
+                    : "Only this rate plan is repriced on the selected nights; the other plans keep their season rates."}
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <Label>Rate Amount</Label>
                 <div className="flex gap-2 items-center">
