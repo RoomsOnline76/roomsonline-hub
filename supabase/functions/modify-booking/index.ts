@@ -158,7 +158,9 @@ async function resolveBookingRatePlan(supabase: any, booking: any): Promise<Reso
  *
  * Nights are resolved one by one (daily override → plan season rate → calendar season →
  * relational season → rack), so a stay that spans a season boundary is priced correctly instead
- * of taking a single season's rate for the whole stay.
+ * of taking a single season's rate for the whole stay. The engine's package and special pass then
+ * runs on the accommodation subtotal — money follows the new stay, so a guest who moves dates keeps
+ * the discount the new stay qualifies for instead of being repriced gross.
  */
 async function recalculateRolPrice(
   supabase: any,
@@ -167,12 +169,16 @@ async function recalculateRolPrice(
 ): Promise<
   {
     total: number;
+    gross_total: number;
+    discount_total: number;
+    discounts: DiscountLine[];
     rate_plan_id: string;
     nightly: number | null;
     source: string | null;
     shape: "nightly" | "los_nightly" | "full_stay";
   } | null
 > {
+
   const plan = await resolveBookingRatePlan(supabase, booking);
   if (!plan) return null;
 
