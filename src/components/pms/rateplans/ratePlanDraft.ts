@@ -589,36 +589,39 @@ export function draftToPayload(draft: RatePlanDraft) {
         };
       }),
 
-    // Stay-shape ladders. The season id is the window, so no explicit dates and no
-    // per-unit scoping are written from this editor.
+    // Stay-shape ladders. A row is scoped either to a painted season or to an
+    // explicit date window (event weekends), optionally to a single unit.
     los_enabled: draft.los_enabled,
     los_rungs: draft.los_enabled
       ? draft.los_rungs.filter(losRungIsValid).map((r) => ({
-          calendar_season_id: r.calendar_season_id,
-          room_type_id: null,
-          start_date: null,
-          end_date: null,
+          calendar_season_id: r.scope === "dates" ? null : r.calendar_season_id,
+          room_type_id: r.room_type_id || null,
+          start_date: r.scope === "dates" ? r.start_date : null,
+          end_date: r.scope === "dates" ? r.end_date : null,
           nights: numeric(r.nights),
           derivation_type: r.is_pinned ? null : r.derivation_type,
           derivation_value: r.is_pinned ? null : numeric(r.derivation_value),
           is_pinned: r.is_pinned,
           pinned_rate: r.is_pinned ? numeric(r.pinned_rate) : null,
+          min_stay_nights: r.scope === "dates" ? numeric(r.min_stay_nights) : null,
         }))
       : [],
     fsp_enabled: draft.fsp_enabled,
     fsp_cells: draft.fsp_enabled
       ? draft.fsp_cells.filter(fspCellIsValid).map((c) => ({
-          calendar_season_id: c.calendar_season_id,
-          room_type_id: null,
-          start_date: null,
-          end_date: null,
+          calendar_season_id: c.scope === "dates" ? null : c.calendar_season_id,
+          room_type_id: c.room_type_id || null,
+          start_date: c.scope === "dates" ? c.start_date : null,
+          end_date: c.scope === "dates" ? c.end_date : null,
           nights: numeric(c.nights),
           nr_of_guests: numeric(c.nr_of_guests),
           derivation_type: c.is_pinned ? null : c.derivation_type,
           derivation_value: c.is_pinned ? null : numeric(c.derivation_value),
           is_pinned: c.is_pinned,
           pinned_total: c.is_pinned ? numeric(c.pinned_total) : null,
+          min_stay_nights: c.scope === "dates" ? numeric(c.min_stay_nights) : null,
         }))
+
       : [],
   };
 }
