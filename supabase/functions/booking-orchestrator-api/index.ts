@@ -645,18 +645,22 @@ async function resolveRolosRates(
         }
       } catch (_) { /* advisory store unavailable — plan minimums still apply */ }
 
-      const offerPlans: OfferPlan[] = [...planMeta.entries()].map(([id, entry]) => ({
-        rate_plan_id: id,
-        name: entry.plan?.name ?? null,
-        min_stay: entry.plan?.min_stay ?? null,
-        max_stay: entry.plan?.max_stay ?? null,
-        room_type_ids: [...entry.rooms],
-        windows: windowsByPlan[id] ?? [],
-      }));
+      // Sell priority is the operator's own ordering; it decides which plan a
+      // guest sees first. No cap — every live plan gets a verdict.
+      const offerPlans: OfferPlan[] = [...planMeta.entries()]
+        .map(([id, entry]) => ({
+          rate_plan_id: id,
+          name: entry.plan?.name ?? null,
+          min_stay: entry.plan?.min_stay ?? null,
+          max_stay: entry.plan?.max_stay ?? null,
+          room_type_ids: [...entry.rooms],
+          windows: windowsByPlan[id] ?? [],
+          sell_priority: Number(entry.plan?.sell_priority ?? 999),
+        }))
+        .sort((a, b) => (a.sell_priority - b.sell_priority) || String(a.name ?? "").localeCompare(String(b.name ?? "")));
 
       // One resolver per offered plan, so each offer is priced from its own plan.
-      const MAX_OFFERS = 6;
-      const offeredIds = offerPlans.slice(0, MAX_OFFERS).map((p) => p.rate_plan_id);
+      const offeredIds = offerPlans.map((p) => p.rate_plan_id);
       const resolverByPlan = new Map<string, typeof resolver>();
       for (const planId of offeredIds) {
         try {
@@ -694,15 +698,47 @@ async function resolveRolosRates(
             (ruleWindowsByPlan[planId] ||= []).push(win);
           }
         }
+        // No-arrival / no-departure days across the searched window, so the date
+        // picker can grey them out instead of the offer simply vanishing.
+        const rawWindows: OfferWindow[] = [
+          ...stayRules
+            .filter((e) => e.rule.closed_to_arrival || e.rule.closed_to_departure)
+            .map((e) => ({
+              start_date: e.rule.start_date ?? null,
+              end_date: e.rule.end_date ?? null,
+              room_type_id: e.rule.room_type_id ?? null,
+              closed_to_arrival: e.rule.closed_to_arrival ?? false,
+              closed_to_departure: e.rule.closed_to_departure ?? false,
+            })),
+        ];
+        const closed = closedDates(rawWindows, unitId, startDate, addDaysIso(endDate, 120));
+        if (closed.arrival.length > 0 || closed.departure.length > 0) {
+          (roomBlock as any).closed_to_arrival_dates = closed.arrival;
+          (roomBlock as any).closed_to_departure_dates = closed.departure;
+        }
         const defaultId = String(roomBlock.rate_types[0]?.rate_type_id ?? "");
         const entries: any[] = [];
+        const rejected: any[] = [];
         for (const offer of offerPlans) {
-          if (!offeredIds.includes(offer.rate_plan_id)) continue;
           const verdict = offerEligibility(
             { ...offer, windows: [...(offer.windows ?? []), ...(ruleWindowsByPlan[offer.rate_plan_id] ?? [])] },
             stay,
           );
-          if (!verdict.eligible) continue;
+          if (!verdict.eligible) {
+            // Publish the reason so the guest is told why, rather than seeing a
+            // silently shorter list.
+            if (verdict.reason !== "unit") {
+              rejected.push({
+                rate_type_id: offer.rate_plan_id,
+                rate_type_name: offer.name || "Rate",
+                reason: verdict.reason,
+                reason_text: offerReasonText(verdict),
+                min_stay: verdict.min_stay,
+                max_stay: verdict.max_stay,
+              });
+            }
+            continue;
+          }
           const planResolver = resolverByPlan.get(offer.rate_plan_id);
           if (!planResolver) continue;
           const meta = planMeta.get(offer.rate_plan_id)?.plan;
@@ -721,12 +757,14 @@ async function resolveRolosRates(
           if (!rateType || !rateType.rates?.some((r: any) => Number(r.room_amount) > 0)) continue;
           entries.push({ ...rateType, min_stay: verdict.min_stay, max_stay: verdict.max_stay });
         }
+        if (rejected.length > 0) (roomBlock as any).unavailable_rates = rejected;
         if (entries.length === 0) continue;
         entries.sort((a, b) =>
           (String(a.rate_type_id) === defaultId ? 0 : 1) - (String(b.rate_type_id) === defaultId ? 0 : 1)
         );
         roomBlock.rate_types = entries;
       }
+
     } catch (e) {
       console.warn("[orchestrator] rate-plan offers unavailable:", e);
     }
