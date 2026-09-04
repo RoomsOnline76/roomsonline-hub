@@ -268,15 +268,18 @@ async function resolveRolosRates(
   const rolosIds = (hfRooms || []).filter((r: any) => r.linked_rolos_id).map((r: any) => r.linked_rolos_id);
   const ratePlanMap: Record<string, any> = {};
   const closedDatesByRoom: Record<string, Set<string>> = {};
+  /** Every live plan↔unit link, used to build the length-of-stay offer list. */
+  const planLinkRows: any[] = [];
 
   if (rolosIds.length > 0) {
     const { data: rpRoomTypes } = await supabase
       .from("rolos_rate_plan_room_types")
-      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active)")
+      .select("room_type_id, rate_plan_id, rolos_rate_plans!inner(id, name, base_rate, pricing_model, adult_1_rate, adult_2_rate, teen_rate, child_rate, infant_rate, is_active, min_stay, max_stay)")
       .in("room_type_id", rolosIds)
       .eq("rolos_rate_plans.is_active", true);
 
     if (rpRoomTypes) {
+      planLinkRows.push(...(rpRoomTypes as any[]));
       for (const entry of rpRoomTypes) {
         const plan = (entry as any).rolos_rate_plans;
         if (plan?.base_rate != null) {
