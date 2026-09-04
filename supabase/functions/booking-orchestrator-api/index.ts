@@ -3,6 +3,7 @@ import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/valida
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
 import { closedDates, offerEligibility, offerReasonText, stayRuleWindow, type OfferPlan, type OfferStay, type OfferWindow, type StayRule } from "../_shared/rateOffers.ts";
+import { stayDiscounts } from "../_shared/stayDiscounts.ts";
 
 
 const corsHeaders = {
