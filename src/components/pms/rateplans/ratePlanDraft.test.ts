@@ -270,6 +270,8 @@ describe("stay-shape ladders", () => {
         derivation_value: -10,
         is_pinned: false,
         pinned_rate: null,
+        min_stay_nights: null,
+
       },
     ]);
   });
