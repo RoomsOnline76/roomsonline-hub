@@ -348,14 +348,18 @@ export function RatePlanStayShapeSection({
               Guests = adults + teens + children at quote time.
             </p>
             {draft.fsp_cells.map((cell: DraftFspCell, index) => {
-              const preview = fspCellPreview(draft, cell, index);
+              const preview = fspCellPreview(draft, cell, index, seasons);
               const invalid = !fspCellIsValid(cell);
+              const patch = (p: Partial<DraftFspCell>) => dispatch({ type: "patch_fsp_cell", index, patch: p });
               return (
                 <div key={`fsp-${index}`} className="space-y-1">
-                  <div className="grid items-end gap-2 md:grid-cols-[1.4fr_0.7fr_0.7fr_1.1fr_0.8fr_auto_auto]">
-                    {seasonSelect(cell.calendar_season_id, (v) =>
-                      dispatch({ type: "patch_fsp_cell", index, patch: { calendar_season_id: v } }),
-                    )}
+                  <div className="grid items-end gap-2 md:grid-cols-[7rem_repeat(auto-fit,minmax(6rem,1fr))_auto_auto]">
+                    {scopeSelect(cell.scope, (v) => patch({ scope: v }))}
+                    {cell.scope === "dates"
+                      ? datedFields(cell, patch)
+                      : seasonSelect(cell.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                    {unitSelect(cell.room_type_id, (v) => patch({ room_type_id: v }))}
+
                     <Input
                       className="h-9"
                       type="number"
