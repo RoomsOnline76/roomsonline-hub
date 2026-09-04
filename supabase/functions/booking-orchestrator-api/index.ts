@@ -3,6 +3,7 @@ import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/valida
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
 import { closedDates, offerEligibility, offerReasonText, stayRuleWindow, type OfferPlan, type OfferStay, type OfferWindow, type StayRule } from "../_shared/rateOffers.ts";
+import { stayDiscounts } from "../_shared/stayDiscounts.ts";
 
 
 const corsHeaders = {
@@ -922,6 +923,7 @@ async function quoteStayForRooms(
   supabase: any,
   propertyId: string,
   rooms: any[],
+  opts: { ageVerified?: boolean; isSubscriber?: boolean; selectedSpecialId?: string | null } = {},
 ) {
   const { data: propRow } = await supabase
     .from("properties")
@@ -1063,9 +1065,47 @@ async function quoteStayForRooms(
     });
   }
 
+  const total = Math.round(results.reduce((s, r) => s + Number(r.accommodation_total || 0), 0) * 100) / 100;
+
+  // ── packages and specials (Phase 3) ──────────────────────────────────
+  // The engine decides the discount too, so the figure the guest is shown is
+  // the figure the server can prove at charge time.
+  const stayStart = normalized.map((r) => r.check_in).sort()[0];
+  const stayEnd = normalized.map((r) => r.check_out).sort().at(-1)!;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: specialRows } = await supabase
+    .from("property_specials")
+    .select("*")
+    .eq("property_id", propertyId)
+    .eq("is_active", true)
+    .or(
+      `and(valid_from.lte.${stayEnd},valid_to.gte.${stayStart}),`
+      + `and(book_from.lte.${today},book_until.gte.${today})`,
+    );
+
+  const discounts = stayDiscounts(
+    {
+      checkIn: stayStart,
+      checkOut: stayEnd,
+      subtotal: total,
+      rooms: results.length,
+      roomIds: results.map((r) => r.room_type_id),
+      ratePlanIds: results.map((r) => r.rate_type_id).filter(Boolean) as string[],
+      ageVerified: opts.ageVerified === true,
+      isSubscriber: opts.isSubscriber === true,
+    },
+    Array.isArray(amenities?.packages) ? amenities.packages : [],
+    (specialRows || []) as any[],
+    opts.selectedSpecialId ?? null,
+  );
+
   return {
     rooms: results,
-    total: Math.round(results.reduce((s, r) => s + Number(r.accommodation_total || 0), 0) * 100) / 100,
+    total,
+    discounts: discounts.lines,
+    eligible_specials: discounts.eligible_specials,
+    discount_total: discounts.discount_total,
+    net_total: discounts.net_total,
   };
 }
 
@@ -1114,12 +1154,16 @@ Deno.serve(async (req) => {
     // ── quote_stay ───────────────────────────────────────────────────
     // Server-side accommodation total for the exact rooms being booked.
     if (action === "quote_stay") {
-      const { property_id, rooms } = body;
+      const { property_id, rooms, age_verified, is_subscriber, selected_special_id } = body;
       if (!property_id || !Array.isArray(rooms) || rooms.length === 0) {
         return fail("Missing property_id or rooms");
       }
       try {
-        const quote = await quoteStayForRooms(supabase, property_id, rooms);
+        const quote = await quoteStayForRooms(supabase, property_id, rooms, {
+          ageVerified: age_verified === true,
+          isSubscriber: is_subscriber === true,
+          selectedSpecialId: selected_special_id ?? null,
+        });
         return new Response(JSON.stringify({ success: true, data: quote }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
