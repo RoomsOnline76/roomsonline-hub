@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
-import { effectiveMinStay, eligibleOffers, offerEligibility, type OfferPlan, type OfferStay } from "./rateOffers.ts";
+import { effectiveMinStay, eligibleOffers, offerEligibility, type OfferPlan, type OfferStay, stayRuleWindow } from "./rateOffers.ts";
 
 const UNIT = "unit-1";
 
@@ -68,4 +68,39 @@ Deno.test("unit-scoped window only binds that unit", () => {
     offerEligibility(event, { ...stay(2, "2026-12-12"), room_type_id: "unit-2" }).eligible,
     false,
   );
+});
+
+Deno.test("weekend rule raises the minimum only for Friday/Saturday arrivals", () => {
+  const rule = {
+    start_date: "2026-04-01",
+    end_date: "2026-04-30",
+    min_stay: 3,
+    other_days_min_stay: 1,
+    days_of_week: [5, 6],
+  };
+  // 2026-04-03 is a Friday.
+  const friday = stayRuleWindow(rule, { from: "2026-04-03", to: "2026-04-04", nights: 2, room_type_id: "u1" }, "2026-01-01");
+  assertEquals(friday?.min_stay_nights, 3);
+  // 2026-04-07 is a Tuesday.
+  const tuesday = stayRuleWindow(rule, { from: "2026-04-07", to: "2026-04-08", nights: 2, room_type_id: "u1" }, "2026-01-01");
+  assertEquals(tuesday?.min_stay_nights, 1);
+});
+
+Deno.test("a rule is ignored inside its late-booking grace period", () => {
+  const rule = { start_date: "2026-04-01", end_date: "2026-04-30", min_stay: 3, ignore_within_days: 7 };
+  const stay = { from: "2026-04-03", to: "2026-04-04", nights: 2, room_type_id: "u1" };
+  assertEquals(stayRuleWindow(rule, stay, "2026-04-01"), null);
+  assertEquals(stayRuleWindow(rule, stay, "2026-03-01")?.min_stay_nights, 3);
+});
+
+Deno.test("closed to arrival blocks the offer inside the window", () => {
+  const plan = {
+    rate_plan_id: "p1",
+    name: "Rack",
+    room_type_ids: ["u1"],
+    windows: [{ start_date: "2026-04-01", end_date: "2026-04-30", closed_to_arrival: true }],
+  };
+  const verdict = offerEligibility(plan, { from: "2026-04-03", to: "2026-04-05", nights: 3, room_type_id: "u1" });
+  assertEquals(verdict.eligible, false);
+  assertEquals(verdict.reason, "closed_to_arrival");
 });
