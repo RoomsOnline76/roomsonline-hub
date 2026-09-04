@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { safeParseResponse, AvailabilityResponseSchema } from "../_shared/validate.ts";
 import { canonicalPricingModel, priceTypeForModel } from "../_shared/ratePricing.ts";
 import { addDays as addDaysIso, createRateResolver, type DayRate } from "../_shared/rateResolution.ts";
-import { offerEligibility, type OfferPlan, type OfferStay, type OfferWindow } from "../_shared/rateOffers.ts";
+import { offerEligibility, stayRuleWindow, type OfferPlan, type OfferStay, type OfferWindow, type StayRule } from "../_shared/rateOffers.ts";
 
 
 const corsHeaders = {
@@ -631,6 +631,20 @@ async function resolveRolosRates(
         }
       } catch (_) { /* column/table missing on a preview branch — no dated windows */ }
 
+      // Operator-authored stay rules (Minimum Stay Entry). A rule with no rate
+      // plan applies to every plan; a plan-scoped rule binds only that plan.
+      const stayRules: { rule: StayRule; rate_plan_id: string | null }[] = [];
+      try {
+        const { data: ruleRows } = await supabase
+          .from("rolos_stay_restrictions")
+          .select("rate_plan_id, room_type_id, start_date, end_date, min_stay, max_stay, other_days_min_stay, days_of_week, ignore_within_days, closed_to_arrival, closed_to_departure, is_active")
+          .eq("property_id", propertyId)
+          .eq("is_active", true);
+        for (const row of (ruleRows ?? []) as any[]) {
+          stayRules.push({ rule: row as StayRule, rate_plan_id: row.rate_plan_id ? String(row.rate_plan_id) : null });
+        }
+      } catch (_) { /* advisory store unavailable — plan minimums still apply */ }
+
       const offerPlans: OfferPlan[] = [...planMeta.entries()].map(([id, entry]) => ({
         rate_plan_id: id,
         name: entry.plan?.name ?? null,
@@ -670,11 +684,24 @@ async function resolveRolosRates(
           nights: stayNights,
           room_type_id: unitId,
         };
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const ruleWindowsByPlan: Record<string, OfferWindow[]> = {};
+        for (const entry of stayRules) {
+          const win = stayRuleWindow(entry.rule, stay, todayIso);
+          if (!win) continue;
+          for (const planId of offeredIds) {
+            if (entry.rate_plan_id && entry.rate_plan_id !== planId) continue;
+            (ruleWindowsByPlan[planId] ||= []).push(win);
+          }
+        }
         const defaultId = String(roomBlock.rate_types[0]?.rate_type_id ?? "");
         const entries: any[] = [];
         for (const offer of offerPlans) {
           if (!offeredIds.includes(offer.rate_plan_id)) continue;
-          const verdict = offerEligibility(offer, stay);
+          const verdict = offerEligibility(
+            { ...offer, windows: [...(offer.windows ?? []), ...(ruleWindowsByPlan[offer.rate_plan_id] ?? [])] },
+            stay,
+          );
           if (!verdict.eligible) continue;
           const planResolver = resolverByPlan.get(offer.rate_plan_id);
           if (!planResolver) continue;
