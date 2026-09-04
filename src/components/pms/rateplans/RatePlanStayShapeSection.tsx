@@ -30,6 +30,7 @@ import type {
   DraftAction,
   DraftFspCell,
   DraftLosRung,
+  LadderScope,
   RatePlanDraft,
 } from "./ratePlanDraft";
 import { fspCellIsValid, losRungIsValid } from "./ratePlanDraft";
@@ -38,6 +39,8 @@ import { fspCellPreview, losRungPreview } from "./stayShapePreview";
 interface Props {
   draft: RatePlanDraft;
   seasons: CalendarSeason[];
+  /** Units this plan can sell — a row may target one of them instead of all. */
+  units: { id: string; name: string }[];
   dispatch: React.Dispatch<DraftAction>;
   /** Sentences from `ladderIssues` — rendered so the operator sees why Save is blocked. */
   issues: string[];
@@ -53,8 +56,16 @@ const OFFSET_TYPES: { value: DerivationType; label: string }[] = [
   { value: "amount", label: "Amount off/on" },
 ];
 
+const SCOPES: { value: LadderScope; label: string }[] = [
+  { value: "season", label: "Season" },
+  { value: "dates", label: "Dates" },
+];
+
+const ALL_UNITS = "__all__";
+
 /** The season a new row should default to: the first one still sellable. */
 const defaultSeasonId = (seasons: CalendarSeason[]): string => seasons[0]?.calendar_season_id ?? "";
+
 
 export function RatePlanStayShapeSection({
   draft,
