@@ -431,9 +431,10 @@ export function RatePlanStayShapeSection({
                     </Button>
                   </div>
                   <p className={`text-[11px] ${invalid ? "text-destructive" : "text-muted-foreground"}`}>
-                    {seasonName(cell.calendar_season_id)} ·{" "}
+                    {windowLabel(cell)} ·{" "}
                     {preview.text ?? (invalid ? "incomplete row" : "unpriced — set the daily first")}
                   </p>
+
                 </div>
               );
             })}
