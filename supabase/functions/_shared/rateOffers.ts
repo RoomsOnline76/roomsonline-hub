@@ -166,3 +166,76 @@ export function offerEligibility(plan: OfferPlan, stay: OfferStay): OfferEligibi
 export function eligibleOffers(plans: OfferPlan[], stay: OfferStay): OfferPlan[] {
   return plans.filter((plan) => offerEligibility(plan, stay).eligible);
 }
+
+export interface OfferVerdict {
+  plan: OfferPlan;
+  eligibility: OfferEligibility;
+}
+
+/**
+ * Every plan with its verdict, kept in the order given. The caller publishes the
+ * eligible ones as bookable rates and the rest as "why not" rows, so a guest is
+ * never left with an empty list and no explanation.
+ */
+export function offerVerdicts(plans: OfferPlan[], stay: OfferStay): OfferVerdict[] {
+  return plans.map((plan) => ({ plan, eligibility: offerEligibility(plan, stay) }));
+}
+
+/** Guest-facing sentence for a rejection reason. */
+export function offerReasonText(v: OfferEligibility): string | null {
+  switch (v.reason) {
+    case "min_stay":
+      return `Needs at least ${v.min_stay} night${v.min_stay === 1 ? "" : "s"}`;
+    case "max_stay":
+      return v.max_stay ? `Allows at most ${v.max_stay} night${v.max_stay === 1 ? "" : "s"}` : "Stay is too long";
+    case "closed_to_arrival":
+      return "No arrivals on this date";
+    case "closed_to_departure":
+      return "No departures on this date";
+    case "unit":
+      return "Not sold for this room";
+    default:
+      return null;
+  }
+}
+
+const eachDate = (fromIso: string, toIso: string): string[] => {
+  const out: string[] = [];
+  const end = Date.parse(`${toIso}T00:00:00Z`);
+  for (let t = Date.parse(`${fromIso}T00:00:00Z`); t <= end; t += 86_400_000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return out;
+};
+
+const clampedWindowDates = (w: OfferWindow, fromIso: string, toIso: string): string[] => {
+  const start = w.start_date && w.start_date > fromIso ? w.start_date : fromIso;
+  const end = w.end_date && w.end_date < toIso ? w.end_date : toIso;
+  if (start > end) return [];
+  return eachDate(start, end);
+};
+
+/**
+ * Dates inside [from, to] on which a guest may not arrive / depart, for the
+ * windows that apply to this unit. Lets the date picker grey them out instead of
+ * silently dropping the offer.
+ */
+export function closedDates(
+  windows: OfferWindow[],
+  unitId: string | null,
+  fromIso: string,
+  toIso: string,
+): { arrival: string[]; departure: string[] } {
+  const arrival = new Set<string>();
+  const departure = new Set<string>();
+  for (const w of windows) {
+    if (w.room_type_id && unitId && String(w.room_type_id) !== String(unitId)) continue;
+    if (!w.closed_to_arrival && !w.closed_to_departure) continue;
+    for (const d of clampedWindowDates(w, fromIso, toIso)) {
+      if (w.closed_to_arrival) arrival.add(d);
+      if (w.closed_to_departure) departure.add(d);
+    }
+  }
+  return { arrival: [...arrival].sort(), departure: [...departure].sort() };
+}
+

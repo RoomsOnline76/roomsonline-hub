@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
-import { effectiveMinStay, eligibleOffers, offerEligibility, type OfferPlan, type OfferStay, stayRuleWindow } from "./rateOffers.ts";
+import { closedDates, effectiveMinStay, eligibleOffers, offerEligibility, offerReasonText, offerVerdicts, type OfferPlan, type OfferStay, stayRuleWindow } from "./rateOffers.ts";
 
 const UNIT = "unit-1";
 
@@ -103,4 +103,33 @@ Deno.test("closed to arrival blocks the offer inside the window", () => {
   const verdict = offerEligibility(plan, { from: "2026-04-03", to: "2026-04-05", nights: 3, room_type_id: "u1" });
   assertEquals(verdict.eligible, false);
   assertEquals(verdict.reason, "closed_to_arrival");
+});
+
+Deno.test("rejected plans keep their reason, and closed dates are enumerated", () => {
+  const plans = [
+    plan({ rate_plan_id: "open" }),
+    plan({ rate_plan_id: "three", min_stay: 3 }),
+  ];
+  const verdicts = offerVerdicts(plans, stay(2));
+  assertEquals(verdicts.map((v) => v.eligibility.eligible), [true, false]);
+  assertEquals(offerReasonText(verdicts[1].eligibility), "Needs at least 3 nights");
+
+  const closed = closedDates(
+    [{ start_date: "2026-04-02", end_date: "2026-04-04", closed_to_arrival: true, closed_to_departure: false }],
+    UNIT,
+    "2026-04-01",
+    "2026-04-30",
+  );
+  assertEquals(closed.arrival, ["2026-04-02", "2026-04-03", "2026-04-04"]);
+  assertEquals(closed.departure, []);
+});
+
+Deno.test("closed dates ignore windows scoped to another unit", () => {
+  const closed = closedDates(
+    [{ start_date: "2026-04-02", end_date: "2026-04-02", room_type_id: "other", closed_to_departure: true }],
+    UNIT,
+    "2026-04-01",
+    "2026-04-30",
+  );
+  assertEquals(closed.departure, []);
 });

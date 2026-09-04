@@ -927,8 +927,14 @@ const Booking = () => {
       // Try preloaded availability from sessionStorage first (set by PropertyShowcase)
       let availability = availabilityData;
       // Skip sessionStorage preload for live-API PMS systems — preloaded data only has today's snapshot,
-      // not the full booking date range, which causes zero-rate calculations ("On Request")
-      const skipPreload = ['hostfully', 'benson', 'hotelbeds', 'hyperguest'].includes(externalSystem || '');
+      // not the full booking date range, which causes zero-rate calculations ("On Request").
+      // Also skip it for any real search: the preload carries no rate-plan offers or stay
+      // rules, so using it would quote a stay the engine may refuse.
+      const todayIso = format(new Date(), 'yyyy-MM-dd');
+      const skipPreload = ['hostfully', 'benson', 'hotelbeds', 'hyperguest'].includes(externalSystem || '')
+        || checkIn !== todayIso
+        || nights > 1;
+
       if (!availability && property?.id && !skipPreload) {
         try {
           const preloaded = sessionStorage.getItem(`avail_preload_${property.id}`);
@@ -1679,10 +1685,48 @@ const Booking = () => {
     }
   }, [property?.id, rooms, selectedRateType, checkIn, checkOut, propertyCharges, ageVerified, selectedSpecialId]);
 
+  // The stay rules the backend published for the rooms in the cart. The browser
+  // must refuse a stay the engine would reject, rather than quoting it and
+  // failing at the till.
+  const availabilityRoomBlock = useCallback((roomTypeId: string, roomTypeName?: string) => {
+    const list: any[] = (availabilityData as any)?.room_types || (availabilityData as any)?.roomTypes || [];
+    return list.find((rt: any) =>
+      String(rt.room_type_id ?? rt.id) === String(roomTypeId) ||
+      (rt.room_type_name || rt.name || '').toLowerCase() === (roomTypeName || '').toLowerCase()
+    );
+  }, [availabilityData]);
+
+  const stayRuleBlocks = useMemo(() => {
+    if (!checkIn || !checkOut || nights <= 0) return [] as string[];
+    const problems: string[] = [];
+    for (const room of rooms) {
+      const block = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
+      if (!block) continue;
+      const label = block.room_type_name || block.name || room.roomTypeName || 'this room';
+      const offers: any[] = Array.isArray(block.rate_types) ? block.rate_types : [];
+      const chosen = offers.find((o: any) => String(o.rate_type_id ?? o.rateTypeId) === String(room.rateTypeId)) || offers[0];
+      const min = chosen?.min_stay ? Number(chosen.min_stay) : null;
+      const max = chosen?.max_stay ? Number(chosen.max_stay) : null;
+      if (min && nights < min) problems.push(`${label} needs at least ${min} night${min === 1 ? '' : 's'}`);
+      if (max && nights > max) problems.push(`${label} allows at most ${max} night${max === 1 ? '' : 's'}`);
+      const noArrive: string[] = block.closed_to_arrival_dates || [];
+      const noDepart: string[] = block.closed_to_departure_dates || [];
+      const ci = room.checkIn || checkIn;
+      const co = room.checkOut || checkOut;
+      if (noArrive.includes(ci)) problems.push(`${label} takes no arrivals on ${format(parseISO(ci), 'd MMM')}`);
+      if (noDepart.includes(co)) problems.push(`${label} takes no departures on ${format(parseISO(co), 'd MMM')}`);
+    }
+    return [...new Set(problems)];
+  }, [rooms, checkIn, checkOut, nights, availabilityRoomBlock]);
+
   // Form validation for required fields
   const isFormValid = guestName.trim().length >= 2 && 
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) && 
-    guestPhone.trim().length >= 10;
+    guestPhone.trim().length >= 10 &&
+    stayRuleBlocks.length === 0;
+
+
+
 
   // Get list of missing required fields for tooltip
   const getMissingFields = (): string[] => {
@@ -1690,7 +1734,9 @@ const Booking = () => {
     if (guestName.trim().length < 2) missing.push("Full name (min 2 characters)");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) missing.push("Valid email address");
     if (guestPhone.trim().length < 10) missing.push("Phone number (min 10 digits)");
+    missing.push(...stayRuleBlocks);
     return missing;
+
   };
 
   const missingFields = getMissingFields();
@@ -1918,11 +1964,7 @@ const Booking = () => {
   // Rate plans on offer for a room, given the searched stay length. The backend
   // only publishes plans whose minimum-stay rules accept this stay.
   const offersForRoom = useCallback((room: RoomBooking) => {
-    const list: any[] = availabilityData?.room_types || availabilityData?.roomTypes || [];
-    const match = list.find((rt: any) =>
-      String(rt.room_type_id ?? rt.id) === String(room.roomTypeId) ||
-      (rt.room_type_name || rt.name || '').toLowerCase() === (room.roomTypeName || '').toLowerCase()
-    );
+    const match = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
     const rateTypes: any[] = match?.rate_types || match?.rateTypes || [];
     return rateTypes.map((rt: any) => {
       const rates: any[] = Array.isArray(rt.rates) ? rt.rates : [];
@@ -1934,11 +1976,27 @@ const Booking = () => {
         id: String(rt.rate_type_id ?? rt.rateTypeId ?? ''),
         name: rt.rate_type_name || rt.rateTypeName || 'Rate',
         minStay: rt.min_stay ? Number(rt.min_stay) : null,
+        maxStay: rt.max_stay ? Number(rt.max_stay) : null,
         perNight,
         total,
       };
     }).filter((o) => o.id);
-  }, [availabilityData]);
+  }, [availabilityRoomBlock]);
+
+  /** Plans this stay just misses, with the reason the backend gave. */
+  const unavailableOffersForRoom = useCallback((room: RoomBooking) => {
+    const match = availabilityRoomBlock(room.roomTypeId, room.roomTypeName);
+    const rows: any[] = Array.isArray(match?.unavailable_rates) ? match.unavailable_rates : [];
+    return rows
+      .map((r: any) => ({
+        id: String(r.rate_type_id ?? ''),
+        name: r.rate_type_name || 'Rate',
+        reason: r.reason_text || 'Not available for these dates',
+      }))
+      .filter((r) => r.id);
+  }, [availabilityRoomBlock]);
+
+
 
   // Update room
   const updateRoom = (index: number, field: keyof RoomBooking, value: string | number) => {
@@ -2653,8 +2711,9 @@ const Booking = () => {
                   {/* Rate plan offers available for this stay length */}
                   {(() => {
                     const offers = offersForRoom(room);
-                    if (offers.length < 2) return null;
-                    const activeId = room.rateTypeId || offers[0].id;
+                    const unavailable = unavailableOffersForRoom(room);
+                    if (offers.length < 2 && unavailable.length === 0) return null;
+                    const activeId = room.rateTypeId || offers[0]?.id;
                     return (
                       <div className="space-y-1.5">
                         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rate options</p>
@@ -2674,9 +2733,13 @@ const Booking = () => {
                               >
                                 <span className="min-w-0">
                                   <span className="block truncate font-medium">{offer.name}</span>
-                                  {offer.minStay && offer.minStay > 1 && (
-                                    <span className="text-[10px] text-muted-foreground">Min {offer.minStay} nights</span>
-                                  )}
+                                  {(offer.minStay && offer.minStay > 1) || offer.maxStay ? (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {offer.minStay && offer.minStay > 1 ? `Min ${offer.minStay} nights` : ''}
+                                      {offer.minStay && offer.minStay > 1 && offer.maxStay ? ' · ' : ''}
+                                      {offer.maxStay ? `Max ${offer.maxStay} nights` : ''}
+                                    </span>
+                                  ) : null}
                                 </span>
                                 {offer.total > 0 && (
                                   <span className="shrink-0 text-right text-sm font-semibold">
@@ -2686,10 +2749,20 @@ const Booking = () => {
                               </button>
                             );
                           })}
+                          {unavailable.map((offer) => (
+                            <div
+                              key={`na-${offer.id}`}
+                              className="flex items-center justify-between gap-3 rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground"
+                            >
+                              <span className="block truncate">{offer.name}</span>
+                              <span className="shrink-0 text-[11px]">{offer.reason}</span>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     );
                   })()}
+
 
 
 
@@ -3156,7 +3229,16 @@ const Booking = () => {
         {/* ── Sticky Footer CTA ── */}
         <div className="fixed bottom-0 left-0 right-0 lg:static lg:mt-6 border-t lg:border-t-0 border-border p-3 sm:p-4 bg-card/98 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:pb-4 z-40">
           <div className="max-w-2xl mx-auto">
+            {stayRuleBlocks.length > 0 && (
+              <div className="mb-2 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive space-y-0.5">
+                {stayRuleBlocks.map((msg) => (
+                  <p key={msg}>{msg}</p>
+                ))}
+                <p className="text-muted-foreground">Adjust your dates to continue.</p>
+              </div>
+            )}
             <Button
+
               onClick={() => createBookingMutation.mutate()}
               disabled={createBookingMutation.isPending || !isFormValid}
               className="w-full h-12 text-base font-medium rounded-xl gap-2"
