@@ -70,6 +70,7 @@ const defaultSeasonId = (seasons: CalendarSeason[]): string => seasons[0]?.calen
 export function RatePlanStayShapeSection({
   draft,
   seasons,
+  units,
   dispatch,
   issues,
   ruPushFsp,
@@ -80,6 +81,10 @@ export function RatePlanStayShapeSection({
   const seasonName = useCallback(
     (id: string) => seasons.find((s) => s.calendar_season_id === id)?.name ?? "Season",
     [seasons],
+  );
+  const unitName = useCallback(
+    (id: string) => units.find((u) => u.id === id)?.name ?? "Unit",
+    [units],
   );
 
   const setFlag = useCallback(
@@ -102,6 +107,70 @@ export function RatePlanStayShapeSection({
     </Select>
   );
 
+  const scopeSelect = (value: LadderScope, onChange: (next: LadderScope) => void) => (
+    <Select value={value} onValueChange={(v) => onChange(v as LadderScope)}>
+      <SelectTrigger className="h-9" aria-label="Applies to">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {SCOPES.map((s) => (
+          <SelectItem key={s.value} value={s.value}>
+            {s.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  const unitSelect = (value: string, onChange: (next: string) => void) => (
+    <Select value={value || ALL_UNITS} onValueChange={(v) => onChange(v === ALL_UNITS ? "" : v)}>
+      <SelectTrigger className="h-9" aria-label="Unit">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL_UNITS}>All units</SelectItem>
+        {units.map((u) => (
+          <SelectItem key={u.id} value={u.id}>
+            {u.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  /** Dates + optional minimum stay, shown only when the row is scoped to dates. */
+  const datedFields = (
+    row: { start_date: string; end_date: string; min_stay_nights: string },
+    patch: (next: Partial<{ start_date: string; end_date: string; min_stay_nights: string }>) => void,
+  ) => (
+    <>
+      <Input
+        className="h-9"
+        type="date"
+        value={row.start_date}
+        aria-label="From date"
+        onChange={(e) => patch({ start_date: e.target.value })}
+      />
+      <Input
+        className="h-9"
+        type="date"
+        value={row.end_date}
+        aria-label="To date"
+        onChange={(e) => patch({ end_date: e.target.value })}
+      />
+      <Input
+        className="h-9"
+        type="number"
+        min={1}
+        step={1}
+        value={row.min_stay_nights}
+        placeholder="Min nights"
+        aria-label="Minimum stay for this window"
+        onChange={(e) => patch({ min_stay_nights: e.target.value })}
+      />
+    </>
+  );
+
   const offsetSelect = (value: DerivationType, onChange: (next: DerivationType) => void) => (
     <Select value={value} onValueChange={(v) => onChange(v as DerivationType)}>
       <SelectTrigger className="h-9">
@@ -118,6 +187,24 @@ export function RatePlanStayShapeSection({
   );
 
   const noSeasons = seasons.length === 0;
+
+  /** What the row applies to, spelled out under the inputs. */
+  const windowLabel = (row: {
+    scope: LadderScope;
+    calendar_season_id: string;
+    start_date: string;
+    end_date: string;
+    room_type_id: string;
+  }) => {
+    const window =
+      row.scope === "dates"
+        ? row.start_date && row.end_date
+          ? `${row.start_date} → ${row.end_date}`
+          : "Pick the dates"
+        : seasonName(row.calendar_season_id);
+    return row.room_type_id ? `${window} · ${unitName(row.room_type_id)}` : window;
+  };
+
 
   return (
     <div className="space-y-6">
