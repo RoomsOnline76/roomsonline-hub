@@ -223,14 +223,19 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           // "no ladder" — never a toast, never a blocked editor.
           supabase
             .from("rolos_rate_plan_los_rungs")
-            .select("calendar_season_id, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+            .select(
+              "calendar_season_id, room_type_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate, min_stay_nights",
+            )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
           supabase
             .from("rolos_rate_plan_fsp_cells")
-            .select("calendar_season_id, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+            .select(
+              "calendar_season_id, room_type_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total, min_stay_nights",
+            )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
+
         ]);
 
 
