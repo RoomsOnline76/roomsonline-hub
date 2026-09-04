@@ -18,3 +18,13 @@ describe("stayQuotedTotal", () => {
     expect(stayQuotedTotal({ shape: "full_stay", stay_total: 0 }, 7000)).toBe(7000);
   });
 });
+
+describe("stayQuotedTotal — server-authoritative totals", () => {
+  it("uses the stay total when the server marks it authoritative", () => {
+    expect(stayQuotedTotal({ shape: "los_nightly", stay_total: 2400, total_authoritative: true }, 3000)).toBe(2400);
+  });
+
+  it("ignores an authoritative flag with no usable total", () => {
+    expect(stayQuotedTotal({ shape: "los_nightly", stay_total: 0, total_authoritative: true }, 3000)).toBe(3000);
+  });
+});

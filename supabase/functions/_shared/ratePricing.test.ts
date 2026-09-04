@@ -6,6 +6,7 @@ import {
   resolveNightRates,
   resolveStayRules,
   seasonForDate,
+  stayTotalForModel,
   type PricingInputs,
 } from "./ratePricing.ts";
 import { compressToPeriods, normalizePriceWindow, type DayRate, type UnitRateContext } from "./rateResolution.ts";
@@ -330,4 +331,17 @@ Deno.test("differential arithmetic", () => {
   // A differential that would zero or invert the rate is ignored.
   assertEquals(applyDifferential(1000, "amount", -1000), 1000);
   assertEquals(applyDifferential(1000, "percent", -150), 1000);
+});
+
+Deno.test("per_person guest tiers are billed by the engine when the plan publishes them", () => {
+  const nightlyRates = [1000, 1000];
+  // 1 adult → tier 1, 2 adults → tier 2, extras at the extra-adult rate.
+  assertEquals(stayTotalForModel("per_person", { nightlyRates, adults: 1, adult1Rate: 700, adult2Rate: 1200 }), 1400);
+  assertEquals(stayTotalForModel("per_person", { nightlyRates, adults: 2, adult1Rate: 700, adult2Rate: 1200 }), 2400);
+  assertEquals(
+    stayTotalForModel("per_person", { nightlyRates, adults: 3, adult1Rate: 700, adult2Rate: 1200, extraAdultRate: 500 }),
+    3400,
+  );
+  // No tiers published → today's guests x nightly maths.
+  assertEquals(stayTotalForModel("per_person", { nightlyRates, adults: 2 }), 4000);
 });

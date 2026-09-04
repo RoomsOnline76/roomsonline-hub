@@ -752,6 +752,10 @@ export interface OccupancyInput {
   extraAdultRate?: number;
   childRate?: number;
   teenRate?: number;
+  /** Single-occupancy amount for one adult (per-person plans). */
+  adult1Rate?: number;
+  /** Amount covering two adults (per-person plans). */
+  adult2Rate?: number;
   /** Rooms/units booked; only used by per_room / per_unit. */
   units?: number;
 }
@@ -759,7 +763,8 @@ export interface OccupancyInput {
 /**
  * Stay total for a pricing model.
  *  - per_room / per_unit  → nightly rate x nights x units
- *  - per_person           → nightly rate x guests x nights (+ child/teen rates)
+ *  - per_person           → adult tiers when the plan publishes them, else
+ *                           nightly rate x guests x nights (+ child/teen rates)
  *  - per_person_sharing   → nightly rate covers 2 guests, extras at extraAdultRate
  */
 export function stayTotalForModel(raw: unknown, input: OccupancyInput): number {
@@ -770,6 +775,8 @@ export function stayTotalForModel(raw: unknown, input: OccupancyInput): number {
   const teens = Math.max(0, input.teens ?? 0);
   const children = Math.max(0, input.children ?? 0);
   const units = Math.max(1, input.units ?? 1);
+  const adult1 = positive(input.adult1Rate);
+  const adult2 = positive(input.adult2Rate);
 
   let total = 0;
   for (const rate of input.nightlyRates) {
@@ -781,6 +788,20 @@ export function stayTotalForModel(raw: unknown, input: OccupancyInput): number {
     if (model === "per_person") {
       const teenCharge = teens * (input.teenRate ?? nightly);
       const childCharge = children * (input.childRate ?? nightly);
+      // Guest-tier amounts are what checkout bills, so the engine owns the same
+      // ladder: 1 adult → tier 1, 2 adults → tier 2, extras at the extra rate.
+      if (adult1 || adult2) {
+        const t1 = adult1 ?? nightly;
+        const t2 = adult2 ?? t1 * 2;
+        const extraRate = input.extraAdultRate ?? t1;
+        const adultCharge = adults <= 0
+          ? 0
+          : adults === 1
+            ? t1
+            : t2 + Math.max(0, adults - 2) * extraRate;
+        total += adultCharge + teenCharge + childCharge;
+        continue;
+      }
       total += nightly * adults + teenCharge + childCharge;
       continue;
     }
@@ -817,6 +838,8 @@ export interface StayQuoteInput {
   extraAdultRate?: number;
   childRate?: number;
   teenRate?: number;
+  adult1Rate?: number;
+  adult2Rate?: number;
 }
 
 export interface StayQuote {
@@ -888,6 +911,8 @@ export function stayQuote(
     extraAdultRate: stay.extraAdultRate,
     childRate: stay.childRate,
     teenRate: stay.teenRate,
+    adult1Rate: stay.adult1Rate,
+    adult2Rate: stay.adult2Rate,
     units: stay.units,
   });
 

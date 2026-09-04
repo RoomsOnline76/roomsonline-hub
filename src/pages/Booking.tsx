@@ -1016,6 +1016,39 @@ const Booking = () => {
         }];
       }
 
+      // ── Server stay quote ────────────────────────────────────────────
+      // The engine owns the accommodation total (length-of-stay ladders, full-stay
+      // cells and guest-tier amounts), so the browser never re-derives it. A quote
+      // that comes back empty (external PMS, no rate plan) keeps today's maths.
+      const serverQuotes = new Map<string, any>();
+      try {
+        const { data: quoteRes } = await supabase.functions.invoke("booking-orchestrator-api", {
+          body: {
+            action: "quote_stay",
+            property_id: property.id,
+            rooms: rooms.map((r) => ({
+              room_type_id: r.roomTypeId,
+              room_type_name: r.roomTypeName,
+              rate_type_id: r.rateTypeId || selectedRateType || undefined,
+              check_in: r.checkIn || checkIn,
+              check_out: r.checkOut || checkOut,
+              adults: r.numberOfAdults,
+              teens: r.numberOfTeens,
+              children: r.numberOfChildren,
+              units: 1,
+            })),
+          },
+        });
+        const quoted = (quoteRes?.data ?? quoteRes)?.rooms;
+        if (Array.isArray(quoted)) {
+          for (const q of quoted) {
+            if (Number(q?.accommodation_total) > 0) serverQuotes.set(String(q.room_type_id), q);
+          }
+        }
+      } catch (e) {
+        console.warn('[Booking] server stay quote unavailable, using published rates:', e);
+      }
+
       // Calculate cost for each room
       for (const room of rooms) {
         // Use room's custom dates or fall back to main booking dates
@@ -1191,6 +1224,9 @@ const Booking = () => {
           });
           // Full Stay plans price the whole stay; nightly/LOS keep the sum.
           totalRoomAmount = stayQuotedTotal(rateType.stay_quote, totalRoomAmount);
+          // The server quote is authoritative when it priced this room.
+          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          if (serverQuote) totalRoomAmount = Number(serverQuote.accommodation_total);
 
           if (totalRoomAmount > 0) {
             lineItems.push({
@@ -1202,6 +1238,19 @@ const Booking = () => {
             });
             runningTotal += totalRoomAmount;
           }
+        } else if (serverQuotes.get(String(room.roomTypeId))) {
+          // Per-person plan already priced by the engine (adult/teen/child tiers
+          // included) — publish it as one accommodation line, never re-derived here.
+          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          const serverTotal = Number(serverQuote.accommodation_total);
+          lineItems.push({
+            description: `${room.roomTypeName} (${roomTotalGuests} guests)`,
+            nights: roomNights,
+            quantity: 1,
+            unitPrice: serverTotal / roomNights,
+            total: serverTotal,
+          });
+          runningTotal += serverTotal;
         } else {
           // Per person pricing - sum rates for each date in range
           let totalAdultAmount = 0;
@@ -2057,6 +2106,45 @@ const Booking = () => {
 
       if (rooms.length === 0) {
         throw new Error(`At least one ${accommodationLabel.singular.toLowerCase()} is required`);
+      }
+
+      // ── Re-derive the accommodation total from the engine before charging ──
+      // The guest may only pay what the server currently quotes for this stay.
+      try {
+        const { data: quoteRes } = await supabase.functions.invoke("booking-orchestrator-api", {
+          body: {
+            action: "quote_stay",
+            property_id: property!.id,
+            rooms: rooms.map((r) => ({
+              room_type_id: r.roomTypeId,
+              room_type_name: r.roomTypeName,
+              rate_type_id: r.rateTypeId || selectedRateType || undefined,
+              check_in: r.checkIn || checkIn,
+              check_out: r.checkOut || checkOut,
+              adults: r.numberOfAdults,
+              teens: r.numberOfTeens,
+              children: r.numberOfChildren,
+              units: 1,
+            })),
+          },
+        });
+        const quoted = (quoteRes?.data ?? quoteRes);
+        const serverAccommodation = Number(quoted?.total || 0);
+        const quotedRooms = Array.isArray(quoted?.rooms) ? quoted.rooms.length : 0;
+        if (quotedRooms === rooms.length && serverAccommodation > 0) {
+          const shownAccommodation = costBreakdown
+            .filter((i) => i.nights > 0 && i.total > 0)
+            .reduce((sum, i) => sum + i.total, 0);
+          if (Math.abs(shownAccommodation - serverAccommodation) > 1) {
+            await calculateCost();
+            throw new Error("The price for these dates has just changed — please review the updated total and try again.");
+          }
+        }
+      } catch (e) {
+        // A quote the server cannot produce must not block a booking it already
+        // priced; only a real mismatch stops the payment.
+        if (e instanceof Error && e.message.startsWith("The price for these dates")) throw e;
+        console.warn('[Booking] pre-payment re-quote skipped:', e);
       }
 
       // Use calculated total cost or pre-selected total
