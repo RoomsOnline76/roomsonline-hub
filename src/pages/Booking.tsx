@@ -1915,6 +1915,31 @@ const Booking = () => {
     }
   };
 
+  // Rate plans on offer for a room, given the searched stay length. The backend
+  // only publishes plans whose minimum-stay rules accept this stay.
+  const offersForRoom = useCallback((room: RoomBooking) => {
+    const list: any[] = availabilityData?.room_types || availabilityData?.roomTypes || [];
+    const match = list.find((rt: any) =>
+      String(rt.room_type_id ?? rt.id) === String(room.roomTypeId) ||
+      (rt.room_type_name || rt.name || '').toLowerCase() === (room.roomTypeName || '').toLowerCase()
+    );
+    const rateTypes: any[] = match?.rate_types || match?.rateTypes || [];
+    return rateTypes.map((rt: any) => {
+      const rates: any[] = Array.isArray(rt.rates) ? rt.rates : [];
+      const perNight = Number(rt.stay_quote?.display_per_night ?? rates[0]?.room_amount ?? 0);
+      const total = Number(
+        rt.stay_quote?.stay_total ?? rates.reduce((s: number, r: any) => s + Number(r.room_amount || 0), 0)
+      );
+      return {
+        id: String(rt.rate_type_id ?? rt.rateTypeId ?? ''),
+        name: rt.rate_type_name || rt.rateTypeName || 'Rate',
+        minStay: rt.min_stay ? Number(rt.min_stay) : null,
+        perNight,
+        total,
+      };
+    }).filter((o) => o.id);
+  }, [availabilityData]);
+
   // Update room
   const updateRoom = (index: number, field: keyof RoomBooking, value: string | number) => {
     const newRooms = [...rooms];
@@ -1924,12 +1949,14 @@ const Booking = () => {
         ...newRooms[index],
         roomTypeId: String(value),
         roomTypeName: roomType?.name || '',
+        rateTypeId: undefined,
       };
     } else {
       newRooms[index] = { ...newRooms[index], [field]: value };
     }
     setRooms(newRooms);
   };
+
 
   // Increment/decrement guest count
   const adjustGuestCount = (roomIndex: number, field: 'numberOfAdults' | 'numberOfTeens' | 'numberOfChildren' | 'numberOfInfants' | 'numberOfPets', delta: number) => {
