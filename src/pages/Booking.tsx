@@ -2648,7 +2648,50 @@ const Booking = () => {
                         ))}
                       </SelectContent>
                     </Select>
-           )}
+            )}
+
+                  {/* Rate plan offers available for this stay length */}
+                  {(() => {
+                    const offers = offersForRoom(room);
+                    if (offers.length < 2) return null;
+                    const activeId = room.rateTypeId || offers[0].id;
+                    return (
+                      <div className="space-y-1.5">
+                        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Rate options</p>
+                        <div className="grid gap-1.5">
+                          {offers.map((offer) => {
+                            const isActive = String(activeId) === offer.id;
+                            return (
+                              <button
+                                key={offer.id}
+                                type="button"
+                                onClick={() => updateRoom(index, 'rateTypeId', offer.id)}
+                                className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                                  isActive
+                                    ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))]/10'
+                                    : 'border-border hover:border-[hsl(var(--primary))]/50'
+                                }`}
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium">{offer.name}</span>
+                                  {offer.minStay && offer.minStay > 1 && (
+                                    <span className="text-[10px] text-muted-foreground">Min {offer.minStay} nights</span>
+                                  )}
+                                </span>
+                                {offer.total > 0 && (
+                                  <span className="shrink-0 text-right text-sm font-semibold">
+                                    <FormattedPrice amount={offer.total} />
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+
 
           {/* Specials Banner */}
           {property?.id && (
