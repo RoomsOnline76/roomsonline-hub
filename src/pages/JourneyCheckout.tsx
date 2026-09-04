@@ -19,6 +19,7 @@ import { PaymentMethodSelector } from "@/components/booking/PaymentMethodSelecto
 import { useActivePaymentGateways } from "@/hooks/useActivePaymentGateway";
 import type { PaymentGateway } from "@/hooks/useActivePaymentGateway";
 import { sortStaysChronologically } from "@/lib/journeyUtils";
+import { journeyRequoteMismatch, journeyRequoteMessage, type JourneyStayQuote } from "@/lib/journeyRequote";
 import { usePropertiesPaymentModes } from "@/hooks/usePropertyPaymentMode";
 import { resolveReservationTerms } from "@/lib/reservationTerms";
 import { reservationHoldExpiry } from "@/lib/paymentMode";
@@ -260,6 +261,49 @@ export default function JourneyCheckout() {
       const isAvailable = await handleValidateAvailability();
       if (!isAvailable) {
         setIsSubmitting(false);
+        return;
+      }
+
+      // Step 1b: Re-quote every stay before charging. A journey is planned once and
+      // paid later, so a rate, package or special that has moved in between must stop
+      // the payment rather than charge the stale total.
+      const requotes: JourneyStayQuote[] = [];
+      for (const stay of sortedStays) {
+        try {
+          const { data: quoteRes } = await supabase.functions.invoke("booking-orchestrator-api", {
+            body: {
+              action: "quote_stay",
+              property_id: stay.property_id,
+              rooms: (stay.rooms || []).map((room) => ({
+                room_type_id: room.room_type_id,
+                room_type_name: room.room_type_name,
+                rate_type_id: stay.rate_type_id || undefined,
+                check_in: stay.dates.check_in,
+                check_out: stay.dates.check_out,
+                adults: stay.guests.adults,
+                children: stay.guests.children || 0,
+                units: room.quantity || 1,
+              })),
+            },
+          });
+          const quoted = quoteRes?.data ?? quoteRes;
+          const quotedRooms = Array.isArray(quoted?.rooms) ? quoted.rooms.length : 0;
+          const serverNet = Number(quoted?.net_total ?? quoted?.total ?? 0);
+          requotes.push({
+            stayId: stay.id,
+            propertyName: stay.property_name,
+            shownNet: Number(stay.price_breakdown?.subtotal ?? stay.price_breakdown?.total ?? 0),
+            serverNet: quotedRooms === (stay.rooms || []).length && serverNet > 0 ? serverNet : null,
+          });
+        } catch (e) {
+          console.warn("[JourneyCheckout] re-quote skipped for", stay.property_name, e);
+        }
+      }
+      const stale = journeyRequoteMismatch(requotes);
+      if (stale) {
+        toast.error(journeyRequoteMessage(stale));
+        setIsSubmitting(false);
+        navigate("/journey/review");
         return;
       }
 

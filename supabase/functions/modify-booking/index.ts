@@ -14,6 +14,8 @@ import {
 
 import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import { rolModifyQuote, type RolModifyQuote } from "../_shared/rolModifyQuote.ts";
+import { loadStayDiscounts } from "../_shared/loadStayDiscounts.ts";
+import type { DiscountLine } from "../_shared/stayDiscounts.ts";
 
 import {
   logRateParity,
@@ -158,7 +160,9 @@ async function resolveBookingRatePlan(supabase: any, booking: any): Promise<Reso
  *
  * Nights are resolved one by one (daily override → plan season rate → calendar season →
  * relational season → rack), so a stay that spans a season boundary is priced correctly instead
- * of taking a single season's rate for the whole stay.
+ * of taking a single season's rate for the whole stay. The engine's package and special pass then
+ * runs on the accommodation subtotal — money follows the new stay, so a guest who moves dates keeps
+ * the discount the new stay qualifies for instead of being repriced gross.
  */
 async function recalculateRolPrice(
   supabase: any,
@@ -167,12 +171,16 @@ async function recalculateRolPrice(
 ): Promise<
   {
     total: number;
+    gross_total: number;
+    discount_total: number;
+    discounts: DiscountLine[];
     rate_plan_id: string;
     nightly: number | null;
     source: string | null;
     shape: "nightly" | "los_nightly" | "full_stay";
   } | null
 > {
+
   const plan = await resolveBookingRatePlan(supabase, booking);
   if (!plan) return null;
 
@@ -254,25 +262,57 @@ async function recalculateRolPrice(
     nightly = nights > 0 ? Math.round((rounded / nights) * 100) / 100 : null;
   }
 
+  /* Packages and specials are decided by the engine, on the new stay's own subtotal.
+   * A stay that no longer qualifies loses the discount; one that does keeps it. */
+  let discountTotal = 0;
+  let discountLines: DiscountLine[] = [];
+  if (booking.property_id) {
+    try {
+      const res = await loadStayDiscounts(supabase, booking.property_id, {
+        checkIn,
+        checkOut,
+        subtotal: rounded,
+        rooms: roomCount,
+        roomIds: roomTypeId ? [roomTypeId] : [],
+        ratePlanIds: [plan.id],
+      });
+      discountTotal = res.discount_total;
+      discountLines = res.lines;
+    } catch (e) {
+      console.warn("[modify-booking] discount pass failed:", (e as Error).message);
+    }
+  }
+  const netTotal = Math.round(Math.max(0, rounded - discountTotal) * 100) / 100;
+
   try {
     const parityRows: ParityRow[] = [{
       property_id: booking.property_id,
       room_type_id: roomTypeId,
       rate_plan_id: plan.id,
       stay_date: checkIn,
-      resolved_rate: rounded,
+      resolved_rate: netTotal,
       resolved_tier: source,
       legacy_rate: Number(booking.total_price ?? 0),
       legacy_tier: "modify_booking_previous_total",
-      notes: { nights, pricing_model: model, metric: "stay_total", shape },
+      notes: { nights, pricing_model: model, metric: "stay_total", shape, gross: rounded, discount_total: discountTotal },
     }];
     await logRateParity(supabase, "modify-booking", parityRows);
   } catch (_e) {
     // Parity logging must never block a reprice.
   }
 
-  return { total: rounded, rate_plan_id: plan.id, nightly, source, shape };
+  return {
+    total: netTotal,
+    gross_total: rounded,
+    discount_total: discountTotal,
+    discounts: discountLines,
+    rate_plan_id: plan.id,
+    nightly,
+    source,
+    shape,
+  };
 }
+
 
 
 
@@ -654,7 +694,7 @@ Deno.serve(async (req) => {
         repricedShape = { shape: repriced.shape, source: repriced.source, stay_total: repriced.total };
 
         console.log(
-          `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source})`,
+          `[modify-booking] repriced ${booking.id}: ${booking.total_price} → ${repriced.total} (plan ${repriced.rate_plan_id}, tier ${repriced.source}, gross ${repriced.gross_total}, discounts ${repriced.discount_total})`,
         );
       } else if (operatorAccommodation === undefined) {
         // No plan and no operator price means we would leave a stale total behind — refuse
