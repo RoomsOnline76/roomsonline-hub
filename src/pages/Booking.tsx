@@ -1037,6 +1037,8 @@ const Booking = () => {
               children: r.numberOfChildren,
               units: 1,
             })),
+            age_verified: ageVerified,
+            selected_special_id: selectedSpecialId ?? undefined,
           },
         });
         const quoted = (quoteRes?.data ?? quoteRes)?.rooms;
