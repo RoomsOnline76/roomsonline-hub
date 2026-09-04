@@ -206,3 +206,29 @@ Deno.test("one unpriced night makes the stay unpriced, even with a matching FSP 
   assertEquals(q.stay_total, 0);
   assertEquals(q.nightly, []);
 });
+
+// ---------------------------------------------------------------------------
+// 5. Dated windows (event weekends)
+// ---------------------------------------------------------------------------
+
+Deno.test("a dated rung fires only for a stay inside its window", () => {
+  const p = plan({ los_enabled: true });
+  const dated = rung({
+    calendar_season_id: null,
+    start_date: "2026-09-01",
+    end_date: "2026-09-30",
+    nights: 3,
+    derivation_value: -10,
+  });
+
+  const inside = stayQuote(inputs(p, { losRungs: [dated] }), hut, p, stay3);
+  assertEquals(inside.shape, "los_nightly");
+  assertEquals(inside.nightly, [900, 900, 900]);
+
+  const outside = stayQuote(inputs(p, { losRungs: [dated] }), hut, p, {
+    from: "2026-10-10",
+    to: "2026-10-13",
+    adults: 2,
+  });
+  assertEquals(outside.shape, "nightly");
+});
