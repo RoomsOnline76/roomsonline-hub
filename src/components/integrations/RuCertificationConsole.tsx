@@ -24,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { queueChannelDiscountSync } from "@/lib/channelContentSync";
 import { extractFunctionError } from "@/lib/functionError";
 import { useRuRunCooldown } from "@/hooks/useRuRunCooldown";
 
@@ -786,19 +787,31 @@ export function RuCertificationConsole({
       is_active: true,
     });
     if (error) toast.error(error.message);
-    else { toast.success("Discount rule added"); loadDiscounts(); loadLadder(); }
+    else {
+      toast.success("Discount rule added");
+      void queueChannelDiscountSync(propertyId, "discount_rule_added", { manual: true });
+      loadDiscounts();
+      loadLadder();
+    }
   };
 
   const toggleDiscount = async (row: DiscountRow, next: boolean) => {
     const { error } = await supabase.from("ru_discounts").update({ is_active: next }).eq("id", row.id);
     if (error) toast.error(error.message);
-    else setDiscounts((prev) => prev.map((d) => (d.id === row.id ? { ...d, is_active: next } : d)));
+    else {
+      setDiscounts((prev) => prev.map((d) => (d.id === row.id ? { ...d, is_active: next } : d)));
+      void queueChannelDiscountSync(propertyId, "discount_rule_toggled", { manual: true });
+    }
   };
 
   const deleteDiscount = async (row: DiscountRow) => {
     const { error } = await supabase.from("ru_discounts").delete().eq("id", row.id);
     if (error) toast.error(error.message);
-    else { setDiscounts((prev) => prev.filter((d) => d.id !== row.id)); toast.success("Removed"); }
+    else {
+      setDiscounts((prev) => prev.filter((d) => d.id !== row.id));
+      toast.success("Removed");
+      void queueChannelDiscountSync(propertyId, "discount_rule_removed", { manual: true });
+    }
   };
 
   const selectedEp = USER_ENDPOINTS.find((e) => e.key === pgEndpoint);

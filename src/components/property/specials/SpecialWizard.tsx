@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { queueChannelDiscountSync } from "@/lib/channelContentSync";
 import { useReservationPolicies, type ReservationPolicy } from "@/hooks/useReservationPolicies";
 import { usePortfolioSiblings } from "@/hooks/usePortfolioSiblings";
 import { usePortfolioPolicies } from "@/hooks/usePortfolioPolicies";
@@ -342,6 +343,9 @@ export const SpecialWizard: React.FC<SpecialWizardProps> = ({
         if (copyError) console.error("[SpecialWizard] copy to property failed", targetId, copyError);
         else copied++;
       }
+
+      void queueChannelDiscountSync(propertyId, "special_created");
+      for (const [targetId] of targets) void queueChannelDiscountSync(targetId, "special_copied");
 
       toast.success(copied ? `Special created and copied to ${copied} propert${copied === 1 ? "y" : "ies"}` : "Special created");
       onSaved();
