@@ -302,10 +302,16 @@ export function deriveChangedChannelFields(
   if (!before || !after) return [];
   const seen = new Set<string>();
   const changed: ChangedChannelField[] = [];
+  const liveIds = liveUnitIds(after);
   for (const spec of FIELD_SPECS) {
-    const nextValue = readPath(after, spec.path);
+    let nextValue = readPath(after, spec.path);
     if (nextValue === undefined) continue;
-    if (sameValue(readPath(before, spec.path), nextValue)) continue;
+    let priorValue = readPath(before, spec.path);
+    if (spec.path === "amenities.changeover_by_unit") {
+      nextValue = pruneByUnit(nextValue, liveIds);
+      priorValue = pruneByUnit(priorValue, liveIds);
+    }
+    if (sameValue(priorValue, nextValue)) continue;
     const dedupeKey = `${spec.section}:${spec.label}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
