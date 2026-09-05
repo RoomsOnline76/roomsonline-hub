@@ -1574,8 +1574,6 @@ const RU_KITCHEN_ITEM_IDS = [2, 3, 17, 124, 125, 130, 131, 157, 94];
  * dining room") — otherwise ROLOS says kitchenette and the OTA says separate kitchen.
  */
 const RU_SEPARATE_KITCHEN_IDS = [101, 102, 135, 1262];
-/** Truthful default flavour for a property that only declares "own kitchen". */
-const RU_FULLY_EQUIPPED_KITCHEN_ID = 135;
 const RU_OPEN_KITCHEN_IDS = [94, 157];
 /** Composition room id to use for the kitchen block, or null when no kitchen is declared. */
 function resolveKitchenRoomId(
@@ -1701,11 +1699,11 @@ function buildUnitPayload(
     };
     pushComposition(81, bathroomCount);
     pushComposition(37, toiletCount);
-    // A bare flag means "this unit has its own kitchen": publish it as a fully equipped
-    // kitchen (135), never as bare 101 — the channel renders 101 as "Separate kitchen",
-    // a stronger claim than the property made.
+    // The unit's kitchen tick and the "Separate kitchen" amenity are one fact, so a bare
+    // flag publishes 101 — the same id the composition block uses and the same box the
+    // owner sees ticked in ROLOS.
     if (comp.separateKitchen && resolveKitchenRoomId(unitAmenities, true) === 101) {
-      pushComposition(RU_FULLY_EQUIPPED_KITCHEN_ID, 1);
+      pushComposition(101, 1);
     }
 
   }
@@ -1917,7 +1915,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     push(81, singleComp.bathrooms);
     push(37, singleComp.toilets);
     if (singleComp.separateKitchen && resolveKitchenRoomId(singleAmenities as any, true) === 101) {
-      push(RU_FULLY_EQUIPPED_KITCHEN_ID, 1);
+      push(101, 1);
     }
   }
   // RU renders the Composition panel from these blocks, so bathrooms and toilets need one
