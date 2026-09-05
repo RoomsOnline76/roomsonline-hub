@@ -286,6 +286,9 @@ export function LiveTrafficFrame({ popped = false }: Props) {
                         <p className="truncate text-muted-foreground">
                           {spec ? `${RU_ENDPOINT_FAMILY_LABELS[spec.family]} · ${RU_ENDPOINT_CADENCE_LABELS[spec.cadence]}` : "Unregistered endpoint"}
                           {row.parent_action ? ` · ${row.parent_action}` : ""}
+                          {/* Two accounts polled in the same cadence look like duplicate calls
+                              unless the account they were made as is on the row. */}
+                          {row.ru_owner_id ? ` · account ${row.ru_owner_id}` : ""}
                         </p>
                         <p className="truncate font-mono text-[11px] text-muted-foreground">
                           {(row.request_xml ?? "").slice(0, 160) || "no payload retained"}
