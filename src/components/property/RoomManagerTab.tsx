@@ -139,6 +139,9 @@ export function RoomManagerTab({
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
   const [kitchenAmenityOpen, setKitchenAmenityOpen] = useState(false);
+  /** Which bathroom's amenity list is open (0-based), or null when closed. */
+  const [bathroomAmenityIndex, setBathroomAmenityIndex] = useState<number | null>(null);
+
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
   const [aiPropertyAmenityOpen, setAiPropertyAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
