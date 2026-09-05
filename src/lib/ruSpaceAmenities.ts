@@ -10,7 +10,7 @@
 
 import type { RuAmenity } from "@/lib/ruAmenities";
 
-export type RuSpaceKind = "bedroom" | "living" | "kitchen";
+export type RuSpaceKind = "bedroom" | "living" | "kitchen" | "bathroom";
 
 /** Categories offered per space, taken from the curated `ru_amenities.category` values. */
 export const RU_SPACE_CATEGORIES: Record<RuSpaceKind, string[]> = {
@@ -32,12 +32,14 @@ export const RU_SPACE_CATEGORIES: Record<RuSpaceKind, string[]> = {
     "Accessibility",
   ],
   kitchen: ["Kitchen & Dining", "Laundry & Cleaning"],
+  bathroom: ["Bathroom", "Laundry & Cleaning", "Heating & Cooling", "Accessibility"],
 };
 
 export const RU_SPACE_LABELS: Record<RuSpaceKind, string> = {
   bedroom: "this bedroom",
   living: "this living area",
   kitchen: "the kitchen",
+  bathroom: "this bathroom",
 };
 
 /**
