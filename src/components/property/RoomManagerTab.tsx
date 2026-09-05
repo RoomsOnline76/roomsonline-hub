@@ -1706,6 +1706,29 @@ export function RoomManagerTab({
               })()}
             </div>
 
+            <Dialog open={kitchenAmenityOpen} onOpenChange={setKitchenAmenityOpen}>
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>What's in the kitchen</DialogTitle>
+                  <DialogDescription>
+                    Tick the cooking, dining and cleaning items guests can actually use. The list is narrowed to
+                    kitchen items only — these are saved with the unit's amenities.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                  <RUAmenityPicker
+                    value={ensureArray(roomTypes.find((r) => r.id === selectedRoomType)?.amenities) as string[]}
+                    space="kitchen"
+                    minimum={0}
+                    onChange={(next) => {
+                      updateRoomTypeField(selectedRoomType, "amenities", next);
+                      updateRoomTypeField(selectedRoomType, "separateKitchen", hasSeparateKitchen(next));
+                    }}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {propertyId && selectedRoomType && (
               <AiAmenityDialog
                 open={aiUnitAmenityOpen}
