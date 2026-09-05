@@ -32,6 +32,7 @@ import {
 import { listDeclaresKitchen } from "@/config/propertyFieldRequirements";
 import { ruToken } from "@/lib/ruAmenities";
 import { hasSeparateKitchen, withSeparateKitchen } from "@/lib/ruKitchen";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageQualityMarker } from "@/components/property/ImageQualityMarker";
 import RuImageTagPicker from "@/components/property/RuImageTagPicker";
 import { findMainImageUrl, moveImageFirst, normalizeRuImageTagMap, setMainImageUrl } from "@/lib/ruImageTags";
@@ -137,6 +138,7 @@ export function RoomManagerTab({
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [isRoomImageUploading, setIsRoomImageUploading] = useState(false);
+  const [kitchenAmenityOpen, setKitchenAmenityOpen] = useState(false);
   const [aiUnitAmenityOpen, setAiUnitAmenityOpen] = useState(false);
   const [aiPropertyAmenityOpen, setAiPropertyAmenityOpen] = useState(false);
   const channelTypes = useChannelPropertyTypes();
@@ -1177,6 +1179,26 @@ export function RoomManagerTab({
                       <Label htmlFor={`sep-kitchen-${selectedRoomType}`} className="text-[10px] cursor-pointer">
                         Separate
                       </Label>
+                      {(() => {
+                        const amenities = ensureArray(
+                          roomTypes.find((r) => r.id === selectedRoomType)?.amenities,
+                        ) as string[];
+                        const declared =
+                          listDeclaresKitchen(amenities) ||
+                          !!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen;
+                        if (!declared) return null;
+                        return (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-1.5 text-[10px]"
+                            onClick={() => setKitchenAmenityOpen(true)}
+                          >
+                            What's in it
+                          </Button>
+                        );
+                      })()}
                     </div>
                   </div>
 

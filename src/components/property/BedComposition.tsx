@@ -250,6 +250,7 @@ export function BedComposition({
             </DialogTitle>
             <DialogDescription>
               Pick only what this room itself holds — an en-suite bathroom, air-conditioning, a TV, a safe. The
+              list is already narrowed to things that belong in a sleeping space. The
               unit's own amenity list stays separate, and these travel with this room when the listing is sent out.
             </DialogDescription>
           </DialogHeader>
@@ -257,6 +258,7 @@ export function BedComposition({
             <div className="max-h-[65vh] overflow-y-auto pr-1">
               <RUAmenityPicker
                 value={bedRoomAmenities(groups[amenityGroupIndex])}
+                space={groups[amenityGroupIndex].slot.kind === "living" ? "living" : "bedroom"}
                 minimum={0}
                 onChange={(next) => setGroupAmenities(amenityGroupIndex, next)}
               />
