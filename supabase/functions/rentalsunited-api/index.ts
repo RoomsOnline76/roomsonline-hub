@@ -20,6 +20,7 @@ import {
   isGenericDestination,
   normalizeDestinationName,
   type RuDistanceEntry,
+  toChannelDistance,
 } from '../_shared/ruDistances.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -1216,7 +1217,11 @@ function buildPushPropertyXml(creds: RUCredentials, propertyId: number, prop: RU
   // entries all collapsed to 0).
   const distancesXml = distanceEntries.length > 0
     ? `\n    <Distances>\n${distanceEntries
-        .map((d) => `      <Distance>\n        <DestinationID>${Number(d.destination_id)}</DestinationID>\n        <DistanceUnitID>1</DistanceUnitID>\n        <DistanceValue>${(Math.round(Number(d.value) * 10) / 10).toFixed(1)}</DistanceValue>\n      </Distance>`)
+        .map((d) => {
+          // Unit 1 is metres on the channel side; our stored value is kilometres.
+          const wire = toChannelDistance(Number(d.value))!;
+          return `      <Distance>\n        <DestinationID>${Number(d.destination_id)}</DestinationID>\n        <DistanceUnitID>${wire.unit_id}</DistanceUnitID>\n        <DistanceValue>${wire.value}</DistanceValue>\n      </Distance>`;
+        })
         .join('\n')}\n    </Distances>`
     : '';
 
