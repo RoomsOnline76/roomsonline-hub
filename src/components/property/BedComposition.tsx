@@ -60,6 +60,9 @@ export function BedComposition({
   /** Which sleeping space is having its own amenities edited. */
   const [amenityGroupIndex, setAmenityGroupIndex] = useState<number | null>(null);
 
+  /** Channel catalogue — resolves stored amenity tokens to names for the hover list. */
+  const { resolve: resolveAmenities, loading: amenitiesLoading } = useRuAmenityCatalogue();
+
   const setGroupAmenities = useCallback(
     (groupIndex: number, amenities: string[]) =>
       commit(
