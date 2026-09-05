@@ -4713,8 +4713,9 @@ Deno.serve(async (req) => {
      */
 
 
-    // Persist resolved geo+currency for re-use & audit (skip on dry runs).
-    if (!dry_run) {
+    // Persist resolved geo+currency for re-use & audit (skip on dry runs, and never let an
+    // ARI/discount push — which resolves no location — overwrite a good cached mapping).
+    if (!dry_run && locationId > 1) {
       await persistRuPropertyMapping(supabase, property_id, {
         ru_location_id: locationId,
         ru_currency_id: currencyId,
@@ -4722,6 +4723,7 @@ Deno.serve(async (req) => {
         coords_hash: coordsHash,
       });
     }
+
 
     // ── Currency authority (decided AFTER sub-user auth is resolved) ───────
     // RU applies a location's currency to the authenticating account, so the flip must be
