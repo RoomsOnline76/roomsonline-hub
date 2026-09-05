@@ -217,13 +217,50 @@ export function BedComposition({
           {/* What THIS room holds — separate from the unit's amenity list. */}
           <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border/50 pt-2">
             <span className="text-[10px] text-muted-foreground">In this room:</span>
-            {bedRoomAmenities(group).length === 0 ? (
-              <span className="text-[10px] text-muted-foreground">nothing added yet</span>
-            ) : (
-              <Badge variant="secondary" className="text-[10px]">
-                {bedRoomAmenities(group).length} amenit{bedRoomAmenities(group).length === 1 ? "y" : "ies"}
-              </Badge>
-            )}
+            {(() => {
+              const tokens = bedRoomAmenities(group);
+              const resolved = resolveAmenities(tokens);
+              if (tokens.length === 0) {
+                return <span className="text-[10px] text-muted-foreground">nothing added yet</span>;
+              }
+              return (
+                <HoverCard openDelay={120} closeDelay={60}>
+                  <HoverCardTrigger asChild>
+                    <Badge
+                      variant="secondary"
+                      className="cursor-default text-[10px]"
+                      title={resolved.map((a) => a.label).join(", ")}
+                    >
+                      {tokens.length} amenit{tokens.length === 1 ? "y" : "ies"}
+                    </Badge>
+                  </HoverCardTrigger>
+                  <HoverCardContent align="start" className="w-64 p-2.5 space-y-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {bedRoomSlotLabel(group.slot, livingCount)} — loaded amenities
+                    </p>
+                    {amenitiesLoading ? (
+                      <p className="text-[11px] text-muted-foreground">Loading names…</p>
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {resolved.map((a) => (
+                          <li
+                            key={a.raw}
+                            className="flex items-center justify-between gap-2 text-[11px] leading-tight"
+                          >
+                            <span className={a.unmapped ? "text-muted-foreground italic" : "text-foreground"}>
+                              {a.label}
+                            </span>
+                            {a.count > 1 && (
+                              <span className="text-[10px] text-muted-foreground">×{a.count}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            })()}
             <Button
               type="button"
               variant="outline"
