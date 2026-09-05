@@ -1488,7 +1488,10 @@ const Booking = () => {
             if (minStay > 0 && nights < minStay) continue;
 
             if (pkg.package_price && pkg.package_price > 0) {
-              const discount = runningTotal - pkg.package_price;
+              // A package price replaces the accommodation, never the property
+              // charges — same basis the engine uses.
+              const pkgAccommodation = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+              const discount = pkgAccommodation - pkg.package_price;
               if (discount > 0) {
                 appliedPromos.push({
                   name: pkg.name || 'Package Deal',
