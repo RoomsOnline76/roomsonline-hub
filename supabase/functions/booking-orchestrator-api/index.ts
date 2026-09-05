@@ -985,10 +985,12 @@ async function quoteStayForRooms(
     return res;
   };
 
-  const normalized = (rooms || []).map((room: any) => {
+  const normalized = (rooms || []).map((room: any, requestIndex: number) => {
     const checkIn = String(room?.check_in ?? "");
     const checkOut = String(room?.check_out ?? "");
     return {
+      // Position in the caller's cart — two rooms of the same type must stay distinct.
+      request_index: requestIndex,
       room_type_id: String(room?.room_type_id ?? ""),
       room_type_name: room?.room_type_name ? String(room.room_type_name) : null,
       rate_type_id: room?.rate_type_id ? String(room.rate_type_id) : null,
@@ -1051,6 +1053,7 @@ async function quoteStayForRooms(
     if (!quote || !(Number(quote.stay_total) > 0)) continue;
 
     results.push({
+      request_index: req.request_index,
       room_type_id: req.room_type_id,
       rate_type_id: plan ? String(plan.id) : null,
       rate_type_name: plan?.name ?? null,

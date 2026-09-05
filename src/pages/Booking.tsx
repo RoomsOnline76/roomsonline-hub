@@ -1020,7 +1020,9 @@ const Booking = () => {
       // The engine owns the accommodation total (length-of-stay ladders, full-stay
       // cells and guest-tier amounts), so the browser never re-derives it. A quote
       // that comes back empty (external PMS, no rate plan) keeps today's maths.
-      const serverQuotes = new Map<string, any>();
+      // Keyed by the room's position in the cart, so two rooms of the same type
+      // each keep their own quote (different guest counts price differently).
+      const serverQuotes = new Map<number, any>();
       try {
         const { data: quoteRes } = await supabase.functions.invoke("booking-orchestrator-api", {
           body: {
@@ -1043,16 +1045,17 @@ const Booking = () => {
         });
         const quoted = (quoteRes?.data ?? quoteRes)?.rooms;
         if (Array.isArray(quoted)) {
-          for (const q of quoted) {
-            if (Number(q?.accommodation_total) > 0) serverQuotes.set(String(q.room_type_id), q);
-          }
+          quoted.forEach((q: any, i: number) => {
+            const idx = Number.isFinite(Number(q?.request_index)) ? Number(q.request_index) : i;
+            if (Number(q?.accommodation_total) > 0) serverQuotes.set(idx, q);
+          });
         }
       } catch (e) {
         console.warn('[Booking] server stay quote unavailable, using published rates:', e);
       }
 
       // Calculate cost for each room
-      for (const room of rooms) {
+      for (const [roomIndex, room] of rooms.entries()) {
         // Use room's custom dates or fall back to main booking dates
         const roomCheckIn = room.checkIn || checkIn;
         const roomCheckOut = room.checkOut || checkOut;
@@ -1227,7 +1230,7 @@ const Booking = () => {
           // Full Stay plans price the whole stay; nightly/LOS keep the sum.
           totalRoomAmount = stayQuotedTotal(rateType.stay_quote, totalRoomAmount);
           // The server quote is authoritative when it priced this room.
-          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          const serverQuote = serverQuotes.get(roomIndex);
           if (serverQuote) totalRoomAmount = Number(serverQuote.accommodation_total);
 
           if (totalRoomAmount > 0) {
@@ -1240,10 +1243,10 @@ const Booking = () => {
             });
             runningTotal += totalRoomAmount;
           }
-        } else if (serverQuotes.get(String(room.roomTypeId))) {
+        } else if (serverQuotes.get(roomIndex)) {
           // Per-person plan already priced by the engine (adult/teen/child tiers
           // included) — publish it as one accommodation line, never re-derived here.
-          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          const serverQuote = serverQuotes.get(roomIndex);
           const serverTotal = Number(serverQuote.accommodation_total);
           lineItems.push({
             description: `${room.roomTypeName} (${roomTotalGuests} guests)`,
@@ -1485,7 +1488,10 @@ const Booking = () => {
             if (minStay > 0 && nights < minStay) continue;
 
             if (pkg.package_price && pkg.package_price > 0) {
-              const discount = runningTotal - pkg.package_price;
+              // A package price replaces the accommodation, never the property
+              // charges — same basis the engine uses.
+              const pkgAccommodation = lineItems.filter(i => i.nights > 0).reduce((s, i) => s + i.total, 0);
+              const discount = pkgAccommodation - pkg.package_price;
               if (discount > 0) {
                 appliedPromos.push({
                   name: pkg.name || 'Package Deal',
@@ -2145,7 +2151,14 @@ const Booking = () => {
             .reduce((sum, p) => sum + Number(p.discount || 0), 0);
           const shownNet = Math.max(0, shownAccommodation - shownDiscount);
           const serverNet = Number(quoted?.net_total ?? serverAccommodation);
-          if (Math.abs(shownNet - serverNet) > 1) {
+          const serverDiscount = Number(quoted?.discount_total || 0);
+          // The guard exists to catch a rate that moved, not a package or special
+          // the two sides read differently. When the discount stacks disagree we
+          // compare the gross accommodation instead of refusing the booking.
+          const discountsAgree = Math.abs(shownDiscount - serverDiscount) <= 1;
+          const shownFigure = discountsAgree ? shownNet : shownAccommodation;
+          const serverFigure = discountsAgree ? serverNet : serverAccommodation;
+          if (Math.abs(shownFigure - serverFigure) > 1) {
             await calculateCost();
             throw new Error("The price for these dates has just changed — please review the updated total and try again.");
           }
