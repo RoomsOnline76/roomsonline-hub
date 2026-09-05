@@ -126,7 +126,11 @@ export default function RUAmenityPicker({
     onChange(checked ? [...others, label] : others);
   }, [onChange, value]);
 
-  const scoped = useMemo(() => catalogue.filter((a) => inScope(a, scope)), [catalogue, scope]);
+  const scoped = useMemo(() => {
+    const inScopeList = catalogue.filter((a) => inScope(a, scope));
+    // One space at a time: a bedroom or kitchen browses only what can live there.
+    return space ? filterSpaceAmenities(inScopeList, space, selectedIds) : inScopeList;
+  }, [catalogue, scope, space, selectedIds]);
   const popular = useMemo(
     () => scoped.filter((a) => a.popular_rank != null)
       .sort((a, b) => (a.popular_rank ?? 0) - (b.popular_rank ?? 0)),
