@@ -53,9 +53,10 @@ export function withSingleKitchenFlavour(values: string[] | null | undefined, ke
 }
 
 /**
- * Add or remove the own-kitchen amenity so the list matches the flag. Turning the flag on
- * declares a fully equipped kitchen (135) — never bare 101 — and leaves an existing flavour
- * of the family alone. Turning it off clears the whole family.
+ * Add or remove the separate-kitchen amenity so the list matches the flag. The Rooms-tab
+ * tick and the "Separate kitchen" amenity are the same fact: turning the flag on ticks
+ * 101 itself (unless another flavour of the family is already chosen, which the channel
+ * publishes the same way), and turning it off clears the whole family.
  */
 export function withSeparateKitchen(values: string[] | null | undefined, on: boolean): string[] {
   const list = [...(values || [])];
@@ -63,6 +64,6 @@ export function withSeparateKitchen(values: string[] | null | undefined, on: boo
     (v) => !(isRuToken(v) && RU_SEPARATE_KITCHEN_FAMILY_IDS.includes(Number(ruTokenId(v)))),
   );
   if (!on) return without;
-  return hasSeparateKitchen(list) ? list : [...without, ruToken(RU_FULLY_EQUIPPED_KITCHEN_ID)];
+  return hasSeparateKitchen(list) ? list : [...without, ruToken(RU_SEPARATE_KITCHEN_ID)];
 }
 
