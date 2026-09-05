@@ -4679,11 +4679,14 @@ Deno.serve(async (req) => {
     } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
-    } else if (cached?.ru_location_id && skipLocationLookup) {
-      // A scoped delta that names no address/coordinate field cannot have moved the listing,
-      // so the cached LocationID stands and the channel lookups are pure cost.
-      locationId = Number(cached.ru_location_id);
-      console.log(`[push-property-to-ru] Reusing cached RU LocationID ${locationId} (delta carries no location field)`);
+    } else if (skipLocationLookup) {
+      // A scoped delta that names no address/coordinate field — and any price/availability/
+      // discount push, whose wire messages carry no LocationID at all — cannot have moved the
+      // listing, so the cached id (or none) stands and the channel lookups are pure cost.
+      locationId = Number(cached?.ru_location_id ?? 0);
+      console.log(
+        `[push-property-to-ru] Skipping channel location lookups (${action}) — using ${locationId || 'no'} cached LocationID`,
+      );
     } else {
       locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
@@ -4693,7 +4696,8 @@ Deno.serve(async (req) => {
     // Did the owner actually pick the Channel Manager location, or did we guess it?
     const locationAuthored = !!forceLocationId || Number((property as any).ru_location_id) > 1;
 
-    if (!locationId || locationId <= 1) {
+    if ((!locationId || locationId <= 1) && !nonContentAction) {
+
       return new Response(
         JSON.stringify({ success: false, error: { code: 'LOCATION_UNRESOLVED', message: `Could not resolve a Rentals United LocationID for this property. Coordinates: (${lat}, ${lng}), country: "${country || 'unset'}". Set valid coordinates or a supported country (ZA/NA/BW) before pushing.` } }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
