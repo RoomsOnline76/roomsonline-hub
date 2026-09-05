@@ -1701,11 +1701,11 @@ function buildUnitPayload(
     };
     pushComposition(81, bathroomCount);
     pushComposition(37, toiletCount);
-    // A bare flag means "this unit has its own kitchen": publish it as a fully equipped
-    // kitchen (135), never as bare 101 — the channel renders 101 as "Separate kitchen",
-    // a stronger claim than the property made.
+    // The unit's kitchen tick and the "Separate kitchen" amenity are one fact, so a bare
+    // flag publishes 101 — the same id the composition block uses and the same box the
+    // owner sees ticked in ROLOS.
     if (comp.separateKitchen && resolveKitchenRoomId(unitAmenities, true) === 101) {
-      pushComposition(RU_FULLY_EQUIPPED_KITCHEN_ID, 1);
+      pushComposition(101, 1);
     }
 
   }
