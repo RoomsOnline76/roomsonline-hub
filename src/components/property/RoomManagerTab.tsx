@@ -1691,17 +1691,39 @@ export function RoomManagerTab({
                 ) as string[];
                 const tick = (id: number) =>
                   updateRoomTypeField(selectedRoomType, "amenities", [...amenities, ruToken(id)]);
+                const hasKitchen =
+                  listDeclaresKitchen(amenities) ||
+                  !!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen;
                 return (
-                  <KitchenHint
-                    className="mt-2"
-                    selfCatering
-                    hasKitchen={
-                      listDeclaresKitchen(amenities) ||
-                      !!roomTypes.find((r) => r.id === selectedRoomType)?.separateKitchen
-                    }
-                    onTickKitchen={() => tick(101)}
-                    onTickKitchenette={() => tick(157)}
-                  />
+                  <>
+                    <KitchenHint
+                      className="mt-2"
+                      selfCatering
+                      hasKitchen={hasKitchen}
+                      onTickKitchen={() => tick(101)}
+                      onTickKitchenette={() => tick(157)}
+                    />
+                    {/* Once a kitchen flavour (fully equipped, kitchenette, separate …) is
+                        ticked, surface the kitchen-only amenity picker so the owner can list
+                        what is actually in it — cooking, dining and cleaning items. */}
+                    {hasKitchen && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          onClick={() => setKitchenAmenityOpen(true)}
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          What's in the kitchen
+                        </Button>
+                        <span className="text-[10px] text-muted-foreground">
+                          Tick the cooking, dining and cleaning items guests can use.
+                        </span>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
             </div>
