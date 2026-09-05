@@ -5124,9 +5124,17 @@ Deno.serve(async (req) => {
         const m = `${r.availability_error ?? ''} ${r.prices_error ?? ''}`.toLowerCase();
         return /failed to send a request|worker|boot|timeout|timed out|shutdown|network|fetch failed|connection/.test(m);
       };
+      // Price-only and availability-only deltas intentionally skip the untouched half. A skipped
+      // half is complete, not failed; treating `skipped_avb` as a missing push made every rate save
+      // retry five times even though PutPrices had already succeeded on the first attempt.
+      const targetOk = (r: Record<string, any>) => {
+        const availabilityOk = r.skipped_avb === true || (r.availability_pushed === true && !r.availability_error);
+        const pricesOk = r.skipped_prices === true || (r.prices_pushed === true && !r.prices_error);
+        return availabilityOk && pricesOk;
+      };
       const retryIdx = ariResults
         .map((r, i) => ({ r, i }))
-        .filter(({ r }) => (r.availability_pushed !== true || r.availability_error || r.prices_error) && isTransport(r))
+        .filter(({ r }) => !targetOk(r) && isTransport(r))
         .map(({ i }) => i);
       if (retryIdx.length > 0) {
         await new Promise((res) => setTimeout(res, 4000));
@@ -5134,7 +5142,7 @@ Deno.serve(async (req) => {
           const t = targets[i];
           console.warn(`[push-property-to-ru] Transport failure on "${t.label}" — second pass`);
           const r2 = await pushARI(supabase, t.ru_id, property as PropertyRow, t.units, t.unit, childAuthPayload, currencyDecision, readbackOptions, { ...ariRequestOptions, forceAvailability: true });
-          if (r2.availability_pushed === true && !r2.availability_error && !r2.prices_error) {
+          if (targetOk(r2)) {
             ariResults[i] = { target: t.label, ru_property_id: t.ru_id, stale_listing: false, second_pass: true, ...r2 };
           } else {
             ariResults[i] = { ...ariResults[i], second_pass: true, second_pass_error: r2.availability_error || r2.prices_error || 'retry failed' };
@@ -5143,9 +5151,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      const allOk = ariResults.every((r) => r.availability_pushed === true && !r.availability_error && !r.prices_error);
+      const allOk = ariResults.every(targetOk);
       const staleCount = ariResults.filter((r) => r.stale_listing).length;
-      const failedTargets = ariResults.filter((r) => r.availability_pushed !== true || r.availability_error || r.prices_error);
+      const failedTargets = ariResults.filter((r) => !targetOk(r));
       const failedCount = failedTargets.length;
       const allStale = !allOk && staleCount > 0 && staleCount === failedCount;
       // After retries, a 5xx or transport-level failure from the channel API is an upstream/runtime
