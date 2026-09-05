@@ -865,7 +865,12 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   // --- Restrictions --------------------------------------------------------
   await sb.from("rolos_stay_restrictions").delete().eq("rate_plan_id", planId).eq("source", "rate_plan");
   const minStay = intOrNull(draft.min_stay);
-  const maxStay = intOrNull(draft.max_stay);
+  const rawMaxStay = intOrNull(draft.max_stay);
+  // 0 (and anything below the minimum) means "no upper limit" — storing it would
+  // trip the max_stay >= min_stay check and silently drop the restriction row.
+  const maxStay = rawMaxStay !== null && rawMaxStay > 0 && (minStay === null || rawMaxStay >= minStay)
+    ? rawMaxStay
+    : null;
   if (minStay || maxStay) {
     const { error: resErr } = await sb.from("rolos_stay_restrictions").insert({
       property_id: propertyId,
