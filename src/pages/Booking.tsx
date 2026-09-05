@@ -2151,7 +2151,14 @@ const Booking = () => {
             .reduce((sum, p) => sum + Number(p.discount || 0), 0);
           const shownNet = Math.max(0, shownAccommodation - shownDiscount);
           const serverNet = Number(quoted?.net_total ?? serverAccommodation);
-          if (Math.abs(shownNet - serverNet) > 1) {
+          const serverDiscount = Number(quoted?.discount_total || 0);
+          // The guard exists to catch a rate that moved, not a package or special
+          // the two sides read differently. When the discount stacks disagree we
+          // compare the gross accommodation instead of refusing the booking.
+          const discountsAgree = Math.abs(shownDiscount - serverDiscount) <= 1;
+          const shownFigure = discountsAgree ? shownNet : shownAccommodation;
+          const serverFigure = discountsAgree ? serverNet : serverAccommodation;
+          if (Math.abs(shownFigure - serverFigure) > 1) {
             await calculateCost();
             throw new Error("The price for these dates has just changed — please review the updated total and try again.");
           }
