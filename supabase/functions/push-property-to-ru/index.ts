@@ -191,6 +191,8 @@ interface ListingVerification {
   verified_units?: number;
   expected_units?: number;
   unmatched?: string[];
+  /** Set when the read-back was deliberately not performed (no new listing ids). */
+  skipped_reason?: string;
   owner?: string | null;
   listing_status?: { scope: string; name: string; ru_property_id: string | null; status: string; owner_label?: string }[];
   error?: string;
@@ -233,7 +235,18 @@ async function verifyListingsAfterPush(
    * internal call for this read-only action.
    */
   callerAuthHeader?: string | null,
+  /**
+   * Read-backs cost a `Pull_ListOwnerProp_RQ`. They are only meaningful when this push could
+   * have changed which listing ids exist — a create, an adoption, or a dead-id recreation. A
+   * content-only delta (amenities, descriptions, images) pushes to ids we already hold, so
+   * reading the owner's listing list back would be unattributed channel traffic.
+   */
+  opts: { listingIdsChanged?: boolean } = {},
 ): Promise<ListingVerification> {
+  if (opts.listingIdsChanged === false) {
+    console.log('[push-property-to-ru] Content-only delta — listing ids unchanged, skipping the listing read-back');
+    return { verified: true, skipped_reason: 'content_delta_no_new_listing_ids' } as ListingVerification;
+  }
   // Phase 2 ledger: a successful push invalidates the publish and currency grades.
   // Bookkeeping only — never allowed to affect the push outcome.
   await markLedgerStaleForScope(supabase, { propertyId }, ["publish", "currency"], "push_succeeded");
@@ -5635,6 +5648,8 @@ Deno.serve(async (req) => {
             name: unit.name,
             room_type_id: unit.id,
             success: ruIdNum > 0 && !ariResult.availability_error && !ariResult.prices_error,
+            // A listing id only needs reading back when this push minted or adopted one.
+            listing_id_is_new: existingUnitRuId === 0 || staleIdError || String(existingUnitRuId) !== String(unitRuId ?? ''),
             rentalsunited_property_id: unitRuId,
             ari: ariResult,
             distances_skipped: pushResult?.distances_skipped ?? 0,
@@ -5771,7 +5786,11 @@ Deno.serve(async (req) => {
         }
 
         // The read-back follows the push automatically once the whole sequence is done.
-        const listingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
+        const listingVerification = inventorySuccess
+          ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization'), {
+              listingIdsChanged: unitResults.some((u: any) => u.listing_id_is_new === true),
+            })
+          : null;
         return new Response(
           JSON.stringify({
             success: inventorySuccess,
@@ -6039,6 +6058,7 @@ Deno.serve(async (req) => {
             name: unit.name,
             room_type_id: unit.id,
             success: !ariResult.availability_error && !ariResult.prices_error,
+            listing_id_is_new: existingUnitRuId === 0 || staleIdError || String(existingUnitRuId) !== String(unitRuId ?? ''),
             rentalsunited_property_id: unitRuId,
             distances_skipped: pushResult?.distances_skipped ?? 0,
             diagnostics: pushResult?.diagnostics,
@@ -6153,7 +6173,11 @@ Deno.serve(async (req) => {
         error_message: allUnitsPushed ? null : 'One or more units failed content, availability, or price sync',
         details: { ru_owner_id: ruOwnerId, owner_scope: phaseGate.owner_scope, verified: inventoryVerified, building_id: buildingId, units: unitResults },
       });
-      const buildingListingVerification = allUnitsPushed ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
+      const buildingListingVerification = allUnitsPushed
+        ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization'), {
+            listingIdsChanged: unitResults.some((u: any) => u.listing_id_is_new === true),
+          })
+        : null;
       return new Response(
         JSON.stringify({
           // Do not report success when RU rejected every unit — the pipeline must not
@@ -6393,7 +6417,11 @@ Deno.serve(async (req) => {
     }
 
 
-    const singleListingVerification = inventorySuccess ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization')) : null;
+    const singleListingVerification = inventorySuccess
+      ? await verifyListingsAfterPush(supabase, property_id, req.headers.get('Authorization'), {
+          listingIdsChanged: existingRuId === 0 || String(existingRuId) !== String(ruPropertyId ?? ''),
+        })
+      : null;
     return new Response(
       JSON.stringify({ success: inventorySuccess, status: inventorySuccess ? 'complete' : 'failed', ...(!inventorySuccess ? { error: { code: 'RU_INVENTORY_INCOMPLETE', message: 'Property content was sent, but availability or prices did not complete' } } : {}), ...(singleListingVerification ? { listing_verification: singleListingVerification } : {}), property_id, rentalsunited_property_id: ruPropertyId, message: inventorySuccess ? `Property "${property.name}" and inventory pushed to Rentals United successfully` : `Property "${property.name}" content pushed; inventory incomplete`, ...pushExtras }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
