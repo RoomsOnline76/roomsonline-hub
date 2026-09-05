@@ -1798,6 +1798,54 @@ export function RoomManagerTab({
               </DialogContent>
             </Dialog>
 
+            <Dialog
+              open={bathroomAmenityIndex !== null}
+              onOpenChange={(open) => !open && setBathroomAmenityIndex(null)}
+            >
+              <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                  <DialogTitle>
+                    What's in Bathroom {(bathroomAmenityIndex ?? 0) + 1}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Tick what this bathroom has. The list is narrowed to bathroom items only, and the
+                    selection is also kept with the unit's amenities so it is published.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="max-h-[65vh] overflow-y-auto pr-1">
+                  {(() => {
+                    const idx = bathroomAmenityIndex;
+                    if (idx === null) return null;
+                    const room = roomTypes.find((r) => r.id === selectedRoomType);
+                    const lists = (Array.isArray(room?.bathroomAmenities) ? room.bathroomAmenities : []) as string[][];
+                    const current = Array.isArray(lists[idx]) ? lists[idx] : [];
+                    return (
+                      <RUAmenityPicker
+                        value={current}
+                        space="bathroom"
+                        minimum={0}
+                        onChange={(next) => {
+                          const nextLists = Array.from(
+                            { length: Math.max(lists.length, idx + 1) },
+                            (_, i) => (i === idx ? next : (Array.isArray(lists[i]) ? lists[i] : [])),
+                          );
+                          updateRoomTypeField(selectedRoomType, "bathroomAmenities", nextLists);
+                          // Keep the unit's own set a superset, so nothing authored per bathroom
+                          // is dropped when the unit is published.
+                          const unit = ensureArray(room?.amenities) as string[];
+                          const merged = [...unit, ...next.filter((t) => !unit.includes(t))];
+                          if (merged.length !== unit.length) {
+                            updateRoomTypeField(selectedRoomType, "amenities", merged);
+                          }
+                        }}
+                      />
+                    );
+                  })()}
+                </div>
+              </DialogContent>
+            </Dialog>
+
+
             {propertyId && selectedRoomType && (
               <AiAmenityDialog
                 open={aiUnitAmenityOpen}
