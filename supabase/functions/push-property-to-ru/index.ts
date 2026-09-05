@@ -4884,7 +4884,9 @@ Deno.serve(async (req) => {
       });
       currencyId = RU_CCY_BY_ISO[currencyDecision.published_iso] ?? currencyId;
       console.log(`[push-property-to-ru] Currency decision (owner ${ruOwnerId}): publishing in ${currencyDecision.published_iso} (location ${locationId} holds ${currencyDecision.location_iso ?? 'unverified'}, flip: ${currencyDecision.flip_outcome})`);
+      }
     } catch (e) {
+
       console.warn('[push-property-to-ru] Currency decision failed, falling back to authored currency:', e instanceof Error ? e.message : e);
     }
 
