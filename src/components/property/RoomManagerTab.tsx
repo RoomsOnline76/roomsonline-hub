@@ -1731,6 +1731,50 @@ export function RoomManagerTab({
               })()}
             </div>
 
+            {(() => {
+              /* Per-bathroom amenities. The unit declares how many bathrooms it has, so each
+                 one gets its own short list (bathroom, cleaning, heating, accessibility items).
+                 The tokens are also merged into the unit's amenity set so the channel still
+                 publishes them — it has no per-bathroom block of its own. */
+              const room = roomTypes.find((r) => r.id === selectedRoomType);
+              const count = Math.max(0, Number(room?.bathrooms) || 0);
+              if (!count) return null;
+              const lists = (Array.isArray(room?.bathroomAmenities) ? room.bathroomAmenities : []) as string[][];
+              return (
+                <div className="mt-3 rounded-md border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="text-xs font-semibold">Bathrooms — what's in each one</h4>
+                    <span className="text-[10px] text-muted-foreground">
+                      Change the bath count on the Type tab to add or remove bathrooms.
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: count }, (_, i) => {
+                      const picked = Array.isArray(lists[i]) ? lists[i] : [];
+                      return (
+                        <Button
+                          key={i}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          onClick={() => setBathroomAmenityIndex(i)}
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-primary" />
+                          Bathroom {i + 1}
+                          <Badge variant="secondary" className="ml-1 h-4 px-1.5 text-[10px]">
+                            {picked.length}
+                          </Badge>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
+
+
             <Dialog open={kitchenAmenityOpen} onOpenChange={setKitchenAmenityOpen}>
               <DialogContent className="max-w-3xl">
                 <DialogHeader>
