@@ -20,6 +20,7 @@ import {
   ruToken,
   splitAmenityValues,
 } from "@/lib/ruAmenities";
+import { filterSpaceAmenities, type RuSpaceKind } from "@/lib/ruSpaceAmenities";
 
 export interface ExtraAmenityGroup {
   /** Section heading, e.g. "Activities & Experiences". */
@@ -35,6 +36,11 @@ interface RUAmenityPickerProps {
   disabled?: boolean;
   /** Which catalogue slice to offer. Defaults to unit/room level. */
   scope?: "unit" | "property";
+  /**
+   * Narrow the catalogue to one physical space (a bedroom, a living area, the kitchen)
+   * so the owner only sees amenities that can plausibly be in it.
+   */
+  space?: RuSpaceKind;
   /** Channel minimum shown in the readiness meter. Pass 0 to hide the meter. */
   minimum?: number;
   /** ROLOS-only facilities with no RU mapping, shown in their own section. */
@@ -56,6 +62,7 @@ export default function RUAmenityPicker({
   onChange,
   disabled,
   scope = "unit",
+  space,
   minimum,
   extraGroups,
   extrasOnly,
@@ -126,7 +133,11 @@ export default function RUAmenityPicker({
     onChange(checked ? [...others, label] : others);
   }, [onChange, value]);
 
-  const scoped = useMemo(() => catalogue.filter((a) => inScope(a, scope)), [catalogue, scope]);
+  const scoped = useMemo(() => {
+    const inScopeList = catalogue.filter((a) => inScope(a, scope));
+    // One space at a time: a bedroom or kitchen browses only what can live there.
+    return space ? filterSpaceAmenities(inScopeList, space, selectedIds) : inScopeList;
+  }, [catalogue, scope, space, selectedIds]);
   const popular = useMemo(
     () => scoped.filter((a) => a.popular_rank != null)
       .sort((a, b) => (a.popular_rank ?? 0) - (b.popular_rank ?? 0)),
