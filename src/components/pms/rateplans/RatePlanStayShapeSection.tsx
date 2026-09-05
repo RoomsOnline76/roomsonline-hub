@@ -10,6 +10,7 @@
 import { useCallback, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -92,19 +93,34 @@ export function RatePlanStayShapeSection({
     [dispatch],
   );
 
-  const seasonSelect = (value: string, onChange: (next: string) => void) => (
-    <Select value={value || undefined} onValueChange={onChange}>
-      <SelectTrigger className="h-9">
-        <SelectValue placeholder="Season" />
-      </SelectTrigger>
-      <SelectContent>
-        {seasons.map((s) => (
-          <SelectItem key={s.calendar_season_id} value={s.calendar_season_id}>
+  /**
+   * Tick boxes that link a row to one season. A row stores a single
+   * `calendar_season_id`, so ticking a season moves the link there; ticking the
+   * linked season again unlinks the row (it must be re-linked before Save).
+   */
+  const seasonTicks = (value: string, onChange: (next: string) => void) => (
+    <div
+      className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border px-3 py-2 md:col-span-full"
+      role="radiogroup"
+      aria-label="Link to season"
+    >
+      <span className="text-xs text-muted-foreground">Season:</span>
+      {seasons.map((s) => {
+        const id = s.calendar_season_id;
+        const checked = value === id;
+        return (
+          <label key={id} className="flex items-center gap-1.5 text-xs">
+            <Checkbox
+              checked={checked}
+              aria-label={`Link to ${s.name}`}
+              onCheckedChange={(v) => onChange(v === true ? id : checked ? "" : id)}
+            />
             {s.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+          </label>
+        );
+      })}
+      {!value && <span className="text-[11px] text-destructive">tick a season to link this row</span>}
+    </div>
   );
 
   const scopeSelect = (value: LadderScope, onChange: (next: LadderScope) => void) => (
@@ -242,7 +258,7 @@ export function RatePlanStayShapeSection({
                     {scopeSelect(rung.scope, (v) => patch({ scope: v }))}
                     {rung.scope === "dates"
                       ? datedFields(rung, patch)
-                      : seasonSelect(rung.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                      : seasonTicks(rung.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
                     {unitSelect(rung.room_type_id, (v) => patch({ room_type_id: v }))}
 
                     <Input
@@ -357,7 +373,7 @@ export function RatePlanStayShapeSection({
                     {scopeSelect(cell.scope, (v) => patch({ scope: v }))}
                     {cell.scope === "dates"
                       ? datedFields(cell, patch)
-                      : seasonSelect(cell.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
+                      : seasonTicks(cell.calendar_season_id, (v) => patch({ calendar_season_id: v }))}
                     {unitSelect(cell.room_type_id, (v) => patch({ room_type_id: v }))}
 
                     <Input
