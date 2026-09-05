@@ -124,3 +124,28 @@ describe("unit photo changes", () => {
     expect(labels).toContain("main photo");
   });
 });
+
+describe("changeover_by_unit staleness", () => {
+  const withRooms = (byUnit: Record<string, number>, roomId: string) => ({
+    amenities: {
+      room_types: [{ id: roomId, name: "Unit A" }],
+      changeover_by_unit: byUnit,
+    },
+  });
+
+  it("ignores overrides left behind by deleted units", () => {
+    const before = withRooms({ "old-unit": 3 }, "live-unit");
+    const after = withRooms({}, "live-unit");
+    expect(
+      deriveChangedChannelFields(before, after).map((f) => f.path),
+    ).not.toContain("amenities.changeover_by_unit");
+  });
+
+  it("still reports a real override change on a live unit", () => {
+    const before = withRooms({ "live-unit": 3 }, "live-unit");
+    const after = withRooms({ "live-unit": 0 }, "live-unit");
+    expect(
+      deriveChangedChannelFields(before, after).map((f) => f.path),
+    ).toContain("amenities.changeover_by_unit");
+  });
+});

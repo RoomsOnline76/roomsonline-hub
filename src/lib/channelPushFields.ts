@@ -220,6 +220,41 @@ function canonical(value: unknown): unknown {
   return text;
 }
 
+/**
+ * Unit ids the payload actually holds — `amenities.changeover_by_unit` is compared through this.
+ *
+ * The stored map is merged, never replaced, so an override left behind by a deleted unit stays in
+ * the row forever. The form rebuilds the map from the live units, so before/after never matched
+ * and *every* room save reported a changeover edit — which pushed availability and pulled the
+ * channel calendar back on a content-only change. Keys for units that no longer exist are dropped
+ * from both sides before comparing.
+ */
+function liveUnitIds(payload: Record<string, unknown> | null | undefined): Set<string> {
+  const rooms = readPath(payload, "amenities.room_types");
+  const ids = new Set<string>();
+  if (Array.isArray(rooms)) {
+    for (const room of rooms) {
+      if (room && typeof room === "object") {
+        const id = (room as Record<string, unknown>).id;
+        if (id !== null && id !== undefined && id !== "") ids.add(String(id));
+      }
+    }
+  }
+  return ids;
+}
+
+function pruneByUnit(value: unknown, liveIds: Set<string>): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  // No units in the payload means we cannot judge staleness — compare the map as authored.
+  if (liveIds.size === 0) return value;
+  const src = value as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(src)) {
+    if (liveIds.has(String(key))) out[key] = entry;
+  }
+  return out;
+}
+
 function sameValue(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   const empty = (v: unknown) => v === null || v === undefined || v === "";
@@ -267,10 +302,16 @@ export function deriveChangedChannelFields(
   if (!before || !after) return [];
   const seen = new Set<string>();
   const changed: ChangedChannelField[] = [];
+  const liveIds = liveUnitIds(after);
   for (const spec of FIELD_SPECS) {
-    const nextValue = readPath(after, spec.path);
+    let nextValue = readPath(after, spec.path);
     if (nextValue === undefined) continue;
-    if (sameValue(readPath(before, spec.path), nextValue)) continue;
+    let priorValue = readPath(before, spec.path);
+    if (spec.path === "amenities.changeover_by_unit") {
+      nextValue = pruneByUnit(nextValue, liveIds);
+      priorValue = pruneByUnit(priorValue, liveIds);
+    }
+    if (sameValue(priorValue, nextValue)) continue;
     const dedupeKey = `${spec.section}:${spec.label}`;
     if (seen.has(dedupeKey)) continue;
     seen.add(dedupeKey);
