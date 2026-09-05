@@ -17,6 +17,16 @@ export interface BedRoomSlot {
   /** 1-based index within its kind: Bedroom 1, Bedroom 2, Living area 1. */
   index: number;
   kind: "bedroom" | "living";
+  /**
+   * Amenities that belong to THIS sleeping space (`ru:<id>` tokens, same vocabulary as the
+   * unit picker). A unit's amenity list describes the whole unit; the channel also reviews
+   * what each bedroom itself holds (en-suite, air-conditioning, TV, safe), so those are
+   * authored per bedroom here and pushed inside that bedroom's composition block.
+   *
+   * Stored on the slot, which every bed of the space carries, so no schema change is needed
+   * and the value survives the legacy read/flatten round-trip untouched.
+   */
+  amenities?: string[];
 }
 
 /** A sleeping space with the beds authored inside it. */
@@ -136,13 +146,25 @@ export function hasBedConfiguration(config: string | BedEntry[] | undefined): bo
 }
 
 /** Read a stored slot, tolerating loose JSON coming back from the database. */
+/** Keep only non-empty string tokens, de-duplicated and order-stable. */
+export function readSlotAmenities(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const v of raw) {
+    const token = typeof v === "string" ? v.trim() : "";
+    if (token && !out.includes(token)) out.push(token);
+  }
+  return out;
+}
+
 function readSlot(raw: unknown): BedRoomSlot | null {
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as { index?: unknown; kind?: unknown };
   const index = Number(candidate.index);
   const kind = candidate.kind === "living" ? "living" : candidate.kind === "bedroom" ? "bedroom" : null;
   if (!kind || !Number.isFinite(index) || index < 1) return null;
-  return { index: Math.floor(index), kind };
+  const amenities = readSlotAmenities((raw as { amenities?: unknown }).amenities);
+  return { index: Math.floor(index), kind, ...(amenities.length > 0 ? { amenities } : {}) };
 }
 
 /**
@@ -162,8 +184,13 @@ export function groupBedsByRoom(config: string | BedEntry[] | undefined): BedRoo
     const key = `${slot.kind}:${slot.index}`;
     const existing = buckets.get(key);
     const entry: BedEntry = { type: bed.type, count: bed.count, room: slot };
-    if (existing) existing.beds.push(entry);
-    else buckets.set(key, { slot, beds: [entry] });
+    if (existing) {
+      existing.beds.push(entry);
+      // Only one bed of a space normally carries the space's amenities — never lose them.
+      if ((existing.slot.amenities?.length ?? 0) === 0 && (slot.amenities?.length ?? 0) > 0) {
+        existing.slot = { ...existing.slot, amenities: slot.amenities };
+      }
+    } else buckets.set(key, { slot, beds: [entry] });
   }
 
   const ordered = [...buckets.values()].sort((a, b) => {
@@ -175,7 +202,11 @@ export function groupBedsByRoom(config: string | BedEntry[] | undefined): BedRoo
   const counters: Record<BedRoomSlot["kind"], number> = { bedroom: 0, living: 0 };
   return ordered.map((group) => {
     counters[group.slot.kind] += 1;
-    const slot: BedRoomSlot = { kind: group.slot.kind, index: counters[group.slot.kind] };
+    const slot: BedRoomSlot = {
+      kind: group.slot.kind,
+      index: counters[group.slot.kind],
+      ...(group.slot.amenities?.length ? { amenities: group.slot.amenities } : {}),
+    };
     return { slot, beds: group.beds.map((bed) => ({ ...bed, room: slot })) };
   });
 }
@@ -185,7 +216,11 @@ export function flattenBedGroups(groups: BedRoomGroup[]): BedEntry[] {
   const counters: Record<BedRoomSlot["kind"], number> = { bedroom: 0, living: 0 };
   return groups.flatMap((group) => {
     counters[group.slot.kind] += 1;
-    const slot: BedRoomSlot = { kind: group.slot.kind, index: counters[group.slot.kind] };
+    const slot: BedRoomSlot = {
+      kind: group.slot.kind,
+      index: counters[group.slot.kind],
+      ...(group.slot.amenities?.length ? { amenities: readSlotAmenities(group.slot.amenities) } : {}),
+    };
     return group.beds
       .filter((bed) => bed.type && (bed.count || 0) > 0)
       .map((bed) => ({ type: bed.type, count: bed.count, room: slot }));
@@ -224,3 +259,8 @@ export function areBedsDistributed(
   return bedrooms.length >= required;
 }
 
+
+/** Amenities authored on a sleeping space. */
+export function bedRoomAmenities(group: BedRoomGroup): string[] {
+  return readSlotAmenities(group.slot.amenities);
+}
