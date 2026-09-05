@@ -1917,7 +1917,7 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
     push(81, singleComp.bathrooms);
     push(37, singleComp.toilets);
     if (singleComp.separateKitchen && resolveKitchenRoomId(singleAmenities as any, true) === 101) {
-      push(RU_FULLY_EQUIPPED_KITCHEN_ID, 1);
+      push(101, 1);
     }
   }
   // RU renders the Composition panel from these blocks, so bathrooms and toilets need one
