@@ -4868,8 +4868,12 @@ Deno.serve(async (req) => {
     // Flip the location to our authored currency (ZAR) authenticated as the owning
     // sub-user. Only if RU refuses do we publish converted rates in the fallback
     // currency at a live rate + margin.
+    // A price/availability/discount push resolves no LocationID (its messages carry none), so a
+    // currency verdict cannot be reached — never let that path attempt a currency write.
     try {
+      if (locationId > 1) {
       currencyDecision = await decideRuCurrency(supabase, {
+
         propertyId: property_id,
         locationId,
         authoredIso,
