@@ -1055,7 +1055,7 @@ const Booking = () => {
       }
 
       // Calculate cost for each room
-      for (const room of rooms) {
+      for (const [roomIndex, room] of rooms.entries()) {
         // Use room's custom dates or fall back to main booking dates
         const roomCheckIn = room.checkIn || checkIn;
         const roomCheckOut = room.checkOut || checkOut;
@@ -1230,7 +1230,7 @@ const Booking = () => {
           // Full Stay plans price the whole stay; nightly/LOS keep the sum.
           totalRoomAmount = stayQuotedTotal(rateType.stay_quote, totalRoomAmount);
           // The server quote is authoritative when it priced this room.
-          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          const serverQuote = serverQuotes.get(roomIndex);
           if (serverQuote) totalRoomAmount = Number(serverQuote.accommodation_total);
 
           if (totalRoomAmount > 0) {
@@ -1243,10 +1243,10 @@ const Booking = () => {
             });
             runningTotal += totalRoomAmount;
           }
-        } else if (serverQuotes.get(String(room.roomTypeId))) {
+        } else if (serverQuotes.get(roomIndex)) {
           // Per-person plan already priced by the engine (adult/teen/child tiers
           // included) — publish it as one accommodation line, never re-derived here.
-          const serverQuote = serverQuotes.get(String(room.roomTypeId));
+          const serverQuote = serverQuotes.get(roomIndex);
           const serverTotal = Number(serverQuote.accommodation_total);
           lineItems.push({
             description: `${room.roomTypeName} (${roomTotalGuests} guests)`,
