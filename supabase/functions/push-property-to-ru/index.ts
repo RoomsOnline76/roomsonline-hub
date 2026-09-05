@@ -527,19 +527,25 @@ const RU_ROOM_LIVING_BEDROOM = 372;
  * that were never grouped. Living-area sleepers go to 372 so they never claim a bedroom.
  */
 export function bedGroupsFromConfiguration(bedConfiguration: unknown): {
-  groups: { kind: string; index: number; beds: { type: string; count: number }[] }[];
+  groups: { kind: string; index: number; beds: { type: string; count: number }[]; amenities: string[] }[];
   totalBeds: number;
 } {
   const normalized = normalizeBedConfiguration(bedConfiguration);
-  const groups: { kind: string; index: number; beds: { type: string; count: number }[] }[] = [];
+  const groups: { kind: string; index: number; beds: { type: string; count: number }[]; amenities: string[] }[] = [];
   let totalBeds = 0;
   normalized.forEach((entry, i) => {
     const kind = entry.room?.kind ?? 'bedroom';
     const index = entry.room?.index ?? i + 1;
     let group = groups.find((g) => g.kind === kind && g.index === index);
     if (!group) {
-      group = { kind, index, beds: [] };
+      group = { kind, index, beds: [], amenities: [] };
       groups.push(group);
+    }
+    // Amenities authored for this sleeping space itself (en-suite, aircon, TV…). They ride on
+    // the slot each bed carries, so take the first non-empty list we see for the space.
+    const slotAmenities = (entry.room as { amenities?: unknown } | undefined)?.amenities;
+    if (group.amenities.length === 0 && Array.isArray(slotAmenities)) {
+      group.amenities = slotAmenities.filter((a): a is string => typeof a === 'string' && a.trim() !== '');
     }
     group.beds.push({ type: entry.type, count: entry.count });
     totalBeds += entry.count;
@@ -560,6 +566,16 @@ function bedBlocksFromConfiguration(
       const { id } = resolveBedAmenityId(bed.type);
       if (id == null && bed.type) unmapped.push(String(bed.type));
       amenities.push({ id: id ?? RU_DEFAULT_BED_ID, count: bed.count });
+    }
+    /**
+     * Per-bedroom amenities go inside THIS bedroom's block, never into the unit list — that
+     * is the only place the channel reads "what does bedroom 2 itself hold". Bed amenities
+     * already emitted for the space are not repeated.
+     */
+    for (const token of group.amenities) {
+      const id = parseRuAmenityToken(token);
+      if (id == null || amenities.some((a) => a.id === id)) continue;
+      amenities.push({ id, count: parseRuAmenityCount(token) });
     }
     if (amenities.length === 0) continue;
     rooms.push({
