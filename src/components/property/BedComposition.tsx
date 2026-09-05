@@ -1,12 +1,16 @@
-import { useCallback, useMemo } from "react";
-import { AlertTriangle, Minus, Plus, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { AlertTriangle, Minus, Plus, Sparkles, X } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BED_TYPES,
   areBedsDistributed,
   authoredBedroomCount,
+  bedRoomAmenities,
   bedRoomSlotLabel,
   calculateBedCapacity,
   flattenBedGroups,
@@ -50,6 +54,19 @@ export function BedComposition({
   );
 
   const commit = useCallback((next: BedRoomGroup[]) => onChange(flattenBedGroups(next)), [onChange]);
+
+  /** Which sleeping space is having its own amenities edited. */
+  const [amenityGroupIndex, setAmenityGroupIndex] = useState<number | null>(null);
+
+  const setGroupAmenities = useCallback(
+    (groupIndex: number, amenities: string[]) =>
+      commit(
+        groups.map((group, i) =>
+          i === groupIndex ? { ...group, slot: { ...group.slot, amenities } } : group,
+        ),
+      ),
+    [commit, groups],
+  );
 
   const addGroup = useCallback(
     (kind: "bedroom" | "living") => {
@@ -192,6 +209,28 @@ export function BedComposition({
             </Button>
           </div>
 
+          {/* What THIS room holds — separate from the unit's amenity list. */}
+          <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border/50 pt-2">
+            <span className="text-[10px] text-muted-foreground">In this room:</span>
+            {bedRoomAmenities(group).length === 0 ? (
+              <span className="text-[10px] text-muted-foreground">nothing added yet</span>
+            ) : (
+              <Badge variant="secondary" className="text-[10px]">
+                {bedRoomAmenities(group).length} amenit{bedRoomAmenities(group).length === 1 ? "y" : "ies"}
+              </Badge>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="ml-auto h-6 text-[10px]"
+              onClick={() => setAmenityGroupIndex(groupIndex)}
+            >
+              <Sparkles className="mr-1 h-3 w-3" />
+              Amenities in {bedRoomSlotLabel(group.slot, livingCount)}
+            </Button>
+          </div>
+
           {group.beds.length === 0 && (
             <p className="mt-1 flex items-center gap-1 text-[10px] text-destructive">
               <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -200,6 +239,31 @@ export function BedComposition({
           )}
         </div>
       ))}
+
+      <Dialog open={amenityGroupIndex !== null} onOpenChange={(open) => !open && setAmenityGroupIndex(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              {amenityGroupIndex !== null && groups[amenityGroupIndex]
+                ? `Amenities in ${bedRoomSlotLabel(groups[amenityGroupIndex].slot, livingCount)}`
+                : "Room amenities"}
+            </DialogTitle>
+            <DialogDescription>
+              Pick only what this room itself holds — an en-suite bathroom, air-conditioning, a TV, a safe. The
+              unit's own amenity list stays separate, and these travel with this room when the listing is sent out.
+            </DialogDescription>
+          </DialogHeader>
+          {amenityGroupIndex !== null && groups[amenityGroupIndex] && (
+            <div className="max-h-[65vh] overflow-y-auto pr-1">
+              <RUAmenityPicker
+                value={bedRoomAmenities(groups[amenityGroupIndex])}
+                minimum={0}
+                onChange={(next) => setGroupAmenities(amenityGroupIndex, next)}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" className="h-6 text-xs" onClick={() => addGroup("bedroom")}>
