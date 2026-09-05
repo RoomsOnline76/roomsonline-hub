@@ -1020,7 +1020,9 @@ const Booking = () => {
       // The engine owns the accommodation total (length-of-stay ladders, full-stay
       // cells and guest-tier amounts), so the browser never re-derives it. A quote
       // that comes back empty (external PMS, no rate plan) keeps today's maths.
-      const serverQuotes = new Map<string, any>();
+      // Keyed by the room's position in the cart, so two rooms of the same type
+      // each keep their own quote (different guest counts price differently).
+      const serverQuotes = new Map<number, any>();
       try {
         const { data: quoteRes } = await supabase.functions.invoke("booking-orchestrator-api", {
           body: {
