@@ -1045,9 +1045,10 @@ const Booking = () => {
         });
         const quoted = (quoteRes?.data ?? quoteRes)?.rooms;
         if (Array.isArray(quoted)) {
-          for (const q of quoted) {
-            if (Number(q?.accommodation_total) > 0) serverQuotes.set(String(q.room_type_id), q);
-          }
+          quoted.forEach((q: any, i: number) => {
+            const idx = Number.isFinite(Number(q?.request_index)) ? Number(q.request_index) : i;
+            if (Number(q?.accommodation_total) > 0) serverQuotes.set(idx, q);
+          });
         }
       } catch (e) {
         console.warn('[Booking] server stay quote unavailable, using published rates:', e);
