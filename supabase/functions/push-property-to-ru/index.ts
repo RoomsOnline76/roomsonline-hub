@@ -3757,18 +3757,29 @@ Deno.serve(async (req) => {
       deltaChangedFields.length > 0 &&
       !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
     /**
+     * Actions that never build a content payload: prices/availability (`refresh_ari`), the
+     * discount ladder (`discounts_only`) and the calendar read-back (`verify_calendar`).
+     * None of their wire messages carry a LocationID, so resolving one is pure cost — and it
+     * was burning the account's sliding-minute window (`Pull_GetLocationByCoordinates_RQ`
+     * + up to two `Pull_GetLocationByName_RQ`) on every rate save.
+     */
+    const nonContentAction =
+      action === 'refresh_ari' || action === 'discounts_only' || action === 'verify_calendar';
+    /**
      * The same economy for the channel's location lookups: a scoped delta that names no
      * address, city, country, coordinate or location field cannot have moved the listing,
      * so `get_location_by_coordinates` / `get_location_by_name` are not worth the calls.
      */
     const skipLocationLookup =
-      staticOnly &&
-      !forcePush &&
-      deltaChangedFields !== null &&
-      deltaChangedFields.length > 0 &&
-      !deltaChangedFields.some((f) =>
-        /address|city|town|country|latitude|longitude|location|postal/i.test(f),
-      );
+      nonContentAction ||
+      (staticOnly &&
+        !forcePush &&
+        deltaChangedFields !== null &&
+        deltaChangedFields.length > 0 &&
+        !deltaChangedFields.some((f) =>
+          /address|city|town|country|latitude|longitude|location|postal/i.test(f),
+        ));
+
 
     const verifyPayloadImages = async (payload: Record<string, any>) =>
       skipImageProbe ? [] : await applyImageVerification(payload);
