@@ -339,16 +339,23 @@ export const listDeclaresKitchen = (list: unknown): boolean =>
       return false;
     });
 
-/** Kitchen declared on the unit (composition/amenities) or property facilities. */
+/**
+ * Kitchen declared on the unit (composition/amenities) or property facilities.
+ * A local declaration always satisfies the rule — the channel report is only a
+ * fallback, because a stale report used to block a unit that plainly ticks a
+ * kitchen flavour in its own amenities.
+ */
 const hasKitchen = (subject: RequirementSubject): boolean => {
-  const reported = channelCheck(subject, "has_kitchen");
-  if (reported !== undefined) return reported;
   const listHasKitchen = listDeclaresKitchen;
   if (listHasKitchen(amenity(subject, "facilities"))) return true;
   if (listHasKitchen(amenity(subject, "amenities_list"))) return true;
   const rooms = roomRows(subject);
-  return rooms.length > 0 && rooms.every((room) => listHasKitchen(room.amenities));
+  if (rooms.length > 0 && rooms.some((room) => listHasKitchen(room.amenities))) return true;
+  const reported = channelCheck(subject, "has_kitchen");
+  if (reported !== undefined) return reported;
+  return false;
 };
+
 
 const isRuDistributed = (subject: RequirementSubject): boolean =>
   filled(subject.rentalsunited_property_id) || filled(subject.rentalsunited_building_id);
