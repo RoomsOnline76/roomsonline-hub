@@ -3757,18 +3757,29 @@ Deno.serve(async (req) => {
       deltaChangedFields.length > 0 &&
       !deltaChangedFields.some((f) => /images|ru_image_tags/i.test(f));
     /**
+     * Actions that never build a content payload: prices/availability (`refresh_ari`), the
+     * discount ladder (`discounts_only`) and the calendar read-back (`verify_calendar`).
+     * None of their wire messages carry a LocationID, so resolving one is pure cost — and it
+     * was burning the account's sliding-minute window (`Pull_GetLocationByCoordinates_RQ`
+     * + up to two `Pull_GetLocationByName_RQ`) on every rate save.
+     */
+    const nonContentAction =
+      action === 'refresh_ari' || action === 'discounts_only' || action === 'verify_calendar';
+    /**
      * The same economy for the channel's location lookups: a scoped delta that names no
      * address, city, country, coordinate or location field cannot have moved the listing,
      * so `get_location_by_coordinates` / `get_location_by_name` are not worth the calls.
      */
     const skipLocationLookup =
-      staticOnly &&
-      !forcePush &&
-      deltaChangedFields !== null &&
-      deltaChangedFields.length > 0 &&
-      !deltaChangedFields.some((f) =>
-        /address|city|town|country|latitude|longitude|location|postal/i.test(f),
-      );
+      nonContentAction ||
+      (staticOnly &&
+        !forcePush &&
+        deltaChangedFields !== null &&
+        deltaChangedFields.length > 0 &&
+        !deltaChangedFields.some((f) =>
+          /address|city|town|country|latitude|longitude|location|postal/i.test(f),
+        ));
+
 
     const verifyPayloadImages = async (payload: Record<string, any>) =>
       skipImageProbe ? [] : await applyImageVerification(payload);
@@ -4668,11 +4679,14 @@ Deno.serve(async (req) => {
     } else if (cached?.ru_location_id && (cached.coords_hash === coordsHash || (!lat || !lng))) {
       locationId = Number(cached.ru_location_id);
       console.log(`[push-property-to-ru] Using cached RU LocationID ${locationId} (coords_hash match)`);
-    } else if (cached?.ru_location_id && skipLocationLookup) {
-      // A scoped delta that names no address/coordinate field cannot have moved the listing,
-      // so the cached LocationID stands and the channel lookups are pure cost.
-      locationId = Number(cached.ru_location_id);
-      console.log(`[push-property-to-ru] Reusing cached RU LocationID ${locationId} (delta carries no location field)`);
+    } else if (skipLocationLookup) {
+      // A scoped delta that names no address/coordinate field — and any price/availability/
+      // discount push, whose wire messages carry no LocationID at all — cannot have moved the
+      // listing, so the cached id (or none) stands and the channel lookups are pure cost.
+      locationId = Number(cached?.ru_location_id ?? 0);
+      console.log(
+        `[push-property-to-ru] Skipping channel location lookups (${action}) — using ${locationId || 'no'} cached LocationID`,
+      );
     } else {
       locationId = await resolveLocationId(supabase, lat, lng, country, (property as any).city);
     }
@@ -4682,7 +4696,8 @@ Deno.serve(async (req) => {
     // Did the owner actually pick the Channel Manager location, or did we guess it?
     const locationAuthored = !!forceLocationId || Number((property as any).ru_location_id) > 1;
 
-    if (!locationId || locationId <= 1) {
+    if ((!locationId || locationId <= 1) && !nonContentAction) {
+
       return new Response(
         JSON.stringify({ success: false, error: { code: 'LOCATION_UNRESOLVED', message: `Could not resolve a Rentals United LocationID for this property. Coordinates: (${lat}, ${lng}), country: "${country || 'unset'}". Set valid coordinates or a supported country (ZA/NA/BW) before pushing.` } }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -4698,8 +4713,9 @@ Deno.serve(async (req) => {
      */
 
 
-    // Persist resolved geo+currency for re-use & audit (skip on dry runs).
-    if (!dry_run) {
+    // Persist resolved geo+currency for re-use & audit (skip on dry runs, and never let an
+    // ARI/discount push — which resolves no location — overwrite a good cached mapping).
+    if (!dry_run && locationId > 1) {
       await persistRuPropertyMapping(supabase, property_id, {
         ru_location_id: locationId,
         ru_currency_id: currencyId,
@@ -4707,6 +4723,7 @@ Deno.serve(async (req) => {
         coords_hash: coordsHash,
       });
     }
+
 
     // ── Currency authority (decided AFTER sub-user auth is resolved) ───────
     // RU applies a location's currency to the authenticating account, so the flip must be
@@ -4853,8 +4870,12 @@ Deno.serve(async (req) => {
     // Flip the location to our authored currency (ZAR) authenticated as the owning
     // sub-user. Only if RU refuses do we publish converted rates in the fallback
     // currency at a live rate + margin.
+    // A price/availability/discount push resolves no LocationID (its messages carry none), so a
+    // currency verdict cannot be reached — never let that path attempt a currency write.
     try {
+      if (locationId > 1) {
       currencyDecision = await decideRuCurrency(supabase, {
+
         propertyId: property_id,
         locationId,
         authoredIso,
@@ -4865,7 +4886,9 @@ Deno.serve(async (req) => {
       });
       currencyId = RU_CCY_BY_ISO[currencyDecision.published_iso] ?? currencyId;
       console.log(`[push-property-to-ru] Currency decision (owner ${ruOwnerId}): publishing in ${currencyDecision.published_iso} (location ${locationId} holds ${currencyDecision.location_iso ?? 'unverified'}, flip: ${currencyDecision.flip_outcome})`);
+      }
     } catch (e) {
+
       console.warn('[push-property-to-ru] Currency decision failed, falling back to authored currency:', e instanceof Error ? e.message : e);
     }
 
