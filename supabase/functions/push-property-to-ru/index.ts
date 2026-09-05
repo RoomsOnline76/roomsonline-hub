@@ -1574,8 +1574,6 @@ const RU_KITCHEN_ITEM_IDS = [2, 3, 17, 124, 125, 130, 131, 157, 94];
  * dining room") — otherwise ROLOS says kitchenette and the OTA says separate kitchen.
  */
 const RU_SEPARATE_KITCHEN_IDS = [101, 102, 135, 1262];
-/** Truthful default flavour for a property that only declares "own kitchen". */
-const RU_FULLY_EQUIPPED_KITCHEN_ID = 135;
 const RU_OPEN_KITCHEN_IDS = [94, 157];
 /** Composition room id to use for the kitchen block, or null when no kitchen is declared. */
 function resolveKitchenRoomId(
