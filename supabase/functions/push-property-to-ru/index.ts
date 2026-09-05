@@ -29,7 +29,7 @@ import {
 } from '../_shared/ruDeposits.ts';
 import { buildRuFeeEntries } from '../_shared/ruFees.ts';
 import { resolveMcqChannelId } from '../_shared/ruMcq.ts';
-import { resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
+import { parseRuAmenityCount, parseRuAmenityToken, resolveRuAmenityIds } from '../_shared/ruAmenityMap.ts';
 import {
   normalizeRuImageTagMap,
   findMainImageUrl,
