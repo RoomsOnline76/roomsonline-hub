@@ -4,8 +4,10 @@ import { AlertTriangle, Minus, Plus, Sparkles, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import RUAmenityPicker from "@/components/property/RUAmenityPicker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useRuAmenityCatalogue } from "@/hooks/useRuAmenityCatalogue";
 import {
   BED_TYPES,
   areBedsDistributed,
