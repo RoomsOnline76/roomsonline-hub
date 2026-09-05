@@ -245,6 +245,21 @@ export const RatePlanSeasonPricingTable = memo(function RatePlanSeasonPricingTab
                         </div>
                       ) : null}
 
+                      {/* Extra price per guest above the rate's standard occupancy. Sent to the
+                          channel as the season's <Extra> amount, and charged on direct stays. */}
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        className="h-7 text-xs"
+                        placeholder="Extra guest / night"
+                        aria-label={`${season.name} — extra price per guest per night`}
+                        title="Charged for each guest above the standard occupancy. Blank means no extra-guest charge."
+                        value={rate.extra_adult_rate}
+                        onChange={(e) => onChange(season.calendar_season_id, { extra_adult_rate: e.target.value })}
+                      />
+
+
+
 
 
                     </div>
