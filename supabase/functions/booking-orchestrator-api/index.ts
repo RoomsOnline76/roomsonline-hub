@@ -1053,6 +1053,7 @@ async function quoteStayForRooms(
     if (!quote || !(Number(quote.stay_total) > 0)) continue;
 
     results.push({
+      request_index: req.request_index,
       room_type_id: req.room_type_id,
       rate_type_id: plan ? String(plan.id) : null,
       rate_type_name: plan?.name ?? null,
