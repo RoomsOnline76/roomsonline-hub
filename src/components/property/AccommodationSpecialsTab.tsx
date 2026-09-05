@@ -15,6 +15,7 @@ import { SpecialWizard } from "@/components/property/specials/SpecialWizard";
 import { useMasterPolicyMode } from "@/hooks/useMasterPolicyMode";
 import { shortPolicyLabel } from "@/lib/policyLabels";
 import type { ManualCancellationRule } from "@/lib/cancellationPolicy";
+import { queueChannelDiscountSync } from "@/lib/channelContentSync";
 
 interface RoomTypeOption {
   id: string;
@@ -221,6 +222,8 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
       return;
     }
     toast.success("Special saved");
+    // Long-stay / last-minute deals live on their own channel endpoints — send the ladder now.
+    void queueChannelDiscountSync(propertyId, "special_saved");
     await fetchSpecials();
     // Refresh draft from saved data so it stays in sync
     const savedRow = (updated as any[])[0];
@@ -232,6 +235,7 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
   const deleteSpecial = async (id: string) => {
     await supabase.from("property_specials" as any).delete().eq("id", id);
     if (selectedId === id) setSelectedId(null);
+    void queueChannelDiscountSync(propertyId, "special_deleted");
     await fetchSpecials();
     toast.success("Deleted");
   };

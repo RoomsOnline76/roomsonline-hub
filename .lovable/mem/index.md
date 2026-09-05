@@ -5,3 +5,4 @@
 - [Changeover Delta Only](mem://features/pms/changeover-delta-only) — changeover edits push an availability-only forced delta, spans/seasons authorable, calendars mark nights differing from the master
 - [ARI Delta Halves Never Both](mem://features/pms/ari-delta-halves-never-both) — rate edits push prices only, availability edits push availability only; both only on onboarding/full/scheduled runs; scope-keyed debounce queue
 - [Dated LOS / Full Stay Windows](mem://features/pms/dated-los-windows) — scope season|dates on rungs/cells, per-unit optional, advisory min_stay_nights mirrored as source rate_plan_window, no overlap on same threshold
+- [Discount Ladder Push on Save](mem://features/pms/discount-ladder-push-on-save) — long-stay/last-minute deals push via queueChannelDiscountSync on every specials/ru_discounts write; extra_adult_rate per season is the <Extra> amount

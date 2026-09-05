@@ -168,3 +168,46 @@ export async function queueChannelRatesSync(
   }
 }
 
+/**
+ * Discount ladder delta to the Channel Manager
+ * (Push_PutLongStayDiscounts_RQ + Push_PutLastMinuteDiscounts_RQ).
+ *
+ * Long-stay and last-minute deals are neither static content nor ARI at Rentals United: they
+ * live on their own endpoints, so a saved special or manual discount rule reaches the channel
+ * only through this path. RU requires the ladder to be pushed on change AND at least daily —
+ * the daily cron owns the cadence half, this owns the on-change half.
+ *
+ * Same rules as the other deltas: fire-and-forget, never block a save, never turn a channel
+ * failure into a save failure. The edge function resolves the merged ladder itself, so a
+ * property with nothing discountable costs one cheap no-op.
+ */
+export async function queueChannelDiscountSync(
+  propertyId: string | null | undefined,
+  trigger: string,
+  options: Pick<ChannelSyncOptions, "manual"> = {},
+): Promise<ChannelSyncOutcome | null> {
+  if (!propertyId) return null;
+  if (await gateBlocks(propertyId, options.manual)) {
+    return { queued: false, reason: CHANNEL_EDIT_GATE_REASON };
+  }
+  try {
+    const { data, error } = await supabase.functions.invoke("push-property-to-ru", {
+      body: { property_id: propertyId, action: "discounts_only", trigger },
+    });
+    if (error) {
+      console.warn("[channel discount sync] failed:", error.message);
+      return { error: error.message };
+    }
+    if (data?.success) {
+      console.log(`[channel discount sync] pushed discounts for ${propertyId} (${trigger})`);
+      return { queued: true };
+    }
+    console.log(`[channel discount sync] skipped (${data?.error?.code ?? "unknown"}) for ${propertyId}`);
+    return { queued: false, reason: data?.error?.code ?? "unknown" };
+  } catch (err) {
+    console.warn("[channel discount sync] error:", err);
+    return { error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
+
