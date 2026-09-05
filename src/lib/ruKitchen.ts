@@ -14,9 +14,9 @@ import { isRuToken, ruToken, ruTokenId } from "@/lib/ruAmenities";
 export const RU_SEPARATE_KITCHEN_ID = 101;
 
 /**
- * The truthful default when a property only says "it has its own kitchen": a fully
- * equipped kitchen (135). Publishing bare 101 makes the OTA read "Separate kitchen",
- * which is a stronger claim than the property ever made.
+ * Other flavours the channel also renders from the separate-kitchen block. They keep the
+ * flag on when already chosen, but the flag itself never invents them — ticking the
+ * Rooms-tab kitchen box must light up the box the owner reads as "Separate kitchen".
  */
 export const RU_FULLY_EQUIPPED_KITCHEN_ID = 135;
 
