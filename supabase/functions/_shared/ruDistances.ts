@@ -154,6 +154,19 @@ export function buildDistanceEntries(
 
 }
 
+/**
+ * Channel wire shape for a distance. The channel's `DistanceUnitID` 1 is METRES — the portal
+ * prints "meters" against whatever number we send with it, so a kilometre value sent as-is
+ * showed "0.30 meters" for a 300 m walk to the sea. We convert to whole metres and keep unit 1.
+ */
+export const RU_DISTANCE_UNIT_METRES = 1;
+
+export function toChannelDistance(km: number): { unit_id: number; value: number } | null {
+  const value = Number(km);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return { unit_id: RU_DISTANCE_UNIT_METRES, value: Math.max(1, Math.round(value * 1000)) };
+}
+
 type MinimalClient = {
   from: (table: string) => {
     select: (cols: string) => any;
