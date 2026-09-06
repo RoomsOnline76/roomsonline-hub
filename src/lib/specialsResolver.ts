@@ -174,8 +174,8 @@ export function specialLabel(special: SpecialRecord): string {
 export const DEAL_TYPE_LABELS: Record<DealType, string> = {
   basic: "Basic",
   last_minute: "Last minute",
-  advance_purchase: "Advance purchase",
-  long_stay: "Long stay",
+  advance_purchase: "Book early",
+  long_stay: "Long-stay offer",
   rate_grid: "Rate grid",
   package: "Package",
 };

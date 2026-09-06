@@ -151,9 +151,9 @@ function reducer(state: WizardState, action: Action): WizardState {
 }
 
 const DEAL_CARDS: Array<{ value: DealType; icon: React.ElementType; blurb: string }> = [
-  { value: "last_minute", icon: Timer, blurb: "Fill empty rooms — for guests booking a few days or hours before check-in." },
-  { value: "advance_purchase", icon: CalendarClock, blurb: "Early booker deal — for guests booking well before check-in." },
-  { value: "long_stay", icon: CalendarDays, blurb: "Reward longer stays with a discount from a minimum number of nights." },
+  { value: "last_minute", icon: Timer, blurb: "A campaign for guests booking a few days or hours before arrival." },
+  { value: "advance_purchase", icon: CalendarClock, blurb: "A campaign for guests who book well before arrival. Lead time, not stay shape." },
+  { value: "long_stay", icon: CalendarDays, blurb: "A campaign off the already-quoted stay after a minimum night count. Not the Rate Plans length-of-stay ladder (that changes the nightly itself)." },
   { value: "basic", icon: Percent, blurb: "A straightforward discount over a stay period." },
   { value: "package", icon: Gift, blurb: "Bundle inclusions into a package offer." },
 ];

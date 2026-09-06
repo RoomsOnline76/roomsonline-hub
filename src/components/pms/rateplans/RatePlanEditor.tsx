@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { Loader2, Save } from "lucide-react";
@@ -693,7 +693,11 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
       {/* 2b. Stay shapes derived from the daily rate */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Longer stays</CardTitle>
+          <CardTitle className="text-base">Stay shape</CardTitle>
+          <CardDescription>
+            How this plan prices a stay as nights or guests change. Campaigns (percent off,
+            book-early) live under Specials — they apply after this total.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <RatePlanStayShapeSection
