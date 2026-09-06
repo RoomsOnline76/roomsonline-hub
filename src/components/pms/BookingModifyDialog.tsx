@@ -13,7 +13,6 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFunctionError } from "@/lib/functionError";
-import { fetchLiveRates } from "@/lib/pmsLiveAvailability";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnitAvailability } from "@/hooks/useUnitAvailability";
 import {
@@ -25,6 +24,7 @@ import {
   type BlockedNight,
 } from "@/lib/unitAvailability";
 import { cn } from "@/lib/utils";
+import { modifyBooking } from "@/lib/bookingModification";
 
 interface Props {
   open: boolean;
@@ -91,6 +91,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [checkOut, setCheckOut] = useState(booking.check_out_date);
   const [adults, setAdults] = useState(String(booking.adults ?? 1));
   const [children, setChildren] = useState(String(booking.children ?? 0));
+  const [teens, setTeens] = useState(String(booking.teens ?? 0));
+  const [infants, setInfants] = useState(String(booking.infants ?? 0));
   /* The editable figure is ACCOMMODATION, never the guest total. `total_price` on the
    * booking already includes mandatory extras, so seeding the field from it and saving
    * it back is what used to make fees compound on every edit. The stored accommodation
@@ -218,7 +220,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       total += cap;
     }
     if (total <= 0) return propertyMaxGuests ?? null;
-    return propertyMaxGuests ? Math.min(total, propertyMaxGuests) : total;
+    return total;
   }, [availability, lineRoomTypeIds, booking.room_type_id, propertyMaxGuests]);
 
 
@@ -228,12 +230,14 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     setCheckOut(booking.check_out_date);
     setAdults(String(booking.adults ?? 1));
     setChildren(String(booking.children ?? 0));
+    setTeens(String(booking.teens ?? 0));
+    setInfants(String(booking.infants ?? 0));
     setTotalPrice(String(booking.total_price ?? 0));
     setNote("");
     setManualTotal(false);
     setQuotedTotal(null);
     setQuoteSource(null);
-  }, [open, booking.id, booking.check_in_date, booking.check_out_date, booking.adults, booking.children, booking.total_price]);
+  }, [open, booking.id, booking.check_in_date, booking.check_out_date, booking.adults, booking.children, booking.teens, booking.infants, booking.total_price]);
 
   useEffect(() => {
     if (!open) return;
@@ -283,15 +287,10 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const nightsDelta = nights - originalNights;
   const datesChanged = checkIn !== booking.check_in_date || checkOut !== booking.check_out_date;
   const paxChanged =
-    Number(adults) !== (booking.adults ?? 0) || Number(children) !== (booking.children ?? 0);
-
-  /** Pro-rata fallback: the booking's own nightly average applied to the new stay. */
-  const averageQuote = useMemo(() => {
-    if (originalNights <= 0 || nights <= 0) return null;
-    const perNight = storedAccommodation / originalNights;
-    if (!perNight) return null;
-    return Math.round(perNight * nights * 100) / 100;
-  }, [storedAccommodation, originalNights, nights]);
+    Number(adults) !== (booking.adults ?? 0) ||
+    Number(children) !== (booking.children ?? 0) ||
+    Number(teens) !== (booking.teens ?? 0) ||
+    Number(infants) !== (booking.infants ?? 0);
 
   // Re-price whenever the stay or the guest count moves.
   useEffect(() => {
@@ -315,8 +314,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
          * and the amount never moved when the dates changed, while the save quietly repriced.
          */
         try {
-          const { data, error } = await supabase.functions.invoke("modify-booking", {
-            body: {
+          const data = await modifyBooking({
               booking_id: booking.id,
               quote_only: true,
               modifications: {
@@ -324,53 +322,18 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                 check_out_date: checkOut,
                 adults: Number(adults) || 0,
                 children: Number(children) || 0,
+                teens: Number(teens) || 0,
+                infants: Number(infants) || 0,
               },
-            },
           });
           const engine = Number(data?.quote?.accommodation ?? NaN);
           const from = String(data?.quote?.repriced_from ?? "");
-          if (!error && Number.isFinite(engine) && engine > 0 && from && from !== "operator") {
+          if (Number.isFinite(engine) && engine > 0 && from && from !== "operator") {
             resolved = Math.round(engine * 100) / 100;
             source = "live";
           }
         } catch (err) {
           console.warn("[BookingModifyDialog] engine re-pricing failed:", err);
-        }
-
-        if (resolved === null && booking.property_id) {
-
-          try {
-            const live = await fetchLiveRates(booking.property_id, null, checkIn, checkOut);
-            const room =
-              live.rooms.find((r) => r.roomTypeId === booking.room_type_id) ||
-              (live.rooms.length === 1 ? live.rooms[0] : undefined);
-            if (room) {
-              let sum = 0;
-              let covered = 0;
-              for (let i = 0; i < nights; i++) {
-                const key = format(addDays(parseISO(checkIn), i), "yyyy-MM-dd");
-                const rate = room.ratesByDate?.[key];
-                if (typeof rate === "number" && rate > 0) {
-                  sum += rate;
-                  covered++;
-                }
-              }
-              if (covered === nights && sum > 0) {
-                resolved = Math.round(sum * 100) / 100;
-                source = "live";
-              } else if (room.minRate && room.minRate > 0) {
-                resolved = Math.round(room.minRate * nights * 100) / 100;
-                source = "live";
-              }
-            }
-          } catch (err) {
-            console.warn("[BookingModifyDialog] live re-pricing failed:", err);
-          }
-        }
-
-        if (resolved === null && averageQuote !== null) {
-          resolved = averageQuote;
-          source = "average";
         }
 
         if (seq !== quoteSeq.current) return;
@@ -381,7 +344,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [open, booking.id, checkIn, checkOut, nights, datesChanged, paxChanged, adults, children, booking.property_id, booking.room_type_id, averageQuote]);
+  }, [open, booking.id, checkIn, checkOut, nights, datesChanged, paxChanged, adults, children, teens, infants]);
 
   // Push the quote into the field unless the operator has taken over.
   useEffect(() => {
@@ -401,8 +364,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       (async () => {
         setExtrasBusy(true);
         try {
-          const { data, error } = await supabase.functions.invoke("modify-booking", {
-            body: {
+          const data = await modifyBooking({
               booking_id: booking.id,
               quote_only: true,
               modifications: {
@@ -410,12 +372,13 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
                 check_out_date: checkOut,
                 adults: Number(adults) || 0,
                 children: Number(children) || 0,
+                teens: Number(teens) || 0,
+                infants: Number(infants) || 0,
                 accommodation_total: accommodation,
               },
-            },
           });
           if (seq !== extrasSeq.current) return;
-          if (error || !data?.quote) {
+          if (!data?.quote) {
             setExtras(null);
             return;
           }
@@ -438,7 +401,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     }, 700);
 
     return () => clearTimeout(timer);
-  }, [open, booking.id, checkIn, checkOut, adults, children, totalPrice, nights]);
+  }, [open, booking.id, checkIn, checkOut, adults, children, teens, infants, totalPrice, nights]);
 
   /** What the guest owes in total — accommodation plus the mandatory extras. */
   const guestTotal = useMemo(
@@ -481,11 +444,12 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   /** Keeps the guest count inside the booked units' sleeping capacity. */
   const clampGuests = useCallback(
-    (field: "adults" | "children", raw: string): string => {
+    (field: "adults" | "children" | "teens", raw: string): string => {
       if (!stayCapacity) return raw;
       const value = parseInt(raw);
       if (Number.isNaN(value)) return raw;
-      const other = field === "adults" ? Number(children) || 0 : Number(adults) || 0;
+      const counts = { adults: Number(adults) || 0, children: Number(children) || 0, teens: Number(teens) || 0 };
+      const other = counts.adults + counts.children + counts.teens - counts[field];
       const limit = Math.max(field === "adults" ? 1 : 0, stayCapacity - other);
       if (value > limit) {
         toast.error(`The booked units sleep ${stayCapacity} guest${stayCapacity === 1 ? "" : "s"}.`);
@@ -493,7 +457,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       }
       return raw;
     },
-    [stayCapacity, adults, children],
+    [stayCapacity, adults, children, teens],
   );
 
   const submit = async () => {
@@ -501,7 +465,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       toast.error("Check-out must be after check-in.");
       return;
     }
-    if (stayCapacity && (Number(adults) || 0) + (Number(children) || 0) > stayCapacity) {
+    if (stayCapacity && (Number(adults) || 0) + (Number(children) || 0) + (Number(teens) || 0) > stayCapacity) {
       toast.error(`The booked units sleep ${stayCapacity} guest${stayCapacity === 1 ? "" : "s"} — add a room or reduce the guests.`);
       return;
     }
@@ -522,6 +486,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       if (checkOut !== booking.check_out_date) modifications.check_out_date = checkOut;
       if (Number(adults) !== (booking.adults ?? 0)) modifications.adults = Number(adults);
       if (Number(children) !== (booking.children ?? 0)) modifications.children = Number(children);
+      if (Number(teens) !== (booking.teens ?? 0)) modifications.teens = Number(teens);
+      if (Number(infants) !== (booking.infants ?? 0)) modifications.infants = Number(infants);
       // Always carry the corrected figure so the channel push and settlement
       // loop see the re-priced total, not the stale one.
       if (Number(totalPrice) !== storedAccommodation) {
@@ -540,8 +506,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke("modify-booking", {
-        body: {
+      const data = await modifyBooking({
           booking_id: booking.id,
           modifications,
           // Guards against undoing a Channel Manager modification that landed while this was open.
@@ -554,12 +519,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
             overpayment_mode: overpaymentMode,
           },
 
-        },
       });
-
-
-      if (error) throw new Error(await extractFunctionError(error, "Modification failed"));
-      if (data && data.success === false) throw new Error(data.message || "Modification failed");
 
       // The channel allows one identical call per minute. When that window is already held the
       // change is parked at the front of the queue rather than rejected — say so plainly instead of
@@ -672,7 +632,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               <Input
                 type="number"
                 min={1}
-                max={stayCapacity ? Math.max(1, stayCapacity - (Number(children) || 0)) : undefined}
+                max={stayCapacity ? Math.max(1, stayCapacity - (Number(children) || 0) - (Number(teens) || 0)) : undefined}
                 value={adults}
                 onChange={(e) => setAdults(clampGuests("adults", e.target.value))}
               />
@@ -682,14 +642,22 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
               <Input
                 type="number"
                 min={0}
-                max={stayCapacity ? Math.max(0, stayCapacity - (Number(adults) || 0)) : undefined}
+                max={stayCapacity ? Math.max(0, stayCapacity - (Number(adults) || 0) - (Number(teens) || 0)) : undefined}
                 value={children}
                 onChange={(e) => setChildren(clampGuests("children", e.target.value))}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Teens</Label>
+              <Input type="number" min={0} max={stayCapacity ? Math.max(0, stayCapacity - (Number(adults) || 0) - (Number(children) || 0)) : undefined} value={teens} onChange={(e) => setTeens(clampGuests("teens", e.target.value))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Infants</Label>
+              <Input type="number" min={0} value={infants} onChange={(e) => setInfants(e.target.value)} />
+            </div>
           </div>
           {stayCapacity && (
-            <p className={cn("text-[11px]", (Number(adults) || 0) + (Number(children) || 0) > stayCapacity ? "font-medium text-destructive" : "text-muted-foreground")}>
+            <p className={cn("text-[11px]", (Number(adults) || 0) + (Number(children) || 0) + (Number(teens) || 0) > stayCapacity ? "font-medium text-destructive" : "text-muted-foreground")}>
               Booked unit{assignedRoomIds.length === 1 ? "" : "s"} sleep {stayCapacity} guest{stayCapacity === 1 ? "" : "s"}
             </p>
           )}

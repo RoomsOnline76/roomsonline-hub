@@ -16,6 +16,7 @@ import { addDays, createRateResolver } from "../_shared/rateResolution.ts";
 import { rolModifyQuote, type RolModifyQuote } from "../_shared/rolModifyQuote.ts";
 import { loadStayDiscounts } from "../_shared/loadStayDiscounts.ts";
 import type { DiscountLine } from "../_shared/stayDiscounts.ts";
+import { countedGuests, resolveBookingCapacity } from "../_shared/bookingCapacity.ts";
 
 import {
   logRateParity,
@@ -424,7 +425,7 @@ Deno.serve(async (req) => {
     // S1: Fetch booking with property info
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*, property:properties!bookings_property_id_fkey(id, name, external_system, benson_property_code, is_rol_property)")
+      .select("*, property:properties!bookings_property_id_fkey(id, name, external_system, benson_property_code, is_rol_property, max_guests)")
       .eq("id", booking_id)
       .single();
 
@@ -480,6 +481,51 @@ Deno.serve(async (req) => {
     const property = booking.property;
     const externalSystem = property?.external_system || "none";
     const isRolNative = property?.is_rol_property || externalSystem === "none";
+
+    // The allocated room types own occupancy. The property maximum is only a fallback for
+    // legacy bookings whose room type has never been sized. This check runs before both preview
+    // and save, and before any channel call, so every edit surface receives the same answer.
+    const { data: capacityLines } = await supabase
+      .from("rolos_booking_rooms")
+      .select("room_type_id, status")
+      .eq("booking_id", booking_id);
+    const capacityTypeIds = Array.from(new Set(
+      (capacityLines ?? [])
+        .filter((line: { status?: string | null }) => (line.status ?? "active") === "active")
+        .map((line: { room_type_id?: string | null }) => line.room_type_id ? String(line.room_type_id) : "")
+        .filter(Boolean),
+    ));
+    if (capacityTypeIds.length === 0 && booking.room_type_id) {
+      capacityTypeIds.push(String(booking.room_type_id));
+    }
+    const { data: capacityRoomTypes } = capacityTypeIds.length > 0
+      ? await supabase
+          .from("rolos_room_types")
+          .select("id, max_occupancy")
+          .in("id", capacityTypeIds)
+      : { data: [] };
+    const stayCapacity = resolveBookingCapacity(
+      capacityLines ?? [],
+      capacityRoomTypes ?? [],
+      booking.room_type_id,
+      property?.max_guests,
+    );
+    const proposedGuests = countedGuests({
+      adults: modifications.adults ?? booking.adults,
+      children: modifications.children ?? booking.children,
+      teens: modifications.teens ?? booking.teens,
+    });
+    if (stayCapacity !== null && proposedGuests > stayCapacity) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          code: "OCCUPANCY_EXCEEDED",
+          message: `The booked unit${capacityLines && capacityLines.length > 1 ? "s" : ""} sleep${capacityLines && capacityLines.length > 1 ? "" : "s"} a maximum of ${stayCapacity} guests.`,
+          capacity: stayCapacity,
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // S3b: Preview only — price the proposed stay (accommodation + extras + deposits) and
     // return the breakdown without touching the booking, the folio or the channel.
@@ -537,6 +583,7 @@ Deno.serve(async (req) => {
             amount_paid: paid,
             balance_due: Math.round((quote.guestTotal - paid) * 100) / 100,
             previous_total: Number(booking.total_price ?? 0),
+             capacity: stayCapacity,
             lines: quote.lines.map((l) => ({
               name: l.name,
               category: l.category,
@@ -1170,6 +1217,7 @@ Deno.serve(async (req) => {
           removed: chargeQuote.removed,
         },
         settlement: settlementOutcome,
+         capacity: stayCapacity,
 
       }),
 
