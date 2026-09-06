@@ -113,6 +113,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   /** Once the operator types a total, their figure wins over later auto-quotes. */
   const [manualTotal, setManualTotal] = useState(false);
   const quoteSeq = useRef(0);
+  /** Hard occupancy ceiling from the property record, used when a unit has no measured capacity. */
+  const [propertyMaxGuests, setPropertyMaxGuests] = useState<number | null>(null);
+
 
   // ─── Extras / levies priced for the proposed stay (server-side, single source of truth) ───
   const [extras, setExtras] = useState<ExtrasQuote | null>(null);
