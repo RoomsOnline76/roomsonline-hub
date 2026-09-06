@@ -942,9 +942,11 @@ export async function fetchRuReservationById(
   }
 
 
-  // Pass 2 — lead/reservation listings. Owning account first, and with a tight window: the
-  // channel answers an over-wide range with an empty list.
-  const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }, ...scopes] : scopes;
+  // Pass 2 — lead/reservation listings. When pass 1 already proved which account owns the
+  // reservation, only that account is asked: every other scope answers with an empty list and
+  // spends the per-method minute the owning account needs.
+  const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }] : scopes;
+
   const seenList = new Set<string>();
   for (const scope of listScopes) {
     const key = `${scope.ownerId ?? 'master'}:${scope.propertyId ?? ''}`;
