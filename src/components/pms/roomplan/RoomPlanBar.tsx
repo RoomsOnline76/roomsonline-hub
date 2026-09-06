@@ -20,6 +20,7 @@ import {
 export interface RoomPlanBooking {
   id: string;
   guest_name: string;
+  guest_nationality?: string | null;
   check_in_date: string;
   check_out_date: string;
   status: string;
