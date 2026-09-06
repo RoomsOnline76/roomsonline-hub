@@ -915,12 +915,16 @@ export async function fetchRuReservationById(
     if (attempt.reservation?.ruReservationId && attempt.reservation.dateFrom) {
       return { ...attempt, resolvedOwnerId: scope.ownerId };
     }
-    // Reservation exists here but carries an empty <StayInfos /> — remember the account so the
-    // listing pass (which does carry stay data for leads) starts with the right credentials.
-    if (attempt.reservation?.ruReservationId && !partial) {
+    // Reservation exists here but carries an empty <StayInfos /> — the channel notified before it
+    // attached the stay. Only one account can hold a reservation id, so the remaining scopes can
+    // only answer "does not exist" while spending this method's sliding minute (which is what
+    // pushed the stay 60s late). Remember the owning account and stop the fan-out here.
+    if (attempt.reservation?.ruReservationId) {
       partial = attempt.reservation;
       partialOwnerId = scope.ownerId;
+      break;
     }
+
     if (attempt.rateDeferred) {
       // The channel's sliding minute is keyed on the METHOD + parameters, not on the account:
       // once `Pull_GetReservationByID_RQ` for this id is refused, every other scope inside the
@@ -938,9 +942,11 @@ export async function fetchRuReservationById(
   }
 
 
-  // Pass 2 — lead/reservation listings. Owning account first, and with a tight window: the
-  // channel answers an over-wide range with an empty list.
-  const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }, ...scopes] : scopes;
+  // Pass 2 — lead/reservation listings. When pass 1 already proved which account owns the
+  // reservation, only that account is asked: every other scope answers with an empty list and
+  // spends the per-method minute the owning account needs.
+  const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }] : scopes;
+
   const seenList = new Set<string>();
   for (const scope of listScopes) {
     const key = `${scope.ownerId ?? 'master'}:${scope.propertyId ?? ''}`;
