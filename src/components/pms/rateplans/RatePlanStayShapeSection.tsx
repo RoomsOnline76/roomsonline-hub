@@ -230,9 +230,11 @@ export function RatePlanStayShapeSection({
           <div>
             <Label htmlFor="rp-los" className="text-sm font-medium">Length of stay (nightly by nights)</Label>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              ROL'OS checkout already applies matching rungs. Rentals United receives them as
-              {" "}&lt;LOSS&gt; on the nightly season. Switch a row to <strong>Dates</strong> for an event
-              weekend — with or without a price change — and set its minimum nights there.
+              This is the plan's nightly ladder, not a special. Checkout uses the highest matching
+              rung, and the Channel Manager receives it as stay-shape on the nightly season. A
+              "stay 7 nights, save 10% this winter" campaign belongs under Specials. Switch a row
+              to <strong>Dates</strong> for an event weekend — with or without a price change —
+              and set its minimum nights there.
             </p>
           </div>
           <Switch
@@ -347,7 +349,8 @@ export function RatePlanStayShapeSection({
             <p className="mt-0.5 text-xs text-muted-foreground">
               ROL'OS checkout and modify use this matrix when nights and guests match a cell;
               otherwise LOS, then nightly. Rentals United keeps nightly seasons (and LOSS if you
-              authored rungs) until you opt the property into the Full Stay matrix below.
+              authored rungs) until you opt the property into the Full Stay matrix below. Not a
+              package special — unmatched occupancy stays on the parent nightly.
             </p>
           </div>
           <Switch
