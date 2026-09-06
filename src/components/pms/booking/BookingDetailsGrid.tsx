@@ -19,6 +19,7 @@ import { displayBookingReference } from "@/lib/bookingReference";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
 import { PhoneInput } from "@/components/pms/PhoneInput";
 import { splitPhone, DEFAULT_DIAL_ISO, ensureE164 } from "@/lib/dialCodes";
+import { paymentsReceived } from "@/lib/bookingPaymentsReceived";
 
 
 
@@ -27,6 +28,7 @@ export interface BookingDetailsGridBooking {
   guest_name: string;
   guest_email: string;
   guest_phone?: string | null;
+  guest_nationality?: string | null;
   guest_company?: string | null;
   second_guest_name?: string | null;
   booking_made_by?: string | null;
@@ -149,6 +151,7 @@ export function BookingDetailsGrid({
     guest_name: booking.guest_name || "",
     guest_email: booking.guest_email || "",
     guest_phone: booking.guest_phone || "",
+    guest_nationality: booking.guest_nationality || "",
     guest_company: booking.guest_company || "",
     second_guest_name: booking.second_guest_name || "",
     booking_made_by: booking.booking_made_by || "",
@@ -249,7 +252,7 @@ export function BookingDetailsGrid({
        * lines. Both are accommodation-only, unlike `total_price`. */
       const { data: snapRow } = await supabase
         .from("bookings")
-        .select("charges_breakdown")
+        .select("charges_breakdown, amount_paid, payment_status")
         .eq("id", booking.id)
         .maybeSingle();
       if (cancelled) return;
@@ -296,7 +299,24 @@ export function BookingDetailsGrid({
         }
       }
       if (cancelled) return;
-      setAccount({ extras, payments, deposits });
+      /* Channel-settled stays carry no local payment line: the folio alone would report the
+       * whole stay as outstanding. The shared resolver reads the stored settlement too. */
+      const gatewayRows = await supabase
+        .from("payment_transactions")
+        .select("amount, status")
+        .eq("booking_id", booking.id);
+      if (cancelled) return;
+      const gatewayPaid = (gatewayRows.data || [])
+        .filter(r => ["paid", "completed", "success", "succeeded", "settled"].includes(String(r.status || "").toLowerCase()))
+        .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+      const received = paymentsReceived({
+        guestTotal: basis + extras,
+        storedAmountPaid: Number((snapRow as { amount_paid?: number | null } | null)?.amount_paid ?? 0),
+        paymentStatus: (snapRow as { payment_status?: string | null } | null)?.payment_status ?? booking.payment_status,
+        gatewayPaid,
+        folioPayments: payments,
+      });
+      setAccount({ extras, payments: received, deposits });
     })();
     return () => { cancelled = true; };
   }, [booking.id, booking.rolos_room_ids, booking.adults, booking.children, booking.teens, booking.infants, booking.total_price, rooms]);
@@ -344,6 +364,7 @@ export function BookingDetailsGrid({
       guest_phone: (form.guest_phone.trim() === (booking.guest_phone ?? "").trim()
         ? (booking.guest_phone ?? "")
         : ensureE164(form.guest_phone, guestPhoneIso)) || null,
+      guest_nationality: form.guest_nationality.trim() || null,
       guest_company: form.guest_company || null,
       second_guest_name: form.second_guest_name || null,
       booking_made_by: form.booking_made_by || null,
@@ -450,6 +471,15 @@ export function BookingDetailsGrid({
             onChange={v => set("guest_phone", v)}
             countryIso={guestPhoneIso}
             onCountryIsoChange={setGuestPhoneIso}
+          />
+        </div>
+        <div>
+          <Label className="text-[11px]">Nationality</Label>
+          <Input
+            className="h-8"
+            value={form.guest_nationality}
+            onChange={e => set("guest_nationality", e.target.value)}
+            placeholder="Arrives with channel bookings"
           />
         </div>
         <div>
