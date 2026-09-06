@@ -1304,7 +1304,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Accommodation ({lines.filter(l => l.room_type_id).length} room{lines.filter(l => l.room_type_id).length !== 1 ? "s" : ""})</span>
-                  <span className="font-semibold">R{autoTotal.toLocaleString()}</span>
+                  <span className="font-semibold">{quoting ? "Pricing…" : `R${autoTotal.toLocaleString()}`}</span>
                 </div>
                 {packages.length > 0 && (
                   <div>
