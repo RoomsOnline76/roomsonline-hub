@@ -424,11 +424,27 @@ export function BookingDetailsGrid({
         const { error: upErr } = await supabase.from("rolos_booking_rooms").update(payload(l) as never).eq("id", l.id!);
         if (upErr) console.warn("Room line update failed:", upErr);
       }
-      const newRows = keep.filter(l => !l.id).map(l => ({ booking_id: booking.id, ...payload(l) }));
+      // New lines must carry their own money/pax columns (rate_charged is required),
+      // otherwise the insert is rejected and the extra room silently never appears.
+      const newRows = keep.filter(l => !l.id).map(l => ({
+        booking_id: booking.id,
+        ...payload(l),
+        rate_charged: Number(l.rate_charged) || 0,
+        adults: Number(l.adults) || 1,
+        children: Number(l.children) || 0,
+        teens: Number(l.teens) || 0,
+        infants: Number(l.infants) || 0,
+      }));
       if (newRows.length) {
         const { error: lineErr } = await supabase.from("rolos_booking_rooms").insert(newRows as never);
-        if (lineErr) console.warn("Room line insert failed:", lineErr);
+        if (lineErr) {
+          console.warn("Room line insert failed:", lineErr);
+          setSaving(false);
+          toast.error(`Could not add the extra room: ${lineErr.message}`);
+          return;
+        }
       }
+
     }
 
     setSaving(false);

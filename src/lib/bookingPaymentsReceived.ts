@@ -76,6 +76,8 @@ export function bookingAccountTotals(args: {
   totalPrice: number;
   /** Fallback extras (non-refundable) when no snapshot exists. */
   extrasFallback?: number;
+  /** Sum of recorded accommodation folio lines, when any exist. */
+  accommodationFallback?: number;
   /** Fallback refundable deposits when no snapshot exists. */
   depositFallback?: number;
   payments: PaymentsReceivedInput;
@@ -84,12 +86,22 @@ export function bookingAccountTotals(args: {
   const snapshotAccommodation = n(bd?.accommodation);
   const hasSnapshot = snapshotAccommodation > 0;
 
-  const accommodation = hasSnapshot ? snapshotAccommodation : n(args.totalPrice);
   const extras = hasSnapshot ? n(bd?.extras_total) : n(args.extrasFallback);
   const deposit = hasSnapshot ? n(bd?.deposit_total) : n(args.depositFallback);
-  const gross = hasSnapshot ? (n(bd?.guest_total) || r2(accommodation + extras)) : r2(accommodation + extras);
+
+  // Without a snapshot, `total_price` is already the guest total (mandatory extras
+  // included), so extras must be carved out of it rather than added on top.
+  const accommodation = hasSnapshot
+    ? snapshotAccommodation
+    : (n(args.accommodationFallback) > 0
+        ? n(args.accommodationFallback)
+        : Math.max(0, r2(n(args.totalPrice) - extras)));
+  const gross = hasSnapshot
+    ? (n(bd?.guest_total) || r2(accommodation + extras))
+    : Math.max(n(args.totalPrice), r2(accommodation + extras));
 
   const payments = paymentsReceived({ ...args.payments, guestTotal: gross });
+
   return {
     accommodation: r2(accommodation),
     extras: r2(extras),

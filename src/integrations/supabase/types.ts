@@ -5896,6 +5896,7 @@ export type Database = {
           maximum_stay: number | null
           minimum_stay: number | null
           property_id: string
+          rates: Json | null
           room_type: string
           updated_at: string | null
         }
@@ -5915,6 +5916,7 @@ export type Database = {
           maximum_stay?: number | null
           minimum_stay?: number | null
           property_id: string
+          rates?: Json | null
           room_type: string
           updated_at?: string | null
         }
@@ -5934,6 +5936,7 @@ export type Database = {
           maximum_stay?: number | null
           minimum_stay?: number | null
           property_id?: string
+          rates?: Json | null
           room_type?: string
           updated_at?: string | null
         }

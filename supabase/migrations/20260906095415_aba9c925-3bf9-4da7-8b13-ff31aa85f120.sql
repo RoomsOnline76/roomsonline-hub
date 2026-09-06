@@ -1,0 +1,1 @@
+ALTER TABLE public.property_availability ADD COLUMN IF NOT EXISTS rates jsonb;
