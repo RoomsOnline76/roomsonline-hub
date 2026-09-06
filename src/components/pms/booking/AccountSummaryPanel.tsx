@@ -164,12 +164,17 @@ export function AccountSummaryPanel({
     const extrasFallback = charges
       .filter(t => !isAccommodationLine(t, totalPrice))
       .reduce((sum, t) => sum + Number(t.amount), 0);
+    const accommodationFallback = charges
+      .filter(t => isAccommodationLine(t, totalPrice))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     return bookingAccountTotals({
       breakdown,
       totalPrice,
       extrasFallback,
+      accommodationFallback,
       payments: {
+
         guestTotal: totalPrice,
         storedAmountPaid,
         paymentStatus,
