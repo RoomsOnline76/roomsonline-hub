@@ -85,6 +85,8 @@ interface RoomPlanBarProps {
   onDragStart?: (booking: RoomPlanBooking, event: React.PointerEvent) => void;
   /** True when the click currently firing is the tail of a drag gesture. */
   wasDragGesture?: () => boolean;
+  /** Guest names of live stays overlapping this one on the same unit (double booking). */
+  clashingWith?: string[];
 }
 
 interface PaxSource {
@@ -125,7 +127,9 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   onCancel,
   onDragStart,
   wasDragGesture,
+  clashingWith,
 }: RoomPlanBarProps) {
+  const doubleBooked = (clashingWith?.length || 0) > 0;
   const nights = bookingNights(booking);
   const draggable = isBookingDraggable(booking) && !!onDragStart;
   const needsAttention = !!booking.requires_intervention || !!booking.special_requests?.trim();
