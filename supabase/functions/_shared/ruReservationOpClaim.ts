@@ -57,6 +57,9 @@ export function reservationFingerprint(parts: (string | number | null | undefine
 export function isTerminalChannelRefusal(message?: string | null, code?: string | null): boolean {
   const msg = String(message ?? '');
   if ((code ?? '') === 'RU_PROPERTY_UNMAPPED' || (code ?? '') === 'RU_LISTING_MISSING') return true;
+  // A changeover refusal is permanent FOR THOSE DATES — replaying the same stay can never pass,
+  // and a genuinely different stay arrives as a new event with a new fingerprint anyway.
+  if ((code ?? '') === 'RU_CHANGEOVER_RULE') return true;
   return (
     /property is not available for a given dates/i.test(msg) ||
     /can'?t check in or check out on selected dates/i.test(msg) ||
