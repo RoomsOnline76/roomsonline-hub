@@ -20,6 +20,7 @@ import {
   type BillingPartyState,
 } from "@/components/pms/booking/InvoiceBillingPartySelector";
 import { channelSourceLabel } from "@/lib/channelVocabulary";
+import { bookingAccountTotals, type ChargesBreakdown } from "@/lib/bookingPaymentsReceived";
 
 
 interface FolioTransaction {
