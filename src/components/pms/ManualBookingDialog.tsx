@@ -513,13 +513,81 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
     [availability, form.check_in, form.check_out, nights],
   );
 
+  /* ── Server quote (authoritative) ──────────────────────────────────────
+     The client-side calendar map only knows the rates it has loaded, so it can
+     fall back to the rate plan / room type default (e.g. R1 000) even when the
+     engine holds a season or stay-shape price. `quote_stay` is the single
+     source of truth for the accommodation total, exactly as checkout uses it. */
+  const [serverQuote, setServerQuote] = useState<Map<string, { total: number; perNight: number }>>(new Map());
+  const [quoting, setQuoting] = useState(false);
+
+  const quoteKey = useMemo(() => {
+    if (!effectivePropertyId || nights < 1 || !form.check_in || !form.check_out) return "";
+    const parts = lines
+      .filter(l => l.room_type_id)
+      .map(l => [l.key, l.room_type_id, l.rate_plan_id, l.adults, l.teens, l.children, l.infants].join(":"));
+    if (parts.length === 0) return "";
+    return [effectivePropertyId, isoDay(form.check_in), isoDay(form.check_out), ...parts].join("|");
+  }, [effectivePropertyId, nights, form.check_in, form.check_out, lines]);
+
+  useEffect(() => {
+    if (!open || !quoteKey || !form.check_in || !form.check_out) {
+      setServerQuote(new Map());
+      return;
+    }
+    const requested = lines.filter(l => l.room_type_id);
+    let cancelled = false;
+    setQuoting(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke("booking-orchestrator-api", {
+            body: {
+              action: "quote_stay",
+              property_id: effectivePropertyId,
+              rooms: requested.map(l => ({
+                room_type_id: l.room_type_id,
+                rate_plan_id: l.rate_plan_id || undefined,
+                check_in: isoDay(form.check_in!),
+                check_out: isoDay(form.check_out!),
+                adults: parseInt(l.adults) || 1,
+                teens: parseInt(l.teens) || 0,
+                children: parseInt(l.children) || 0,
+                infants: parseInt(l.infants) || 0,
+              })),
+            },
+          });
+          if (cancelled) return;
+          const rows = (!error && data?.success && Array.isArray(data.data?.rooms)) ? data.data.rooms : [];
+          const next = new Map<string, { total: number; perNight: number }>();
+          rows.forEach((r: any) => {
+            const line = requested[Number(r.request_index) || 0];
+            const total = Number(r.accommodation_total) || 0;
+            if (line && total > 0) next.set(line.key, { total, perNight: Number(r.per_night) || total / nights });
+          });
+          setServerQuote(next);
+        } catch {
+          if (!cancelled) setServerQuote(new Map());
+        } finally {
+          if (!cancelled) setQuoting(false);
+        }
+      })();
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); setQuoting(false); };
+    // quoteKey captures every input that changes the quote.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, quoteKey]);
+
   /** Per-line pricing summary. */
   const linePricing = useMemo(() => {
     const map = new Map<string, { total: number; rates: number[]; unresolved: boolean; label: string }>();
     for (const l of lines) {
-      const rates = nightlyRatesFor(l.room_type_id, l.rate_plan_id);
-      const unresolved = rates.length > 0 && rates.every(r => r === 0);
-      const auto = rates.reduce((a, b) => a + b, 0);
+      const quoted = serverQuote.get(l.key);
+      const rates = quoted
+        ? Array.from({ length: nights }, () => quoted.perNight)
+        : nightlyRatesFor(l.room_type_id, l.rate_plan_id);
+      const unresolved = !quoted && rates.length > 0 && rates.every(r => r === 0);
+      const auto = quoted ? quoted.total : rates.reduce((a, b) => a + b, 0);
       const override = l.price_override ? parseFloat(l.price_override) : NaN;
       const total = !isNaN(override) && override > 0 ? override : auto;
       const min = rates.length ? Math.min(...rates) : 0;
@@ -533,12 +601,13 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
       });
     }
     return map;
-  }, [lines, nightlyRatesFor, nights]);
+  }, [lines, nightlyRatesFor, nights, serverQuote]);
 
   const autoTotal = useMemo(
     () => Array.from(linePricing.values()).reduce((sum, p) => sum + (p.total || 0), 0),
     [linePricing]
   );
+
 
   const occupancyTotals = useMemo(() => {
     return lines.reduce(
@@ -1235,7 +1304,7 @@ export function ManualBookingDialog({ open, onOpenChange, propertyId, roomTypes,
               <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Accommodation ({lines.filter(l => l.room_type_id).length} room{lines.filter(l => l.room_type_id).length !== 1 ? "s" : ""})</span>
-                  <span className="font-semibold">R{autoTotal.toLocaleString()}</span>
+                  <span className="font-semibold">{quoting ? "Pricing…" : `R${autoTotal.toLocaleString()}`}</span>
                 </div>
                 {packages.length > 0 && (
                   <div>
