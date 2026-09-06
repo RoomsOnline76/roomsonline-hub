@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,13 +10,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BedDouble, Plus, Trash2, Save, User, Receipt, StickyNote, CalendarRange, Users2 } from "lucide-react";
-import { StayRangePicker } from "@/components/ui/stay-range-picker";
 import { ViewRatesDialog } from "./ViewRatesDialog";
+import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks/useCrmAccounts";
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
-import { extractFunctionError } from "@/lib/functionError";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
 import { PhoneInput } from "@/components/pms/PhoneInput";
 import { splitPhone, DEFAULT_DIAL_ISO, ensureE164 } from "@/lib/dialCodes";
@@ -65,6 +64,8 @@ export interface BookingDetailsGridBooking {
   modification_notes?: Record<string, unknown>[] | null;
   integration_type?: string | null;
   external_reservation_id?: string | null;
+  room_type_id?: string | null;
+  updated_at?: string | null;
 }
 
 
@@ -135,6 +136,7 @@ export function BookingDetailsGrid({
   );
   const [confirmState, setConfirmState] = useState<"idle" | "working" | "queued">("idle");
   const [viewRatesOpen, setViewRatesOpen] = useState(false);
+  const [modifyStayOpen, setModifyStayOpen] = useState(false);
   const [lines, setLines] = useState<RoomLineRow[]>([]);
   const [linesLoaded, setLinesLoaded] = useState(false);
   const [account, setAccount] = useState({ extras: 0, payments: 0, deposits: 0 });
@@ -142,7 +144,6 @@ export function BookingDetailsGrid({
    * (accommodation + mandatory extras), so seeding the field from it and saving it back
    * is what made extras compound on every edit. The reconciled charge snapshot — and
    * failing that the room lines — carry the real accommodation basis. */
-  const [storedAccommodation, setStoredAccommodation] = useState<number>(Number(booking.total_price ?? 0));
 
   const [form, setForm] = useState({
     guest_name: booking.guest_name || "",
@@ -200,14 +201,6 @@ export function BookingDetailsGrid({
   };
 
 
-  const nights = useMemo(() => {
-    try {
-      return Math.max(1, differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date)));
-    } catch {
-      return 1;
-    }
-  }, [form.check_in_date, form.check_out_date]);
-
   // Load room lines + account figures.
   useEffect(() => {
     let cancelled = false;
@@ -264,7 +257,6 @@ export function BookingDetailsGrid({
       const lineSum = loaded.reduce((a, l) => a + (parseFloat(l.rate_charged) || 0), 0);
       const basis = Number(snap?.accommodation ?? 0) > 0 ? Number(snap!.accommodation) : lineSum;
       if (basis > 0) {
-        setStoredAccommodation(basis);
         set("total_price", String(basis));
       }
 
@@ -343,49 +335,6 @@ export function BookingDetailsGrid({
     // the only path that reaches the channel (accepting a held request first when needed) and
     // moves the calendar blockout. Writing those fields straight to the record used to leave the
     // channel holding the original dates and pax while the local record said otherwise.
-    const datesChanged =
-      form.check_in_date !== booking.check_in_date || form.check_out_date !== booking.check_out_date;
-    const paxChanged =
-      occ.adults !== (booking.adults ?? 0) ||
-      occ.children !== (booking.children ?? 0) ||
-      occ.teens !== (booking.teens ?? 0) ||
-      occ.infants !== (booking.infants ?? 0);
-    /* A price change also belongs to the service: it re-prices the extras on the new
-     * accommodation basis and re-quotes the channel. Writing it locally would leave the
-     * fees priced off the previous figure. */
-    const priceChanged = accommodation !== storedAccommodation;
-    const routedToService = datesChanged || paxChanged || priceChanged;
-
-
-    if (routedToService) {
-      const modifications: Record<string, unknown> = {
-        adults: occ.adults || booking.adults || 1,
-        children: occ.children,
-        teens: occ.teens,
-        infants: occ.infants,
-      };
-      if (datesChanged) {
-        modifications.check_in_date = form.check_in_date;
-        modifications.check_out_date = form.check_out_date;
-      }
-      if (accommodation !== storedAccommodation) modifications.accommodation_total = accommodation;
-
-      const { data, error } = await supabase.functions.invoke("modify-booking", {
-        body: { booking_id: booking.id, modifications },
-      });
-      if (error) {
-        setSaving(false);
-        toast.error(await extractFunctionError(error, "Could not apply the stay change"));
-        return;
-      }
-      if (data && data.success === false) {
-        setSaving(false);
-        toast.error(data.message || "Could not apply the stay change");
-        return;
-      }
-      if (data?.ru_request_accepted) toast.success("Channel request accepted before the change was applied");
-    }
-
     const { error } = await supabase.from("bookings").update({
       guest_name: form.guest_name,
       guest_email: form.guest_email,
@@ -406,18 +355,6 @@ export function BookingDetailsGrid({
       payment_method: form.payment_method || null,
       deposit_amount: form.deposit_amount ? deposit : null,
       rolos_room_ids: assignedRoomIds.length ? assignedRoomIds : null,
-      // Dates, occupancy and the repriced total belong to the modification service when it ran.
-      ...(routedToService
-        ? {}
-        : {
-          check_in_date: form.check_in_date,
-          check_out_date: form.check_out_date,
-          total_price: accommodation,
-          adults: occ.adults || booking.adults || 1,
-          children: occ.children,
-          teens: occ.teens,
-          infants: occ.infants,
-        }),
       booker_is_guest: crm.booker_is_guest,
       booker_name: crm.booker_is_guest ? null : (crm.booker_name || null),
       booker_email: crm.booker_is_guest ? null : (crm.booker_email || null),
@@ -443,16 +380,12 @@ export function BookingDetailsGrid({
     // Sync room lines in place so per-night rate overrides (which reference the
     // room line id) are preserved: update existing, insert new, remove dropped.
     if (linesLoaded) {
+      // Stay dates, pax and accommodation are owned by BookingModifyDialog/modify-booking.
+      // This editor may assign rooms and plans, but must never write stale stay figures back.
       const payload = (l: RoomLineRow) => ({
         room_id: l.room_id || null,
         room_type_id: l.room_type_id || null,
         rate_plan_id: l.rate_plan_id || null,
-        rate_charged: parseFloat(l.rate_charged) || 0,
-        nightly_rate: nights > 0 ? Math.round(((parseFloat(l.rate_charged) || 0) / nights) * 100) / 100 : null,
-        adults: parseInt(l.adults) || 1,
-        children: parseInt(l.children) || 0,
-        teens: parseInt(l.teens) || 0,
-        infants: parseInt(l.infants) || 0,
       });
 
       const keep = lines.filter(l => l.room_id || l.room_type_id);
@@ -491,18 +424,11 @@ export function BookingDetailsGrid({
         </h4>
 
         <div className="space-y-1">
-          <Label className="text-[11px]">Stay dates</Label>
-          <StayRangePicker
-            size="compact"
-            numberOfMonths={2}
-            minDate={null}
-            from={form.check_in_date}
-            to={form.check_out_date}
-            onChange={({ from, to }) =>
-              setForm(p => ({ ...p, check_in_date: from ?? "", check_out_date: to ?? "" }))
-            }
-            placeholder="Select arrival & departure"
-          />
+          <Label className="text-[11px]">Stay</Label>
+          <div className="flex items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+            <span className="text-xs">{format(parseISO(booking.check_in_date), "d MMM yyyy")} – {format(parseISO(booking.check_out_date), "d MMM yyyy")}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setModifyStayOpen(true)}>Modify stay</Button>
+          </div>
         </div>
 
         <div>
@@ -572,15 +498,8 @@ export function BookingDetailsGrid({
                   </SelectContent>
                 </Select>
               )}
-              <div className="grid grid-cols-4 gap-1">
-                <div><Label className="text-[9px]">Ad</Label><Input className="h-7 px-1 text-xs" type="number" min={1} value={l.adults} onChange={e => updateLine(l.key, { adults: e.target.value })} /></div>
-                <div><Label className="text-[9px]">0–2</Label><Input className="h-7 px-1 text-xs" type="number" min={0} value={l.infants} onChange={e => updateLine(l.key, { infants: e.target.value })} /></div>
-                <div><Label className="text-[9px]">3–12</Label><Input className="h-7 px-1 text-xs" type="number" min={0} value={l.children} onChange={e => updateLine(l.key, { children: e.target.value })} /></div>
-                <div><Label className="text-[9px]">Teen</Label><Input className="h-7 px-1 text-xs" type="number" min={0} value={l.teens} onChange={e => updateLine(l.key, { teens: e.target.value })} /></div>
-              </div>
-              <div>
-                <Label className="text-[9px]">Line total</Label>
-                <Input className="h-7 text-xs" type="number" min={0} value={l.rate_charged} onChange={e => updateLine(l.key, { rate_charged: e.target.value })} />
+              <div className="text-[10px] text-muted-foreground">
+                {l.adults} adult{l.adults === "1" ? "" : "s"} · {Number(l.children) + Number(l.teens)} child/teen · {l.infants} infant{l.infants === "1" ? "" : "s"} · {money(Number(l.rate_charged) || 0)}
               </div>
             </div>
           ))}
@@ -754,8 +673,28 @@ export function BookingDetailsGrid({
 
         <div>
           <Label className="text-[11px]">Accommodation (ZAR)</Label>
-          <Input className="h-8" type="number" min={0} value={form.total_price} onChange={e => set("total_price", e.target.value)} />
+          <Input className="h-8" type="number" value={form.total_price} disabled />
         </div>
+        <BookingModifyDialog
+          open={modifyStayOpen}
+          onOpenChange={setModifyStayOpen}
+          booking={{
+            id: booking.id,
+            guest_name: booking.guest_name,
+            check_in_date: booking.check_in_date,
+            check_out_date: booking.check_out_date,
+            adults: booking.adults,
+            children: booking.children,
+            teens: booking.teens,
+            infants: booking.infants,
+            total_price: booking.total_price,
+            property_id: booking.property_id,
+            room_type_id: booking.room_type_id,
+            updated_at: booking.updated_at,
+          }}
+          isRuBooking={String(booking.booking_channel).toLowerCase() === "rentals_united" || String(booking.integration_type).toLowerCase().startsWith("rentalsunited")}
+          onDone={onSaved}
+        />
         <div>
           <Label className="text-[11px]">Deposit Required</Label>
           <Input className="h-8" type="number" min={0} value={form.deposit_amount} onChange={e => set("deposit_amount", e.target.value)} placeholder="0.00" />
