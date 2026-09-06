@@ -545,9 +545,19 @@ export async function cancelRuReservation(
       ...auth,
     }, logCtx);
     await settle(cancelled);
-    return cancelled.ok
-      ? { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation', traceId }
-      : { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message, traceId };
+    if (cancelled.ok) {
+      return { ok: true, deferred: cancelled.deferred === true, method: 'cancel_reservation', traceId };
+    }
+    if (classifyRuOutcome(false, cancelled.code, cancelled.message) === 'no_op') {
+      return {
+        ok: true,
+        method: 'cancel_reservation',
+        code: 'RU_NOTHING_TO_CANCEL',
+        message: 'The channel no longer holds this request — cancelled locally only.',
+        traceId,
+      };
+    }
+    return { ok: false, method: 'cancel_reservation', code: cancelled.code, message: cancelled.message, traceId };
   }
 
   const result = await invokeRu(supabase, 'cancel_reservation', {
