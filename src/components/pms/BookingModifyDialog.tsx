@@ -309,7 +309,36 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         let resolved: number | null = null;
         let source: QuoteSource = null;
 
-        if (booking.property_id) {
+        /**
+         * The engine that prices the stay on save is asked first, so what the operator reads here is
+         * exactly what will be written. Without this the dialog fell back to the old nightly average
+         * and the amount never moved when the dates changed, while the save quietly repriced.
+         */
+        try {
+          const { data, error } = await supabase.functions.invoke("modify-booking", {
+            body: {
+              booking_id: booking.id,
+              quote_only: true,
+              modifications: {
+                check_in_date: checkIn,
+                check_out_date: checkOut,
+                adults: Number(adults) || 0,
+                children: Number(children) || 0,
+              },
+            },
+          });
+          const engine = Number(data?.quote?.accommodation ?? NaN);
+          const from = String(data?.quote?.repriced_from ?? "");
+          if (!error && Number.isFinite(engine) && engine > 0 && from && from !== "operator") {
+            resolved = Math.round(engine * 100) / 100;
+            source = "live";
+          }
+        } catch (err) {
+          console.warn("[BookingModifyDialog] engine re-pricing failed:", err);
+        }
+
+        if (resolved === null && booking.property_id) {
+
           try {
             const live = await fetchLiveRates(booking.property_id, null, checkIn, checkOut);
             const room =
