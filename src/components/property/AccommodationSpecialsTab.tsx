@@ -279,6 +279,10 @@ export function AccommodationSpecialsTab({ propertyId, category = "accommodation
             <Plus className="h-3 w-3" />
           </Button>
         </div>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Offers on a quoted stay. To change what 7 nights costs as the tariff, open Rate Plans →
+          Stay shape.
+        </p>
         <Button
           size="sm"
           variant="outline"
