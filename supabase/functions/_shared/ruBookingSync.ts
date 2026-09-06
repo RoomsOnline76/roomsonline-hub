@@ -557,9 +557,21 @@ export async function cancelRuReservation(
     ...auth,
   }, logCtx);
   await settle(result);
-  return result.ok
-    ? { ok: true, deferred: result.deferred === true, method: 'cancel_reservation', traceId }
-    : { ok: false, method: 'cancel_reservation', code: result.code, message: result.message, traceId };
+  if (result.ok) {
+    return { ok: true, deferred: result.deferred === true, method: 'cancel_reservation', traceId };
+  }
+  // The channel does not hold this reservation (e.g. its create was refused on the dates), so
+  // there is nothing left to withdraw — the local cancel must not be blocked by it.
+  if (classifyRuOutcome(false, result.code, result.message) === 'no_op') {
+    return {
+      ok: true,
+      method: 'cancel_reservation',
+      code: 'RU_NOTHING_TO_CANCEL',
+      message: 'The channel no longer holds this reservation — cancelled locally only.',
+      traceId,
+    };
+  }
+  return { ok: false, method: 'cancel_reservation', code: result.code, message: result.message, traceId };
 }
 
 
