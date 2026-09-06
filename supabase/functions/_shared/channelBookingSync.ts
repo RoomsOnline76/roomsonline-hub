@@ -101,6 +101,23 @@ async function resolveCurrentListing(
   const stored = row.channel_listing_id as string | null;
   if (stored) return { listing: stored, absent: false };
 
+  // Resolve locally first: the unit→listing mapping is authoritative for a booking ROL'OS
+  // created. Pulling Pull_GetReservationByID_RQ here spent the channel's per-method minute on
+  // every queued booking event (moved/price retries ran a 19 s wire read each) — the local
+  // mapping answers the same question in one indexed read.
+  try {
+    const local = await resolveRuPropertyId(supabase, row as never);
+    if (local) {
+      await supabase
+        .from('bookings')
+        .update({ channel_listing_id: String(local) })
+        .eq('id', String(row.id));
+      return { listing: String(local), absent: false };
+    }
+  } catch (_err) {
+    // fall through to the channel read
+  }
+
   const reservationId = String(row.external_reservation_id ?? '');
   if (!reservationId) return { listing: null, absent: false };
 
