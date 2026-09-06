@@ -637,8 +637,32 @@ export async function ingestRuReservation(
   let outcome: RuIngestOutcome = 'updated';
 
   if (existing) {
+    /**
+     * A confirmation echo repeats the stay as the channel held it BEFORE our own change. When an
+     * operator edit is still travelling (acceptance + stay change parked in the call queue), that
+     * echo used to write the original dates, guests and price straight back over the edited
+     * booking — the save "succeeded" and then silently reverted. While a modify is in flight the
+     * echo may only carry status and payment, never the stay itself.
+     */
+    const { data: liveOps } = await supabase
+      .from('ru_reservation_op_claims')
+      .select('outcome, claimed_at')
+      .eq('booking_id', existing.id)
+      .eq('op', 'modify')
+      .gte('claimed_at', new Date(Date.now() - 900_000).toISOString())
+      .limit(5);
+    const modifyInFlight = ((liveOps ?? []) as Array<{ outcome?: string | null }>).some(
+      (o) => !o.outcome || o.outcome === 'in_flight' || o.outcome === 'deferred',
+    );
+    if (modifyInFlight) {
+      for (const key of ['check_in_date', 'check_out_date', 'adults', 'children', 'teens', 'infants', 'total_price', 'nights']) {
+        delete (confirmed as Record<string, unknown>)[key];
+      }
+      console.log(`${log} Local stay change in flight — echo applied to status/payment only for ${r.ruReservationId}`);
+    }
     await supabase.from('bookings').update(confirmed).eq('id', existing.id);
     console.log(`${log} ✅ Updated booking for RU reservation ${r.ruReservationId}`);
+
   } else {
     const { data: inserted, error } = await supabase
       .from('bookings')

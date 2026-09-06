@@ -113,6 +113,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   /** Once the operator types a total, their figure wins over later auto-quotes. */
   const [manualTotal, setManualTotal] = useState(false);
   const quoteSeq = useRef(0);
+  /** Hard occupancy ceiling from the property record, used when a unit has no measured capacity. */
+  const [propertyMaxGuests, setPropertyMaxGuests] = useState<number | null>(null);
+
 
   // ─── Extras / levies priced for the proposed stay (server-side, single source of truth) ───
   const [extras, setExtras] = useState<ExtrasQuote | null>(null);
@@ -195,22 +198,29 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     return findBlockedInRange(blockedNights, checkIn, checkOut);
   }, [blockedNights, checkIn, checkOut]);
 
-  /** Sleeping capacity of the booked units, summed across the stay's lines. */
+  /**
+   * Sleeping capacity of the booked units, summed across the stay's lines. When the grid has no
+   * measured capacity for a booked unit (a channel stay whose unit was never sized), the property's
+   * own maximum guests is the cap — leaving it unknown let channel edits seat more guests than the
+   * place holds.
+   */
   const stayCapacity = useMemo(() => {
     const typeIds = lineRoomTypeIds.length
       ? lineRoomTypeIds
       : booking.room_type_id
         ? [booking.room_type_id]
         : [];
-    if (typeIds.length === 0) return null;
+    if (typeIds.length === 0) return propertyMaxGuests ?? null;
     let total = 0;
     for (const t of typeIds) {
       const cap = availability.capacity.get(t);
-      if (!cap || cap <= 0) return null; // capacity unknown — do not restrict
+      if (!cap || cap <= 0) return propertyMaxGuests ?? null;
       total += cap;
     }
-    return total > 0 ? total : null;
-  }, [availability, lineRoomTypeIds, booking.room_type_id]);
+    if (total <= 0) return propertyMaxGuests ?? null;
+    return propertyMaxGuests ? Math.min(total, propertyMaxGuests) : total;
+  }, [availability, lineRoomTypeIds, booking.room_type_id, propertyMaxGuests]);
+
 
   useEffect(() => {
     if (!open) return;
@@ -249,11 +259,21 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           Number(current) === Number(data.total_price ?? 0) ? String(snapAccommodation) : current,
         );
       }
+      if (booking.property_id) {
+        const { data: prop } = await supabase
+          .from("properties")
+          .select("max_guests")
+          .eq("id", booking.property_id)
+          .maybeSingle();
+        const cap = Number(prop?.max_guests ?? 0);
+        if (mounted) setPropertyMaxGuests(cap > 0 ? cap : null);
+      }
     })();
     return () => {
       mounted = false;
     };
-  }, [open, booking.id]);
+  }, [open, booking.id, booking.property_id]);
+
 
   const originalNights = useMemo(
     () => nightsBetween(booking.check_in_date, booking.check_out_date),
@@ -289,7 +309,36 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         let resolved: number | null = null;
         let source: QuoteSource = null;
 
-        if (booking.property_id) {
+        /**
+         * The engine that prices the stay on save is asked first, so what the operator reads here is
+         * exactly what will be written. Without this the dialog fell back to the old nightly average
+         * and the amount never moved when the dates changed, while the save quietly repriced.
+         */
+        try {
+          const { data, error } = await supabase.functions.invoke("modify-booking", {
+            body: {
+              booking_id: booking.id,
+              quote_only: true,
+              modifications: {
+                check_in_date: checkIn,
+                check_out_date: checkOut,
+                adults: Number(adults) || 0,
+                children: Number(children) || 0,
+              },
+            },
+          });
+          const engine = Number(data?.quote?.accommodation ?? NaN);
+          const from = String(data?.quote?.repriced_from ?? "");
+          if (!error && Number.isFinite(engine) && engine > 0 && from && from !== "operator") {
+            resolved = Math.round(engine * 100) / 100;
+            source = "live";
+          }
+        } catch (err) {
+          console.warn("[BookingModifyDialog] engine re-pricing failed:", err);
+        }
+
+        if (resolved === null && booking.property_id) {
+
           try {
             const live = await fetchLiveRates(booking.property_id, null, checkIn, checkOut);
             const room =
@@ -332,7 +381,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [open, checkIn, checkOut, nights, datesChanged, paxChanged, booking.property_id, booking.room_type_id, averageQuote]);
+  }, [open, booking.id, checkIn, checkOut, nights, datesChanged, paxChanged, adults, children, booking.property_id, booking.room_type_id, averageQuote]);
 
   // Push the quote into the field unless the operator has taken over.
   useEffect(() => {

@@ -25,7 +25,7 @@ import {
   RU_BLOCKED_DATES_BREAKER_LIMIT,
 } from './ruReservationHold.ts';
 import { recordChannelBookingEvent } from './channelBookingEvents.ts';
-import { describeChangeoverViolation } from './ruChangeoverRules.ts';
+import { changeoverCodeForDate, describeChangeoverViolation } from './ruChangeoverRules.ts';
 
 
 
@@ -595,18 +595,43 @@ export async function reopenStayNightsAtChannel(
   },
 ): Promise<boolean> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(args.dateTo)) return false;
+
+  /**
+   * Reopening is about UNITS, never about the owner's arrival/departure rule. Publishing a flat
+   * "both allowed" over the span used to erase an authored weekday rule (e.g. no Sunday arrival)
+   * until the next full calendar push, which let the channel sell a barred day. Each day is
+   * therefore republished with the code the owner actually authored for it.
+   */
+  const { data: propertyRow } = await supabase
+    .from('properties')
+    .select('amenities')
+    .eq('id', booking.property_id)
+    .maybeSingle();
+  let unitAmenities: Record<string, unknown> | null = null;
+  if (booking.room_type_id) {
+    const { data: unitRow } = await supabase
+      .from('hostfully_room_types')
+      .select('amenities')
+      .eq('id', booking.room_type_id)
+      .maybeSingle();
+    unitAmenities = (unitRow?.amenities ?? null) as Record<string, unknown> | null;
+  }
+  const propertyAmenities = (propertyRow?.amenities ?? null) as Record<string, unknown> | null;
+  const authoredCode = (iso: string) =>
+    changeoverCodeForDate(propertyAmenities, unitAmenities, booking.room_type_id ?? null, iso);
+
   // RU's Date From/To covers nights, so the departure day is not part of the stay — but it is still
   // validated for arrival/departure, so it is reopened as its own single-day span.
-  const lastNight = new Date(`${args.dateTo}T00:00:00Z`);
-  lastNight.setUTCDate(lastNight.getUTCDate() - 1);
-  const lastNightStr = lastNight.toISOString().slice(0, 10);
   const spans: Array<Record<string, unknown>> = [];
-  if (lastNightStr >= args.dateFrom) {
-    // Internal 3 means both arrival and departure are allowed; the shared serializer maps it to
-    // channel wire value 4 (measured: 4 is the only code that lets a reservation register).
-    spans.push({ date_from: args.dateFrom, date_to: lastNightStr, units: 1, changeover: 3 });
+  const cursor = new Date(`${args.dateFrom}T00:00:00Z`);
+  const end = new Date(`${args.dateTo}T00:00:00Z`);
+  while (cursor.getTime() <= end.getTime()) {
+    const iso = cursor.toISOString().slice(0, 10);
+    spans.push({ date_from: iso, date_to: iso, units: 1, changeover: authoredCode(iso) });
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-  spans.push({ date_from: args.dateTo, date_to: args.dateTo, units: 1, changeover: 3 });
+  if (!spans.length) return false;
+
 
   const reopened = await invokeRu(supabase, 'push_availability', {
     ru_property_id: Number(args.ruPropertyId),
@@ -1043,6 +1068,58 @@ export async function modifyRuStay(
       comments: 'Accepted on modification in ROL\u2019OS',
     });
     if (!confirmed.ok) {
+      /**
+       * The acceptance is parked for the channel's next slot (a minute away). Asking the operator to
+       * "resend the change once it lands" lost the edit: nothing re-sent it, and the channel's own
+       * confirmation echo then wrote the ORIGINAL stay back over the local record. Queue the stay
+       * change behind the acceptance instead, so it applies by itself.
+       */
+      if (confirmed.queued === true) {
+        const queuedAuth = await resolveRuChildAuth(supabase, booking.property_id);
+        const queuedListing = await resolveRuPropertyId(supabase, booking);
+        if (queuedAuth && queuedListing) {
+          const chained = await enqueueRuCall(supabase, {
+            methodKey: `modify_stay:${booking.external_reservation_id}`,
+            action: 'modify_stay',
+            payload: {
+              action: 'modify_stay',
+              reservation_id: String(booking.external_reservation_id),
+              current_stay: {
+                ru_property_id: identity.listing || queuedListing,
+                date_from: identity.currentDateFrom || current?.date_from || booking.check_in_date,
+                date_to: identity.currentDateTo || current?.date_to || booking.check_out_date,
+              },
+              modify_stay: {
+                ru_property_id: queuedListing,
+                date_from: modify.date_from ?? booking.check_in_date,
+                date_to: modify.date_to ?? booking.check_out_date,
+                number_of_guests: modify.number_of_guests ?? null,
+                client_price: modify.client_price ?? null,
+                already_paid: modify.already_paid ?? null,
+                arrival_time: modify.arrival_time ?? null,
+              },
+              ...queuedAuth,
+            },
+            propertyId: booking.property_id,
+            priority: 1,
+            // Behind the acceptance (parked ~65s out), clear of the same sliding minute.
+            delayMs: 135_000,
+          });
+          if (chained) {
+            return {
+              ok: false,
+              queued: true,
+              deferred: true,
+              method: 'modify_stay',
+              code: 'RU_MODIFY_QUEUED',
+              message:
+                'The channel is still accepting this request. The acceptance and your stay change are both ' +
+                'queued for the next channel slots (about two minutes) — no need to resend.',
+              traceId,
+            };
+          }
+        }
+      }
       await logRuNotAttempted(supabase, {
         trace_id: traceId,
         parent_action: 'ruBookingSync:modify',
@@ -1061,6 +1138,7 @@ export async function modifyRuStay(
         traceId,
       };
     }
+
     confirmedLead = true;
   }
 
