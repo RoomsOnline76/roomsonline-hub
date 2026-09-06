@@ -1068,6 +1068,58 @@ export async function modifyRuStay(
       comments: 'Accepted on modification in ROL\u2019OS',
     });
     if (!confirmed.ok) {
+      /**
+       * The acceptance is parked for the channel's next slot (a minute away). Asking the operator to
+       * "resend the change once it lands" lost the edit: nothing re-sent it, and the channel's own
+       * confirmation echo then wrote the ORIGINAL stay back over the local record. Queue the stay
+       * change behind the acceptance instead, so it applies by itself.
+       */
+      if (confirmed.queued === true) {
+        const queuedAuth = await resolveRuChildAuth(supabase, booking.property_id);
+        const queuedListing = await resolveRuPropertyId(supabase, booking);
+        if (queuedAuth && queuedListing) {
+          const chained = await enqueueRuCall(supabase, {
+            methodKey: `modify_stay:${booking.external_reservation_id}`,
+            action: 'modify_stay',
+            payload: {
+              action: 'modify_stay',
+              reservation_id: String(booking.external_reservation_id),
+              current_stay: {
+                ru_property_id: identity.listing || queuedListing,
+                date_from: identity.currentDateFrom || current?.date_from || booking.check_in_date,
+                date_to: identity.currentDateTo || current?.date_to || booking.check_out_date,
+              },
+              modify_stay: {
+                ru_property_id: queuedListing,
+                date_from: modify.date_from ?? booking.check_in_date,
+                date_to: modify.date_to ?? booking.check_out_date,
+                number_of_guests: modify.number_of_guests ?? null,
+                client_price: modify.client_price ?? null,
+                already_paid: modify.already_paid ?? null,
+                arrival_time: modify.arrival_time ?? null,
+              },
+              ...queuedAuth,
+            },
+            propertyId: booking.property_id,
+            priority: 1,
+            // Behind the acceptance (parked ~65s out), clear of the same sliding minute.
+            delayMs: 135_000,
+          });
+          if (chained) {
+            return {
+              ok: false,
+              queued: true,
+              deferred: true,
+              method: 'modify_stay',
+              code: 'RU_MODIFY_QUEUED',
+              message:
+                'The channel is still accepting this request. The acceptance and your stay change are both ' +
+                'queued for the next channel slots (about two minutes) — no need to resend.',
+              traceId,
+            };
+          }
+        }
+      }
       await logRuNotAttempted(supabase, {
         trace_id: traceId,
         parent_action: 'ruBookingSync:modify',
@@ -1086,6 +1138,7 @@ export async function modifyRuStay(
         traceId,
       };
     }
+
     confirmedLead = true;
   }
 
