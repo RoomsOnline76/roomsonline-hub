@@ -933,12 +933,14 @@ function buildConfirmRequestXml(creds: RUCredentials, reservationId: string, _co
  * Cancel a confirmed RU reservation. `CancelTypeID` is mandatory:
  * 1 = cancelled by the property provider (us), 2 = cancelled by the guest.
  */
-function buildCancelReservationXml(creds: RUCredentials, reservationId: string, cancelTypeId: number): string {
+function buildCancelReservationXml(creds: RUCredentials, reservationId: string, _cancelTypeId: number): string {
+  // The live account's XSD rejects CancelTypeID:
+  //   "The element 'Push_CancelReservation_RQ' has invalid child element 'CancelTypeID'."
+  // Sending it makes every cancel fail validation, so the reservation id is the only child.
   return `<?xml version="1.0" encoding="utf-8"?>
 <Push_CancelReservation_RQ>
   ${buildAuthXml(creds)}
   <ReservationID>${escapeXml(reservationId)}</ReservationID>
-  <CancelTypeID>${cancelTypeId}</CancelTypeID>
 </Push_CancelReservation_RQ>`;
 }
 
