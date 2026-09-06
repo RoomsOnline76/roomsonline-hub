@@ -606,6 +606,21 @@ export function RoomPlanGrid({
 
                   {group.rows.map((row) => {
                     const placed = assignLanes(row.bookings, dates);
+                    // Double bookings: two live stays overlapping on the same unit
+                    // row. Cancelled / no-show stays don't occupy, so they're out.
+                    const clashNamesById = new Map<string, string[]>();
+                    const liveRowBookings = row.bookings.filter(
+                      (b) => !["cancelled", "no_show"].includes((b.status || "").toLowerCase())
+                    );
+                    for (let i = 0; i < liveRowBookings.length; i++) {
+                      for (let j = i + 1; j < liveRowBookings.length; j++) {
+                        const a = liveRowBookings[i];
+                        const b = liveRowBookings[j];
+                        if (!overlaps(a.check_in_date, a.check_out_date, b.check_in_date, b.check_out_date)) continue;
+                        clashNamesById.set(a.id, [...(clashNamesById.get(a.id) || []), b.guest_name || "another stay"]);
+                        clashNamesById.set(b.id, [...(clashNamesById.get(b.id) || []), a.guest_name || "another stay"]);
+                      }
+                    }
                     const lanes = Math.max(1, ...placed.map((entry) => entry.lane + 1));
                     const rowHeight = lanes * (ROOM_PLAN_ROW_H - 4) + 6;
                     const createDrag = drag?.kind === "create" && drag.rowKey === row.key ? drag : null;
@@ -728,6 +743,7 @@ export function RoomPlanGrid({
                               lane={lane}
                               roomLabel={row.roomId ? row.label : "No unit assigned"}
                               propertyName={propertyName}
+                              clashingWith={clashNamesById.get(booking.id)}
                               dragging={moveDrag?.bookingId === booking.id}
                               onOpen={openBooking}
                               wasDragGesture={consumeGestureDrag}

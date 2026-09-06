@@ -85,6 +85,8 @@ interface RoomPlanBarProps {
   onDragStart?: (booking: RoomPlanBooking, event: React.PointerEvent) => void;
   /** True when the click currently firing is the tail of a drag gesture. */
   wasDragGesture?: () => boolean;
+  /** Guest names of live stays overlapping this one on the same unit (double booking). */
+  clashingWith?: string[];
 }
 
 interface PaxSource {
@@ -125,7 +127,9 @@ export const RoomPlanBar = memo(function RoomPlanBar({
   onCancel,
   onDragStart,
   wasDragGesture,
+  clashingWith,
 }: RoomPlanBarProps) {
+  const doubleBooked = (clashingWith?.length || 0) > 0;
   const nights = bookingNights(booking);
   const draggable = isBookingDraggable(booking) && !!onDragStart;
   const needsAttention = !!booking.requires_intervention || !!booking.special_requests?.trim();
@@ -180,10 +184,16 @@ export const RoomPlanBar = memo(function RoomPlanBar({
             geometry.clippedStart ? "rounded-l-none" : "rol-bar-half-in",
             geometry.clippedEnd ? "rounded-r-none" : "rol-bar-half-out",
             draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-            dragging && "opacity-40"
+            dragging && "opacity-40",
+            doubleBooked && "ring-2 ring-destructive ring-offset-1 ring-offset-background"
           )}
-          title={`${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`}
+          title={
+            doubleBooked
+              ? `Double booked with ${clashingWith!.join(", ")} — ${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`
+              : `${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`
+          }
         >
+          {doubleBooked && <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-destructive-foreground" />}
           {isChannelBooking(booking) && <Radio className="h-2.5 w-2.5 shrink-0 opacity-90" />}
           <span className="truncate">{booking.guest_name}</span>
           {geometry.cols > 2 && <span className="shrink-0 opacity-80">· {nights}n</span>}
@@ -196,6 +206,15 @@ export const RoomPlanBar = memo(function RoomPlanBar({
         className="w-72 border-slate-700 bg-slate-900 p-3 text-slate-100"
       >
         <div className="space-y-2">
+          {doubleBooked && (
+            <div className="flex items-start gap-1.5 rounded-md border border-destructive/60 bg-destructive/15 px-2 py-1.5 text-[11px] font-medium text-red-300">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                Double booked with {clashingWith!.join(", ")} — this unit is sold to more than one stay for these
+                nights.
+              </span>
+            </div>
+          )}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{booking.guest_name}</p>
