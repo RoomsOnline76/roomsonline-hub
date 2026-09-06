@@ -131,6 +131,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [overbookReason, setOverbookReason] = useState("");
   const [assignedRoomIds, setAssignedRoomIds] = useState<string[]>([]);
   const [lineRoomTypeIds, setLineRoomTypeIds] = useState<string[]>([]);
+  const [allocatedCapacity, setAllocatedCapacity] = useState<number | null>(null);
   const { availability, refresh: refreshAvailability } = useUnitAvailability(booking.property_id, {
     enabled: open,
     excludeBookingId: booking.id,
@@ -145,17 +146,28 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         .from("rolos_booking_rooms")
         .select("room_id, room_type_id, status")
         .eq("booking_id", booking.id);
-      if (!mounted) return;
       const live = (data ?? []).filter((l) => (l.status ?? "active") !== "cancelled");
+      const typeIds = live.map((l) => l.room_type_id).filter(Boolean) as string[];
+      const fallbackTypeIds = typeIds.length === 0 && booking.room_type_id ? [booking.room_type_id] : typeIds;
+      const uniqueTypeIds = Array.from(new Set(fallbackTypeIds));
+      const { data: roomTypes } = uniqueTypeIds.length > 0
+        ? await supabase.from("rolos_room_types").select("id, max_occupancy").in("id", uniqueTypeIds)
+        : { data: [] };
+      if (!mounted) return;
       setAssignedRoomIds(live.map((l) => l.room_id).filter(Boolean) as string[]);
-      setLineRoomTypeIds(
-        live.map((l) => l.room_type_id).filter(Boolean) as string[],
+      setLineRoomTypeIds(typeIds);
+      const capacityByType = new Map(
+        (roomTypes ?? []).map((roomType) => [roomType.id, Number(roomType.max_occupancy ?? 0)]),
       );
+      const measured = fallbackTypeIds.length > 0 && fallbackTypeIds.every((id) => (capacityByType.get(id) ?? 0) > 0)
+        ? fallbackTypeIds.reduce((sum, id) => sum + (capacityByType.get(id) ?? 0), 0)
+        : null;
+      setAllocatedCapacity(measured && measured > 0 ? measured : null);
     })();
     return () => {
       mounted = false;
     };
-  }, [open, booking.id]);
+  }, [open, booking.id, booking.room_type_id]);
 
   /** Nights unavailable for the units / types this stay occupies. */
   const blockedNights = useMemo(() => {
@@ -206,6 +218,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
    * place holds.
    */
   const stayCapacity = useMemo(() => {
+    if (allocatedCapacity !== null) return allocatedCapacity;
     const typeIds = lineRoomTypeIds.length
       ? lineRoomTypeIds
       : booking.room_type_id
@@ -220,7 +233,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     }
     if (total <= 0) return propertyMaxGuests ?? null;
     return total;
-  }, [availability, lineRoomTypeIds, booking.room_type_id, propertyMaxGuests]);
+  }, [allocatedCapacity, availability, lineRoomTypeIds, booking.room_type_id, propertyMaxGuests]);
 
 
   useEffect(() => {
