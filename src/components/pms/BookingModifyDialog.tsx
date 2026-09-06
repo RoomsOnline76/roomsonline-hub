@@ -259,11 +259,21 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           Number(current) === Number(data.total_price ?? 0) ? String(snapAccommodation) : current,
         );
       }
+      if (booking.property_id) {
+        const { data: prop } = await supabase
+          .from("properties")
+          .select("max_guests")
+          .eq("id", booking.property_id)
+          .maybeSingle();
+        const cap = Number(prop?.max_guests ?? 0);
+        if (mounted) setPropertyMaxGuests(cap > 0 ? cap : null);
+      }
     })();
     return () => {
       mounted = false;
     };
-  }, [open, booking.id]);
+  }, [open, booking.id, booking.property_id]);
+
 
   const originalNights = useMemo(
     () => nightsBetween(booking.check_in_date, booking.check_out_date),
