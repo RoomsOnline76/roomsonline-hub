@@ -86,6 +86,8 @@ export function AccountSummaryPanel({
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<FolioTransaction[]>([]);
   const [gatewayPaid, setGatewayPaid] = useState(0);
+  const [breakdown, setBreakdown] = useState<ChargesBreakdown | null>(null);
+  const [storedAmountPaid, setStoredAmountPaid] = useState(0);
   const [docs, setDocs] = useState<InvoiceDoc[]>([]);
   const [invoiceTo, setInvoiceTo] = useState(guestName || "");
   const [reference, setReference] = useState("");
