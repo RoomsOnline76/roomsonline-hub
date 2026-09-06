@@ -571,6 +571,12 @@ export async function ingestRuReservation(
     modification_notes: notes,
   };
   if (nationality) fields.guest_nationality = nationality;
+  // Money the channel already collected — held on requests too, so the account never reports a
+  // settled stay as outstanding.
+  if (r.alreadyPaid > 0) {
+    fields.amount_paid = r.alreadyPaid;
+    fields.amount_paid_source = 'channel';
+  }
   if (unit.roomTypeId) fields.room_type_id = unit.roomTypeId;
   // Remember the listing the reservation actually arrived on. Re-deriving it later from the local
   // unit mapping is what made outbound modifications fail with "PropertyID specified in Current
@@ -653,13 +659,7 @@ export async function ingestRuReservation(
     hold_released_at: null,
     payment_status: r.alreadyPaid > 0 ? 'paid_externally' : 'pending',
   };
-  if (r.alreadyPaid > 0) {
-    confirmed.paid_at = new Date().toISOString();
-    // The channel collected the money: record it as received so the booking's account does not
-    // report the whole stay as an outstanding balance.
-    confirmed.amount_paid = r.alreadyPaid;
-    confirmed.amount_paid_source = 'channel';
-  }
+  if (r.alreadyPaid > 0) confirmed.paid_at = new Date().toISOString();
 
   let bookingId = existing?.id ?? null;
   let outcome: RuIngestOutcome = 'updated';
