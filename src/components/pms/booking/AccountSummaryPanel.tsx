@@ -125,7 +125,7 @@ export function AccountSummaryPanel({
         supabase.from("payment_transactions").select("amount, status").eq("booking_id", bookingId),
         supabase
           .from("bookings")
-          .select("company_account_id, agent_account_id, booking_channel, commission_rate_applied")
+          .select("company_account_id, agent_account_id, booking_channel, commission_rate_applied, charges_breakdown, amount_paid")
           .eq("id", bookingId)
           .maybeSingle(),
       ]);
@@ -135,12 +135,14 @@ export function AccountSummaryPanel({
       setGatewayPaid(settled.reduce((sum, p) => sum + Number(p.amount || 0), 0));
 
       // Default the billing party from whatever the reservation already links to.
-      const bk = bookingRes.data;
+      const bk = bookingRes.data as (Record<string, unknown> | null);
       if (bk) {
-        setBookingChannel(bk.booking_channel ?? null);
+        setBookingChannel((bk.booking_channel as string) ?? null);
+        setBreakdown((bk.charges_breakdown as ChargesBreakdown | null) ?? null);
+        setStoredAmountPaid(Number(bk.amount_paid ?? 0) || 0);
         setParty({
           billToType: bk.company_account_id ? "company" : bk.agent_account_id ? "agent" : "guest",
-          accountId: bk.company_account_id || bk.agent_account_id || null,
+          accountId: (bk.company_account_id as string) || (bk.agent_account_id as string) || null,
           commissionRate: bk.commission_rate_applied != null ? Number(bk.commission_rate_applied) : null,
         });
       }
@@ -158,21 +160,23 @@ export function AccountSummaryPanel({
       .filter(t => Number(t.amount) < 0)
       .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
 
-    const accommodationRecorded = charges.some(t => isAccommodationLine(t, totalPrice));
-    const accommodation = accommodationRecorded
-      ? charges.filter(t => isAccommodationLine(t, totalPrice)).reduce((sum, t) => sum + Number(t.amount), 0)
-      : totalPrice;
-    const extras = charges.filter(t => !isAccommodationLine(t, totalPrice)).reduce((sum, t) => sum + Number(t.amount), 0);
+    const extrasFallback = charges
+      .filter(t => !isAccommodationLine(t, totalPrice))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const isPaidFlag = PAID_STATUSES.includes(String(paymentStatus || "").toLowerCase());
-    const online = Math.min(totalPrice, gatewayPaid > 0 ? gatewayPaid : (isPaidFlag ? totalPrice : 0));
-    const mirrored = transactions.some(t =>
-      Number(t.amount) < 0 && Math.abs(Math.abs(Number(t.amount)) - totalPrice) < 0.01
-    );
-    const payments = folioPayments + (mirrored ? 0 : online);
-    const gross = accommodation + extras;
-    return { accommodation, extras, payments, outstanding: Math.max(0, gross - payments) };
-  }, [transactions, totalPrice, gatewayPaid, paymentStatus]);
+    return bookingAccountTotals({
+      breakdown,
+      totalPrice,
+      extrasFallback,
+      payments: {
+        guestTotal: totalPrice,
+        storedAmountPaid,
+        paymentStatus,
+        gatewayPaid,
+        folioPayments,
+      },
+    });
+  }, [transactions, totalPrice, gatewayPaid, paymentStatus, breakdown, storedAmountPaid]);
 
   const proForma = docs.find(d => d.document_kind === "pro_forma") || null;
   const finalInvoice = docs.find(d => d.document_kind === "tax_invoice") || null;
