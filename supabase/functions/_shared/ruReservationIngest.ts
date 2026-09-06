@@ -435,6 +435,25 @@ export interface RuIngestOptions {
  * Create / update / cancel the ROL'OS booking for one parsed RU reservation.
  * Safe to call repeatedly with the same reservation — repeat calls report `updated`.
  */
+
+/**
+ * The channel sends the guest's country as a numeric RU location id. Operators need the country
+ * name on the booking card, so resolve it once through the cached location dictionary. Id 1 is
+ * RU's "Worldwide" root — that is no nationality at all.
+ */
+async function resolveRuNationality(supabase: Db, countryId: string | null): Promise<string | null> {
+  const id = Number(countryId || 0);
+  if (!id || id === 1) return null;
+  const { data } = await supabase
+    .from('ru_locations')
+    .select('name, depth')
+    .eq('id', id)
+    .maybeSingle();
+  const row = data as { name?: string | null; depth?: number | null } | null;
+  if (!row?.name || (row.depth ?? 0) <= 1) return null;
+  return row.name;
+}
+
 export async function ingestRuReservation(
   supabase: Db,
   r: ParsedRuReservation,
@@ -539,6 +558,8 @@ export async function ingestRuReservation(
       : null,
   });
 
+  const nationality = await resolveRuNationality(supabase, r.countryId);
+
   const fields: Record<string, unknown> = {
     guest_name: r.guestName,
     guest_email: r.guestEmail,
@@ -549,6 +570,7 @@ export async function ingestRuReservation(
     check_out_date: r.dateTo,
     modification_notes: notes,
   };
+  if (nationality) fields.guest_nationality = nationality;
   if (unit.roomTypeId) fields.room_type_id = unit.roomTypeId;
   // Remember the listing the reservation actually arrived on. Re-deriving it later from the local
   // unit mapping is what made outbound modifications fail with "PropertyID specified in Current
@@ -631,7 +653,13 @@ export async function ingestRuReservation(
     hold_released_at: null,
     payment_status: r.alreadyPaid > 0 ? 'paid_externally' : 'pending',
   };
-  if (r.alreadyPaid > 0) confirmed.paid_at = new Date().toISOString();
+  if (r.alreadyPaid > 0) {
+    confirmed.paid_at = new Date().toISOString();
+    // The channel collected the money: record it as received so the booking's account does not
+    // report the whole stay as an outstanding balance.
+    confirmed.amount_paid = r.alreadyPaid;
+    confirmed.amount_paid_source = 'channel';
+  }
 
   let bookingId = existing?.id ?? null;
   let outcome: RuIngestOutcome = 'updated';
