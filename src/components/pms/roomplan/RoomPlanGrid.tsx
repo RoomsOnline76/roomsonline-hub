@@ -743,6 +743,7 @@ export function RoomPlanGrid({
                               lane={lane}
                               roomLabel={row.roomId ? row.label : "No unit assigned"}
                               propertyName={propertyName}
+                              clashingWith={clashNamesById.get(booking.id)}
                               dragging={moveDrag?.bookingId === booking.id}
                               onOpen={openBooking}
                               wasDragGesture={consumeGestureDrag}
