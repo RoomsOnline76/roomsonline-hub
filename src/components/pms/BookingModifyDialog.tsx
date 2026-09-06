@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { extractFunctionError } from "@/lib/functionError";
 import { useAuth } from "@/hooks/useAuth";
 import { useUnitAvailability } from "@/hooks/useUnitAvailability";
 import {
@@ -50,7 +49,7 @@ interface Props {
   onDone: () => void;
 }
 
-type QuoteSource = "live" | "average" | null;
+type QuoteSource = "live" | null;
 
 interface ChargeLine {
   name: string;
