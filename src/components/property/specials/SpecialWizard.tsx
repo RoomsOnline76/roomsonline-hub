@@ -414,6 +414,11 @@ export const SpecialWizard: React.FC<SpecialWizardProps> = ({
               );
             })}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Rate Plans → Stay shape sets what a night costs. This wizard discounts that total for
+            a date window.
+          </p>
+          </div>
         );
 
       case 1:
