@@ -184,10 +184,16 @@ export const RoomPlanBar = memo(function RoomPlanBar({
             geometry.clippedStart ? "rounded-l-none" : "rol-bar-half-in",
             geometry.clippedEnd ? "rounded-r-none" : "rol-bar-half-out",
             draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
-            dragging && "opacity-40"
+            dragging && "opacity-40",
+            doubleBooked && "ring-2 ring-destructive ring-offset-1 ring-offset-background"
           )}
-          title={`${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`}
+          title={
+            doubleBooked
+              ? `Double booked with ${clashingWith!.join(", ")} — ${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`
+              : `${booking.guest_name} · ${nights} night${nights === 1 ? "" : "s"}`
+          }
         >
+          {doubleBooked && <AlertTriangle className="h-2.5 w-2.5 shrink-0 text-destructive-foreground" />}
           {isChannelBooking(booking) && <Radio className="h-2.5 w-2.5 shrink-0 opacity-90" />}
           <span className="truncate">{booking.guest_name}</span>
           {geometry.cols > 2 && <span className="shrink-0 opacity-80">· {nights}n</span>}
