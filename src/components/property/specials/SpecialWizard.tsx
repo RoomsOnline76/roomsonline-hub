@@ -385,6 +385,7 @@ export const SpecialWizard: React.FC<SpecialWizardProps> = ({
     switch (state.step) {
       case 0:
         return (
+          <div className="space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {DEAL_CARDS.map((card) => {
               const Icon = card.icon;
