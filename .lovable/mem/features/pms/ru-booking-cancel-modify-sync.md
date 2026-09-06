@@ -12,8 +12,11 @@ RU-originated bookings sit on ROL'OS-native properties, so they are identified b
 Order of operations (channel-first — never touch the local record before RU accepts):
 1. Unconfirmed request → `Push_RejectRequest_RQ` (`reject_request`), falling back to
    `Push_CancelReservation_RQ` for older integrations.
-2. Confirmed reservation → `Push_CancelReservation_RQ` with mandatory `CancelTypeID`
-   (1 = property/operator, 2 = guest; the UI asks the operator which).
+2. Confirmed reservation → `Push_CancelReservation_RQ` carrying ONLY `ReservationID`. The live
+   XSD rejects `CancelTypeID` ("invalid child element"), so it must never be sent; the operator's
+   guest/operator choice is recorded locally only.
+2b. A child-scoped status 28 "Reservation does not exist." / "already cancelled" is NOT a failure:
+   the channel holds nothing, so the local cancel proceeds with code `RU_NOTHING_TO_CANCEL`.
 3. Modifications → `Push_ModifyStay_RQ`, confirmed reservations only, and RU requires BOTH
    `<Current>` and `<Modify>` states.
 
