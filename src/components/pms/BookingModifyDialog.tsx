@@ -195,22 +195,29 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     return findBlockedInRange(blockedNights, checkIn, checkOut);
   }, [blockedNights, checkIn, checkOut]);
 
-  /** Sleeping capacity of the booked units, summed across the stay's lines. */
+  /**
+   * Sleeping capacity of the booked units, summed across the stay's lines. When the grid has no
+   * measured capacity for a booked unit (a channel stay whose unit was never sized), the property's
+   * own maximum guests is the cap — leaving it unknown let channel edits seat more guests than the
+   * place holds.
+   */
   const stayCapacity = useMemo(() => {
     const typeIds = lineRoomTypeIds.length
       ? lineRoomTypeIds
       : booking.room_type_id
         ? [booking.room_type_id]
         : [];
-    if (typeIds.length === 0) return null;
+    if (typeIds.length === 0) return propertyMaxGuests ?? null;
     let total = 0;
     for (const t of typeIds) {
       const cap = availability.capacity.get(t);
-      if (!cap || cap <= 0) return null; // capacity unknown — do not restrict
+      if (!cap || cap <= 0) return propertyMaxGuests ?? null;
       total += cap;
     }
-    return total > 0 ? total : null;
-  }, [availability, lineRoomTypeIds, booking.room_type_id]);
+    if (total <= 0) return propertyMaxGuests ?? null;
+    return propertyMaxGuests ? Math.min(total, propertyMaxGuests) : total;
+  }, [availability, lineRoomTypeIds, booking.room_type_id, propertyMaxGuests]);
+
 
   useEffect(() => {
     if (!open) return;
