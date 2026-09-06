@@ -381,7 +381,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [open, checkIn, checkOut, nights, datesChanged, paxChanged, booking.property_id, booking.room_type_id, averageQuote]);
+  }, [open, booking.id, checkIn, checkOut, nights, datesChanged, paxChanged, adults, children, booking.property_id, booking.room_type_id, averageQuote]);
 
   // Push the quote into the field unless the operator has taken over.
   useEffect(() => {
