@@ -20,6 +20,7 @@ import {
 export interface RoomPlanBooking {
   id: string;
   guest_name: string;
+  guest_nationality?: string | null;
   check_in_date: string;
   check_out_date: string;
   status: string;
@@ -218,6 +219,14 @@ export const RoomPlanBar = memo(function RoomPlanBar({
               <span className="text-slate-400"> · {nights} night{nights === 1 ? "" : "s"}</span>
             </p>
             <p>{paxText}{isMultiUnit && unitLine ? " (this unit)" : ""}</p>
+            {booking.guest_nationality?.trim() && (
+              <p className="text-slate-400">Nationality: <span className="text-slate-200">{booking.guest_nationality.trim()}</span></p>
+            )}
+            {booking.external_reservation_id && (
+              <p className="text-slate-400">
+                Channel reservation: <span className="font-mono text-slate-200">{booking.external_reservation_id}</span>
+              </p>
+            )}
             {unitLine?.guest_comments?.trim() && (
               <p className="text-amber-300">Note (this unit): {unitLine.guest_comments.trim()}</p>
             )}
