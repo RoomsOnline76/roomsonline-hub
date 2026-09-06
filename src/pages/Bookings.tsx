@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import { Badge } from "@/components/ui/badge";
 import { BookingLifecycleVisualizer, type BookingState } from "@/components/BookingLifecycleVisualizer";
-import { ModifyBookingModal } from "@/components/booking/ModifyBookingModal";
+import { BookingModifyDialog } from "@/components/pms/BookingModifyDialog";
 import { CancelBookingModal } from "@/components/booking/CancelBookingModal";
 import {
   ROL_ORIGIN_FILTER_OPTIONS,
@@ -94,6 +94,7 @@ interface Booking {
   integration_type?: string | null;
   rolos_rate_plan_id?: string | null;
   payment_status?: string | null;
+  updated_at?: string | null;
 }
 
 
@@ -126,7 +127,6 @@ const Bookings = () => {
   const [showCancelled, setShowCancelled] = useState(false);
   const [modifyModalBooking, setModifyModalBooking] = useState<Booking | null>(null);
   const [cancelModalBooking, setCancelModalBooking] = useState<Booking | null>(null);
-  const [modifyLoading, setModifyLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
 
   const canViewAllProperties = isAdmin || isDev || isFearlessLeader;
@@ -242,42 +242,11 @@ const Bookings = () => {
     }
   };
 
-  // Handle modify via edge function
-  const handleModifyBooking = async (modifications: Record<string, any>) => {
+  const refreshModifiedBooking = async () => {
     if (!modifyModalBooking) return;
-    setModifyLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("modify-booking", {
-        body: { booking_id: modifyModalBooking.id, modifications },
-      });
-
-      if (error) throw error;
-      if (data && !data.success && data.code) throw new Error(data.message || "Modification failed");
-
-      const newPrice = data?.new_total_price;
-      const priceMsg = newPrice && newPrice !== modifyModalBooking.total_price
-        ? ` — New total: R${Math.round(newPrice).toLocaleString()}`
-        : "";
-
-      toast.success(`Booking modified successfully${priceMsg}`);
-      setModifyModalBooking(null);
-
-      // Update local state instead of full reload
-      setBookings(prev => prev.map(b =>
-        b.id === modifyModalBooking.id
-          ? {
-              ...b,
-              ...modifications,
-              total_price: newPrice ?? b.total_price,
-            }
-          : b
-      ));
-    } catch (error: any) {
-      console.error("Error modifying booking:", error);
-      toast.error(`Failed to modify: ${error.message}`);
-    } finally {
-      setModifyLoading(false);
-    }
+    const { data } = await supabase.from("bookings").select("*").eq("id", modifyModalBooking.id).maybeSingle();
+    if (data) setBookings(prev => prev.map(b => b.id === data.id ? { ...b, ...data } as Booking : b));
+    setModifyModalBooking(null);
   };
 
   // Handle cancel via edge function
@@ -1265,12 +1234,12 @@ const Bookings = () => {
       </Card>
       {/* Modify Booking Modal */}
       {modifyModalBooking && (
-        <ModifyBookingModal
+        <BookingModifyDialog
           open={!!modifyModalBooking}
           onOpenChange={(open) => !open && setModifyModalBooking(null)}
           booking={modifyModalBooking}
-          onSubmit={handleModifyBooking}
-          loading={modifyLoading}
+          isRuBooking={String(modifyModalBooking.booking_channel).toLowerCase() === "rentals_united" || String(modifyModalBooking.integration_type).toLowerCase().startsWith("rentalsunited")}
+          onDone={refreshModifiedBooking}
         />
       )}
 

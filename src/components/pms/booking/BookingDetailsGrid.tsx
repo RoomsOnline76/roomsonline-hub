@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, parseISO, differenceInDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +16,6 @@ import { useCrmAccounts, useCrmScopeForProperty, type CrmAccount } from "@/hooks
 import { BookerSegmentationFields, type BookerSegmentationValue } from "@/components/pms/crm/BookerSegmentationFields";
 import { resolveRuSourceChannel, ChannelLogo } from "@/lib/ruChannelDisplay";
 import { displayBookingReference } from "@/lib/bookingReference";
-import { extractFunctionError } from "@/lib/functionError";
 import { pushBookingToChannel } from "@/lib/channelBookingSync";
 import { PhoneInput } from "@/components/pms/PhoneInput";
 import { splitPhone, DEFAULT_DIAL_ISO, ensureE164 } from "@/lib/dialCodes";
@@ -145,7 +144,6 @@ export function BookingDetailsGrid({
    * (accommodation + mandatory extras), so seeding the field from it and saving it back
    * is what made extras compound on every edit. The reconciled charge snapshot — and
    * failing that the room lines — carry the real accommodation basis. */
-  const [storedAccommodation, setStoredAccommodation] = useState<number>(Number(booking.total_price ?? 0));
 
   const [form, setForm] = useState({
     guest_name: booking.guest_name || "",
@@ -203,14 +201,6 @@ export function BookingDetailsGrid({
   };
 
 
-  const nights = useMemo(() => {
-    try {
-      return Math.max(1, differenceInDays(parseISO(form.check_out_date), parseISO(form.check_in_date)));
-    } catch {
-      return 1;
-    }
-  }, [form.check_in_date, form.check_out_date]);
-
   // Load room lines + account figures.
   useEffect(() => {
     let cancelled = false;
@@ -267,7 +257,6 @@ export function BookingDetailsGrid({
       const lineSum = loaded.reduce((a, l) => a + (parseFloat(l.rate_charged) || 0), 0);
       const basis = Number(snap?.accommodation ?? 0) > 0 ? Number(snap!.accommodation) : lineSum;
       if (basis > 0) {
-        setStoredAccommodation(basis);
         set("total_price", String(basis));
       }
 

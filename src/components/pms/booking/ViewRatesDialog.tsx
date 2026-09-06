@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { modifyBooking } from "@/lib/bookingModification";
 import { toast } from "sonner";
 import { addDays, differenceInDays, format, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -239,24 +240,12 @@ export function ViewRatesDialog({
         if (error) throw error;
       }
 
-      // Keep the room line totals + booking total in sync.
-      for (const l of lines) {
-        const total = lineTotal(l);
-        await supabase
-          .from("rolos_booking_rooms")
-          .update({
-            rate_charged: Math.round(total * 100) / 100,
-            nightly_rate: l.nights.length ? Math.round((total / l.nights.length) * 100) / 100 : null,
-            rate_plan_id: l.ratePlanId || sheetId || null,
-          } as never)
-          .eq("id", l.bookingRoomId);
-      }
-
-      const { error: bErr } = await supabase
-        .from("bookings")
-        .update({ total_price: Math.round(bookingTotal * 100) / 100 } as never)
-        .eq("id", bookingId);
-      if (bErr) throw bErr;
+      // Reconcile the booking, room-line totals, extras, settlement and channel price through
+      // the same modification boundary used by date and pax changes.
+      await modifyBooking({
+        booking_id: bookingId,
+        modifications: { accommodation_total: Math.round(bookingTotal * 100) / 100 },
+      });
 
       toast.success("Rates saved");
       onSaved?.(Math.round(bookingTotal * 100) / 100);
