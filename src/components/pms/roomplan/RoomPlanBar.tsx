@@ -206,6 +206,15 @@ export const RoomPlanBar = memo(function RoomPlanBar({
         className="w-72 border-slate-700 bg-slate-900 p-3 text-slate-100"
       >
         <div className="space-y-2">
+          {doubleBooked && (
+            <div className="flex items-start gap-1.5 rounded-md border border-destructive/60 bg-destructive/15 px-2 py-1.5 text-[11px] font-medium text-red-300">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                Double booked with {clashingWith!.join(", ")} — this unit is sold to more than one stay for these
+                nights.
+              </span>
+            </div>
+          )}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{booking.guest_name}</p>
