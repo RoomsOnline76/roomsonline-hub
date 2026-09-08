@@ -562,6 +562,21 @@ export default function PMSDashboard() {
   const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
   const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
 
+  /* Rate Plans is the only author of nightly rates — read the authored season rates directly. */
+  const authoredRateIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (propertyId) ids.add(propertyId);
+    portfolioPropertyIds.forEach((id) => ids.add(id));
+    return Array.from(ids).sort();
+  }, [propertyId, portfolioPropertyIds]);
+
+  const { data: authoredSeasonRates = emptyAuthoredSeasonRates } = useQuery({
+    queryKey: ["pms-authored-season-rates", authoredRateIds.join(",")],
+    queryFn: () => fetchAuthoredSeasonRates(authoredRateIds),
+    enabled: authoredRateIds.length > 0,
+    staleTime: 60_000,
+  });
+
   // Compute date range
   const dateRange = useMemo(() => {
     if (viewMode === "week") {
