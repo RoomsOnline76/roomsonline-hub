@@ -23,7 +23,7 @@ export interface EntitlementResult {
   /** Refundable amount in the booking currency, or null when no policy resolved. */
   entitled_amount: number | null;
   forfeit_percent: number | null;
-  policy_source: "master" | "legacy" | "none";
+  policy_source: "booking" | "master" | "legacy" | "none";
   days_before_arrival: number | null;
 }
 
@@ -58,7 +58,13 @@ export function daysUntil(dateIso: string | null | undefined): number | null {
 /** Resolve the property's cancellation rule and compute what the guest is owed. */
 export async function resolveRefundEntitlement(
   supabase: any,
-  params: { property_id: string | null; check_in: string | null; amount_paid: number },
+  params: {
+    property_id: string | null;
+    check_in: string | null;
+    amount_paid: number;
+    /** The policy the booking was made under (stay-shape or plan); wins over the master. */
+    policy_id?: string | null;
+  },
 ): Promise<EntitlementResult> {
   const none: EntitlementResult = {
     entitled_amount: null,
@@ -70,16 +76,35 @@ export async function resolveRefundEntitlement(
 
   const days = daysUntil(params.check_in) ?? 0;
 
-  const { data: policies } = await supabase
-    .from("rolos_reservation_policies")
-    .select("rule, is_master, is_default")
-    .eq("property_id", params.property_id);
+  let rule: CancellationRuleLike | null = null;
+  let source: EntitlementResult["policy_source"] = "none";
 
-  const master =
-    (policies ?? []).find((p: any) => p.is_master) ?? (policies ?? []).find((p: any) => p.is_default);
+  // The policy the booking carries — the one the guest agreed to — always wins.
+  if (params.policy_id) {
+    const { data: booked } = await supabase
+      .from("rolos_reservation_policies")
+      .select("rule")
+      .eq("id", params.policy_id)
+      .eq("property_id", params.property_id)
+      .maybeSingle();
+    if (booked?.rule) {
+      rule = booked.rule as CancellationRuleLike;
+      source = "booking";
+    }
+  }
 
-  let rule: CancellationRuleLike | null = (master?.rule as CancellationRuleLike) ?? null;
-  let source: EntitlementResult["policy_source"] = rule ? "master" : "none";
+  if (!rule) {
+    const { data: policies } = await supabase
+      .from("rolos_reservation_policies")
+      .select("rule, is_master, is_default")
+      .eq("property_id", params.property_id);
+
+    const master =
+      (policies ?? []).find((p: any) => p.is_master) ?? (policies ?? []).find((p: any) => p.is_default);
+
+    rule = (master?.rule as CancellationRuleLike) ?? null;
+    source = rule ? "master" : "none";
+  }
 
   if (!rule) {
     const { data: legacy } = await supabase
