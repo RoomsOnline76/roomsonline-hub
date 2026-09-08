@@ -92,6 +92,10 @@ export async function sweepRuNotificationRetries(
     .from('ru_notifications')
     .select('id, ru_reservation_id, property_id, attempt_count, event_type, resolved_owner_id, raw_xml')
     .eq('resolution_state', 'retrying')
+    // Stale-hold verifications are owned by the stale-hold sweep, which has its own 90-minute
+    // cooldown and budget. Replaying them here asked the channel about the same dead
+    // reservation on every account, every ten minutes, forever.
+    .not('event_type', 'in', `(${SWEEP_EXCLUDED_EVENTS.map((e) => `"${e}"`).join(',')})`)
     .lte('next_attempt_at', new Date().toISOString())
     .order('next_attempt_at', { ascending: true })
     .limit(limit);
