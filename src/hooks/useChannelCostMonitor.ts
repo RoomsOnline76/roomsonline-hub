@@ -389,7 +389,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           keysCaptured: !!acc.ru_api_access_key || (!!ownerId && ownersWithKeys.has(String(ownerId))),
           companyDetailsSent: acc.company_details_sent === true,
           scope,
-          sourceName: pid ? portfolioNameById.get(pid) ?? null : null,
+          sourceName: pid ? portfolioNames.get(pid) ?? null : null,
         };
       };
       for (const p of allProps) accountByProperty.set(p.id, localResolve(p));
