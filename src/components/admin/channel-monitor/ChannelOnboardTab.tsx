@@ -458,8 +458,13 @@ export function ChannelOnboardTab({
       }
     });
 
-    const signalsFor = (propertyId: string, portfolioId?: string): PropertyChannelSignals => ({
+    const signalsFor = (
+      propertyId: string,
+      portfolioId?: string,
+      inherited = false,
+    ): PropertyChannelSignals => ({
       bound:
+        inherited ||
         boundProperties.has(propertyId) ||
         (Boolean(portfolioId) && boundPortfolios.has(portfolioId as string)),
       pushed: pushedIds.has(propertyId),
@@ -470,9 +475,15 @@ export function ChannelOnboardTab({
 
     const withStatus = options.map((option) => {
       const memberIds = option.memberIds ?? [option.id];
+      // One distribution account serves a whole portfolio, even when the row that
+      // holds it was written against a single member property. Without this a
+      // sibling of a bound property read as "unbound / not linked to account".
+      const inherited =
+        memberIds.length > 1 && memberIds.some((id) => boundProperties.has(id));
       const statuses = memberIds.map((memberId) =>
-        deriveOnboardStatus(signalsFor(memberId, option.portfolioId)),
+        deriveOnboardStatus(signalsFor(memberId, option.portfolioId, inherited)),
       );
+
       const connectedCount = statuses.filter((s) => s === "connected").length;
       const pushedCount = statuses.filter((s) => s !== "not_pushed").length;
       const status: OnboardStatus =
