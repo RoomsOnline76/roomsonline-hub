@@ -1108,9 +1108,19 @@ export async function refreshRuReservationById(
       if (booking?.id && booking.status !== 'cancelled') {
         await supabase
           .from('bookings')
-          .update({ status: 'cancelled', cancellation_reason: 'Cancelled at the Channel Manager' })
+          .update({
+            status: 'cancelled',
+            cancellation_reason: 'Cancelled at the Channel Manager',
+            cancellation_reason_category: 'channel_cancelled',
+            hold_expires_at: null,
+            hold_released_at: new Date().toISOString(),
+          })
           .eq('id', booking.id);
+        // The nights must come back with the cancellation — a settled stay that still holds
+        // its stamped block is exactly the "cancelled but not released" fault.
+        await releaseChannelBlocksForBooking(supabase, booking.id, log);
       }
+
       console.log(`${log} Reservation ${reservationId} is gone at the channel — cancellation settled locally`);
       return {
         outcome: 'cancelled',
