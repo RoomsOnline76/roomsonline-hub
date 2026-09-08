@@ -999,6 +999,7 @@ export type Database = {
           booking_channel: string | null
           booking_made_by: string | null
           calculated_commission: number | null
+          cancellation_policy_id: string | null
           cancellation_reason: string | null
           cancellation_reason_category: string | null
           channel_listing_id: string | null
@@ -1099,6 +1100,7 @@ export type Database = {
           booking_channel?: string | null
           booking_made_by?: string | null
           calculated_commission?: number | null
+          cancellation_policy_id?: string | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
           channel_listing_id?: string | null
@@ -1199,6 +1201,7 @@ export type Database = {
           booking_channel?: string | null
           booking_made_by?: string | null
           calculated_commission?: number | null
+          cancellation_policy_id?: string | null
           cancellation_reason?: string | null
           cancellation_reason_category?: string | null
           channel_listing_id?: string | null
@@ -1304,6 +1307,13 @@ export type Database = {
             columns: ["booker_id"]
             isOneToOne: false
             referencedRelation: "crm_bookers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_cancellation_policy_id_fkey"
+            columns: ["cancellation_policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
             referencedColumns: ["id"]
           },
           {
