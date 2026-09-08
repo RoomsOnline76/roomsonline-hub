@@ -15,7 +15,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { KNOWN_LNM_CHANGE_TYPE_IDS } from '../_shared/ruLnm.ts';
-import { parseMcqFailingPoints } from '../_shared/ruMcq.ts';
+import { decodeMcqResult } from '../_shared/ruMcq.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
