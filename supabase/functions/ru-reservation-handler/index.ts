@@ -9,6 +9,7 @@ import {
 
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 import { scheduleRuNotificationRetry, sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { sweepStaleRuHolds } from '../_shared/ruStaleHoldSweep.ts';
 import { logRuInboundNotification, newRuTraceId } from '../_shared/ruApiLog.ts';
 import { recordChannelBookingEvent, type BookingEventAction, type BookingEventOutcome } from '../_shared/channelBookingEvents.ts';
 import { findRuOwnPushEcho } from '../_shared/ruOwnPushEcho.ts';
@@ -137,7 +138,13 @@ Deno.serve(async (req) => {
     // ── Operator retry path: JSON body { notification_id? , reservation_id? } re-runs the
     // detail pull + ingest for a single stuck notification (see the Reservations panel).
     if (rawXml.trimStart().startsWith('{')) {
-      const body = JSON.parse(rawXml) as { notification_id?: string; reservation_id?: string; sweep?: boolean };
+      const body = JSON.parse(rawXml) as {
+        notification_id?: string;
+        reservation_id?: string;
+        sweep?: boolean;
+        /** Verify live local stays against the channel and settle the ones it no longer holds. */
+        verify_stale_holds?: boolean;
+      };
       // Timed sweep of parked notifications (called by the reservation cron).
       if (body.sweep) {
         const sweep = await sweepRuNotificationRetries(supabase, { logPrefix: '[ru-reservation-handler][sweep]' });
@@ -146,6 +153,21 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      // Operator "Check with the Channel Manager": verify one stay (or the whole queue) and
+      // release it here when the channel says it is gone.
+      if (body.verify_stale_holds) {
+        const verified = await sweepStaleRuHolds(supabase, {
+          onlyReservationIds: body.reservation_id ? [body.reservation_id] : undefined,
+          limit: body.reservation_id ? 1 : 5,
+          logPrefix: '[ru-reservation-handler][verify]',
+        });
+        return new Response(JSON.stringify({ success: true, verified }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       let reservationId = body.reservation_id ?? null;
       let propertyId: string | null = null;
       if (body.notification_id) {
