@@ -1,3 +1,4 @@
+- [Channel Fee/Tax Type Tagging](mem://features/pms/channel-fee-tax-type-tagging) — channel_fee_type pick per charge, accepted-code dictionary, accepted/unknown tags in the Fees & Taxes editor
 - [Channel-side Edit Window](mem://features/pms/channel-side-edit-window) — stay-less channel reservation reopens the matching booking's own nights for 15 min so a portal stay change can succeed
 - [Channel Cancellation Safety Net](mem://features/pms/channel-cancellation-safety-net) — verify live channel stays the channel never listed; portal cancellations settle locally and release nights, rate refusals never cancel
 - [RU Inline AdditionalFees](mem://features/pms/ru-inline-additional-fees) — Fees ride in Push_PutProperty_RQ AdditionalFees; no separate verb; discriminator/fee-type vocabularies; CleaningPrice 0 transition
