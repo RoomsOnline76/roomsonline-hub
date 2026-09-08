@@ -40,6 +40,11 @@ export interface RuLocalWindow {
   } | null;
   /** Active units with no MinStay authored on the room type. */
   units_without_min_stay: string[];
+  /**
+   * Units (or dated calendar rows) whose authored MinStay falls outside the range every
+   * channel accepts (1–28 nights). A longer minimum is refused at connect time.
+   */
+  min_stay_out_of_range: string[];
   unit_windows: Array<{
     name: string;
     ok: boolean;
@@ -68,6 +73,7 @@ const EMPTY = (from: string, to: string): RuLocalWindow => ({
   units_with_max_stay: 0,
   worst_unit: null,
   units_without_min_stay: [],
+  min_stay_out_of_range: [],
   unit_windows: [],
 });
 
