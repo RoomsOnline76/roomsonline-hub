@@ -952,6 +952,13 @@ Deno.serve(async (req) => {
       rows_kept: routing.kept.length,
       rows_routed_away: routing.routedAway.length,
       files: fileResults,
+      extras_reports: extrasSummaries.map(({ filename, summary }) => ({
+        filename,
+        totals_by_month: summary.totalsByMonth,
+        food_by_month: summary.foodByMonth,
+        grand_total: summary.grandTotal,
+      })),
+
       months: aggregate.months,
       totals: aggregate.totals,
     });
