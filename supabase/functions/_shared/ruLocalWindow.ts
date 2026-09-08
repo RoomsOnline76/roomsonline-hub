@@ -11,6 +11,7 @@
 
 import { createRateResolver, eachDate, addDays, type UnitRateContext } from "./rateResolution.ts";
 import { RU_MIN_BOOKABLE_WINDOW } from "./ruContentQuality.ts";
+import { RU_MAX_MIN_STAY } from "./ruReadiness.ts";
 
 export interface RuLocalWindow {
   ok: boolean;
@@ -117,6 +118,7 @@ export async function computeLocalBookableWindow(
         }
       }
       if (Number(row.minimum_stay ?? 0) > 0) minStayDates.add(date);
+      if (Number(row.minimum_stay ?? 0) > RU_MAX_MIN_STAY) longMinStayDates.add(date);
     }
 
     // ── Min/Max Stay authored anywhere that reaches the channel payload ──
@@ -134,6 +136,16 @@ export async function computeLocalBookableWindow(
       .filter(Boolean);
     result.units_with_min_stay = activeStayRows.filter((row) => Number(row.min_stay ?? 0) > 0).length;
     result.units_with_max_stay = activeStayRows.filter((row) => Number(row.max_stay ?? 0) > 0).length;
+    // A minimum stay longer than the channel range is refused at connect time, so it belongs
+    // in the up-front readiness list rather than in a surprise at the Channel Manager.
+    result.min_stay_out_of_range = [
+      ...activeStayRows
+        .filter((row) => Number(row.min_stay ?? 0) > RU_MAX_MIN_STAY)
+        .map((row) => `${String(row.name ?? "Unit").trim() || "Unit"} (${Number(row.min_stay ?? 0)} nights)`),
+      ...(longMinStayDates.size > 0
+        ? [`${longMinStayDates.size} calendar day(s) with a minimum stay over ${RU_MAX_MIN_STAY} nights`]
+        : []),
+    ];
 
     let minStaySet = minStayDates.size > 0;
     if (!minStaySet && activeStayRows.length > 0) {
