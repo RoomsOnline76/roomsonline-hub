@@ -754,7 +754,14 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           </Button>
         </div>
         <RuCurrencyNotice propertyId={propertyId} />
-        <ChannelConnectReadinessPanel propertyId={propertyId} onOpenSection={openEditorSection} />
+        <ChannelConnectReadinessPanel
+          propertyId={propertyId}
+          onOpenSection={(section, focus) => {
+            setLiveExpanded(true);
+            setEditorSection(section);
+            if (focus) setTimeout(() => focusRequirementField(focus), 250);
+          }}
+        />
         <RuWhiteLabelEmbed propertyId={propertyId} />
       </div>
     );
