@@ -732,6 +732,7 @@ Deno.serve(async (req) => {
     let newTotalPrice: number | null = null;
     let repricedPlanId: string | null = null;
     let repricedNightly: number | null = null;
+    let repricedPolicyId: string | null | undefined = undefined;
     let repricedShape: { shape: string; source: string | null; stay_total: number } | null = null;
 
     if (isRolNative && paxOrDatesChanged) {
@@ -740,6 +741,7 @@ Deno.serve(async (req) => {
         newTotalPrice = repriced.total;
         repricedPlanId = repriced.rate_plan_id;
         repricedNightly = repriced.nightly;
+        repricedPolicyId = repriced.policy_id;
         repricedShape = { shape: repriced.shape, source: repriced.source, stay_total: repriced.total };
 
         console.log(
@@ -980,6 +982,11 @@ Deno.serve(async (req) => {
     // Stamp the plan that priced the stay so the next modification does not have to guess again.
     if (repricedPlanId && !booking.rolos_rate_plan_id) {
       updateData.rolos_rate_plan_id = repricedPlanId;
+    }
+    // The policy follows the new stay shape: a rung/cell policy replaces the stored one,
+    // and a shape without its own policy falls back to the plan's again.
+    if (repricedPolicyId !== undefined) {
+      updateData.cancellation_policy_id = repricedPolicyId;
     }
 
 
