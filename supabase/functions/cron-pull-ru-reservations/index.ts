@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { sweepStaleRuHolds } from '../_shared/ruStaleHoldSweep.ts';
 import { sweepStrandedChannelBlocks } from '../_shared/ruReservationParsing.ts';
 import { resolveRuOwnerScopes, type RuOwnerScope } from '../_shared/ruOwnerScopes.ts';
 import { extractTag, extractAllBlocks, parseRuReservation } from '../_shared/ruReservationParsing.ts';
@@ -64,6 +65,12 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const summary = { total: 0, created: 0, updated: 0, cancelled: 0, skipped: 0, failed: 0, unmatched: 0, leads_found: 0, leads_logged: 0, leads_held: 0, rate_deferred: 0 };
+  /**
+   * Every reservation/lead id the channel returned this run. A live local stay that is NOT in
+   * here was not offered by the channel at all — that is the one case worth a single verification
+   * call, because a portal cancellation may never have been notified.
+   */
+  const seenReservationIds = new Set<string>();
   const cronStartedAt = Date.now();
   const deadline = cronStartedAt + RUN_BUDGET_MS;
 
@@ -266,8 +273,15 @@ Deno.serve(async (req) => {
     // Safety net: nights still closed by a cancelled or released channel stay.
     const strandedReleased = await sweepStrandedChannelBlocks(supabase, '[cron-pull-ru][blocks]');
 
+    // Closing the loop the other way round: stays we still hold that the channel never offered.
+    // A cancellation made in the portal without a notification is only caught here.
+    const staleHolds = await sweepStaleRuHolds(supabase, {
+      seenReservationIds,
+      logPrefix: '[cron-pull-ru][stale-holds]',
+    });
+
     console.log(`[cron-pull-ru] Done. Summary:`, JSON.stringify(summary));
-    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, accounts_fresh_skipped: skippedFresh, stranded_blocks_released: strandedReleased }), {
+    return new Response(JSON.stringify({ success: true, summary, accounts_polled: covered, accounts_deferred: deferred, accounts_fresh_skipped: skippedFresh, stranded_blocks_released: strandedReleased, stale_holds: staleHolds }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -298,8 +312,26 @@ Deno.serve(async (req) => {
           summary.skipped++;
           continue;
         }
+        seenReservationIds.add(String(r.ruReservationId));
 
         const kind = classifyRuStatus(r.statusId);
+
+        // An already-settled cancellation is re-listed by the channel for months. Re-ingesting it
+        // every 30 minutes rewrites nothing and files a notification row per run — skip it once
+        // the local stay is cancelled.
+        if (kind === 'cancelled') {
+          const { data: settled } = await supabase
+            .from('bookings')
+            .select('id, status')
+            .eq('external_reservation_id', r.ruReservationId)
+            .limit(1)
+            .maybeSingle();
+          if (settled?.status === 'cancelled') {
+            summary.skipped++;
+            continue;
+          }
+        }
+
         const result = await ingestRuReservation(supabase, r, {
           source: 'poll',
           logPrefix: '[cron-pull-ru]',
@@ -467,6 +499,7 @@ Deno.serve(async (req) => {
             const parsed = parseRuReservation(leadBlock);
             const leadId = extractTag(leadBlock, 'LeadID') || parsed.ruReservationId;
             if (!leadId) continue;
+            seenReservationIds.add(String(leadId));
 
             const createdRaw =
               parsed.createdDate ||
