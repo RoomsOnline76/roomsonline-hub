@@ -383,12 +383,51 @@ const severityBadge: Record<Severity, { label: string; className: string }> = {
   expected: { label: "Expected state", className: "bg-muted text-muted-foreground border-border" },
 };
 
-/** Recency chip so a cleared pattern is not read as an ongoing incident. */
-const activityChip = (iso: string): { label: string; className: string } => {
+/**
+ * Outcome, not recency. A pattern is only "Active" while the newest run for that
+ * action+property is still a failure: an incident the platform recovered from (nights
+ * reopened, call requeued, acceptance re-sent) reported as an open blocker for six
+ * hours, which is how a self-healed refusal read as an unresolved fault.
+ */
+type Outcome = {
+  resolved: boolean;
+  succeededAt: string | null;
+  /** The self-heal that ran between the failure and the success, when there was one. */
+  recoveryAction: string | null;
+};
+
+const outcomeChip = (o: Outcome, iso: string): { label: string; className: string } => {
+  if (o.resolved) {
+    return { label: "Resolved", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" };
+  }
   const hours = (Date.now() - new Date(iso).getTime()) / 3600000;
   if (hours <= 6) return { label: "Active", className: "bg-destructive/10 text-destructive border-destructive/30" };
   if (hours <= 48) return { label: "Cooling", className: "bg-amber-500/10 text-amber-600 border-amber-500/30 dark:text-amber-400" };
   return { label: "Cleared", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 dark:text-emerald-400" };
+};
+
+/**
+ * Did the same action on the same property succeed after this failure? Successes are
+ * already in `runs`, so no extra query is needed.
+ */
+const resolveOutcome = (last: RuErrorRun, runs: RuErrorRun[]): Outcome => {
+  const failedAt = new Date(last.created_at).getTime();
+  const samePlace = (r: RuErrorRun) => (r.property_id ?? null) === (last.property_id ?? null);
+  const later = runs
+    .filter((r) => samePlace(r) && new Date(r.created_at).getTime() > failedAt)
+    .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+  const success = later.find((r) => r.action === last.action && r.success);
+  if (!success) {
+    // Still unresolved unless a later attempt of the same action failed again — either
+    // way the newest state for this action is a failure.
+    return { resolved: false, succeededAt: null, recoveryAction: null };
+  }
+  const successAt = new Date(success.created_at).getTime();
+  const recovery = later.find(
+    (r) => r.success && r.action !== last.action && new Date(r.created_at).getTime() <= successAt,
+  );
+  return { resolved: true, succeededAt: success.created_at, recoveryAction: recovery?.action ?? null };
 };
 
 
