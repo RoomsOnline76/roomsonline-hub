@@ -131,6 +131,28 @@ export async function findOwnerAccount(
     shell = shell ?? (byProperty as RuOwnerAccount);
   }
 
+  // One distribution account serves a whole portfolio. When the row that holds it was
+  // written against a single member property, every sibling still inherits it — without
+  // this a sibling read as unbound and every push failed with RU_OWNER_UNRESOLVED.
+  if (pid) {
+    const { data: members } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", pid);
+    const siblingIds = ((members ?? []) as Array<{ property_id: string }>)
+      .map((m) => m.property_id)
+      .filter((id) => id && id !== propertyId);
+    if (siblingIds.length) {
+      const { data: siblingRows } = await admin
+        .from("ru_owner_accounts")
+        .select("*")
+        .in("property_id", siblingIds);
+      const inherited = ((siblingRows ?? []) as RuOwnerAccount[]).find((row) => bound(row));
+      if (inherited) return { account: inherited, shell: null, portfolio_id: pid, scope: "portfolio" };
+    }
+  }
+
+
   if (ownerEmail) {
     const { data: byEmail } = await admin
       .from("ru_owner_accounts")
