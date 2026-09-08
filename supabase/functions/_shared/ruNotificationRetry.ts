@@ -15,6 +15,17 @@ export const RU_RETRY_BACKOFF_MINUTES = [0.5, 3, 10, 30, 120];
 
 export const MAX_RU_RETRY_ATTEMPTS = RU_RETRY_BACKOFF_MINUTES.length;
 
+/** Event types this sweep must never replay — they have their own scheduler and budget. */
+export const SWEEP_EXCLUDED_EVENTS = ['stale_hold_verify'] as const;
+
+/**
+ * The channel says the reservation is not there. The lookup already asked every account that
+ * can authenticate, so this is an answer, not a miss — retrying it only makes noise.
+ */
+function isDefinitiveAbsence(message: string | null | undefined): boolean {
+  return /does not exist|not found in/i.test(String(message ?? ''));
+}
+
 /** The RU `Creator` login on the stored envelope — the best hint at the owning sub-account. */
 function creatorFromXml(xml: string | null): string | null {
   const match = /<Creator>([^<]+)<\/Creator>/i.exec(xml || '');
