@@ -107,6 +107,14 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
   const [requestBalance, setRequestBalance] = useState(true);
   const [datesOpen, setDatesOpen] = useState(false);
 
+  // ─── The booking as it was received ───
+  const [received, setReceived] = useState<ReceivedRecord | null>(null);
+  const [guest, setGuest] = useState<GuestFields>(EMPTY_GUEST);
+  const [guestBaseline, setGuestBaseline] = useState<GuestFields>(EMPTY_GUEST);
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [specialRequestsBaseline, setSpecialRequestsBaseline] = useState("");
+
+
   // ─── Automatic re-pricing ───
   const [quotedTotal, setQuotedTotal] = useState<number | null>(null);
   const [quoteSource, setQuoteSource] = useState<QuoteSource>(null);
