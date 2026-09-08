@@ -7,6 +7,12 @@ import * as XLSX from "npm:xlsx@0.18.5";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
+  describeExtrasReport,
+  readExtrasReport,
+  type ExtrasReportSummary,
+} from "../_shared/nbExtrasReport.ts";
+
+import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
