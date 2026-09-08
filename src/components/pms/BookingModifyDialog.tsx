@@ -689,7 +689,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-4 w-4" />
@@ -703,7 +703,150 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         </DialogHeader>
 
         <div className="space-y-3">
-          <div className="space-y-1.5">
+          {/* Guest record — editable here, kept in our own records only. */}
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-xs font-medium">Guest details</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {GUEST_LABELS.map(({ key, label, type }) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{label}</Label>
+                  <Input
+                    type={type ?? "text"}
+                    className="h-8 text-xs"
+                    value={guest[key]}
+                    onChange={(e) => setGuest((prev) => ({ ...prev, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Requests and notes from the guest</Label>
+              <Textarea
+                className="text-xs min-h-[60px]"
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Corrections here stay in your own records — the channel keeps its own copy of the guest.
+            </p>
+          </div>
+
+          {/* As received from the channel — read-only. */}
+          {received?.channel.hasDetails && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-medium">As received{received.channel.channelLabel ? ` — ${received.channel.channelLabel}` : ""}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                {received.channel.reservationId && (
+                  <p><span className="text-muted-foreground">Reservation</span> {received.channel.reservationId}</p>
+                )}
+                {received.bookingChannel && (
+                  <p><span className="text-muted-foreground">Channel</span> {received.bookingChannel}</p>
+                )}
+                {received.channel.createdAt && (
+                  <p><span className="text-muted-foreground">Received</span> {received.channel.createdAt}</p>
+                )}
+                {received.channel.arrivalTime && (
+                  <p><span className="text-muted-foreground">Arrival</span> {received.channel.arrivalTime}</p>
+                )}
+                {received.channel.address && (
+                  <p className="sm:col-span-2"><span className="text-muted-foreground">Address</span> {received.channel.address}{received.channel.zipCode ? `, ${received.channel.zipCode}` : ""}</p>
+                )}
+              </div>
+              {received.channel.guestComments && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Guest said</span> {received.channel.guestComments}</p>
+              )}
+              {received.channel.reservationComments && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Reservation notes</span> {received.channel.reservationComments}</p>
+              )}
+              {received.channel.nights.length > 0 && (
+                <div className="pt-1 border-t">
+                  <p className="text-muted-foreground mb-1">Price per night as received</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4">
+                    {received.channel.nights.map((n) => (
+                      <p key={n.date} className="flex justify-between">
+                        <span>{format(parseISO(n.date), "d MMM")}</span>
+                        <span className="tabular-nums">{money(n.price)}</span>
+                      </p>
+                    ))}
+                  </div>
+                  {received.channel.nightsTotal !== null && (
+                    <p className="flex justify-between font-medium pt-1 mt-1 border-t">
+                      <span>Nights total</span>
+                      <span className="tabular-nums">{money(received.channel.nightsTotal)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* The money story: what is billed, what came in, what is left, what we earn. */}
+          {received && (
+            <div className="rounded-md border p-3 space-y-1 text-xs">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-medium">Billing breakdown</p>
+              </div>
+              {billingLines.map((line, i) => (
+                <p key={`${line.name}-${i}`} className="flex justify-between gap-3">
+                  <span className={line.is_refundable ? "text-muted-foreground" : ""}>
+                    {line.name}
+                    {line.breakdown ? <span className="text-muted-foreground"> · {line.breakdown}</span> : null}
+                    {line.is_refundable ? <span className="text-muted-foreground"> · refundable</span> : null}
+                  </span>
+                  <span className="tabular-nums">{money(line.amount)}</span>
+                </p>
+              ))}
+              <p className="flex justify-between font-medium pt-1 border-t">
+                <span>Guest total</span>
+                <span className="tabular-nums">{money(guestTotal)}</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Already paid
+                  {received.amountPaidSource === "channel" ? " (taken by the channel)" : ""}
+                  {received.paymentMethod ? ` · ${received.paymentMethod}` : ""}
+                </span>
+                <span className="tabular-nums">{money(amountPaid ?? 0)}</span>
+              </p>
+              <p className="flex justify-between font-medium">
+                <span>{(amountPaid ?? 0) > guestTotal ? "Overpaid" : "Still outstanding"}</span>
+                <span className="tabular-nums">{money(Math.abs(guestTotal - (amountPaid ?? 0)))}</span>
+              </p>
+              {received.depositAmount > 0 && (
+                <p className="flex justify-between text-muted-foreground">
+                  <span>Refundable deposit held separately</span>
+                  <span className="tabular-nums">{money(received.depositAmount)}</span>
+                </p>
+              )}
+              {commissionView.amount !== null && (
+                <>
+                  <p className="flex justify-between pt-1 border-t">
+                    <span className="text-muted-foreground">
+                      Commission{commissionView.rate !== null ? ` · ${commissionView.rate}%` : ""}
+                      {commissionView.type ? ` · ${commissionView.type}` : ""}
+                    </span>
+                    <span className="tabular-nums">{money(commissionView.amount)}</span>
+                  </p>
+                  {commissionView.netToProperty !== null && (
+                    <p className="flex justify-between font-medium">
+                      <span>Net to the property</span>
+                      <span className="tabular-nums">{money(commissionView.netToProperty)}</span>
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+
             <Label className="text-xs">Stay dates</Label>
             <StayRangePicker
               numberOfMonths={2}
