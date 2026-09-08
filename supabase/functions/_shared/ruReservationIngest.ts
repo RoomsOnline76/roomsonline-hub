@@ -946,8 +946,20 @@ async function recentlyProvenAbsent(supabase: Db, reservationId: string): Promis
 export async function fetchRuReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null; creator?: string | null } = {},
+  opts: {
+    propertyId?: string | null;
+    ownerId?: string | null;
+    creator?: string | null;
+    /**
+     * The caller has just listed this account's reservations and leads on the wire (the
+     * 30-minute pull does exactly that before the stale-hold sweep runs). Listing again
+     * inside the same minute only earns the channel's -6 refusal, so the fallback pass is
+     * skipped and the by-id answer stands on its own.
+     */
+    skipListFallback?: boolean;
+  } = {},
 ): Promise<RuDetailLookup> {
+
   if (await recentlyProvenAbsent(supabase, reservationId)) {
     return {
       reservation: null,
