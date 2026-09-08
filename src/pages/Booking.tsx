@@ -267,12 +267,16 @@ const Booking = () => {
   // Fetch property charges (taxes, fees, deposits, surcharges)
   const { data: propertyCharges } = useChargesForBooking(property?.id || null);
 
+  // Stay-shape policy carried back by the engine's stay quote (LOS rung / FSP cell).
+  const [quotePolicyId, setQuotePolicyId] = useState<string | null>(null);
+
   // Cancellation policy resolution (Phase 4):
-  // selected special's policy -> rate-plan linked policy -> property master -> legacy row
+  // special -> stay-shape (rung/cell) -> rate-plan linked -> property master -> legacy row
   const { data: resolvedPolicy } = useResolvedCancellationPolicy(
     property?.id,
     appliedSpecialPolicyId,
     selectedRateType || null,
+    quotePolicyId,
   );
   const cancellationPolicyRule = resolvedPolicy?.rule ?? null;
 
@@ -1050,6 +1054,8 @@ const Booking = () => {
             if (Number(q?.accommodation_total) > 0) serverQuotes.set(idx, q);
           });
         }
+        // First stay-shape policy wins for checkout copy; specials still override it.
+        setQuotePolicyId((serverQuotes.get(0) as { policy_id?: string | null } | undefined)?.policy_id ?? null);
       } catch (e) {
         console.warn('[Booking] server stay quote unavailable, using published rates:', e);
       }

@@ -1065,6 +1065,8 @@ async function quoteStayForRooms(
       source: String(quote.source),
       per_night: quote.display_per_night,
       accommodation_total: quote.stay_total,
+      // Stay-shape cancellation policy of the matched rung/cell (direct only).
+      policy_id: quote.policy_id ?? null,
     });
   }
 

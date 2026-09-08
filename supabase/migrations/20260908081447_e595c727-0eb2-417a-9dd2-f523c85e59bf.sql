@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS cancellation_policy_id uuid REFERENCES public.rolos_reservation_policies(id);
