@@ -1627,6 +1627,18 @@ export default function PMSDashboard() {
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
+    // 0. Rate Plans authored season rate wins — it is the sole author of nightly rates
+    const authoredRoomType = roomTypes.find(t => t.id === roomTypeId);
+    const authoredSeasonId = findCalendarSeasonIdForDate((propertyData as any)?.amenities, dateStr);
+    const authoredAmount = authoredRateFor(
+      authoredSeasonRates,
+      propertyId,
+      authoredSeasonId,
+      roomTypeId,
+      authoredRoomType?.name,
+    );
+    if (authoredAmount != null) return authoredAmount;
+
     // 1. Check rolos seasonal prices first
     for (const season of rateSeasons) {
       if (dateStr >= season.start_date && dateStr <= season.end_date) {
