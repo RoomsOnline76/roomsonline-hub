@@ -339,27 +339,84 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         scope: "none",
         sourceName: null,
       };
-      if (allProps.length) {
-        const { data: resolvedRes } = await supabase.functions.invoke("ru-cert-portal", {
-          body: { action: "resolve_owner_accounts", property_ids: allProps.map((p) => p.id) },
-        });
-        const map = (resolvedRes?.accounts ?? {}) as Record<string, ResolvedAccount>;
-        for (const p of allProps) {
-          const acc = map[p.id];
-          accountByProperty.set(
-            p.id,
-            acc
-              ? {
-                  ownerId: acc.ru_owner_id ?? null,
-                  subUserId: acc.ru_user_id ?? null,
-                  ownerEmail: acc.owner_email ?? null,
-                  keysCaptured: acc.keys_captured === true,
-                  companyDetailsSent: acc.company_details_sent === true,
-                  scope: acc.scope ?? "none",
-                  sourceName: acc.portfolio_name ?? null,
-                }
-              : emptyResolution,
+
+      // Local resolution, matching the server order and INCLUDING portfolio siblings:
+      // one account serves a whole group even when the row was written against a single
+      // member property. Used on its own if the server lookup is unavailable, so the
+      // table never falls back to "not linked" for a property that is in fact bound.
+      const { data: credRows } = ownerIds.length
+        ? await supabase.from("ru_api_credentials").select("ru_owner_id, access_key").in("ru_owner_id", ownerIds)
+        : { data: [] as Array<{ ru_owner_id: string; access_key: string | null }> };
+      const ownersWithKeys = new Set(
+        (credRows ?? []).filter((c) => !!c.access_key).map((c) => String(c.ru_owner_id)),
+      );
+      const memberRowsAll = (membersRes.data || []) as Array<{ property_id: string; portfolio_id: string }>;
+      const portfolioOf = new Map(memberRowsAll.map((m) => [m.property_id, m.portfolio_id]));
+      const bound = (a?: (typeof ruAccounts)[number]) => !!String(a?.ru_owner_id ?? "").trim();
+      const localResolve = (p: PropertyRecord): AccountResolution => {
+        const pid = portfolioOf.get(p.id);
+        let scope: AccountScope = "own";
+        let acc = pid ? ruAccounts.find((a) => a.portfolio_id === pid && bound(a)) : undefined;
+        if (acc) scope = "portfolio";
+        if (!acc) {
+          acc = ruAccounts.find((a) => a.property_id === p.id && bound(a));
+          if (acc) scope = "own";
+        }
+        if (!acc && pid) {
+          const siblingIds = memberRowsAll
+            .filter((m) => m.portfolio_id === pid && m.property_id !== p.id)
+            .map((m) => m.property_id);
+          acc = ruAccounts.find((a) => a.property_id && siblingIds.includes(a.property_id) && bound(a));
+          if (acc) scope = "inherited";
+        }
+        if (!acc && p.owner_email) {
+          acc = ruAccounts.find(
+            (a) =>
+              !a.portfolio_id &&
+              !a.property_id &&
+              (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase() &&
+              bound(a),
           );
+          if (acc) scope = "email";
+        }
+        if (!acc) return emptyResolution;
+        const ownerId = acc.ru_owner_id ?? null;
+        return {
+          ownerId,
+          subUserId:
+            acc.ru_user_id && String(acc.ru_user_id) !== String(ownerId ?? "") ? String(acc.ru_user_id) : null,
+          ownerEmail: acc.owner_email ?? null,
+          keysCaptured: !!acc.ru_api_access_key || (!!ownerId && ownersWithKeys.has(String(ownerId))),
+          companyDetailsSent: acc.company_details_sent === true,
+          scope,
+          sourceName: pid ? portfolioNameById.get(pid) ?? null : null,
+        };
+      };
+      for (const p of allProps) accountByProperty.set(p.id, localResolve(p));
+
+      // The backend answer wins when it is available: it is the exact resolver the push
+      // and the setup wizard use, so the monitor can never disagree with them.
+      if (allProps.length) {
+        try {
+          const { data: resolvedRes } = await supabase.functions.invoke("ru-cert-portal", {
+            body: { action: "resolve_owner_accounts", property_ids: allProps.map((p) => p.id) },
+          });
+          const map = (resolvedRes?.accounts ?? {}) as Record<string, ResolvedAccount>;
+          for (const p of allProps) {
+            const acc = map[p.id];
+            if (!acc?.ru_owner_id) continue;
+            accountByProperty.set(p.id, {
+              ownerId: acc.ru_owner_id,
+              subUserId: acc.ru_user_id ?? null,
+              ownerEmail: acc.owner_email ?? null,
+              keysCaptured: acc.keys_captured === true,
+              companyDetailsSent: acc.company_details_sent === true,
+              scope: acc.scope ?? "own",
+              sourceName: acc.portfolio_name ?? null,
+            });
+          }
+        } catch {
+          /* local resolution above already produced an answer */
         }
       }
 
