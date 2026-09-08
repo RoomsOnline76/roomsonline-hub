@@ -320,13 +320,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     (async () => {
       const { data } = await supabase
         .from("bookings")
-        .select(
-          "amount_paid, amount_paid_source, payment_status, payment_method, total_price, deposit_amount, charges_breakdown, " +
-            "guest_name, guest_email, guest_phone, guest_nationality, guest_company, " +
-            "second_guest_name, second_guest_email, second_guest_phone, special_requests, " +
-            "external_reservation_id, booking_channel, integration_type, " +
-            "calculated_commission, commission_rate_applied, commission_type, modification_notes",
-        )
+        .select("amount_paid, amount_paid_source, payment_status, payment_method, total_price, deposit_amount, charges_breakdown, guest_name, guest_email, guest_phone, guest_nationality, guest_company, second_guest_name, second_guest_email, second_guest_phone, special_requests, external_reservation_id, booking_channel, integration_type, calculated_commission, commission_rate_applied, commission_type, modification_notes")
+
         .eq("id", booking.id)
         .maybeSingle();
       if (!mounted || !data) return;
