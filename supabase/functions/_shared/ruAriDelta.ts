@@ -125,8 +125,24 @@ export async function queueRuAriDelta(
 ): Promise<RuAriDeltaOutcome> {
   if (!propertyId) return { queued: false, reason: "no_property" };
   try {
-    if (!(await isRuConnected(supabase, propertyId))) {
-      return { queued: false, reason: "not_connected" };
+    const connected = await evaluateRuOperationalSync(supabase, propertyId);
+    if (!connected.allowed) {
+      // Record the refusal: a silent skip let the editor keep saying "queued for the channel"
+      // while nothing was ever owed or attempted.
+      try {
+        await supabase.from("ru_sync_runs").insert({
+          property_id: propertyId,
+          action: "refresh_ari_skipped",
+          success: true,
+          error_code: connected.code ?? "not_connected",
+          error_message: connected.message ?? "Property is not distributed to the channel.",
+          details: { trigger, skipped: true, reason: connected.code ?? "not_connected" },
+        });
+      } catch (logErr) {
+        console.warn("[ruAriDelta] skip log insert failed", logErr);
+      }
+      console.log(`[ruAriDelta] ${trigger} delta skipped for ${propertyId}: ${connected.code ?? "not_connected"}`);
+      return { queued: false, reason: "not_connected", error: connected.message };
     }
     if (await confirmAcceptancePending(supabase, propertyId)) {
       console.log(`[ruAriDelta] ${trigger} delta held: a channel acceptance is pending for ${propertyId}`);
