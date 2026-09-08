@@ -229,17 +229,6 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
         const isRolos = (data as any)?.external_system === 'rolos' || (data as any)?.is_rol_property === true;
         setAutoManaged(!!(isRolos && (data as any)?.ru_push_enabled !== false));
 
-        // Load RU owner account if owner_email exists
-        if (data?.owner_email) {
-          supabase
-            .from("ru_owner_accounts" as any)
-            .select("ru_user_id, ru_owner_id, ru_login_email, ru_login_url, company_details_sent")
-            .eq("owner_email", data.owner_email)
-            .maybeSingle()
-            .then(({ data: acct }) => {
-              if (acct) setRuOwnerAccount(acct as unknown as RuOwnerAccount);
-            });
-        }
       });
   }, [propertyId]);
 
@@ -250,6 +239,20 @@ export function PushToRentalsUnited({ propertyId, readiness }: PushToRentalsUnit
       .then(({ data }) => {
         if (cancelled || !data?.success) return;
         setIdentityGate({ gated: data.push_gated === true, reason: data.gate_reason ?? null });
+        // The account shown here is the one the push actually uses — resolved server-side
+        // (own row, portfolio, or inherited from a group sibling). Looking it up by owner
+        // email in the browser could show a different account, or none at all.
+        if (data.account) {
+          setRuOwnerAccount({
+            ru_user_id: data.account.ru_user_id ?? null,
+            ru_owner_id: data.account.ru_owner_id ?? null,
+            ru_login_email: data.account.ru_login_email ?? null,
+            ru_login_url: data.account.ru_login_url ?? null,
+            company_details_sent: data.account.company_details_sent === true,
+          } as unknown as RuOwnerAccount);
+        } else {
+          setRuOwnerAccount(null);
+        }
       })
       .catch(() => {/* panel on the Identity tab reports the real reason */});
     return () => {
