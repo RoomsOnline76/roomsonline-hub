@@ -426,6 +426,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
           ownerEmail: creds.ownerEmail,
+          accountScope: creds.scope,
+          accountSourceName: creds.sourceName,
         } satisfies ChannelPropertyRow;
       });
 
