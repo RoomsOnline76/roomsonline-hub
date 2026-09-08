@@ -453,20 +453,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       const tradingProps = allProps.filter(isTradingProp);
       const tradingIds = new Set(tradingProps.map((p) => p.id));
 
-      const subAccountPropertyIds = new Set<string>();
-      for (const acc of ruAccounts) {
-        if (acc.portfolio_id) {
-          membersRows
-            .filter((m) => m.portfolio_id === acc.portfolio_id && tradingIds.has(m.property_id))
-            .forEach((m) => subAccountPropertyIds.add(m.property_id));
-        } else if (acc.property_id) {
-          if (tradingIds.has(acc.property_id)) subAccountPropertyIds.add(acc.property_id);
-        } else if (acc.owner_email) {
-          tradingProps
-            .filter((p) => (p.owner_email || "").toLowerCase() === acc.owner_email!.toLowerCase())
-            .forEach((p) => subAccountPropertyIds.add(p.id));
-        }
-      }
+      // Membership of a sub-account follows the same resolution as the push path, so a
+      // property inheriting its portfolio's account counts as connected.
+      const subAccountPropertyIds = new Set<string>(
+        tradingProps.filter((p) => !!accountByProperty.get(p.id)?.ownerId).map((p) => p.id),
+      );
+      void membersRows;
 
       // Only properties with an actual channel footprint belong in these counters —
       // portfolio siblings with nothing on the channel manager would otherwise pad
