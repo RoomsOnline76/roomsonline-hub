@@ -58,6 +58,15 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export interface RuStaleHoldDeps {
+  /** Ask the channel about one reservation. */
+  // deno-lint-ignore no-explicit-any
+  refresh?: typeof refreshRuReservationById | ((...args: any[]) => Promise<any>);
+  /** Give the stamped nights back. */
+  // deno-lint-ignore no-explicit-any
+  release?: (...args: any[]) => Promise<number>;
+}
+
 export async function sweepStaleRuHolds(
   supabase: Db,
   opts: {
@@ -70,12 +79,16 @@ export async function sweepStaleRuHolds(
     minAgeMinutes?: number;
     logPrefix?: string;
   } = {},
+  deps: RuStaleHoldDeps = {},
 ): Promise<RuStaleHoldSweepResult> {
+  const refresh = deps.refresh ?? refreshRuReservationById;
+  const release = deps.release ?? releaseChannelBlocksForBooking;
   const log = opts.logPrefix ?? '[ru-stale-holds]';
   const limit = opts.limit ?? DEFAULT_LIMIT;
   const cooldownMs = (opts.cooldownMinutes ?? DEFAULT_COOLDOWN_MINUTES) * 60_000;
   const minAgeMs = (opts.minAgeMinutes ?? DEFAULT_MIN_AGE_MINUTES) * 60_000;
   const onDemand = (opts.onlyReservationIds ?? []).filter(Boolean);
+
   const result: RuStaleHoldSweepResult = {
     candidates: 0,
     verified: 0,
