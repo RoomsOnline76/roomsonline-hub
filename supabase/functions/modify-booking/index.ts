@@ -179,6 +179,7 @@ async function recalculateRolPrice(
     nightly: number | null;
     source: string | null;
     shape: "nightly" | "los_nightly" | "full_stay";
+    policy_id: string | null;
   } | null
 > {
 
@@ -311,6 +312,7 @@ async function recalculateRolPrice(
     nightly,
     source,
     shape,
+    policy_id: shaped?.policy_id ?? null,
   };
 }
 
