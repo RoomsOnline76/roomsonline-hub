@@ -29,7 +29,7 @@ import { isPMSFullyIntegrated, getPMSIntegrationLevel, getPMSIcon } from "@/hook
 import { channelMandatoryClass, CHANNEL_MANDATORY_LEGEND } from "@/lib/channelMandatoryFields";
 import { markerFlags } from "@/lib/fieldMarkers";
 import { ChannelFieldHint } from "@/components/property/ChannelFieldHint";
-import { checkChannelCoordinates, checkChannelName, checkChannelPlace, checkChannelPostalCode, checkChannelStreet } from "@/lib/channelFieldRules";
+import { checkChannelCoordinates, checkChannelListingNameLength, checkChannelName, checkChannelPlace, checkChannelPostalCode, checkChannelStreet, isChannelListingNameLengthOk } from "@/lib/channelFieldRules";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -224,6 +224,12 @@ export function GeneralTab(props: GeneralTabProps) {
   }, [channelTypes.options, formData.property_type]);
 
   const nameFeedback = useMemo(() => checkChannelName(formData.name), [formData.name]);
+  /** Short name some sales channels insist on (8–50 characters) — the property name stays as authored. */
+  const channelListingName = String(formData.amenities?.channel_listing_name ?? "");
+  const channelListingNameFeedback = useMemo(
+    () => checkChannelListingNameLength(channelListingName),
+    [channelListingName],
+  );
   const streetFeedback = useMemo(() => checkChannelStreet(formData.address), [formData.address]);
   const cityFeedback = useMemo(() => checkChannelPlace(formData.city, "City"), [formData.city]);
   const postalFeedback = useMemo(() => checkChannelPostalCode(formData.postal_code), [formData.postal_code]);
@@ -570,7 +576,25 @@ export function GeneralTab(props: GeneralTabProps) {
                   <Label htmlFor="name" className="text-xs">Name *</Label>
                   <Input id="name" value={formData.name} onChange={(e) => handleInputChange("name", e.target.value)} placeholder="Property name" required disabled={isFieldPopulatedByPMS("name", selectedPMS)} className={cn("h-7 text-xs", getPMSFieldClass("name", selectedPMS), channelMandatoryClass("name"), nameFeedback.status === "error" && "border-destructive focus-visible:ring-destructive", isFieldPopulatedByPMS("name", selectedPMS) && "cursor-not-allowed")} {...markerFlags(nameFeedback.status === "ok" && formData.name.trim().length > 0)} />
                   <ChannelFieldHint feedback={nameFeedback} />
+                  <span className="text-[10px] text-muted-foreground">{String(formData.name ?? "").trim().length} characters</span>
                 </div>
+
+                {/* Only asked for when the property name itself falls outside the 8–50 window. */}
+                {!isChannelListingNameLengthOk(formData.name) && String(formData.name ?? "").trim().length > 0 && (
+                  <div className="flex flex-col gap-1" data-field="amenities.channel_listing_name">
+                    <Label htmlFor="channel_listing_name" className="text-xs">Channel listing name</Label>
+                    <Input
+                      id="channel_listing_name"
+                      value={channelListingName}
+                      onChange={(e) => handleInputChange("amenities.channel_listing_name", e.target.value)}
+                      placeholder="Short name for sales channels"
+                      className={cn("h-7 text-xs", channelListingNameFeedback.status === "error" && "border-destructive")}
+                      {...markerFlags(isChannelListingNameLengthOk(channelListingName))}
+                    />
+                    <ChannelFieldHint feedback={channelListingNameFeedback} />
+                  </div>
+                )}
+
 
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="property_type" className="text-xs flex items-center">Type *<ContextualHelp table="properties" field="property_type" /></Label>

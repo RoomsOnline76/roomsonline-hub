@@ -149,3 +149,41 @@ export function checkChannelMaxGuests(value: number | string | null | undefined)
   if ((n as number) > 100) return bad(requirement, "Above 100 guests the channel expects a multi-unit listing instead.", "warn");
   return ok(requirement);
 }
+
+/**
+ * Sales-channel listing-name length.
+ *
+ * Airbnb (and the VRBO/HomeAway family) refuse a listing whose name falls outside
+ * 8–50 characters. Booking.com happily takes the longer marketing name, so this is a
+ * per-channel overlay on top of `checkChannelName` hygiene — never a go-live blocker.
+ */
+export const CHANNEL_LISTING_NAME_MIN = 8;
+export const CHANNEL_LISTING_NAME_MAX = 50;
+
+export function checkChannelListingNameLength(
+  value: string | null | undefined,
+  opts: { min?: number; max?: number } = {},
+): ChannelFieldFeedback {
+  const min = opts.min ?? CHANNEL_LISTING_NAME_MIN;
+  const max = opts.max ?? CHANNEL_LISTING_NAME_MAX;
+  const requirement = `Sales-channel listing name: ${min}–${max} characters for Airbnb / VRBO. Plain text, no emoji, no specials, not ALL CAPS. Booking.com accepts the longer marketing name.`;
+  const raw = String(value ?? "").trim();
+  if (!raw) return empty(requirement);
+  if (raw.length < min) {
+    return bad(requirement, `${raw.length} characters — Airbnb / VRBO need at least ${min}.`, "warn");
+  }
+  if (raw.length > max) {
+    return bad(
+      requirement,
+      `${raw.length} characters — Airbnb / VRBO allow at most ${max}. Add a shorter channel listing name.`,
+      "warn",
+    );
+  }
+  return ok(requirement);
+}
+
+/** True when the name is inside the 8–50 window every short-name channel enforces. */
+export const isChannelListingNameLengthOk = (value: string | null | undefined): boolean => {
+  const n = String(value ?? "").trim().length;
+  return n >= CHANNEL_LISTING_NAME_MIN && n <= CHANNEL_LISTING_NAME_MAX;
+};

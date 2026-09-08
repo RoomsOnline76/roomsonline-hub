@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { toast } from "sonner";
 import {
@@ -101,6 +101,8 @@ import { applyAdminScope } from "@/lib/adminScope";
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { ChannelConnectEligibilityPanel } from "@/components/pms/channels/ChannelConnectEligibilityPanel";
+import { usePropertyReadiness } from "@/hooks/usePropertyReadiness";
 
 import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
 
@@ -268,11 +270,30 @@ export function ChannelOnboardTab({
   onSelectionChange?: (propertyId: string) => void;
 }) {
   const { scopedPropertyIds, scopeResolved } = useAuth();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<OnboardOption[]>([]);
   const [propertiesLoading, setPropertiesLoading] = useState(true);
   const [propertyId, setPropertyId] = useState<string>("");
   /** Why a deep-linked property could not be selected, or how it was resolved. */
   const [requestNotice, setRequestNotice] = useState<string | null>(null);
+
+  /** Local facts for the sales-channel connect scorecard beside the Channel Manager frame. */
+  const connectReadiness = usePropertyReadiness(propertyId || undefined);
+
+  /**
+   * Admin has no in-page authoring tabs, so "Show me" hands over to the property editor
+   * with the same section / focus contract the owner workspace uses.
+   */
+  const goToPropertyField = useCallback(
+    (section: string, focus: string, unit?: string) => {
+      if (!propertyId) return;
+      const params = new URLSearchParams({ section, focus });
+      if (unit) params.set("unit", unit);
+      navigate(`/admin/properties/${propertyId}?${params.toString()}`);
+    },
+    [navigate, propertyId],
+  );
+
 
   const selectProperty = useCallback(
     (next: string) => {
@@ -1777,6 +1798,14 @@ export function ChannelOnboardTab({
               </CardHeader>
               <CardContent className="space-y-4">
                 
+                {/* Non-blocking: what the sales channel checks, measured from our own data. */}
+                <ChannelConnectEligibilityPanel
+                  subject={connectReadiness.subject}
+                  onShowMe={goToPropertyField}
+                  includeStaff
+                  onRecheck={connectReadiness.refresh}
+                  refreshing={connectReadiness.isFetching}
+                />
                 <RuWhiteLabelEmbed propertyId={propertyId} />
               </CardContent>
             </Card>

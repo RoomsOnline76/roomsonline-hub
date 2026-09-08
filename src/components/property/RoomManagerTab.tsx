@@ -954,7 +954,18 @@ export function RoomManagerTab({
                               ) : undefined
                             }
                           />
+                          {/* Recommendation only — go-live needs cover, some sales channels want an exact match. */}
+                          {capacity > 0 &&
+                            Number(currentRoom?.maxPeople) > 0 &&
+                            capacity !== Number(currentRoom?.maxPeople) && (
+                              <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                Recommended: beds sleep {capacity}, max guests is{" "}
+                                {Number(currentRoom?.maxPeople)} — some sales channels expect the
+                                same number in both.
+                              </p>
+                            )}
                         </>
+
                       );
                     })()}
                   </div>
