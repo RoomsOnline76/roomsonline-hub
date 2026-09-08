@@ -68,6 +68,54 @@ interface ExtrasQuote {
   lines: ChargeLine[];
 }
 
+/** Editable guest record fields. Stored locally only — never pushed to the channel. */
+interface GuestFields {
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  guest_nationality: string;
+  guest_company: string;
+  second_guest_name: string;
+  second_guest_email: string;
+  second_guest_phone: string;
+}
+
+const EMPTY_GUEST: GuestFields = {
+  guest_name: "",
+  guest_email: "",
+  guest_phone: "",
+  guest_nationality: "",
+  guest_company: "",
+  second_guest_name: "",
+  second_guest_email: "",
+  second_guest_phone: "",
+};
+
+const GUEST_LABELS: Array<{ key: keyof GuestFields; label: string; type?: string }> = [
+  { key: "guest_name", label: "Guest name" },
+  { key: "guest_email", label: "Email", type: "email" },
+  { key: "guest_phone", label: "Phone", type: "tel" },
+  { key: "guest_nationality", label: "Nationality" },
+  { key: "guest_company", label: "Company" },
+  { key: "second_guest_name", label: "Second guest" },
+  { key: "second_guest_email", label: "Second guest email", type: "email" },
+  { key: "second_guest_phone", label: "Second guest phone", type: "tel" },
+];
+
+/** Read-only side of the record: how the money and the channel reference arrived. */
+interface ReceivedRecord {
+  paymentStatus: string | null;
+  paymentMethod: string | null;
+  amountPaidSource: string | null;
+  depositAmount: number;
+  externalReservationId: string | null;
+  bookingChannel: string | null;
+  integrationType: string | null;
+  commission: { amount: number | null; rate: number | null; type: string | null };
+  channel: ReceivedChannelDetails;
+  storedLines: ChargeLine[];
+}
+
 const toDate = (iso: string): Date | undefined => {
   try {
     const parsed = parseISO(iso);
@@ -84,6 +132,7 @@ const nightsBetween = (from: string, to: string) => {
     return 0;
   }
 };
+
 
 export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking = false, onDone }: Props) {
   const [checkIn, setCheckIn] = useState(booking.check_in_date);
