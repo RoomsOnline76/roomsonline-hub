@@ -479,8 +479,10 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
         map.set(cls.key, { cls, count: 1, last: r });
       }
     });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [failures]);
+    return Array.from(map.values())
+      .map((g) => ({ ...g, outcome: resolveOutcome(g.last, runs) }))
+      .sort((a, b) => Number(a.outcome.resolved) - Number(b.outcome.resolved) || b.count - a.count);
+  }, [failures, runs]);
 
   // Refusals and no-ops are recorded for the audit trail but are not defects.
   const groups = useMemo(() => allGroups.filter((g) => g.cls.severity !== "expected"), [allGroups]);
@@ -488,8 +490,14 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
   const expectedCount = expectedGroups.reduce((s, g) => s + g.count, 0);
   const faultCount = groups.reduce((s, g) => s + g.count, 0);
 
-  const blockers = groups.filter((g) => g.cls.severity === "blocker").reduce((s, g) => s + g.count, 0);
-  const selfHealing = groups.filter((g) => g.cls.severity === "retryable").reduce((s, g) => s + g.count, 0);
+  // "Need manual fix" counts only patterns nothing has recovered from — a blocker the
+  // platform already worked around is not waiting on a person.
+  const blockers = groups
+    .filter((g) => g.cls.severity === "blocker" && !g.outcome.resolved)
+    .reduce((s, g) => s + g.count, 0);
+  const selfHealing = groups
+    .filter((g) => g.cls.severity === "retryable" || g.outcome.resolved)
+    .reduce((s, g) => s + g.count, 0);
 
   return (
     <div className="space-y-6">
