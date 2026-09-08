@@ -1160,6 +1160,9 @@ export async function refreshRuReservationById(
     kind?: RuNotificationKind;
     /** RU `Creator` from the envelope — resolves the owning sub-account first. */
     creator?: string | null;
+    /** The caller already listed these accounts on the wire — skip the listing fallback. */
+    skipListFallback?: boolean;
+
   } = {},
 ): Promise<RuIngestResult & { rateDeferred?: boolean; resolvedOwnerId?: string | null }> {
   const log = opts.logPrefix || '[ru-ingest]';
