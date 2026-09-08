@@ -35,15 +35,34 @@ function num(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-function feeTaxTypeFor(name: string): number {
-  if (/clean/i.test(name)) return 41;
-  if (/resort/i.test(name)) return 34;
-  if (/housekeep/i.test(name)) return 18;
-  if (/service/i.test(name)) return 33;
-  if (/pet/i.test(name)) return 29;
-  if (/park/i.test(name)) return 31;
-  if (/touris/i.test(name)) return 36;
-  return 0; // unknown — valid per the dictionary
+/**
+ * Accepted FeeTaxType dictionary. Mirrors src/lib/channelFeeTaxTypes.ts — keep both in step, and
+ * never add a code we have not measured or read in RU's own dictionary: an invented code is
+ * rejected or silently filed as unknown.
+ */
+const FEE_TAX_TYPES: Array<{ code: number; match: RegExp }> = [
+  { code: 41, match: /clean/i },
+  { code: 18, match: /housekeep/i },
+  { code: 34, match: /resort/i },
+  { code: 33, match: /service/i },
+  { code: 29, match: /pet/i },
+  { code: 31, match: /park/i },
+  { code: 36, match: /touris|city tax|levy/i },
+];
+
+export const RU_ACCEPTED_FEE_TAX_TYPES = FEE_TAX_TYPES.map((t) => t.code);
+
+export function feeTaxTypeFor(name: string): number {
+  const hit = FEE_TAX_TYPES.find((t) => t.match.test(name));
+  return hit ? hit.code : 0; // 0 = unknown — valid per the dictionary, but shows as "unknown tax"
+}
+
+/** The operator's explicit pick wins, when it is a code RU accepts. Otherwise derive from the name. */
+function resolveFeeTaxType(charge: RuChargeRow, name: string): number {
+  const explicit = (charge as { channel_fee_type?: number | string | null }).channel_fee_type;
+  const code = typeof explicit === 'number' ? explicit : Number(explicit);
+  if (Number.isFinite(code) && (code === 0 || RU_ACCEPTED_FEE_TAX_TYPES.includes(code))) return code;
+  return feeTaxTypeFor(name);
 }
 
 /** Map one charge row to an RU additional-fee entry, or null when RU cannot express it. */
