@@ -316,6 +316,40 @@ Deno.serve(async (req) => {
       let parsed: LedgerParseResult;
       {
         const buffer = await download.data.arrayBuffer();
+
+        // An extras / F&B charge list is not a bookings ledger. Recognise it up
+        // front so it reports what it holds instead of asking for a column map
+        // it can never satisfy.
+        const extension = extensionOf(file.original_filename);
+        if (extension === "xlsx" || extension === "xls") {
+          try {
+            const repaired = await repairWorkbookBuffer(buffer);
+            const summary = readExtrasReport(sheetsFromWorkbook(repaired.buffer));
+            if (summary) {
+              extrasSummaries.push({ filename: file.original_filename, summary });
+              fileResults.push({
+                id: file.id,
+                filename: file.original_filename,
+                parsed_ok: true,
+                row_count: summary.rowCount,
+                errors: [],
+                status: "parsed",
+                sheet: summary.sheet,
+                notes: [describeExtrasReport(summary)],
+                headers: [],
+                sample_rows: [],
+                mapping: {},
+                unresolved: [],
+                fingerprint: null,
+              });
+              processedFiles += 1;
+              continue;
+            }
+          } catch {
+            // Not readable as an extras sheet — fall through to the ledger reader.
+          }
+        }
+
         parsed = await parseSourceFile(buffer, file.original_filename, {
           override: onlyFileId ? reviewerMapping : null,
           overrideSheet: onlyFileId ? reviewerSheet : null,
@@ -361,6 +395,7 @@ Deno.serve(async (req) => {
       parsed.rows.length = 0;
       processedFiles += 1;
     }
+
 
     // Remember a reviewer-confirmed mapping that worked, for future files.
     if (onlyFileId && reviewerMapping && fileResults[0]?.parsed_ok) {
