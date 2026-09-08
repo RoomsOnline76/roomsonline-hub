@@ -3976,6 +3976,107 @@ Deno.serve(async (req) => {
     }
 
 
+    /**
+     * ── resolve_owner_accounts: the SAME resolution the push path uses, for a list of
+     * properties in one call.
+     *
+     * The cost monitor used to resolve accounts in the browser (property row → portfolio
+     * row → owner email) and had no portfolio-sibling step, so a property inheriting the
+     * portfolio's account read as "not linked" while the wizard reported it ready. There
+     * is now exactly one answer, and it comes from `findOwnerAccount`.
+     */
+    if (action === "resolve_owner_accounts") {
+      const ids = Array.isArray(body.property_ids)
+        ? [...new Set(body.property_ids.map((v: unknown) => String(v ?? "").trim()).filter(Boolean))]
+        : [];
+      if (!ids.length) return json({ success: true, accounts: {} });
+      if (ids.length > 500) {
+        return json({ success: false, error: { code: "BAD_REQUEST", message: "Too many properties in one request" } }, 400);
+      }
+
+      const { data: propRows } = await admin
+        .from("properties")
+        .select("id, owner_email")
+        .in("id", ids);
+      const emailById = new Map(
+        ((propRows ?? []) as Array<{ id: string; owner_email: string | null }>).map((p) => [p.id, p.owner_email ?? null]),
+      );
+
+      const accounts: Record<string, unknown> = {};
+      const ownerIds = new Set<string>();
+      const resolved: Array<{
+        propertyId: string;
+        account: Record<string, unknown> | null;
+        scope: string;
+        portfolioId: string | null;
+      }> = [];
+
+      for (const id of ids) {
+        const { account, portfolio_id, scope } = await findOwnerAccount(admin, id, emailById.get(id) ?? null, null);
+        const acc = (account ?? null) as Record<string, unknown> | null;
+        const ownerId = String(acc?.ru_owner_id ?? "").trim();
+        if (ownerId) ownerIds.add(ownerId);
+        resolved.push({ propertyId: id, account: acc, scope, portfolioId: portfolio_id ?? null });
+      }
+
+      // Key capture: per-OwnerID store first, legacy inline column as fallback.
+      const ownersWithKeys = new Set<string>();
+      if (ownerIds.size) {
+        const { data: credRows } = await admin
+          .from("ru_api_credentials")
+          .select("ru_owner_id, access_key, verified_at")
+          .in("ru_owner_id", [...ownerIds]);
+        for (const c of (credRows ?? []) as Array<{ ru_owner_id: string; access_key: string | null }>) {
+          if (c.access_key) ownersWithKeys.add(String(c.ru_owner_id));
+        }
+      }
+
+      // Portfolio names so the monitor can say WHERE an inherited account came from.
+      const portfolioIds = [...new Set(resolved.map((r) => r.portfolioId).filter(Boolean))] as string[];
+      const portfolioNames = new Map<string, string>();
+      if (portfolioIds.length) {
+        const { data: pfRows } = await admin
+          .from("property_portfolios")
+          .select("id, name")
+          .in("id", portfolioIds);
+        for (const p of (pfRows ?? []) as Array<{ id: string; name: string | null }>) {
+          if (p.name) portfolioNames.set(p.id, p.name);
+        }
+      }
+
+      for (const r of resolved) {
+        const acc = r.account;
+        const ownerId = String(acc?.ru_owner_id ?? "").trim() || null;
+        const ownedByThisProperty = !!acc && String(acc.property_id ?? "") === r.propertyId;
+        const scope = !acc
+          ? "none"
+          : ownedByThisProperty
+            ? "own"
+            : acc.portfolio_id
+              ? "portfolio"
+              : acc.property_id
+                ? "inherited"
+                : "email";
+        accounts[r.propertyId] = {
+          ru_owner_id: ownerId,
+          // A sub-user id equal to the OwnerID is the same single account, not a second one.
+          ru_user_id:
+            acc?.ru_user_id && String(acc.ru_user_id) !== String(ownerId ?? "") ? String(acc.ru_user_id) : null,
+          owner_email: (acc?.ru_login_email as string | null) ?? (acc?.owner_email as string | null) ?? null,
+          keys_captured: !!(ownerId && ownersWithKeys.has(ownerId)) || !!acc?.ru_api_access_key,
+          company_details_sent: acc?.company_details_sent === true,
+          scope,
+          source_property_id: (acc?.property_id as string | null) ?? null,
+          portfolio_name: r.portfolioId ? portfolioNames.get(r.portfolioId) ?? null : null,
+        };
+      }
+
+      return json({ success: true, accounts });
+    }
+
+
+
+
 
     // Derived discount ladder (no RU call — pure resolution, safe to call freely).
     // Lets the console show exactly which tiers a discount push will send.
