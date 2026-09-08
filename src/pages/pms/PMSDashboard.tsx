@@ -1387,7 +1387,7 @@ export default function PMSDashboard() {
       }
     }
     return rt.default_rate || null;
-  }, [portfolioDataByProperty]);
+  }, [portfolioDataByProperty, authoredSeasonRates]);
 
   // Group rooms by room type
   const roomsByType = useMemo(() => {
