@@ -1354,6 +1354,10 @@ export default function PMSDashboard() {
     if (!rt) return null;
     const amenities = propData.propertyData?.amenities;
     const dateStr = format(date, "yyyy-MM-dd");
+    const calendarSeasonId = findCalendarSeasonIdForDate(amenities, dateStr);
+    const authored = authoredRateFor(authoredSeasonRates, propId, calendarSeasonId, roomTypeId, rt.name);
+    if (authored != null) return authored;
+    const preferredPlanId = (authoredSeasonRates.planIdsByProperty.get(propId) || [])[0] || "";
     if (amenities?.seasons?.length && amenities?.season_rates) {
       let amenityIdForName: string | null = null;
       if (rt.name && Array.isArray(amenities.room_types)) {
