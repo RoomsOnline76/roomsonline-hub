@@ -97,7 +97,7 @@ export function mapChargeToRuFee(charge: RuChargeRow): RuFeeEntry | null {
     name,
     value,
     discriminator_id: discriminator,
-    fee_tax_type: feeTaxTypeFor(name),
+    fee_tax_type: resolveFeeTaxType(charge, name),
     optional: isOnRequest,
     refundable: charge.refundable === true,
     collect_time: 1,
