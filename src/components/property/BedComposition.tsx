@@ -214,7 +214,7 @@ export function BedComposition({
             </Button>
           </div>
 
-          {/* What THIS room holds — separate from the unit's amenity list. */}
+          {/* What THIS room holds — every item listed, each removable on its own. */}
           <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-border/50 pt-2">
             <span className="text-[10px] text-muted-foreground">In this room:</span>
             {(() => {
@@ -224,41 +224,46 @@ export function BedComposition({
                 return <span className="text-[10px] text-muted-foreground">nothing added yet</span>;
               }
               return (
-                <HoverCard openDelay={120} closeDelay={60}>
-                  <HoverCardTrigger asChild>
+                <>
+                  {amenitiesLoading && (
+                    <span className="text-[10px] text-muted-foreground">loading names…</span>
+                  )}
+                  {resolved.map((a) => (
                     <Badge
+                      key={a.raw}
                       variant="secondary"
-                      className="cursor-default text-[10px]"
-                      title={resolved.map((a) => a.label).join(", ")}
+                      className="gap-1 pr-1 text-[10px] font-normal"
                     >
-                      {tokens.length} amenit{tokens.length === 1 ? "y" : "ies"}
+                      <span className={a.unmapped ? "italic text-muted-foreground" : undefined}>
+                        {a.label}
+                        {a.count > 1 ? ` ×${a.count}` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${a.label}`}
+                        title={`Remove ${a.label}`}
+                        className="rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() =>
+                          setGroupAmenities(
+                            groupIndex,
+                            tokens.filter((t) => t !== a.raw),
+                          )
+                        }
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
-                  </HoverCardTrigger>
-                  <HoverCardContent align="start" className="w-64 p-2.5 space-y-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {bedRoomSlotLabel(group.slot, livingCount)} — loaded amenities
-                    </p>
-                    {amenitiesLoading ? (
-                      <p className="text-[11px] text-muted-foreground">Loading names…</p>
-                    ) : (
-                      <ul className="space-y-0.5">
-                        {resolved.map((a) => (
-                          <li
-                            key={a.raw}
-                            className="flex items-center justify-between gap-2 text-[11px] leading-tight"
-                          >
-                            <span className={a.unmapped ? "text-muted-foreground italic" : "text-foreground"}>
-                              {a.label}
-                            </span>
-                            {a.count > 1 && (
-                              <span className="text-[10px] text-muted-foreground">×{a.count}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </HoverCardContent>
-                </HoverCard>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-[10px] text-destructive hover:text-destructive"
+                    onClick={() => setGroupAmenities(groupIndex, [])}
+                  >
+                    Remove all
+                  </Button>
+                </>
               );
             })()}
             <Button
@@ -272,6 +277,7 @@ export function BedComposition({
               Amenities in {bedRoomSlotLabel(group.slot, livingCount)}
             </Button>
           </div>
+
 
           {group.beds.length === 0 && (
             <p className="mt-1 flex items-center gap-1 text-[10px] text-destructive">
