@@ -529,8 +529,8 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
           <CardTitle className="flex items-center gap-2"><Bug className="h-4 w-4" />Live error taxonomy (last 7 days)</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
             Each faulty sync run is classified into one bucket: what caused it, what the platform does automatically, and what you
-            must do. The activity chip says whether the pattern is still happening (Active, last 6h), settling (Cooling, last 48h)
-            or already gone (Cleared).
+            must do. Resolved means the same call later went through for the same property, so nothing is waiting on you. Active
+            means the newest attempt is still failing; Cooling and Cleared track how long it has been quiet.
           </p>
         </CardHeader>
         <CardContent>
@@ -546,9 +546,9 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {groups.map(({ cls, count, last }) => {
+              {groups.map(({ cls, count, last, outcome }) => {
                 const badge = severityBadge[cls.severity];
-                const activity = activityChip(last.created_at);
+                const activity = outcomeChip(outcome, last.created_at);
                 return (
                   <TableRow key={cls.key} className="align-top">
                     <TableCell>
@@ -561,13 +561,21 @@ export function RuErrorHandlingTab({ runs, propertyNameById }: Props) {
                     <TableCell className="font-semibold">{count}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[240px]">{cls.cause}</TableCell>
                     <TableCell className="text-xs text-muted-foreground max-w-[240px]">{cls.handling}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-[240px]">{cls.fix}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[240px]">
+                      {outcome.resolved ? "Nothing — it already went through on its own." : cls.fix}
+                    </TableCell>
                     <TableCell className="text-xs">
                       <div>{new Date(last.created_at).toLocaleString()}</div>
                       <div className="text-muted-foreground">
                         {last.action}
                         {last.property_id ? ` · ${propertyNameById.get(last.property_id) ?? last.property_id.slice(0, 8)}` : ""}
                       </div>
+                      {outcome.resolved && outcome.succeededAt && (
+                        <div className="text-emerald-600 dark:text-emerald-400 mt-1">
+                          Succeeded {new Date(outcome.succeededAt).toLocaleTimeString()}
+                          {outcome.recoveryAction ? ` after ${outcome.recoveryAction}` : ""}
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 );
