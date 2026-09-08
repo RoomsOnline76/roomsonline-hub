@@ -558,6 +558,8 @@ export function localBookableWindowChecks(
     unpriced_open_days: number;
     /** Active units with no MinStay authored — named so the fix opens the right card. */
     units_without_min_stay?: string[];
+    /** Authored minimum stays outside the 1–28 night range every channel accepts. */
+    min_stay_out_of_range?: string[];
   },
   unit?: string,
 ): RuCheck[] {
@@ -591,6 +593,20 @@ export function localBookableWindowChecks(
           detail: minStayUnits.length > 0
             ? `No minimum stay authored on ${minStayUnits.slice(0, 3).join(", ")}${minStayUnits.length > 3 ? ` +${minStayUnits.length - 3} more` : ""}`
             : "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback",
+        }),
+    },
+    {
+      key: "min_stay_within_channel_range",
+      group: "Availability 365d",
+      label: `Minimum stay within 1–${RU_MAX_MIN_STAY} nights`,
+      mandatory: true,
+      passed: (window.min_stay_out_of_range ?? []).length === 0,
+      unit,
+      fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
+      ...((window.min_stay_out_of_range ?? []).length === 0
+        ? {}
+        : {
+          detail: `A minimum stay longer than ${RU_MAX_MIN_STAY} nights is refused by the channels: ${(window.min_stay_out_of_range ?? []).slice(0, 3).join(", ")}`,
         }),
     },
   ];
