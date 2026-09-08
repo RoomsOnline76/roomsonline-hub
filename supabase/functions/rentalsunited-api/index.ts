@@ -3480,10 +3480,39 @@ Deno.serve(async (req) => {
     if (action === 'get_reservation_by_id') {
       const reservationId = typeof body.reservation_id === 'string' ? body.reservation_id.trim() : '';
       if (!reservationId) return errorResponse('MISSING_PARAM', 'reservation_id is required');
-      const xml = buildGetReservationByIdXml(scopedCreds, reservationId);
-      const response = await callRentalsUnited(scopedCreds, xml);
-      const { ok, status } = handleRUStatus(response);
-      if (!ok) return ruErrorResponse(status);
+
+      // Several paths ask for the same reservation within seconds of each other (ingest, identity
+      // resolution, booking read-back, background retries). The channel caps this method hard and
+      // answered those bursts with rate refusals, which stretched a simple sync into minutes. A read
+      // taken moments ago is the same reservation, so reuse the answer we already hold instead of
+      // spending another call on it.
+      let response: string | null = null;
+      let reused = false;
+      try {
+        const { data: recent } = await getLogClient()
+          .from('ru_api_log')
+          .select('response_xml, created_at')
+          .eq('action', 'Pull_GetReservationByID_RQ')
+          .eq('success', true)
+          .ilike('request_xml', `%<ReservationID>${reservationId}</ReservationID>%`)
+          .gt('created_at', new Date(Date.now() - 60_000).toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1);
+        const cached = (recent as Array<{ response_xml: string | null }> | null)?.[0]?.response_xml;
+        if (cached && cached.includes('<Reservation')) {
+          response = cached;
+          reused = true;
+        }
+      } catch (_err) {
+        // A cache miss must never block the real read.
+      }
+
+      if (!response) {
+        const xml = buildGetReservationByIdXml(scopedCreds, reservationId);
+        response = await callRentalsUnited(scopedCreds, xml);
+        const { ok, status } = handleRUStatus(response);
+        if (!ok) return ruErrorResponse(status);
+      }
 
       const blocks = extractAllBlocks(response, 'Reservation');
       const reservation = blocks.length ? parseRuReservation(blocks[0]) : null;
@@ -3492,10 +3521,12 @@ Deno.serve(async (req) => {
         auth_mode: authMode,
         reservation_id: reservationId,
         found: !!reservation?.ruReservationId,
+        reused_recent_read: reused,
         reservation,
         raw_xml: response,
       });
     }
+
 
 
 

@@ -47,6 +47,11 @@ export interface RuEndpointCounter {
   ok: number;
   failed: number;
   deferred: number;
+  /** The channel answered and said no (sold night, unknown listing) — the endpoint itself is fine. */
+  refused: number;
+  /** The call never got an answer at all (timeout, transport, auth) — that is the real fault line. */
+  transportFailed: number;
+
   avgMs: number;
   p95Ms: number;
   lastAt: string | null;
@@ -117,6 +122,9 @@ interface EndpointStatsRow {
   ok: number | string;
   failed: number | string;
   deferred: number | string;
+  refused: number | string | null;
+  transport_failed: number | string | null;
+
   avg_ms: number | null;
   p95_ms: number | null;
   last_at: string | null;
@@ -215,6 +223,9 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
           ok: num(row.ok),
           failed: num(row.failed),
           deferred: num(row.deferred),
+          refused: num(row.refused),
+          transportFailed: num(row.transport_failed),
+
           avgMs: num(row.avg_ms),
           p95Ms: num(row.p95_ms),
           lastAt: row.last_at,
@@ -236,6 +247,9 @@ export function useRuLiveTraffic({ hours = 24, refreshMs = 15_000 }: UseRuLiveTr
           ok: 0,
           failed: 0,
           deferred: 0,
+          refused: 0,
+          transportFailed: 0,
+
           avgMs: 0,
           p95Ms: 0,
           lastAt: null,

@@ -78,10 +78,33 @@ Deno.serve(async (req) => {
 
     console.log(`[cron-refresh-ru-ari] Refreshing ARI for ${properties.length} properties (batch ${batchId})`);
 
-    const results: { property_id: string; name: string; success: boolean; skipped?: boolean; error?: string }[] = [];
+    const results: { property_id: string; name: string; success: boolean; skipped?: boolean; batched?: number; error?: string }[] = [];
 
     // Codes that mean "nothing to push", not "push failed" — they must not pollute the failure rate.
     const SKIP_CODES = new Set(['RU_NOT_LISTED', 'RU_NOT_CONFIGURED', 'RU_LISTING_STALE', 'CHANNEL_MANAGER_DISABLED']);
+
+    // A property with many listed units cannot finish a full-year availability + pricing refresh
+    // inside one function lifetime — those runs died on the 150s idle limit and reported HTTP 504
+    // every single night, leaving part of the calendar unrefreshed. Above this many units the
+    // refresh is split into unit-scoped batches parked on the call queue, which the drainer replays
+    // at its own pace, so each batch is a short call that completes.
+    // Measured live on 2026-09-08: a 6-unit batch still ran past the 150s limit, so keep batches
+    // small enough that one always completes well inside a single function lifetime.
+    const UNITS_PER_BATCH = 3;
+    const BATCH_ABOVE_UNITS = 4;
+
+
+    const { data: activeUnits } = await supabase
+      .from('hostfully_room_types')
+      .select('id, property_id')
+      .eq('is_active', true)
+      .not('rentalsunited_property_id', 'is', null);
+    const unitsByProperty = new Map<string, string[]>();
+    for (const row of (activeUnits ?? []) as Array<{ id: string; property_id: string }>) {
+      const list = unitsByProperty.get(row.property_id) ?? [];
+      list.push(row.id);
+      unitsByProperty.set(row.property_id, list);
+    }
 
     for (const prop of properties) {
       const startedAt = Date.now();
@@ -90,8 +113,37 @@ Deno.serve(async (req) => {
       let errMsg: string | null = null;
       let httpStatus: number | null = null;
       let errCode: string | null = null;
+      let batched = 0;
 
       try {
+        const unitIds = unitsByProperty.get(prop.id) ?? [];
+        if (unitIds.length > BATCH_ABOVE_UNITS) {
+          // Park one unit-scoped batch at a time, spaced so the drainer never runs two of this
+          // property's refreshes together.
+          for (let i = 0; i < unitIds.length; i += UNITS_PER_BATCH) {
+            const slice = unitIds.slice(i, i + UNITS_PER_BATCH);
+            const index = Math.floor(i / UNITS_PER_BATCH);
+            await supabase.rpc('ru_enqueue_call', {
+              _method_key: `refresh_ari_batch:${prop.id}:${index}`,
+              _action: 'refresh_ari_delta',
+              _payload: {
+                property_id: prop.id,
+                trigger: 'cron_daily_ari_batch',
+                only_unit_ids: slice,
+                force_availability: false,
+                verify_availability_readback: false,
+              },
+              _property_id: prop.id,
+              _priority: 140,
+              _delay_ms: index * 120_000,
+            });
+            batched += 1;
+          }
+          success = true;
+          httpStatus = 202;
+          console.log(`[cron-refresh-ru-ari] ${prop.name}: ${unitIds.length} units parked as ${batched} batches`);
+        } else {
+
         // ARI-only mode: availability + pricing for inventory already listed at RU. Static
         // content is not re-pushed, so a content shortfall can never stall the ARI refresh.
         const { data, error } = await supabase.functions.invoke('push-property-to-ru', {
@@ -114,13 +166,15 @@ Deno.serve(async (req) => {
           success = true;
         }
         if (httpStatus === null) httpStatus = success ? 200 : skipped ? 200 : 502;
+        }
 
       } catch (err) {
         errMsg = err instanceof Error ? err.message : String(err);
       }
 
       const elapsed = Date.now() - startedAt;
-      results.push({ property_id: prop.id, name: prop.name, success, skipped, error: errMsg || undefined });
+      results.push({ property_id: prop.id, name: prop.name, success, skipped, batched: batched || undefined, error: errMsg || undefined });
+
 
 
       // A single flaky upstream call is very different from a pipeline that has been broken for
@@ -155,9 +209,11 @@ Deno.serve(async (req) => {
         details: {
           scope: 'daily_ari',
           skipped,
+          batched_calls: batched || null,
           consecutive_failures: consecutiveFailures,
           escalate: consecutiveFailures >= 3,
         },
+
       }).then(() => {}, (e) => console.warn('[cron-refresh-ru-ari] log insert failed', e));
 
       // Small delay between pushes to avoid rate limits

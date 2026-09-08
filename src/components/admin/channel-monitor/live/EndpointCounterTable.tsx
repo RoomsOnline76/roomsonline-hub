@@ -64,8 +64,10 @@ export function EndpointCounterTable({ counters, error }: Props) {
           calls: acc.calls + c.total,
           failed: acc.failed + c.failed,
           deferred: acc.deferred + c.deferred,
+          refused: acc.refused + c.refused,
+          transportFailed: acc.transportFailed + c.transportFailed,
         }),
-        { calls: 0, failed: 0, deferred: 0 },
+        { calls: 0, failed: 0, deferred: 0, refused: 0, transportFailed: 0 },
       ),
     [counters],
   );
@@ -77,9 +79,17 @@ export function EndpointCounterTable({ counters, error }: Props) {
           {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           Endpoint counters (24 h)
           <Badge variant="outline">{error ? "read failed" : `${totals.calls} calls`}</Badge>
-          {totals.failed > 0 ? (
+          {/* A refusal is the channel answering "no" (a sold night, a listing it does not hold) — the
+              endpoint worked. Only a call that never got an answer is a fault, so the two are counted
+              apart instead of piling into one red "failed" number. */}
+          {totals.transportFailed > 0 ? (
             <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive">
-              {totals.failed} failed
+              {totals.transportFailed} never reached
+            </Badge>
+          ) : null}
+          {totals.refused > 0 ? (
+            <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-900">
+              {totals.refused} refused
             </Badge>
           ) : null}
           {totals.deferred > 0 ? (
@@ -88,6 +98,7 @@ export function EndpointCounterTable({ counters, error }: Props) {
             </Badge>
           ) : null}
         </CollapsibleTrigger>
+
         <Button variant="ghost" size="sm" onClick={() => setHideIdle((v) => !v)}>
           {hideIdle ? "Show idle endpoints" : "Hide idle endpoints"}
         </Button>
@@ -110,10 +121,12 @@ export function EndpointCounterTable({ counters, error }: Props) {
                   <TableHead>Endpoint</TableHead>
                   <TableHead>Cadence</TableHead>
                   <TableHead className="text-right">Calls</TableHead>
-                  <TableHead className="text-right">Failed</TableHead>
+                  <TableHead className="text-right">Refused</TableHead>
+                  <TableHead className="text-right">Never reached</TableHead>
                   <TableHead className="text-right">Throttled</TableHead>
                   <TableHead className="text-right">Avg / p95</TableHead>
                   <TableHead className="text-right">Last seen</TableHead>
+
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -131,9 +144,17 @@ export function EndpointCounterTable({ counters, error }: Props) {
                       </TableCell>
                       <TableCell className="text-right font-medium">{row.total}</TableCell>
                       <TableCell className="text-right">
-                        {row.failed > 0 ? <span className="text-destructive">{row.failed}</span> : "—"}
+                        {row.refused > 0 ? <span className="text-amber-700">{row.refused}</span> : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {row.transportFailed > 0 ? (
+                          <span className="text-destructive">{row.transportFailed}</span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell className="text-right">{row.deferred || "—"}</TableCell>
+
                       <TableCell className="text-right text-xs text-muted-foreground">
                         {row.total ? `${row.avgMs} / ${row.p95Ms} ms` : "—"}
                       </TableCell>

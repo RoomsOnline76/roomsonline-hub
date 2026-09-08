@@ -116,6 +116,46 @@ export const classifyRuError = (run: {
       fix: "Confirm or reject the request first (Requests → accept), then resend the stay change.",
     };
   }
+  // Measured live: the channel refuses an availability write over a night it has already sold. That
+  // is it protecting a real booking, not a fault here — the sold night must never be re-pushed.
+  if (
+    msg.includes("we have confirmed reservation for those dates") ||
+    msg.includes("please cancel the reservation instead")
+  ) {
+    return {
+      key: "sold_night_protected",
+      label: "Channel protected a sold night",
+      severity: "expected",
+      cause:
+        "The write covered a night the channel has already sold, and it will not let that night be closed or reopened around the reservation it holds.",
+      handling: "The night is left as the channel has it; the rest of the span still applied. Nothing is retried for that night.",
+      fix: "None, unless the reservation itself is wrong — then cancel it at the channel rather than blanking the night.",
+    };
+  }
+  // Status 26 is an acceptance carrying per-range remarks, not a refusal: the prices were taken.
+  if (msg.includes("look at notifs")) {
+    return {
+      key: "price_notice",
+      label: "Prices accepted with a notice",
+      severity: "advisory",
+      cause:
+        "The channel took the price write and attached remarks to some of the ranges (usually a range it clipped or already held).",
+      handling: "Counted as a successful write; the remarks are kept on the traffic row so the run can be checked.",
+      fix: "Open the call in the live log and read the notice. If a range is missing, extend the season and resend.",
+    };
+  }
+  if (msg.includes("sub-user") && (run.http_status === 403 || msg.includes("403"))) {
+    return {
+      key: "subuser_token",
+      label: "Sub-account token refused",
+      severity: "blocker",
+      cause: "The channel rejected the sub-account token used for the portal call — usually a rotated or unshared key.",
+      handling: "The call stops immediately rather than retrying against a credential the channel will keep refusing.",
+      fix: "Re-mint the sub-account keys for this distribution account, then repeat the action.",
+    };
+  }
+
+
 
 
   if (msg.includes("invalid session") || msg.includes("session expired") || code === "invalid_session") {

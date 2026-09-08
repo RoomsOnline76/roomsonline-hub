@@ -31,7 +31,12 @@ const corsHeaders = {
 };
 
 /** RU rate limit: one call per method per sliding minute (+1s safety). */
-const METHOD_WINDOW_MS = 61_000;
+// The channel counts its own sliding minute from when IT received the previous call, and other
+// callers (the queue drainer, an operator's manual sync) share the same method slot. Waiting only
+// 61s from our side therefore still collected "maximum number of requests allowed for this API
+// method" refusals, so keep a real margin on the window.
+const METHOD_WINDOW_MS = 68_000;
+
 /**
  * Per-owner floors. Every account-scoped method costs a sliding-minute slot, so an owner
  * that was already covered a moment ago (by the previous run, a notification-driven pull
