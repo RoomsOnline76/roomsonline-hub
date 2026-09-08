@@ -10,6 +10,10 @@ import { claimJobs, completeJob, failJob, type BackgroundJob } from "../_shared/
 import { queueRuAriDelta } from "../_shared/ruAriDelta.ts";
 import { queueRuStaticDelta } from "../_shared/ruStaticDelta.ts";
 import { syncBookingToChannel, type ChannelBookingChange } from "../_shared/channelBookingSync.ts";
+import {
+  closeRuChannelEditWindow,
+  type ChannelEditWindowNight,
+} from "../_shared/ruChannelEditWindow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -213,6 +217,16 @@ async function runJob(supabase: any, job: BackgroundJob): Promise<void> {
         throw new Error(outcome.message ?? outcome.code ?? "Channel refused the booking change");
       }
       if (outcome.ari === "failed") throw new Error(outcome.ari_reason ?? "Channel ARI delta failed");
+      return;
+    }
+    case "channel_edit_window_close": {
+      const bookingId = payload.booking_id as string | undefined;
+      if (!bookingId) return;
+      await closeRuChannelEditWindow(supabase, {
+        bookingId,
+        nights: Array.isArray(payload.nights) ? (payload.nights as ChannelEditWindowNight[]) : [],
+        logPrefix: "[jobs][ru-edit-window]",
+      });
       return;
     }
     default:

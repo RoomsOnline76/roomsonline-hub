@@ -9,6 +9,7 @@ import {
 
 import { ingestRuReservation, refreshRuReservationById } from '../_shared/ruReservationIngest.ts';
 import { scheduleRuNotificationRetry, sweepRuNotificationRetries } from '../_shared/ruNotificationRetry.ts';
+import { CHANNEL_EDIT_WINDOW_MINUTES, openRuChannelEditWindow } from '../_shared/ruChannelEditWindow.ts';
 import { sweepStaleRuHolds } from '../_shared/ruStaleHoldSweep.ts';
 import { logRuInboundNotification, newRuTraceId } from '../_shared/ruApiLog.ts';
 import { recordChannelBookingEvent, type BookingEventAction, type BookingEventOutcome } from '../_shared/channelBookingEvents.ts';
@@ -418,6 +419,30 @@ Deno.serve(async (req) => {
           };
 
           const background = async () => {
+            // A stay-less reservation the channel keeps serving empty is the portal telling us it
+            // could not place the stay — almost always because the nights it needs are the ones
+            // ROL'OS holds shut for the booking being edited. Re-open that booking's own nights
+            // briefly (a queued job re-stamps them) so the operator's next attempt lands.
+            if (!refreshed.rateDeferred) {
+              const window = await openRuChannelEditWindow(supabase, {
+                reservationId,
+                guestEmail: r.guestEmail,
+                guestName: r.guestName,
+                propertyId,
+                logPrefix: '[ru-reservation-handler][edit-window]',
+              }).catch((e: unknown) => {
+                console.error('[ru-reservation-handler] Edit window could not be opened:', e);
+                return null;
+              });
+              if (window?.opened) {
+                await trail(
+                  'queued',
+                  'channel_edit_window',
+                  `Channel could not place this change — reopened ${window.nights} night(s) on the existing booking for ${CHANNEL_EDIT_WINDOW_MINUTES} minutes`,
+                  window.bookingId,
+                );
+              }
+            }
             if (refreshed.rateDeferred) {
               await parkForSweep(refreshed.error ?? null, true, refreshed.resolvedOwnerId ?? null);
               await deferredRetry();
