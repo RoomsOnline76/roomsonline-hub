@@ -158,17 +158,81 @@ export async function resolveMcqChannelId(
 }
 
 /**
- * MCQ notifications carry the failing data points as free text. Split it into
- * individual prompts so owners get actionable items instead of one blob.
+ * MCQ results arrive as a base64 JSON array of validation errors (and occasionally as
+ * free text). Decoding matters: the notification's own Success flag only says the check
+ * ran, so a listing with real validation errors used to be recorded as a pass.
  */
-export function parseMcqFailingPoints(resultText: string | null | undefined): string[] {
+export interface McqValidationError {
+  code: string;
+  items: string[];
+}
+
+function describeMcqValidation(err: McqValidationError): string {
+  const where = err.items.length ? ` (photo ${err.items.join(', ')})` : '';
+  switch (err.code) {
+    case 'ImageFileNotFound':
+      return `Photos could not be downloaded by the channel${where} — the image links must be publicly reachable.`;
+    case 'ImageTooSmall':
+      return `Photos are below the minimum size${where} — every photo must be at least 1024 x 768 pixels.`;
+    case 'DescriptionTooShort':
+      return 'Description is too short — at least 700 characters are required.';
+    case 'MissingMainImage':
+      return 'No main photo is selected for the listing.';
+    default:
+      return `${err.code.replace(/([a-z])([A-Z])/g, '$1 $2')}${where}`;
+  }
+}
+
+export function decodeMcqResult(resultText: string | null | undefined): {
+  errors: McqValidationError[];
+  points: string[];
+  clean: boolean;
+} {
   const raw = String(resultText ?? '').trim();
-  if (!raw) return [];
-  return raw
-    .split(/[;\n|]+|,(?=\s*[A-Z])/g)
-    .map((s) => s.replace(/\s+/g, ' ').trim())
-    .filter((s) => s.length > 1)
-    .slice(0, 30);
+  if (!raw) return { errors: [], points: [], clean: false };
+
+  const candidates = [raw];
+  if (/^[A-Za-z0-9+/=\s]+$/.test(raw) && raw.length > 8) {
+    try {
+      candidates.push(atob(raw.replace(/\s+/g, '')));
+    } catch { /* not base64 */ }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      const list = Array.isArray(parsed) ? parsed : [parsed];
+      const errors: McqValidationError[] = list
+        .filter((e: unknown) => e && typeof e === 'object')
+        .map((e: Record<string, unknown>) => {
+          const extra = (e.ValidationErrorExtraData ?? {}) as Record<string, unknown>;
+          return {
+            code: String(e.ValidationErrorCode ?? '').trim(),
+            items: Object.entries(extra)
+              .filter(([, v]) => v === true || v === 'true')
+              .map(([k]) => k)
+              .sort((a, b) => Number(a) - Number(b)),
+          };
+        })
+        .filter((e) => e.code);
+      return { errors, points: errors.map(describeMcqValidation), clean: errors.length === 0 };
+    } catch { /* try next candidate */ }
+  }
+
+  return {
+    errors: [],
+    points: raw
+      .split(/[;\n|]+|,(?=\s*[A-Z])/g)
+      .map((s) => s.replace(/\s+/g, ' ').trim())
+      .filter((s) => s.length > 1)
+      .slice(0, 30),
+    clean: false,
+  };
+}
+
+/** Owner-facing failing prompts for one MCQ result. */
+export function parseMcqFailingPoints(resultText: string | null | undefined): string[] {
+  return decodeMcqResult(resultText).points;
 }
 
 /** Human-facing status for one listing's newest order. */

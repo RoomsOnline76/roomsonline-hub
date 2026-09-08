@@ -15,7 +15,7 @@
  */
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { KNOWN_LNM_CHANGE_TYPE_IDS } from '../_shared/ruLnm.ts';
-import { parseMcqFailingPoints } from '../_shared/ruMcq.ts';
+import { decodeMcqResult } from '../_shared/ruMcq.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -102,7 +102,11 @@ Deno.serve(async (req) => {
       if (changeType === 'PropertyMCQEligibilityCheck' && ruPropertyId) {
         const successFlag = String(payload.Success ?? payload.success ?? '').trim().toLowerCase();
         const resultText = String(payload.Result ?? payload.result ?? '').trim() || null;
-        const passed = successFlag === 'true' || successFlag === '1';
+        const checkRan = successFlag === 'true' || successFlag === '1';
+        // Success only says the check ran. The result payload is base64 JSON listing the
+        // validation errors — a listing with any of those has NOT passed.
+        const decoded = decodeMcqResult(resultText);
+        const passed = checkRan && decoded.points.length === 0;
         const { data: order } = await admin
           .from('ru_mcq_orders')
           .select('id, response_preview')
@@ -128,9 +132,11 @@ Deno.serve(async (req) => {
                 mcq_notification: {
                   change_id: changeId,
                   success: passed,
+                  check_ran: checkRan,
                   result: resultText,
-                  // Owner-facing prompts: the failing data points, split out of the free text.
-                  failing_points: passed ? [] : parseMcqFailingPoints(resultText),
+                  validation_errors: decoded.errors,
+                  // Owner-facing prompts, decoded from the channel's validation payload.
+                  failing_points: decoded.points,
                   received_at: new Date().toISOString(),
                 },
               }),

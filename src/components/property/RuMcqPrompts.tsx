@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Info } from "lucide-rea
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { getSectionLabel } from "@/config/propertySectionOrder";
+import { decodeMcqResult } from "@/lib/mcqResultDecode";
 import {
   explainOrderFailure,
   isPassResult,
@@ -64,10 +65,14 @@ function parseRow(raw: string | null): Parsed {
   try {
     const parsed = JSON.parse(raw);
     const note = parsed?.mcq_notification;
-    const points: string[] = Array.isArray(note?.failing_points) ? note.failing_points : [];
+    const stored: string[] = Array.isArray(note?.failing_points) ? note.failing_points : [];
+    const result = typeof note?.result === "string" ? note.result : null;
+    // Older rows stored the channel's encoded result without decoding it, so their
+    // failing points came back empty even when the check listed real failures.
+    const points = stored.length ? stored : decodeMcqResult(result).points;
     return {
       points,
-      result: typeof note?.result === "string" ? note.result : null,
+      result,
       orderError: typeof parsed?.error?.message === "string" ? parsed.error.message : null,
     };
   } catch {

@@ -101,6 +101,7 @@ import { applyAdminScope } from "@/lib/adminScope";
 import { useChannelOnboardGate, type GateStepStatus } from "@/hooks/useChannelOnboardGate";
 import { StepAccountDialog } from "@/components/admin/channel-monitor/StepAccountDialog";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { ChannelConnectReadinessPanel } from "@/components/pms/channels/ChannelConnectReadinessPanel";
 import { resolveStepBRemedy } from "@/config/channelStepBRemedies";
 
 interface PropertyOption {
@@ -1774,7 +1775,8 @@ export function ChannelOnboardTab({
                   <StatusBadge status="passed" />
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
+                <ChannelConnectReadinessPanel propertyId={propertyId} />
                 <RuWhiteLabelEmbed propertyId={propertyId} />
               </CardContent>
             </Card>
