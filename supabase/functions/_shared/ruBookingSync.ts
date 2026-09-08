@@ -13,6 +13,8 @@
 import { findOwnerAccount } from './ruPhaseGate.ts';
 import { logRuNotAttempted, newRuTraceId } from './ruApiLog.ts';
 import { enqueueRuCall, supersedeQueuedRuCalls } from './ruRateGate.ts';
+import { clearRuOpenActions, recordRuOpenAction } from './ruOpenActions.ts';
+
 import {
   claimOutcomeFor,
   claimReservationOp,
@@ -848,11 +850,45 @@ export async function confirmRuRequest(
   }
 
   /**
+   * Ask the channel what it actually holds for these nights, so a refusal is explained by evidence
+   * instead of a guess. The read is deliberate and purpose-declared (`availability_repair`), and it
+   * only runs when we are about to stop retrying — never as a routine part of a push.
+   */
+  const readBackOwnNights = async (): Promise<Record<string, unknown> | null> => {
+    try {
+      const ruPropertyId = await resolveRuPropertyId(supabase, booking);
+      if (!ruPropertyId) return null;
+      const read = await invokeRu(supabase, 'get_availability', {
+        ru_property_id: ruPropertyId,
+        date_from: booking.check_in_date,
+        date_to: booking.check_out_date,
+        readback_purpose: 'availability_repair',
+        ...auth,
+      }, {
+        propertyId: booking.property_id,
+        traceId,
+        parentAction: 'ruBookingSync:confirm:readback',
+        details: { reservation_id: reservationId },
+      });
+      return {
+        ru_property_id: ruPropertyId,
+        nights: `${booking.check_in_date} → ${booking.check_out_date}`,
+        read_ok: read.ok,
+        channel_said: read.message ?? null,
+      };
+    } catch (err) {
+      return { read_ok: false, channel_said: err instanceof Error ? err.message : String(err) };
+    }
+  };
+
+  /**
    * Circuit breaker. A blocked-dates refusal is a channel-side state we cannot fix from here
    * (the request's nights are closed at the channel, or a changeover rule bars the arrival /
    * departure day). Repeating the call produced retry storms — 52 identical refusals on one
    * reservation in a day — so once the same reservation has been refused for blocked dates
-   * three times in the last hour, refuse locally without spending a channel slot.
+   * twice in the last hour, stop: read the channel's own calendar back once for evidence, raise an
+   * open action item naming the reservation and the nights, and refuse locally without spending
+   * another channel slot.
    */
   const { data: recentRefusals } = await supabase
     .from('ru_sync_runs')
@@ -864,19 +900,35 @@ export async function confirmRuRequest(
     .limit(20);
   const blockedRefusals = ((recentRefusals ?? []) as Array<{ error_message?: string | null }>)
     .filter((r) => isBlockedDatesMsg(r?.error_message)).length;
-  if (blockedRefusals >= 3) {
+  if (blockedRefusals >= 2) {
+    const evidence = await readBackOwnNights();
+    await recordRuOpenAction(supabase, {
+      kind: 'confirm_request_blocked_dates',
+      propertyId: booking.property_id,
+      bookingId: booking.id,
+      reservationId,
+      verb: 'Push_ConfirmReservation_RQ',
+      title: 'Accept this request in the channel portal',
+      detail:
+        'The channel keeps refusing to accept this held request because it reads the request\'s own ' +
+        'nights as closed (no units left, or a check-in/check-out restriction on the arrival or ' +
+        'departure day). Retrying was stopped. Open those dates at the channel, accept the request ' +
+        'there, then resend the change here.',
+      evidence: { ...(evidence ?? {}), refusals_last_hour: blockedRefusals },
+    });
     return {
       ok: false,
       method: 'confirm_request',
       code: 'RU_CONFIRM_BLOCKED_DATES',
       message:
-        'The channel has refused to accept this request three times in the last hour because its own nights ' +
-        'read as closed (no units left, or a check-in/check-out restriction on the arrival or departure day). ' +
-        'Further attempts are suppressed for an hour: open those dates at the channel and accept the request ' +
-        'there, then resend the change.',
+        'The channel has refused to accept this request repeatedly because its own nights read as closed ' +
+        '(no units left, or a check-in/check-out restriction on the arrival or departure day). ' +
+        'Retrying has been stopped and this is now on the open action list: open those dates at the channel ' +
+        'and accept the request there, then resend the change.',
       traceId,
     };
   }
+
 
   let result = await attemptConfirm();
 
@@ -924,6 +976,20 @@ export async function confirmRuRequest(
   if (!result.ok) {
     const raw = result.message ?? '';
     if (isBlockedDates(raw)) {
+      const evidence = await readBackOwnNights();
+      await recordRuOpenAction(supabase, {
+        kind: 'confirm_request_blocked_dates',
+        propertyId: booking.property_id,
+        bookingId: booking.id,
+        reservationId,
+        verb: 'Push_ConfirmReservation_RQ',
+        title: 'Accept this request in the channel portal',
+        detail:
+          'The channel still reads this request\'s own nights as closed after we reopened them, so the ' +
+          'acceptance cannot be completed from here. Open those dates at the channel, accept the request ' +
+          'there, then resend the change.',
+        evidence: { ...(evidence ?? {}), channel_refusal: raw },
+      });
       return {
         ok: false,
         method: 'confirm_request',
@@ -936,6 +1002,7 @@ export async function confirmRuRequest(
         traceId,
       };
     }
+
     return {
       ok: false,
       method: 'confirm_request',
@@ -967,8 +1034,11 @@ export async function confirmRuRequest(
     .update({ integration_type: 'rentalsunited', hold_expires_at: null })
     .eq('id', booking.id);
   booking.integration_type = 'rentalsunited';
+  // The acceptance landed — whatever we asked an operator to fix at the portal is now settled.
+  await clearRuOpenActions(supabase, { reservationId });
 
   return { ok: true, deferred: false, method: 'confirm_request', traceId };
+
 
 }
 

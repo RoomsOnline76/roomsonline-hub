@@ -15895,6 +15895,39 @@ export type Database = {
         }
         Relationships: []
       }
+      ru_error_resolutions: {
+        Row: {
+          created_at: string
+          id: string
+          note: string
+          pattern_key: string
+          updated_at: string
+          verb: string | null
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note: string
+          pattern_key: string
+          updated_at?: string
+          verb?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string
+          pattern_key?: string
+          updated_at?: string
+          verb?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: []
+      }
       ru_fx_rates: {
         Row: {
           base_iso: string
@@ -16257,6 +16290,76 @@ export type Database = {
           },
           {
             foreignKeyName: "ru_notifications_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "public_properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ru_open_actions: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          detail: string | null
+          evidence: Json
+          id: string
+          kind: string
+          property_id: string | null
+          reservation_id: string | null
+          resolved_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          verb: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          detail?: string | null
+          evidence?: Json
+          id?: string
+          kind: string
+          property_id?: string | null
+          reservation_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          verb?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          detail?: string | null
+          evidence?: Json
+          id?: string
+          kind?: string
+          property_id?: string | null
+          reservation_id?: string | null
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          verb?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ru_open_actions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "dw_portfolio_kpis"
+            referencedColumns: ["property_id"]
+          },
+          {
+            foreignKeyName: "ru_open_actions_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ru_open_actions_property_id_fkey"
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "public_properties"
@@ -18493,9 +18596,11 @@ export type Database = {
           last_at: string
           ok: number
           p95_ms: number
+          refused: number
           req_bytes: number
           res_bytes: number
           total: number
+          transport_failed: number
         }[]
       }
       ru_api_log_facets: {

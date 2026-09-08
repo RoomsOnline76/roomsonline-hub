@@ -106,6 +106,10 @@ function extractStatus(xml: string | null | undefined): { id: string | null; mes
 /**
  * Channel StatusIDs that mean "the channel accepted this".
  * 0 = success, 5 = partial success (per-range notifs, documented for Push_PutPrices_RQ).
+ * 26 = accepted with a notice ("Warning! Look at Notifs collection"): the write was taken, some
+ * ranges carry a per-range remark. It used to land as an unclassified failure, which hid whether
+ * the prices had stuck — the notice itself is now carried on the row (see `extractRuNotifs`) and
+ * the exchange is green, because a notice is not a refusal.
  * 339 = "the location already holds the requested currency" — the channel agreeing with the
  * value we asked for is an acceptance, not a refusal; logging it red made every onboarding run
  * of an already-correct location look like a failed currency write.
@@ -113,13 +117,36 @@ function extractStatus(xml: string | null | undefined): { id: string | null; mes
  * confirmed reservation" (106) and friends arrive over a perfectly healthy HTTP 200, so judging the
  * exchange by transport alone paints real refusals green in the monitor.
  */
-const RU_ACCEPTED_STATUS_IDS = new Set(['0', '5', '339']);
+const RU_ACCEPTED_STATUS_IDS = new Set(['0', '5', '26', '339']);
+
+/**
+ * Refusals that are the channel protecting correct state, not a defect on our side:
+ *   22  — "We have confirmed reservation for those dates" (an availability write over a sold night)
+ *   28  — "Reservation does not exist" (cancel/read for a stay it never held)
+ *   106 — "You can only modify stay in confirmed reservation" (the request is still a lead)
+ * They stay failed exchanges (the write did NOT apply), but the reason is labelled `channel_expected`
+ * so the monitor can separate them from faults instead of counting them as open incidents.
+ */
+const RU_EXPECTED_REFUSAL_STATUS_IDS = new Set(['22', '28', '106']);
+
+/** The per-range remarks a Status 26 answer points at, so the notice is readable off the row. */
+export function extractRuNotifs(xml: string | null | undefined): string | null {
+  if (!xml) return null;
+  const block = xml.match(/<Notifs>([\s\S]*?)<\/Notifs>/i)?.[1];
+  if (!block) return null;
+  const notes = Array.from(block.matchAll(/<Notif[^>]*>([\s\S]*?)<\/Notif>/gi))
+    .map((m) => m[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const text = notes.length ? notes.join(' | ') : block.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, 600) : null;
+}
 
 /** True when the channel answered with a refusal status, whatever the HTTP layer thought. */
 function channelRefused(statusId: string | null): boolean {
   if (statusId === null) return false;
   return !RU_ACCEPTED_STATUS_IDS.has(String(statusId).trim());
 }
+
 
 
 const asText = (value: unknown): string | null =>
@@ -187,12 +214,18 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
     const status = extractStatus(entry.response_xml);
     const transport = classifyTransport(entry);
     const effectiveStatusId = entry.status_id ?? status.id;
+    const trimmedStatusId = effectiveStatusId === null ? null : String(effectiveStatusId).trim();
     const refused = channelRefused(effectiveStatusId);
     // A refusal carried over HTTP 200 is still a failed exchange.
     const success = entry.success === true && !refused;
+    const expected = refused && trimmedStatusId !== null && RU_EXPECTED_REFUSAL_STATUS_IDS.has(trimmedStatusId);
     const refusalReason = refused
-      ? `channel_error: StatusID ${effectiveStatusId} — ${entry.status_message ?? status.message ?? 'the channel refused the request'}`
+      ? `${expected ? 'channel_expected' : 'channel_error'}: StatusID ${effectiveStatusId} — ${entry.status_message ?? status.message ?? 'the channel refused the request'}`
       : null;
+    // A Status 26 answer is an acceptance WITH per-range remarks — carry the remarks so the run can
+    // be verified instead of leaving an operator guessing whether the prices actually landed.
+    const notice = trimmedStatusId === '26' ? extractRuNotifs(entry.response_xml) : null;
+
 
     // supabase-js returns errors instead of throwing — surface them to the function console so a
     // silent logging outage (missing grant, schema drift) can never hide behind an empty table.
@@ -221,7 +254,10 @@ export async function logRuExchange(supabase: any, entry: RuApiLogEntry): Promis
       elapsed_ms: entry.elapsed_ms ?? null,
       error_message: entry.error_message ?? (refused ? (entry.status_message ?? status.message ?? null) : null),
       transport_status: transport.status,
-      error_reason: transport.status === 'completed' && success ? null : (refusalReason ?? transport.reason),
+      error_reason: notice
+        ? `channel_notice: StatusID 26 — ${notice}`
+        : (transport.status === 'completed' && success ? null : (refusalReason ?? transport.reason)),
+
       changed_fields: entry.changed_fields && entry.changed_fields.length > 0 ? entry.changed_fields : null,
       push_type: entry.push_type ?? null,
       fingerprint: entry.fingerprint ?? null,

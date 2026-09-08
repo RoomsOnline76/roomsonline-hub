@@ -18,6 +18,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { toast } from "sonner";
 
 import { RuErrorHandlingTab } from "@/components/integrations/RuErrorHandlingTab";
+import { RuOpenActionsPanel } from "@/components/admin/channel-monitor/live/RuOpenActionsPanel";
+
 
 interface SyncRun {
   id: string;
@@ -269,8 +271,12 @@ export function ChannelSyncObservabilityPanel() {
       </div>
 
 
+      {/* What the sync could not heal itself — the only list an operator has to act on */}
+      <RuOpenActionsPanel />
+
       {/* Error handling — classification and retry guidance for the same run set */}
       <RuErrorHandlingTab runs={runs} propertyNameById={propertyNameById} />
+
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
