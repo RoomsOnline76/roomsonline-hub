@@ -11,6 +11,7 @@
  */
 
 import { ruCompanyDetailsSatisfied } from "./ruCompanyDetails.ts";
+import { findOwnerAccount } from "./ruPhaseGate.ts";
 
 export const RU_WIZARD_SYNC_CODE = "WIZARD_SYNC_NOT_READY";
 /** Deliberate, recorded hold on channel distribution for this property. */
@@ -60,21 +61,10 @@ export async function evaluateRuOperationalSync(
     return deny("RU_NOT_LISTED", "No Channel Manager listing yet.");
   }
 
-  const { data: mem } = await admin
-    .from("property_portfolio_members")
-    .select("portfolio_id")
-    .eq("property_id", propertyId)
-    .maybeSingle();
-
-  let accQuery = admin
-    .from("ru_owner_accounts")
-    .select("id, ru_owner_id, ru_api_access_key, company_details_sent, company_filled_at")
-    .not("ru_owner_id", "is", null)
-    .limit(1);
-  accQuery = mem?.portfolio_id
-    ? accQuery.eq("portfolio_id", mem.portfolio_id)
-    : accQuery.eq("property_id", propertyId);
-  const { data: acc } = await accQuery.maybeSingle();
+  // One distribution account serves a whole portfolio, and it may have been recorded against
+  // any one member property. Use the shared resolver so a sibling never reads as unbound —
+  // that is what silently dropped rate pushes for portfolio members.
+  const { account: acc } = await findOwnerAccount(admin as any, propertyId, prop.owner_email);
 
   if (!acc?.ru_owner_id) {
     return deny(RU_WIZARD_SYNC_CODE, "Property is unbound — Channel wizard gates have not passed.");
