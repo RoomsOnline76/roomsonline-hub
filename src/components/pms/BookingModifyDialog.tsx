@@ -257,7 +257,13 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     (async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("amount_paid, payment_status, total_price, charges_breakdown")
+        .select(
+          "amount_paid, amount_paid_source, payment_status, payment_method, total_price, deposit_amount, charges_breakdown, " +
+            "guest_name, guest_email, guest_phone, guest_nationality, guest_company, " +
+            "second_guest_name, second_guest_email, second_guest_phone, special_requests, " +
+            "external_reservation_id, booking_channel, integration_type, " +
+            "calculated_commission, commission_rate_applied, commission_type, modification_notes",
+        )
         .eq("id", booking.id)
         .maybeSingle();
       if (!mounted || !data) return;
@@ -267,7 +273,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       );
       setAmountPaid(stored > 0 ? stored : paidFlag ? Number(data.total_price ?? 0) : 0);
 
-      const snap = (data.charges_breakdown ?? null) as { accommodation?: number } | null;
+      const snap = (data.charges_breakdown ?? null) as
+        | { accommodation?: number; lines?: ChargeLine[] }
+        | null;
       const snapAccommodation = Number(snap?.accommodation ?? 0);
       if (snapAccommodation > 0) {
         setStoredAccommodation(snapAccommodation);
@@ -275,6 +283,48 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           Number(current) === Number(data.total_price ?? 0) ? String(snapAccommodation) : current,
         );
       }
+
+      // Everything the booking arrived with, so the form reads as the full record.
+      setReceived({
+        paymentStatus: data.payment_status ?? null,
+        paymentMethod: data.payment_method ?? null,
+        amountPaidSource: data.amount_paid_source ?? null,
+        depositAmount: Number(data.deposit_amount ?? 0),
+        externalReservationId: data.external_reservation_id ?? null,
+        bookingChannel: data.booking_channel ?? null,
+        integrationType: data.integration_type ?? null,
+        commission: {
+          amount: data.calculated_commission === null ? null : Number(data.calculated_commission),
+          rate: data.commission_rate_applied === null ? null : Number(data.commission_rate_applied),
+          type: data.commission_type ?? null,
+        },
+        channel: readChannelDetails(data.modification_notes, data.external_reservation_id),
+        storedLines: Array.isArray(snap?.lines) ? (snap!.lines as ChargeLine[]) : [],
+      });
+
+      setGuest({
+        guest_name: data.guest_name ?? "",
+        guest_email: data.guest_email ?? "",
+        guest_phone: data.guest_phone ?? "",
+        guest_nationality: data.guest_nationality ?? "",
+        guest_company: data.guest_company ?? "",
+        second_guest_name: data.second_guest_name ?? "",
+        second_guest_email: data.second_guest_email ?? "",
+        second_guest_phone: data.second_guest_phone ?? "",
+      });
+      setGuestBaseline({
+        guest_name: data.guest_name ?? "",
+        guest_email: data.guest_email ?? "",
+        guest_phone: data.guest_phone ?? "",
+        guest_nationality: data.guest_nationality ?? "",
+        guest_company: data.guest_company ?? "",
+        second_guest_name: data.second_guest_name ?? "",
+        second_guest_email: data.second_guest_email ?? "",
+        second_guest_phone: data.second_guest_phone ?? "",
+      });
+      setSpecialRequests(data.special_requests ?? "");
+      setSpecialRequestsBaseline(data.special_requests ?? "");
+
       if (booking.property_id) {
         const { data: prop } = await supabase
           .from("properties")
@@ -289,6 +339,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       mounted = false;
     };
   }, [open, booking.id, booking.property_id]);
+
 
 
   const originalNights = useMemo(
