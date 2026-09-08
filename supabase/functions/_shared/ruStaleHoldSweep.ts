@@ -160,7 +160,7 @@ export async function sweepStaleRuHolds(
       const refreshed = await refresh(supabase, reservationId, {
         propertyId: row.property_id,
         logPrefix: `${log}[${reservationId}]`,
-        skipListFallback: (opts.seenReservationIds?.length ?? 0) > 0,
+        skipListFallback: opts.seenReservationIds !== undefined,
       });
 
 
