@@ -8,6 +8,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Clock, Info } from "lucide-rea
 import { CHANNEL_MANAGER } from "@/lib/channelVocabulary";
 import { focusRequirementField } from "@/lib/requirementFocus";
 import { getSectionLabel } from "@/config/propertySectionOrder";
+import { decodeMcqResult } from "@/lib/mcqResultDecode";
 import {
   explainOrderFailure,
   isPassResult,
