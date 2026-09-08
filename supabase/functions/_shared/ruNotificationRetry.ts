@@ -162,7 +162,10 @@ export async function sweepRuNotificationRetries(
         continue;
       }
       const state = await scheduleRuNotificationRetry(supabase, row.id, {
-        attemptCount: row.attempt_count ?? 0,
+        attemptCount:
+          refreshed.rateDeferred !== true && isDefinitiveAbsence(refreshed.error)
+            ? MAX_RU_RETRY_ATTEMPTS
+            : (row.attempt_count ?? 0),
         error: refreshed.error ?? `Ingest outcome: ${refreshed.outcome}`,
         freeAttempt: refreshed.rateDeferred === true,
         ownerId: refreshed.resolvedOwnerId ?? row.resolved_owner_id,
