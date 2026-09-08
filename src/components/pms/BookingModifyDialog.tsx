@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInDays, format, parseISO, startOfDay } from "date-fns";
-import { CalendarClock, CalendarIcon, Loader2, Undo2, Wallet } from "lucide-react";
+import { CalendarClock, CalendarIcon, Info, Loader2, Undo2, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,12 @@ import {
 } from "@/lib/unitAvailability";
 import { cn } from "@/lib/utils";
 import { modifyBooking } from "@/lib/bookingModification";
+import {
+  readChannelDetails,
+  readCommission,
+  type ReceivedChannelDetails,
+} from "@/lib/bookingReceivedDetails";
+
 
 interface Props {
   open: boolean;
@@ -68,6 +74,54 @@ interface ExtrasQuote {
   lines: ChargeLine[];
 }
 
+/** Editable guest record fields. Stored locally only — never pushed to the channel. */
+interface GuestFields {
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  guest_nationality: string;
+  guest_company: string;
+  second_guest_name: string;
+  second_guest_email: string;
+  second_guest_phone: string;
+}
+
+const EMPTY_GUEST: GuestFields = {
+  guest_name: "",
+  guest_email: "",
+  guest_phone: "",
+  guest_nationality: "",
+  guest_company: "",
+  second_guest_name: "",
+  second_guest_email: "",
+  second_guest_phone: "",
+};
+
+const GUEST_LABELS: Array<{ key: keyof GuestFields; label: string; type?: string }> = [
+  { key: "guest_name", label: "Guest name" },
+  { key: "guest_email", label: "Email", type: "email" },
+  { key: "guest_phone", label: "Phone", type: "tel" },
+  { key: "guest_nationality", label: "Nationality" },
+  { key: "guest_company", label: "Company" },
+  { key: "second_guest_name", label: "Second guest" },
+  { key: "second_guest_email", label: "Second guest email", type: "email" },
+  { key: "second_guest_phone", label: "Second guest phone", type: "tel" },
+];
+
+/** Read-only side of the record: how the money and the channel reference arrived. */
+interface ReceivedRecord {
+  paymentStatus: string | null;
+  paymentMethod: string | null;
+  amountPaidSource: string | null;
+  depositAmount: number;
+  externalReservationId: string | null;
+  bookingChannel: string | null;
+  integrationType: string | null;
+  commission: { amount: number | null; rate: number | null; type: string | null };
+  channel: ReceivedChannelDetails;
+  storedLines: ChargeLine[];
+}
+
 const toDate = (iso: string): Date | undefined => {
   try {
     const parsed = parseISO(iso);
@@ -84,6 +138,7 @@ const nightsBetween = (from: string, to: string) => {
     return 0;
   }
 };
+
 
 export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking = false, onDone }: Props) {
   const [checkIn, setCheckIn] = useState(booking.check_in_date);
@@ -106,6 +161,14 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   const [requestBalance, setRequestBalance] = useState(true);
   const [datesOpen, setDatesOpen] = useState(false);
+
+  // ─── The booking as it was received ───
+  const [received, setReceived] = useState<ReceivedRecord | null>(null);
+  const [guest, setGuest] = useState<GuestFields>(EMPTY_GUEST);
+  const [guestBaseline, setGuestBaseline] = useState<GuestFields>(EMPTY_GUEST);
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [specialRequestsBaseline, setSpecialRequestsBaseline] = useState("");
+
 
   // ─── Automatic re-pricing ───
   const [quotedTotal, setQuotedTotal] = useState<number | null>(null);
@@ -257,7 +320,8 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
     (async () => {
       const { data } = await supabase
         .from("bookings")
-        .select("amount_paid, payment_status, total_price, charges_breakdown")
+        .select("amount_paid, amount_paid_source, payment_status, payment_method, total_price, deposit_amount, charges_breakdown, guest_name, guest_email, guest_phone, guest_nationality, guest_company, second_guest_name, second_guest_email, second_guest_phone, special_requests, external_reservation_id, booking_channel, integration_type, calculated_commission, commission_rate_applied, commission_type, modification_notes")
+
         .eq("id", booking.id)
         .maybeSingle();
       if (!mounted || !data) return;
@@ -267,7 +331,9 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       );
       setAmountPaid(stored > 0 ? stored : paidFlag ? Number(data.total_price ?? 0) : 0);
 
-      const snap = (data.charges_breakdown ?? null) as { accommodation?: number } | null;
+      const snap = (data.charges_breakdown ?? null) as
+        | { accommodation?: number; lines?: ChargeLine[] }
+        | null;
       const snapAccommodation = Number(snap?.accommodation ?? 0);
       if (snapAccommodation > 0) {
         setStoredAccommodation(snapAccommodation);
@@ -275,6 +341,48 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
           Number(current) === Number(data.total_price ?? 0) ? String(snapAccommodation) : current,
         );
       }
+
+      // Everything the booking arrived with, so the form reads as the full record.
+      setReceived({
+        paymentStatus: data.payment_status ?? null,
+        paymentMethod: data.payment_method ?? null,
+        amountPaidSource: data.amount_paid_source ?? null,
+        depositAmount: Number(data.deposit_amount ?? 0),
+        externalReservationId: data.external_reservation_id ?? null,
+        bookingChannel: data.booking_channel ?? null,
+        integrationType: data.integration_type ?? null,
+        commission: {
+          amount: data.calculated_commission === null ? null : Number(data.calculated_commission),
+          rate: data.commission_rate_applied === null ? null : Number(data.commission_rate_applied),
+          type: data.commission_type ?? null,
+        },
+        channel: readChannelDetails(data.modification_notes, data.external_reservation_id),
+        storedLines: Array.isArray(snap?.lines) ? (snap!.lines as ChargeLine[]) : [],
+      });
+
+      setGuest({
+        guest_name: data.guest_name ?? "",
+        guest_email: data.guest_email ?? "",
+        guest_phone: data.guest_phone ?? "",
+        guest_nationality: data.guest_nationality ?? "",
+        guest_company: data.guest_company ?? "",
+        second_guest_name: data.second_guest_name ?? "",
+        second_guest_email: data.second_guest_email ?? "",
+        second_guest_phone: data.second_guest_phone ?? "",
+      });
+      setGuestBaseline({
+        guest_name: data.guest_name ?? "",
+        guest_email: data.guest_email ?? "",
+        guest_phone: data.guest_phone ?? "",
+        guest_nationality: data.guest_nationality ?? "",
+        guest_company: data.guest_company ?? "",
+        second_guest_name: data.second_guest_name ?? "",
+        second_guest_email: data.second_guest_email ?? "",
+        second_guest_phone: data.second_guest_phone ?? "",
+      });
+      setSpecialRequests(data.special_requests ?? "");
+      setSpecialRequestsBaseline(data.special_requests ?? "");
+
       if (booking.property_id) {
         const { data: prop } = await supabase
           .from("properties")
@@ -289,6 +397,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
       mounted = false;
     };
   }, [open, booking.id, booking.property_id]);
+
 
 
   const originalNights = useMemo(
@@ -429,6 +538,38 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
+  /* The breakdown shows the live quote once it lands, and the booking's own stored snapshot
+   * until then, so the money story is never blank while a quote is in flight. */
+  const billingLines = useMemo<ChargeLine[]>(() => {
+    if (extras && extras.lines.length > 0) {
+      return [
+        { name: "Accommodation", category: null, amount: extras.accommodation, breakdown: null, is_refundable: false, counts_in_total: true },
+        ...extras.lines,
+      ];
+    }
+    if (received && received.storedLines.length > 0) {
+      return [
+        { name: "Accommodation", category: null, amount: storedAccommodation, breakdown: null, is_refundable: false, counts_in_total: true },
+        ...received.storedLines,
+      ];
+    }
+    return [
+      { name: "Accommodation", category: null, amount: Number(totalPrice || 0), breakdown: null, is_refundable: false, counts_in_total: true },
+    ];
+  }, [extras, received, storedAccommodation, totalPrice]);
+
+  const commissionView = useMemo(
+    () =>
+      readCommission({
+        guestTotal,
+        calculated_commission: received?.commission.amount ?? null,
+        commission_rate_applied: received?.commission.rate ?? null,
+        commission_type: received?.commission.type ?? null,
+      }),
+    [guestTotal, received],
+  );
+
+
   const originalFrom = toDate(booking.check_in_date);
   const originalTo = toDate(booking.check_out_date);
   const selectedFrom = toDate(checkIn);
@@ -511,12 +652,22 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         modifications.overbook_override_reason = overbookReason.trim();
       }
 
+      // Guest record corrections travel with the same save. They are written locally only,
+      // so a guest-only edit never asks the channel to re-price or re-place the stay.
+      for (const { key } of GUEST_LABELS) {
+        if (guest[key].trim() !== guestBaseline[key].trim()) modifications[key] = guest[key].trim();
+      }
+      if (specialRequests.trim() !== specialRequestsBaseline.trim()) {
+        modifications.special_requests = specialRequests.trim();
+      }
+
       const changedKeys = Object.keys(modifications).filter((k) => k !== "note");
       if (changedKeys.length === 0) {
         toast.error("Nothing has changed yet.");
         setBusy(false);
         return;
       }
+
 
       const data = await modifyBooking({
           booking_id: booking.id,
@@ -565,7 +716,7 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CalendarClock className="h-4 w-4" />
@@ -579,8 +730,152 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Guest record — editable here, kept in our own records only. */}
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <User className="h-3.5 w-3.5 text-muted-foreground" />
+              <p className="text-xs font-medium">Guest details</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {GUEST_LABELS.map(({ key, label, type }) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">{label}</Label>
+                  <Input
+                    type={type ?? "text"}
+                    className="h-8 text-xs"
+                    value={guest[key]}
+                    onChange={(e) => setGuest((prev) => ({ ...prev, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Requests and notes from the guest</Label>
+              <Textarea
+                className="text-xs min-h-[60px]"
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Corrections here stay in your own records — the channel keeps its own copy of the guest.
+            </p>
+          </div>
+
+          {/* As received from the channel — read-only. */}
+          {received?.channel.hasDetails && (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-medium">As received{received.channel.channelLabel ? ` — ${received.channel.channelLabel}` : ""}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                {received.channel.reservationId && (
+                  <p><span className="text-muted-foreground">Reservation</span> {received.channel.reservationId}</p>
+                )}
+                {received.bookingChannel && (
+                  <p><span className="text-muted-foreground">Channel</span> {received.bookingChannel}</p>
+                )}
+                {received.channel.createdAt && (
+                  <p><span className="text-muted-foreground">Received</span> {received.channel.createdAt}</p>
+                )}
+                {received.channel.arrivalTime && (
+                  <p><span className="text-muted-foreground">Arrival</span> {received.channel.arrivalTime}</p>
+                )}
+                {received.channel.address && (
+                  <p className="sm:col-span-2"><span className="text-muted-foreground">Address</span> {received.channel.address}{received.channel.zipCode ? `, ${received.channel.zipCode}` : ""}</p>
+                )}
+              </div>
+              {received.channel.guestComments && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Guest said</span> {received.channel.guestComments}</p>
+              )}
+              {received.channel.reservationComments && (
+                <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Reservation notes</span> {received.channel.reservationComments}</p>
+              )}
+              {received.channel.nights.length > 0 && (
+                <div className="pt-1 border-t">
+                  <p className="text-muted-foreground mb-1">Price per night as received</p>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4">
+                    {received.channel.nights.map((n) => (
+                      <p key={n.date} className="flex justify-between">
+                        <span>{format(parseISO(n.date), "d MMM")}</span>
+                        <span className="tabular-nums">{money(n.price)}</span>
+                      </p>
+                    ))}
+                  </div>
+                  {received.channel.nightsTotal !== null && (
+                    <p className="flex justify-between font-medium pt-1 mt-1 border-t">
+                      <span>Nights total</span>
+                      <span className="tabular-nums">{money(received.channel.nightsTotal)}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* The money story: what is billed, what came in, what is left, what we earn. */}
+          {received && (
+            <div className="rounded-md border p-3 space-y-1 text-xs">
+              <div className="flex items-center gap-2 mb-1">
+                <Wallet className="h-3.5 w-3.5 text-muted-foreground" />
+                <p className="font-medium">Billing breakdown</p>
+              </div>
+              {billingLines.map((line, i) => (
+                <p key={`${line.name}-${i}`} className="flex justify-between gap-3">
+                  <span className={line.is_refundable ? "text-muted-foreground" : ""}>
+                    {line.name}
+                    {line.breakdown ? <span className="text-muted-foreground"> · {line.breakdown}</span> : null}
+                    {line.is_refundable ? <span className="text-muted-foreground"> · refundable</span> : null}
+                  </span>
+                  <span className="tabular-nums">{money(line.amount)}</span>
+                </p>
+              ))}
+              <p className="flex justify-between font-medium pt-1 border-t">
+                <span>Guest total</span>
+                <span className="tabular-nums">{money(guestTotal)}</span>
+              </p>
+              <p className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Already paid
+                  {received.amountPaidSource === "channel" ? " (taken by the channel)" : ""}
+                  {received.paymentMethod ? ` · ${received.paymentMethod}` : ""}
+                </span>
+                <span className="tabular-nums">{money(amountPaid ?? 0)}</span>
+              </p>
+              <p className="flex justify-between font-medium">
+                <span>{(amountPaid ?? 0) > guestTotal ? "Overpaid" : "Still outstanding"}</span>
+                <span className="tabular-nums">{money(Math.abs(guestTotal - (amountPaid ?? 0)))}</span>
+              </p>
+              {received.depositAmount > 0 && (
+                <p className="flex justify-between text-muted-foreground">
+                  <span>Refundable deposit held separately</span>
+                  <span className="tabular-nums">{money(received.depositAmount)}</span>
+                </p>
+              )}
+              {commissionView.amount !== null && (
+                <>
+                  <p className="flex justify-between pt-1 border-t">
+                    <span className="text-muted-foreground">
+                      Commission{commissionView.rate !== null ? ` · ${commissionView.rate}%` : ""}
+                      {commissionView.type ? ` · ${commissionView.type}` : ""}
+                    </span>
+                    <span className="tabular-nums">{money(commissionView.amount)}</span>
+                  </p>
+                  {commissionView.netToProperty !== null && (
+                    <p className="flex justify-between font-medium">
+                      <span>Net to the property</span>
+                      <span className="tabular-nums">{money(commissionView.netToProperty)}</span>
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <Label className="text-xs">Stay dates</Label>
+
             <StayRangePicker
               numberOfMonths={2}
               minDate={null}

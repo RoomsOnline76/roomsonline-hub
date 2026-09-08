@@ -41,6 +41,17 @@ interface ModifyRequest {
     infants?: number;
     rooms?: any[];
     special_requests?: string;
+    /* Guest record corrections — written to the booking only. No channel push, no reprice:
+     * the distribution layer offers no verb that rewrites a guest record. */
+    guest_name?: string;
+    guest_email?: string;
+    guest_phone?: string;
+    guest_nationality?: string;
+    guest_company?: string;
+    second_guest_name?: string;
+    second_guest_email?: string;
+    second_guest_phone?: string;
+
     note?: string;
     /** Operator-set ACCOMMODATION total for the stay (extras are priced on top). */
     accommodation_total?: number;
@@ -923,6 +934,31 @@ Deno.serve(async (req) => {
     if (modifications.infants !== undefined) updateData.infants = modifications.infants;
     if (modifications.rooms) updateData.rooms = modifications.rooms;
     if (modifications.special_requests !== undefined) updateData.special_requests = modifications.special_requests;
+
+    /* Guest record corrections. Whitelisted, trimmed and length-capped; an empty string clears the
+     * field. Nothing here reaches the channel or the pricing engine. */
+    const GUEST_FIELDS = [
+      "guest_name",
+      "guest_email",
+      "guest_phone",
+      "guest_nationality",
+      "guest_company",
+      "second_guest_name",
+      "second_guest_email",
+      "second_guest_phone",
+    ] as const;
+    for (const field of GUEST_FIELDS) {
+      const value = (modifications as Record<string, unknown>)[field];
+      if (value === undefined) continue;
+      const trimmed = String(value ?? "").trim().slice(0, 200);
+      updateData[field] = trimmed === "" ? null : trimmed;
+    }
+    if (typeof updateData.guest_name === "string") {
+      const parts = updateData.guest_name.split(/\s+/);
+      updateData.guest_first_name = parts[0] ?? null;
+      updateData.guest_last_name = parts.length > 1 ? parts.slice(1).join(" ") : null;
+    }
+
 
     /* Stamp the stay shape onto the room lines, with the same keys create_reservation writes,
      * so a LOS / Full Stay stay stays recognisable after a modify. Never invents a rooms[]

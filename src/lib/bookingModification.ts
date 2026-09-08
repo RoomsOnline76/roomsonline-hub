@@ -12,7 +12,18 @@ export interface BookingStayModifications {
   special_requests?: string;
   note?: string;
   overbook_override_reason?: string;
+  /* Guest record corrections. Stored locally only — the channel has no verb that rewrites
+   * a guest record, so these never trigger a channel push or a reprice. */
+  guest_name?: string;
+  guest_email?: string;
+  guest_phone?: string;
+  guest_nationality?: string;
+  guest_company?: string;
+  second_guest_name?: string;
+  second_guest_email?: string;
+  second_guest_phone?: string;
 }
+
 
 export interface BookingModificationRequest {
   booking_id: string;
