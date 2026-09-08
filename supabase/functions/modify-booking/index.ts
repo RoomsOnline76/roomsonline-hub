@@ -41,6 +41,17 @@ interface ModifyRequest {
     infants?: number;
     rooms?: any[];
     special_requests?: string;
+    /* Guest record corrections — written to the booking only. No channel push, no reprice:
+     * the distribution layer offers no verb that rewrites a guest record. */
+    guest_name?: string;
+    guest_email?: string;
+    guest_phone?: string;
+    guest_nationality?: string;
+    guest_company?: string;
+    second_guest_name?: string;
+    second_guest_email?: string;
+    second_guest_phone?: string;
+
     note?: string;
     /** Operator-set ACCOMMODATION total for the stay (extras are priced on top). */
     accommodation_total?: number;
