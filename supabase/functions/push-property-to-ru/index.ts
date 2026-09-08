@@ -656,6 +656,18 @@ function toFiniteNumber(value: unknown): number | null {
  * Authored per unit in the room editor; falls back to the historical 70%-of-max derivation
  * when nothing is authored, and never exceeds the unit's maximum.
  */
+/**
+ * Name published for the listing. Airbnb / VRBO refuse names outside 8–50 characters, so an
+ * authored `amenities.channel_listing_name` wins for the property-level name only — unit
+ * names are untouched. A blank or unusable override falls back to the property name.
+ */
+function resolvePublishedListingName(property: { name?: unknown; amenities?: unknown }): string {
+  const fallback = String(property?.name ?? "").trim();
+  const bag = property?.amenities as Record<string, unknown> | null | undefined;
+  const override = String(bag?.channel_listing_name ?? "").trim();
+  return override.length >= 3 ? override : fallback;
+}
+
 function resolveStandardGuests(authored: unknown, maxGuests: number): number {
   const max = Math.max(1, Number(maxGuests) || 1);
   const n = Number(authored);
@@ -1952,7 +1964,9 @@ function buildSinglePropertyPayload(property: PropertyRow, roomTypes: RoomTypeRo
   rooms.push(...compositionRoomBlocks(singleComp, singleAmenities));
 
   return {
-    name: property.name,
+    // Some sales channels only accept an 8–50 character listing name, so the operator can
+    // author a short channel listing name. The property's own name stays as captured.
+    name: resolvePublishedListingName(property),
     // <PropertyTypeID> = bedroom layout; listing kind travels as <ObjectTypeID>.
     property_type_id: resolveRuLayoutTypeId(
       (primaryRoom as { bedrooms?: unknown } | null)?.bedrooms ?? (property as { bedrooms?: unknown }).bedrooms,

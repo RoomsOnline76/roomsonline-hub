@@ -9,7 +9,7 @@ import {
   calculateBedCapacity,
   type BedEntry,
 } from "@/lib/bedConfig";
-import { checkChannelName } from "@/lib/channelFieldRules";
+import { checkChannelName, isChannelListingNameLengthOk } from "@/lib/channelFieldRules";
 import { MIN_IMAGE_HEIGHT, MIN_IMAGE_WIDTH } from "@/lib/imageValidation";
 import { mainImageState, normalizeRuImageTagMap } from "@/lib/ruImageTags";
 
@@ -158,7 +158,7 @@ const mainImageCount = (subject: RequirementSubject): number => {
   ).count;
 };
 
-type RoomRequirementRow = {
+export type RoomRequirementRow = {
   id?: string | null;
   name?: string | null;
   description?: string | null;
@@ -192,6 +192,9 @@ const roomRows = (subject: RequirementSubject): RoomRequirementRow[] => {
   const rooms = amenity(subject, "room_types");
   return Array.isArray(rooms) ? (rooms as RoomRequirementRow[]) : [];
 };
+
+/** The unit rows a subject carries — shared with the sales-channel connect catalogue. */
+export const requirementRoomRows = roomRows;
 
 /**
  * Nearby attractions that carry a usable distance. Supplied by the readiness hook from
@@ -233,6 +236,10 @@ const bedCapacity = (raw: unknown): number => {
   return calculateBedCapacity(entries);
 };
 
+/** Sleeping places implied by an authored bed configuration (shared with the connect catalogue). */
+export const authoredBedCapacity = (raw: unknown): number => bedCapacity(raw);
+
+
 /**
  * Would the channel push emit at least one bedroom composition block for this unit?
  * Mirrors `push-property-to-ru`: an array bed configuration with a typed entry, or the
@@ -273,6 +280,16 @@ export const UNIT_ROW_RULES = {
   beds: (room: RoomRequirementRow) => {
     const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
     return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) >= maximum;
+  },
+  /**
+   * Airbnb and Booking.com run an occupancy check that wants the authored sleeping
+   * places to EQUAL the unit's maximum guests, not merely cover them. Go-live keeps
+   * `beds` (cover) — this stricter twin only grades the connect panel and paints a
+   * recommendation on the bed control.
+   */
+  bedsMatchMax: (room: RoomRequirementRow) => {
+    const maximum = Number(room.maxPeople ?? room.max_guests ?? 0);
+    return maximum >= 1 && bedCapacity(room.bedConfiguration ?? room.bed_configuration) === maximum;
   },
   /** The channel requires at least one bedroom in the composition block. */
   bedroomComposition: (room: RoomRequirementRow) => hasBedroomComposition(room),
@@ -379,6 +396,22 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
     hint: "Plain text, 3+ characters. No emoji, no special characters (< > [ ] | * # @ ! ?), not ALL CAPS.",
     // An empty name is already reported by the `name` requirement — do not double-count it.
     isSatisfied: (s) => !filled(s.name) || checkChannelName(str(s.name)).status !== "error",
+  },
+  {
+    /**
+     * Short-name channels (Airbnb, VRBO) refuse a listing name outside 8–50 characters.
+     * A long marketing name stays legal on Booking.com, so instead of forcing the owner to
+     * rename the property we ask for a separate channel listing name — and only while the
+     * property name itself is outside the window.
+     */
+    key: "channel_listing_name",
+    label: "Channel listing name (8–50 characters)",
+    tier: "mandatory",
+    section: "general",
+    target: ['[data-field="amenities.channel_listing_name"]', "#channel_listing_name", "#name"],
+    hint: "Airbnb and VRBO only accept 8–50 characters. Give the listing a short name here; the longer marketing name stays on the property.",
+    appliesTo: (s) => filled(s.name) && !isChannelListingNameLengthOk(str(s.name)),
+    isSatisfied: (s) => isChannelListingNameLengthOk(str(amenity(s, "channel_listing_name"))),
   },
   {
     key: "property_type",
@@ -718,6 +751,19 @@ export const PROPERTY_FIELD_REQUIREMENTS: FieldRequirement[] = [
       "Author the beds inside each bedroom. Every bedroom must hold a bed and the authored bedrooms must cover the unit's declared bedroom count — the channel rejects a multi-bedroom unit with all its beds in one room.",
     isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedsDistributed),
   },
+  {
+    /**
+     * Overlay rule: Airbnb / Booking.com occupancy checks want sleeping places to EQUAL
+     * maximum guests. Recommended here on purpose — go-live keeps `room_beds` (cover).
+     */
+    key: "room_beds_match_max",
+    label: "Beds equal maximum guests (Airbnb / Booking.com)",
+    tier: "recommended",
+    section: "rooms",
+    target: ['[data-field="bed_configuration"]'],
+    hint: "Some sales channels compare the two numbers exactly: sleeping places must equal the unit's maximum guests.",
+    isSatisfied: (s) => roomRows(s).length > 0 && roomRows(s).every(UNIT_ROW_RULES.bedsMatchMax),
+  },
 
 
 
@@ -1030,6 +1076,22 @@ export const REQUIREMENT_SHORTFALLS: Record<
       (room) =>
         `"${str(room.channelPropertyType ?? room.property_type) || "no type"}" is not a supported channel type`,
     ),
+  channel_listing_name: (s) => {
+    const short = str(amenity(s, "channel_listing_name"));
+    const name = str(s.name);
+    return short
+      ? `Channel listing name is ${short.length} characters — Airbnb / VRBO allow 8–50.`
+      : `“${name}” is ${name.length} characters — this channel allows 8–50. Add a short channel listing name.`;
+  },
+  room_beds_match_max: (s) =>
+    failingUnits(
+      s,
+      UNIT_ROW_RULES.bedsMatchMax,
+      (room) =>
+        `beds sleep ${bedCapacity(room.bedConfiguration ?? room.bed_configuration)}, max guests is ${num(
+          room.maxPeople ?? room.max_guests,
+        )} — they must be the same number`,
+    ),
   room_beds: (s) =>
     failingUnits(
       s,
@@ -1178,6 +1240,11 @@ export const CHECK_TO_FIELD_KEYS: Record<string, string[]> = {
   location_id: ["ru_location_id"],
   google_place_id: ["google_place_id"],
   contract_signed: ["owner_email"],
+  // Sales-channel connect overlays (see src/config/channelConnectRequirements.ts).
+  beds_match_max_guests: ["room_beds_match_max", "room_beds"],
+  name_length_8_50: ["channel_listing_name", "name", "name_hygiene"],
+  // The publish/listing-id control is owned by the onboarding workspace itself.
+  listing_published: [],
 };
 
 

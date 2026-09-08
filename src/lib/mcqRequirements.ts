@@ -27,6 +27,17 @@ interface McqRule extends McqRequirement {
 
 const RULES: McqRule[] = [
   {
+    /**
+     * A bare "not eligible" refusal carries no field at all. It must never be attributed to
+     * a field, or the operator is sent to fix something that was already correct.
+     */
+    match: /not eligible|quick check|ineligible/i,
+    title: "The channel refused without naming a field",
+    requirement:
+      "The sales channel did not say which field failed. Work through the checks beside the connect frame — they cover what the channel usually refuses on.",
+    section: "channels",
+  },
+  {
     match: /(name|title).*(caps|emoji|special|charac|invalid)|listing name|property name/i,
     title: "Listing name",
     requirement:
@@ -35,7 +46,24 @@ const RULES: McqRule[] = [
     focusKey: "name",
   },
   {
-    match: /descript|700|too short|character/i,
+    match: /(name|title).*(8|50|length|too long|too short)|50 charac/i,
+    title: "Listing name length",
+    requirement:
+      "The listing name for this channel must be between 8 and 50 characters. Keep the longer marketing name on the property and add a short channel listing name.",
+    section: "general",
+    focusKey: "channel_listing_name",
+  },
+  {
+    match: /(bed|sleep).*(guest|occupan|capacit|match)|occupan.*(bed|sleep)/i,
+    title: "Beds vs guests",
+    requirement:
+      "The authored sleeping places must equal the unit's maximum guests — some channels compare the two numbers exactly.",
+    section: "rooms",
+    focusKey: "room_beds",
+  },
+  {
+    // "character" alone is too generic — it collided with the bare refusal line.
+    match: /descript|700|too short|characters? long|character count/i,
     title: "Description length",
     requirement:
       "The property description must be at least 700 characters of original prose — no bullet lists only, no duplicated text between listings, no contact details or URLs.",
