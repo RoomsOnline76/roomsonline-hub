@@ -155,7 +155,7 @@ export async function sweepStaleRuHolds(
     try {
       // No `kind` is passed on purpose: the channel's own answer must decide. Forcing
       // 'cancelled' here would cancel a stay the channel still holds.
-      const refreshed = await refreshRuReservationById(supabase, reservationId, {
+      const refreshed = await refresh(supabase, reservationId, {
         propertyId: row.property_id,
         logPrefix: `${log}[${reservationId}]`,
       });
@@ -169,7 +169,7 @@ export async function sweepStaleRuHolds(
       } else if (refreshed.outcome === 'failed' || refreshed.outcome === 'unmatched') {
         const dead = DEAD_TEXT.test(String(refreshed.error ?? refreshed.note ?? ''));
         if (dead) {
-          await settleLocally(supabase, row, log);
+          await settleLocally(supabase, row, log, release);
           verdict = 'cancelled';
           note = 'Channel no longer holds this reservation';
         } else {
@@ -213,7 +213,13 @@ export async function sweepStaleRuHolds(
 }
 
 /** The channel cannot serve the reservation at all: cancel here and release its nights. */
-async function settleLocally(supabase: Db, row: CandidateRow, log: string): Promise<void> {
+async function settleLocally(
+  supabase: Db,
+  row: CandidateRow,
+  log: string,
+  // deno-lint-ignore no-explicit-any
+  release: (...args: any[]) => Promise<number>,
+): Promise<void> {
   await supabase
     .from('bookings')
     .update({
@@ -224,6 +230,6 @@ async function settleLocally(supabase: Db, row: CandidateRow, log: string): Prom
       hold_released_at: new Date().toISOString(),
     })
     .eq('id', row.id);
-  const released = await releaseChannelBlocksForBooking(supabase, row.id, log);
+  const released = await release(supabase, row.id, log);
   console.log(`${log} Settled booking ${row.id} locally; ${released} stamped night(s) released`);
 }
