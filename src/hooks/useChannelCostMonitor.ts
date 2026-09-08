@@ -13,7 +13,21 @@ import {
 } from "@/lib/channelBillingForecast";
 import { pushReportedOn } from "@/lib/channelDistributionGate";
 
-export type ChannelSyncState = "live" | "paused" | "archived" | "pending";
+export type ChannelSyncState = "live" | "paused" | "archived" | "pending" | "unlinked";
+
+/** How a property's distribution account was resolved. */
+export type AccountScope = "own" | "portfolio" | "inherited" | "email" | "none";
+
+export interface AccountResolution {
+  ownerId: string | null;
+  subUserId: string | null;
+  ownerEmail: string | null;
+  keysCaptured: boolean;
+  companyDetailsSent: boolean;
+  scope: AccountScope;
+  /** Portfolio the account is shared across, when it is not the property's own row. */
+  sourceName: string | null;
+}
 
 export interface ChannelUnitRow {
   id: string;
