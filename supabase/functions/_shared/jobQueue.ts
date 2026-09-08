@@ -24,7 +24,9 @@ export type JobType =
   /** Finish publishing the units a chunked push left outstanding. */
   | "channel_publish_units"
   /** Push a booking change (modify / cancel) and the resulting ARI delta to the channel. */
-  | "channel_booking_sync";
+  | "channel_booking_sync"
+  /** Re-stamp a booking's own nights after the brief channel-side edit window expires. */
+  | "channel_edit_window_close";
 
 
 export interface EnqueueOptions {
