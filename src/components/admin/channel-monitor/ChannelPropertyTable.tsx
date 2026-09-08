@@ -330,6 +330,7 @@ export function ChannelPropertyTable({
               <SelectItem value="live">Live</SelectItem>
               <SelectItem value="paused">Paused</SelectItem>
               <SelectItem value="pending">Never pushed</SelectItem>
+              <SelectItem value="unlinked">Not linked</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
