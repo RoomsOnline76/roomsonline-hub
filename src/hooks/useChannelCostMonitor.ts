@@ -66,6 +66,10 @@ export interface ChannelPropertyRow {
   subUserId: string | null;
   /** Portal login email for the channel sub-account linked to this property. */
   ownerEmail: string | null;
+  /** How the account was resolved (own row, portfolio, inherited from a sibling). */
+  accountScope: AccountScope;
+  /** Where an inherited/shared account comes from, for display. */
+  accountSourceName: string | null;
 }
 
 export interface ArchiveEventRow {
