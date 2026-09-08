@@ -12,7 +12,7 @@
 //
 // Failures are logged and swallowed: a channel refresh must never break the booking flow.
 
-import { ruDeltaScopeForTrigger } from './ruDeltaScope.ts';
+import { ruDeltaScopeForTrigger, type RuDeltaScope } from './ruDeltaScope.ts';
 import { readInvokeErrorBody } from "./ruInvokeBody.ts";
 import { evaluateRuOperationalSync, RU_WIZARD_SYNC_CODE } from "./ruSyncGate.ts";
 
@@ -183,7 +183,7 @@ export async function queueRuAriDelta(
     // in September followed by a release in October cannot lose either range.
     const scope = ruDeltaScopeForTrigger(trigger);
     if (!options.force) {
-      const sinceLast = await lastRealPushAgeMs(supabase, propertyId);
+      const sinceLast = await lastRealPushAgeMs(supabase, propertyId, scope);
       if (sinceLast < RU_ARI_DELTA_DEBOUNCE_MS) {
         const delayMs = RU_ARI_DELTA_DEBOUNCE_MS - sinceLast;
         // Scope-keyed: a rates delta and an availability delta must never collapse into each
