@@ -1003,6 +1003,10 @@ export async function fetchRuReservationById(
   let rateDeferred = false;
   let partial: ParsedRuReservation | null = null;
   let partialOwnerId: string | null | undefined;
+  // Every scope answered "does not exist" with no rate refusal anywhere: that is a definite
+  // absence, not an unknown. The listing fallback cannot overturn it and its own -6 refusal
+  // used to be reported as "deferred", which left dead stays confirmed forever.
+  let allDefinitelyAbsent = true;
 
   // Pass 1 — by id, across accounts.
   for (const scope of scopes) {
@@ -1017,6 +1021,7 @@ export async function fetchRuReservationById(
     if (attempt.reservation?.ruReservationId) {
       partial = attempt.reservation;
       partialOwnerId = scope.ownerId;
+      allDefinitelyAbsent = false;
       break;
     }
 
@@ -1034,12 +1039,36 @@ export async function fetchRuReservationById(
       };
     }
     if (attempt.error) lastError = attempt.error;
+    if (!/does not exist|not found/i.test(String(attempt.error ?? ''))) allDefinitelyAbsent = false;
   }
 
+  if (allDefinitelyAbsent) {
+    return {
+      reservation: null,
+      rawXml: null,
+      error: lastError ?? 'Reservation does not exist.',
+      rateDeferred: false,
+      resolvedOwnerId: null,
+    };
+  }
 
-  // Pass 2 — lead/reservation listings. When pass 1 already proved which account owns the
-  // reservation, only that account is asked: every other scope answers with an empty list and
-  // spends the per-method minute the owning account needs.
+  // Pass 2 — lead/reservation listings. Skipped when the caller has just listed these accounts
+  // on the wire: a second listing inside the same minute is the -6 refusal, not new information.
+  if (opts.skipListFallback) {
+    return {
+      reservation: null,
+      rawXml: null,
+      error: lastError ?? 'Reservation not found in Rentals United',
+      rateDeferred: false,
+      partial,
+      resolvedOwnerId: partialOwnerId ?? null,
+    };
+  }
+
+  // When pass 1 already proved which account owns the reservation, only that account is asked:
+  // every other scope answers with an empty list and spends the per-method minute the owning
+  // account needs.
+
   const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }] : scopes;
 
   const seenList = new Set<string>();
