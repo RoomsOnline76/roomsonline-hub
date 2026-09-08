@@ -224,14 +224,14 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
           supabase
             .from("rolos_rate_plan_los_rungs")
             .select(
-              "calendar_season_id, room_type_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate, min_stay_nights",
+              "calendar_season_id, room_type_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate, min_stay_nights, policy_id",
             )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
           supabase
             .from("rolos_rate_plan_fsp_cells")
             .select(
-              "calendar_season_id, room_type_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total, min_stay_nights",
+              "calendar_season_id, room_type_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total, min_stay_nights, policy_id",
             )
             .eq("rate_plan_id", ratePlanId)
             .order("nights"),
@@ -290,6 +290,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               is_pinned: r.is_pinned === true,
               pinned_rate: str(r.pinned_rate),
               min_stay_nights: str((r as { min_stay_nights?: number | null }).min_stay_nights),
+              policy_id: (r as { policy_id?: string | null }).policy_id ?? null,
             })),
             fsp_cells: (fspRows.data ?? []).map((c) => ({
               scope: (c.calendar_season_id ? "season" : "dates") as "season" | "dates",
@@ -304,6 +305,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
               is_pinned: c.is_pinned === true,
               pinned_total: str(c.pinned_total),
               min_stay_nights: str((c as { min_stay_nights?: number | null }).min_stay_nights),
+              policy_id: (c as { policy_id?: string | null }).policy_id ?? null,
             })),
 
           };
@@ -704,6 +706,7 @@ export function RatePlanEditor({ propertyId, propertyName, ratePlanId, roomTypes
             draft={draft}
             seasons={seasons}
             units={visibleRoomTypes}
+            policies={policies.map((p) => ({ id: String(p.id), name: p.name }))}
             dispatch={dispatch}
             issues={stayShapeIssues}
             ruPushFsp={ruPushFsp}

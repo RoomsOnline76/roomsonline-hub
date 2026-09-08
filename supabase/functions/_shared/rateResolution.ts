@@ -554,11 +554,11 @@ export async function createRateResolver(
       const [{ data: rungRows }, { data: cellRows }] = await Promise.all([
         supabase
           .from("rolos_rate_plan_los_rungs")
-          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate")
+          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, derivation_type, derivation_value, is_pinned, pinned_rate, policy_id")
           .in("rate_plan_id", planIds),
         supabase
           .from("rolos_rate_plan_fsp_cells")
-          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total")
+          .select("rate_plan_id, room_type_id, calendar_season_id, start_date, end_date, nights, nr_of_guests, derivation_type, derivation_value, is_pinned, pinned_total, policy_id")
           .in("rate_plan_id", planIds),
       ]);
 
@@ -579,6 +579,7 @@ export async function createRateResolver(
           start_date: row.start_date ?? null,
           end_date: row.end_date ?? null,
           room_type_id: row.room_type_id ? String(row.room_type_id) : null,
+          policy_id: row.policy_id ? String(row.policy_id) : null,
         };
         if (!Number.isFinite(entry.nights) || entry.nights < 1) continue;
         for (const target of targetsFor(row.rate_plan_id, row.room_type_id)) {
@@ -600,6 +601,7 @@ export async function createRateResolver(
           start_date: row.start_date ?? null,
           end_date: row.end_date ?? null,
           room_type_id: row.room_type_id ? String(row.room_type_id) : null,
+          policy_id: row.policy_id ? String(row.policy_id) : null,
         };
         if (!Number.isFinite(entry.nights) || entry.nights < 1) continue;
         if (!Number.isFinite(entry.nr_of_guests) || entry.nr_of_guests < 1) continue;

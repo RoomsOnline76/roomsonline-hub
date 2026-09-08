@@ -7,7 +7,7 @@ export interface ResolvedCancellationPolicy {
   name: string | null;
   rule: ManualCancellationRule | null;
   /** Where the policy came from, in resolution order. */
-  source: "special" | "rate_plan" | "master" | "legacy" | "none";
+  source: "special" | "stay_shape" | "rate_plan" | "master" | "legacy" | "none";
 }
 
 interface PolicyRow {
@@ -20,16 +20,18 @@ interface PolicyRow {
 
 /**
  * Checkout policy resolution order (Phase 4):
- *   selected special's policy -> rate-plan linked policy -> property master policy
+ *   selected special's policy -> stay-shape (LOS rung / FSP cell) policy
+ *   -> rate-plan linked policy -> property master policy
  * Falls back to the legacy `rolos_policies` cancellation row when the library is empty.
  */
 export function useResolvedCancellationPolicy(
   propertyId: string | null | undefined,
   specialPolicyId: string | null | undefined,
   ratePlanId: string | null | undefined,
+  shapePolicyId?: string | null,
 ) {
   return useQuery<ResolvedCancellationPolicy>({
-    queryKey: ["resolved-cancellation-policy", propertyId, specialPolicyId, ratePlanId],
+    queryKey: ["resolved-cancellation-policy", propertyId, specialPolicyId, ratePlanId, shapePolicyId ?? null],
     enabled: !!propertyId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
@@ -51,7 +53,13 @@ export function useResolvedCancellationPolicy(
         return { id: fromSpecial.id, name: fromSpecial.name, rule: fromSpecial.rule, source: "special" };
       }
 
-      // 2. Rate-plan linked policy
+      // 2. Stay-shape policy (LOS rung / FSP cell) from the quote
+      const fromShape = pick(shapePolicyId);
+      if (fromShape) {
+        return { id: fromShape.id, name: fromShape.name, rule: fromShape.rule, source: "stay_shape" };
+      }
+
+      // 3. Rate-plan linked policy
       if (ratePlanId && policies.length) {
         const { data: links } = await supabase
           .from("rolos_policy_rate_links")
@@ -63,7 +71,7 @@ export function useResolvedCancellationPolicy(
         }
       }
 
-      // 3. Property master (global fallback), then default
+      // 4. Property master (global fallback), then default
       const master = policies.find((p) => p.is_master) ?? policies.find((p) => p.is_default);
       if (master) {
         return { id: master.id, name: master.name, rule: master.rule, source: "master" };

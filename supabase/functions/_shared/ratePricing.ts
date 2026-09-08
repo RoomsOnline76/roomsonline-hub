@@ -118,6 +118,11 @@ export interface LosRung {
   start_date?: string | null;
   end_date?: string | null;
   room_type_id?: string | null;
+  /**
+   * Stay-shape cancellation policy. NULL = inherit the rate plan's policy.
+   * Only consulted for direct/ROL'OS bookings — channels receive the plan policy.
+   */
+  policy_id?: string | null;
 }
 
 /** One full-stay-price cell: nights x guests -> a stay total. rolos_rate_plan_fsp_cells. */
@@ -132,6 +137,8 @@ export interface FspCell {
   start_date?: string | null;
   end_date?: string | null;
   room_type_id?: string | null;
+  /** Stay-shape cancellation policy. NULL = inherit the rate plan's policy. */
+  policy_id?: string | null;
 }
 
 
@@ -851,6 +858,12 @@ export interface StayQuote {
   source: RateSource | "los_derived" | "los_pinned" | "fsp_derived" | "fsp_pinned";
   /** stay_total / nights, rounded to cents. Display only — never a billed amount. */
   display_per_night: number;
+  /**
+   * The stay-shape policy of the matched rung/cell, when that shape sets the
+   * price. NULL for nightly pricing or an inheriting rung/cell. Direct/ROL'OS
+   * bookings resolve this before the plan policy.
+   */
+  policy_id?: string | null;
 }
 
 const cents = (n: number): number => (Number.isFinite(n) ? Math.round(n * 100) / 100 : 0);
@@ -966,6 +979,7 @@ export function stayQuote(
             stay_total: cents(pinned),
             source: "fsp_pinned",
             display_per_night: cents(pinned / nights),
+            policy_id: cell.policy_id ?? null,
           };
         }
       } else {
@@ -979,6 +993,7 @@ export function stayQuote(
             stay_total: cents(derived),
             source: "fsp_derived",
             display_per_night: cents(derived / nights),
+            policy_id: cell.policy_id ?? null,
           };
         }
       }
@@ -1021,6 +1036,7 @@ export function stayQuote(
           stay_total: cents(total),
           source,
           display_per_night: cents(total / nights),
+          policy_id: rung.policy_id ?? null,
         };
       }
     }

@@ -114,6 +114,8 @@ interface DraftStayWindow {
    * `rolos_stay_restrictions`; it prices, it never blocks direct checkout.
    */
   min_stay_nights?: number | null;
+  /** Stay-shape cancellation policy. NULL/absent = inherit the plan policy. */
+  policy_id?: string | null;
 }
 
 interface DraftLosRung extends DraftStayWindow {
@@ -714,6 +716,29 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
   };
 
 
+  // Stay-shape policies must come from this property's own policy library.
+  const shapePolicyIds = [
+    ...((Array.isArray(draft.los_rungs) ? draft.los_rungs : []) as DraftLosRung[]),
+    ...((Array.isArray(draft.fsp_cells) ? draft.fsp_cells : []) as DraftFspCell[]),
+  ]
+    .map((row) => (row?.policy_id ? String(row.policy_id) : null))
+    .filter((id): id is string => Boolean(id));
+  if (shapePolicyIds.length > 0) {
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (shapePolicyIds.some((id) => !uuidRe.test(id))) {
+      return { error: "A stay-shape policy is not a valid policy reference" };
+    }
+    const uniqueIds = [...new Set(shapePolicyIds)];
+    const { data: ownedPolicies } = await sb
+      .from("rolos_reservation_policies")
+      .select("id")
+      .eq("property_id", propertyId)
+      .in("id", uniqueIds);
+    if ((ownedPolicies ?? []).length !== uniqueIds.length) {
+      return { error: "A stay-shape policy does not belong to this property" };
+    }
+  }
+
   if (losOff) {
     await sb.from("rolos_rate_plan_los_rungs").delete().eq("rate_plan_id", planId);
   } else if (Array.isArray(draft.los_rungs)) {
@@ -771,6 +796,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         is_pinned: pinned,
         pinned_rate: pinned ? pinnedRate : null,
         min_stay_nights: windowMinStay,
+        policy_id: r?.policy_id ? String(r.policy_id) : null,
       });
 
     }
@@ -846,6 +872,7 @@ async function savePlan(sb: any, propertyId: string, draft: Draft) {
         is_pinned: pinned,
         pinned_total: pinned ? pinnedTotal : null,
         min_stay_nights: windowMinStay,
+        policy_id: c?.policy_id ? String(c.policy_id) : null,
       });
 
     }

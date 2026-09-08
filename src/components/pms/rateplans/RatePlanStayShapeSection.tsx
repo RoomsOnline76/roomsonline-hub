@@ -42,6 +42,8 @@ interface Props {
   seasons: CalendarSeason[];
   /** Units this plan can sell — a row may target one of them instead of all. */
   units: { id: string; name: string }[];
+  /** The property's cancellation policies — a rung/cell may carry one instead of the plan's. */
+  policies: { id: string; name: string }[];
   dispatch: React.Dispatch<DraftAction>;
   /** Sentences from `ladderIssues` — rendered so the operator sees why Save is blocked. */
   issues: string[];
@@ -72,6 +74,7 @@ export function RatePlanStayShapeSection({
   draft,
   seasons,
   units,
+  policies,
   dispatch,
   issues,
   ruPushFsp,
@@ -202,6 +205,29 @@ export function RatePlanStayShapeSection({
     </Select>
   );
 
+  const INHERIT_POLICY = "__inherit__";
+
+  /**
+   * Optional cancellation policy on one rung/cell. Empty means the booking
+   * inherits the plan's policy (and failing that the property master). Direct
+   * bookings honour it; the Channel Manager always receives the plan policy.
+   */
+  const policySelect = (value: string | null, onChange: (next: string | null) => void) => (
+    <Select value={value ?? INHERIT_POLICY} onValueChange={(v) => onChange(v === INHERIT_POLICY ? null : v)}>
+      <SelectTrigger className="h-9 md:col-span-2" aria-label="Cancellation policy">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={INHERIT_POLICY}>Inherit plan policy</SelectItem>
+        {policies.map((p) => (
+          <SelectItem key={p.id} value={p.id}>
+            {p.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
   const noSeasons = seasons.length === 0;
 
   /** What the row applies to, spelled out under the inputs. */
@@ -312,6 +338,8 @@ export function RatePlanStayShapeSection({
                       />
                       Pin
                     </label>
+                    {policies.length > 0 &&
+                      policySelect(rung.policy_id, (v) => dispatch({ type: "patch_los_rung", index, patch: { policy_id: v } }))}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -439,6 +467,8 @@ export function RatePlanStayShapeSection({
                       />
                       Pin
                     </label>
+                    {policies.length > 0 &&
+                      policySelect(cell.policy_id, (v) => dispatch({ type: "patch_fsp_cell", index, patch: { policy_id: v } }))}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -509,6 +539,13 @@ export function RatePlanStayShapeSection({
       {noSeasons && (
         <p className="text-xs text-muted-foreground">
           Paint a season on the Calendar first — stay ladders are priced per season.
+        </p>
+      )}
+
+      {policies.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          A policy picked on a rung or cell applies to direct bookings on that stay shape; the
+          Channel Manager always receives the plan's policy.
         </p>
       )}
 

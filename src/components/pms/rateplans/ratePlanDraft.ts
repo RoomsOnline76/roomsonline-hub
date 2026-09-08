@@ -77,6 +77,8 @@ export interface DraftLosRung {
   pinned_rate: string;
   /** Dated scope only: advisory minimum nights mirrored into stay restrictions. */
   min_stay_nights: string;
+  /** Stay-shape cancellation policy; null inherits the plan policy. */
+  policy_id: string | null;
 }
 
 /** One full-stay cell: nights x guests in a season or dated window, quoted as one total. */
@@ -94,6 +96,8 @@ export interface DraftFspCell {
   /** Stay total, only used when pinned. */
   pinned_total: string;
   min_stay_nights: string;
+  /** Stay-shape cancellation policy; null inherits the plan policy. */
+  policy_id: string | null;
 }
 
 
@@ -230,6 +234,7 @@ export const newLosRung = (calendarSeasonId: string): DraftLosRung => ({
   is_pinned: false,
   pinned_rate: "",
   min_stay_nights: "",
+  policy_id: null,
 });
 
 export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
@@ -245,6 +250,7 @@ export const newFspCell = (calendarSeasonId: string): DraftFspCell => ({
   is_pinned: false,
   pinned_total: "",
   min_stay_nights: "",
+  policy_id: null,
 });
 
 
@@ -604,6 +610,7 @@ export function draftToPayload(draft: RatePlanDraft) {
           is_pinned: r.is_pinned,
           pinned_rate: r.is_pinned ? numeric(r.pinned_rate) : null,
           min_stay_nights: r.scope === "dates" ? numeric(r.min_stay_nights) : null,
+          policy_id: r.policy_id || null,
         }))
       : [],
     fsp_enabled: draft.fsp_enabled,
@@ -620,6 +627,7 @@ export function draftToPayload(draft: RatePlanDraft) {
           is_pinned: c.is_pinned,
           pinned_total: c.is_pinned ? numeric(c.pinned_total) : null,
           min_stay_nights: c.scope === "dates" ? numeric(c.min_stay_nights) : null,
+          policy_id: c.policy_id || null,
         }))
 
       : [],

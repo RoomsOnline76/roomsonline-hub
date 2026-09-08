@@ -13171,6 +13171,7 @@ export type Database = {
           nights: number
           nr_of_guests: number
           pinned_total: number | null
+          policy_id: string | null
           rate_plan_id: string
           room_type_id: string | null
           start_date: string | null
@@ -13188,6 +13189,7 @@ export type Database = {
           nights: number
           nr_of_guests: number
           pinned_total?: number | null
+          policy_id?: string | null
           rate_plan_id: string
           room_type_id?: string | null
           start_date?: string | null
@@ -13205,12 +13207,20 @@ export type Database = {
           nights?: number
           nr_of_guests?: number
           pinned_total?: number | null
+          policy_id?: string | null
           rate_plan_id?: string
           room_type_id?: string | null
           start_date?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_fsp_cells_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_rate_plan_fsp_cells_rate_plan_id_fkey"
             columns: ["rate_plan_id"]
@@ -13232,6 +13242,7 @@ export type Database = {
           min_stay_nights: number | null
           nights: number
           pinned_rate: number | null
+          policy_id: string | null
           rate_plan_id: string
           room_type_id: string | null
           start_date: string | null
@@ -13248,6 +13259,7 @@ export type Database = {
           min_stay_nights?: number | null
           nights: number
           pinned_rate?: number | null
+          policy_id?: string | null
           rate_plan_id: string
           room_type_id?: string | null
           start_date?: string | null
@@ -13264,12 +13276,20 @@ export type Database = {
           min_stay_nights?: number | null
           nights?: number
           pinned_rate?: number | null
+          policy_id?: string | null
           rate_plan_id?: string
           room_type_id?: string | null
           start_date?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rolos_rate_plan_los_rungs_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "rolos_reservation_policies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rolos_rate_plan_los_rungs_rate_plan_id_fkey"
             columns: ["rate_plan_id"]
