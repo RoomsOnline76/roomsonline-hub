@@ -4015,12 +4015,22 @@ Deno.serve(async (req) => {
         portfolioId: string | null;
       }> = [];
 
-      for (const id of ids) {
-        const { account, portfolio_id, scope } = await findOwnerAccount(admin, id, emailById.get(id) ?? null, null);
-        const acc = (account ?? null) as Record<string, unknown> | null;
-        const ownerId = String(acc?.ru_owner_id ?? "").trim();
-        if (ownerId) ownerIds.add(ownerId);
-        resolved.push({ propertyId: id, account: acc, scope, portfolioId: portfolio_id ?? null });
+      // Resolved in small concurrent batches: the monitor lists every property, and one
+      // round trip per property in series made the page wait several seconds.
+      for (let i = 0; i < ids.length; i += 10) {
+        const slice = ids.slice(i, i + 10);
+        const results = await Promise.all(
+          slice.map(async (id) => ({
+            id,
+            res: await findOwnerAccount(admin, id, emailById.get(id) ?? null, null),
+          })),
+        );
+        for (const { id, res } of results) {
+          const acc = (res.account ?? null) as Record<string, unknown> | null;
+          const ownerId = String(acc?.ru_owner_id ?? "").trim();
+          if (ownerId) ownerIds.add(ownerId);
+          resolved.push({ propertyId: id, account: acc, scope: res.scope, portfolioId: res.portfolio_id ?? null });
+        }
       }
 
       // Key capture: per-OwnerID store first, legacy inline column as fallback.
