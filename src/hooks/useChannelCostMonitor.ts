@@ -379,13 +379,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
             : archived || !p.rentalsunited_property_id
               ? 0
               : 1;
-        const creds = accountByProperty.get(p.id) ?? {
-          ownerId: null,
-          subUserId: null,
-          ownerEmail: null,
-          keysCaptured: false,
-          companyDetailsSent: false,
-        };
+        const creds = accountByProperty.get(p.id) ?? emptyResolution;
         const pushOn = pushReportedOn({
           ruPushEnabled: p.ru_push_enabled,
           ruOwnerId: creds.ownerId,
@@ -396,13 +390,17 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         // push either never ran or failed.
         const neverPushed =
           !archived && !p.rentalsunited_property_id && withListing.length === 0;
+        // "Paused" means someone switched pushing off. A property with no account at
+        // all is a different problem and must read as such, not as paused.
         const state: ChannelSyncState = archived
           ? "archived"
-          : neverPushed
-            ? "pending"
-            : pushOn
-              ? "live"
-              : "paused";
+          : !creds.ownerId
+            ? "unlinked"
+            : neverPushed
+              ? "pending"
+              : pushOn
+                ? "live"
+                : "paused";
         const toRow = (u: UnitRecord): ChannelUnitRow => ({
           id: u.id,
           name: u.name || "Unit",
