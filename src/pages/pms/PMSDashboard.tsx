@@ -1677,7 +1677,8 @@ export default function PMSDashboard() {
             const linkedPlanIds = ratePlanRoomLinks
               .filter(l => l.room_type_id === roomTypeId)
               .map(l => l.rate_plan_id);
-            const ratePlanId = linkedPlanIds[0] || '';
+            const preferredPlanIds = authoredSeasonRates.planIdsByProperty.get(propertyId || "") || [];
+            const ratePlanId = preferredPlanIds.find(id => linkedPlanIds.includes(id)) || linkedPlanIds[0] || '';
             
             let seasonRate = roomSeasonRates[`${season.id}-${ratePlanId}`]
               || roomSeasonRates[`${season.id}-Self Catering`]
