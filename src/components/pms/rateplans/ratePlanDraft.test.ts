@@ -271,9 +271,27 @@ describe("stay-shape ladders", () => {
         is_pinned: false,
         pinned_rate: null,
         min_stay_nights: null,
+        policy_id: null,
 
       },
     ]);
+  });
+
+  it("round-trips a cancellation policy picked on a rung", () => {
+    let s = ratePlanDraftReducer(withName(), { type: "field", key: "los_enabled", value: true });
+    s = ratePlanDraftReducer(s, { type: "add_los_rung", calendarSeasonId: "s1" });
+    s = ratePlanDraftReducer(s, {
+      type: "patch_los_rung",
+      index: 0,
+      patch: { policy_id: "policy-flexi" },
+    });
+    expect(draftToPayload(s).los_rungs[0]).toMatchObject({ policy_id: "policy-flexi" });
+    s = ratePlanDraftReducer(s, {
+      type: "patch_los_rung",
+      index: 0,
+      patch: { policy_id: null },
+    });
+    expect(draftToPayload(s).los_rungs[0]).toMatchObject({ policy_id: null });
   });
 
   it("writes a pinned full-stay cell as a total with no derivation", () => {
