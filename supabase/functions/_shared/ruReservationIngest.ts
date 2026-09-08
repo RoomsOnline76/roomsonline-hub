@@ -921,11 +921,42 @@ async function resolveRuOwnerIdForCreator(supabase: Db, creator: string | null):
  * exist"). So the lookup fans out: known scope first, then every sub-account, then master,
  * with a list/lead fallback per account.
  */
+/** How long a proven "does not exist" answer stands before the channel is asked again. */
+const RU_ABSENCE_MEMO_MINUTES = 30;
+
+/**
+ * Did every account already answer "Reservation does not exist" for this id a moment ago?
+ * The fan-out costs one wire call per account, so repeating it inside the same window is pure
+ * noise — the exchange log is the memo.
+ */
+async function recentlyProvenAbsent(supabase: Db, reservationId: string): Promise<boolean> {
+  const since = new Date(Date.now() - RU_ABSENCE_MEMO_MINUTES * 60_000).toISOString();
+  const { data } = await supabase
+    .from('ru_api_log')
+    .select('status_id, created_at, request_xml')
+    .eq('action', 'get_reservation_by_id')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(40);
+  const rows = (data || []) as { status_id: string | null; request_xml: string | null }[];
+  const mine = rows.filter((r) => (r.request_xml || '').includes(`<ReservationID>${reservationId}<`));
+  return mine.length > 0 && mine.every((r) => String(r.status_id ?? '') === '28');
+}
+
 export async function fetchRuReservationById(
   supabase: Db,
   reservationId: string,
   opts: { propertyId?: string | null; ownerId?: string | null; creator?: string | null } = {},
 ): Promise<RuDetailLookup> {
+  if (await recentlyProvenAbsent(supabase, reservationId)) {
+    return {
+      reservation: null,
+      rawXml: null,
+      error: 'Reservation does not exist. (channel answered this within the last 30 minutes)',
+      rateDeferred: false,
+      resolvedOwnerId: null,
+    };
+  }
   const knownOwnerId =
     opts.ownerId ?? (opts.propertyId ? await resolveRuOwnerIdForProperty(supabase, opts.propertyId) : null);
   // The envelope's `Creator` is the portal login of the account that raised the reservation —
