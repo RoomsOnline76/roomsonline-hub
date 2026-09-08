@@ -43,8 +43,6 @@ export interface ReceivedChannelDetails {
   hasDetails: boolean;
 }
 
-type Notes = Record<string, unknown> | null | undefined;
-
 const str = (v: unknown): string | null => {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
