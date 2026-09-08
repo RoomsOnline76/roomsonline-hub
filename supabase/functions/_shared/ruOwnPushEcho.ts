@@ -83,10 +83,16 @@ async function findOwnPushOnTheWire(
   return hit ? { bookingId: null, pushedAt: String(hit.created_at) } : null;
 }
 
+export interface ObservedStay {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+}
+
 export async function findRuOwnPushEcho(
   supabase: Db,
   reservationId: string | null | undefined,
   kind?: EchoKind | null,
+  observed?: ObservedStay | null,
 ): Promise<RuOwnPushEcho | null> {
   const id = String(reservationId ?? '').trim();
   if (!id) return null;
@@ -95,11 +101,24 @@ export async function findRuOwnPushEcho(
   try {
     const { data: booking } = await supabase
       .from('bookings')
-      .select('id')
+      .select('id, check_in_date, check_out_date')
       .eq('external_reservation_id', id)
       .limit(1)
       .maybeSingle();
     if (!booking?.id) return await findOwnPushOnTheWire(supabase, id, verbs);
+
+    // The notification describes a DIFFERENT stay than the one we hold: the channel is telling us
+    // about a real change (an operator re-shaped the reservation in the portal), so it must be
+    // ingested even though our own push landed moments earlier. Suppressing it silently lost
+    // channel-side modifications from the dashboard.
+    const from = String(observed?.dateFrom ?? '').slice(0, 10);
+    const to = String(observed?.dateTo ?? '').slice(0, 10);
+    if (from && to) {
+      const localFrom = String(booking.check_in_date ?? '').slice(0, 10);
+      const localTo = String(booking.check_out_date ?? '').slice(0, 10);
+      if (localFrom && localTo && (from !== localFrom || to !== localTo)) return null;
+    }
+
 
 
 
