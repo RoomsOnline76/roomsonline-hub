@@ -97,6 +97,7 @@ export async function computeLocalBookableWindow(
     const blockedByUnit = new Map<string, Set<string>>();
     const blockedAll = new Set<string>();
     const minStayDates = new Set<string>();
+    const longMinStayDates = new Set<string>();
     const { data: availRows } = await admin
       .from("property_availability")
       .select("date, room_type, available_units, is_stop_sell, minimum_stay")
