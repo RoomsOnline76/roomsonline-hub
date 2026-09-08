@@ -42,10 +42,6 @@ export const RU_ARI_DELTA_QUEUE_ACTION = "refresh_ari_delta";
 const GATE_CODES = ["PHASE_BLOCKED", "ONBOARDING_INCOMPLETE", "READINESS_UNVERIFIED", "READINESS_FAILED", RU_WIZARD_SYNC_CODE];
 
 
-async function isRuConnected(supabase: any, propertyId: string): Promise<boolean> {
-  const gate = await evaluateRuOperationalSync(supabase, propertyId);
-  return gate.allowed;
-}
 
 
 /**
