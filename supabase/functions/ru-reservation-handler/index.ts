@@ -300,7 +300,10 @@ Deno.serve(async (req) => {
       // created. Ingesting it would rewrite the booking (firing a pointless ModifyStay) and,
       // for the stay-less `request` echo, fan a detail pull across every account until the
       // channel answers -6. Record the evidence and stop.
-      const echo = await findRuOwnPushEcho(supabase, r.ruReservationId, kind);
+      const echo = await findRuOwnPushEcho(supabase, r.ruReservationId, kind, {
+        dateFrom: r.dateFrom,
+        dateTo: r.dateTo,
+      });
       if (echo) {
         console.log(
           `[ru-reservation-handler] Reservation ${r.ruReservationId} is our own push (booking ${echo.bookingId} at ${echo.pushedAt}) — echo suppressed`,
