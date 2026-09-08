@@ -53,6 +53,7 @@ import {
   type ChargeCategory 
 } from "./ChargeCalculator";
 import { FormattedPrice } from "@/components/FormattedPrice";
+import { classifyChannelFee } from "@/lib/channelFeeTaxTypes";
 
 interface AdditionalChargesManagerProps {
   propertyId: string;
@@ -274,6 +275,25 @@ export function AdditionalChargesManager({
                             In rate
                           </Badge>
                         )}
+                        {(() => {
+                          const verdict = classifyChannelFee(charge);
+                          if (verdict.status === 'not_sent') return null;
+                          return (
+                            <Badge
+                              variant="outline"
+                              className={
+                                verdict.status === 'recognised'
+                                  ? 'text-[10px] border-emerald-500/40 text-emerald-600'
+                                  : verdict.status === 'unknown'
+                                    ? 'text-[10px] border-destructive/40 text-destructive'
+                                    : 'text-[10px] text-muted-foreground'
+                              }
+                              title={verdict.detail}
+                            >
+                              {verdict.status === 'recognised' ? verdict.label : verdict.label}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">

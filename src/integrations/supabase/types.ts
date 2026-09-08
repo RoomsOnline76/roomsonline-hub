@@ -6415,6 +6415,7 @@ export type Database = {
           applies_to_infants: boolean | null
           calculation_method: string
           category: string
+          channel_fee_type: number | null
           created_at: string | null
           currency: string | null
           description: string | null
@@ -6450,6 +6451,7 @@ export type Database = {
           applies_to_infants?: boolean | null
           calculation_method: string
           category: string
+          channel_fee_type?: number | null
           created_at?: string | null
           currency?: string | null
           description?: string | null
@@ -6485,6 +6487,7 @@ export type Database = {
           applies_to_infants?: boolean | null
           calculation_method?: string
           category?: string
+          channel_fee_type?: number | null
           created_at?: string | null
           currency?: string | null
           description?: string | null

@@ -17,6 +17,8 @@ export interface RuChargeRow {
   applies_to_all_rooms?: boolean | null;
   room_type_ids?: string[] | null;
   is_included_in_rate?: boolean | null;
+  /** Operator's explicit RU FeeTaxType pick; null = derive from the charge name. */
+  channel_fee_type?: number | null;
 }
 
 /** Charge categories RU understands as a refundable security / breakage deposit. */
@@ -100,4 +102,5 @@ export const RU_CHARGE_COLUMNS = [
   'is_included_in_rate',
   'applies_to_all_rooms',
   'room_type_ids',
+  'channel_fee_type',
 ] as const;
