@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInDays, format, parseISO, startOfDay } from "date-fns";
-import { CalendarClock, CalendarIcon, Loader2, Undo2, Wallet } from "lucide-react";
+import { CalendarClock, CalendarIcon, Info, Loader2, Undo2, User, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
