@@ -543,6 +543,38 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
 
   const money = (n: number) => `R${Math.abs(n).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}`;
 
+  /* The breakdown shows the live quote once it lands, and the booking's own stored snapshot
+   * until then, so the money story is never blank while a quote is in flight. */
+  const billingLines = useMemo<ChargeLine[]>(() => {
+    if (extras && extras.lines.length > 0) {
+      return [
+        { name: "Accommodation", category: null, amount: extras.accommodation, breakdown: null, is_refundable: false, counts_in_total: true },
+        ...extras.lines,
+      ];
+    }
+    if (received && received.storedLines.length > 0) {
+      return [
+        { name: "Accommodation", category: null, amount: storedAccommodation, breakdown: null, is_refundable: false, counts_in_total: true },
+        ...received.storedLines,
+      ];
+    }
+    return [
+      { name: "Accommodation", category: null, amount: Number(totalPrice || 0), breakdown: null, is_refundable: false, counts_in_total: true },
+    ];
+  }, [extras, received, storedAccommodation, totalPrice]);
+
+  const commissionView = useMemo(
+    () =>
+      readCommission({
+        guestTotal,
+        calculated_commission: received?.commission.amount ?? null,
+        commission_rate_applied: received?.commission.rate ?? null,
+        commission_type: received?.commission.type ?? null,
+      }),
+    [guestTotal, received],
+  );
+
+
   const originalFrom = toDate(booking.check_in_date);
   const originalTo = toDate(booking.check_out_date);
   const selectedFrom = toDate(checkIn);
