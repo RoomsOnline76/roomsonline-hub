@@ -15,6 +15,9 @@ import {
   RU_MIN_BOOKABLE_WINDOW,
 } from "./ruContentQuality.ts";
 
+/** Longest minimum stay every channel accepts. A longer value is refused at connect time. */
+export const RU_MAX_MIN_STAY = 28;
+
 export type RuCheckGroup =
   | "Content"
   | "Rooms & beds"
@@ -104,6 +107,9 @@ export interface RuUnitValidation {
   images_meeting_cert_size?: number;
   images_measured_count?: number;
   images_meet_cert_size?: boolean;
+  /** Photos the channel-style probe could not fetch at all. */
+  images_rejected_count?: number;
+  image_issues?: Array<{ url?: string; reason?: string }>;
   smallest_image_width?: number | null;
   smallest_image_height?: number | null;
   bedroom_blocks?: number;
@@ -381,6 +387,19 @@ export function evaluateUnitChecks(
     }`,
     "Property → Images", false);
 
+  // Channels fetch every photo URL themselves and refuse the listing when one fails, so the
+  // reachability verdict belongs in the up-front photo list — not at the connect step.
+  const unreachable = Number(v.images_rejected_count ?? 0);
+  const unreachableReasons = (v.image_issues ?? [])
+    .map((i) => String(i?.reason ?? "").trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  add("images_reachable", "Photos", "Photos can be downloaded", unreachable === 0,
+    `${unreachable} photo(s) could not be downloaded${
+      unreachableReasons.length > 0 ? ` (${unreachableReasons.join("; ")})` : ""
+    } — a channel fetches every file and rejects the listing when one fails. Re-upload them so they are publicly reachable`,
+    "Property → Images — re-upload the failing photos", false);
+
   add("has_main_image", "Photos", "Main photo flagged", v.has_main_image !== false,
     "No photo is marked as the main image", "Property → Images → set the first image");
 
@@ -539,6 +558,8 @@ export function localBookableWindowChecks(
     unpriced_open_days: number;
     /** Active units with no MinStay authored — named so the fix opens the right card. */
     units_without_min_stay?: string[];
+    /** Authored minimum stays outside the 1–28 night range every channel accepts. */
+    min_stay_out_of_range?: string[];
   },
   unit?: string,
 ): RuCheck[] {
@@ -572,6 +593,20 @@ export function localBookableWindowChecks(
           detail: minStayUnits.length > 0
             ? `No minimum stay authored on ${minStayUnits.slice(0, 3).join(", ")}${minStayUnits.length > 3 ? ` +${minStayUnits.length - 3} more` : ""}`
             : "No minimum stay is authored on the affected Room Type or its dated/Rate Plan fallback",
+        }),
+    },
+    {
+      key: "min_stay_within_channel_range",
+      group: "Availability 365d",
+      label: `Minimum stay within 1–${RU_MAX_MIN_STAY} nights`,
+      mandatory: true,
+      passed: (window.min_stay_out_of_range ?? []).length === 0,
+      unit,
+      fix_hint: "Edit Property → Rooms → Room Type → Min Stay",
+      ...((window.min_stay_out_of_range ?? []).length === 0
+        ? {}
+        : {
+          detail: `A minimum stay longer than ${RU_MAX_MIN_STAY} nights is refused by the channels: ${(window.min_stay_out_of_range ?? []).slice(0, 3).join(", ")}`,
         }),
     },
   ];

@@ -11,6 +11,7 @@
 
 import { createRateResolver, eachDate, addDays, type UnitRateContext } from "./rateResolution.ts";
 import { RU_MIN_BOOKABLE_WINDOW } from "./ruContentQuality.ts";
+import { RU_MAX_MIN_STAY } from "./ruReadiness.ts";
 
 export interface RuLocalWindow {
   ok: boolean;
@@ -40,6 +41,11 @@ export interface RuLocalWindow {
   } | null;
   /** Active units with no MinStay authored on the room type. */
   units_without_min_stay: string[];
+  /**
+   * Units (or dated calendar rows) whose authored MinStay falls outside the range every
+   * channel accepts (1–28 nights). A longer minimum is refused at connect time.
+   */
+  min_stay_out_of_range: string[];
   unit_windows: Array<{
     name: string;
     ok: boolean;
@@ -68,6 +74,7 @@ const EMPTY = (from: string, to: string): RuLocalWindow => ({
   units_with_max_stay: 0,
   worst_unit: null,
   units_without_min_stay: [],
+  min_stay_out_of_range: [],
   unit_windows: [],
 });
 
@@ -90,6 +97,7 @@ export async function computeLocalBookableWindow(
     const blockedByUnit = new Map<string, Set<string>>();
     const blockedAll = new Set<string>();
     const minStayDates = new Set<string>();
+    const longMinStayDates = new Set<string>();
     const { data: availRows } = await admin
       .from("property_availability")
       .select("date, room_type, available_units, is_stop_sell, minimum_stay")
@@ -111,6 +119,7 @@ export async function computeLocalBookableWindow(
         }
       }
       if (Number(row.minimum_stay ?? 0) > 0) minStayDates.add(date);
+      if (Number(row.minimum_stay ?? 0) > RU_MAX_MIN_STAY) longMinStayDates.add(date);
     }
 
     // ── Min/Max Stay authored anywhere that reaches the channel payload ──
@@ -128,6 +137,16 @@ export async function computeLocalBookableWindow(
       .filter(Boolean);
     result.units_with_min_stay = activeStayRows.filter((row) => Number(row.min_stay ?? 0) > 0).length;
     result.units_with_max_stay = activeStayRows.filter((row) => Number(row.max_stay ?? 0) > 0).length;
+    // A minimum stay longer than the channel range is refused at connect time, so it belongs
+    // in the up-front readiness list rather than in a surprise at the Channel Manager.
+    result.min_stay_out_of_range = [
+      ...activeStayRows
+        .filter((row) => Number(row.min_stay ?? 0) > RU_MAX_MIN_STAY)
+        .map((row) => `${String(row.name ?? "Unit").trim() || "Unit"} (${Number(row.min_stay ?? 0)} nights)`),
+      ...(longMinStayDates.size > 0
+        ? [`${longMinStayDates.size} calendar day(s) with a minimum stay over ${RU_MAX_MIN_STAY} nights`]
+        : []),
+    ];
 
     let minStaySet = minStayDates.size > 0;
     if (!minStaySet && activeStayRows.length > 0) {
