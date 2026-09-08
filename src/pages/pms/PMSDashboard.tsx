@@ -1373,7 +1373,8 @@ export default function PMSDashboard() {
           const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
           const inSeason = periods.some((p: any) => dateStr >= p.from && dateStr <= p.to);
           if (inSeason) {
-            let seasonRate = roomSeasonRates[season.id];
+            let seasonRate = (preferredPlanId ? roomSeasonRates[`${season.id}-${preferredPlanId}`] : null)
+              || roomSeasonRates[season.id];
             if (!seasonRate) {
               const fallbackKey = Object.keys(roomSeasonRates).find(k => k.startsWith(`${season.id}-`));
               if (fallbackKey) seasonRate = roomSeasonRates[fallbackKey];
