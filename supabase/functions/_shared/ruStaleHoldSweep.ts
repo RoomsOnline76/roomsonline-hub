@@ -155,10 +155,14 @@ export async function sweepStaleRuHolds(
     try {
       // No `kind` is passed on purpose: the channel's own answer must decide. Forcing
       // 'cancelled' here would cancel a stay the channel still holds.
+      // The scheduled pull hands us the ids it just listed, which means the listings for these
+      // accounts are seconds old: asking again is the -6 refusal we kept recording as "deferred".
       const refreshed = await refresh(supabase, reservationId, {
         propertyId: row.property_id,
         logPrefix: `${log}[${reservationId}]`,
+        skipListFallback: opts.seenReservationIds !== undefined,
       });
+
 
       if (refreshed.rateDeferred) {
         verdict = 'deferred';

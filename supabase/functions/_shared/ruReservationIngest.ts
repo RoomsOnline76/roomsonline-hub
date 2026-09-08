@@ -454,11 +454,45 @@ async function resolveRuNationality(supabase: Db, countryId: string | null): Pro
   return row.name;
 }
 
+/**
+ * Ingest one channel reservation.
+ *
+ * Every write made here is the channel's own news. It is stamped as a synced channel write so the
+ * booking triggers recognise it as inbound: without that stamp a re-ingest of an unchanged stay
+ * enqueued an outbound "moved" push every polling cycle, forever.
+ */
 export async function ingestRuReservation(
   supabase: Db,
   r: ParsedRuReservation,
   opts: RuIngestOptions,
 ): Promise<RuIngestResult> {
+  const result = await ingestRuReservationInner(supabase, r, opts);
+  if (result.bookingId) {
+    try {
+      await supabase.from('booking_sync_status').upsert(
+        {
+          booking_id: String(result.bookingId),
+          external_system: 'rentalsunited',
+          sync_status: 'synced',
+          last_action: 'inbound_ingest',
+          last_action_at: new Date().toISOString(),
+          error_message: null,
+        },
+        { onConflict: 'booking_id,external_system' },
+      );
+    } catch (_e) {
+      // Bookkeeping must never break an ingest.
+    }
+  }
+  return result;
+}
+
+async function ingestRuReservationInner(
+  supabase: Db,
+  r: ParsedRuReservation,
+  opts: RuIngestOptions,
+): Promise<RuIngestResult> {
+
   const log = opts.logPrefix || '[ru-ingest]';
   const base: RuIngestResult = {
     outcome: 'skipped',
@@ -946,8 +980,20 @@ async function recentlyProvenAbsent(supabase: Db, reservationId: string): Promis
 export async function fetchRuReservationById(
   supabase: Db,
   reservationId: string,
-  opts: { propertyId?: string | null; ownerId?: string | null; creator?: string | null } = {},
+  opts: {
+    propertyId?: string | null;
+    ownerId?: string | null;
+    creator?: string | null;
+    /**
+     * The caller has just listed this account's reservations and leads on the wire (the
+     * 30-minute pull does exactly that before the stale-hold sweep runs). Listing again
+     * inside the same minute only earns the channel's -6 refusal, so the fallback pass is
+     * skipped and the by-id answer stands on its own.
+     */
+    skipListFallback?: boolean;
+  } = {},
 ): Promise<RuDetailLookup> {
+
   if (await recentlyProvenAbsent(supabase, reservationId)) {
     return {
       reservation: null,
@@ -991,6 +1037,10 @@ export async function fetchRuReservationById(
   let rateDeferred = false;
   let partial: ParsedRuReservation | null = null;
   let partialOwnerId: string | null | undefined;
+  // Every scope answered "does not exist" with no rate refusal anywhere: that is a definite
+  // absence, not an unknown. The listing fallback cannot overturn it and its own -6 refusal
+  // used to be reported as "deferred", which left dead stays confirmed forever.
+  let allDefinitelyAbsent = true;
 
   // Pass 1 — by id, across accounts.
   for (const scope of scopes) {
@@ -1005,6 +1055,7 @@ export async function fetchRuReservationById(
     if (attempt.reservation?.ruReservationId) {
       partial = attempt.reservation;
       partialOwnerId = scope.ownerId;
+      allDefinitelyAbsent = false;
       break;
     }
 
@@ -1022,12 +1073,36 @@ export async function fetchRuReservationById(
       };
     }
     if (attempt.error) lastError = attempt.error;
+    if (!/does not exist|not found/i.test(String(attempt.error ?? ''))) allDefinitelyAbsent = false;
   }
 
+  if (allDefinitelyAbsent) {
+    return {
+      reservation: null,
+      rawXml: null,
+      error: lastError ?? 'Reservation does not exist.',
+      rateDeferred: false,
+      resolvedOwnerId: null,
+    };
+  }
 
-  // Pass 2 — lead/reservation listings. When pass 1 already proved which account owns the
-  // reservation, only that account is asked: every other scope answers with an empty list and
-  // spends the per-method minute the owning account needs.
+  // Pass 2 — lead/reservation listings. Skipped when the caller has just listed these accounts
+  // on the wire: a second listing inside the same minute is the -6 refusal, not new information.
+  if (opts.skipListFallback) {
+    return {
+      reservation: null,
+      rawXml: null,
+      error: lastError ?? 'Reservation not found in Rentals United',
+      rateDeferred: false,
+      partial,
+      resolvedOwnerId: partialOwnerId ?? null,
+    };
+  }
+
+  // When pass 1 already proved which account owns the reservation, only that account is asked:
+  // every other scope answers with an empty list and spends the per-method minute the owning
+  // account needs.
+
   const listScopes = partialOwnerId !== undefined ? [{ ownerId: partialOwnerId }] : scopes;
 
   const seenList = new Set<string>();
@@ -1119,6 +1194,9 @@ export async function refreshRuReservationById(
     kind?: RuNotificationKind;
     /** RU `Creator` from the envelope — resolves the owning sub-account first. */
     creator?: string | null;
+    /** The caller already listed these accounts on the wire — skip the listing fallback. */
+    skipListFallback?: boolean;
+
   } = {},
 ): Promise<RuIngestResult & { rateDeferred?: boolean; resolvedOwnerId?: string | null }> {
   const log = opts.logPrefix || '[ru-ingest]';
