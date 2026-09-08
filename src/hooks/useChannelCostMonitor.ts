@@ -13,7 +13,21 @@ import {
 } from "@/lib/channelBillingForecast";
 import { pushReportedOn } from "@/lib/channelDistributionGate";
 
-export type ChannelSyncState = "live" | "paused" | "archived" | "pending";
+export type ChannelSyncState = "live" | "paused" | "archived" | "pending" | "unlinked";
+
+/** How a property's distribution account was resolved. */
+export type AccountScope = "own" | "portfolio" | "inherited" | "email" | "none";
+
+export interface AccountResolution {
+  ownerId: string | null;
+  subUserId: string | null;
+  ownerEmail: string | null;
+  keysCaptured: boolean;
+  companyDetailsSent: boolean;
+  scope: AccountScope;
+  /** Portfolio the account is shared across, when it is not the property's own row. */
+  sourceName: string | null;
+}
 
 export interface ChannelUnitRow {
   id: string;
@@ -52,6 +66,10 @@ export interface ChannelPropertyRow {
   subUserId: string | null;
   /** Portal login email for the channel sub-account linked to this property. */
   ownerEmail: string | null;
+  /** How the account was resolved (own row, portfolio, inherited from a sibling). */
+  accountScope: AccountScope;
+  /** Where an inherited/shared account comes from, for display. */
+  accountSourceName: string | null;
 }
 
 export interface ArchiveEventRow {
@@ -294,49 +312,57 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         company_details_sent: boolean | null;
       }>;
       const ownerIds = [...new Set(ruAccounts.map((a) => a.ru_owner_id).filter(Boolean))] as string[];
-      const { data: credRows } = ownerIds.length
-        ? await supabase.from("ru_api_credentials").select("ru_owner_id, access_key").in("ru_owner_id", ownerIds)
-        : { data: [] as { ru_owner_id: string; access_key: string | null }[] };
-      const ownersWithKeys = new Set(
-        (credRows ?? [])
-          .filter((c) => !!c.access_key)
-          .map((c) => String(c.ru_owner_id)),
-      );
-      const credsOf = (acc?: (typeof ruAccounts)[number]) => ({
-        ownerId: acc?.ru_owner_id ?? null,
-        // A sub-user id equal to the OwnerID is the same single account, not a second one.
-        subUserId:
-          acc?.ru_user_id && String(acc.ru_user_id) !== String(acc.ru_owner_id ?? "")
-            ? acc.ru_user_id
-            : null,
-        ownerEmail: acc?.owner_email ?? null,
 
-        keysCaptured: !!acc?.ru_api_access_key || (!!acc?.ru_owner_id && ownersWithKeys.has(String(acc.ru_owner_id))),
-        companyDetailsSent: acc?.company_details_sent === true,
-      });
-      const accountByProperty = new Map<
-        string,
-        { ownerId: string | null; subUserId: string | null; ownerEmail: string | null; keysCaptured: boolean; companyDetailsSent: boolean }
-      >();
-      for (const p of allProps) {
-        const direct = ruAccounts.find((a) => a.property_id === p.id);
-        if (direct) {
-          accountByProperty.set(p.id, credsOf(direct));
-          continue;
+      /**
+       * The account each property actually pushes through is resolved by the backend —
+       * the same resolver push and onboarding use, including portfolio-sibling
+       * inheritance. Resolving it here in the browser missed inherited accounts and
+       * reported bound properties as unlinked and paused.
+       */
+      type ResolvedAccount = {
+        ru_owner_id: string | null;
+        ru_user_id: string | null;
+        owner_email: string | null;
+        keys_captured: boolean;
+        company_details_sent: boolean;
+        scope: AccountScope;
+        source_property_id: string | null;
+        portfolio_name: string | null;
+      };
+      const accountByProperty = new Map<string, AccountResolution>();
+      const emptyResolution: AccountResolution = {
+        ownerId: null,
+        subUserId: null,
+        ownerEmail: null,
+        keysCaptured: false,
+        companyDetailsSent: false,
+        scope: "none",
+        sourceName: null,
+      };
+      if (allProps.length) {
+        const { data: resolvedRes } = await supabase.functions.invoke("ru-cert-portal", {
+          body: { action: "resolve_owner_accounts", property_ids: allProps.map((p) => p.id) },
+        });
+        const map = (resolvedRes?.accounts ?? {}) as Record<string, ResolvedAccount>;
+        for (const p of allProps) {
+          const acc = map[p.id];
+          accountByProperty.set(
+            p.id,
+            acc
+              ? {
+                  ownerId: acc.ru_owner_id ?? null,
+                  subUserId: acc.ru_user_id ?? null,
+                  ownerEmail: acc.owner_email ?? null,
+                  keysCaptured: acc.keys_captured === true,
+                  companyDetailsSent: acc.company_details_sent === true,
+                  scope: acc.scope ?? "none",
+                  sourceName: acc.portfolio_name ?? null,
+                }
+              : emptyResolution,
+          );
         }
-        const portfolioId = (membersRes.data || []).find((m) => m.property_id === p.id)?.portfolio_id;
-        const portfolioMatch = portfolioId
-          ? ruAccounts.find((a) => a.portfolio_id === portfolioId)
-          : undefined;
-        if (portfolioMatch) {
-          accountByProperty.set(p.id, credsOf(portfolioMatch));
-          continue;
-        }
-        const emailMatch = p.owner_email
-          ? ruAccounts.find((a) => (a.owner_email || "").toLowerCase() === p.owner_email!.toLowerCase())
-          : undefined;
-        accountByProperty.set(p.id, credsOf(emailMatch));
       }
+
 
       const draft = relevant.map((p) => {
         // Only records that carry a channel listing id have a channel footprint.
@@ -353,13 +379,7 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
             : archived || !p.rentalsunited_property_id
               ? 0
               : 1;
-        const creds = accountByProperty.get(p.id) ?? {
-          ownerId: null,
-          subUserId: null,
-          ownerEmail: null,
-          keysCaptured: false,
-          companyDetailsSent: false,
-        };
+        const creds = accountByProperty.get(p.id) ?? emptyResolution;
         const pushOn = pushReportedOn({
           ruPushEnabled: p.ru_push_enabled,
           ruOwnerId: creds.ownerId,
@@ -370,13 +390,17 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
         // push either never ran or failed.
         const neverPushed =
           !archived && !p.rentalsunited_property_id && withListing.length === 0;
+        // "Paused" means someone switched pushing off. A property with no account at
+        // all is a different problem and must read as such, not as paused.
         const state: ChannelSyncState = archived
           ? "archived"
-          : neverPushed
-            ? "pending"
-            : pushOn
-              ? "live"
-              : "paused";
+          : !creds.ownerId
+            ? "unlinked"
+            : neverPushed
+              ? "pending"
+              : pushOn
+                ? "live"
+                : "paused";
         const toRow = (u: UnitRecord): ChannelUnitRow => ({
           id: u.id,
           name: u.name || "Unit",
@@ -402,6 +426,8 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
           ownerId: creds.ownerId,
           subUserId: creds.subUserId,
           ownerEmail: creds.ownerEmail,
+          accountScope: creds.scope,
+          accountSourceName: creds.sourceName,
         } satisfies ChannelPropertyRow;
       });
 
@@ -427,20 +453,12 @@ export function useChannelCostMonitor(): ChannelCostMonitorData {
       const tradingProps = allProps.filter(isTradingProp);
       const tradingIds = new Set(tradingProps.map((p) => p.id));
 
-      const subAccountPropertyIds = new Set<string>();
-      for (const acc of ruAccounts) {
-        if (acc.portfolio_id) {
-          membersRows
-            .filter((m) => m.portfolio_id === acc.portfolio_id && tradingIds.has(m.property_id))
-            .forEach((m) => subAccountPropertyIds.add(m.property_id));
-        } else if (acc.property_id) {
-          if (tradingIds.has(acc.property_id)) subAccountPropertyIds.add(acc.property_id);
-        } else if (acc.owner_email) {
-          tradingProps
-            .filter((p) => (p.owner_email || "").toLowerCase() === acc.owner_email!.toLowerCase())
-            .forEach((p) => subAccountPropertyIds.add(p.id));
-        }
-      }
+      // Membership of a sub-account follows the same resolution as the push path, so a
+      // property inheriting its portfolio's account counts as connected.
+      const subAccountPropertyIds = new Set<string>(
+        tradingProps.filter((p) => !!accountByProperty.get(p.id)?.ownerId).map((p) => p.id),
+      );
+      void membersRows;
 
       // Only properties with an actual channel footprint belong in these counters —
       // portfolio siblings with nothing on the channel manager would otherwise pad

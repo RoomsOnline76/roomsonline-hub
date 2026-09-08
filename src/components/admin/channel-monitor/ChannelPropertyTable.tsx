@@ -27,6 +27,7 @@ const STATE_LABELS: Record<ChannelSyncState, string> = {
   paused: "Paused",
   archived: "Archived",
   pending: "Never pushed",
+  unlinked: "Not linked",
 };
 
 export function ChannelPropertyTable({
@@ -144,6 +145,12 @@ export function ChannelPropertyTable({
               {row.subUserId && row.subUserId !== row.ownerId && (
                 <span className="font-mono" title="Channel sub-user ID">
                   User: {row.subUserId}
+                </span>
+              )}
+              {row.ownerId && row.accountScope !== "own" && (
+                <span title="This property shares an account with the rest of its group">
+                  Shared account
+                  {row.accountSourceName ? ` — ${row.accountSourceName}` : ""}
                 </span>
               )}
               {!row.ownerId && !row.subUserId && (
@@ -323,6 +330,7 @@ export function ChannelPropertyTable({
               <SelectItem value="live">Live</SelectItem>
               <SelectItem value="paused">Paused</SelectItem>
               <SelectItem value="pending">Never pushed</SelectItem>
+              <SelectItem value="unlinked">Not linked</SelectItem>
               <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
