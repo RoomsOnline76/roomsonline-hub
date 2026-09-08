@@ -69,7 +69,7 @@ function latestNotes(raw: unknown): Record<string, unknown> {
   return raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
 }
 
-export function readChannelDetails(rawNotes: Notes | unknown[], fallbackReservationId?: string | null): ReceivedChannelDetails {
+export function readChannelDetails(rawNotes: unknown, fallbackReservationId?: string | null): ReceivedChannelDetails {
   const notes = latestNotes(rawNotes);
 
   const nights: ReceivedNightPrice[] = Array.isArray(notes.nightly_prices)
@@ -99,7 +99,7 @@ export function readChannelDetails(rawNotes: Notes | unknown[], fallbackReservat
   const channelLabel =
     str(creator.channel_label) ?? str(creator.creator) ?? str(notes.creator) ?? str(notes.channel);
 
-  const details: ReceivedChannelDetails = {
+  const details: Omit<ReceivedChannelDetails, "hasDetails"> = {
     reservationId: str(notes.ru_reservation_id) ?? str(fallbackReservationId),
     secondaryId: str(notes.resapa_id),
     channelLabel,
@@ -117,7 +117,7 @@ export function readChannelDetails(rawNotes: Notes | unknown[], fallbackReservat
     amountAlreadyPaid: num(notes.amount_already_paid),
   };
 
-  details.hasDetails = Boolean(
+  const hasDetails = Boolean(
     details.reservationId ||
       details.channelLabel ||
       details.nights.length > 0 ||
@@ -127,7 +127,7 @@ export function readChannelDetails(rawNotes: Notes | unknown[], fallbackReservat
       details.unitNotes.length > 0,
   );
 
-  return details;
+  return { ...details, hasDetails };
 }
 
 export interface CommissionView {
