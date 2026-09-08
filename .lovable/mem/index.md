@@ -1,3 +1,4 @@
+- [Channel-side Edit Window](mem://features/pms/channel-side-edit-window) — stay-less channel reservation reopens the matching booking's own nights for 15 min so a portal stay change can succeed
 - [Channel Cancellation Safety Net](mem://features/pms/channel-cancellation-safety-net) — verify live channel stays the channel never listed; portal cancellations settle locally and release nights, rate refusals never cancel
 - [RU Inline AdditionalFees](mem://features/pms/ru-inline-additional-fees) — Fees ride in Push_PutProperty_RQ AdditionalFees; no separate verb; discriminator/fee-type vocabularies; CleaningPrice 0 transition
 - [Channel Unit Scope Id Tolerance](mem://features/pms/channel-unit-scope-id-tolerance) — only_unit_ids accepts ROL'OS room type ids and channel unit ids; an unmatched scope falls back to all units, never RU_NOT_LISTED
