@@ -24,6 +24,12 @@ import {
 } from "@/lib/unitAvailability";
 import { cn } from "@/lib/utils";
 import { modifyBooking } from "@/lib/bookingModification";
+import {
+  readChannelDetails,
+  readCommission,
+  type ReceivedChannelDetails,
+} from "@/lib/bookingReceivedDetails";
+
 
 interface Props {
   open: boolean;
