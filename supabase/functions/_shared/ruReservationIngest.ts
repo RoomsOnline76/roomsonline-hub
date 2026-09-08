@@ -454,11 +454,45 @@ async function resolveRuNationality(supabase: Db, countryId: string | null): Pro
   return row.name;
 }
 
+/**
+ * Ingest one channel reservation.
+ *
+ * Every write made here is the channel's own news. It is stamped as a synced channel write so the
+ * booking triggers recognise it as inbound: without that stamp a re-ingest of an unchanged stay
+ * enqueued an outbound "moved" push every polling cycle, forever.
+ */
 export async function ingestRuReservation(
   supabase: Db,
   r: ParsedRuReservation,
   opts: RuIngestOptions,
 ): Promise<RuIngestResult> {
+  const result = await ingestRuReservationInner(supabase, r, opts);
+  if (result.bookingId) {
+    try {
+      await supabase.from('booking_sync_status').upsert(
+        {
+          booking_id: String(result.bookingId),
+          external_system: 'rentalsunited',
+          sync_status: 'synced',
+          last_action: 'inbound_ingest',
+          last_action_at: new Date().toISOString(),
+          error_message: null,
+        },
+        { onConflict: 'booking_id,external_system' },
+      );
+    } catch (_e) {
+      // Bookkeeping must never break an ingest.
+    }
+  }
+  return result;
+}
+
+async function ingestRuReservationInner(
+  supabase: Db,
+  r: ParsedRuReservation,
+  opts: RuIngestOptions,
+): Promise<RuIngestResult> {
+
   const log = opts.logPrefix || '[ru-ingest]';
   const base: RuIngestResult = {
     outcome: 'skipped',
