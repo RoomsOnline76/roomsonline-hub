@@ -253,7 +253,7 @@ Deno.serve(async (req) => {
 
       const { data: booking, error: bErr } = await supabase
         .from("bookings")
-        .select("id, property_id, rol_reference, rol_reference_legacy, guest_name, guest_email, check_in_date, total_price, payment_status, status, booking_channel")
+        .select("id, property_id, rol_reference, rol_reference_legacy, guest_name, guest_email, check_in_date, total_price, payment_status, status, booking_channel, cancellation_policy_id")
         .eq("id", booking_id)
         .maybeSingle();
       if (bErr) throw bErr;
@@ -267,6 +267,8 @@ Deno.serve(async (req) => {
         property_id: booking.property_id,
         check_in: booking.check_in_date,
         amount_paid: amountPaid,
+        // The policy the guest booked under (stay-shape or plan) decides the entitlement.
+        policy_id: booking.cancellation_policy_id ?? null,
       });
 
       // Never refund more than the guest actually paid.
