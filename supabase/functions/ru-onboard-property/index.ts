@@ -143,6 +143,30 @@ async function readBinding(admin: any, propertyId: string) {
     account = (pfScoped as Record<string, unknown> | null) ?? null;
   }
 
+  // One account serves the whole portfolio, even when its row was written against a
+  // single member property — siblings inherit it instead of reading as unbound.
+  if (!account && !readError && portfolioId) {
+    const { data: members } = await admin
+      .from("property_portfolio_members")
+      .select("property_id")
+      .eq("portfolio_id", portfolioId);
+    const siblingIds = ((members ?? []) as Array<{ property_id: string }>)
+      .map((m) => m.property_id)
+      .filter((id) => id && id !== propertyId);
+    if (siblingIds.length) {
+      const { data: siblingRows, error: sibError } = await admin
+        .from("ru_owner_accounts")
+        .select(select)
+        .in("property_id", siblingIds);
+      if (sibError) readError = sibError.message ?? String(sibError);
+      account =
+        ((siblingRows ?? []) as Array<Record<string, unknown>>).find((row) =>
+          String(row.ru_owner_id ?? "").trim(),
+        ) ?? null;
+    }
+  }
+
+
   /**
    * A row without an OwnerID is a leftover shell (closed account, sterilized property),
    * not a binding. Reporting it as bound made a disconnected property keep showing the
