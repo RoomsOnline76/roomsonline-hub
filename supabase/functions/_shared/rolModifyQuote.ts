@@ -14,6 +14,8 @@ export interface RolModifyQuote {
   nightly: number | null;
   source: string | null;
   shape: StayQuoteShape;
+  /** Cancellation policy carried by the matched rung/cell; null = inherit the plan's. */
+  policy_id: string | null;
 }
 
 interface QuotingResolver {
@@ -36,5 +38,6 @@ export function rolModifyQuote(
     nightly: Number.isFinite(quote.display_per_night) ? quote.display_per_night : null,
     source: quote.source ? String(quote.source) : null,
     shape: quote.shape,
+    policy_id: quote.policy_id ?? null,
   };
 }
