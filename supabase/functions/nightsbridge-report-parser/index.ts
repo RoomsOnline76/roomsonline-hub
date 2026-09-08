@@ -7,6 +7,12 @@ import * as XLSX from "npm:xlsx@0.18.5";
 import { getDocumentProxy } from "npm:unpdf@0.12.1";
 import { repairWorkbookBuffer } from "../_shared/xlsxRepair.ts";
 import {
+  describeExtrasReport,
+  readExtrasReport,
+  type ExtrasReportSummary,
+} from "../_shared/nbExtrasReport.ts";
+
+import {
   aggregateLedger,
   type LedgerRow,
 } from "../_shared/nightsbridgeAggregate.ts";
@@ -258,6 +264,9 @@ Deno.serve(async (req) => {
     }
 
     const ledger: RoutableRow[] = [];
+    /** Extras / F&B charge lists recognised on this run. */
+    const extrasSummaries: { filename: string; summary: ExtrasReportSummary }[] = [];
+
     const fileResults: Array<{
       id: string;
       filename: string;
@@ -316,6 +325,40 @@ Deno.serve(async (req) => {
       let parsed: LedgerParseResult;
       {
         const buffer = await download.data.arrayBuffer();
+
+        // An extras / F&B charge list is not a bookings ledger. Recognise it up
+        // front so it reports what it holds instead of asking for a column map
+        // it can never satisfy.
+        const extension = extensionOf(file.original_filename);
+        if (extension === "xlsx" || extension === "xls") {
+          try {
+            const repaired = await repairWorkbookBuffer(buffer);
+            const summary = readExtrasReport(sheetsFromWorkbook(repaired.buffer));
+            if (summary) {
+              extrasSummaries.push({ filename: file.original_filename, summary });
+              fileResults.push({
+                id: file.id,
+                filename: file.original_filename,
+                parsed_ok: true,
+                row_count: summary.rowCount,
+                errors: [],
+                status: "parsed",
+                sheet: summary.sheet,
+                notes: [describeExtrasReport(summary)],
+                headers: [],
+                sample_rows: [],
+                mapping: {},
+                unresolved: [],
+                fingerprint: null,
+              });
+              processedFiles += 1;
+              continue;
+            }
+          } catch {
+            // Not readable as an extras sheet — fall through to the ledger reader.
+          }
+        }
+
         parsed = await parseSourceFile(buffer, file.original_filename, {
           override: onlyFileId ? reviewerMapping : null,
           overrideSheet: onlyFileId ? reviewerSheet : null,
@@ -361,6 +404,7 @@ Deno.serve(async (req) => {
       parsed.rows.length = 0;
       processedFiles += 1;
     }
+
 
     // Remember a reviewer-confirmed mapping that worked, for future files.
     if (onlyFileId && reviewerMapping && fileResults[0]?.parsed_ok) {
@@ -908,6 +952,13 @@ Deno.serve(async (req) => {
       rows_kept: routing.kept.length,
       rows_routed_away: routing.routedAway.length,
       files: fileResults,
+      extras_reports: extrasSummaries.map(({ filename, summary }) => ({
+        filename,
+        totals_by_month: summary.totalsByMonth,
+        food_by_month: summary.foodByMonth,
+        grand_total: summary.grandTotal,
+      })),
+
       months: aggregate.months,
       totals: aggregate.totals,
     });

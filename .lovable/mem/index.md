@@ -1,4 +1,6 @@
+- [NB Extras Report files](mem://features/reports/nb-extras-report-files) — TBL Dinner extras/F&B lists parsed as informational, never rooms revenue
 - [Channel Connect Readiness](mem://features/pms/channel-connect-readiness) — Pre-flight per-channel eligibility checklist above the Channel Manager embed; decoded content-quality results
+
 - [Channel Fee/Tax Type Tagging](mem://features/pms/channel-fee-tax-type-tagging) — channel_fee_type pick per charge, accepted-code dictionary, accepted/unknown tags in the Fees & Taxes editor
 - [Channel-side Edit Window](mem://features/pms/channel-side-edit-window) — stay-less channel reservation reopens the matching booking's own nights for 15 min so a portal stay change can succeed
 - [Channel Cancellation Safety Net](mem://features/pms/channel-cancellation-safety-net) — verify live channel stays the channel never listed; portal cancellations settle locally and release nights, rate refusals never cancel
