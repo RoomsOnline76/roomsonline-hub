@@ -54,6 +54,7 @@ import PropertyForm from "@/pages/PropertyForm";
 import PropertyContactDetails from "@/components/property/PropertyContactDetails";
 import { PropertyRuOwnerPanel } from "@/components/property/PropertyRuOwnerPanel";
 import { RuWhiteLabelEmbed } from "@/components/pms/channels/RuWhiteLabelEmbed";
+import { ChannelConnectReadinessPanel } from "@/components/pms/channels/ChannelConnectReadinessPanel";
 import { RuCurrencyNotice } from "@/components/pms/channels/RuCurrencyNotice";
 import { RuCurrencyVerifyCard } from "@/components/pms/channels/RuCurrencyVerifyCard";
 import {
@@ -753,6 +754,7 @@ export function ChannelOnboardingWorkspace({ propertyId, variant }: Props) {
           </Button>
         </div>
         <RuCurrencyNotice propertyId={propertyId} />
+        <ChannelConnectReadinessPanel propertyId={propertyId} onOpenSection={openEditorSection} />
         <RuWhiteLabelEmbed propertyId={propertyId} />
       </div>
     );
