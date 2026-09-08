@@ -1,6 +1,12 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
+import {
+  fetchAuthoredSeasonRates,
+  findCalendarSeasonIdForDate,
+  authoredRateFor,
+  emptyAuthoredSeasonRates,
+} from "@/lib/dashboardAuthoredRates";
 
 import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
