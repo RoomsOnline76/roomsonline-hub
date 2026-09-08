@@ -625,12 +625,22 @@ export function BookingModifyDialog({ open, onOpenChange, booking, isRuBooking =
         modifications.overbook_override_reason = overbookReason.trim();
       }
 
+      // Guest record corrections travel with the same save. They are written locally only,
+      // so a guest-only edit never asks the channel to re-price or re-place the stay.
+      for (const { key } of GUEST_LABELS) {
+        if (guest[key].trim() !== guestBaseline[key].trim()) modifications[key] = guest[key].trim();
+      }
+      if (specialRequests.trim() !== specialRequestsBaseline.trim()) {
+        modifications.special_requests = specialRequests.trim();
+      }
+
       const changedKeys = Object.keys(modifications).filter((k) => k !== "note");
       if (changedKeys.length === 0) {
         toast.error("Nothing has changed yet.");
         setBusy(false);
         return;
       }
+
 
       const data = await modifyBooking({
           booking_id: booking.id,
