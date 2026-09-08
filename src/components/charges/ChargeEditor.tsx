@@ -19,6 +19,12 @@ import type {
   RevenueStream
 } from "./ChargeCalculator";
 import { getCalculationMethodLabel, getCategoryLabel, getRevenueStreamLabel, REVENUE_STREAMS, normalizeRevenueStream } from "./ChargeCalculator";
+import { Badge } from "@/components/ui/badge";
+import {
+  CHANNEL_FEE_TAX_TYPES,
+  channelFeeTaxLabel,
+  classifyChannelFee,
+} from "@/lib/channelFeeTaxTypes";
 
 interface ChargeEditorProps {
   open: boolean;
@@ -34,6 +40,7 @@ const DEFAULT_CHARGE: Omit<PropertyCharge, 'id' | 'property_id' | 'created_at' |
   name: '',
   internal_code: '',
   category: 'fee',
+  channel_fee_type: null,
   revenue_stream: 'accommodation',
   is_included_in_rate: false,
   calculation_method: 'flat_per_stay',
@@ -153,6 +160,7 @@ export function ChargeEditor({
     });
   };
 
+  const channelVerdict = classifyChannelFee(formData);
   const isPercentage = formData.calculation_method === 'percentage_of_accommodation';
   const isPersonBased = ['per_person', 'per_person_per_night'].includes(formData.calculation_method);
 
@@ -215,6 +223,43 @@ export function ChargeEditor({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="channel_fee_type">Channel fee / tax type</Label>
+              <Select
+                value={formData.channel_fee_type === null || formData.channel_fee_type === undefined ? 'auto' : String(formData.channel_fee_type)}
+                onValueChange={val => setFormData(prev => ({
+                  ...prev,
+                  channel_fee_type: val === 'auto' ? null : Number(val),
+                }))}
+              >
+                <SelectTrigger id="channel_fee_type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Work it out from the name</SelectItem>
+                  {CHANNEL_FEE_TAX_TYPES.map(type => (
+                    <SelectItem key={type.code} value={String(type.code)}>{type.label}</SelectItem>
+                  ))}
+                  <SelectItem value="0">Other / unknown</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    channelVerdict.status === 'recognised'
+                      ? 'border-emerald-500/40 text-emerald-600'
+                      : channelVerdict.status === 'unknown'
+                        ? 'border-destructive/40 text-destructive'
+                        : 'text-muted-foreground'
+                  }
+                >
+                  {channelVerdict.status === 'recognised' ? `Accepted: ${channelVerdict.label}` : channelVerdict.label}
+                </Badge>
+                <span className="text-xs text-muted-foreground">{channelVerdict.detail}</span>
+              </div>
             </div>
 
             <div className="space-y-2">

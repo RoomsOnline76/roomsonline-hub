@@ -85,6 +85,8 @@ export interface PropertyCharge {
   display_order: number;
   is_active: boolean;
   pms_external_id?: string | null;
+  /** Explicit Channel Manager fee/tax type. null = worked out from the charge name. */
+  channel_fee_type?: number | null;
   created_at?: string;
   updated_at?: string;
 }
