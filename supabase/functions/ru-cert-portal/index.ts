@@ -3930,6 +3930,10 @@ Deno.serve(async (req) => {
               scope: (account as any).scope,
               owner_email: (account as any).owner_email,
               ru_owner_id: ruOwnerId,
+              ru_user_id:
+                (account as any).ru_user_id && String((account as any).ru_user_id) !== String(ruOwnerId ?? "")
+                  ? String((account as any).ru_user_id)
+                  : null,
               ru_login_email: (account as any).ru_login_email ?? null,
               ru_login_url: (account as any).ru_login_url ?? null,
               company_details_sent: !!(account as any).company_details_sent,
