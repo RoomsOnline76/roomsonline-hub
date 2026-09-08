@@ -146,6 +146,12 @@ export function ChannelPropertyTable({
                   User: {row.subUserId}
                 </span>
               )}
+              {row.ownerId && row.accountScope !== "own" && (
+                <span title="This property shares an account with the rest of its group">
+                  Shared account
+                  {row.accountSourceName ? ` — ${row.accountSourceName}` : ""}
+                </span>
+              )}
               {!row.ownerId && !row.subUserId && (
                 <span className="italic">No channel account linked</span>
               )}
