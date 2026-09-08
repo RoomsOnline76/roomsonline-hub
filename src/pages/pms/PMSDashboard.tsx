@@ -1,6 +1,12 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useContext, createContext, Fragment } from "react";
 import { syncRolosRoomTypesFromOverview } from "@/lib/pmsRoomTypeSync";
 import { autoAssignBookings } from "@/lib/bookingAssignment";
+import {
+  fetchAuthoredSeasonRates,
+  findCalendarSeasonIdForDate,
+  authoredRateFor,
+  emptyAuthoredSeasonRates,
+} from "@/lib/dashboardAuthoredRates";
 
 import { GuestCheckInDialog } from "@/components/pms/crm/GuestCheckInDialog";
 import { ManualBookingDialog } from "@/components/pms/ManualBookingDialog";
@@ -555,6 +561,21 @@ export default function PMSDashboard() {
   }, [portfolioProperties, autoDefaultedView]);
   const portfolioPropertyIds = useMemo(() => portfolioProperties?.map(p => p.id) || [], [portfolioProperties]);
   const isPortfolioMode = dashboardView === "portfolio" && portfolioPropertyIds.length > 1;
+
+  /* Rate Plans is the only author of nightly rates — read the authored season rates directly. */
+  const authoredRateIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (propertyId) ids.add(propertyId);
+    portfolioPropertyIds.forEach((id) => ids.add(id));
+    return Array.from(ids).sort();
+  }, [propertyId, portfolioPropertyIds]);
+
+  const { data: authoredSeasonRates = emptyAuthoredSeasonRates } = useQuery({
+    queryKey: ["pms-authored-season-rates", authoredRateIds.join(",")],
+    queryFn: () => fetchAuthoredSeasonRates(authoredRateIds),
+    enabled: authoredRateIds.length > 0,
+    staleTime: 60_000,
+  });
 
   // Compute date range
   const dateRange = useMemo(() => {
@@ -1333,6 +1354,10 @@ export default function PMSDashboard() {
     if (!rt) return null;
     const amenities = propData.propertyData?.amenities;
     const dateStr = format(date, "yyyy-MM-dd");
+    const calendarSeasonId = findCalendarSeasonIdForDate(amenities, dateStr);
+    const authored = authoredRateFor(authoredSeasonRates, propId, calendarSeasonId, roomTypeId, rt.name);
+    if (authored != null) return authored;
+    const preferredPlanId = (authoredSeasonRates.planIdsByProperty.get(propId) || [])[0] || "";
     if (amenities?.seasons?.length && amenities?.season_rates) {
       let amenityIdForName: string | null = null;
       if (rt.name && Array.isArray(amenities.room_types)) {
@@ -1348,7 +1373,8 @@ export default function PMSDashboard() {
           const periods = season.periods?.length ? season.periods : [{ from: season.from || season.startDate, to: season.to || season.endDate }];
           const inSeason = periods.some((p: any) => dateStr >= p.from && dateStr <= p.to);
           if (inSeason) {
-            let seasonRate = roomSeasonRates[season.id];
+            let seasonRate = (preferredPlanId ? roomSeasonRates[`${season.id}-${preferredPlanId}`] : null)
+              || roomSeasonRates[season.id];
             if (!seasonRate) {
               const fallbackKey = Object.keys(roomSeasonRates).find(k => k.startsWith(`${season.id}-`));
               if (fallbackKey) seasonRate = roomSeasonRates[fallbackKey];
@@ -1361,7 +1387,7 @@ export default function PMSDashboard() {
       }
     }
     return rt.default_rate || null;
-  }, [portfolioDataByProperty]);
+  }, [portfolioDataByProperty, authoredSeasonRates]);
 
   // Group rooms by room type
   const roomsByType = useMemo(() => {
@@ -1601,6 +1627,18 @@ export default function PMSDashboard() {
   // Get rate for a room type on a date
   const getRateForDate = (roomTypeId: string, date: Date): number | null => {
     const dateStr = format(date, "yyyy-MM-dd");
+    // 0. Rate Plans authored season rate wins — it is the sole author of nightly rates
+    const authoredRoomType = roomTypes.find(t => t.id === roomTypeId);
+    const authoredSeasonId = findCalendarSeasonIdForDate((propertyData as any)?.amenities, dateStr);
+    const authoredAmount = authoredRateFor(
+      authoredSeasonRates,
+      propertyId,
+      authoredSeasonId,
+      roomTypeId,
+      authoredRoomType?.name,
+    );
+    if (authoredAmount != null) return authoredAmount;
+
     // 1. Check rolos seasonal prices first
     for (const season of rateSeasons) {
       if (dateStr >= season.start_date && dateStr <= season.end_date) {
@@ -1639,7 +1677,8 @@ export default function PMSDashboard() {
             const linkedPlanIds = ratePlanRoomLinks
               .filter(l => l.room_type_id === roomTypeId)
               .map(l => l.rate_plan_id);
-            const ratePlanId = linkedPlanIds[0] || '';
+            const preferredPlanIds = authoredSeasonRates.planIdsByProperty.get(propertyId || "") || [];
+            const ratePlanId = preferredPlanIds.find(id => linkedPlanIds.includes(id)) || linkedPlanIds[0] || '';
             
             let seasonRate = roomSeasonRates[`${season.id}-${ratePlanId}`]
               || roomSeasonRates[`${season.id}-Self Catering`]
