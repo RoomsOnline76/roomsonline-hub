@@ -171,6 +171,70 @@ Deno.test("rolModifyQuote: a pax change that misses the cell falls back to night
   assertEquals(out.total, 3000);
 });
 
+Deno.test("rolModifyQuote: a rung policy travels with the quote", async () => {
+  const resolver = await resolverFor(tablesFor({
+    los_enabled: true,
+    rungs: [{
+      rate_plan_id: PLAN_ID,
+      room_type_id: null,
+      calendar_season_id: SEASON_ID,
+      start_date: null,
+      end_date: null,
+      nights: 3,
+      derivation_type: "percent",
+      derivation_value: -10,
+      is_pinned: false,
+      pinned_rate: null,
+      policy_id: "policy-flexi",
+    }],
+  }));
+  const out = rolModifyQuote(resolver, unit, stay, PLAN_ID)!;
+  assertEquals(out.policy_id, "policy-flexi");
+});
+
+Deno.test("rolModifyQuote: a rung without a policy inherits (null)", async () => {
+  const resolver = await resolverFor(tablesFor({
+    los_enabled: true,
+    rungs: [{
+      rate_plan_id: PLAN_ID,
+      room_type_id: null,
+      calendar_season_id: SEASON_ID,
+      start_date: null,
+      end_date: null,
+      nights: 3,
+      derivation_type: "percent",
+      derivation_value: -10,
+      is_pinned: false,
+      pinned_rate: null,
+    }],
+  }));
+  const out = rolModifyQuote(resolver, unit, stay, PLAN_ID)!;
+  assertEquals(out.policy_id, null);
+});
+
+Deno.test("rolModifyQuote: an FSP cell policy travels with the quote", async () => {
+  const resolver = await resolverFor(tablesFor({
+    fsp_enabled: true,
+    cells: [{
+      rate_plan_id: PLAN_ID,
+      room_type_id: null,
+      calendar_season_id: SEASON_ID,
+      start_date: null,
+      end_date: null,
+      nights: 3,
+      nr_of_guests: 2,
+      derivation_type: null,
+      derivation_value: null,
+      is_pinned: true,
+      pinned_total: 2400,
+      policy_id: "policy-strict",
+    }],
+  }));
+  const out = rolModifyQuote(resolver, unit, stay, PLAN_ID)!;
+  assertEquals(out.shape, "full_stay");
+  assertEquals(out.policy_id, "policy-strict");
+});
+
 Deno.test("rolModifyQuote: an unpriced stay returns null", async () => {
   const resolver = await resolverFor(tablesFor({ seasonRate: null }));
   const out = rolModifyQuote(
