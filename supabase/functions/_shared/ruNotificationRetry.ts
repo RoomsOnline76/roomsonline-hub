@@ -15,6 +15,17 @@ export const RU_RETRY_BACKOFF_MINUTES = [0.5, 3, 10, 30, 120];
 
 export const MAX_RU_RETRY_ATTEMPTS = RU_RETRY_BACKOFF_MINUTES.length;
 
+/** Event types this sweep must never replay — they have their own scheduler and budget. */
+export const SWEEP_EXCLUDED_EVENTS = ['stale_hold_verify'] as const;
+
+/**
+ * The channel says the reservation is not there. The lookup already asked every account that
+ * can authenticate, so this is an answer, not a miss — retrying it only makes noise.
+ */
+function isDefinitiveAbsence(message: string | null | undefined): boolean {
+  return /does not exist|not found in/i.test(String(message ?? ''));
+}
+
 /** The RU `Creator` login on the stored envelope — the best hint at the owning sub-account. */
 function creatorFromXml(xml: string | null): string | null {
   const match = /<Creator>([^<]+)<\/Creator>/i.exec(xml || '');
@@ -92,6 +103,10 @@ export async function sweepRuNotificationRetries(
     .from('ru_notifications')
     .select('id, ru_reservation_id, property_id, attempt_count, event_type, resolved_owner_id, raw_xml')
     .eq('resolution_state', 'retrying')
+    // Stale-hold verifications are owned by the stale-hold sweep, which has its own 90-minute
+    // cooldown and budget. Replaying them here asked the channel about the same dead
+    // reservation on every account, every ten minutes, forever.
+    .not('event_type', 'in', `(${SWEEP_EXCLUDED_EVENTS.map((e) => `"${e}"`).join(',')})`)
     .lte('next_attempt_at', new Date().toISOString())
     .order('next_attempt_at', { ascending: true })
     .limit(limit);
@@ -147,7 +162,10 @@ export async function sweepRuNotificationRetries(
         continue;
       }
       const state = await scheduleRuNotificationRetry(supabase, row.id, {
-        attemptCount: row.attempt_count ?? 0,
+        attemptCount:
+          refreshed.rateDeferred !== true && isDefinitiveAbsence(refreshed.error)
+            ? MAX_RU_RETRY_ATTEMPTS
+            : (row.attempt_count ?? 0),
         error: refreshed.error ?? `Ingest outcome: ${refreshed.outcome}`,
         freeAttempt: refreshed.rateDeferred === true,
         ownerId: refreshed.resolvedOwnerId ?? row.resolved_owner_id,
