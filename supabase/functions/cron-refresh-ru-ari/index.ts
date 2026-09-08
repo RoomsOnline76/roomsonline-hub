@@ -88,8 +88,11 @@ Deno.serve(async (req) => {
     // every single night, leaving part of the calendar unrefreshed. Above this many units the
     // refresh is split into unit-scoped batches parked on the call queue, which the drainer replays
     // at its own pace, so each batch is a short call that completes.
-    const UNITS_PER_BATCH = 6;
-    const BATCH_ABOVE_UNITS = 8;
+    // Measured live on 2026-09-08: a 6-unit batch still ran past the 150s limit, so keep batches
+    // small enough that one always completes well inside a single function lifetime.
+    const UNITS_PER_BATCH = 3;
+    const BATCH_ABOVE_UNITS = 4;
+
 
     const { data: activeUnits } = await supabase
       .from('hostfully_room_types')
